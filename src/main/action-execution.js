@@ -50,7 +50,7 @@ function ownLaunch(launch) {
  * inherited environment is used. Child output is counted, never returned.
  * @param {string} policyPath Explicit selected policy file.
  * @param {string} requestPath Explicit selected request file.
- * @param {{signal?: AbortSignal, binding?: object, approval?: object, protectedDescendants?: boolean, appContainer?: boolean, importInput?: object}} [options] Owned cancellation, revision, one-use approval and Windows Job opt-in.
+ * @param {{signal?: AbortSignal, binding?: object, approval?: object, protectedDescendants?: boolean, appContainer?: boolean, importInput?: object, executableSnapshot?: object}} [options] Owned cancellation, revision, one-use approval and Windows Job opt-in.
  * @returns {Promise<object>} Fixed decision and direct-child outcome metadata.
  * @since v0.15.1
  */
@@ -58,12 +58,14 @@ async function executeAction(policyPath, requestPath, options = {}) {
   const { signal, binding, approval } = options;
   const appContainer = options.appContainer === true;
   const input = options.importInput || null;
+  const suppliedExecutable = options.executableSnapshot || null;
   const protectedJob = appContainer || options.protectedDescendants === true;
   const protection = { appContainer, protectedDescendants: protectedJob, importInput: !!input };
   const localReport = (decision, reason, execution) =>
     actionReport(decision, reason, execution, protection);
   const pinned = Object.hasOwn(options, 'binding');
   const approved = Object.hasOwn(options, 'approval');
+  if (appContainer && !approved) return localReport('deny', 'approval-unavailable');
   if (
     ['protectedDescendants', 'appContainer'].some(
       (key) => Object.hasOwn(options, key) && typeof options[key] !== 'boolean',
@@ -79,11 +81,15 @@ async function executeAction(policyPath, requestPath, options = {}) {
     return localReport('deny', 'protected-runtime-unsupported');
   if (input && (!appContainer || !approved || !Object.isFrozen(input)))
     return localReport('deny', 'input-unavailable');
+  if (suppliedExecutable && (!appContainer || !approved || !Object.isFrozen(suppliedExecutable)))
+    return localReport('deny', 'executable-unavailable');
+  if (appContainer && approved && !suppliedExecutable)
+    return localReport('deny', 'executable-unavailable');
   if (signal?.aborted) return localReport('deny', 'action-cancelled');
   if (
     approved &&
     (!pinned ||
-      !isExecutionApprovalActive(approval, binding, input) ||
+      !isExecutionApprovalActive(approval, binding, input, suppliedExecutable) ||
       !require('./execution-binding').isExecutionBindingActive(binding, policyPath, requestPath))
   )
     return localReport('deny', 'approval-unavailable');
@@ -148,10 +154,15 @@ async function executeAction(policyPath, requestPath, options = {}) {
     return localReport('deny', 'configuration-changed');
   if (signal?.aborted) return localReport('deny', 'action-cancelled');
   if (now() - started >= LIMITS.prepareMs) return localReport('deny', 'preparation-unavailable');
-  if (approved && !consumeExecutionApproval(approval, binding, input))
+  const executableSnapshot = suppliedExecutable;
+  if (appContainer && executableSnapshot.path !== launch.executable)
+    return localReport('deny', 'executable-unavailable');
+  if (signal?.aborted) return localReport('deny', 'action-cancelled');
+  if (approved && !consumeExecutionApproval(approval, binding, input, executableSnapshot))
     return localReport('deny', 'approval-unavailable');
 
   if (input) launch.input = input;
+  if (executableSnapshot) launch.executableSnapshot = executableSnapshot;
 
   if (protectedJob)
     return runProtectedAction(

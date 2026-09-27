@@ -27,8 +27,17 @@ internal static class Program
             bool action, isolated, imported;
             string inputPath, inputHash;
             int inputSize;
+            string executableHash;
+            int executableSize;
             ReadLaunch(controlIn, out executable, out cwd, out args, out environment,
-                out action, out isolated, out imported, out inputPath, out inputSize, out inputHash);
+                out action, out isolated, out imported, out inputPath, out inputSize, out inputHash,
+                out executableSize, out executableHash);
+#if APPCONTAINER_TEST
+            if (isolated && Path.GetFileName(executable) == "mapped-executable.exe")
+                AppContainerExecutable.DriveTypeForTest = delegate(string root) { return 4; };
+#endif
+            using (AppContainerExecutable.PinnedFile pinnedExecutable = isolated
+                ? AppContainerExecutable.Open(executable, executableSize, executableHash) : null)
             using (AppContainerProfile profile = isolated ? AppContainerProfile.Create() : null)
             using (AppContainerWorkspace workspace = isolated
                 ? AppContainerWorkspace.Create(cwd, profile.Sid) : null)
@@ -55,7 +64,8 @@ internal static class Program
                 throw new InvalidOperationException("launch-cancelled");
             }
             Native.Session started;
-            try { started = Native.Start(executable, cwd, args, environment, profile, importedFile); }
+            try { started = Native.Start(executable, cwd, args, environment, profile, importedFile,
+                pinnedExecutable); }
             catch
             {
                 if (importedFile != null && !importedFile.Remove())
@@ -202,7 +212,8 @@ internal static class Program
 
     private static void ReadLaunch(Stream input, out string executable, out string cwd,
         out string[] args, out string environment, out bool action, out bool isolated,
-        out bool imported, out string inputPath, out int inputSize, out string inputHash)
+        out bool imported, out string inputPath, out int inputSize, out string inputHash,
+        out int executableSize, out string executableHash)
     {
         using (MemoryStream bytes = new MemoryStream())
         {
@@ -217,7 +228,7 @@ internal static class Program
             JavaScriptSerializer serializer = new JavaScriptSerializer();
             serializer.MaxJsonLength = MaxLaunchBytes;
             Dictionary<string, object> launch = serializer.DeserializeObject(json) as Dictionary<string, object>;
-            if (launch == null || (launch.Count != 4 && launch.Count != 5 && launch.Count != 6))
+            if (launch == null || launch.Count < 4 || launch.Count > 7)
                 throw new InvalidDataException();
             action = false;
             isolated = false;
@@ -225,6 +236,8 @@ internal static class Program
             inputPath = null;
             inputSize = 0;
             inputHash = null;
+            executableSize = 0;
+            executableHash = null;
             if (launch.Count >= 5)
             {
                 object purpose;
@@ -236,7 +249,20 @@ internal static class Program
                 action = true;
                 isolated = (purpose as string) != "action";
                 imported = (purpose as string) == "appcontainer-action-import";
-                if (imported != (launch.Count == 6)) throw new InvalidDataException();
+                if (launch.Count != (imported ? 7 : isolated ? 6 : 5))
+                    throw new InvalidDataException();
+                if (isolated)
+                {
+                    Dictionary<string, object> descriptor =
+                        launch["executableSnapshot"] as Dictionary<string, object>;
+                    if (descriptor == null || descriptor.Count != 3 ||
+                        !(descriptor["size"] is int)) throw new InvalidDataException();
+                    executableSize = (int)descriptor["size"];
+                    executableHash = StringField(descriptor, "sha256");
+                    if (!string.Equals(StringField(descriptor, "path"),
+                        StringField(launch, "executable"), StringComparison.Ordinal))
+                        throw new InvalidDataException();
+                }
                 if (imported)
                 {
                     Dictionary<string, object> descriptor = launch["input"] as Dictionary<string, object>;

@@ -129,10 +129,46 @@ function alive(pid) {
 async function nativeImportAttempt(input, directory = cwd) {
   const chosen = selected(probe, ['child', privateFile], directory);
   const launch = JSON.parse(fs.readFileSync(chosen.request, 'utf8')).action;
-  const peer = spawnActionInAppContainer({ ...launch, input }, helper);
+  const peer = spawnActionInAppContainer(
+    {
+      ...launch,
+      input,
+      executableSnapshot: {
+        path: probe,
+        size: fs.statSync(probe).size,
+        sha256: createHash('sha256').update(fs.readFileSync(probe)).digest('hex'),
+      },
+    },
+    helper,
+  );
   peer.on('error', () => {});
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('native import timeout')), 12000);
+    peer.once('close', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+  return peer;
+}
+async function nativeExecutableAttempt(executable, changes = {}, directory = cwd) {
+  const chosen = selected(executable, ['child', privateFile], directory);
+  const launch = JSON.parse(fs.readFileSync(chosen.request, 'utf8')).action;
+  const peer = spawnActionInAppContainer(
+    {
+      ...launch,
+      executableSnapshot: {
+        path: executable,
+        size: fs.statSync(probe).size,
+        sha256: createHash('sha256').update(fs.readFileSync(probe)).digest('hex'),
+        ...changes,
+      },
+    },
+    helper,
+  );
+  peer.on('error', () => {});
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('native executable timeout')), 12000);
     peer.once('close', () => {
       clearTimeout(timeout);
       resolve();
@@ -266,6 +302,112 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
     });
 
     expect(fs.existsSync(cwd)).toBe(true);
+  }, 15000);
+
+  it('refuses an executable changed during terminal review before the child starts', async () => {
+    const chosen = selected(probe, ['child', privateFile]);
+    const privateDigest = createHash('sha256').update(fs.readFileSync(probe)).digest('hex');
+    confirmation._setDepsForTest({
+      available: () => true,
+      confirm: async (preview) => {
+        expect(JSON.stringify(preview)).not.toContain(privateDigest);
+        fs.appendFileSync(probe, Buffer.from('changed-after-review'));
+        return true;
+      },
+      watchTerminal: () => () => {},
+      monitorInput: () => () => {},
+    });
+    const result = await confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+      appContainer: true,
+    });
+    expect(result.execution.state).not.toBe('exited');
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(probe);
+  }, 15000);
+
+  it('stops a suspended child when the native image identity check disagrees', async () => {
+    const mismatch = path.join(root, 'bin', 'image-mismatch-probe.exe');
+    fs.copyFileSync(probe, mismatch);
+    acl(mismatch, '(RX)');
+    const chosen = selected(mismatch, ['child', privateFile]);
+    const result = await confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+      appContainer: true,
+    });
+    expect(result.execution.state).not.toBe('exited');
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(mismatch);
+  }, 15000);
+
+  it('stops a suspended child when the native image path differs only by case', async () => {
+    const mismatch = path.join(root, 'bin', 'image-case-mismatch-probe.exe');
+    fs.copyFileSync(probe, mismatch);
+    acl(mismatch, '(RX)');
+    const chosen = selected(mismatch, ['child', privateFile]);
+    const result = await confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+      appContainer: true,
+    });
+    expect(result.execution.state).not.toBe('exited');
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(mismatch);
+  }, 15000);
+
+  it('native owner rejects an isolated frame without the executable descriptor', async () => {
+    const chosen = selected(probe, ['child', privateFile]);
+    const launch = JSON.parse(fs.readFileSync(chosen.request, 'utf8')).action;
+    const child = spawn(helper, [], {
+      cwd: helperRoot,
+      env: { SystemRoot: process.env.SystemRoot || process.env.SYSTEMROOT },
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (chunk) => {
+      output += chunk.toString('ascii');
+    });
+    child.stdin.end(JSON.stringify({ ...launch, purpose: 'appcontainer-action' }) + '\n');
+    const exit = await new Promise((resolve) => child.once('close', resolve));
+    expect(exit).toBe(2);
+    expect(output).toBe('F');
+    expect(fs.existsSync(cwd)).toBe(false);
+  }, 15000);
+
+  it('native owner refuses unsafe executable paths and a stale approved digest', async () => {
+    const link = path.join(root, 'linked-bin');
+    fs.symlinkSync(path.dirname(probe), link, 'junction');
+    const leaf = path.join(root, 'bin', 'linked-probe.exe');
+    fs.symlinkSync(probe, leaf, 'file');
+    const mapped = path.join(root, 'bin', 'mapped-executable.exe');
+    fs.copyFileSync(probe, mapped);
+    const invalid = [
+      ['\\\\server\\share\\probe.exe', {}],
+      [probe + ':stream', {}],
+      [path.join(link, path.basename(probe)), {}],
+      [leaf, {}],
+      [mapped, {}],
+      [probe, { sha256: '0'.repeat(64) }],
+    ];
+    for (const [index, [executable, changes]] of invalid.entries()) {
+      const directory = path.join(root, `rejected-exe-${index}`);
+      const peer = await nativeExecutableAttempt(executable, changes, directory);
+      expect(peer.cleanupConfirmed).toBe(false);
+      expect(peer.actionOutcome).toBeNull();
+      expect(fs.existsSync(directory)).toBe(false);
+    }
+    await expect(nativeExecutableAttempt(probe, { size: 128 * 1024 * 1024 + 1 })).rejects.toThrow(
+      'gateway-protected-launch-unavailable',
+    );
+    expect(fs.existsSync(cwd)).toBe(false);
+  }, 30000);
+
+  it('native owner refuses an executable with an existing writer', async () => {
+    const writer = fs.openSync(probe, 'r+');
+    try {
+      const peer = await nativeExecutableAttempt(probe);
+      expect(peer.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(false);
+    } finally {
+      fs.closeSync(writer);
+    }
   }, 15000);
 
   it('imports only the approved bytes before launch while the original and loopback stay restricted', async () => {
@@ -599,7 +741,15 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
         });
       });
       helperProcess.stdin.write(
-        JSON.stringify({ ...launch, purpose: 'appcontainer-action' }) + '\n',
+        JSON.stringify({
+          ...launch,
+          purpose: 'appcontainer-action',
+          executableSnapshot: {
+            path: probe,
+            size: fs.statSync(probe).size,
+            sha256: createHash('sha256').update(fs.readFileSync(probe)).digest('hex'),
+          },
+        }) + '\n',
       );
       expect((await ready).toString('ascii')).toBe('S');
       await vi.waitFor(() => expect(fs.existsSync(path.join(cwd, 'running.txt'))).toBe(true), {

@@ -78,6 +78,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
   const stopWatching = (deps.watchTerminal || terminal.watchTerminalLifetime)(abort);
   let binding;
   let approval;
+  let executableSnapshot;
   let stopReading = () => {};
   let delegated = false;
   try {
@@ -98,6 +99,11 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
     Object.freeze(launch.args);
     Object.freeze(launch.env);
     Object.freeze(launch);
+    executableSnapshot = appContainer
+      ? await require('./action-executable-snapshot').captureExecutableSnapshot(launch.executable, {
+          signal: controller.signal,
+        })
+      : null;
     const input = importInput
       ? require('./action-input-snapshot').captureInputSnapshot(inputFile)
       : null;
@@ -126,7 +132,11 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
     if (confirmed !== true || now() - reviewStarted >= LIMITS.reviewMs || controller.signal.aborted)
       return refuse('confirmation-denied');
     stopReading = (deps.monitorInput || terminal.monitorTerminalInput)(abort);
-    approval = require('./execution-approval').createExecutionApproval(binding, input);
+    approval = require('./execution-approval').createExecutionApproval(
+      binding,
+      input,
+      executableSnapshot,
+    );
     delegated = true;
     return await executeAction(policyPath, requestPath, {
       binding,
@@ -134,6 +144,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
       signal: controller.signal,
       protectedDescendants,
       ...(appContainer ? { appContainer } : {}),
+      ...(executableSnapshot ? { executableSnapshot } : {}),
       ...(input ? { importInput: input } : {}),
     });
   } catch {
