@@ -68,6 +68,7 @@
   const prefix = $props.id();
   let section = $state('risk');
   let riskOpen = $state(true);
+  let processInformationOpen = $state(false);
   let tabs = $derived([
     { id: 'risk', label: 'Risk', icon: 'shield' },
     { id: 'resources', label: 'Resources', icon: 'chart' },
@@ -81,8 +82,10 @@
   ]);
   let lastRequest = -1;
   function selectSection(id: string) {
-    section = tabs.some((tab) => tab.id === id) ? id : 'risk';
+    section =
+      id === 'process-controls' ? 'processes' : tabs.some((tab) => tab.id === id) ? id : 'risk';
     if (section === 'risk') riskOpen = true;
+    if (id === 'process-controls') processInformationOpen = true;
   }
   $effect(() => {
     if (visible && sectionRequest && sectionRequest.revision !== lastRequest) {
@@ -203,7 +206,7 @@
   >
     <AgentProcesses {telemetry} {scope} {change} />
     {#if process}
-      <details class="process-information panel">
+      <details class="process-information panel" bind:open={processInformationOpen}>
         <summary>{$t('Process attributes and controls')}</summary>
         <div class="process-information-body">
           <DetailSummary row={subject} {telemetry} section="attributes" />

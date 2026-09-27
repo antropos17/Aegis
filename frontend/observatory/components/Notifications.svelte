@@ -10,6 +10,7 @@
   import { createAnomalyToastTracker } from '../../../src/renderer/lib/utils/anomaly-toast-tracker';
   import {
     alertBasename,
+    alertControlTarget,
     createSensitiveAlertTracker,
     type SensitiveAlert,
   } from '../runtime/sensitive-alerts';
@@ -72,6 +73,12 @@
     await closeCenter();
     onInspect?.(alertBasename(item.event.file), item.event as unknown as RecordData);
   }
+  async function openProcessControls(item: SensitiveAlert) {
+    const target = alertControlTarget(item.event, telemetry);
+    if (!target || !onInspect) return;
+    await closeCenter();
+    onInspect(target.agent, { ...target, detailSection: 'process-controls' });
+  }
 </script>
 
 <button
@@ -90,6 +97,8 @@
     {evicted}
     onReview={(id, reviewed) => (alerts = sensitiveTracker.setReviewed(id, reviewed))}
     onInspect={onInspect ? openEvidence : undefined}
+    canOpenProcess={(item) => Boolean(onInspect && alertControlTarget(item.event, telemetry))}
+    onOpenProcess={openProcessControls}
     onClose={closeCenter}
   />
 {/if}

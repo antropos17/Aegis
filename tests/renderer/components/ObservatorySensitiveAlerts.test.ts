@@ -2,9 +2,11 @@ import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { FileEvent } from '../../../src/shared/types';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
+import AgentWorkspace from '../../../frontend/observatory/components/AgentWorkspace.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 import {
   alertBasename,
+  alertControlTarget,
   createSensitiveAlertTracker,
 } from '../../../frontend/observatory/runtime/sensitive-alerts';
 
@@ -47,6 +49,64 @@ it('seeds existing observations quietly, then tracks only new sensitive rows wit
   expect(alertBasename('C:\\work\\.env')).toBe('.env');
 });
 
+it('orders a mixed delivery by recorded observation time', () => {
+  const tracker = createSensitiveAlertTracker();
+  const delivery = tracker.ingest([event(3), event(1), event(2)]);
+  expect(delivery.items.map((item) => item.event.timestamp)).toEqual([3, 2, 1]);
+});
+
+it('offers process controls only for one live, confirmed, witness-bound identity', async () => {
+  const observed = event(5);
+  const agent = {
+    agent: 'Claude',
+    process: 'claude.exe',
+    pid: 42,
+    status: 'running' as const,
+    category: 'ai',
+    instanceId: '42:start',
+    instanceIdSource: 'os' as const,
+    generationWitness: '123',
+    generationWitnessSource: 'sequence' as const,
+  };
+  const telemetry = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    agents: [agent],
+    events: [observed],
+  };
+  expect(alertControlTarget(observed, telemetry)).toBe(agent);
+  expect(
+    alertControlTarget(
+      { ...observed, attribution: { status: 'inferred', evidence: [] } },
+      telemetry,
+    ),
+  ).toBeNull();
+  expect(alertControlTarget(observed, { ...telemetry, stale: true })).toBeNull();
+  expect(alertControlTarget(observed, { ...telemetry, agents: [agent, agent] })).toBeNull();
+  const onInspect = vi.fn();
+  render(Notifications, { telemetry, onInspect });
+  await fireEvent.click(screen.getByRole('button', { name: /Sensitive activity review/ }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Open process controls' }));
+  expect(onInspect).toHaveBeenCalledWith('Claude', {
+    ...agent,
+    detailSection: 'process-controls',
+  });
+  render(AgentWorkspace, {
+    telemetry,
+    liveTelemetry: telemetry,
+    host: null,
+    scope: { agent: 'Claude', instanceId: '42:start' },
+    change: vi.fn(),
+    inspect: vi.fn(),
+    navigate: vi.fn(),
+    sectionRequest: { id: 'process-controls', revision: 1 },
+  });
+  expect(screen.getByText('Process attributes and controls').closest('details')).toHaveAttribute(
+    'open',
+  );
+});
+
 it('shows a bottom alert with attribution caveat and offers session review without claiming access denial', async () => {
   const initial = { ...emptyTelemetry(), ready: true, stale: false, events: [] };
   const mounted = render(Notifications, { telemetry: initial });
@@ -64,6 +124,7 @@ it('shows a bottom alert with attribution caveat and offers session review witho
   expect(within(dialog).getByText(/Handle present; read not established/)).toBeInTheDocument();
   await fireEvent.click(within(dialog).getByRole('button', { name: 'Mark reviewed' }));
   expect(within(dialog).getByText('0 need review')).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Needs review' })).toHaveFocus();
   expect(
     screen.getByRole('button', { name: /Sensitive activity review · 0 need review/ }),
   ).toBeInTheDocument();

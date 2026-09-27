@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { t } from '../runtime/i18n';
   import type { SensitiveAlert } from '../runtime/sensitive-alerts';
   import { alertBasename } from '../runtime/sensitive-alerts';
@@ -10,16 +10,22 @@
     evicted,
     onReview,
     onInspect,
+    canOpenProcess,
+    onOpenProcess,
     onClose,
   }: {
     items: SensitiveAlert[];
     evicted: number;
     onReview: (_id: number, _reviewed: boolean) => void;
     onInspect?: (_item: SensitiveAlert) => void;
+    canOpenProcess?: (_item: SensitiveAlert) => boolean;
+    onOpenProcess?: (_item: SensitiveAlert) => void;
     onClose: () => void;
   } = $props();
   let filter = $state<'open' | 'all'>('open');
   let heading: HTMLHeadingElement;
+  let openFilterButton: HTMLButtonElement;
+  let list: HTMLUListElement;
   const openCount = $derived(items.filter((item) => !item.reviewed).length);
   const visible = $derived(filter === 'open' ? items.filter((item) => !item.reviewed) : items);
   onMount(() => heading?.focus({ preventScroll: true }));
@@ -31,6 +37,16 @@
     if (agent && attribution?.status === 'inferred')
       return $t('Possible source: {value0}', { value0: agent });
     return $t('Source unverified');
+  }
+
+  async function review(item: SensitiveAlert): Promise<void> {
+    const removedFromView = filter === 'open' && !item.reviewed;
+    const index = visible.findIndex((row) => row.id === item.id);
+    onReview(item.id, !item.reviewed);
+    if (!removedFromView) return;
+    await tick();
+    const buttons = list.querySelectorAll<HTMLButtonElement>('button[data-review-action]');
+    (buttons[Math.min(index, buttons.length - 1)] ?? openFilterButton)?.focus();
   }
 </script>
 
@@ -67,14 +83,16 @@
     </p>
   {/if}
   <div class="filters" role="group" aria-label={$t('Alert filters')}>
-    <button aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}
-      >{$t('Needs review')}</button
+    <button
+      bind:this={openFilterButton}
+      aria-pressed={filter === 'open'}
+      onclick={() => (filter = 'open')}>{$t('Needs review')}</button
     >
     <button aria-pressed={filter === 'all'} onclick={() => (filter = 'all')}
       >{$t('All received')}</button
     >
   </div>
-  <ul>
+  <ul bind:this={list}>
     {#each visible as item (item.id)}
       <li class:reviewed={item.reviewed}>
         <div class="record-head">
@@ -103,7 +121,12 @@
           {#if onInspect}
             <button class="review" onclick={() => onInspect(item)}>{$t('Open evidence')}</button>
           {/if}
-          <button class="review" onclick={() => onReview(item.id, !item.reviewed)}
+          {#if onOpenProcess && canOpenProcess?.(item)}
+            <button class="review" onclick={() => onOpenProcess(item)}
+              >{$t('Open process controls')}</button
+            >
+          {/if}
+          <button class="review" data-review-action onclick={() => review(item)}
             >{item.reviewed ? $t('Return to review') : $t('Mark reviewed')}</button
           >
         </div>

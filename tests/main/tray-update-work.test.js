@@ -79,7 +79,7 @@ describe('tray update work', () => {
       tray.updateTrayIcon();
       expect(state.currentTrayColor).toBe(color);
       expect(state.tray.setToolTip).toHaveBeenLastCalledWith(
-        expect.stringContaining(`${next} sensitive alerts`),
+        expect.stringContaining(`${next} retained sensitive observations`),
       );
     }
     expect(menu).toHaveBeenCalledTimes(1);

@@ -1,4 +1,5 @@
-import type { FileEvent } from '../../../src/shared/types';
+import type { DetectedAgent, FileEvent } from '../../../src/shared/types';
+import { actionTarget, type Telemetry } from './host';
 
 export interface SensitiveAlert {
   readonly id: number;
@@ -15,6 +16,14 @@ export interface SensitiveAlertDelivery {
 export interface SensitiveAlertTracker {
   ingest(events: readonly FileEvent[]): SensitiveAlertDelivery;
   setReviewed(id: number, reviewed: boolean): SensitiveAlert[];
+}
+
+function observedAt(item: SensitiveAlert): number {
+  return Number.isFinite(item.event.timestamp) ? item.event.timestamp : Number.NEGATIVE_INFINITY;
+}
+
+function newestFirst(left: SensitiveAlert, right: SensitiveAlert): number {
+  return observedAt(right) - observedAt(left) || right.id - left.id;
 }
 
 /** Keep a bounded review list for events delivered to this renderer window.
@@ -40,9 +49,11 @@ export function createSensitiveAlertTracker(capacity = 100): SensitiveAlertTrack
         if (event.sensitive === true) added.push({ id: nextId++, event, reviewed: false });
       }
       if (added.length) {
-        const combined = [...added].reverse().concat(items);
+        // Arrival wins the capacity boundary; display order follows the recorded
+        // observation time, which can differ from the order of a batched push.
+        const combined = [...added].sort(newestFirst).concat(items);
         evicted += Math.max(0, combined.length - capacity);
-        items = combined.slice(0, capacity);
+        items = combined.slice(0, capacity).sort(newestFirst);
       }
       const fresh = initialized ? added : [];
       initialized = true;
@@ -63,4 +74,31 @@ export function createSensitiveAlertTracker(capacity = 100): SensitiveAlertTrack
  */
 export function alertBasename(path: string): string {
   return path.split(/[/\\]/).filter(Boolean).at(-1) || path || 'Unknown file';
+}
+
+/** Link a confirmed observation only to its uniquely matched, currently controllable process.
+ * @param event Sensitive observation @param state Latest live telemetry @returns Current process or null @since 0.17.0
+ */
+export function alertControlTarget(event: FileEvent, state: Telemetry): DetectedAgent | null {
+  if (
+    event.attribution?.status !== 'confirmed' ||
+    event.selfAccess === true ||
+    typeof event.instanceId !== 'string' ||
+    !event.agent ||
+    !Number.isInteger(event.pid) ||
+    (event.pid ?? 0) <= 0
+  )
+    return null;
+  const matches = state.agents.filter(
+    (agent) =>
+      agent.instanceId === event.instanceId &&
+      agent.pid === event.pid &&
+      agent.agent === event.agent,
+  );
+  if (matches.length !== 1) return null;
+  try {
+    return actionTarget(state, event.instanceId) === matches[0] ? matches[0] : null;
+  } catch {
+    return null;
+  }
 }
