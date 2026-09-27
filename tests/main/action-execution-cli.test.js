@@ -79,6 +79,74 @@ function protectedPreload(helper) {
 }
 
 describe('explicit action execution Node entry', () => {
+  it.each(['confirmed', 'unconfirmed'])(
+    'requires %s Job cleanup in the terminal confirmation route',
+    async (descendantControl) => {
+      const api = require('../../src/main/action-confirmation');
+      const confirm = vi.spyOn(api, 'confirmSelectedAction').mockResolvedValue({
+        decision: 'allow',
+        execution: { state: 'exited', exitCode: 0, outputComplete: true },
+        control: 'windows-job',
+        descendantControl,
+      });
+      const listeners = ['SIGINT', 'SIGTERM'].map((name) => process.listenerCount(name));
+      try {
+        const code = await require('../../src/main/action-execution-cli').handleActionExecutionCLI(
+          ['--action-exec-windows-job-confirm', policyPath, requestPath],
+          () => {},
+        );
+        expect(confirm).toHaveBeenCalledWith(policyPath, requestPath, {
+          signal: expect.any(AbortSignal),
+          protectedDescendants: true,
+        });
+        expect(code).toBe(descendantControl === 'confirmed' ? 0 : 2);
+        expect(['SIGINT', 'SIGTERM'].map((name) => process.listenerCount(name))).toEqual(listeners);
+      } finally {
+        confirm.mockRestore();
+      }
+    },
+  );
+
+  it('keeps the protected confirmation exception private and cleanup unconfirmed', async () => {
+    const api = require('../../src/main/action-confirmation');
+    const confirm = vi
+      .spyOn(api, 'confirmSelectedAction')
+      .mockRejectedValue(Error('PRIVATE_FAILURE'));
+    const output = [];
+    const listeners = ['SIGINT', 'SIGTERM'].map((name) => process.listenerCount(name));
+    try {
+      const code = await require('../../src/main/action-execution-cli').handleActionExecutionCLI(
+        ['--action-exec-windows-job-confirm', policyPath, requestPath],
+        (line) => output.push(line),
+      );
+      expect(code).toBe(2);
+      expect(output).toHaveLength(1);
+      expect(output[0]).not.toContain('PRIVATE');
+      expect(JSON.parse(output[0])).toMatchObject({
+        decision: 'unknown',
+        control: 'windows-job',
+        descendantControl: 'unconfirmed',
+        execution: { state: 'unknown', termination: 'unconfirmed' },
+      });
+      expect(['SIGINT', 'SIGTERM'].map((name) => process.listenerCount(name))).toEqual(listeners);
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it('routes protected confirmation before Electron and refuses noninteractive input', () => {
+    prepare('ask');
+    const result = launch(['--action-exec-windows-job-confirm', policyPath, requestPath]);
+    expect(result.code).toBe(2);
+    expect(result.report).toMatchObject({
+      decision: 'deny',
+      control: 'windows-job',
+      descendantControl: 'not-started',
+      execution: { state: 'not-started' },
+    });
+    expect(fs.existsSync(sentinel)).toBe(false);
+  });
+
   it('passes an explicit protected request only to the Windows Job owner', async () => {
     const api = require('../../src/main/action-execution');
     const execute = vi.spyOn(api, 'executeAction').mockResolvedValue({

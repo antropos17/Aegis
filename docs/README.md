@@ -18,6 +18,10 @@ check its [release tag](https://github.com/antropos17/Aegis/releases).
 
 ## Configure selected actions
 
+For fresh approval before one Windows launch with Job-member cleanup, see
+[terminal confirmation](ACTION-CONFIRMATION.md). File/network isolation is tracked
+separately in the [protected-launch plan](roadmap/protected-launch.md).
+
 These opt-in routes need explicit setup. They do not intercept every agent command
 or provide OS isolation. An action catalog contains executable actions; the
 desktop's agent catalog contains recognition signatures.

@@ -36,6 +36,7 @@ Options:
   --action-delete-file-confirm <policy.json> <request.json>  Confirm one exact regular-file deletion
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
   --action-exec-windows-job-json <policy.json> <request.json>  Run one allowed action with Windows Job cleanup for ordinary descendants
+  --action-exec-windows-job-confirm <policy.json> <request.json>  Confirm one launch with Windows Job cleanup; no file/network isolation
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
@@ -157,7 +158,8 @@ async function handleCLI(argv) {
   if (
     flag === '--action-exec-json' ||
     flag === '--action-exec-confirm' ||
-    flag === '--action-exec-windows-job-json'
+    flag === '--action-exec-windows-job-json' ||
+    flag === '--action-exec-windows-job-confirm'
   )
     return require('./action-execution-cli').handleActionExecutionCLI(args, write);
   if (flag === '--action-delete-file-confirm')
