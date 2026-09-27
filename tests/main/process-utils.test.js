@@ -19,6 +19,7 @@ describe('process-utils', () => {
       // on a platform that supplies an OS birth time. Both settings are exercised
       // deterministically — see the `providesStartTime: false` describe at the end.
       providesStartTime: true,
+      cwdGenerationProof: false,
     });
   });
 
@@ -610,6 +611,302 @@ describe('process-utils', () => {
       expect(mockGetProcessCwds).toHaveBeenCalledTimes(2);
       expect(genB[0].cwd).toBe('/home/user/project-b');
       expect(genB[0].projectName).toBe('project-b');
+    });
+
+    it('does not attach a recycled PID CWD observed after the identity stamp', async () => {
+      const birthA = '133614736000000001';
+      const birthB = '133614736000000002'; // Same epoch millisecond, different process.
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birthA,
+              witness: birthA,
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      let releaseCwd;
+      mockGetProcessCwds.mockReturnValue(
+        new Promise((resolve) => {
+          releaseCwd = resolve;
+        }),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      const annotation = processUtils.annotateWorkingDirs([agent]);
+      releaseCwd(
+        new Map([
+          [100, { cwd: 'C:\\other-project', createTime100ns: birthB, startTimeMs: 1717000000000 }],
+        ]),
+      );
+      await annotation;
+
+      expect(agent.createTime100ns).toBe(birthA);
+      expect(agent.cwd).toBeNull();
+      expect(agent.projectName).toBeNull();
+    });
+
+    it('does not attach a legacy Windows CWD path without a birth proof', async () => {
+      const birth = '133614736000000001';
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birth,
+              witness: birth,
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(new Map([[100, 'C:\\recycled-project']]));
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.cwd).toBeNull();
+      expect(agent.projectName).toBeNull();
+    });
+
+    it('accepts a CWD only when its exact creation ticks match the stamped process', async () => {
+      const birth = '133614736000000001';
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birth,
+              witness: birth,
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              cwd: 'C:\\my-project',
+              createTime100ns: birth,
+              startTimeMs: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.cwd).toBe('C:\\my-project');
+      expect(agent.projectName).toBe('my-project');
+    });
+
+    it('uses exact creation ticks when the process snapshot chose a sequence witness', async () => {
+      const birth = '133614736000000001';
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birth,
+              witness: '11',
+              witnessSource: 'sequence',
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              cwd: 'C:\\my-project',
+              createTime100ns: birth,
+              startTimeMs: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.generationWitnessSource).toBe('sequence');
+      expect(agent.cwd).toBe('C:\\my-project');
+    });
+
+    it('does not downgrade an exact stamp to a matching millisecond-only CWD', async () => {
+      const birth = '133614736000000001';
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birth,
+              witness: birth,
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              cwd: 'C:\\other-project',
+              createTime100ns: null,
+              startTimeMs: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.cwd).toBeNull();
+      expect(agent.projectName).toBeNull();
+    });
+
+    it('matches the fallback CWD birth millisecond when the stamp has only CIM time', async () => {
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              cwd: 'C:\\my-project',
+              createTime100ns: null,
+              startTimeMs: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.cwd).toBe('C:\\my-project');
+    });
+
+    it('rejects a fallback CWD when its CIM birth millisecond differs', async () => {
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              cwd: 'C:\\other-project',
+              createTime100ns: null,
+              startTimeMs: 1717000000001,
+            },
+          ],
+        ]),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.cwd).toBeNull();
+      expect(agent.projectName).toBeNull();
+    });
+
+    it('rejects an in-flight CWD if the annotated record changes generation', async () => {
+      const birthA = '133614736000000001';
+      const birthB = '133614736000000002';
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birthA,
+              witness: birthA,
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      let releaseCwd;
+      mockGetProcessCwds.mockReturnValue(
+        new Promise((resolve) => {
+          releaseCwd = resolve;
+        }),
+      );
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      const annotation = processUtils.annotateWorkingDirs([agent]);
+      agent.createTime100ns = birthB;
+      agent.generationWitness = birthB;
+      releaseCwd(
+        new Map([
+          [
+            100,
+            {
+              cwd: 'C:\\old-project',
+              createTime100ns: birthA,
+              startTimeMs: 1717000000000,
+            },
+          ],
+        ]),
+      );
+      await annotation;
+
+      expect(agent.cwd).toBeNull();
+      expect(agent.projectName).toBeNull();
     });
 
     it('never lets a generation established for another record stand in for an unenriched one', async () => {

@@ -70,7 +70,7 @@ it.skipIf(process.platform !== 'win32')(
         new Error('helper missing'),
         (file, args, opts, cb) => {
           const fixture =
-            'function Get-CimInstance { [pscustomobject]@{ProcessId=42;CommandLine=(\'node --cwd "X:\\проект"\')} };';
+            'function Get-CimInstance { [pscustomobject]@{ProcessId=42;CommandLine=(\'node --cwd "X:\\проект"\');CreationDate=([DateTimeOffset]::FromUnixTimeMilliseconds(1717000000000)).UtcDateTime} };';
           realExecFile(
             file,
             [...args.slice(0, -1), fixture + args.at(-1)],
@@ -80,7 +80,18 @@ it.skipIf(process.platform !== 'win32')(
         },
       ],
       async (win) => {
-        expect(await win.getProcessCwds([42])).toEqual(new Map([[42, 'X:\\проект']]));
+        expect(await win.getProcessCwds([42])).toEqual(
+          new Map([
+            [
+              42,
+              {
+                cwd: 'X:\\проект',
+                createTime100ns: null,
+                startTimeMs: 1717000000000,
+              },
+            ],
+          ]),
+        );
       },
     );
   },
@@ -119,16 +130,27 @@ it('preserves CWD extraction, null and absent processes with fresh native observ
   await withProviders(
     [
       native([
-        { ProcessId: 42, CommandLine: 'node --cwd "X:\\проект"' },
-        { ProcessId: 43, CommandLine: null },
+        {
+          ProcessId: 42,
+          CommandLine: 'node --cwd "X:\\проект"',
+          CreateTime100ns: '133614736000000001',
+        },
+        { ProcessId: 43, CommandLine: null, CreateTime100ns: '133614736000000002' },
       ]),
       native([]),
     ],
     async (win, rm, exec) => {
       expect(await win.getProcessCwds([42, 43, 44])).toEqual(
         new Map([
-          [42, 'X:\\проект'],
-          [43, null],
+          [
+            42,
+            {
+              cwd: 'X:\\проект',
+              createTime100ns: '133614736000000001',
+              startTimeMs: 1717000000000,
+            },
+          ],
+          [43, { cwd: null, createTime100ns: '133614736000000002', startTimeMs: 1717000000000 }],
         ]),
       );
       expect(await win.getProcessCwds([42])).toEqual(new Map());

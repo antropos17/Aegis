@@ -464,9 +464,10 @@ function extractCwdFromCommandLine(commandLine) {
 
 /**
  * Batch CWD lookup — one native observation or PowerShell fallback for multiple PIDs.
- * Returns a Map<number, string|null> of pid → cwd.
+ * A native row carries held-handle creation ticks; CIM fallback carries only its
+ * creation millisecond. Callers must compare that proof to the earlier PID stamp.
  * @param {number[]} pids
- * @returns {Promise<Map<number, string|null>>}
+ * @returns {Promise<Map<number, {cwd:string|null, createTime100ns:string|null, startTimeMs:number|null}>>}
  * @since v0.5.0
  */
 async function getProcessCwds(pids) {
@@ -477,11 +478,18 @@ async function getProcessCwds(pids) {
   );
   if (native !== null)
     return new Map(
-      native.map((row) => [row.ProcessId, extractCwdFromCommandLine(row.CommandLine)]),
+      native.map((row) => [
+        row.ProcessId,
+        {
+          cwd: extractCwdFromCommandLine(row.CommandLine),
+          createTime100ns: row.CreateTime100ns,
+          startTimeMs: row.CreateTime100ns ? snapshot.ticksToEpochMs(row.CreateTime100ns) : null,
+        },
+      ]),
     );
   return new Promise((resolve) => {
     const pidFilter = validPids.map((p) => `ProcessId=${p}`).join(' OR ');
-    const psScript = `$ErrorActionPreference="SilentlyContinue";[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`;
+    const psScript = `$ErrorActionPreference="SilentlyContinue";[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine,CreationDate | ForEach-Object{[pscustomobject]@{ProcessId=$_.ProcessId;CommandLine=$_.CommandLine;CreateTime100ns=$null;StartTimeMs=$(if($_.CreationDate){([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds()}else{$null})}} | ConvertTo-Json -Compress`;
     const t0 = performance.now();
     execFile(
       'powershell.exe',
@@ -497,10 +505,21 @@ async function getProcessCwds(pids) {
         try {
           let entries = JSON.parse(stdout.trim());
           if (!Array.isArray(entries)) entries = [entries];
+          validateCwds(entries, validPids);
+          if (
+            entries.some(
+              (proc) =>
+                proc.StartTimeMs !== null &&
+                (!Number.isSafeInteger(proc.StartTimeMs) || proc.StartTimeMs <= 0),
+            )
+          )
+            throw new Error('Invalid CWD birth time');
           for (const proc of entries) {
-            const pid = proc.ProcessId;
-            const cwd = extractCwdFromCommandLine(proc.CommandLine);
-            map.set(pid, cwd);
+            map.set(proc.ProcessId, {
+              cwd: extractCwdFromCommandLine(proc.CommandLine),
+              createTime100ns: null,
+              startTimeMs: proc.StartTimeMs,
+            });
           }
         } catch (_) {
           // parse failure — return empty map
@@ -522,6 +541,7 @@ module.exports = {
    * @type {boolean}
    */
   providesStartTime: true,
+  cwdGenerationProof: true,
   listProcesses,
   getParentProcessMap,
   /**

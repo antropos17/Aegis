@@ -72,7 +72,9 @@ function validateCwds(rows, pids) {
       !row ||
       !wanted.has(row.ProcessId) ||
       seen.has(row.ProcessId) ||
-      (row.CommandLine !== null && typeof row.CommandLine !== 'string')
+      (row.CommandLine !== null && typeof row.CommandLine !== 'string') ||
+      !Object.hasOwn(row, 'CreateTime100ns') ||
+      (row.CreateTime100ns !== null && !validCreateTime100ns(row.CreateTime100ns))
     )
       throw new Error('Invalid CWD observation');
     seen.add(row.ProcessId);

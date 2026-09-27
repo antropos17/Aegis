@@ -584,29 +584,53 @@ describe('platform/win32', () => {
 
     it('parses batch CWD output', async () => {
       const psOutput = JSON.stringify([
-        { ProcessId: 100, CommandLine: 'node --cwd "C:\\Users\\me\\proj-a" server.js' },
-        { ProcessId: 200, CommandLine: 'node --project "C:\\Users\\me\\proj-b"' },
+        {
+          ProcessId: 100,
+          CommandLine: 'node --cwd "C:\\Users\\me\\proj-a" server.js',
+          CreateTime100ns: null,
+          StartTimeMs: 1717000000000,
+        },
+        {
+          ProcessId: 200,
+          CommandLine: 'node --project "C:\\Users\\me\\proj-b"',
+          CreateTime100ns: null,
+          StartTimeMs: 1717000000001,
+        },
       ]);
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, psOutput);
       });
 
       const result = await win32.getProcessCwds([100, 200]);
-      expect(result.get(100)).toBe('C:\\Users\\me\\proj-a');
-      expect(result.get(200)).toBe('C:\\Users\\me\\proj-b');
+      expect(result.get(100)).toEqual({
+        cwd: 'C:\\Users\\me\\proj-a',
+        createTime100ns: null,
+        startTimeMs: 1717000000000,
+      });
+      expect(result.get(200)).toEqual({
+        cwd: 'C:\\Users\\me\\proj-b',
+        createTime100ns: null,
+        startTimeMs: 1717000000001,
+      });
     });
 
     it('handles single object (non-array) response', async () => {
       const psOutput = JSON.stringify({
         ProcessId: 100,
         CommandLine: 'node --cwd "/home/user/project" index.js',
+        CreateTime100ns: null,
+        StartTimeMs: 1717000000000,
       });
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, psOutput);
       });
 
       const result = await win32.getProcessCwds([100]);
-      expect(result.get(100)).toBe('/home/user/project');
+      expect(result.get(100)).toEqual({
+        cwd: '/home/user/project',
+        createTime100ns: null,
+        startTimeMs: 1717000000000,
+      });
     });
 
     it('returns empty Map on error', async () => {
@@ -619,13 +643,48 @@ describe('platform/win32', () => {
     });
 
     it('returns null CWD for process without --cwd flag', async () => {
-      const psOutput = JSON.stringify([{ ProcessId: 100, CommandLine: 'node server.js' }]);
+      const psOutput = JSON.stringify([
+        {
+          ProcessId: 100,
+          CommandLine: 'node server.js',
+          CreateTime100ns: null,
+          StartTimeMs: 1717000000000,
+        },
+      ]);
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, psOutput);
       });
 
       const result = await win32.getProcessCwds([100]);
-      expect(result.get(100)).toBeNull();
+      expect(result.get(100)).toEqual({
+        cwd: null,
+        createTime100ns: null,
+        startTimeMs: 1717000000000,
+      });
+    });
+
+    it('returns no CWD rows when one fallback birth time is malformed', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) =>
+        cb(
+          null,
+          JSON.stringify([
+            {
+              ProcessId: 100,
+              CommandLine: 'node --cwd "C:\\valid"',
+              CreateTime100ns: null,
+              StartTimeMs: 1717000000000,
+            },
+            {
+              ProcessId: 200,
+              CommandLine: 'node --cwd "C:\\bad"',
+              CreateTime100ns: null,
+              StartTimeMs: 'invalid',
+            },
+          ]),
+        ),
+      );
+
+      expect(await win32.getProcessCwds([100, 200])).toEqual(new Map());
     });
   });
 
