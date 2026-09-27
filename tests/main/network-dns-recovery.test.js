@@ -100,6 +100,46 @@ describe('network DNS completeness and recovery', () => {
     expect(forward).toHaveBeenCalledTimes(1);
   });
 
+  it('bounds simultaneous reverse and forward queries for distinct endpoints', async () => {
+    const addresses = Array.from(
+      { length: 128 },
+      (_, i) => `203.0.${Math.floor(i / 250)}.${(i % 250) + 1}`,
+    );
+    const indexByAddress = new Map(addresses.map((address, index) => [address, index]));
+    let active = 0;
+    let maxActive = 0;
+    const pause = async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active--;
+    };
+    reverse.mockImplementation(async (ip) => {
+      await pause();
+      return [`endpoint-${indexByAddress.get(ip)}.example`];
+    });
+    forward.mockImplementation(async (hostname) => {
+      await pause();
+      return [addresses[Number(/^endpoint-(\d+)\.example$/.exec(hostname)[1])]];
+    });
+    network._setDepsForTest({
+      getRawTcpConnections: async () =>
+        addresses.map((ip) => ({ pid: 100, ip, port: 443, state: 'Established' })),
+    });
+
+    const rows = await network.scanNetworkConnections([
+      { pid: 100, agent: 'Codex', instanceId: '100:t1' },
+    ]);
+    expect(rows).toHaveLength(addresses.length);
+    expect(rows.every((row, i) => row.domain === `endpoint-${i}.example`)).toBe(true);
+    expect(rows.every((row) => row.verdict === 'flagged')).toBe(true);
+    expect(reverse).toHaveBeenCalledTimes(addresses.length);
+    expect(forward).toHaveBeenCalledTimes(addresses.length);
+    expect(maxActive).toBeGreaterThan(1);
+    expect(maxActive).toBeLessThanOrEqual(16);
+    expect(network.getNetworkSensorHealth().state).toBe('HEALTHY');
+  });
+
   it('shares cache and in-flight work across equivalent IPv6 spellings', async () => {
     forward.mockResolvedValue(['2001:db8::8']);
     expect(

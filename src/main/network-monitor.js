@@ -144,6 +144,7 @@ const dnsCache = new Map();
 const DNS_CACHE_TTL = 300000;
 const DNS_NEGATIVE_TTL = 30000;
 const DNS_CACHE_CAPACITY = 500;
+const DNS_SCAN_CONCURRENCY = 16;
 const dnsPending = new Map();
 const forwardPending = new Map();
 let dnsGeneration = 0;
@@ -340,10 +341,12 @@ async function resolveIp(ip) {
 }
 
 /** Resolve evidence for this caller even if a large scan evicts the shared cache entry.
- * @param {string} ip Address @returns {Promise<{domain: string|null, reason: string}>} DNS evidence
+ * @param {string} ip Address
+ * @param {Function} [resolveName] Forward lookup, optionally memoized for one scan
+ * @returns {Promise<{domain: string|null, reason: string}>} DNS evidence
  * @since 0.14.1
  */
-async function resolveIpEvidence(ip) {
+async function resolveIpEvidence(ip, resolveName = resolveHostname) {
   const key = normalizeIp(ip);
   if (!isIP(key)) return { domain: null, reason: VERDICT_REASONS.PTR_MISSING };
   const cached = freshDnsEntry(key);
@@ -353,9 +356,7 @@ async function resolveIpEvidence(ip) {
   const reverse = _dnsReverse;
   const forward = _dnsResolve;
   const pending = Promise.resolve().then(async () => {
-    const result = await lookupIp(key, reverse, (name) =>
-      resolveHostname(name, forward, generation),
-    );
+    const result = await lookupIp(key, reverse, (name) => resolveName(name, forward, generation));
     // A reset must not let an earlier lookup repopulate the next generation's cache.
     if (generation === dnsGeneration) {
       if (dnsCache.size >= DNS_CACHE_CAPACITY) dnsCache.delete(dnsCache.keys().next().value);
@@ -369,6 +370,34 @@ async function resolveIpEvidence(ip) {
   } finally {
     if (dnsPending.get(key) === pending) dnsPending.delete(key);
   }
+}
+
+/**
+ * Resolve every distinct scan address with a fixed number of active DNS chains.
+ * Retain forward results for this scan because later workers may see the same PTR
+ * name after the global in-flight query has already completed.
+ * @param {string[]} ips Distinct non-allowlisted addresses
+ * @returns {Promise<Map<string, {domain: string|null, reason: string}>>} Same-scan evidence
+ * @since 0.17.0-alpha
+ */
+async function resolveScanIpEvidence(ips) {
+  const evidence = new Map();
+  const hostnames = new Map();
+  let next = 0;
+  const resolveScanHostname = (name, forward, generation) => {
+    if (!hostnames.has(name)) {
+      hostnames.set(name, resolveHostname(name, forward, generation));
+    }
+    return hostnames.get(name);
+  };
+  async function worker() {
+    while (next < ips.length) {
+      const ip = ips[next++];
+      evidence.set(ip, await resolveIpEvidence(ip, resolveScanHostname));
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(DNS_SCAN_CONCURRENCY, ips.length) }, worker));
+  return evidence;
 }
 
 /** Share concurrent forward queries across endpoints with the same PTR name.
@@ -529,9 +558,7 @@ async function scanNetworkConnections(agents) {
     // verdict depend on whether that operator happens to publish PTR records.
     const remoteIps = [...new Set(deduped.map((c) => normalizeIp(c.ip)))];
     const uniqueIps = remoteIps.filter((ip) => !isAllowlistedIp(ip));
-    const resolved = new Map(
-      await Promise.all(uniqueIps.map(async (ip) => [ip, await resolveIpEvidence(ip)])),
-    );
+    const resolved = await resolveScanIpEvidence(uniqueIps);
     // A verdict depends on the remote address and this scan's DNS evidence, not
     // the socket or owner. Keep it only for this scan; all socket fields stay separate.
     const verdicts = remoteIps.length < deduped.length ? new Map() : null;
