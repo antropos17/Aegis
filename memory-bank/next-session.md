@@ -1,97 +1,78 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, protocol accepted; strict boundary blocked
+## Current enforcement status — 2026-09-28, combined boundary qualification
 
-This is the canonical continuation status for the enforcement plan. The older
-handoffs below preserve history. E0 is complete: the actual Astra review
-`A0-535c0e8-20260928` returned PASS for the architecture direction at BASE
-`52fc21f1de58d78eefcba6ef038b651d08cdb421` / HEAD
-`535c0e845787b27fbb6d70e2fd273ae4f545f525`. Sol verified that scope before
-continuing. This supplies no Protected Session runtime guarantee.
+This is the canonical continuation status. The older handoffs below preserve
+history. E0 is complete after actual A0 PASS at BASE `52fc21f` / HEAD `535c0e8`,
+with PR #691 merged as `c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae`.
+This accepted an architecture direction, without a runtime protection guarantee.
 
-E0 recorded source baseline: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
-0.17.0-alpha. E0 PR #691 merged as
-`c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae` after all five required CI contexts
-passed. E1 inactive protocol PR #692 merged as
-`6dee6f0b6ff43a52e01768b4534398d7dd97543a`, after actual scoped Astra PASS
-`E1-protocol-5418249-20260928` for BASE `c1d0aa6` / HEAD `5418249` and all five
-required contexts. Branch: `codex/enforcement-e1-identity-design`, from that origin/master,
-reusing the managed enforcement-e0 worktree. The original checkout and its renderer
-and configuration changes remain intact. The local review packet binds the
-final documentation HEAD, diff and filtered source snapshot.
+E1 inactive protocol PR #692 merged as
+`6dee6f0b6ff43a52e01768b4534398d7dd97543a`, after actual scoped PASS at BASE
+`c1d0aa6` / HEAD `5418249` and all five required CI contexts. Both v1 operations
+still return containment unavailable; preparation is refused. The native input
+deadline is bounded. The final protocol suite passed **63/63**, with no Windows
+skips; across its two batches **98** distinct cases passed. The AppContainer
+protocol cases are mocks. No active caller or production launch was added.
 
-Read [E0 evidence](../docs/roadmap/enforcement-e0/evidence.md),
-[backend ADR](../docs/roadmap/enforcement-e0/backend-adr.md) and
-[canary tests](../docs/roadmap/enforcement-e0/canary-tests.md). Proposed backend:
-separate long-running C# session helper extending verified AEGIS ownership,
-with a distinct low-privilege principal and persistent SID network deny.
-Pinned SRT is a comparison/reference, not an installed dependency.
+The identity/filesystem design received actual FIX_REQUIRED at `bba16bb`:
+present-NULL DACL access defeats the proposed restricting-token boundary, and
+initialized desktop/loader state cannot be observed in a still-suspended child.
+The corrected revision received scoped PASS `E1-identity-r1-f0bfcab-20260928`
+at BASE `6dee6f0` / HEAD `f0bfcab`. This accepts bounded research documentation
+only. PR #693 merged after matching that HEAD and successful required CI, as
+`8e0f5085acfeb83ad50fc5dbc7424b06d8f0de43`. The raw R1 response SHA-256 is
+`f1c04b78f67221ffa942b8b3d433c75112aecdd9dd683a6843f112087c34934f`.
+See the [review resolution](../docs/roadmap/enforcement-e1/review-resolution.md).
 
-Executed on Windows 11 build 26200: context/count checks passed; the selected
-baseline had 152 passed, one teardown EPERM and one intentional non-Windows
-skip. The MCP native repeat passed 10/10. Both results are preserved.
-Installed Claude 2.1.263 passed eight local synthetic API scenarios; the
-missing-hook control executed while deny blocked. These are limited route
-results, without new OS isolation or real online authentication evidence.
-Installed AEGIS metadata reports 0.17.0-alpha. Claude is logged in through a
-claude.ai Pro subscription; secret-free broker compatibility remains open.
+The next combined block uses branch `codex/enforcement-e2-boundary-qualification`
+from that origin/master in the existing managed enforcement-e0 worktree.
+The original checkout and its unfinished work remain intact. It includes a
+permanent native developer AccessCheck diagnostic, guarded report validation,
+an explicit [Windows guest boundary proposal](../docs/roadmap/enforcement-e2/windows-vm-boundary-adr.md)
+and the complete [qualification matrix](../docs/roadmap/enforcement-e2/windows-vm-qualification.md).
+Its final source/diff, native receipts and regression checks travel in one packet.
+The combined scope requires an actual review before merge; no verdict is borrowed
+from the accepted research documents.
 
-The first E1 slice implements the bounded v1 protocol and separate inactive C#
-entrypoint. Both operations report containment unavailable; preparation is
-refused. Cross-session replies, malformed/oversized/duplicate/unknown input and
-claimed launch permission are rejected. A 2000 ms native input deadline is
-tested. Windows regression: 94/94 passed, no skips; the final expanded protocol
-suite passed 63/63 (37 JS + 26 native). Across both unchanged implementation
-batches, 98 distinct cases passed, including 23 native Job tests from the existing suite.
-The 12 AppContainer protocol
-cases are mocks. Formatting, lint, typecheck, Svelte check and renderer build
-passed locally; lint retains the previous warnings (57). See
-[E1 evidence](../docs/roadmap/enforcement-e1/evidence.md).
+The focused diagnostic suite passed **31/31** on Windows x64, including the
+actual native probe. Its **36** paired in-memory access decisions reproduce
+NULL/absent-DACL access while retaining strictBoundaryPassed=false. It queries
+one actual user SID restrictor and privilege removal; no actual SID is emitted.
+Source/compiler/executable hashes record provenance. Tokens remain unassigned:
+no impersonation, account creation, restricted child or host ACL change occurs.
+See [current evidence](../docs/roadmap/enforcement-e2/filesystem-qualification-evidence.md)
+for the distinction between API semantics and filesystem effects.
 
-The returned [E1 review resolution](../docs/roadmap/enforcement-e1/review-resolution.md)
-records the exact accepted scope and response hash. Astra independently repeated
-63/63 tests and three separate native probes; no blocking finding was returned.
-This is a partial E1 result; full A1 and every E1 task remain incomplete.
-The actual OS caller authentication, principal provisioning, private desktop,
-restrictive ACLs and WFP remain open.
+The proposed Windows 11 Hyper-V guest is an explicit alternative to the earlier
+host-native direction. It is not implemented, accepted or qualified. The review
+must resolve the original staged-project/runtime scope and all guest-to-host
+integration routes. No Hyper-V availability check, feature activation, guest
+image, VM, integration endpoint, privileged caller or networking is implemented
+here. The production helper remains inactive. Preparation cannot become allowed
+from this diagnostic, a guest boot or passing regression CI.
 
-The actual identity/filesystem review `E1-identity-bba16bb-20260928` returned
-FIX_REQUIRED at BASE `6dee6f0` / HEAD `bba16bb`. A present NULL DACL allowed the
-read-data bit for both ordinary and restricted tokens in in-memory AccessCheck
-controls. This confirms that the single-token/ACL profile is insufficient for
-the strict filesystem promise; no separate-account file/process effect was run.
-The review also found that initialized desktop/loader state cannot be required
-as an already-observed property of the still-suspended child.
+All E1 task checkmarks and full A1 remain incomplete; E2-E11 runtime work has not
+started. Exact disposable-host authorization and reviewed native fixture code
+are still needed before privileged qualification. Separate-account file effects,
+private desktop/admission, useful restricted Node/Git tasks, real online agents,
+network/WFP, credentials, export and release are not qualified by this block.
+The installed Claude version was previously checked as 2.1.263, with a claude.ai
+Pro subscription; secret-free broker compatibility remains an open A2 question.
+E0 retained one native MCP teardown EPERM; a passing repeat does not diagnose it.
 
-Next: re-review the revised
-[bounded research profile](../docs/roadmap/enforcement-e1/identity-filesystem-design.md)
-and [qualification contract](../docs/roadmap/enforcement-e1/identity-filesystem-qualification.md)
-in draft PR #693. The revision preserves the strict requirement, blocks adoption
-of this mechanism alone, adds NULL/absent-DACL and dynamic-change controls and
-separates suspended policy checks from trusted initialization and fixture release.
-The fixed trusted probe's observation/admission contract remains proposed;
-Node/Git/Claude need their own reviewed pre-project-code admission design.
-The boundary ADR must select an additional mediating mechanism before active
-preparation; none is selected or implemented yet. The helper remains inactive.
-Privileged experiments still require explicit authorization of the exact
-disposable Windows host and separately reviewed native code. No host ACL, account
-or service is changed. Full E1/A1 and A2 remain incomplete; E2-E11 have not started.
-The paired `AEGIS_ENFORCEMENT_PROGRESS.json`/HTML are a visual projection of
-this status. Actual reviews are local `X:/ASTRA_REVIEW_A0.md`,
-`X:/ASTRA_REVIEW_E1.md` and `X:/ASTRA_REVIEW_E1_IDENTITY.md`. The revised research
-documents have no new verdict; the previous design FIX_REQUIRED remains recorded.
+The paired local progress JSON/HTML are a visual projection of this status.
+Actual review responses are retained as `ASTRA_REVIEW_A0.md`, `ASTRA_REVIEW_E1.md`,
+`ASTRA_REVIEW_E1_IDENTITY.md` and `ASTRA_REVIEW_E1_IDENTITY_R1.md` on the task drive.
+Keep the initial FIX_REQUIRED, scoped protocol PASS and scoped research PASS
+separate from full containment acceptance.
 
-Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. TEMP/TMP and
-dependency caches were directed there. Preserve receipts; review disposable
-diagnostics after 14 days or 64 MiB. Check scratch during batches against
-256 MiB. No recurring retention mechanism was added. The dependencies junction
-must be detached before any managed worktree retirement; it points at task-owned
-data on X:, never the original checkout's node_modules. Native provisioning,
-ACL/firewall changes, services, real credentials, release and a full local
-verification batch were not performed in E0. E1 also performs no new host
-provisioning. PR #691's hosted CI passed;
-the final local packet records its actual HEAD and results separately from
-native Windows evidence. E0 review artifacts have no runtime code changes.
+Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. Process TEMP/TMP
+and dependency caches use that data drive. Preserve receipts; review disposable
+diagnostics after 14 days or 64 MiB, and scratch growth against 256 MiB. No
+recurring retention mechanism was added. The task-owned dependencies junction
+must be detached before managed worktree retirement; never recursively delete
+through it. Preserve normal VMs, WSL, caches, credentials and user files.
 
 ## Current handoff — 2026-09-26, code baseline `c137b8d`
 
