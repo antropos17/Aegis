@@ -1,6 +1,6 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, A0 passed; E1 protocol awaiting scoped review
+## Current enforcement status — 2026-09-28, protocol accepted; strict boundary blocked
 
 This is the canonical continuation status for the enforcement plan. The older
 handoffs below preserve history. E0 is complete: the actual Astra review
@@ -9,10 +9,13 @@ handoffs below preserve history. E0 is complete: the actual Astra review
 `535c0e845787b27fbb6d70e2fd273ae4f545f525`. Sol verified that scope before
 continuing. This supplies no Protected Session runtime guarantee.
 
-Source BASE/tested HEAD: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
+E0 recorded source baseline: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
 0.17.0-alpha. E0 PR #691 merged as
 `c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae` after all five required CI contexts
-passed. Branch: `codex/enforcement-e1-protocol`, from that origin/master,
+passed. E1 inactive protocol PR #692 merged as
+`6dee6f0b6ff43a52e01768b4534398d7dd97543a`, after actual scoped Astra PASS
+`E1-protocol-5418249-20260928` for BASE `c1d0aa6` / HEAD `5418249` and all five
+required contexts. Branch: `codex/enforcement-e1-identity-design`, from that origin/master,
 reusing the managed enforcement-e0 worktree. The original checkout and its renderer
 and configuration changes remain intact. The local review packet binds the
 final documentation HEAD, diff and filtered source snapshot.
@@ -45,18 +48,38 @@ cases are mocks. Formatting, lint, typecheck, Svelte check and renderer build
 passed locally; lint retains the previous warnings (57). See
 [E1 evidence](../docs/roadmap/enforcement-e1/evidence.md).
 
-Next: scoped Astra review of the actual E1 protocol PR/diff before merge.
-The local `ASTRA_REVIEW_E1_PACKET.md`/ZIP bind the final commit and CI result.
-This is a partial E1 scope, not completion of A1 or the identity milestone.
-No production agent launch is enabled by this step. The actual OS caller authentication,
-principal provisioning, private desktop, restrictive ACLs and WFP remain open.
-Before broader integration, specify the concrete filesystem token/ACL profile
-and qualify public-canary denial plus normal runtime access on a disposable host.
-Each changed trust boundary needs scoped Astra review before its merge; A1/A2
-are still unreviewed. E2-E11 have not started.
+The returned [E1 review resolution](../docs/roadmap/enforcement-e1/review-resolution.md)
+records the exact accepted scope and response hash. Astra independently repeated
+63/63 tests and three separate native probes; no blocking finding was returned.
+This is a partial E1 result; full A1 and every E1 task remain incomplete.
+The actual OS caller authentication, principal provisioning, private desktop,
+restrictive ACLs and WFP remain open.
+
+The actual identity/filesystem review `E1-identity-bba16bb-20260928` returned
+FIX_REQUIRED at BASE `6dee6f0` / HEAD `bba16bb`. A present NULL DACL allowed the
+read-data bit for both ordinary and restricted tokens in in-memory AccessCheck
+controls. This confirms that the single-token/ACL profile is insufficient for
+the strict filesystem promise; no separate-account file/process effect was run.
+The review also found that initialized desktop/loader state cannot be required
+as an already-observed property of the still-suspended child.
+
+Next: re-review the revised
+[bounded research profile](../docs/roadmap/enforcement-e1/identity-filesystem-design.md)
+and [qualification contract](../docs/roadmap/enforcement-e1/identity-filesystem-qualification.md)
+in draft PR #693. The revision preserves the strict requirement, blocks adoption
+of this mechanism alone, adds NULL/absent-DACL and dynamic-change controls and
+separates suspended policy checks from trusted initialization and fixture release.
+The fixed trusted probe's observation/admission contract remains proposed;
+Node/Git/Claude need their own reviewed pre-project-code admission design.
+The boundary ADR must select an additional mediating mechanism before active
+preparation; none is selected or implemented yet. The helper remains inactive.
+Privileged experiments still require explicit authorization of the exact
+disposable Windows host and separately reviewed native code. No host ACL, account
+or service is changed. Full E1/A1 and A2 remain incomplete; E2-E11 have not started.
 The paired `AEGIS_ENFORCEMENT_PROGRESS.json`/HTML are a visual projection of
-this status. The real review is the local `X:/ASTRA_REVIEW_A0.md`; its scope and
-conditions are recorded in [review resolution](../docs/roadmap/enforcement-e0/review-resolution.md).
+this status. Actual reviews are local `X:/ASTRA_REVIEW_A0.md`,
+`X:/ASTRA_REVIEW_E1.md` and `X:/ASTRA_REVIEW_E1_IDENTITY.md`. The revised research
+documents have no new verdict; the previous design FIX_REQUIRED remains recorded.
 
 Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. TEMP/TMP and
 dependency caches were directed there. Preserve receipts; review disposable

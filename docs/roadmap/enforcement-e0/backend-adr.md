@@ -1,6 +1,13 @@
 # E0 ADR: native Protected Session backend
 
-Status: proposed; awaiting actual Astra A0. Date: 2026-09-28.
+Status: architecture direction accepted at Astra A0; native containment unqualified.
+See [A0 resolution](review-resolution.md) and the revised
+[E1 research profile](../enforcement-e1/identity-filesystem-design.md).
+The single restricting-token/ACL profile has a confirmed NULL-DACL counterexample
+and cannot implement the strict filesystem promise alone. Active preparation
+remains unavailable pending a revised boundary decision and native qualification.
+The accepted architecture direction does not waive this requirement.
+Date: 2026-09-28.
 Source baseline: `52fc21f1de58d78eefcba6ef038b651d08cdb421`.
 
 ## Proposed decision
