@@ -149,6 +149,24 @@ function main() {
   );
   console.log(`built  ${mcpJobExe}`);
 
+  // The separate session helper only probes/refuses; it cannot launch an agent.
+  const sessionExe = path.join(OUT_DIR, 'aegis-session.exe');
+  execFileSync(
+    csc,
+    [
+      '/nologo',
+      '/target:exe',
+      '/platform:x64',
+      '/optimize+',
+      '/warnaserror+',
+      `/out:${sessionExe}`,
+      path.join(ROOT, 'sidecar', 'session', 'Program.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'Protocol.cs'),
+    ],
+    { stdio: 'inherit' },
+  );
+  console.log(`built  ${sessionExe}`);
+
   const bytes = fs.readFileSync(OUT_EXE);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
   console.log(`built  ${OUT_EXE}`);

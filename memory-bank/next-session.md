@@ -1,15 +1,19 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, E0 awaiting Astra A0
+## Current enforcement status — 2026-09-28, A0 passed; E1 protocol awaiting scoped review
 
 This is the canonical continuation status for the enforcement plan. The older
-handoffs below preserve history. E0 preparation is complete; the stage remains
-in review until an actual independent Astra A0 result returns. E1-E11 have not
-started. No Astra result exists and no Protected Session guarantee is issued.
+handoffs below preserve history. E0 is complete: the actual Astra review
+`A0-535c0e8-20260928` returned PASS for the architecture direction at BASE
+`52fc21f1de58d78eefcba6ef038b651d08cdb421` / HEAD
+`535c0e845787b27fbb6d70e2fd273ae4f545f525`. Sol verified that scope before
+continuing. This supplies no Protected Session runtime guarantee.
 
 Source BASE/tested HEAD: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
-0.17.0-alpha. Fresh origin/master matches it. Branch: `codex/enforcement-e0`,
-in the managed enforcement-e0 worktree. The original checkout and its renderer
+0.17.0-alpha. E0 PR #691 merged as
+`c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae` after all five required CI contexts
+passed. Branch: `codex/enforcement-e1-protocol`, from that origin/master,
+reusing the managed enforcement-e0 worktree. The original checkout and its renderer
 and configuration changes remain intact. The local review packet binds the
 final documentation HEAD, diff and filtered source snapshot.
 
@@ -29,12 +33,30 @@ results, without new OS isolation or real online authentication evidence.
 Installed AEGIS metadata reports 0.17.0-alpha. Claude is logged in through a
 claude.ai Pro subscription; secret-free broker compatibility remains open.
 
-Next: give the local `ASTRA_REVIEW_PACKET.md` and `ASTRA_REVIEW_A0.zip` to Astra,
-review gate A0 against the exact supplied BASE/HEAD and return its real verdict
-to Sol. Before any privileged implementation, resolve A0; later identity/ACL/
-WFP/credential/export boundary changes need their own scoped review.
+The first E1 slice implements the bounded v1 protocol and separate inactive C#
+entrypoint. Both operations report containment unavailable; preparation is
+refused. Cross-session replies, malformed/oversized/duplicate/unknown input and
+claimed launch permission are rejected. A 2000 ms native input deadline is
+tested. Windows regression: 94/94 passed, no skips; the final expanded protocol
+suite passed 63/63 (37 JS + 26 native). Across both unchanged implementation
+batches, 98 distinct cases passed, including 23 existing native Job tests.
+The 12 AppContainer protocol
+cases are mocks. Formatting, lint, typecheck, Svelte check and renderer build
+passed locally; lint retains 57 existing warnings. See
+[E1 evidence](../docs/roadmap/enforcement-e1/evidence.md).
+
+Next: scoped Astra review of the actual E1 protocol PR/diff before merge.
+The local `ASTRA_REVIEW_E1_PACKET.md`/ZIP bind the final commit and CI result.
+This is a partial E1 scope, not completion of A1 or the identity milestone.
+No production agent launch is enabled by this step. The actual OS caller authentication,
+principal provisioning, private desktop, restrictive ACLs and WFP remain open.
+Before broader integration, specify the concrete filesystem token/ACL profile
+and qualify public-canary denial plus normal runtime access on a disposable host.
+Each changed trust boundary needs scoped Astra review before its merge; A1/A2
+are still unreviewed. E2-E11 have not started.
 The paired `AEGIS_ENFORCEMENT_PROGRESS.json`/HTML are a visual projection of
-this status. The A0 verdict stays UNREVIEWED; preparing a packet is not PASS.
+this status. The real review is the local `X:/ASTRA_REVIEW_A0.md`; its scope and
+conditions are recorded in [review resolution](../docs/roadmap/enforcement-e0/review-resolution.md).
 
 Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. TEMP/TMP and
 dependency caches were directed there. Preserve receipts; review disposable
@@ -43,7 +65,8 @@ diagnostics after 14 days or 64 MiB. Check scratch during batches against
 must be detached before any managed worktree retirement; it points at task-owned
 data on X:, never the original checkout's node_modules. Native provisioning,
 ACL/firewall changes, services, real credentials, release and a full local
-verification batch were not performed in E0. Draft PR #691 runs hosted CI;
+verification batch were not performed in E0. E1 also performs no new host
+provisioning. PR #691's hosted CI passed;
 the final local packet records its actual HEAD and results separately from
 native Windows evidence. E0 review artifacts have no runtime code changes.
 
