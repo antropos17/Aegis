@@ -1,6 +1,6 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, E1 protocol accepted; identity design in review
+## Current enforcement status — 2026-09-28, protocol accepted; strict boundary blocked
 
 This is the canonical continuation status for the enforcement plan. The older
 handoffs below preserve history. E0 is complete: the actual Astra review
@@ -55,20 +55,31 @@ This is a partial E1 result; full A1 and every E1 task remain incomplete.
 The actual OS caller authentication, principal provisioning, private desktop,
 restrictive ACLs and WFP remain open.
 
-Next: scoped Astra design review of the concrete
-[identity/filesystem candidate](../docs/roadmap/enforcement-e1/identity-filesystem-design.md)
-and [qualification contract](../docs/roadmap/enforcement-e1/identity-filesystem-qualification.md).
-Candidate: dedicated non-admin principal, sole principal SID as restricting SID,
-minimum explicit grants on staged data/runtime, private desktop and authenticated
-supervisor ownership. Useful Node/Git runtime access and Everyone-canary denial
-are not-run and must both qualify. The next native harness requires its own
-implementation review; privileged experiments require explicit authorization
-of a disposable Windows host. No existing host ACL, account or service is changed.
-Each changed trust boundary needs scoped Astra review before its merge; A1/A2
-are still unreviewed. E2-E11 have not started.
+The actual identity/filesystem review `E1-identity-bba16bb-20260928` returned
+FIX_REQUIRED at BASE `6dee6f0` / HEAD `bba16bb`. A present NULL DACL allowed the
+read-data bit for both ordinary and restricted tokens in in-memory AccessCheck
+controls. This confirms that the single-token/ACL profile is insufficient for
+the strict filesystem promise; no separate-account file/process effect was run.
+The review also found that initialized desktop/loader state cannot be required
+as an already-observed property of the still-suspended child.
+
+Next: re-review the revised
+[bounded research profile](../docs/roadmap/enforcement-e1/identity-filesystem-design.md)
+and [qualification contract](../docs/roadmap/enforcement-e1/identity-filesystem-qualification.md)
+in draft PR #693. The revision preserves the strict requirement, blocks adoption
+of this mechanism alone, adds NULL/absent-DACL and dynamic-change controls and
+separates suspended policy checks from trusted initialization and fixture release.
+The fixed trusted probe's observation/admission contract remains proposed;
+Node/Git/Claude need their own reviewed pre-project-code admission design.
+The boundary ADR must select an additional mediating mechanism before active
+preparation; none is selected or implemented yet. The helper remains inactive.
+Privileged experiments still require explicit authorization of the exact
+disposable Windows host and separately reviewed native code. No host ACL, account
+or service is changed. Full E1/A1 and A2 remain incomplete; E2-E11 have not started.
 The paired `AEGIS_ENFORCEMENT_PROGRESS.json`/HTML are a visual projection of
-this status. Actual reviews are local `X:/ASTRA_REVIEW_A0.md` and
-`X:/ASTRA_REVIEW_E1.md`; the current identity design has no Astra verdict yet.
+this status. Actual reviews are local `X:/ASTRA_REVIEW_A0.md`,
+`X:/ASTRA_REVIEW_E1.md` and `X:/ASTRA_REVIEW_E1_IDENTITY.md`. The revised research
+documents have no new verdict; the previous design FIX_REQUIRED remains recorded.
 
 Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. TEMP/TMP and
 dependency caches were directed there. Preserve receipts; review disposable

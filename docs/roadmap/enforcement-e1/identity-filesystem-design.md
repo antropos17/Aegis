@@ -1,26 +1,47 @@
-# E1 candidate: principal, restricted token and filesystem scope
+# E1 research profile: principal, restricted token and filesystem scope
 
-Status: **design proposed; scoped Astra review pending; native qualification not-run**.
+Status: **strict boundary blocked; revised research scope awaiting review; native qualification not-run**.
 Date: 2026-09-28. Source base: `6dee6f0b6ff43a52e01768b4534398d7dd97543a`.
 This refines the A0 direction after the accepted inactive v1 protocol.
 It changes no runtime code and keeps full E1/A1 incomplete.
 
-## Decision to qualify
+## Revised decision and blocking limitation
 
-Use one provisioned, dedicated local non-admin principal for one active protected
-session on the machine. Derive a primary restricted token from that principal;
+Retain this profile only as an offline feasibility experiment. It is insufficient
+as the strict filesystem boundary required by the master plan. Do not adopt it
+for active Protected Session preparation, including if ordinary ACL controls and
+useful runtime tasks succeed. The existing helper continues to refuse preparation.
+
+For a separately authorized fixture, use one provisioned, dedicated local
+non-admin principal for one active experiment on the machine. Derive a primary
+restricted token from that principal;
 its sole restricting SID is the provisioned principal's actual SID. Give that
 SID explicit minimum rights only on the independent staged project, scratch,
 approved immutable runtime and required owned OS objects. Keep trusted service,
 policy, owner inventory, grants and original project outside that SID's access.
 
-This is a candidate to test, not a claim that Windows/Node/Git/Claude already
-work under it. A separate account with an ordinary token fails the intended
-public-file boundary. A restricting-SID token makes the additional access check
-part of the candidate. Microsoft's [restricted-token contract](https://learn.microsoft.com/en-us/windows/win32/secauthz/restricted-tokens)
-requires both the normal and restricting-SID checks to allow access. Our design
-inference is that an Everyone-only canary without a principal-SID grant should
-fail the second check; actual native reads must establish that result.
+For a non-null DACL, Microsoft's [restricted-token contract](https://learn.microsoft.com/en-us/windows/win32/secauthz/restricted-tokens)
+requires both the normal and restricting-SID checks to allow access. An outside
+Everyone-only grant should fail the restricting check. However, a
+[NULL DACL bypasses the normal discretionary check](https://learn.microsoft.com/en-us/windows/win32/secauthz/null-dacls-and-empty-dacls).
+The actual review `E1-identity-bba16bb-20260928` confirmed this counterexample
+using native AccessCheck on in-memory descriptors: ordinary and restricted tokens
+both allowed the read-data bit for a present NULL DACL; Everyone-only and empty
+DACL controls behaved differently. This establishes a mechanism gap. It is not
+a file-effect test under the proposed separate account or a runtime qualification.
+
+Rejecting NULL/absent DACLs on owned objects cannot mediate a later direct open
+of an unrelated outside object. Retained traversal privilege also means an
+ancestor directory ACL is insufficient to fix that gap. A one-time host ACL scan,
+an import-time path check or rewriting unrelated host ACLs is not a solution.
+The qualification matrix must include absent/NULL DACLs and changes after setup;
+successful access in those cases is a failure of this profile's strict promise.
+
+Before active implementation, return a revised boundary ADR selecting an additional
+mechanism that mediates those direct opens and its independent effect tests.
+No such mechanism is selected or implemented here. The original strict scope
+remains required; any reduced product scope needs separate user authorization.
+Windows/Node/Git/Claude usefulness under this profile remains unqualified.
 
 ## Trusted roles and registration
 
@@ -93,13 +114,14 @@ one machine-wide owner lock; concurrent/multiuser operation is unsupported.
 
 All mutable fixture data sits on an owned local NTFS volume/root in the disposable
 host. Names below are logical roles, not caller-supplied paths. The supervisor
-verifies volume, file IDs, owner and protected DACL through handles. Reject null
-DACLs, unexpected inheritance, reparse points and replacement before use.
+verifies volume, file IDs, owner and protected DACL through handles. Reject absent
+or NULL DACLs, unexpected inheritance, reparse points and replacement before use
+on owned scope. These checks supply no control over arbitrary outside descriptors.
 
 | Role | Principal rights | Trusted ownership and restrictions |
 | --- | --- | --- |
 | Service binaries, policy, inventory, grants, account secret | None | SYSTEM/service-owned; admin maintenance only; no user-writable executable/DLL search location |
-| Original project and outside canaries | None | Never add a principal ACE; imports are bounded independent copies |
+| Original project and outside canaries | No intended grants; strict denial is not established | Never add a principal ACE; imports are bounded independent copies; NULL/absent DACL access remains a blocking counterexample |
 | Session parent | Traverse of the owned branch only | Trusted owner; no principal parent-delete or sibling creation |
 | `project`, `scratch`, synthetic `home` | Data read/write/create/delete within scope | Fresh bounded copy; no host profile, secret configs, hooks, shared Git administrative store or credential helpers |
 | Runtime payload | Read/execute only | Trusted immutable files with pinned identity/hash; no principal write/delete/ownership/DACL rights |
@@ -130,9 +152,12 @@ offline/stub feasibility target; real Pro credentials remain gated at A2.
 
 Use an explicitly created private noninteractive station and desktop, with
 principal-SID rights satisfying both checks; leave the user's default desktop
-unchanged. A process connects to the named private desktop before its first code
-runs. Its exact station/desktop access masks and same-session handle behavior
-must be observed in qualification, not inferred from a string in STARTUPINFO.
+unchanged. STARTUPINFO.lpDesktop configures the intended station/desktop. Actual
+[connection occurs on a relevant USER32/GDI32 call](https://learn.microsoft.com/en-us/windows/win32/winstation/process-connection-to-a-window-station),
+with [thread assignment following station connection](https://learn.microsoft.com/en-us/windows/win32/winstation/thread-connection-to-a-desktop).
+Do not require already-initialized GUI state from the still-suspended child or
+report the configured string as observed state. CreateProcessAsUser can return
+before DLL initialization succeeds; loader failure belongs to initialization.
 
 Reuse the existing `sidecar/mcpjob/Native.cs` Job/handle-list pattern as source
 context. Create the child suspended with an atomic Job-list attribute, no
@@ -142,11 +167,51 @@ handles. CreateProcessAsUser and handle inheritance have session constraints;
 qualify a Session-0 native worker and its noninteractive I/O before integrating
 interactive terminals. ConPTY availability under this profile remains unverified.
 
-Before resume, independently query primary token, restricting SIDs, privileges,
-Job membership, executable identity, desktop and handle scope. Failure at any
-step terminates the still-suspended owned child and records failed or
-cleanup-unknown. No fallback launch is permitted. The v1 probe/prepare protocol
-stays inactive; future service RPC is a separately versioned contract.
+The first harness launches only a fixed trusted native bootstrap/probe, with
+three distinct phases:
+
+1. **Suspended/configured.** Independently query primary token, restricting SIDs,
+   privileges, Job membership, executable identity and inherited handle scope.
+   Check the owned station/desktop descriptors, explicit lpDesktop selection and
+   absence of inherited station/desktop handles. A failure kills the suspended
+   child. These are policy and object checks; actual GUI connection is unobserved.
+2. **Trusted initialization.** Resume only the hash-pinned trusted probe. Its code,
+   imports/DLL search inputs and cwd are immutable trusted runtime inputs; it must
+   not load project files, hooks, user profile, agent code or untrusted configuration.
+   Make the reviewed harmless GUI call, then query actual station/thread desktop
+   via native APIs. The supervisor queries the held initial thread's desktop via
+   [GetThreadDesktop](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getthreaddesktop)
+   and inspects its object information/security. Station measurement uses
+   [GetProcessWindowStation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getprocesswindowstation)
+   inside the still-trusted probe; this API queries only the calling process.
+   Bind measurements to held process/thread handles, session epoch and the owned
+   private objects; supplied names alone are insufficient. Cross-session API
+   availability and exact object comparison must qualify, with no inferred success.
+3. **Fixture admission.** Only after successful initialized-state observation may
+   the supervisor release the probe's fixed harmless payload sentinel/file tasks.
+   Send a single-use correlated admission through its private inherited stdin pipe;
+   bounded framed stdout carries initialized-state measurements. No argv/env secret
+   or publicly accessible endpoint supplies admission. Use a 5000 ms monotonic
+   deadline from trusted resume to admission, bounded output and process-liveness
+   checks. EOF, timeout, wrong correlation/state, loader/observer failure or owner
+   loss terminates the owned Job before the sentinel. No release is sent on failure.
+
+This sequence is a proposed fixture contract, not evidence of execution. All
+pre-admission executable code, including DLL initialization, must be trusted.
+Ordinary stdout from an agent is never a trusted measurement. Native implementation
+review must verify the private transport and that no other route reaches the
+sentinel. Retest initialized-state failure injection before admitting file tasks.
+
+The fixed probe does not qualify arbitrary Node/Git/Claude startup. A separately
+reviewed runtime admission design must identify all code before its release point
+and prevent project/agent code from running before required initialization checks.
+Launching an agent suspended and checking its desktop after arbitrary code runs
+does not meet that requirement. Those runtime cases stay blocked/not-run until
+that design exists; a trusted wrapper alone supplies no child-process guarantee.
+
+Failure records failed or cleanup-unknown; no fallback launch is permitted. The
+v1 probe/prepare protocol stays inactive. Any future bootstrap/service transport
+is a separately reviewed contract and does not add active replies to v1.
 
 Qualification host networking is disconnected and has no production secrets.
 The candidate does not claim network isolation: persistent SID WFP deny and
@@ -158,15 +223,19 @@ outcome. Cleanup follows trusted resource inventory, not name-prefix guesses.
 
 ## Concrete next implementation and acceptance
 
-After actual scoped design review, implement an offline **qualification harness**
-in a separately reviewed change: native token inspection, owned ACL/object setup,
-atomic suspended fixed-probe launch and independent file/process oracles. No
+After actual scoped review of this bounded research scope, implement an offline
+**qualification harness** in a separately reviewed change: native token inspection,
+owned ACL/object setup, atomic suspended trusted-probe launch, phased admission
+and independent file/process oracles. No
 production IPC/UI or agent launcher is introduced by that harness. Every changed
 native token/ACL/privileged operation needs its own pre-merge review.
 
 Use the [qualification contract](identity-filesystem-qualification.md). The key
 result is a four-way comparison: owner control; dedicated ordinary token; actual
-restricted token; intentionally broken fixture. Both prevention and useful
-runtime work must pass. If required Windows/runtime objects cannot be admitted
-without broadening data access, keep preparation unavailable and return a revised
-ADR for review. Do not label a design or a denied task as a working session.
+restricted token; intentionally broken fixture. Record the known NULL-DACL gap
+as an expected strict-boundary failure, separately from broken fixtures and
+not-run cases. Research completion may establish reproducibility and runtime
+limits; it cannot accept this mechanism as the strict boundary. Both a reviewed
+additional boundary and native denial/usefulness evidence are required before
+active preparation. Any broadening of runtime access also needs revised review.
+Full E1/A1 remain incomplete; no protection guarantee follows from this document.
