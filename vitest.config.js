@@ -57,6 +57,7 @@ export default defineConfig({
         'src/main/action-delete-file.js',
         'src/main/action-execution.js',
         'src/main/action-protected-execution.js',
+        'src/main/protected-session-protocol.js',
         'src/main/action-execution-cli.js',
         'src/main/action-mcp.js',
         'src/main/action-mcp-status.js',
