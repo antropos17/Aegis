@@ -24,7 +24,13 @@ eight neighboring cases already passed. After the pending/revision observation
 fence, all ten cases pass, alongside the existing late-work and recovery tests.
 The new cases include late release, explicit cleanup retry after caller timeout,
 sticky journal failure and cancellation during four observation points. This is
-fix verification for the synthetic controller, awaiting actual scoped re-review.
+fix verification for the synthetic controller. Actual scoped review
+`vm-fixture-r1-bf464c1-20260928` accepted the correction at HEAD
+`bf464c153ff5b3be87a78a3d21d462991495aa95`; its raw response SHA-256 is
+`ca7e599dbf76a7ebd883742e7dd55bc513e4bb577c5021b40b0684df3771493a`.
+The reviewer independently checked 171/171 Windows cases, old/new ordering
+controls, source/patch integrity and exact-HEAD CI. PR #695 merged as
+`567c6b00b3dac04970b7ef5284a20a53e764e191`.
 
 The final read-only probe queried OS build **26200** and hypervisorPresent=true.
 Management service instance observation returned **unavailable** in the current
@@ -62,3 +68,7 @@ full patch, relevant unchanged protocol/packaging context and prior actual revie
 The packet distinguishes developer tests from the still-required
 [native matrix](windows-vm-qualification.md). Exact authorized disposable
 host/image and reviewed privileged fixture remain outstanding.
+
+The next [native bootstrap evidence](native-bootstrap-evidence.md) documents
+additional process/pipe/Job cases. It retains these VM effects as not-run and
+needs its own scoped review.

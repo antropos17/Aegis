@@ -1,6 +1,6 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, executable VM foundation
+## Current enforcement status — 2026-09-28, native initialized-process fixture
 
 This is the canonical continuation status; older handoffs below preserve history.
 E0 is complete after actual A0 PASS at BASE `52fc21f` / HEAD `535c0e8`, with
@@ -30,26 +30,43 @@ data/authority outside. It grants no arbitrary guest per-path isolation or nativ
 enforcement acceptance. The 36 in-memory AccessCheck decisions remain separate
 from file effects; strictBoundaryPassed=false.
 
-Current branch `codex/enforcement-vm-fixture` starts from that origin/master in
-the existing managed enforcement-e0 worktree. The original dirty checkout is
-preserved. This larger [foundation](../docs/roadmap/enforcement-e2/vm-fixture-foundation.md)
-adds fixed read-only Hyper-V inspection, challenge/HMAC guest-evidence framing,
-synthetic admission/release/stop with late-operation tracking and a bounded fsync
-journal with non-resuming recovery. One integrated CLI runs the synthetic backend
-with the actual journal. There is no native mutation adapter or guest transport.
-PR #695 is draft/open. Actual review `vm-fixture-4a3f420-20260928` returned
-FIX_REQUIRED at HEAD `4a3f42015fc56b0f43c24450b83481d0cbb545a1`; response SHA-256
-is `4bf06b327603850dbbbb4c0dbfd52c0fbde11a5ed016b081d7d234700ad049e1`.
-F1 independently reproduced a delayed off observation accepted after a late
-start, leaving a running synthetic machine reported stopped with retries disabled.
-The correction requires no pending mutations before observation and unchanged
-mutation revision plus no pending mutations after delivery. Ten new ordering
-cases cover this race, late release, timed-out caller retry, journal failure and
-cancellation during four observation points. Corrected source/diff, Windows
-evidence and exact-HEAD hosted CI need one actual scoped re-review before merge.
+The [VM foundation](../docs/roadmap/enforcement-e2/vm-fixture-foundation.md) adds
+read-only Hyper-V inspection, challenge/HMAC framing, synthetic lifecycle tracking
+and a bounded fsync journal. Actual review `vm-fixture-4a3f420-20260928` returned
+FIX_REQUIRED at `4a3f420`: a delayed off observation could falsely report stopped
+after a late start. The pending/revision observation fence received actual scoped
+PASS `vm-fixture-r1-bf464c1-20260928` at HEAD
+`bf464c153ff5b3be87a78a3d21d462991495aa95`; raw response SHA-256 is
+`ca7e599dbf76a7ebd883742e7dd55bc513e4bb577c5021b40b0684df3771493a`.
+The reviewer independently checked 171 Windows cases, old/new ordering controls,
+packet integrity and five exact-HEAD CI contexts. PR #695 merged as
+`567c6b00b3dac04970b7ef5284a20a53e764e191` on 2026-09-28.
 
-Corrected focused Windows tests passed 171/171 with no skips: 77 new foundation,
-63 inactive protocol and 31 filesystem cases. The native read-only probe observed
+Current branch `codex/enforcement-native-fixture` starts from that origin/master
+in the reused managed enforcement-e0 worktree. The original dirty checkout is
+preserved. The [native fixture](../docs/roadmap/enforcement-e2/native-bootstrap-fixture.md)
+reuses the unchanged atomic Windows Job owner for one fixed trusted same-principal
+child. It observes that held process before handoff and after authenticated
+initialized evidence, before a fixed acknowledgement can run. It exercises
+bounded anonymous pipes, C#/JS framing interoperability, cancellation, six fault
+refusals and Job closure. No production caller, VM mutation, guest transport,
+separate principal, protected inventory or complete runtime/member measurement
+was added. Its separate scoped review is pending; full A1 remains UNREVIEWED.
+
+Final focused Windows tests passed 226/226 with no skips: 55 new bootstrap cases
+and the existing 77 VM foundation, 63 inactive protocol and 31 filesystem cases.
+The standalone native CLI compiled ten exact C# sources with inbox x64 compiler
+4.8.9221.0, ran nine scenarios and saved redacted provenance. Three accepted C#
+frames passed the unchanged JS verifier and replay refusal. All held children
+exited; eight cases separately queried empty Job accounting. Closing the Job
+handle confirms held-child exit only. An initial one-member assumption failed:
+an independent local diagnostic observed `conhost` alongside the fixed child.
+Complete Job member inventory remains unqualified. Unexpected worker failure/EOF
+does not count as a successful injected refusal. Seven CLI controls preserve
+existing receipts and create no compiler scratch. See the
+[native evidence](../docs/roadmap/enforcement-e2/native-bootstrap-evidence.md).
+
+The preceding native read-only probe observed
 OS build 26200 and hypervisor presence; manager instance availability was unknown
 (`unavailable`). The all-zero VM selector was missing. No existing VM was queried:
 the positive selected-VM settings branch remains not-run. The synthetic lifecycle
@@ -60,7 +77,7 @@ nativeContainmentQualified=false. Seven CLI refusal controls passed. See the
 All E1 task checkmarks and full A1 remain incomplete. E2 has developer foundation
 code, with the [native VM matrix](../docs/roadmap/enforcement-e2/windows-vm-qualification.md)
 still not-run. Exact disposable-host/image authorization, protected supervisor
-inventory and caller identity, native VM/job lifecycle, trusted guest bootstrap,
+inventory and caller identity, native Hyper-V VM/job lifecycle, trusted guest bootstrap,
 independent image/device/service/process observations, useful guest Node/Git,
 network/WFP, credentials, export and release remain outstanding. No existing VM,
 service, feature, image, WSL, real online agent or original project was modified.
@@ -68,7 +85,7 @@ service, feature, image, WSL, real online agent or original project was modified
 Claude Code was previously observed as 2.1.263 with a claude.ai Pro subscription;
 secret-free broker compatibility remains an open A2 question. E0 retained one
 native MCP teardown EPERM; a passing repeat does not diagnose it. Actual review
-responses remain on the task drive; `ASTRA_REVIEW_VM_FIXTURE.md` is the
+responses remain on the task drive; `ASTRA_REVIEW_VM_FIXTURE_R1.md` is the
 latest consumed response. Keep scoped PASS separate from full acceptance.
 
 The paired local progress JSON/HTML project this status. Local diagnostics and
