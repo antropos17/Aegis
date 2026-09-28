@@ -1,9 +1,13 @@
 # Combined filesystem/Windows guest qualification
 
-Status: **native API baseline and developer foundation executed; VM/process/file-effect matrix not-run**.
+Status: **native API/process bootstrap foundation executed; guest VM/file-effect matrix not-run**.
 The [fixture foundation](vm-fixture-foundation.md) adds a read-only host subset
 and synthetic admission/stop/recovery tests. It implements no native mutation
 adapter, guest bootstrap, protected inventory or production launch.
+The [native process fixture](native-bootstrap-fixture.md) additionally exercises
+initialized held-child observation, anonymous pipes, fixed acknowledgement and
+Job teardown on Windows. Its same-principal, core-runtime and address-codec scope
+does not qualify any complete guest VM row below.
 Requires the [scoped direction ADR](windows-vm-boundary-adr.md), reviewed native
 fixture code and explicit authorization of the exact disposable Windows host.
 This document does not authorize feature/service/VM/image/network changes.

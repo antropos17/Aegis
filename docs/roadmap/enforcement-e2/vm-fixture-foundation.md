@@ -79,7 +79,13 @@ disable cleanup retries. The correction checks pending work before observation
 and pending work plus mutation revision after delivery. Ten additional ordering
 cases cover delayed start/release completion, timed-out caller retries, journal
 failure and cancellation during each admission/release observation. This
-correction still needs actual scoped re-review before PR #695 can merge.
+correction received actual scoped PASS `vm-fixture-r1-bf464c1-20260928` at
+HEAD `bf464c153ff5b3be87a78a3d21d462991495aa95`. PR #695 merged as
+`567c6b00b3dac04970b7ef5284a20a53e764e191` after five successful CI contexts.
+That review covers this corrected synthetic foundation, with native effects
+still not-run. The next [native process bootstrap fixture](native-bootstrap-fixture.md)
+adds matching Windows process/pipe/Job evidence with its own scoped review;
+it does not implement a VM lifecycle or host/guest transport.
 
 ## Persistence and remaining native work
 
