@@ -1,14 +1,17 @@
 # Filesystem boundary ADR: Windows guest qualification
 
-Status: **proposed for combined review; no VM backend implemented or qualified**.
-Source base: `8e0f5085acfeb83ad50fc5dbc7424b06d8f0de43`, 2026-09-28.
+Status: **direction accepted by scoped review; no native VM backend qualified**.
+Actual review `filesystem-boundary-4057479-20260928` accepted the diagnostic and
+guest qualification contract at HEAD `4057479`; PR #694 merged as `b21eaa9`.
+The [new executable fixture foundation](vm-fixture-foundation.md) needs its own
+review and supplies no native mutation/containment acceptance. Date: 2026-09-28.
 The original strict host-filesystem requirement remains mandatory. The existing
 Protected Session helper still refuses preparation; full E1/A1 are incomplete.
 
 ## Decision and measured reason
 
 Select a dedicated Windows 11 x64 Hyper-V guest as the next boundary candidate
-to qualify. This is an explicit proposed revision of the earlier host-native
+to qualify. This is an explicit reviewed revision of the earlier host-native
 direction. The agent remains a Windows CLI inside a separately provisioned guest.
 No Hyper-V feature, VM, image, network, account or host service is created here.
 No download, license purchase or change to another VM is authorized by this ADR.
@@ -47,8 +50,10 @@ cannot write trusted bootstrap/service files. Guest-side token/ACL controls are
 defense in depth, without treating their known NULL-DACL limitation as solved.
 Any sensitive state or authority needed to make a host decision stays on the host.
 
-The review must decide whether this explicit scope meets the original staged
-project/runtime promise. A reduced product promise is not authorized implicitly.
+The scoped review accepted this explicit staged-project/runtime scope as a
+qualification candidate under the original plan's VM fallback. It accepted no
+arbitrary per-path isolation inside the guest or native enforcement result.
+A reduced product promise is not authorized implicitly.
 If strict isolation of other guest data is also required and cannot be established,
 keep preparation unavailable and revise the design. No canary or host-integration
 exception may be waived to make the matrix pass.

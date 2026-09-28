@@ -1,78 +1,83 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, combined boundary qualification
+## Current enforcement status — 2026-09-28, executable VM foundation
 
-This is the canonical continuation status. The older handoffs below preserve
-history. E0 is complete after actual A0 PASS at BASE `52fc21f` / HEAD `535c0e8`,
-with PR #691 merged as `c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae`.
-This accepted an architecture direction, without a runtime protection guarantee.
+This is the canonical continuation status; older handoffs below preserve history.
+E0 is complete after actual A0 PASS at BASE `52fc21f` / HEAD `535c0e8`, with
+PR #691 merged as `c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae`. This accepted
+architecture direction without a runtime protection guarantee.
 
-E1 inactive protocol PR #692 merged as
-`6dee6f0b6ff43a52e01768b4534398d7dd97543a`, after actual scoped PASS at BASE
-`c1d0aa6` / HEAD `5418249` and all five required CI contexts. Both v1 operations
-still return containment unavailable; preparation is refused. The native input
-deadline is bounded. The final protocol suite passed **63/63**, with no Windows
-skips; across its two batches **98** distinct cases passed. The AppContainer
-protocol cases are mocks. No active caller or production launch was added.
+E1 inactive protocol PR #692 merged as `6dee6f0b6ff43a52e01768b4534398d7dd97543a`
+after scoped PASS at HEAD `5418249` and five successful CI contexts. Both v1
+operations still return containment unavailable. No production launch exists.
+The bounded native input deadline and final 63/63 Windows cases remain verified.
 
 The identity/filesystem design received actual FIX_REQUIRED at `bba16bb`:
-present-NULL DACL access defeats the proposed restricting-token boundary, and
-initialized desktop/loader state cannot be observed in a still-suspended child.
-The corrected revision received scoped PASS `E1-identity-r1-f0bfcab-20260928`
-at BASE `6dee6f0` / HEAD `f0bfcab`. This accepts bounded research documentation
-only. PR #693 merged after matching that HEAD and successful required CI, as
-`8e0f5085acfeb83ad50fc5dbc7424b06d8f0de43`. The raw R1 response SHA-256 is
-`f1c04b78f67221ffa942b8b3d433c75112aecdd9dd683a6843f112087c34934f`.
-See the [review resolution](../docs/roadmap/enforcement-e1/review-resolution.md).
+present-NULL DACL access defeats that restricting-token boundary, and initialized
+loader/desktop state cannot be observed in a still-suspended child. Corrected
+research received scoped PASS `E1-identity-r1-f0bfcab-20260928` at HEAD `f0bfcab`;
+PR #693 merged as `8e0f5085acfeb83ad50fc5dbc7424b06d8f0de43`. See the
+[review resolution](../docs/roadmap/enforcement-e1/review-resolution.md).
 
-The next combined block uses branch `codex/enforcement-e2-boundary-qualification`
-from that origin/master in the existing managed enforcement-e0 worktree.
-The original checkout and its unfinished work remain intact. It includes a
-permanent native developer AccessCheck diagnostic, guarded report validation,
-an explicit [Windows guest boundary proposal](../docs/roadmap/enforcement-e2/windows-vm-boundary-adr.md)
-and the complete [qualification matrix](../docs/roadmap/enforcement-e2/windows-vm-qualification.md).
-Its final source/diff, native receipts and regression checks travel in one packet.
-The combined scope requires an actual review before merge; no verdict is borrowed
-from the accepted research documents.
+Actual review `filesystem-boundary-4057479-20260928` returned scoped PASS for the
+native AccessCheck diagnostic and Windows guest qualification contract at
+BASE `8e0f508` / HEAD `4057479799f9502b23150ff73b21abc5270e21bb`. Its raw response
+SHA-256 is `4d480de96680f1c3a61f47888f839e7322fccc2a272a6d902616f4e256a8b473`.
+All five required contexts passed. PR #694 merged as
+`b21eaa94f78ba3c84024bd2f13b159862bad9488`. The accepted candidate admits a
+trusted guest runtime image and bounded independent project copies, with host
+data/authority outside. It grants no arbitrary guest per-path isolation or native
+enforcement acceptance. The 36 in-memory AccessCheck decisions remain separate
+from file effects; strictBoundaryPassed=false.
 
-The focused diagnostic suite passed **31/31** on Windows x64, including the
-actual native probe. Its **36** paired in-memory access decisions reproduce
-NULL/absent-DACL access while retaining strictBoundaryPassed=false. It queries
-one actual user SID restrictor and privilege removal; no actual SID is emitted.
-Source/compiler/executable hashes record provenance. Tokens remain unassigned:
-no impersonation, account creation, restricted child or host ACL change occurs.
-See [current evidence](../docs/roadmap/enforcement-e2/filesystem-qualification-evidence.md)
-for the distinction between API semantics and filesystem effects.
+Current branch `codex/enforcement-vm-fixture` starts from that origin/master in
+the existing managed enforcement-e0 worktree. The original dirty checkout is
+preserved. This larger [foundation](../docs/roadmap/enforcement-e2/vm-fixture-foundation.md)
+adds fixed read-only Hyper-V inspection, challenge/HMAC guest-evidence framing,
+synthetic admission/release/stop with late-operation tracking and a bounded fsync
+journal with non-resuming recovery. One integrated CLI runs the synthetic backend
+with the actual journal. There is no native mutation adapter or guest transport.
+PR #695 is draft/open. Actual review `vm-fixture-4a3f420-20260928` returned
+FIX_REQUIRED at HEAD `4a3f42015fc56b0f43c24450b83481d0cbb545a1`; response SHA-256
+is `4bf06b327603850dbbbb4c0dbfd52c0fbde11a5ed016b081d7d234700ad049e1`.
+F1 independently reproduced a delayed off observation accepted after a late
+start, leaving a running synthetic machine reported stopped with retries disabled.
+The correction requires no pending mutations before observation and unchanged
+mutation revision plus no pending mutations after delivery. Ten new ordering
+cases cover this race, late release, timed-out caller retry, journal failure and
+cancellation during four observation points. Corrected source/diff, Windows
+evidence and exact-HEAD hosted CI need one actual scoped re-review before merge.
 
-The proposed Windows 11 Hyper-V guest is an explicit alternative to the earlier
-host-native direction. It is not implemented, accepted or qualified. The review
-must resolve the original staged-project/runtime scope and all guest-to-host
-integration routes. No Hyper-V availability check, feature activation, guest
-image, VM, integration endpoint, privileged caller or networking is implemented
-here. The production helper remains inactive. Preparation cannot become allowed
-from this diagnostic, a guest boot or passing regression CI.
+Corrected focused Windows tests passed 171/171 with no skips: 77 new foundation,
+63 inactive protocol and 31 filesystem cases. The native read-only probe observed
+OS build 26200 and hypervisor presence; manager instance availability was unknown
+(`unavailable`). The all-zero VM selector was missing. No existing VM was queried:
+the positive selected-VM settings branch remains not-run. The synthetic lifecycle
+completed ready/running/stopped and refused recovery launch; effectsRun=false and
+nativeContainmentQualified=false. Seven CLI refusal controls passed. See the
+[evidence](../docs/roadmap/enforcement-e2/vm-fixture-evidence.md).
 
-All E1 task checkmarks and full A1 remain incomplete; E2-E11 runtime work has not
-started. Exact disposable-host authorization and reviewed native fixture code
-are still needed before privileged qualification. Separate-account file effects,
-private desktop/admission, useful restricted Node/Git tasks, real online agents,
-network/WFP, credentials, export and release are not qualified by this block.
-The installed Claude version was previously checked as 2.1.263, with a claude.ai
-Pro subscription; secret-free broker compatibility remains an open A2 question.
-E0 retained one native MCP teardown EPERM; a passing repeat does not diagnose it.
+All E1 task checkmarks and full A1 remain incomplete. E2 has developer foundation
+code, with the [native VM matrix](../docs/roadmap/enforcement-e2/windows-vm-qualification.md)
+still not-run. Exact disposable-host/image authorization, protected supervisor
+inventory and caller identity, native VM/job lifecycle, trusted guest bootstrap,
+independent image/device/service/process observations, useful guest Node/Git,
+network/WFP, credentials, export and release remain outstanding. No existing VM,
+service, feature, image, WSL, real online agent or original project was modified.
 
-The paired local progress JSON/HTML are a visual projection of this status.
-Actual review responses are retained as `ASTRA_REVIEW_A0.md`, `ASTRA_REVIEW_E1.md`,
-`ASTRA_REVIEW_E1_IDENTITY.md` and `ASTRA_REVIEW_E1_IDENTITY_R1.md` on the task drive.
-Keep the initial FIX_REQUIRED, scoped protocol PASS and scoped research PASS
-separate from full containment acceptance.
+Claude Code was previously observed as 2.1.263 with a claude.ai Pro subscription;
+secret-free broker compatibility remains an open A2 question. E0 retained one
+native MCP teardown EPERM; a passing repeat does not diagnose it. Actual review
+responses remain on the task drive; `ASTRA_REVIEW_VM_FIXTURE.md` is the
+latest consumed response. Keep scoped PASS separate from full acceptance.
 
-Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. Process TEMP/TMP
-and dependency caches use that data drive. Preserve receipts; review disposable
-diagnostics after 14 days or 64 MiB, and scratch growth against 256 MiB. No
-recurring retention mechanism was added. The task-owned dependencies junction
-must be detached before managed worktree retirement; never recursively delete
-through it. Preserve normal VMs, WSL, caches, credentials and user files.
+The paired local progress JSON/HTML project this status. Local diagnostics and
+receipts use `X:/tmp/aegis-enforcement-e0-20260928`, with per-process data-drive
+TEMP/TMP/cache settings. Preserve receipts; review disposable diagnostics after
+14 days or 64 MiB, and scratch growth against 256 MiB. No recurring retention
+mechanism was added. Detach the task-owned dependencies junction before managed
+worktree retirement; never recursively delete through it. Preserve VMs, WSL,
+caches, credentials and user files.
 
 ## Current handoff — 2026-09-26, code baseline `c137b8d`
 

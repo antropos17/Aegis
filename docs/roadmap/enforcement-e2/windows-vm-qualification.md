@@ -1,7 +1,10 @@
 # Combined filesystem/Windows guest qualification
 
-Status: **native API baseline executed; VM/process/file-effect matrix not-run**.
-Requires the [proposed boundary ADR](windows-vm-boundary-adr.md), reviewed native
+Status: **native API baseline and developer foundation executed; VM/process/file-effect matrix not-run**.
+The [fixture foundation](vm-fixture-foundation.md) adds a read-only host subset
+and synthetic admission/stop/recovery tests. It implements no native mutation
+adapter, guest bootstrap, protected inventory or production launch.
+Requires the [scoped direction ADR](windows-vm-boundary-adr.md), reviewed native
 fixture code and explicit authorization of the exact disposable Windows host.
 This document does not authorize feature/service/VM/image/network changes.
 
