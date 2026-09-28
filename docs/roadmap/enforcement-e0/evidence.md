@@ -79,7 +79,9 @@ isolated profile. These effects verify the installed client contract only.
 No online model request, real credential transport, system firewall or protected
 session was tested. The fixture's lifecycle subagent used synthetic replies.
 
-Full CI, renderer build, whole-repository coverage, mutation gates, production
-audit, native AppContainer effects, SRT privileged tests, reboot/uninstall and
-real subscription broker tests were not run in this E0 design pass. They are
-required where applicable before a corresponding implementation merge/release.
+The full local verification batch, renderer build, whole-repository coverage,
+mutation gates, production audit, native AppContainer effects, SRT privileged
+tests, reboot/uninstall and real subscription broker tests were not run in this
+E0 design pass. Hosted CI for draft PR #691 is separate evidence: its actual
+commit, platform and results are captured in the final local review packet.
+Applicable required checks must pass before an implementation merge/release.

@@ -42,8 +42,10 @@ diagnostics after 14 days or 64 MiB. Check scratch during batches against
 256 MiB. No recurring retention mechanism was added. The dependencies junction
 must be detached before any managed worktree retirement; it points at task-owned
 data on X:, never the original checkout's node_modules. Native provisioning,
-ACL/firewall changes, services, real credentials, release and full CI were not
-performed in E0. E0 review artifacts have no runtime code changes.
+ACL/firewall changes, services, real credentials, release and a full local
+verification batch were not performed in E0. Draft PR #691 runs hosted CI;
+the final local packet records its actual HEAD and results separately from
+native Windows evidence. E0 review artifacts have no runtime code changes.
 
 ## Current handoff — 2026-09-26, code baseline `c137b8d`
 
