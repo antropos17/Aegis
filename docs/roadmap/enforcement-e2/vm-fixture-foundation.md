@@ -64,12 +64,22 @@ arbitrary command, project content or host path is sent to that callback.
 
 Stop immediately invalidates admission and signals cancellation. Every mutating
 callback remains tracked until its underlying promise settles, even after a
-timeout. Stop needs an exact off observation, zero local outstanding mutations
-and zero independently reported backend jobs. A late start/release or observer
+timeout. Observation starts only with zero local outstanding mutations; a
+revision fence rejects responses that overlap mutation dispatch or settlement.
+Stop needs a fresh exact off observation after earlier mutations settle and zero
+independently reported backend jobs. A late start/release or observer
 loss leaves cleanup unknown. A subsequent stop can confirm closure after that
 work settles. No automatic retry of launch, resume or identifier reuse exists.
 Native backends must observe actual asynchronous Hyper-V jobs; these synthetic
 promise tests establish no native job cancellation or race-free VM admission.
+
+Review `vm-fixture-4a3f420-20260928` returned FIX_REQUIRED: a delayed off snapshot
+captured before a late start completed could incorrectly record stopped and
+disable cleanup retries. The correction checks pending work before observation
+and pending work plus mutation revision after delivery. Ten additional ordering
+cases cover delayed start/release completion, timed-out caller retries, journal
+failure and cancellation during each admission/release observation. This
+correction still needs actual scoped re-review before PR #695 can merge.
 
 ## Persistence and remaining native work
 

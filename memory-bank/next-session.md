@@ -37,10 +37,18 @@ adds fixed read-only Hyper-V inspection, challenge/HMAC guest-evidence framing,
 synthetic admission/release/stop with late-operation tracking and a bounded fsync
 journal with non-resuming recovery. One integrated CLI runs the synthetic backend
 with the actual journal. There is no native mutation adapter or guest transport.
-Current source/diff, Windows evidence and hosted CI need one actual new scoped
-review before merge; prior verdicts are not borrowed.
+PR #695 is draft/open. Actual review `vm-fixture-4a3f420-20260928` returned
+FIX_REQUIRED at HEAD `4a3f42015fc56b0f43c24450b83481d0cbb545a1`; response SHA-256
+is `4bf06b327603850dbbbb4c0dbfd52c0fbde11a5ed016b081d7d234700ad049e1`.
+F1 independently reproduced a delayed off observation accepted after a late
+start, leaving a running synthetic machine reported stopped with retries disabled.
+The correction requires no pending mutations before observation and unchanged
+mutation revision plus no pending mutations after delivery. Ten new ordering
+cases cover this race, late release, timed-out caller retry, journal failure and
+cancellation during four observation points. Corrected source/diff, Windows
+evidence and exact-HEAD hosted CI need one actual scoped re-review before merge.
 
-Final focused Windows tests passed 161/161 with no skips: 67 new foundation,
+Corrected focused Windows tests passed 171/171 with no skips: 77 new foundation,
 63 inactive protocol and 31 filesystem cases. The native read-only probe observed
 OS build 26200 and hypervisor presence; manager instance availability was unknown
 (`unavailable`). The all-zero VM selector was missing. No existing VM was queried:
@@ -60,7 +68,7 @@ service, feature, image, WSL, real online agent or original project was modified
 Claude Code was previously observed as 2.1.263 with a claude.ai Pro subscription;
 secret-free broker compatibility remains an open A2 question. E0 retained one
 native MCP teardown EPERM; a passing repeat does not diagnose it. Actual review
-responses remain on the task drive; `ASTRA_REVIEW_FILESYSTEM_BOUNDARY.md` is the
+responses remain on the task drive; `ASTRA_REVIEW_VM_FIXTURE.md` is the
 latest consumed response. Keep scoped PASS separate from full acceptance.
 
 The paired local progress JSON/HTML project this status. Local diagnostics and

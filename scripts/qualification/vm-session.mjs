@@ -31,6 +31,7 @@ export function createVmSession({
   requireVm(Buffer.isBuffer(key) && key.length === 32);
   const credential = Buffer.from(key);
   const pending = new Set();
+  let mutationRevision = 0;
   let state = recovery ? 'cleanup-unknown' : 'created';
   let generation = 0;
   let cancel = new AbortController();
@@ -54,11 +55,13 @@ export function createVmSession({
       return backend[name](registered, args);
     });
     if (mutation) {
+      mutationRevision++;
       pending.add(operation);
-      operation.then(
-        () => pending.delete(operation),
-        () => pending.delete(operation),
-      );
+      const settled = () => {
+        pending.delete(operation);
+        mutationRevision++;
+      };
+      operation.then(settled, settled);
     }
     let timer;
     try {
@@ -74,11 +77,15 @@ export function createVmSession({
   }
 
   async function inspect(expected, signal = cancel.signal) {
+    // An observation cannot establish closure while older mutations can still finish.
+    requireVm(pending.size === 0);
+    const revision = mutationRevision;
     const observed = await call('inspect', { signal });
+    requireVm(pending.size === 0 && mutationRevision === revision);
     exactKeys(observed, ['vmId', 'epoch', 'state', 'configSha256', 'pendingOperations']);
     requireVm(observed.vmId === registered.vmId && observed.epoch === registered.epoch);
     requireVm(observed.state === expected && observed.configSha256 === pinned.configSha256);
-    requireVm(observed.pendingOperations === 0 && pending.size === 0);
+    requireVm(observed.pendingOperations === 0);
   }
 
   function current(ticket) {
