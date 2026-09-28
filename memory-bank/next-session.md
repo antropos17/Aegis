@@ -1,5 +1,52 @@
 # AEGIS — starting the next chat
 
+## Current enforcement status — 2026-09-28, E0 awaiting Astra A0
+
+This is the canonical continuation status for the enforcement plan. The older
+handoffs below preserve history. E0 preparation is complete; the stage remains
+in review until an actual independent Astra A0 result returns. E1-E11 have not
+started. No Astra result exists and no Protected Session guarantee is issued.
+
+Source BASE/tested HEAD: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
+0.17.0-alpha. Fresh origin/master matches it. Branch: `codex/enforcement-e0`,
+in the managed enforcement-e0 worktree. The original checkout and its renderer
+and configuration changes remain intact. The local review packet binds the
+final documentation HEAD, diff and filtered source snapshot.
+
+Read [E0 evidence](../docs/roadmap/enforcement-e0/evidence.md),
+[backend ADR](../docs/roadmap/enforcement-e0/backend-adr.md) and
+[canary tests](../docs/roadmap/enforcement-e0/canary-tests.md). Proposed backend:
+separate long-running C# session helper extending verified AEGIS ownership,
+with a distinct low-privilege principal and persistent SID network deny.
+Pinned SRT is a comparison/reference, not an installed dependency.
+
+Executed on Windows 11 build 26200: context/count checks passed; the selected
+baseline had 152 passed, one teardown EPERM and one intentional non-Windows
+skip. The MCP native repeat passed 10/10. Both results are preserved.
+Installed Claude 2.1.263 passed eight local synthetic API scenarios; the
+missing-hook control executed while deny blocked. These are limited route
+results, without new OS isolation or real online authentication evidence.
+Installed AEGIS metadata reports 0.17.0-alpha. Claude is logged in through a
+claude.ai Pro subscription; secret-free broker compatibility remains open.
+
+Next: give the local `ASTRA_REVIEW_PACKET.md` and `ASTRA_REVIEW_A0.zip` to Astra,
+review gate A0 against the exact supplied BASE/HEAD and return its real verdict
+to Sol. Before any privileged implementation, resolve A0; later identity/ACL/
+WFP/credential/export boundary changes need their own scoped review.
+The paired `AEGIS_ENFORCEMENT_PROGRESS.json`/HTML are a visual projection of
+this status. The A0 verdict stays UNREVIEWED; preparing a packet is not PASS.
+
+Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. TEMP/TMP and
+dependency caches were directed there. Preserve receipts; review disposable
+diagnostics after 14 days or 64 MiB. Check scratch during batches against
+256 MiB. No recurring retention mechanism was added. The dependencies junction
+must be detached before any managed worktree retirement; it points at task-owned
+data on X:, never the original checkout's node_modules. Native provisioning,
+ACL/firewall changes, services, real credentials, release and a full local
+verification batch were not performed in E0. Draft PR #691 runs hosted CI;
+the final local packet records its actual HEAD and results separately from
+native Windows evidence. E0 review artifacts have no runtime code changes.
+
 ## Current handoff — 2026-09-26, code baseline `c137b8d`
 
 Refresh `origin/master`, the PR list and the release tag before continuing.
