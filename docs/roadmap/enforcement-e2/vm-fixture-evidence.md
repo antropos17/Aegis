@@ -37,7 +37,7 @@ receipt appeared. Both CLIs return code 2 and a fixed generic diagnostic.
 
 Local renderer build, lint, formatting, project type checks, Svelte checks,
 witness/sequence mutation gates, derived counts and production dependency audit
-passed. Lint retains 57 existing warnings and no errors; Svelte reports no errors
+passed. Lint retains existing warnings and no errors; Svelte reports no errors
 or warnings. The required hosted five-context CI run is bound to the final HEAD
 in the review packet. Linux CI does not execute native Windows-only cases.
 
