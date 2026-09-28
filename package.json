@@ -151,7 +151,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/svelte": "^5.4.2",
     "@types/node": "^26.6.2",
-    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.1.11",
     "electron": "^43.4.1",
@@ -161,10 +161,10 @@
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
     "lint-staged": "^17.5.1",
-    "prettier": "^3.9.8",
+    "prettier": "^3.9.9",
     "prettier-plugin-svelte": "^4.1.1",
     "sharp": "^0.35.4",
-    "svelte": "^5.57.0",
+    "svelte": "^5.57.1",
     "svelte-check": "^4.7.6",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
@@ -179,7 +179,7 @@
     "js-yaml": "^5.4.2",
     "jsonc-parser": "3.3.1",
     "semver": "^7.8.5",
-    "smol-toml": "1.8.0"
+    "smol-toml": "1.9.0"
   },
   "overrides": {
     "picomatch@<=2.3.1": "^2.3.2"
