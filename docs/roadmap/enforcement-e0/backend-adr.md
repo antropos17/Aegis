@@ -7,6 +7,9 @@ The single restricting-token/ACL profile has a confirmed NULL-DACL counterexampl
 and cannot implement the strict filesystem promise alone. Active preparation
 remains unavailable pending a revised boundary decision and native qualification.
 The accepted architecture direction does not waive this requirement.
+The next explicit candidate is the [Windows guest boundary ADR](../enforcement-e2/windows-vm-boundary-adr.md),
+proposed for combined review with a permanent native baseline diagnostic. The
+earlier native direction remains historical acceptance; no guest backend is accepted yet.
 Date: 2026-09-28.
 Source baseline: `52fc21f1de58d78eefcba6ef038b651d08cdb421`.
 

@@ -24,7 +24,7 @@ retain their distinct meanings.
 | Carried condition | Current resolution |
 | --- | --- |
 | Partial E1 only | No production launch, authenticated ownership or OS containment was accepted. All E1 task checkmarks remain incomplete; full A1 is UNREVIEWED. |
-| Concrete identity/filesystem feasibility first | The [token/ACL research profile](identity-filesystem-design.md) and [qualification contract](identity-filesystem-qualification.md) received FIX_REQUIRED at `bba16bb`. The revision below awaits its own review; strict adoption remains blocked. |
+| Concrete identity/filesystem feasibility first | The [token/ACL research profile](identity-filesystem-design.md) and [qualification contract](identity-filesystem-qualification.md) received FIX_REQUIRED at `bba16bb`, then scoped bounded-research PASS at `f0bfcab`. Strict adoption remains blocked. |
 | Future active transport and transitions | Any privileged interface, production launcher, active prepare/allow reply or new operation needs its own actual scoped review before merge. The accepted v1 remains unchanged and inactive. |
 | Native recovery uncertainty | Diagnose the retained E0 teardown EPERM before A1 resilience qualification; another pass alone is insufficient. |
 | Later boundaries | Credentials/subscription and grants remain A2, effects/export A3, installer/release A4. |
@@ -35,7 +35,8 @@ a new security verdict or authorize provisioning on the user's working host.
 ## Identity/filesystem design review and proposed corrections
 
 Actual review: `E1-identity-bba16bb-20260928`, returned 2026-09-28.
-Verdict: **FIX_REQUIRED**, two findings; PR #693 remains an open draft.
+Initial verdict: **FIX_REQUIRED**, two findings; the corrected research revision
+and subsequent PR #693 merge are recorded below.
 Reviewed BASE: `6dee6f0b6ff43a52e01768b4534398d7dd97543a`.
 Reviewed HEAD: `bba16bbac5e8306c6a1a8760b2b39f4fa9825777`.
 Full response is retained locally as `ASTRA_REVIEW_E1_IDENTITY.md`.
@@ -56,7 +57,17 @@ DACL allowed both. This is evidence of the mechanism gap, without separate-accou
 file/process effects. No desktop/loader launch probe ran. Five CI contexts passed
 at the reviewed HEAD, establishing regression checks for unchanged runtime code.
 
-These are proposed corrections for re-review, not a returned PASS. The fundamental
-NULL-DACL limitation remains open for active containment. No account/service/ACL
-provisioning is authorized by accepting the research documents; full E1/A1 and
-the later credentials, export and release gates remain incomplete.
+The revision received actual scoped PASS `E1-identity-r1-f0bfcab-20260928`
+at BASE `6dee6f0b6ff43a52e01768b4534398d7dd97543a` / HEAD
+`f0bfcabd7ceb1b6ba140c20a5baa25ab925ef4b3`. The response is retained locally as
+`ASTRA_REVIEW_E1_IDENTITY_R1.md`, raw SHA-256:
+`f1c04b78f67221ffa942b8b3d433c75112aecdd9dd683a6843f112087c34934f`.
+It accepts only the corrected bounded research documents. PR #693 merged with
+matching HEAD and CI as `8e0f5085acfeb83ad50fc5dbc7424b06d8f0de43`.
+
+The fundamental NULL-DACL limitation remains open for active containment. No
+account/service/ACL provisioning is authorized by this scoped PASS; full E1/A1
+and later credentials, export and release gates remain incomplete. The next
+combined change contains a [permanent native diagnostic](../enforcement-e2/filesystem-qualification-evidence.md)
+and an explicit [Windows guest boundary proposal](../enforcement-e2/windows-vm-boundary-adr.md),
+without a production launcher or privileged effects.
