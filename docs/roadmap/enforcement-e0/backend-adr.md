@@ -1,6 +1,9 @@
 # E0 ADR: native Protected Session backend
 
-Status: proposed; awaiting actual Astra A0. Date: 2026-09-28.
+Status: architecture direction accepted at Astra A0; native containment unqualified.
+See [A0 resolution](review-resolution.md) and the proposed
+[E1 identity/filesystem candidate](../enforcement-e1/identity-filesystem-design.md).
+Date: 2026-09-28.
 Source baseline: `52fc21f1de58d78eefcba6ef038b651d08cdb421`.
 
 ## Proposed decision

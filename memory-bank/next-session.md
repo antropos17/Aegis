@@ -1,6 +1,6 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, A0 passed; E1 protocol awaiting scoped review
+## Current enforcement status — 2026-09-28, E1 protocol accepted; identity design in review
 
 This is the canonical continuation status for the enforcement plan. The older
 handoffs below preserve history. E0 is complete: the actual Astra review
@@ -9,10 +9,13 @@ handoffs below preserve history. E0 is complete: the actual Astra review
 `535c0e845787b27fbb6d70e2fd273ae4f545f525`. Sol verified that scope before
 continuing. This supplies no Protected Session runtime guarantee.
 
-Source BASE/tested HEAD: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
+E0 recorded source baseline: `52fc21f1de58d78eefcba6ef038b651d08cdb421`, version
 0.17.0-alpha. E0 PR #691 merged as
 `c1d0aa6dc74b31e63e9cd8c0687638048e31f3ae` after all five required CI contexts
-passed. Branch: `codex/enforcement-e1-protocol`, from that origin/master,
+passed. E1 inactive protocol PR #692 merged as
+`6dee6f0b6ff43a52e01768b4534398d7dd97543a`, after actual scoped Astra PASS
+`E1-protocol-5418249-20260928` for BASE `c1d0aa6` / HEAD `5418249` and all five
+required contexts. Branch: `codex/enforcement-e1-identity-design`, from that origin/master,
 reusing the managed enforcement-e0 worktree. The original checkout and its renderer
 and configuration changes remain intact. The local review packet binds the
 final documentation HEAD, diff and filtered source snapshot.
@@ -45,18 +48,27 @@ cases are mocks. Formatting, lint, typecheck, Svelte check and renderer build
 passed locally; lint retains the previous warnings (57). See
 [E1 evidence](../docs/roadmap/enforcement-e1/evidence.md).
 
-Next: scoped Astra review of the actual E1 protocol PR/diff before merge.
-The local `ASTRA_REVIEW_E1_PACKET.md`/ZIP bind the final commit and CI result.
-This is a partial E1 scope, not completion of A1 or the identity milestone.
-No production agent launch is enabled by this step. The actual OS caller authentication,
-principal provisioning, private desktop, restrictive ACLs and WFP remain open.
-Before broader integration, specify the concrete filesystem token/ACL profile
-and qualify public-canary denial plus normal runtime access on a disposable host.
+The returned [E1 review resolution](../docs/roadmap/enforcement-e1/review-resolution.md)
+records the exact accepted scope and response hash. Astra independently repeated
+63/63 tests and three separate native probes; no blocking finding was returned.
+This is a partial E1 result; full A1 and every E1 task remain incomplete.
+The actual OS caller authentication, principal provisioning, private desktop,
+restrictive ACLs and WFP remain open.
+
+Next: scoped Astra design review of the concrete
+[identity/filesystem candidate](../docs/roadmap/enforcement-e1/identity-filesystem-design.md)
+and [qualification contract](../docs/roadmap/enforcement-e1/identity-filesystem-qualification.md).
+Candidate: dedicated non-admin principal, sole principal SID as restricting SID,
+minimum explicit grants on staged data/runtime, private desktop and authenticated
+supervisor ownership. Useful Node/Git runtime access and Everyone-canary denial
+are not-run and must both qualify. The next native harness requires its own
+implementation review; privileged experiments require explicit authorization
+of a disposable Windows host. No existing host ACL, account or service is changed.
 Each changed trust boundary needs scoped Astra review before its merge; A1/A2
 are still unreviewed. E2-E11 have not started.
 The paired `AEGIS_ENFORCEMENT_PROGRESS.json`/HTML are a visual projection of
-this status. The real review is the local `X:/ASTRA_REVIEW_A0.md`; its scope and
-conditions are recorded in [review resolution](../docs/roadmap/enforcement-e0/review-resolution.md).
+this status. Actual reviews are local `X:/ASTRA_REVIEW_A0.md` and
+`X:/ASTRA_REVIEW_E1.md`; the current identity design has no Astra verdict yet.
 
 Local diagnostics/receipts: `X:/tmp/aegis-enforcement-e0-20260928`. TEMP/TMP and
 dependency caches were directed there. Preserve receipts; review disposable
