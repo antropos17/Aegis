@@ -39,10 +39,10 @@ refused. Cross-session replies, malformed/oversized/duplicate/unknown input and
 claimed launch permission are rejected. A 2000 ms native input deadline is
 tested. Windows regression: 94/94 passed, no skips; the final expanded protocol
 suite passed 63/63 (37 JS + 26 native). Across both unchanged implementation
-batches, 98 distinct cases passed, including 23 existing native Job tests.
+batches, 98 distinct cases passed, including 23 native Job tests from the existing suite.
 The 12 AppContainer protocol
 cases are mocks. Formatting, lint, typecheck, Svelte check and renderer build
-passed locally; lint retains 57 existing warnings. See
+passed locally; lint retains the previous warnings (57). See
 [E1 evidence](../docs/roadmap/enforcement-e1/evidence.md).
 
 Next: scoped Astra review of the actual E1 protocol PR/diff before merge.

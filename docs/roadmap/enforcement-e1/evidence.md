@@ -38,7 +38,7 @@ The C# compiler is the inbox Framework64 v4.0.30319 `csc.exe`, file version
 | Final expanded protocol/native suite, including trailing-newline IDs | Exit 0; 63/63 pass, no skips (37 JS + 26 native); implementation unchanged from the regression batch |
 | `npm run counts:check` | Exit 0; 68/68 declaration sites agree; new main module included in the index |
 | `npm run format:check` | Exit 0 |
-| `npm run lint` | Exit 0; 0 errors, 57 existing warnings |
+| `npm run lint` | Exit 0; 0 errors, previous warnings retained (57) |
 | `npm run typecheck` | Exit 0 for all configured projects; main `checkJs` remains false, so this is not body-level proof of the new JS module |
 | `npm run typecheck:svelte` | Exit 0, both scopes 0 errors / 0 warnings |
 | `npm run build:renderer` | Exit 0; existing large-chunk warning retained |
@@ -86,3 +86,11 @@ Whole-suite coverage, mutation gates and production dependency audit are tied
 to the final hosted CI commit in the scoped packet. The full local suite,
 native AppContainer effect tests, new privileged provisioning, persistent
 network denial and real subscription use were not run for this slice.
+
+The first CI run at `6beed349d06a8312b32b8afe0e752edbf7eac6b6` passed coverage
+and both mutation gates, then failed counts:check. Its file-size scanner treated
+the phrase `<number> existing` in test/warning evidence as a source-file-size
+inventory declaration. Reworded those three documentation lines while preserving
+their numbers and meanings. The scanner/checks, implementation and tests are
+unchanged. The original CI failure and local reproduction are retained; the
+final packet records the corrected revision and its actual CI conclusions.
