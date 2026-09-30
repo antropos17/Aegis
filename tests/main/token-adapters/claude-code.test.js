@@ -210,6 +210,32 @@ describe('readUsage — message.id dedup (THE regression anchor)', () => {
 });
 
 describe('readUsage — offset tailing & cross-call dedup', () => {
+  it('drains a large UTF-8 backlog across bounded ticks without losing or repeating usage', async () => {
+    const cwd = 'X:\\bounded';
+    const sid = 'sid-bounded';
+    const file = transcriptPath(cwd, sid);
+    const rows = Array.from({ length: 12000 }, (_, index) =>
+      assistantLine({ id: `bounded-${index}`, input: 2, output: 3, content: '日本語' }),
+    );
+    const fixture = makeFs({
+      [sessionsPath(71)]: registry({ pid: 71, sessionId: sid, cwd }),
+      [file]: jsonl(...rows),
+    });
+    const reads = vi.spyOn(fixture, 'readRange');
+    _setFsForTest(fixture);
+    const all = [];
+    for (let tick = 0; tick < 12; tick++) {
+      reads.mockClear();
+      all.push(...(await readUsage([{ pid: 71, startTime: STARTED }])));
+      expect(reads.mock.calls.every((call) => call[2] <= 65536)).toBe(true);
+      expect(reads.mock.calls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(1048576);
+    }
+    expect(all).toHaveLength(12000);
+    expect(all.reduce((sum, row) => sum + row.inputTokens, 0)).toBe(24000);
+    expect(all.reduce((sum, row) => sum + row.outputTokens, 0)).toBe(36000);
+    expect(await readUsage([{ pid: 71, startTime: STARTED }])).toEqual([]);
+  });
+
   it('emits nothing on a re-read with no new bytes, only new ids on append', async () => {
     const cwd = 'X:\\proj';
     const sid = 'sid-tail';

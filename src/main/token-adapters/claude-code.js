@@ -28,7 +28,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const logger = require('../logger');
-const { readSubagentUsage } = require('./claude-code-subagents');
+const { readSubagentUsage, readTranscriptBatch } = require('./claude-code-subagents');
 
 /**
  * @typedef {Object} Proc
@@ -65,6 +65,8 @@ const GUARD_TOLERANCE_MS = 60_000;
  *   boundary-straddling message once); SHARED across main + all subagent files.
  * @property {Map<string, number>} subOffsets - per-subagent-file byte offset
  *   (`agent-*.jsonl` path → bytes consumed); independent of `offset`.
+ * @property {boolean} [skippingMain] - Discarding an oversized main record.
+ * @property {Set<string>} [subSkipping] - Subagent files discarding oversized records.
  */
 
 /** @type {Map<string, SessionState>} per-sessionId tail state. */
@@ -173,23 +175,29 @@ function _readRegistry(pid) {
  * Subagent files are handled separately so this never short-circuits them.
  * @param {string} tPath - absolute path to `<sessionId>.jsonl`.
  * @param {SessionState} st - session tail + dedup state. @param {number} pid - C-01 key.
+ * @param {{remaining: number}} budget Shared byte budget for this readUsage call.
  * @returns {UsageDelta[]}
  */
-function _tailMain(tPath, st, pid) {
+function _tailMain(tPath, st, pid, budget) {
   if (!_fs.existsSync(tPath)) return [];
   const size = _fs.statSync(tPath).size;
-  if (size < st.offset) st.offset = 0; // file truncated/rotated → restart tail
+  if (size < st.offset) {
+    st.offset = 0; // file truncated/rotated → restart tail
+    st.skippingMain = false;
+  }
   if (size <= st.offset) return []; // nothing new
 
-  const buf = _fs.readRange(tPath, st.offset, size - st.offset);
-  const lastNl = buf.lastIndexOf(0x0a);
-  if (lastNl === -1) return []; // no complete line yet; re-read next call
-
-  const complete = buf.subarray(0, lastNl + 1);
-  st.offset += complete.length; // advance by BYTES (size is byte-counted)
+  const batch = readTranscriptBatch(tPath, size, st.offset, Boolean(st.skippingMain), _fs, budget);
+  st.offset = batch.offset;
+  st.skippingMain = batch.skipping;
+  if (batch.oversized)
+    _log.warn('token-feed:claude-code', 'oversized transcript records skipped', {
+      error: 'transcript-record-too-large',
+      count: batch.oversized,
+    });
 
   const deltas = [];
-  for (const line of complete.toString('utf-8').split('\n')) {
+  for (const line of batch.lines) {
     if (!line) continue;
     let parsed;
     try {
@@ -219,8 +227,9 @@ function _tailMain(tPath, st, pid) {
  * its subagent transcripts. Subagent usage is read independently of main-file
  * activity (a subagent can append while the main agent is blocked on it) and shares
  * the pid (C-01). All failures degrade to `[]`. @param {Proc} proc @returns {UsageDelta[]}
+ * @param {{remaining: number}} budget Shared call byte budget.
  */
-function _readOneProc(proc) {
+function _readOneProc(proc, budget) {
   const pid = proc && proc.pid;
   if (!isPositivePid(pid)) return [];
 
@@ -232,9 +241,9 @@ function _readOneProc(proc) {
   const projDir = path.join(_homedir(), '.claude', 'projects', _encodeCwd(cwd));
   const st = _stateFor(sessionId);
 
-  const deltas = _tailMain(path.join(projDir, `${sessionId}.jsonl`), st, pid);
+  const deltas = _tailMain(path.join(projDir, `${sessionId}.jsonl`), st, pid, budget);
   const sessionDir = path.join(projDir, sessionId);
-  for (const d of readSubagentUsage(sessionDir, st, _extractUsage, _fs, _log)) {
+  for (const d of readSubagentUsage(sessionDir, st, _extractUsage, _fs, _log, budget)) {
     deltas.push({ pid, ...d }); // C-01: subagent tokens → MAIN session pid
   }
   return deltas;
@@ -250,10 +259,12 @@ function _readOneProc(proc) {
 async function readUsage(procs) {
   if (!Array.isArray(procs) || procs.length === 0) return [];
   const out = [];
+  const budget = { remaining: 4 * 1024 * 1024 };
   for (const proc of procs) {
+    if (budget.remaining <= 0) break;
     let deltas;
     try {
-      deltas = _readOneProc(proc);
+      deltas = _readOneProc(proc, budget);
     } catch {
       _log.warn('token-feed:claude-code', 'adapter read failed for a pid', {
         error: 'adapter-read-failed',

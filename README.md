@@ -203,6 +203,7 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 - **Sensor and audit gaps:** Health status does not prove complete capture. A fully lost file-watch plan gets up to three retry attempts per confirmed outage; the budget resets after a healthy plan is observed. Exited watch workers count as lost roots. Partially degraded roots need separate repair. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
 - **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Configuration and diagnostic exports omit the configured API key. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
 - **Unmeasured claims:** No general detection rate, false-positive rate, startup-time guarantee or whole-app overhead figure has been established.
+- **Token subtotals:** Bounded transcript reads can lag a backlog; records above 512 KiB are skipped with a fixed diagnostic. See [token accounting limits](docs/TOKEN-ACCOUNTING.md), including incomplete coverage and estimated dollar amounts.
 
 ## Development and roadmap
 

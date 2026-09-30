@@ -356,6 +356,128 @@ describe('readSubagentUsage — helper (DI, caller-owned state)', () => {
 });
 
 describe('adapter readUsage — end-to-end subagent summation (C-01 + multi-model)', () => {
+  it.each(['main', 'subagent'])(
+    'resumes a truncated %s file even while an oversized record was being discarded',
+    async (kind) => {
+      const cwd = 'X:\\truncated';
+      const sid = 'truncated-sub';
+      const pid = 75;
+      const file =
+        kind === 'main' ? transcriptPath(cwd, sid) : subagentFile(cwd, sid, 'agent-1.jsonl');
+      const fixture = makeFs({
+        [sessionsPath(pid)]: registry({ pid, sessionId: sid, cwd }),
+        [file]: assistantLine({ id: 'oversized', input: 99, content: 'x'.repeat(2 * 1048576) }),
+      });
+      _setFsForTest(fixture);
+      expect(await readUsage([{ pid, startTime: STARTED }])).toEqual([]);
+      fixture.store.set(file, jsonl(assistantLine({ id: 'replacement', input: 17, output: 9 })));
+      const rows = await readUsage([{ pid, startTime: STARTED }]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ pid, inputTokens: 17, outputTokens: 9 });
+      expect(await readUsage([{ pid, startTime: STARTED }])).toEqual([]);
+    },
+  );
+
+  it('shares a 4 MiB tick budget across main and subagent files and drains their backlog exactly once', async () => {
+    const cwd = 'X:\\bounded';
+    const sid = 'bounded-sub';
+    const pid = 72;
+    const files = { [sessionsPath(pid)]: registry({ pid, sessionId: sid, cwd }) };
+    const buffers = new Map();
+    for (let fileIndex = 0; fileIndex < 7; fileIndex++) {
+      const file =
+        fileIndex === 0
+          ? transcriptPath(cwd, sid)
+          : subagentFile(cwd, sid, `agent-${fileIndex}.jsonl`);
+      files[file] = jsonl(
+        ...Array.from({ length: 2000 }, (_, index) =>
+          assistantLine({
+            id: `${fileIndex}-${index}`,
+            input: 2,
+            output: 3,
+            content: 'x'.repeat(500),
+          }),
+        ),
+      );
+      buffers.set(file, Buffer.from(files[file]));
+    }
+    const fixture = makeFs(files);
+    fixture.readRange = vi.fn((file, start, length) =>
+      buffers.get(file).subarray(start, start + length),
+    );
+    _setFsForTest(fixture);
+    const all = [];
+    for (let tick = 0; tick < 12; tick++) {
+      fixture.readRange.mockClear();
+      all.push(...(await readUsage([{ pid, startTime: STARTED }])));
+      const calls = fixture.readRange.mock.calls;
+      expect(calls.every((call) => call[2] <= 65536)).toBe(true);
+      expect(calls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(4 * 1048576);
+    }
+    expect(all).toHaveLength(14000);
+    expect(all.reduce((sum, row) => sum + row.inputTokens, 0)).toBe(28000);
+    expect(all.reduce((sum, row) => sum + row.outputTokens, 0)).toBe(42000);
+    expect(logWarn).not.toHaveBeenCalled();
+  });
+
+  it.each(['main', 'subagent'])(
+    'preserves a multi-chunk incomplete UTF-8 %s line until its newline arrives',
+    async (kind) => {
+      const cwd = 'X:\\partial';
+      const sid = 'partial-sub';
+      const pid = 73;
+      const file =
+        kind === 'main' ? transcriptPath(cwd, sid) : subagentFile(cwd, sid, 'agent-1.jsonl');
+      const fixture = makeFs({
+        [sessionsPath(pid)]: registry({ pid, sessionId: sid, cwd }),
+        [file]: assistantLine({
+          id: 'utf8-long',
+          input: 7,
+          output: 4,
+          content: '日本語'.repeat(25000),
+        }),
+      });
+      _setFsForTest(fixture);
+      expect(await readUsage([{ pid, startTime: STARTED }])).toEqual([]);
+      fixture.store.set(file, fixture.store.get(file) + '\n');
+      const rows = await readUsage([{ pid, startTime: STARTED }]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ pid, inputTokens: 7, outputTokens: 4 });
+      expect(await readUsage([{ pid, startTime: STARTED }])).toEqual([]);
+      expect(logWarn).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['main', 'subagent'])(
+    'skips one oversized %s record across ticks with one private diagnostic and resumes after it',
+    async (kind) => {
+      const cwd = 'X:\\oversized';
+      const sid = 'oversized-sub';
+      const pid = 74;
+      const file =
+        kind === 'main' ? transcriptPath(cwd, sid) : subagentFile(cwd, sid, 'agent-1.jsonl');
+      const fixture = makeFs({
+        [sessionsPath(pid)]: registry({ pid, sessionId: sid, cwd }),
+        [file]: jsonl(
+          assistantLine({ id: 'excluded', input: 99, content: 'PRIVATE'.repeat(400000) }),
+          assistantLine({ id: 'after-large', input: 11, output: 5 }),
+        ),
+      });
+      const bytes = Buffer.from(fixture.store.get(file));
+      fixture.readRange = vi.fn((_file, start, length) => bytes.subarray(start, start + length));
+      _setFsForTest(fixture);
+      const rows = [];
+      for (let tick = 0; tick < 4; tick++)
+        rows.push(...(await readUsage([{ pid, startTime: STARTED }])));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ inputTokens: 11, outputTokens: 5 });
+      expect(logWarn).toHaveBeenCalledTimes(1);
+      expect(logWarn.mock.calls[0][2]).toEqual({ error: 'transcript-record-too-large', count: 1 });
+      expect(JSON.stringify(logWarn.mock.calls)).not.toContain('PRIVATE');
+      expect(JSON.stringify(logWarn.mock.calls)).not.toContain(file);
+    },
+  );
+
   it('attributes subagent tokens to the MAIN session pid and surfaces BOTH models', async () => {
     const cwd = 'X:\\proj';
     const sid = 'sid-e2e';
