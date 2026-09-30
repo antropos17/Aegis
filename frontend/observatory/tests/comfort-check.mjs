@@ -159,33 +159,71 @@ export async function checkFooter(browser, url, out) {
   const measurements = [];
   const errors = [];
   const shots = [];
-  const textEndpoints = async (locator, ends = ['first', 'last']) => {
-    const points = await locator.evaluate((node, ends) => {
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      const nodes = [];
-      while (walker.nextNode())
-        if (walker.currentNode.textContent.trim()) nodes.push(walker.currentNode);
-      return ends.map((end) => {
-        const text = end === 'first' ? nodes[0] : nodes.at(-1);
-        const offset =
-          end === 'first' ? text.textContent.search(/\S/) : text.textContent.search(/\s*$/) - 1;
-        const range = document.createRange();
-        range.setStart(text, offset);
-        range.setEnd(text, offset + 1);
-        const box = range.getBoundingClientRect();
-        const x = box.left + box.width / 2;
-        const y = box.top + box.height / 2;
-        const hit = document.elementFromPoint(x, y);
+  const textEndpoints = async (locator, ends = ['first', 'last'], settle = false) => {
+    const readPoints = () =>
+      locator.evaluate((node, ends) => {
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode())
+          if (walker.currentNode.textContent.trim()) nodes.push(walker.currentNode);
+        return ends.map((end) => {
+          const text = end === 'first' ? nodes[0] : nodes.at(-1);
+          const offset =
+            end === 'first' ? text.textContent.search(/\S/) : text.textContent.search(/\s*$/) - 1;
+          const range = document.createRange();
+          range.setStart(text, offset);
+          range.setEnd(text, offset + 1);
+          const box = range.getBoundingClientRect();
+          const x = box.left + box.width / 2;
+          const y = box.top + box.height / 2;
+          const hit = document.elementFromPoint(x, y);
+          return {
+            end,
+            x,
+            y,
+            visible: box.width > 0 && box.height > 0 && node.contains(hit),
+            hit: hit?.className?.baseVal ?? hit?.className ?? null,
+          };
+        });
+      }, ends);
+    let points = await readPoints();
+    const initialPoints = points;
+    const started = Date.now();
+    const deadline = started + 1000;
+    let iterations = 0;
+    while (settle && points.some((point) => !point.visible) && Date.now() < deadline) {
+      await locator.page().waitForTimeout(Math.max(0, Math.min(16, deadline - Date.now())));
+      points = await readPoints();
+      iterations++;
+    }
+    const elapsedMs = Date.now() - started;
+    measurements.push({
+      textEndpoints: points,
+      ...(settle ? { settlement: { initialPoints, iterations, elapsedMs, deadlineMs: 1000 } } : {}),
+    });
+    if (settle) {
+      const placement = await locator.evaluate((node) => {
+        const footer = node.closest('footer');
+        const frame = footer.getBoundingClientRect();
         return {
-          end,
-          x,
-          y,
-          visible: box.width > 0 && box.height > 0 && node.contains(hit),
-          hit: hit?.className?.baseVal ?? hit?.className ?? null,
+          frameLeft: frame.left + footer.clientLeft,
+          frameRight: frame.left + footer.clientLeft + footer.clientWidth,
+          box: node.getBoundingClientRect().toJSON(),
+          trigger: document.querySelector('.alert-trigger').getBoundingClientRect().toJSON(),
+          footer: frame.toJSON(),
+          scrollLeft: footer.scrollLeft,
+          maximumScroll: footer.scrollWidth - footer.clientWidth,
         };
       });
-    }, ends);
-    measurements.push({ textEndpoints: points });
+      measurements.push({ settledPlacement: placement });
+      assert(elapsedMs <= 1000, 'Footer resize did not settle within its fixed deadline');
+      assert(
+        placement.box.left >= placement.frameLeft - 1 &&
+          placement.box.right <= placement.frameRight + 1 &&
+          placement.trigger.left >= placement.footer.right,
+        'Settled footer tail or Alerts lane is occluded',
+      );
+    }
     if (points.some((point) => !point.visible))
       measurements.push({
         failedPlacement: await locator.evaluate(() => {
@@ -684,7 +722,7 @@ export async function checkFooter(browser, url, out) {
                 ),
                 'Toast overlaps Alerts trigger',
               );
-              await textEndpoints(footer.locator(':scope > span').last());
+              await textEndpoints(footer.locator(':scope > span').last(), ['first', 'last'], true);
               if (
                 process.env.FOOTER_QA_OVERLAY === 'capture' &&
                 locale === 'pt' &&
