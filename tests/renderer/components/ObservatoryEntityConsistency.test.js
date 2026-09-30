@@ -139,7 +139,7 @@ it('previews case-insensitive ownership while adding an agent and clears it for 
 it('edits one policy per durable project and keeps inactive overrides available with exact keys', async () => {
   let permissions = { Codex: { network: 'block' }, 'Codex::X:/offline': { network: 'allow' } };
   const host = {
-    getAllPermissions: async () => ({ permissions }),
+    getAllPermissions: async () => ({ permissions, instancePermissions: {} }),
     getRules: async () => [],
     saveInstancePermissions: vi.fn(async (next) => {
       const key = next.cwd
@@ -176,6 +176,7 @@ it('inherits parent policy before product defaults and keeps an unsaved project 
   const host = {
     getAllPermissions: async () => ({
       permissions: { Codex: { network: 'block' }, 'Codex::VS Code': { network: 'allow' } },
+      instancePermissions: {},
     }),
     getRules: async () => [],
   };
@@ -288,7 +289,10 @@ it('saves two old project drafts through independent single-key writes in either
   };
   const release = [];
   const host = {
-    getAllPermissions: vi.fn(async () => ({ permissions: structuredClone(permissions) })),
+    getAllPermissions: vi.fn(async () => ({
+      permissions: structuredClone(permissions),
+      instancePermissions: {},
+    })),
     getRules: async () => [],
     saveAgentPermissions: vi.fn(),
     saveInstancePermissions: vi.fn(async (data) => {

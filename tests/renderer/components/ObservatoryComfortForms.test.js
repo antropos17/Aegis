@@ -101,7 +101,7 @@ it('retains each agent policy draft across target changes and refresh without mi
 it('filters loaded rules by readable name or category and explains empty results', async () => {
   render(Rules, {
     host: {
-      getAllPermissions: async () => ({}),
+      getAllPermissions: async () => ({ permissions: {}, instancePermissions: {} }),
       getRules: async () => [
         { id: 'a', name: 'SSH access', category: 'sensitive' },
         { id: 'b', name: 'External connection', category: 'network' },
@@ -128,7 +128,7 @@ it('switches detection rules independently and restores a failed change', async 
   );
   render(Rules, {
     host: {
-      getAllPermissions: async () => ({}),
+      getAllPermissions: async () => ({ permissions: {}, instancePermissions: {} }),
       getRules: async () => [
         { id: 'a', name: 'SSH access', category: 'sensitive', enabled: true },
         { id: 'b', name: 'External connection', category: 'network', enabled: true },

@@ -113,7 +113,7 @@ it('prevents reset-all racing a pending policy save', async () => {
   const host = {
     getAllPermissions: vi.fn(async () => {
       if (++reads > 1) await pending.promise;
-      return {};
+      return { permissions: {}, instancePermissions: {} };
     }),
     getRules: async () => [],
     saveInstancePermissions: vi.fn(async () => ({ success: true })),
