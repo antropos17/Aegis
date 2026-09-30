@@ -11,7 +11,7 @@ prevention capabilities must not be presented as already available.
 The historical baseline was checked against `11215d4` on 2026-09-07; ETW status was updated through
 the completed live experiments, B3 (`cc47212`) and the isolated B4 lifecycle harness
 on 2026-09-08. That baseline used package version `0.14.1-alpha`. At this
-27 September 2026 documentation refresh, source is `0.17.0-alpha`, with Electron
+1 October 2026 documentation refresh, source is `0.17.0-alpha`, with Electron
 `43.4.1`. Changes merged after a release are available in source, not
 automatically in an installed app.
 
@@ -185,11 +185,18 @@ Keep them outside the active queue while the first ETW sensor is being establish
 - **F1:** a scripted audit-index mutation gate may replace documented manual
   mutations. A local gate and CI wiring are separate scopes: changes under
   `.github/workflows/` require explicit authorization under `AGENTS.md`.
-- **F2:** dependency PRs #352 / #353 (Vitest and coverage together) and #354 (Vite and
-  plugin compatibility) are separate from functional work. Lockfile regeneration
-  requires explicit authorization.
-- **F3:** release PR #364 is pending preparation, not authorization to publish a
-  release or tag. Leave it outside the development merge cycle.
+- **F2:** compatible dependency updates landed in
+  [PR #698](https://github.com/antropos17/Aegis/pull/698). The Electron runtime
+  security update and other audit findings remain a release gate. Major upgrades
+  require a compatible Node/Vite/plugin/watcher migration and their own evidence;
+  closed dependency PRs #699–#702 are not completed migrations. Local lockfile
+  regeneration requires explicit authorization.
+- **F3:** [release PR #648](https://github.com/antropos17/Aegis/pull/648) is the
+  current release queue. The next prerelease channel is beta; see
+  [beta readiness](docs/BETA-READINESS.md) and the
+  [draft user release notes](docs/releases/0.18.0-beta.md). Merging the release PR
+  creates a tag/release and starts installer publication, so it requires release
+  authorization separately from the development merge cycle.
 
 ## Execution order
 
