@@ -1,5 +1,13 @@
 # Verifying an AEGIS release
 
+## Beta update channel
+
+The current source updater accepts signed `alpha`, `beta` and stable releases.
+Beta installations accept newer beta or stable versions; stable installations
+accept stable versions only. Alpha installations may advance to beta.
+The published 0.17.0-alpha updater accepts no beta tags, so install the first
+beta manually from its Windows installer after the verification below.
+
 CI releases starting with `0.13.0-alpha` carry two extra files next to the installer. Older releases may lack them:
 
 | File                | What it is                                                                    |
