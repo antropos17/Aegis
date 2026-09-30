@@ -189,6 +189,8 @@ function seedFromTail(filePath) {
       throw Error();
     return { prevHash: last.hash, seq: last.seq + 1 };
   } catch (_) {
+    // Filesystem and JSON parser causes can expose private paths or journal data.
+    // eslint-disable-next-line preserve-caught-error
     throw Error('audit-tail-unavailable');
   }
 }
