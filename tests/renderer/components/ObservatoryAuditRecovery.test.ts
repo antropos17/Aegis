@@ -64,7 +64,13 @@ it('shows failed initial history as unknown with fixed feedback and a read-only 
   expect(screen.getByRole('button', { name: 'Retry history' })).toBeVisible();
 });
 
-it.each([{ reply: null }, { reply: [null] }, { reply: { success: false } }, { reply: 'denied' }])(
+it.each([
+  { reply: null },
+  { reply: [null] },
+  { reply: { success: false } },
+  { reply: 'denied' },
+  { reply: Array(1) },
+])(
   'rejects a malformed history population and distinguishes successful empty retry: $reply',
   async ({ reply }) => {
     const host = {
@@ -195,6 +201,7 @@ it('preserves the applied filter and local controls, then admits the captured fa
 });
 
 it('retains delivery counters after RPC failure but does not present old byte sizes as current', async () => {
+  const pending = deferred<unknown>();
   const host = {
     getAuditStats: vi
       .fn()
@@ -204,7 +211,8 @@ it('retains delivery counters after RPC failure but does not present old byte si
         totalSize: 1024,
         currentSize: 1024,
       })
-      .mockRejectedValueOnce(new Error('PRIVATE_PATH_SENTINEL')),
+      .mockRejectedValueOnce(new Error('PRIVATE_PATH_SENTINEL'))
+      .mockReturnValueOnce(pending.promise),
     getAuditEntriesBefore: vi.fn(async () => []),
   };
   render(Reports, {
@@ -224,6 +232,22 @@ it('retains delivery counters after RPC failure but does not present old byte si
   expect(screen.queryByText('Current size')).toBeNull();
   expect(screen.getByRole('alert')).not.toHaveTextContent('PRIVATE_PATH_SENTINEL');
   expect(host.getAuditEntriesBefore).toHaveBeenCalledOnce();
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery counters' }));
+  try {
+    expect(screen.getByText('2', { selector: 'strong' })).toBeVisible();
+    expect(screen.queryByText('1.0 KB')).toBeNull();
+    expect(screen.queryByText('Current size')).toBeNull();
+    expect(screen.queryByText('ready', { exact: true })).toBeNull();
+  } finally {
+    pending.resolve({
+      storageReadState: 'ready',
+      persistedEntries: 3,
+      totalSize: 0,
+      currentSize: 0,
+    });
+  }
+  expect(await screen.findByText('0.0 KB')).toBeVisible();
+  expect(screen.getByText('3', { selector: 'strong' })).toBeVisible();
 });
 
 it.each([

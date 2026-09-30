@@ -42,6 +42,7 @@
   let pageRead = $state<AuditReadState>('idle');
   let statsRead = $state<AuditReadState>('idle');
   let statsLoaded = $state(false);
+  let statsFresh = $state(false);
   let failedRequest = $state<AuditRequest | null>(null);
   let retryHistoryButton = $state<HTMLButtonElement>();
   let refreshButton = $state<HTMLButtonElement>();
@@ -57,7 +58,7 @@
   let reportSection = $state('summary');
   let appliedType = $derived(page.appliedType);
   let displayStats = $derived(
-    statsRead === 'failed'
+    !statsFresh
       ? Object.fromEntries(
           Object.entries(stats).filter(
             ([key]) => !['totalSize', 'currentSize', 'storageReadState'].includes(key),
@@ -157,9 +158,13 @@
       if (!alive || ticket !== statsGeneration) return;
       stats = admitAuditStats(reply);
       statsLoaded = true;
+      statsFresh = true;
       statsRead = 'ready';
     } catch {
-      if (alive && ticket === statsGeneration) statsRead = 'failed';
+      if (alive && ticket === statsGeneration) {
+        statsFresh = false;
+        statsRead = 'failed';
+      }
     } finally {
       if (alive && ticket === statsGeneration) statsLoading = false;
     }

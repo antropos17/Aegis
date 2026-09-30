@@ -35,8 +35,9 @@ export function emptyAuditPage(before: string): AuditPage {
 
 /** Admit a history array without inventing absent historical fields. @param value Wire reply @returns Rows @since 0.17.0 */
 export function admitAuditPage(value: unknown): RecordData[] {
-  if (!Array.isArray(value) || !value.every(isRecord)) throw new Error('Invalid audit page');
-  return value.map((row) =>
+  const rows = Array.isArray(value) ? Array.from(value) : null;
+  if (!rows || !rows.every(isRecord)) throw new Error('Invalid audit page');
+  return rows.map((row) =>
     row.type === 'network-connection'
       ? {
           ...selectFields(record(row.extra ?? row.details), [
