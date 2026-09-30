@@ -5,6 +5,17 @@ import type {
   ResultReviewPreview,
 } from '../../../src/shared/types';
 export type { ImportedResultReview, ResultReviewChange } from '../../../src/shared/types';
+/** Label imported change metadata without implying verified original files.
+ * @param type Captured change type. @returns Visible label. @since 0.17.0 */
+export function resultChangeLabel(type: string): string {
+  return type === 'addition'
+    ? 'Addition'
+    : type === 'deletion'
+      ? 'Deletion'
+      : type === 'edit'
+        ? 'Edit'
+        : 'Unknown change';
+}
 const hash = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const exact = (value: Record<string, unknown>, keys: string[]): boolean =>

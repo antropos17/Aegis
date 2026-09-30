@@ -3,19 +3,19 @@
 const { randomUUID } = require('node:crypto');
 const { readResultReviewBundle, describeResultReviewBundle } = require('./result-review-bundle');
 
-/** Validate the two path-free renderer result operations.
+/** Validate path-free renderer result import, status and retention-clear operations.
  * @param {object} request Structured renderer options. @returns {boolean} Exact bounded shape. @since v0.17.0 */
 function validResultReviewRequest(request) {
   if (!request || Object.getPrototypeOf(request) !== Object.prototype) return false;
   const keys = Reflect.ownKeys(request);
   if (request.action === 'review-result') return keys.length === 1 && keys[0] === 'action';
   return (
-    request.action === 'result-status' &&
+    ['result-status', 'clear-result'].includes(request.action) &&
     keys.length === 2 &&
     keys.includes('action') &&
     keys.includes('id') &&
     typeof request.id === 'string' &&
-    /^[a-f0-9-]{36}$/.test(request.id)
+    /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(request.id)
   );
 }
 
@@ -42,6 +42,10 @@ async function handleResultReview(context) {
   const result = session.resultRetained?.report;
   if (!result || result.id !== request.id || result.revision !== revision)
     return { success: false, error: 'result-review-expired' };
+  if (request.action === 'clear-result') {
+    session.resultRetained = null;
+    return { success: true, cleared: true, id: result.id };
+  }
   return { success: true, result };
 }
 module.exports = { validResultReviewRequest, handleResultReview };

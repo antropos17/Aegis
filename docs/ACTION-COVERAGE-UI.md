@@ -7,6 +7,15 @@ The separate [Live route observation](ACTION-LIVE-OBSERVATION.md) panel observes
 an explicitly selected running MCP owner, with self-reported client metadata and
 sticky coverage loss. Neither panel establishes verified blocking.
 
+The task row moves focus to configuration or live observation and opens the existing
+Local security workspace for imported result comparison. Configuration controls
+precede route-specific guides. Local security provides a direct focus jump to
+comparison import; no jump starts a check, selects a file or connects a route.
+Observation selection and stopping show pending feedback, with cancellation
+preserving the previous observation details. Imported comparison has its own
+capture, search, inspection draft and confirmed clear lifecycle, described in
+[Result comparison](roadmap/enforcement-e9/result-review.md).
+
 When a captured check or route observation is available, the **Route evidence**
 summary presents three independent questions. **Selected inputs checked?**
 describes the retained, nonexecuting configuration check for

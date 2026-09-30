@@ -19,6 +19,8 @@
   let observation = $state.raw<RouteObservation | null>(null);
   let busy = $state(false);
   let error = $state('');
+  let feedback = $state('');
+  let pendingCommand = $state('');
   let alive = true,
     generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -62,6 +64,8 @@
         return;
       }
       if (response.success !== true) {
+        if (response.cancelled === true && action === 'observe-route')
+          feedback = 'Cancelled. Previous observation details are retained.';
         if (response.cancelled !== true) {
           if (action === 'route-observation') unavailable();
           error = 'Observation request could not be completed.';
@@ -94,7 +98,9 @@
     clearTimeout(timer);
     clearTimeout(expiry);
     busy = true;
+    pendingCommand = action;
     error = '';
+    feedback = '';
     void request(action, ++generation);
   }
   onDestroy(() => {
@@ -109,13 +115,13 @@
 </script>
 
 <section class="panel observation-panel" aria-label={$t('Live route observation')}>
-  <h2>{$t('Live route observation')}</h2>
+  <h2 data-route-observation tabindex="-1">{$t('Live route observation')}</h2>
   <p>
     {$t(
       'Observe one explicitly connected AEGIS MCP route. This does not run an action or verify blocking.',
     )}
   </p>
-  <p class="state" role="status" aria-live="polite">
+  <p class="state" role="status" aria-label={$t('Route observation status')} aria-live="polite">
     {$t(observation ? observationLabels[observation.state] : 'No route observation selected')}
   </p>
   {#if observation?.state === 'coverage-lost'}
@@ -125,6 +131,19 @@
       )}
     </p>
   {/if}
+  {#if observation?.state === 'awaiting-client'}<p>
+      {$t(
+        'The observer is connected. Initialize this route in your MCP client to receive its selected-action details.',
+      )}
+    </p>
+  {:else if observation?.state === 'stopped'}<p>
+      {$t('Only this observation connection stopped. No agent or action was stopped.')}
+    </p>
+  {:else if observation?.state === 'unavailable'}<p>
+      {$t(
+        'Check that the endpoint belongs to a running route. To reconnect, start a new route with a new observation endpoint.',
+      )}
+    </p>{/if}
   {#if observation?.lastObservedAt}<p class="muted">
       {$t('Last received update')}:
       <time datetime={observation.lastObservedAt}
@@ -201,6 +220,7 @@
     <button
       class="button"
       disabled={busy || !available || !!active}
+      aria-busy={busy}
       onclick={() => command('observe-route')}>{$t('Choose observation endpoint')}</button
     >
     {#if active}<button
@@ -213,7 +233,23 @@
       {$t(
         'Live observation is available in the desktop app only. Preview does not connect to endpoints.',
       )}
+    </p>{:else if !available}<p class="muted">
+      {$t('Live observation requires the AEGIS desktop connection.')}
     </p>{/if}
+  <p
+    role="status"
+    aria-label={$t('Observation request status')}
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    {$t(
+      busy
+        ? pendingCommand === 'stop-observing-route'
+          ? 'Stopping only the observation connection…'
+          : 'Choose the observation endpoint, then wait for the local connection…'
+        : feedback,
+    )}
+  </p>
   <details>
     <summary>{$t('How to connect observation')}</summary>
     <p>
