@@ -127,6 +127,7 @@ describe('pure parsers', () => {
       model: 'claude-opus-4-8',
       inputTokens: 17,
       outputTokens: 7,
+      inputBreakdown: { uncached: 10, read: 2, write5m: 0, write1h: 0, writeUnknown: 5 },
     });
   });
 
@@ -167,7 +168,14 @@ describe('readUsage — happy path (real tokens, estimated:false)', () => {
     const out = await readUsage([{ pid: 1234, startTime: STARTED }]);
 
     expect(out).toEqual([
-      { pid: 1234, model: 'claude-opus-4-8', inputTokens: 17, outputTokens: 7, estimated: false },
+      {
+        pid: 1234,
+        model: 'claude-opus-4-8',
+        inputTokens: 17,
+        outputTokens: 7,
+        estimated: false,
+        inputBreakdown: { uncached: 10, read: 2, write5m: 0, write1h: 0, writeUnknown: 5 },
+      },
       { pid: 1234, model: 'claude-opus-4-8', inputTokens: 100, outputTokens: 20, estimated: false },
     ]);
   });
