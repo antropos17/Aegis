@@ -42,6 +42,7 @@ async function fetchBytes(url, limit, fetcher) {
 function selectRelease(releases, current) {
   if (!Array.isArray(releases) || !semver.valid(current))
     throw new Error('update-releases-invalid');
+  const channel = semver.prerelease(current)?.[0];
   return (
     releases
       .filter((release) => {
@@ -49,7 +50,9 @@ function selectRelease(releases, current) {
         return (
           version &&
           !release.draft &&
-          (semver.prerelease(current) || !semver.prerelease(version)) &&
+          (!semver.prerelease(version) ||
+            channel === 'alpha' ||
+            (channel === 'beta' && semver.prerelease(version)?.[0] === 'beta')) &&
           semver.gt(version, current) &&
           Array.isArray(release.assets) &&
           ['manifest.json', 'manifest.json.sig'].every((name) =>
