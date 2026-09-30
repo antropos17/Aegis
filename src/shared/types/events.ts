@@ -239,6 +239,8 @@ export type AuditEventType =
   | 'agent-exit'
   | 'observation-gap'
   | 'permission-deny'
+  /** Owner advisory gateway codes; receipt correlation is separate from audit chain validity. */
+  | 'gateway-evidence'
   | 'buffer-overflow-drop';
 
 /**
