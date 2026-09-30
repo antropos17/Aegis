@@ -79,9 +79,7 @@ export async function checkActionCoverage(browser, url, out) {
         .getByText('Configuration check only; blocking has not been verified.', { exact: true })
         .isVisible(),
     );
-    assert(
-      await root.getByText(/The executable\/catalog check below does not assess it/).isVisible(),
-    );
+    assert(await root.getByText(/The executable\/catalog check does not assess it/).isVisible());
     assert(
       await root.getByRole('button', { name: 'Open selected-file deletion guide' }).isDisabled(),
       'simulated preview must not open an external setup guide',

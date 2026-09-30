@@ -158,3 +158,178 @@ it('keeps keyboard focus at the pagination boundary and guards repeated activati
   expect(screen.getByText('2 / 2')).toBeVisible();
   expect(next).toHaveFocus();
 });
+
+it('keeps page two and focus when an inactive filter reset receives keyboard activation', async () => {
+  const result = previewResultReview();
+  const item = result.comparison.changes[0];
+  const large = {
+    ...result,
+    comparison: {
+      ...result.comparison,
+      changes: Array.from({ length: 21 }, (_, index) => ({
+        ...item,
+        id: index.toString(16).padStart(64, '0'),
+        path: `file-${index}.txt`,
+      })),
+    },
+  };
+  render(ResultReview, {
+    host: bridge(vi.fn().mockResolvedValue({ success: true, result: large })),
+  });
+  await start();
+  await fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+  const clear = screen.getByRole('button', { name: 'Clear filters' });
+  expect(clear).toHaveAttribute('aria-disabled', 'true');
+  clear.focus();
+  await fireEvent.keyDown(clear, { key: 'Enter', code: 'Enter' });
+  // jsdom has no native keyboard default; dispatch its keyboard-origin click explicitly.
+  await fireEvent.click(clear, { detail: 0 });
+  await fireEvent.keyUp(clear, { key: 'Enter', code: 'Enter' });
+  expect(screen.getByText('2 / 2')).toBeVisible();
+  expect(screen.getByRole('checkbox', { name: /file-20.txt/ })).toBeVisible();
+  expect(clear).toHaveFocus();
+});
+
+it('rejects a retained refresh for a different comparison and preserves the local draft', async () => {
+  const result = previewResultReview();
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, result })
+    .mockResolvedValueOnce({
+      success: true,
+      result: { ...result, id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' },
+    });
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  const deletion = await screen.findByRole('checkbox', { name: /obsolete.txt/ });
+  await fireEvent.click(deletion);
+  await fireEvent.click(screen.getByLabelText('I explicitly reviewed the selected deletions.'));
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh retained comparison' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Previous results are retained.');
+  expect(deletion).toBeChecked();
+  expect(screen.getByLabelText('I explicitly reviewed the selected deletions.')).toBeChecked();
+});
+
+it('clears a local deletion draft when a refreshed comparison changes revision', async () => {
+  const result = previewResultReview();
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, result })
+    .mockResolvedValueOnce({
+      success: true,
+      result: { ...result, revision: 1 },
+    });
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  const deletion = await screen.findByRole('checkbox', { name: /obsolete.txt/ });
+  await fireEvent.click(deletion);
+  await fireEvent.click(screen.getByLabelText('I explicitly reviewed the selected deletions.'));
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh retained comparison' }));
+  await waitFor(() => expect(deletion).not.toBeChecked());
+  expect(screen.queryByLabelText('I explicitly reviewed the selected deletions.')).toBeNull();
+});
+
+it('filters without losing hidden selections and offers a clear reset for an empty search', async () => {
+  render(ResultReview, {
+    host: bridge(vi.fn().mockResolvedValue({ success: true, result: previewResultReview() })),
+  });
+  await start();
+  await fireEvent.click(await screen.findByRole('checkbox', { name: /obsolete.txt/ }));
+  await fireEvent.input(screen.getByRole('searchbox', { name: 'Find a changed file' }), {
+    target: { value: 'README' },
+  });
+  expect(screen.queryByRole('checkbox', { name: /obsolete.txt/ })).toBeNull();
+  expect(screen.getByRole('checkbox', { name: /README.md/ })).toBeVisible();
+  expect(screen.getByText(/1 selected · 1 outside the current filter/)).toBeVisible();
+  expect(screen.getByLabelText('I explicitly reviewed the selected deletions.')).toBeVisible();
+  await fireEvent.input(screen.getByRole('searchbox', { name: 'Find a changed file' }), {
+    target: { value: 'missing' },
+  });
+  expect(screen.getByText('No changes match these filters.')).toBeVisible();
+  const clearFilters = screen.getByRole('button', { name: 'Clear filters' });
+  clearFilters.focus();
+  await fireEvent.click(clearFilters);
+  expect(clearFilters).toHaveFocus();
+  expect(clearFilters).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByRole('checkbox', { name: /obsolete.txt/ })).toBeChecked();
+  await fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+  expect(screen.getByRole('checkbox', { name: /obsolete.txt/ })).not.toBeChecked();
+});
+
+it('clears only confirmed retained bytes, sends no native path and restores focus to import', async () => {
+  const result = previewResultReview();
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, result })
+    .mockResolvedValueOnce({ success: true, cleared: true, id: result.id });
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  const clear = await screen.findByRole('button', { name: 'Clear retained comparison' });
+  clear.focus();
+  await fireEvent.click(clear);
+  expect(call).toHaveBeenLastCalledWith({ action: 'clear-result', id: result.id });
+  expect(await screen.findByText('No imported comparison yet.')).toBeVisible();
+  expect(screen.queryByRole('checkbox', { name: /obsolete.txt/ })).toBeNull();
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Choose result and compare' })).toHaveFocus(),
+  );
+});
+
+it.each([
+  { success: false, error: 'result-review-expired' },
+  { success: true, cleared: true, id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' },
+  { success: true, id: previewResultReview().id },
+])('retains comparison and draft after an unconfirmed clear (%j)', async (reply) => {
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, result: previewResultReview() })
+    .mockResolvedValueOnce(reply);
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  const deletion = await screen.findByRole('checkbox', { name: /obsolete.txt/ });
+  await fireEvent.click(deletion);
+  await fireEvent.click(screen.getByRole('button', { name: 'Clear retained comparison' }));
+  expect(deletion).toBeChecked();
+  expect(screen.getByRole('alert')).not.toBeEmptyDOMElement();
+});
+
+it('preserves inspection and selection through an identical retained refresh', async () => {
+  const result = previewResultReview();
+  const call = vi.fn().mockResolvedValue({ success: true, result: structuredClone(result) });
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  const deletion = await screen.findByRole('checkbox', { name: /obsolete.txt/ });
+  await fireEvent.click(deletion);
+  await fireEvent.click(screen.getByLabelText('I explicitly reviewed the selected deletions.'));
+  await fireEvent.input(screen.getByRole('searchbox', { name: 'Find a changed file' }), {
+    target: { value: 'obsolete' },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh retained comparison' }));
+  expect(deletion).toBeChecked();
+  expect(screen.getByLabelText('I explicitly reviewed the selected deletions.')).toBeChecked();
+  expect(screen.getByRole('searchbox', { name: 'Find a changed file' })).toHaveValue('obsolete');
+});
+
+it('labels expired desktop metadata without dropping displayed bytes or hiding expiry on later failures', async () => {
+  const result = previewResultReview();
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, result })
+    .mockResolvedValueOnce({ success: false, error: 'result-review-expired' })
+    .mockResolvedValueOnce({ success: false, error: 'review-busy' })
+    .mockResolvedValueOnce({ success: false, cancelled: true })
+    .mockResolvedValueOnce({ success: true, result });
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  await fireEvent.click(await screen.findByRole('button', { name: 'Refresh retained comparison' }));
+  expect(
+    await screen.findByText('Display retained · desktop comparison unavailable'),
+  ).toBeVisible();
+  expect(screen.getByRole('checkbox', { name: /README.md/ })).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh retained comparison' }));
+  expect(screen.getByText('Display retained · desktop comparison unavailable')).toBeVisible();
+  await start();
+  expect(screen.getByText('Display retained · desktop comparison unavailable')).toBeVisible();
+  await start();
+  expect(await screen.findByText('Retained for this window · unreviewed')).toBeVisible();
+});

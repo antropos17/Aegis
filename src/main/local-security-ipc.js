@@ -30,7 +30,7 @@ const ERRORS = new Set([
 function valid(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return false;
   const keys = Object.keys(request);
-  if (['review-result', 'result-status'].includes(request.action))
+  if (['review-result', 'result-status', 'clear-result'].includes(request.action))
     return validResultReviewRequest(request);
   if (['observe-route', 'route-observation', 'stop-observing-route'].includes(request.action))
     return keys.length === 1;
@@ -175,7 +175,7 @@ async function handle(event, request) {
     return result.filePaths[0];
   };
   try {
-    if (['review-result', 'result-status'].includes(request.action))
+    if (['review-result', 'result-status', 'clear-result'].includes(request.action))
       return await handleResultReview({
         session,
         request,

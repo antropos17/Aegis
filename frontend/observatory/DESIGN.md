@@ -1,5 +1,18 @@
 # AEGIS Observatory
 
+## Action and returned-result workflow — 30 September 2026
+
+Action control starts with task links and configuration controls before route
+guides. Explicit focus jumps reveal configuration and live observation; the
+returned-files link opens the existing Local security destination. Its comparison
+import action stays above retained content. Search, type filters, matching and
+selected counts, and 20-row pages keep inspection manageable. The selection draft
+is visibly local and unapproved; a changed capture resets it. A rejected retained
+ID labels the displayed capture unavailable. Confirmed clear releases main-owned
+retention and returns focus to import, preserving the input artifact and project.
+Native controls, scoped semantic-token styles, original reference artwork and
+stylesheet order remain the visual basis. Launch and project export stay unavailable.
+
 ## AppContainer executable preflight — 27 September 2026
 
 The captured AppContainer check shows a fixed, path-free executable metadata

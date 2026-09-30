@@ -2,7 +2,7 @@
 
 The existing Observatory Local Security workspace can select one imported result
 bundle through the main-owned native dialog. The existing `local-security:review`
-channel adds only exact `review-result` and `result-status` operations. The renderer
+channel adds exact `review-result`, `result-status` and `clear-result` operations. The renderer
 supplies options or a retained opaque ID; it cannot supply filenames, payload,
 acceptance, destinations or project-write requests. Existing window, top-frame,
 document and revision guards apply before selection and after every asynchronous
@@ -11,6 +11,20 @@ read boundary. Navigation or destruction invalidates the retained ID.
 Main retains copied snapshots under that ID and returns bounded comparison metadata.
 Cancellation and failure preserve the prior comparison and local selection draft.
 Workspace navigation retains the panel, while destruction ignores pending replies.
+The import action is visible before retained changes. Search, type filters and
+20-row pages help inspect a bounded comparison; counts distinguish matching changes
+and selections outside the current filter. Selections and deletion acknowledgments
+are local inspection drafts, never saved acceptance. An identical refresh preserves
+the draft; changed capture metadata resets it. Refresh only retrieves the main-owned
+captured comparison and never rereads current originals. A rejected retained ID
+leaves the displayed capture visibly unavailable until a successful import or refresh.
+
+Clear sends only the exact retained ID through the same owner and serialization
+guards. Main releases its matching retained snapshots, and the renderer clears its
+display only after a confirmed reply for that same ID. A stale ID cannot clear a
+newer comparison. A successful clear restores focus to import and changes neither
+the imported artifact nor the project. This releases application retention; it
+does not guarantee secure memory erasure. Failed clear attempts retain the display.
 Captured state does not establish Protected status. Imported acceptance, writer-stop
 and boundary success claims have no authority; writer status stays stop-unconfirmed,
 and launch and project export remain unavailable.
@@ -68,7 +82,9 @@ Independent readback checks selected bytes and unchanged originals. No hooks,
 Git filters, package scripts, imported commands or external services execute.
 
 The desktop real-preload harness selects only generated fixtures and checks preview
-escaping, retained bytes after artifact replacement, and reload/document denial.
+escaping, retained bytes after artifact replacement, confirmed UI clearing, stale
+and malformed clear refusal, unchanged input bytes, focus restoration, and
+reload/document denial.
 The preview harness exercises the shared active component with explicit simulated
 data, four themes, larger text, English/Portuguese, keyboard tabs and retained results.
 Their screenshots and source-matched receipts are stored under the task's X: run
