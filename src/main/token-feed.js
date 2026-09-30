@@ -16,9 +16,9 @@
  *
  *   An adapter that throws or finds no source contributes nothing — a single bad
  *   adapter can never crash the feed or starve the others. The companion
- *   accounting sink is `token-tracker.js`, whose `estimated:false` contract these
- *   measured deltas satisfy; wiring this feed into the scan loop is a separate
- *   task and is intentionally NOT done here.
+ *   accounting sink is `token-tracker.js`. The scan loop passes the current
+ *   process snapshot through `token-cost-collector.js`, which preserves stamped
+ *   process-instance attribution while collecting measured deltas from this feed.
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.1.0

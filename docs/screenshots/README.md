@@ -1,6 +1,6 @@
 # Observatory screenshots
 
-Captured from the 0.17.0-alpha source preview on 27 September 2026 with simulated data. They show the interface and do not demonstrate live detection, an installed release, or automatic blocking.
+Captured on 1 October 2026 from the [beta-preparation source](https://github.com/antropos17/Aegis/tree/2f5689743639821c4e82a0a003cd0b3c848c29ad), whose package version is still 0.17.0-alpha. Data is simulated and notification popups were dismissed through their normal controls. These images show the interface; live detection, an installed beta and automatic blocking require separate verification.
 
 | Observe | Investigate |
 | --- | --- |

@@ -68,6 +68,10 @@ try {
     });
     await page.waitForTimeout(350);
     if (pageErrors.length) throw new Error(`Preview error: ${pageErrors.join('; ')}`);
+    const dismiss = page.getByRole('button', { name: 'Dismiss notification', exact: true });
+    for (let attempt = 0; attempt < 8 && (await dismiss.count()); attempt++)
+      await dismiss.first().click();
+    if (await dismiss.count()) throw new Error('Preview notifications did not clear');
     await page.screenshot({ path: join(root, capture.file), animations: 'disabled' });
     console.log(`Captured ${capture.file}`);
   }
