@@ -65,8 +65,8 @@ The default parallel Windows coverage run failed seven tests and one suite setup
 (7159 passed, 18 skipped). The six affected existing suites passed 109/109 with
 coverage and unchanged timeouts when run sequentially. A serialized full run then
 had one gateway test teardown failure: an immediate recursive removal returned
-EPERM after its helper/descendant checks, with 7175 passed and 8 existing
-conditional skips. The gateway fixture now validates its exact temporary parent
+EPERM after its helper/descendant checks, with 7175 passed and 8 conditional skips
+already present. The gateway fixture now validates its exact temporary parent
 and uses ten bounded removal retries at 50 ms, matching the neighboring fixture.
 Both Windows Job suites subsequently passed 19/19. Test assertions and production
 cleanup logic are unchanged. Failed receipts are retained; the final complete

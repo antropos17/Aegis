@@ -80,7 +80,7 @@ and [NtSetInformationFile](https://learn.microsoft.com/en-us/windows-hardware/dr
 | One file / aggregate bytes | 64 KiB / 1 MiB |
 | Manifest | 64 KiB |
 | Relative name / component | 240 / 64 ASCII characters |
-| Ancestors | 32 components |
+| Ancestors | 32 path segments |
 | Native build / invocation | 30 seconds each |
 
 The independent JavaScript oracle decodes the actual bundle, checks canonical
