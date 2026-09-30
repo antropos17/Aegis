@@ -14,6 +14,7 @@ does not itself publish an installer or establish release readiness.
 | Production renderer rebuilt before every package | [PR #719](https://github.com/antropos17/Aegis/pull/719), failed-build/order regressions and five successful required CI contexts |
 | Bounded Claude transcript reads and oversized-record recovery | [PR #720](https://github.com/antropos17/Aegis/pull/720), byte-budget/UTF-8/truncation regressions and five successful required CI contexts |
 | Compatible minor/patch dependency maintenance | [PR #698](https://github.com/antropos17/Aegis/pull/698), fresh dependency installation and required CI |
+| Owned Windows fixture closure, private helper builds and bounded default worker load | [PR #722](https://github.com/antropos17/Aegis/pull/722), default Windows coverage: 413 files / 7,598 passing tests, eight skipped; repeated native fixtures: 16 passing tests, no EPERM |
 
 These checks belong to their recorded PR revisions. Final combined-source checks
 and a final-version installer smoke are separate release gates. A source or
@@ -28,13 +29,17 @@ unpacked-application smoke does not prove installation or upgrade behavior.
 - Verify the final combined source with the ten commands in [AGENTS.md](../AGENTS.md),
   a fresh `npm ci`, Windows native fixtures, the production renderer and packaged
   smoke. Retain failures and the actual tested revision. Windows concurrency
-  limitations must be reported; a bounded-worker pass does not prove a default
-  concurrency pass.
+  policy defaults to four Vitest workers; record the configured worker count and
+  any different stress-run limits with the results.
 - Check the beta version and draft notes in the release PR before authorizing its
   merge. Verify final installer installation/upgrade with a disposable profile,
   then confirm `.exe`, `manifest.json` and `manifest.json.sig` from the same release
   through [offline verification](RELEASE-VERIFICATION.md). Signing uses the existing
   CI secret; local test artifacts are not signed releases.
+- The existing alpha version is preserved by Release Please's default versioning.
+  A one-time `release-as: 0.18.0-beta` selects the first beta explicitly. After its
+  authorized release PR is merged, remove this override before preparing another
+  release, as described in the [manifest configuration](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md).
 
 ## Scope and remaining limits
 
@@ -45,8 +50,8 @@ The broader enforcement A1–A4 gates remain **UNREVIEWED**, and launch admissio
 remains unavailable. No VM/provider provisioning is part of beta preparation.
 
 macOS/Linux remain experimental; macOS process-generation identity is unresolved
-in [#633](https://github.com/antropos17/Aegis/issues/633). Native Windows test cleanup
-and concurrency remain tracked in [#631](https://github.com/antropos17/Aegis/issues/631).
+in [#633](https://github.com/antropos17/Aegis/issues/633). Windows fixture cleanup
+was verified through [PR #722](https://github.com/antropos17/Aegis/pull/722).
 Audit startup counters [#639](https://github.com/antropos17/Aegis/issues/639), Claude
 cache pricing [#636](https://github.com/antropos17/Aegis/issues/636) and retained token
 state [#637](https://github.com/antropos17/Aegis/issues/637) need their own fixes.
