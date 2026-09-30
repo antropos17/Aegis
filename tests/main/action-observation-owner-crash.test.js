@@ -5,6 +5,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  observationFixtureDiagnostics,
+  expectObservationState,
+} from '../shared/observation-fixture-state.js';
 
 const require = createRequire(import.meta.url);
 const { observeActionRoute } = require('../../src/main/action-observation-client');
@@ -75,12 +79,23 @@ function fixture(selection) {
       selection === 'catalog'
         ? ['--action-mcp-catalog-stdio', catalog]
         : ['--action-mcp-stdio', actions[0].policyPath, actions[0].requestPath];
-    const child = spawn(process.execPath, [main, ...args, '--observe', endpoint], {
-      cwd: root,
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, TEMP: root, TMP: root },
-    });
+    const child = spawn(
+      process.execPath,
+      [
+        '--require',
+        fileURLToPath(new URL('../fixtures/slow-observation-publication.cjs', import.meta.url)),
+        main,
+        ...args,
+        '--observe',
+        endpoint,
+      ],
+      {
+        cwd: root,
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, TEMP: root, TMP: root },
+      },
+    );
     owners.push(child);
     child.stdin.on('error', () => {});
     let output = '',
@@ -99,6 +114,7 @@ function fixture(selection) {
     });
     return {
       child,
+      diagnostics: observationFixtureDiagnostics(child),
       exited,
       output: () => output,
       send: (message) => child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n'),
@@ -142,8 +158,7 @@ async function nativeWitness(identity) {
 
 async function initialize(owner, endpoint) {
   await wait(() => expect(fs.existsSync(endpoint)).toBe(true));
-  const observer = observeActionRoute(endpoint);
-  cleanups.push(() => observer.close());
+  owner.diagnostics.mark('endpoint-published');
   owner.send({
     id: 10,
     method: 'initialize',
@@ -154,8 +169,13 @@ async function initialize(owner, endpoint) {
     },
   });
   await wait(() => expect(owner.output()).toContain('"id":10'));
+  // A protocol response proves publication completed; file existence alone
+  // can expose an empty or changing descriptor.
+  const observer = observeActionRoute(endpoint);
+  cleanups.push(() => observer.close());
   owner.send({ method: 'notifications/initialized' });
-  await wait(() => expect(observer.snapshot().state).toBe('observed'));
+  owner.diagnostics.mark('initialized');
+  await wait(() => expectObservationState(observer, 'observed', owner.diagnostics));
   return observer;
 }
 
@@ -187,8 +207,9 @@ it.each(['single-action', 'catalog'])(
     // Kill only the held owner, not a tree: a tree kill would conceal absent containment.
     expect(owner.child.kill('SIGKILL')).toBe(true);
     await owner.exited;
+    owner.diagnostics.mark('owner-ended');
     if (verifyTermination) await verifyTermination();
-    await wait(() => expect(observer.snapshot().state).toBe('coverage-lost'));
+    await wait(() => expectObservationState(observer, 'coverage-lost', owner.diagnostics));
     const lost = observer.snapshot();
     expect(lost.snapshot).toMatchObject({
       ownerInvocations: 1,
