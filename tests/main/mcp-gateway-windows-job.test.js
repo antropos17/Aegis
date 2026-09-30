@@ -1,17 +1,20 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createFixtureProcesses } from '../helpers/fixture-processes';
 const require = createRequire(import.meta.url);
-const { createGatewayPeer } = require('../../src/main/mcp-gateway-peer');
-const { helperPath, spawnInWindowsJob } = require('../../src/main/mcp-gateway-windows-job');
+const windowsJob = require('../../src/main/mcp-gateway-windows-job');
+const { helperPath, spawnInWindowsJob } = windowsJob;
 const project = path.resolve(import.meta.dirname, '../..');
 let root;
 let running;
 let ownedPids = [];
+let processes;
+let helperRoot, helper;
 const alive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -59,22 +62,47 @@ async function treePids(marker) {
 
 describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object', () => {
   beforeAll(() => {
-    // Compile current sources for every native run; build/sidecar is ignored and
-    // may otherwise contain an older helper from a previous checkout.
-    execFileSync(process.execPath, ['scripts/build-sidecar.js'], {
-      cwd: project,
-      stdio: 'pipe',
-      timeout: 30000,
-    });
+    // Compile this suite's own helper. A shared build/sidecar executable can be
+    // held by another native suite and cannot safely be overwritten on Windows.
+    helperRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mcpjob-helper-'));
+    helper = path.join(helperRoot, 'aegis-mcpjob.exe');
+    execFileSync(
+      path.join(
+        process.env.WINDIR || 'C:\\Windows',
+        'Microsoft.NET',
+        'Framework64',
+        'v4.0.30319',
+        'csc.exe',
+      ),
+      [
+        '/nologo',
+        '/target:exe',
+        '/platform:x64',
+        '/optimize+',
+        '/warnaserror+',
+        '/reference:System.Web.Extensions.dll',
+        `/out:${helper}`,
+        ...fs
+          .readdirSync(path.join(project, 'sidecar', 'mcpjob'))
+          .filter((name) => name.endsWith('.cs'))
+          .map((name) => path.join(project, 'sidecar', 'mcpjob', name)),
+      ],
+      { cwd: project, windowsHide: true, stdio: 'pipe', timeout: 30000 },
+    );
+  });
+  afterAll(() => {
+    expect(path.dirname(helperRoot)).toBe(path.resolve(os.tmpdir()));
+    expect(fs.lstatSync(helperRoot).isSymbolicLink()).toBe(false);
+    fs.rmSync(helperRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mcpjob-'));
     running = undefined;
     ownedPids = [];
+    processes = createFixtureProcesses();
   });
   afterEach(async () => {
-    running?.kill('SIGKILL');
-    for (const pid of ownedPids) if (alive(pid)) process.kill(pid, 'SIGKILL');
+    await processes.stopAndWait(ownedPids);
     expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
     // Windows can retain a closed fixture briefly after the process exit event.
@@ -125,7 +153,7 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
     const prior = process.env.AEGIS_MCPJOB_PARENT_SENTINEL;
     process.env.AEGIS_MCPJOB_PARENT_SENTINEL = '1';
     try {
-      running = spawnInWindowsJob(launch(''), helper);
+      running = processes.track(spawnInWindowsJob(launch(''), helper));
       const closed = once(running, 'close');
       expect(await line(running.stdout)).toBe('0');
       await closed;
@@ -148,7 +176,9 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
       }) + '\\n');
       process.stdin.resume();
     `;
-    running = spawnInWindowsJob(launch(code, argv, { ...baseEnv(), AEGIS_TEST_SECRET: secret }));
+    running = processes.track(
+      spawnInWindowsJob(launch(code, argv, { ...baseEnv(), AEGIS_TEST_SECRET: secret }), helper),
+    );
     const output = JSON.parse(await line(running.stdout));
     expect(output.args).toEqual(argv);
     expect(output.cwd.toLowerCase()).toBe(root.toLowerCase());
@@ -164,7 +194,7 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
 
   it('ends an ordinary selected child and detached grandchild on EOF', async () => {
     const marker = path.join(root, 'tree.json');
-    running = spawnInWindowsJob(launch(tree(marker)));
+    running = processes.track(spawnInWindowsJob(launch(tree(marker)), helper));
     const pids = await treePids(marker);
     const closed = once(running, 'close');
     running.stop();
@@ -175,7 +205,7 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
 
   it('ends the grandchild when the selected child exits first', async () => {
     const marker = path.join(root, 'tree.json');
-    running = spawnInWindowsJob(launch(tree(marker, true)));
+    running = processes.track(spawnInWindowsJob(launch(tree(marker, true)), helper));
     const closed = once(running, 'close');
     const pids = await treePids(marker);
     await closed;
@@ -192,7 +222,9 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
       ),
     ).toThrow('gateway-protected-launch-unavailable');
     expect(fs.existsSync(marker)).toBe(false);
-    running = spawnInWindowsJob({ ...launch(''), executable: path.join(root, 'missing.exe') });
+    running = processes.track(
+      spawnInWindowsJob({ ...launch(''), executable: path.join(root, 'missing.exe') }, helper),
+    );
     const closed = new Promise((resolve) => running.once('close', resolve));
     running.on('error', () => {});
     await closed;
@@ -202,7 +234,7 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
 
   it('does not claim cleanup after unexpected helper death, though the job closes', async () => {
     const marker = path.join(root, 'tree.json');
-    running = spawnInWindowsJob(launch(tree(marker)));
+    running = processes.track(spawnInWindowsJob(launch(tree(marker)), helper));
     const pids = await treePids(marker);
     const closed = once(running, 'close');
     running.kill('SIGKILL');
@@ -239,12 +271,14 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
       ],
       { cwd: project, stdio: 'pipe', timeout: 30000 },
     );
-    running = spawn(helper, [], {
-      shell: false,
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, AEGIS_MCPJOB_CRASH_MARKER: marker },
-    });
+    running = processes.track(
+      spawn(helper, [], {
+        shell: false,
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, AEGIS_MCPJOB_CRASH_MARKER: marker },
+      }),
+    );
     const closed = once(running, 'close');
     running.stdin.write(JSON.stringify(launch('setInterval(() => {}, 1000)')) + '\n');
     await vi.waitFor(
@@ -266,7 +300,22 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
   it('times out a silent upstream and verifies ordinary descendants ended', async () => {
     const marker = path.join(root, 'tree.json');
     const failed = vi.fn();
-    const peer = createGatewayPeer(launch(tree(marker)), failed);
+    // CommonJS captures its dependency at require time. Restore both the export
+    // and cache immediately after construction so this seam stays in this suite.
+    const peerPath = require.resolve('../../src/main/mcp-gateway-peer');
+    const previousModule = require.cache[peerPath];
+    const seam = vi
+      .spyOn(windowsJob, 'spawnInWindowsJob')
+      .mockImplementation((selected) => processes.track(spawnInWindowsJob(selected, helper)));
+    let peer;
+    delete require.cache[peerPath];
+    try {
+      peer = require(peerPath).createGatewayPeer(launch(tree(marker)), failed);
+    } finally {
+      seam.mockRestore();
+      delete require.cache[peerPath];
+      if (previousModule) require.cache[peerPath] = previousModule;
+    }
     const pending = peer.request('never-answers', {});
     const pids = await treePids(marker);
     await expect(pending).rejects.toThrow('upstream-closed');
@@ -278,7 +327,9 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
   it('discards selected stderr, including launch-secret text', async () => {
     const secret = 'PRIVATE_STDERR_VALUE';
     const code = `process.stderr.write(process.env.AEGIS_TEST_SECRET); process.stdin.resume();`;
-    running = spawnInWindowsJob(launch(code, [], { ...baseEnv(), AEGIS_TEST_SECRET: secret }));
+    running = processes.track(
+      spawnInWindowsJob(launch(code, [], { ...baseEnv(), AEGIS_TEST_SECRET: secret }), helper),
+    );
     let helperStderr = '';
     let helperStdout = '';
     running.stderr.on('data', (chunk) => {
