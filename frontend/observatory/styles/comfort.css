@@ -76,6 +76,12 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+@media (min-width: 800px) {
+  .observatory-app footer {
+    margin-right: calc(var(--observatory-alert-trigger-width, 60px) + 32px);
+    min-height: calc(var(--observatory-alert-trigger-height, 30px) + 12px);
+  }
+}
 @media (max-height: 700px) {
   .radar-panel > .panel-head {
     flex-wrap: nowrap;

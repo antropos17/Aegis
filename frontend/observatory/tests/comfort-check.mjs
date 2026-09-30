@@ -149,7 +149,7 @@ export async function checkComfort(browser, url, out) {
  * @param {string} url Desktop build URL
  * @param {string} out Artifact directory
  * @returns {Promise<void>} Verified footer bounds and keyboard navigation
- * @since 0.14.1
+ * @since 0.17.0
  */
 export async function checkFooter(browser, url, out) {
   const catalog = JSON.parse(
@@ -159,6 +159,62 @@ export async function checkFooter(browser, url, out) {
   const measurements = [];
   const errors = [];
   const shots = [];
+  const textEndpoints = async (locator, ends = ['first', 'last']) => {
+    const points = await locator.evaluate((node, ends) => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode())
+        if (walker.currentNode.textContent.trim()) nodes.push(walker.currentNode);
+      return ends.map((end) => {
+        const text = end === 'first' ? nodes[0] : nodes.at(-1);
+        const offset =
+          end === 'first' ? text.textContent.search(/\S/) : text.textContent.search(/\s*$/) - 1;
+        const range = document.createRange();
+        range.setStart(text, offset);
+        range.setEnd(text, offset + 1);
+        const box = range.getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        const y = box.top + box.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return {
+          end,
+          x,
+          y,
+          visible: box.width > 0 && box.height > 0 && node.contains(hit),
+          hit: hit?.className?.baseVal ?? hit?.className ?? null,
+        };
+      });
+    }, ends);
+    measurements.push({ textEndpoints: points });
+    if (points.some((point) => !point.visible))
+      measurements.push({
+        failedPlacement: await locator.evaluate(() => {
+          const footer = document.querySelector('.observatory-app footer');
+          const trigger = document.querySelector('.alert-trigger');
+          return {
+            footer: footer.getBoundingClientRect().toJSON(),
+            trigger: trigger.getBoundingClientRect().toJSON(),
+            margin: getComputedStyle(footer).marginRight,
+            width: getComputedStyle(document.documentElement).getPropertyValue(
+              '--observatory-alert-trigger-width',
+            ),
+            height: getComputedStyle(document.documentElement).getPropertyValue(
+              '--observatory-alert-trigger-height',
+            ),
+            tail: footer.querySelector(':scope > span:last-child').getBoundingClientRect().toJSON(),
+            tailWidth: footer.querySelector(':scope > span:last-child').scrollWidth,
+            scrollLeft: footer.scrollLeft,
+            scrollWidth: footer.scrollWidth,
+            clientWidth: footer.clientWidth,
+            maximumScroll: footer.scrollWidth - footer.clientWidth,
+          };
+        }),
+      });
+    assert(
+      points.every((point) => point.visible),
+      'Footer text endpoint occluded: ' + JSON.stringify(points),
+    );
+  };
   try {
     for (const locale of ['pt', 'en']) {
       const t = (key) => (locale === 'pt' ? (catalog[key] ?? key) : key);
@@ -182,6 +238,8 @@ export async function checkFooter(browser, url, out) {
                 return async () => {
                   if (method === 'getSettings') return { darkMode: true, uiScale: 1 };
                   if (method === 'getAppVersion') return 'Synthetic footer QA';
+                  if (method === 'listSensitiveAlerts')
+                    return { success: true, items: [], status: 'ready' };
                   if (method === 'getAllPermissions')
                     return {
                       permissions: { Codex: { network: 'monitor' } },
@@ -203,6 +261,7 @@ export async function checkFooter(browser, url, out) {
           );
         }, locale);
         await page.goto(url + '?view=rules');
+        await page.evaluate(() => document.fonts.ready);
         const main = page.locator('#main');
         const footer = page.locator('.observatory-app footer');
         await main.getByLabel(t('Target'), { exact: true }).selectOption('Codex');
@@ -301,6 +360,28 @@ export async function checkFooter(browser, url, out) {
                   };
                 });
                 measurements.push({ label, ...measured });
+                const refresh = main.getByRole('button', { name: t('Refresh'), exact: true });
+                const refreshHit = await refresh.evaluate((node) => {
+                  const box = node.getBoundingClientRect();
+                  const main = document.querySelector('#main').getBoundingClientRect();
+                  const x = box.left + box.width / 2;
+                  const y = box.top + box.height / 2;
+                  const hit = document.elementFromPoint(x, y);
+                  return {
+                    x,
+                    y,
+                    onScreen: y >= main.top && y <= main.bottom,
+                    visible: node.contains(hit),
+                    hit: hit?.className ?? null,
+                  };
+                });
+                measurements.push({ refreshHit, label });
+                if (refreshHit.onScreen)
+                  assert(
+                    refreshHit.visible,
+                    'Visible Refresh control is occluded: ' + JSON.stringify(refreshHit),
+                  );
+                if (refreshHit.onScreen) await textEndpoints(refresh);
                 const selected =
                   locale === 'pt' &&
                   width === 900 &&
@@ -314,7 +395,10 @@ export async function checkFooter(browser, url, out) {
                   scale === 1 &&
                   theme === 'light' &&
                   state === 'ready';
-                if ((selected && !process.env.FOOTER_QA_READY_SHOT_ONLY) || readyShot) {
+                if (
+                  !process.env.FOOTER_QA_OVERLAY &&
+                  ((selected && !process.env.FOOTER_QA_READY_SHOT_ONLY) || readyShot)
+                ) {
                   const path = resolve(out, `footer-${phase}-${locale}-${state}.png`);
                   await page.screenshot({ path });
                   shots.push(path);
@@ -347,6 +431,7 @@ export async function checkFooter(browser, url, out) {
               }));
               await footer.evaluate((node) => (node.scrollLeft = 0));
               await sensor.focus();
+              await textEndpoints(sensor);
               await page.keyboard.press('Tab');
               assert(
                 await delivery.evaluate((node) => document.activeElement === node),
@@ -354,14 +439,22 @@ export async function checkFooter(browser, url, out) {
               );
               const focusBounds = await delivery.evaluate((node) => {
                 const box = node.getBoundingClientRect();
-                const frame = node.closest('footer').getBoundingClientRect();
+                const scroller = node.closest('footer');
+                const frame = scroller.getBoundingClientRect();
+                const style = getComputedStyle(scroller);
+                const frameLeft = frame.left + scroller.clientLeft;
+                const frameRight = frameLeft + scroller.clientWidth;
                 return {
                   buttonLeft: box.left,
                   buttonRight: box.right,
                   buttonWidth: box.width,
-                  frameLeft: frame.left,
-                  frameRight: frame.right,
-                  frameWidth: frame.width,
+                  frameLeft,
+                  frameRight,
+                  frameWidth: scroller.clientWidth,
+                  contentWidth:
+                    scroller.clientWidth -
+                    parseFloat(style.paddingLeft) -
+                    parseFloat(style.paddingRight),
                   vertical: box.top >= frame.top && box.bottom <= frame.bottom,
                 };
               });
@@ -373,6 +466,7 @@ export async function checkFooter(browser, url, out) {
                     focusBounds.buttonRight <= focusBounds.frameRight + 1,
                   'Focused delivery is clipped by footer scroll',
                 );
+              if (focusBounds.buttonWidth <= focusBounds.frameWidth) await textEndpoints(delivery);
               if (
                 width === 900 &&
                 scale === 1.5 &&
@@ -385,39 +479,164 @@ export async function checkFooter(browser, url, out) {
               // The final observed-time span is not focusable: exercise native horizontal keys,
               // rather than claiming that a programmatic scroll proves keyboard access.
               if (focusBounds.buttonWidth > focusBounds.frameWidth) {
-                for (let index = 0; index < 24; index++) await page.keyboard.press('ArrowLeft');
+                for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowLeft');
                 await page.waitForTimeout(200);
                 assert(
                   await delivery.evaluate((node) => {
                     const box = node.getBoundingClientRect();
-                    const frame = node.closest('footer').getBoundingClientRect();
-                    return box.left >= frame.left - 1 && box.left <= frame.right - 1;
+                    const scroller = node.closest('footer');
+                    const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
+                    return box.left >= left - 1 && box.left <= left + scroller.clientWidth - 1;
                   }),
                   'Keyboard cannot reveal the beginning of the long delivery label',
                 );
+                await textEndpoints(delivery, ['first']);
               }
-              for (let index = 0; index < 24; index++) await page.keyboard.press('ArrowRight');
+              for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
               await page.waitForTimeout(200);
+              if (
+                ['capture', 'final'].includes(process.env.FOOTER_QA_OVERLAY) &&
+                locale === 'pt' &&
+                width === 900 &&
+                scale === 1.5 &&
+                theme === 'dark-hc'
+              ) {
+                const path = resolve(out, 'footer-overlay-tail.png');
+                await page.screenshot({ path });
+                shots.push(path);
+              }
               assert(
                 await footer
                   .locator(':scope > span')
                   .last()
                   .evaluate((node) => {
                     const box = node.getBoundingClientRect();
-                    const frame = node.closest('footer').getBoundingClientRect();
-                    return box.left >= frame.left - 1 && box.right <= frame.right + 1;
+                    const scroller = node.closest('footer');
+                    const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
+                    return box.left >= left - 1 && box.right <= left + scroller.clientWidth + 1;
                   }),
                 'Keyboard cannot reveal the observed-time tail',
               );
+              await textEndpoints(footer.locator(':scope > span').last());
               if (focusBounds.buttonWidth > focusBounds.frameWidth)
                 assert(
                   await delivery.evaluate((node) => {
                     const box = node.getBoundingClientRect();
-                    const frame = node.closest('footer').getBoundingClientRect();
-                    return box.right >= frame.left + 1 && box.right <= frame.right + 1;
+                    const scroller = node.closest('footer');
+                    const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
+                    return box.right >= left + 1 && box.right <= left + scroller.clientWidth + 1;
                   }),
                   'Keyboard cannot reveal the end of the long delivery label',
                 );
+              if (focusBounds.buttonWidth > focusBounds.frameWidth)
+                await textEndpoints(delivery, ['last']);
+              const trigger = page.locator('.alert-trigger');
+              assert(
+                await trigger.evaluate((node) => {
+                  const box = node.getBoundingClientRect();
+                  const footer = document
+                    .querySelector('.observatory-app footer')
+                    .getBoundingClientRect();
+                  const hit = document.elementFromPoint(
+                    box.left + box.width / 2,
+                    box.top + box.height / 2,
+                  );
+                  return (
+                    box.left >= footer.right &&
+                    box.top >= footer.top &&
+                    box.bottom <= footer.bottom &&
+                    node.contains(hit)
+                  );
+                }),
+                'Alerts trigger is covered or overlaps footer',
+              );
+              await trigger.focus();
+              await page.keyboard.press('Enter');
+              const center = page.getByRole('dialog', {
+                name: t('Sensitive activity review'),
+                exact: true,
+              });
+              await center.waitFor();
+              assert(
+                await center.evaluate((node) => {
+                  const box = node.getBoundingClientRect();
+                  const trigger = document.querySelector('.alert-trigger').getBoundingClientRect();
+                  return box.top >= 0 && box.bottom <= trigger.top;
+                }),
+                'Alert review overlaps trigger or leaves viewport',
+              );
+              await textEndpoints(footer.locator(':scope > span').last());
+              if (
+                ['capture', 'final'].includes(process.env.FOOTER_QA_OVERLAY) &&
+                locale === 'pt' &&
+                width === 900 &&
+                scale === 1.5 &&
+                theme === 'dark-hc'
+              ) {
+                const path = resolve(out, 'footer-overlay-center.png');
+                await page.screenshot({ path });
+                shots.push(path);
+              }
+              const close = center.getByRole('button', {
+                name: t('Close alert review'),
+                exact: true,
+              });
+              await close.focus();
+              await page.keyboard.press('Enter');
+              await center.waitFor({ state: 'hidden' });
+              assert(
+                await trigger.evaluate((node) => document.activeElement === node),
+                'Close did not restore Alerts focus',
+              );
+              await page.keyboard.press('Enter');
+              await center.waitFor();
+              await page.keyboard.press('Escape');
+              await center.waitFor({ state: 'hidden' });
+              assert(
+                await trigger.evaluate((node) => document.activeElement === node),
+                'Escape did not restore Alerts focus',
+              );
+              await page.evaluate(() =>
+                window.footerFixture.onFileAccess({
+                  eventId: 'footer-qa-' + Date.now(),
+                  action: 'read',
+                  timestamp: Date.now(),
+                  file: 'X:/Fixture/.env',
+                  agent: 'Codex',
+                  sensitive: true,
+                  reason: 'Synthetic footer notification',
+                  attribution: { status: 'inferred' },
+                }),
+              );
+              const toast = page.locator('.notifications .sensitive');
+              await toast.waitFor();
+              assert(
+                await toast.evaluate(
+                  (node) =>
+                    node.getBoundingClientRect().bottom <=
+                    document.querySelector('.alert-trigger').getBoundingClientRect().top,
+                ),
+                'Toast overlaps Alerts trigger',
+              );
+              await textEndpoints(footer.locator(':scope > span').last());
+              if (
+                process.env.FOOTER_QA_OVERLAY === 'capture' &&
+                locale === 'pt' &&
+                width === 900 &&
+                scale === 1.5 &&
+                theme === 'dark-hc'
+              ) {
+                const path = resolve(out, 'footer-overlay-toast.png');
+                await page.screenshot({ path });
+                shots.push(path);
+              }
+              const dismiss = toast.getByRole('button', {
+                name: t('Dismiss notification'),
+                exact: true,
+              });
+              await dismiss.focus();
+              await page.keyboard.press('Enter');
+              await toast.waitFor({ state: 'hidden' });
               assert.deepEqual(
                 await page.evaluate(() => ({
                   mainScroll: document.querySelector('#main').scrollTop,
@@ -428,6 +647,7 @@ export async function checkFooter(browser, url, out) {
                 beforeFocus,
                 'Footer focus/keys shifted another surface',
               );
+              await delivery.focus();
               await page.keyboard.press('Shift+Tab');
               assert(
                 await sensor.evaluate((node) => document.activeElement === node),
@@ -470,6 +690,26 @@ export async function checkFooter(browser, url, out) {
                 main.getByRole('button', { name: t('Reset all to defaults'), exact: true }),
               ]) {
                 await control.focus();
+                assert(
+                  await control.evaluate((node) => {
+                    const box = node.getBoundingClientRect();
+                    return [
+                      [0.2, 0.5],
+                      [0.5, 0.5],
+                      [0.8, 0.5],
+                    ].every(([x, y]) =>
+                      node.contains(
+                        document.elementFromPoint(
+                          box.left + box.width * x,
+                          box.top + box.height * y,
+                        ),
+                      ),
+                    );
+                  }),
+                  'Focused permission control is occluded',
+                );
+                if (await control.evaluate((node) => node.tagName === 'BUTTON'))
+                  await textEndpoints(control);
                 assert(
                   await control.evaluate((node) => {
                     const box = node.getBoundingClientRect();

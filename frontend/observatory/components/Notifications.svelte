@@ -65,6 +65,35 @@
   });
   onDestroy(clearAllToasts);
   onMount(() => {
+    const style = document.documentElement.style;
+    const properties = ['--observatory-alert-trigger-width', '--observatory-alert-trigger-height'];
+    const previous = properties.map((property) => [
+      property,
+      style.getPropertyValue(property),
+      style.getPropertyPriority(property),
+    ]);
+    let alive = true;
+    const measureTrigger = () => {
+      if (!alive) return;
+      const box = centerTrigger.getBoundingClientRect();
+      style.setProperty(properties[0], box.width + 'px');
+      style.setProperty(properties[1], box.height + 'px');
+    };
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureTrigger);
+    observer?.observe(centerTrigger);
+    window.addEventListener('resize', measureTrigger);
+    measureTrigger();
+    return () => {
+      alive = false;
+      observer?.disconnect();
+      window.removeEventListener('resize', measureTrigger);
+      for (const [property, value, priority] of previous)
+        if (value) style.setProperty(property, value, priority);
+        else style.removeProperty(property);
+    };
+  });
+  onMount(() => {
     if (!host?.listSensitiveAlerts) return;
     let alive = true;
     const seedReviewRevision = reviewRevision;
@@ -217,7 +246,7 @@
     position: fixed;
     z-index: 80;
     right: 20px;
-    bottom: 58px;
+    bottom: calc(var(--observatory-footer-height, 0px) + 58px);
     display: grid;
     gap: 8px;
     max-width: min(420px, 90vw);
@@ -247,6 +276,23 @@
   .notification button:focus-visible,
   .alert-trigger:focus-visible {
     outline: 2px solid var(--selection-border);
+  }
+  @media (min-width: 800px) {
+    .alert-trigger {
+      bottom: max(
+        6px,
+        calc(
+          (
+              var(
+                  --observatory-footer-height,
+                  calc(var(--observatory-alert-trigger-height, 30px) + 24px)
+                ) -
+                var(--observatory-alert-trigger-height, 30px)
+            ) /
+            2
+        )
+      );
+    }
   }
   @media (max-width: 600px) {
     .alert-trigger,

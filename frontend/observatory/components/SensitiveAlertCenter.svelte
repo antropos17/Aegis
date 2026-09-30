@@ -167,9 +167,9 @@
     position: fixed;
     z-index: 90;
     right: 20px;
-    bottom: 60px;
+    bottom: calc(var(--observatory-footer-height, 0px) + 60px);
     width: min(520px, calc(100vw - 40px));
-    max-height: min(72vh, 640px);
+    max-height: min(72vh, 640px, calc(100dvh - var(--observatory-footer-height, 0px) - 72px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -281,7 +281,7 @@
   @media (max-width: 600px) {
     .alert-center {
       right: 10px;
-      bottom: 54px;
+      bottom: calc(var(--observatory-footer-height, 0px) + 54px);
       width: calc(100vw - 20px);
     }
   }
