@@ -1663,5 +1663,21 @@
   "Default policy restored. Could not confirm the current policy. Local drafts are preserved.": "Política padrão restaurada. Não foi possível confirmar a política atual. Os rascunhos locais foram preservados.",
   "Permission reply is invalid": "A resposta de permissões é inválida",
   "Permission reply is unavailable": "A resposta de permissões está indisponível",
-  "Detection rule reply is invalid": "A resposta de regras de detecção é inválida"
+  "Detection rule reply is invalid": "A resposta de regras de detecção é inválida",
+  "Audit index details unavailable.": "Detalhes do índice de auditoria indisponíveis.",
+  "Audit history unavailable. Showing previously loaded entries.": "Histórico de auditoria indisponível. Exibindo os registros carregados anteriormente.",
+  "Audit history unavailable. Retry reading.": "Histórico de auditoria indisponível. Tente ler novamente.",
+  "Retry history": "Tentar ler o histórico novamente",
+  "Audit history has not been loaded.": "O histórico de auditoria ainda não foi carregado.",
+  "Loaded history is unknown": "O histórico carregado é desconhecido",
+  "No entries in this history page.": "Nenhum registro nesta página do histórico.",
+  "Delivery counters unavailable. Showing last loaded values.": "Contadores de entrega indisponíveis. Exibindo os últimos valores carregados.",
+  "Delivery counters unavailable. Retry reading.": "Contadores de entrega indisponíveis. Tente ler novamente.",
+  "Updating delivery counters…": "Atualizando os contadores de entrega…",
+  "Loading delivery counters…": "Carregando os contadores de entrega…",
+  "Storage measurements unavailable. Delivery counters are separate observations.": "Medições do armazenamento indisponíveis. Os contadores de entrega são observações separadas.",
+  "Audit journal has not been initialized.": "O diário de auditoria ainda não foi inicializado.",
+  "Refresh delivery counters": "Atualizar os contadores de entrega",
+  "Delivery counters do not confirm that the history can be read.": "Os contadores de entrega não confirmam que o histórico pode ser lido.",
+  "{visible} of {loaded} loaded entries": "{visible} de {loaded} registros carregados"
 }

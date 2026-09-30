@@ -537,12 +537,16 @@ function cleanOldLogs() {
  * are not necessarily the bounds of what the files contain.
  * @returns {{totalEntries: number, persistedEntries: number, droppedEntries: number,
  *   bufferDepth: number, totalSize: number, currentSize: number, firstEntry: string|null,
- *   lastEntry: string|null, index: {state: string, files: number, rows: number,
+ *   lastEntry: string|null, storageReadState: 'uninitialized'|'ready'|'unavailable',
+ *   index: {state: string, files: number, rows: number,
  *   malformedLines: number, lastError: string|null}}}
  *   `index` — the audit index (docs/roadmap/audit-index.md): `state` is `unavailable` on a
  *   runtime without `node:sqlite`, `building` until the reconcile finishes, `ready`, `failed`
  *   (with `lastError`) or `closed`; counts are read live from the tables. Additive, and not a
  *   sensor: nothing about the app's health reads it.
+ *   `storageReadState` qualifies both byte measurements: ready only after a complete
+ *   directory/stat scan; unavailable sizes may be partial, and uninitialized counters
+ *   are defaults rather than observations. It is independent of index and delivery state.
  *   `totalEntries` — events handed to {@link log} this session plus records found on disk
  *   at init. It counts entries still in the buffer AND entries evicted under a full
  *   buffer that will never reach disk, so under overflow it permanently exceeds the real
@@ -564,10 +568,13 @@ function getStats() {
       currentSize: 0,
       firstEntry: null,
       lastEntry: null,
+      storageReadState: 'uninitialized',
       index: auditIndex.status(),
     };
   let totalSize = 0;
   let currentSize = 0;
+  /** @type {'ready'|'unavailable'} */
+  let storageReadState = 'ready';
   try {
     const files = fs
       .readdirSync(_logDir)
@@ -580,6 +587,7 @@ function getStats() {
       if (fp === todayPath) currentSize = stat.size;
     }
   } catch {
+    storageReadState = 'unavailable';
     console.error('[audit-logger] getStats failed');
   }
   return {
@@ -591,6 +599,7 @@ function getStats() {
     currentSize,
     firstEntry: _firstEntry,
     lastEntry: _lastEntry,
+    storageReadState,
     index: auditIndex.status(),
   };
 }
@@ -697,7 +706,12 @@ function readLinesReverse(filePath, onLine, chunkSize = 4096) {
       const readSize = Math.min(chunkSize, pos);
       pos -= readSize;
       const buf = Buffer.alloc(readSize);
-      fs.readSync(fd, buf, 0, readSize, pos);
+      let filled = 0;
+      while (filled < readSize) {
+        const bytesRead = fs.readSync(fd, buf, filled, readSize - filled, pos + filled);
+        if (bytesRead === 0) throw new Error('Incomplete audit read');
+        filled += bytesRead;
+      }
       const chunk = buf.toString('utf-8') + trailing;
       const lines = chunk.split('\n');
       // First element is a partial line (or empty) — carry it over
@@ -787,6 +801,7 @@ function _nextDateStr(dateStr) {
  * @param {string[]} [types] - Event types to keep; omitted or unusable → every type
  * @param {number} [boundaryOffset] Opt in to an inclusive timestamp and skip this many matching boundary rows (0..1000000). Omitted retains the exclusive legacy contract.
  * @returns {Object[]} Entries sorted oldest-first
+ * @throws {Error} When the journal is uninitialized or a requested canonical read fails.
  * @since v0.5.0
  */
 function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryOffset) {
@@ -807,7 +822,7 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryO
       : DEFAULT_READ_LIMIT;
   const typeFilter = _typeFilter(types);
   flush();
-  if (!_logDir) return [];
+  if (!_logDir) throw new Error('Audit history unavailable: the journal is not initialized.');
   try {
     if (auditIndex.isReady())
       return auditIndex.queryBefore(beforeTs, limit, typeFilter, boundaryOffset);
@@ -860,7 +875,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryO
       if (results.length >= limit) break;
     }
   } catch {
-    console.error('[audit-logger] getEntriesBefore failed');
+    // A partial page must never look like a complete, successful history read.
+    throw new Error('Audit history unavailable: the journal files could not be read.');
   }
   // Return oldest-first
   results.reverse();
