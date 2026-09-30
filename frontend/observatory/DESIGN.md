@@ -1,5 +1,25 @@
 # AEGIS Observatory
 
+## Rules persistence and readback — 30 September 2026
+
+Permissions and detection rules load independently. Each section distinguishes
+loading, a completed empty result and unavailable data, retains its last loaded
+values after a failed read, and offers a read-only retry. Explicit failure replies
+and malformed permission or rule populations remain unavailable.
+
+A confirmed permission write updates the submitted target's saved baseline,
+including while another target is selected. The following readback has separate
+feedback: an unavailable or differing policy preserves local drafts and explains
+what could not be confirmed. Edits made during the write remain unsaved. A default
+reset clears drafts only when the fresh saved policy matches the reset reply;
+missing, differing or failed readback retains them. Late reads from an earlier
+generation and replies after unmount cannot replace current state.
+
+Production and preview reset replies carry explicit success after their save
+completes. English and Portuguese share these states and retain the explanation
+that saved preferences do not activate automatic file or network blocking. The
+existing permission rows, target controls and rule table composition remain.
+
 ## Action and returned-result workflow — 30 September 2026
 
 Action control starts with task links and configuration controls before route
