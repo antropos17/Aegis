@@ -6,7 +6,7 @@
       "changelog-type": "github",
       "bump-minor-pre-major": true,
       "prerelease": true,
-      "prerelease-type": "alpha",
+      "prerelease-type": "beta",
       "extra-files": [
         { "type": "generic", "path": "README.md" },
         { "type": "generic", "path": "llms.txt" },
