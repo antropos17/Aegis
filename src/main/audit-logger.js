@@ -19,6 +19,10 @@ const dropTracker = require('./audit-drop-tracker');
 const { normalizeAuditEntry } = require('./audit-normalize');
 const auditIndex = require('./audit-index');
 const indexRebuild = require('./audit-index-rebuild');
+const counterSeed = require('./audit-counter-seed');
+let _counterTask = null;
+let _historyReadState = 'uninitialized';
+let _initGeneration = 0;
 
 let _logDir = '';
 /** @type {string} userData root, kept for the index which lives beside `audit-logs/`. */
@@ -141,6 +145,8 @@ let _persistedEntries = 0;
  * @since v0.2.0
  */
 function init(opts) {
+  _counterTask?.cancel();
+  const generation = ++_initGeneration;
   _onFlushError = opts.onFlushError || null;
   _onDeliveryChange = opts.onDeliveryChange || null;
   _notifyingDelivery = false;
@@ -157,6 +163,7 @@ function init(opts) {
   } catch {
     console.error('[audit-logger] mkdirSync failed');
   }
+  cleanOldLogs();
   _seedCounters();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
   // Retention first, then the index: a file the sweep deletes is never indexed, and the
@@ -164,7 +171,10 @@ function init(opts) {
   _indexArmed = true;
   _indexReady = new Promise((resolve) =>
     setImmediate(() => {
-      cleanOldLogs();
+      if (generation !== _initGeneration || !_indexArmed) {
+        resolve();
+        return;
+      }
       if (_indexArmed) _openIndex();
       resolve();
     }),
@@ -229,7 +239,7 @@ function _indexAppend(fp, bytes, lines) {
 }
 
 /**
- * One-time scan of existing log files to seed in-memory counters.
+ * Seed captured historical prefixes in bounded turns after retention.
  * @returns {void}
  */
 function _seedCounters() {
@@ -237,44 +247,22 @@ function _seedCounters() {
   _persistedEntries = 0;
   _firstEntry = null;
   _lastEntry = null;
-  if (!_logDir) return;
-  try {
-    const files = fs
-      .readdirSync(_logDir)
-      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
-      .sort();
-    for (const f of files) {
-      const fp = path.join(_logDir, f);
-      const content = fs.readFileSync(fp, 'utf-8');
-      const lines = content.split('\n').filter((l) => l.trim().length > 0);
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line);
-          // Count inside the try, so a malformed line that JSON.parse rejects is not
-          // counted as an entry — the previous `+= lines.length` counted it anyway.
-          // Loss markers are internal bookkeeping, not audit events, so they are excluded
-          // from both counters or every recovered drop would inflate the totals.
-          // A marker's timestamp is the wall-clock time of the flush that recovered it,
-          // not an event time, so it is excluded from the observed range too — otherwise
-          // the date range shown in the UI would extend past the last real event.
-          if (entry.type !== dropTracker.MARKER_TYPE) {
-            _totalEntries += 1;
-            _persistedEntries += 1;
-            if (entry.timestamp) {
-              if (!_firstEntry || entry.timestamp < _firstEntry) _firstEntry = entry.timestamp;
-              if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
-            }
-          }
-        } catch (_) {
-          /* skip malformed line */
-        }
+  _counterTask = counterSeed.seedCounters(
+    _logDir,
+    (entry) => {
+      _totalEntries++;
+      _persistedEntries++;
+      if (typeof entry.timestamp === 'string') {
+        if (!_firstEntry || entry.timestamp < _firstEntry) _firstEntry = entry.timestamp;
+        if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
       }
-    }
-  } catch {
-    console.error('[audit-logger] seed counters failed');
-  }
+    },
+    (state) => {
+      _historyReadState = state;
+      notifyDeliveryChange();
+    },
+  );
 }
-
 /**
  * Today's date as YYYY-MM-DD (local time, via the injectable clock). Used both
  * for the file name and to detect day rotation in flush().
@@ -513,7 +501,7 @@ function cleanOldLogs() {
     const files = fs
       .readdirSync(_logDir)
       .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'));
-    const cutoff = Date.now() - RETENTION_DAYS * 86400000;
+    const cutoff = _now().getTime() - RETENTION_DAYS * 86400000;
     for (const f of files) {
       const match = f.match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
       if (match) {
@@ -547,6 +535,7 @@ function cleanOldLogs() {
  * @returns {{totalEntries: number, persistedEntries: number, droppedEntries: number,
  *   bufferDepth: number, totalSize: number, currentSize: number, firstEntry: string|null,
  *   lastEntry: string|null, storageReadState: 'uninitialized'|'ready'|'unavailable',
+ *   historyReadState: 'uninitialized'|'building'|'ready'|'unavailable',
  *   index: {state: string, files: number, rows: number,
  *   malformedLines: number, lastError: string|null}}}
  *   `index` — the audit index (docs/roadmap/audit-index.md): `state` is `unavailable` on a
@@ -556,6 +545,8 @@ function cleanOldLogs() {
  *   `storageReadState` qualifies both byte measurements: ready only after a complete
  *   directory/stat scan; unavailable sizes may be partial, and uninitialized counters
  *   are defaults rather than observations. It is independent of index and delivery state.
+ *   `historyReadState` qualifies historical totals and date bounds. Building or
+ *   unavailable values are partial; live buffer/drop observations remain independent.
  *   `totalEntries` — events handed to {@link log} this session plus records found on disk
  *   at init. It counts entries still in the buffer AND entries evicted under a full
  *   buffer that will never reach disk, so under overflow it permanently exceeds the real
@@ -578,6 +569,7 @@ function getStats() {
       firstEntry: null,
       lastEntry: null,
       storageReadState: 'uninitialized',
+      historyReadState: 'uninitialized',
       index: auditIndex.status(),
     };
   let totalSize = 0;
@@ -609,6 +601,7 @@ function getStats() {
     firstEntry: _firstEntry,
     lastEntry: _lastEntry,
     storageReadState,
+    historyReadState: _historyReadState,
     index: auditIndex.status(),
   };
 }
@@ -689,6 +682,8 @@ function prepareExport() {
  * @since v0.2.0
  */
 function shutdown() {
+  _initGeneration++;
+  _counterTask?.cancel();
   _indexArmed = false;
   if (_flushTimer) {
     clearInterval(_flushTimer);
@@ -907,6 +902,10 @@ module.exports = {
   normalizeAuditEntry,
   SCHEMA_VERSION,
   MAX_READ_LIMIT,
+  /** @internal Await historical counter seeding. @returns {Promise<void>} @since 0.18.0 */
+  _awaitCountersForTest: async () => {
+    await _counterTask?.done;
+  },
   /**
    * @internal Settles once the deferred open of the last `init` and any reconcile in flight
    * have finished, so a test can inspect the tables (for tests).
