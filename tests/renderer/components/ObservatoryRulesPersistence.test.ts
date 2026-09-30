@@ -72,14 +72,16 @@ it('keeps search results unknown after initial rule load failure until a populat
   expect(screen.queryByText('Detection rules unavailable. Retry loading.')).toBeNull();
 });
 
-it.each([
-  [{ id: '' }],
-  [{ id: '   ' }],
-  [{ id: 'FS001' }, { id: 'FS001' }],
-  [{ id: 1 }],
-  [{ id: 'FS001', enabled: 'false' }],
-  [{ id: 'FS001', enabled: null }],
-])('retains loaded rules when identity or enabled admission fails: %j', async (reply) => {
+it.each(
+  [
+    [{ id: '' }],
+    [{ id: '   ' }],
+    [{ id: 'FS001' }, { id: 'FS001' }],
+    [{ id: 1 }],
+    [{ id: 'FS001', enabled: 'false' }],
+    [{ id: 'FS001', enabled: null }],
+  ].map((reply) => ({ reply })),
+)('retains loaded rules when identity or enabled admission fails: %j', async ({ reply }) => {
   const { host, reload } = policyHost();
   host.getRules
     .mockResolvedValueOnce([{ id: 'FS001', name: 'Retained rule', enabled: false }])
