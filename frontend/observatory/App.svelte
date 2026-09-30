@@ -305,6 +305,10 @@
     const previousClearancePriority = rootStyle.getPropertyPriority(clearanceProperty);
     let footerAtEnd = false;
     let footerMaximum = 0;
+    const captureFooterEnd = () => {
+      const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
+      footerAtEnd = maximum > 0 && statusFooter.scrollLeft >= maximum - 1;
+    };
     const rememberFooterEnd = () => {
       const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
       // Layout can dispatch scroll before ResizeObserver. Compare against the
@@ -329,6 +333,8 @@
     footerObserver?.observe(statusFooter);
     for (const status of statusFooter.children) footerObserver?.observe(status);
     window.addEventListener('resize', resizeFooter);
+    window.addEventListener('observatory-alert-lane-before-resize', captureFooterEnd);
+    window.addEventListener('observatory-alert-lane-resize', resizeFooter);
     resizeFooter();
     const stop = connectHost(host, (value) => {
       telemetry = value;
@@ -367,6 +373,8 @@
       headObserver?.disconnect();
       footerObserver?.disconnect();
       window.removeEventListener('resize', resizeFooter);
+      window.removeEventListener('observatory-alert-lane-before-resize', captureFooterEnd);
+      window.removeEventListener('observatory-alert-lane-resize', resizeFooter);
       statusFooter.removeEventListener('scroll', rememberFooterEnd);
       if (previousClearance)
         rootStyle.setProperty(clearanceProperty, previousClearance, previousClearancePriority);

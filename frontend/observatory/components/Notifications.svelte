@@ -84,8 +84,17 @@
     const measure = () => {
       if (!alive) return;
       const box = centerTrigger.getBoundingClientRect();
-      style.setProperty(properties[0], box.width + 'px');
-      style.setProperty(properties[1], box.height + 'px');
+      const width = box.width + 'px';
+      const height = box.height + 'px';
+      if (
+        style.getPropertyValue(properties[0]) === width &&
+        style.getPropertyValue(properties[1]) === height
+      )
+        return;
+      window.dispatchEvent(new Event('observatory-alert-lane-before-resize'));
+      style.setProperty(properties[0], width);
+      style.setProperty(properties[1], height);
+      window.dispatchEvent(new Event('observatory-alert-lane-resize'));
     };
     measureTrigger = measure;
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
