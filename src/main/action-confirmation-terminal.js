@@ -162,7 +162,8 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
     };
     const reject = () => finish(false);
     const onData = (chunk) => {
-      if (!admitted || settled) return;
+      if (settled) return;
+      if (!admitted) return reject();
       if (performance.now() - started >= LIMITS.reviewMs) return reject();
       bytes += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
       if (bytes > LIMITS.inputBytes) return reject();
@@ -180,6 +181,7 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
     input.on('end', reject);
     input.on('close', reject);
     input.on('error', reject);
+    input.on('data', onData);
     output.on('error', reject);
     output.on('close', reject);
     host.on('SIGINT', reject);
@@ -188,18 +190,21 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
     reviewTimer = setTimeout(reject, LIMITS.reviewMs);
     drainTimer = setTimeout(reject, LIMITS.drainMs);
     try {
+      if (input.readableLength > 0) return reject();
+      // Observe early Node input while the preview is pending; do not replay it as consent.
+      input.resume();
       output.write(preview, (error) => {
         if (settled) return;
         clearTimeout(drainTimer);
         if (
           error ||
           signal?.aborted ||
+          input.readableLength > 0 ||
           !isTerminalAvailable() ||
           performance.now() - started >= LIMITS.drainMs
         )
           return reject();
         admitted = true;
-        input.on('data', onData);
         input.resume();
       });
     } catch {
