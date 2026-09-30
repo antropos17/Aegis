@@ -12,7 +12,9 @@ check; changing or unreadable metadata is retried on a later scan without resett
 the transcript cursor. Registry reads share the adapter's 4 MiB call budget.
 
 Transcript reads request at most 64 KiB at a time, at most 1 MiB per file per call and
-at most 4 MiB including registry reads across one adapter call. A backlog can take several scan ticks to drain;
+at most 4 MiB including registry reads across one adapter call. The first process
+rotates between calls so a continuously busy prefix cannot monopolize that budget.
+A backlog can take several scan ticks to drain;
 the displayed measured subtotal can therefore lag recent agent activity. An incomplete
 supported line waits for its newline and is decoded as one UTF-8 record.
 

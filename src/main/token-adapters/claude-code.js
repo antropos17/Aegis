@@ -74,6 +74,9 @@ const GUARD_TOLERANCE_MS = 60_000;
 /** @type {Map<string, SessionState>} per-sessionId tail state. */
 const sessions = new Map();
 
+/** Starting position for the next bounded scan; rotates to prevent starvation. */
+let nextProcIndex = 0;
+
 /** Injectable home dir (tests point this at a fixture root). @type {() => string} */
 let _homedir = () => os.homedir();
 
@@ -279,8 +282,11 @@ async function readUsage(procs) {
   if (!Array.isArray(procs) || procs.length === 0) return [];
   const out = [];
   const budget = { remaining: 4 * 1024 * 1024 };
-  for (const proc of procs) {
+  const start = nextProcIndex % procs.length;
+  nextProcIndex = (start + 1) % procs.length;
+  for (let index = 0; index < procs.length; index++) {
     if (budget.remaining <= 0) break;
+    const proc = procs[(start + index) % procs.length];
     let deltas;
     try {
       deltas = _readOneProc(proc, budget);
@@ -313,6 +319,7 @@ function _setLoggerForTest(obj) {
 /** @internal Reset all module state + DI seams (tests). @returns {void} */
 function _resetForTest() {
   sessions.clear();
+  nextProcIndex = 0;
   _homedir = () => os.homedir();
   _log = logger;
 }
