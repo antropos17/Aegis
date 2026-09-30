@@ -189,6 +189,21 @@
   let commands = $state(false);
   let navigationRevision = 0;
   let themeChanged = false;
+  function scrollFooter(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.isComposing ||
+      !['ArrowLeft', 'ArrowRight'].includes(event.key) ||
+      statusFooter.scrollWidth <= statusFooter.clientWidth
+    )
+      return;
+    event.preventDefault();
+    statusFooter.scrollLeft += event.key === 'ArrowRight' ? 40 : -40;
+  }
   let title = $derived(
     scope.agent && view === 'agents'
       ? scope.agent
@@ -737,6 +752,7 @@
       <button
         onfocus={(event) =>
           event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+        onkeydown={scrollFooter}
         onclick={openSensors}
         ><Icon name="shield" />{String(
           record(telemetry.stats.appHealth).state ?? 'Unobserved',
@@ -753,6 +769,7 @@
         class:audit-write-failed={auditWriteFailed}
         onfocus={(event) =>
           event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+        onkeydown={scrollFooter}
         onclick={openAuditDelivery}
         ><Icon name="history" />{$t('Audit delivery')}
         {#if auditDropped === null || auditPending === null}

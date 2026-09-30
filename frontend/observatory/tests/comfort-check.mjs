@@ -530,6 +530,72 @@ export async function checkFooter(browser, url, out) {
                 );
               if (focusBounds.buttonWidth > focusBounds.frameWidth)
                 await textEndpoints(delivery, ['last']);
+              const endScroll = await footer.evaluate((node) => node.scrollLeft);
+              if (endScroll > 1) {
+                await page.keyboard.press('ArrowLeft');
+                assert(
+                  (await footer.evaluate((node) => node.scrollLeft)) < endScroll,
+                  'Delivery Left did not reverse horizontal scrolling',
+                );
+                assert(
+                  await delivery.evaluate((node) => document.activeElement === node),
+                  'Delivery arrow changed focus',
+                );
+                for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
+              }
+              await sensor.focus();
+              const sensorStart = await footer.evaluate((node) => node.scrollLeft);
+              const maximumScroll = await footer.evaluate(
+                (node) => node.scrollWidth - node.clientWidth,
+              );
+              if (sensorStart < maximumScroll - 1) {
+                await page.keyboard.press('ArrowRight');
+                assert(
+                  (await footer.evaluate((node) => node.scrollLeft)) > sensorStart,
+                  'Sensor Right did not scroll horizontal content',
+                );
+                assert(
+                  await sensor.evaluate((node) => document.activeElement === node),
+                  'Sensor arrow changed focus',
+                );
+                const sensorRight = await footer.evaluate((node) => node.scrollLeft);
+                await page.keyboard.press('ArrowLeft');
+                assert(
+                  (await footer.evaluate((node) => node.scrollLeft)) < sensorRight,
+                  'Sensor Left did not reverse horizontal scrolling',
+                );
+              }
+              await delivery.focus();
+              await delivery.evaluate((node) => {
+                window.footerModifierEvents = [];
+                window.footerModifierListener = (event) => {
+                  if (
+                    event.key === 'ArrowRight' &&
+                    (event.ctrlKey || event.metaKey || event.shiftKey)
+                  )
+                    window.footerModifierEvents.push({
+                      defaultPrevented: event.defaultPrevented,
+                      trusted: event.isTrusted,
+                    });
+                };
+                node.addEventListener('keydown', window.footerModifierListener);
+              });
+              for (const key of ['Control+ArrowRight', 'Meta+ArrowRight', 'Shift+ArrowRight'])
+                await page.keyboard.press(key);
+              assert.deepEqual(
+                await delivery.evaluate((node) => {
+                  node.removeEventListener('keydown', window.footerModifierListener);
+                  return window.footerModifierEvents;
+                }),
+                Array.from({ length: 3 }, () => ({ defaultPrevented: false, trusted: true })),
+                'Footer intercepted a modified arrow',
+              );
+              assert(
+                await delivery.evaluate((node) => document.activeElement === node),
+                'Modified footer arrow changed focus',
+              );
+              for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
+              await textEndpoints(footer.locator(':scope > span').last());
               const trigger = page.locator('.alert-trigger');
               assert(
                 await trigger.evaluate((node) => {
@@ -675,6 +741,14 @@ export async function checkFooter(browser, url, out) {
                   .getAttribute('aria-selected'),
                 'true',
               );
+              await page.keyboard.press('Alt+ArrowLeft');
+              await main
+                .getByRole('heading', { name: t('Audit'), level: 1, exact: true })
+                .waitFor();
+              await page.keyboard.press('Alt+ArrowRight');
+              await main
+                .getByRole('heading', { name: t('Statistics'), level: 1, exact: true })
+                .waitFor();
               await page
                 .locator('.sidebar')
                 .getByRole('button', { name: t('Rules & permissions'), exact: true })
