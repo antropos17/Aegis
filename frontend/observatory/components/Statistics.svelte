@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
+  import { observationStatusLabel } from '../runtime/observation-status';
 
   import { onMount, untrack } from 'svelte';
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
@@ -193,7 +194,7 @@
   <div class="coverage-line">
     <span
       >{sensorView
-        ? 'AEGIS main process · ' + String(health.state || 'Starting').toLowerCase()
+        ? $t('AEGIS main process') + ' · ' + $t(observationStatusLabel(health.state))
         : agent && !scoped.agents.length
           ? $t('Selection no longer observed · last measurements retained')
           : section === 'tokens'

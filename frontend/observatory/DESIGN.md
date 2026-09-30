@@ -1,12 +1,14 @@
 # AEGIS Observatory
 
-## Footer observation status — 30 September 2026
+## Observation status — 1 October 2026
 
-The sensor shortcut uses localized observation labels for startup, healthy,
+The sensor shortcut and Statistics sensor coverage use the same localized observation labels for startup, healthy,
 limited, unavailable and unknown app health. Missing or unrecognized states stay
 unknown. These labels do not confirm blocking or every sensor plane. Status text
 resizing preserves the end only after the user reached it; other scroll positions
-remain intentional. The same compact footer, keyboard routes and Alerts lane apply.
+remain intentional. Layout-generated scroll events cannot clear that anchor before
+the child-size observer has applied the new extent. The same compact footer,
+keyboard routes and Alerts lane apply.
 
 ## Audit history and delivery reads — 30 September 2026
 

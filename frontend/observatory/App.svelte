@@ -304,15 +304,20 @@
     const previousClearance = rootStyle.getPropertyValue(clearanceProperty);
     const previousClearancePriority = rootStyle.getPropertyPriority(clearanceProperty);
     let footerAtEnd = false;
+    let footerMaximum = 0;
     const rememberFooterEnd = () => {
-      footerAtEnd =
-        statusFooter.scrollLeft >= statusFooter.scrollWidth - statusFooter.clientWidth - 1;
+      const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
+      // Layout can dispatch scroll before ResizeObserver. Compare against the
+      // geometry last observed by resize so status growth preserves the end anchor.
+      if (maximum === footerMaximum)
+        footerAtEnd = maximum > 0 && statusFooter.scrollLeft >= maximum - 1;
     };
     statusFooter.addEventListener('scroll', rememberFooterEnd);
     const resizeFooter = () => {
       if (alive) {
-        if (footerAtEnd)
-          statusFooter.scrollLeft = statusFooter.scrollWidth - statusFooter.clientWidth;
+        const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
+        if (footerAtEnd) statusFooter.scrollLeft = maximum;
+        footerMaximum = maximum;
         rootStyle.setProperty(
           clearanceProperty,
           (window.innerWidth >= 800 ? statusFooter.getBoundingClientRect().height : 0) + 'px',
