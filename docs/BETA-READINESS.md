@@ -20,7 +20,7 @@ does not itself publish an installer or establish release readiness.
 | MCP fixture readiness follows completed endpoint publication | [PR #727](https://github.com/antropos17/Aegis/pull/727), four deterministic delayed-publication regressions and five consecutive native runs of 34 tests; sanitized failure diagnostics |
 | Lazy local-review tests separate module compilation from loading behavior | [PR #728](https://github.com/antropos17/Aegis/pull/728), controlled pending import, unchanged visible-state assertions and deadlines, two fresh focused runs and five successful required CI contexts |
 | Claude cache-read and duration-specific write prices | [PR #726](https://github.com/antropos17/Aegis/pull/726), real main/subagent transcript accounting, cross-file deduplication and unknown-duration/model regressions; 65 focused passing tests and five successful required CI contexts |
-| Asynchronous bounded Windows Job fixture deletion | [PR #729](https://github.com/antropos17/Aegis/pull/729), ten consecutive native runs of ten tests; Windows coverage at `8069317`: 417 files / 7,611 passing tests, eight skipped, compile cache disabled |
+| Asynchronous bounded Windows Job fixture deletion | [PR #729](https://github.com/antropos17/Aegis/pull/729), ten consecutive native runs of ten tests; combined Windows coverage at `f9b61ec`: 418 files / 7,615 passing tests, eight skipped, compile cache disabled; five successful required CI contexts |
 
 These checks belong to their recorded PR revisions. Final combined-source checks
 and a final-version installer smoke are separate release gates. A source or
