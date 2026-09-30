@@ -180,6 +180,7 @@ function seedFromTail(filePath) {
     if (!Object.hasOwn(last, 'hash') && !Object.hasOwn(last, 'seq'))
       return { prevHash: GENESIS, seq: 0 };
     if (
+      typeof last.hash !== 'string' ||
       !/^[a-f0-9]{64}$/.test(last.hash) ||
       !Number.isSafeInteger(last.seq) ||
       last.seq < 0 ||

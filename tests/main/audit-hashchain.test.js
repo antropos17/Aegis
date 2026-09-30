@@ -77,6 +77,7 @@ describe('audit-hashchain', () => {
     { seq: 1.5, hash: 'a'.repeat(64) },
     { seq: Number.MAX_SAFE_INTEGER, hash: 'a'.repeat(64) },
     { seq: 1, hash: 'PRIVATE_INVALID_HASH' },
+    { seq: 1, hash: ['a'.repeat(64)] },
   ])('refuses invalid chained tail metadata without exposing it: %j', (entry) => {
     const fp = path.join(tmpDir, 'chain.json');
     fs.writeFileSync(fp, JSON.stringify(entry) + '\n');
