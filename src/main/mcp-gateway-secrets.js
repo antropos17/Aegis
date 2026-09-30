@@ -105,6 +105,50 @@ function scan(value, variants) {
     throw blocked();
 }
 
+/** Create an in-memory guard for trusted owner credentials and supported encodings.
+ * Never expose values or this factory as an IPC credential boundary.
+ * @param {string[]} values Bounded private known-secret values.
+ * @returns {object} Private assertSafe/close interface. @since v0.17.0 */
+function createKnownSecretGuard(values) {
+  let variants = [],
+    closed = false;
+  if (
+    !Array.isArray(values) ||
+    values.length > 32 ||
+    values.some((value) => typeof value !== 'string' || Buffer.byteLength(value) > 256)
+  )
+    throw blocked();
+  const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, values }));
+  try {
+    const accepted = readValues(bytes);
+    try {
+      variants = [...new Set(accepted.flatMap(variantsFor))];
+      variants = [
+        ...new Set([...variants, ...variants.map((value) => JSON.stringify(value).slice(1, -1))]),
+      ];
+    } finally {
+      accepted.fill('');
+    }
+  } finally {
+    bytes.fill(0);
+  }
+  return Object.freeze({
+    assertSafe(value) {
+      try {
+        if (closed) throw blocked();
+        scan(value, variants);
+      } catch {
+        throw blocked();
+      }
+    },
+    close() {
+      closed = true;
+      variants.fill('');
+      variants.length = 0;
+    },
+  });
+}
+
 /** Capture a bounded operator-selected list of known secrets and encoded representations.
  * This is exact substring filtering, not general secret discovery or arbitrary decoding.
  * @param {string | undefined} policyPath Explicit private policy file; omitted disables filtering.
@@ -116,11 +160,10 @@ async function captureSecretPolicy(policyPath, signal) {
     return { recheck: async () => {}, assertSafe: () => {}, close: () => {} };
   let closed = false;
   let digest;
-  let variants = [];
+  let guard;
   const close = () => {
     closed = true;
-    variants.fill('');
-    variants.length = 0;
+    guard?.close();
     digest = undefined;
     signal.removeEventListener('abort', close);
   };
@@ -138,10 +181,7 @@ async function captureSecretPolicy(policyPath, signal) {
         if (!digest) {
           const values = readValues(bytes);
           try {
-            variants = [...new Set(values.flatMap(variantsFor))];
-            variants = [
-              ...new Set([...variants, ...variants.map((v) => JSON.stringify(v).slice(1, -1))]),
-            ];
+            guard = createKnownSecretGuard(values);
           } finally {
             values.fill('');
           }
@@ -161,7 +201,7 @@ async function captureSecretPolicy(policyPath, signal) {
       assertSafe(value) {
         try {
           if (closed) throw blocked();
-          scan(value, variants);
+          guard.assertSafe(value);
         } catch {
           throw blocked();
         }
@@ -173,4 +213,4 @@ async function captureSecretPolicy(policyPath, signal) {
   }
 }
 
-module.exports = { captureSecretPolicy };
+module.exports = { captureSecretPolicy, createKnownSecretGuard };
