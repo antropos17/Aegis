@@ -3,7 +3,10 @@
  * @returns Keyboard handler and cleanup for this mounted footer.
  * @since 0.18.0
  */
-export function mountFooterLayout(footer: HTMLElement) {
+export function mountFooterLayout(footer: HTMLElement): {
+  scroll(event: KeyboardEvent): void;
+  destroy(): void;
+} {
   const style = document.documentElement.style;
   const property = '--observatory-footer-height';
   const previous = style.getPropertyValue(property);
@@ -14,8 +17,8 @@ export function mountFooterLayout(footer: HTMLElement) {
   let wheel = false;
   let wheelFrame = 0;
   let alive = true;
-  const extent = () => Math.max(0, footer.scrollWidth - footer.clientWidth);
-  const remember = () => {
+  const extent = (): number => Math.max(0, footer.scrollWidth - footer.clientWidth);
+  const remember = (): void => {
     const current = extent();
     if (current !== maximum) return;
     const end = current > 0 && footer.scrollLeft >= current - 1;
@@ -23,7 +26,7 @@ export function mountFooterLayout(footer: HTMLElement) {
     // input can select a mid-position; scroll events are delivered asynchronously.
     if (dragging || wheel || end) atEnd = end;
   };
-  const resize = () => {
+  const resize = (): void => {
     if (!alive) return;
     maximum = extent();
     if (atEnd) footer.scrollLeft = maximum;
@@ -32,13 +35,13 @@ export function mountFooterLayout(footer: HTMLElement) {
       (window.innerWidth >= 800 ? footer.getBoundingClientRect().height : 0) + 'px',
     );
   };
-  const pointerDown = () => {
+  const pointerDown = (): void => {
     dragging = true;
   };
-  const pointerEnd = () => {
+  const pointerEnd = (): void => {
     dragging = false;
   };
-  const wheelStart = () => {
+  const wheelStart = (): void => {
     wheel = true;
     atEnd = false;
     cancelAnimationFrame(wheelFrame);
@@ -64,7 +67,7 @@ export function mountFooterLayout(footer: HTMLElement) {
   mutations.observe(footer, { childList: true, characterData: true, subtree: true });
   resize();
   return {
-    scroll(event: KeyboardEvent) {
+    scroll(event: KeyboardEvent): void {
       if (
         event.defaultPrevented ||
         event.altKey ||
@@ -81,7 +84,7 @@ export function mountFooterLayout(footer: HTMLElement) {
       maximum = extent();
       atEnd = footer.scrollLeft >= maximum - 1;
     },
-    destroy() {
+    destroy(): void {
       alive = false;
       observer?.disconnect();
       mutations.disconnect();

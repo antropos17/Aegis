@@ -6,8 +6,8 @@ import { language } from '../../../frontend/observatory/runtime/i18n';
 
 afterEach(() => language.set('en'));
 
-it('localizes changing sensor coverage without displaying an internal health enum', async () => {
-  language.set('pt');
+it.each(['en', 'pt'] as const)('localizes changing sensor coverage in %s', async (locale) => {
+  language.set(locale);
   const telemetry = emptyTelemetry();
   const { container, rerender } = render(Statistics, {
     telemetry: { ...telemetry, stats: { appHealth: { state: 'DEGRADED' } } },
@@ -15,14 +15,25 @@ it('localizes changing sensor coverage without displaying an internal health enu
     inspect: () => {},
   });
   const coverage = () => container.querySelector('.coverage-line');
+  for (const [state, en, pt] of [
+    ['BOOTING', 'Starting AEGIS', 'Iniciando o AEGIS'],
+    ['SENSORS_STARTING', 'Sensors starting', 'Sensores iniciando'],
+    ['HEALTHY', 'Observation healthy', 'Observação saudável'],
+    ['DEGRADED', 'Observation limited', 'Observação limitada'],
+    ['FAILED', 'Observation unavailable', 'Observação indisponível'],
+    ['UNKNOWN_FUTURE_STATE', 'Observation unknown', 'Observação desconhecida'],
+    [undefined, 'Observation unknown', 'Observação desconhecida'],
+  ]) {
+    await rerender({ telemetry: { ...telemetry, stats: { appHealth: { state } } } });
+    await waitFor(() => expect(coverage()).toHaveTextContent(locale === 'en' ? en! : pt!));
+    if (state) expect(coverage()).not.toHaveTextContent(state);
+  }
+  language.set(locale === 'en' ? 'pt' : 'en');
   await waitFor(() =>
-    expect(coverage()).toHaveTextContent('Processo principal do AEGIS · Observação limitada'),
+    expect(coverage()).toHaveTextContent(
+      locale === 'en'
+        ? 'Processo principal do AEGIS · Observação desconhecida'
+        : 'AEGIS main process · Observation unknown',
+    ),
   );
-  await rerender({ telemetry: { ...telemetry, stats: { appHealth: { state: 'HEALTHY' } } } });
-  await waitFor(() => expect(coverage()).toHaveTextContent('Observação saudável'));
-  await rerender({
-    telemetry: { ...telemetry, stats: { appHealth: { state: 'UNKNOWN_FUTURE_STATE' } } },
-  });
-  await waitFor(() => expect(coverage()).toHaveTextContent('Observação desconhecida'));
-  expect(coverage()).not.toHaveTextContent('UNKNOWN_FUTURE_STATE');
 });
