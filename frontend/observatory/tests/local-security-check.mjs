@@ -43,6 +43,25 @@ export async function checkLocalSecurity(browser, url, out) {
     await dismissNotifications();
     await comparison.locator('.previews').first().scrollIntoViewIfNeeded();
     await page.screenshot({ path: resolve(out, 'result-review-captured-preview.png') });
+    const search = comparison.getByRole('searchbox', { name: 'Find a changed file' });
+    await comparison.getByRole('checkbox', { name: /README.md/ }).check();
+    await search.fill('no matching captured file');
+    await comparison.getByText('No changes match these filters.', { exact: true }).waitFor();
+    assert.equal(await comparison.locator('.change-entry').count(), 0);
+    assert(await comparison.getByText('1 selected · 1 outside the current filter').isVisible());
+    const resetFilters = comparison.getByRole('button', { name: 'Clear filters', exact: true });
+    await resetFilters.focus();
+    await page.keyboard.press('Enter');
+    assert(await resetFilters.evaluate((button) => button === document.activeElement));
+    assert(await comparison.getByRole('checkbox', { name: /README.md/ }).isChecked());
+    await comparison.getByLabel('Change type', { exact: true }).selectOption('deletion');
+    assert.equal(await comparison.locator('.change-entry').count(), 1);
+    assert(await comparison.getByText('1 selected · 1 outside the current filter').isVisible());
+    await search.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(out, 'result-review-filtered-draft.png') });
+    await resetFilters.click();
+    await comparison.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    assert(!(await comparison.getByRole('checkbox', { name: /README.md/ }).isChecked()));
     await page.setViewportSize({ width: 900, height: 600 });
     for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
       await page.evaluate((theme) => {

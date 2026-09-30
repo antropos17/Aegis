@@ -21,6 +21,34 @@ it('jumps to the configuration fields without invoking a review or opening a gui
   expect(screen.queryByRole('region', { name: 'Action check result' })).toBeNull();
 });
 
+it('offers separate observation and returned-result navigation without dispatching actions', async () => {
+  const call = vi.fn();
+  const navigate = vi.fn();
+  render(ActionCoverage, { host: bridge(call), navigate });
+  await fireEvent.click(screen.getByRole('button', { name: 'Go to live observation' }));
+  expect(screen.getByRole('heading', { name: 'Live route observation' })).toHaveFocus();
+  await fireEvent.click(
+    screen.getByRole('button', { name: 'Compare returned files in Local security' }),
+  );
+  expect(navigate).toHaveBeenCalledExactlyOnceWith('local-security');
+  expect(call).not.toHaveBeenCalled();
+});
+
+it('makes configuration controls reachable before separate route guides', () => {
+  render(ActionCoverage, { host: null });
+  const form = screen.getByRole('button', { name: 'Choose files and check' }).closest('form')!;
+  for (const name of [
+    'Selected-file deletion setup',
+    'Protected Windows action setup',
+    'Windows AppContainer setup',
+  ]) {
+    expect(
+      form.compareDocumentPosition(screen.getByRole('region', { name })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  }
+});
+
 it('opens in-app setup guidance without reading files or starting a check', async () => {
   const navigate = vi.fn();
   const call = vi.fn();
@@ -37,7 +65,7 @@ it('opens the separate exact-file setup guide without running an executable or c
     .mockResolvedValueOnce({ success: false })
     .mockResolvedValueOnce({ success: true });
   render(ActionCoverage, { host: { localSecurityReview, openExternalUrl } as unknown as Host });
-  expect(screen.getByText(/executable\/catalog check below does not assess it/)).toBeVisible();
+  expect(screen.getByText(/executable\/catalog check does not assess it/)).toBeVisible();
   const guide = within(screen.getByRole('region', { name: 'Selected-file deletion setup' }));
   const button = guide.getByRole('button', { name: 'Open selected-file deletion guide' });
   await fireEvent.click(button);
