@@ -15,6 +15,12 @@ does not itself publish an installer or establish release readiness.
 | Bounded Claude transcript reads and oversized-record recovery | [PR #720](https://github.com/antropos17/Aegis/pull/720), byte-budget/UTF-8/truncation regressions and five successful required CI contexts |
 | Compatible minor/patch dependency maintenance | [PR #698](https://github.com/antropos17/Aegis/pull/698), fresh dependency installation and required CI |
 | Owned Windows fixture closure, private helper builds and bounded default worker load | [PR #722](https://github.com/antropos17/Aegis/pull/722), default Windows coverage: 413 files / 7,598 passing tests, eight skipped; repeated native fixtures: 16 passing tests, no EPERM |
+| Human observation labels and footer growth after language/badge changes | [PR #724](https://github.com/antropos17/Aegis/pull/724), seven regressions, two repeated native passes and final native pass; eight footer scenarios, twelve Statistics labels, 160 browser footer states and 264 workspace checks; 7,605 passing Windows tests |
+| Bounded, cancellable audit-history counters with explicit loading/failure state | [PR #725](https://github.com/antropos17/Aegis/pull/725), captured-prefix/live-append, retention, malformed/oversized record and shutdown regressions; 7,603 passing Windows tests and five successful required CI contexts |
+| MCP fixture readiness follows completed endpoint publication | [PR #727](https://github.com/antropos17/Aegis/pull/727), four deterministic delayed-publication regressions and five consecutive native runs of 34 tests; sanitized failure diagnostics |
+| Lazy local-review tests separate module compilation from loading behavior | [PR #728](https://github.com/antropos17/Aegis/pull/728), controlled pending import, unchanged visible-state assertions and deadlines, two fresh focused runs and five successful required CI contexts |
+| Claude cache-read and duration-specific write prices | [PR #726](https://github.com/antropos17/Aegis/pull/726), real main/subagent transcript accounting, cross-file deduplication and unknown-duration/model regressions; 65 focused passing tests and five successful required CI contexts |
+| Asynchronous bounded Windows Job fixture deletion | [PR #729](https://github.com/antropos17/Aegis/pull/729), ten consecutive native runs of ten tests; combined Windows coverage at `f9b61ec`: 418 files / 7,615 passing tests, eight skipped, compile cache disabled; five successful required CI contexts |
 
 These checks belong to their recorded PR revisions. Final combined-source checks
 and a final-version installer smoke are separate release gates. A source or
@@ -51,10 +57,12 @@ remains unavailable. No VM/provider provisioning is part of beta preparation.
 
 macOS/Linux remain experimental; macOS process-generation identity is unresolved
 in [#633](https://github.com/antropos17/Aegis/issues/633). Windows fixture cleanup
-was verified through [PR #722](https://github.com/antropos17/Aegis/pull/722).
-Audit startup counters [#639](https://github.com/antropos17/Aegis/issues/639), Claude
-cache pricing [#636](https://github.com/antropos17/Aegis/issues/636) and retained token
-state [#637](https://github.com/antropos17/Aegis/issues/637) need their own fixes.
+received a follow-up in [PR #729](https://github.com/antropos17/Aegis/pull/729) after
+a later combined-source run reproduced EPERM. Earlier successful checks remain
+evidence for their recorded revisions, rather than a guarantee for later runs.
+Retained token state [#637](https://github.com/antropos17/Aegis/issues/637) remains
+unbounded for the application lifetime. Compaction must preserve cumulative spend,
+process-instance attribution and deduplication when a Claude session resumes.
 Token totals may lag a backlog or omit oversized records; dollar amounts are local
 estimates rather than provider bills. See [token accounting](TOKEN-ACCOUNTING.md).
 

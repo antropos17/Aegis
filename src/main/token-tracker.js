@@ -62,7 +62,8 @@ const { MODEL_PRICING, DEFAULT_PRICING, computeCost } = require('./token-pricing
  * @property {number} outputTokens - accumulated completion/output tokens.
  * @property {number} totalTokens - `inputTokens + outputTokens`.
  * @property {number} costUsd - accumulated cost in USD (raw float; round at the
- *   display layer). Rests on the unverified {@link MODEL_PRICING} table.
+ *   display layer). Uses the local {@link MODEL_PRICING} table; rates can become
+ *   out of date and are not a provider billing statement.
  * @property {boolean} estimated - true once ANY contributing event had estimated
  *   counts or used an unknown-model fallback price (sticky — never flips back).
  * @property {boolean} [pricingEstimated] - sticky cache-pricing assumption flag;
