@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { invoke, record, type Host } from '../runtime/host';
   import { t } from '../runtime/i18n';
   import {
@@ -8,39 +8,33 @@
     type ImportedResultReview,
   } from '../runtime/result-review';
   import Icon from './Icon.svelte';
-  import ResultReviewEntry from './ResultReviewEntry.svelte';
+  import ResultReviewChanges from './ResultReviewChanges.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   const prefix = $props.id();
   let result = $state.raw<ImportedResultReview | null>(null);
+  let displayExpired = $state(false);
   let pending = $state(false),
     feedback = $state(''),
     error = $state('');
-  let tab = $state('changes'),
-    page = $state(0);
-  let selected = $state<string[]>([]);
-  let acknowledgeDeletion = $state(false);
+  let tab = $state('changes');
+  let pendingAction = $state('');
+  let importButton: HTMLButtonElement | undefined;
   let alive = true;
   onDestroy(() => {
     alive = false;
   });
   const available = $derived(typeof host?.localSecurityReview === 'function');
   const changes = $derived(result?.comparison.changes ?? []);
-  const pages = $derived(Math.max(1, Math.ceil(changes.length / 20)));
-  const rows = $derived(changes.slice(page * 20, (page + 1) * 20));
-  const deletionSelected = $derived(
-    changes.some((change) => change.type === 'deletion' && selected.includes(change.id)),
-  );
-  function select(id: string, checked: boolean) {
-    selected = checked ? [...selected, id] : selected.filter((item) => item !== id);
-    acknowledgeDeletion = false;
-  }
-  async function run(action: 'review-result' | 'result-status') {
-    if (pending || !available || (action === 'result-status' && !result)) return;
+  const captureKey = $derived(JSON.stringify(result));
+  async function run(action: 'review-result' | 'result-status' | 'clear-result') {
+    if (pending || !available || (action !== 'review-result' && (!result || preview))) return;
+    const requestedId = result?.id;
     pending = true;
+    pendingAction = action;
     feedback = '';
     error = '';
     try {
-      const request = action === 'review-result' ? { action } : { action, id: result?.id };
+      const request = action === 'review-result' ? { action } : { action, id: requestedId };
       const reply = record(await invoke(host, 'localSecurityReview', request));
       if (!alive) return;
       if (reply.cancelled === true) {
@@ -48,27 +42,48 @@
         return;
       }
       if (reply.success !== true) {
+        if (
+          action !== 'review-result' &&
+          reply.error === 'result-review-expired' &&
+          requestedId === result?.id
+        )
+          displayExpired = true;
         error = resultReviewError(reply.error);
         return;
       }
+      if (action === 'clear-result') {
+        if (reply.cleared !== true || reply.id !== requestedId || result?.id !== requestedId) {
+          error = resultReviewError(null);
+          return;
+        }
+        result = null;
+        displayExpired = false;
+        tab = 'changes';
+        feedback =
+          'Retained comparison cleared from this window. The imported file and project were not changed.';
+        pending = false;
+        await tick();
+        if (alive && importButton && !importButton.closest('[hidden]')) importButton.focus();
+        return;
+      }
       const next = importedResultReview(reply.result);
-      if (!next) {
+      if (!next || (action === 'result-status' && next.id !== requestedId)) {
         error = resultReviewError(null);
         return;
       }
-      if (next.id !== result?.id) {
-        selected = [];
-        acknowledgeDeletion = false;
-        page = 0;
-      }
+      if (next.id !== result?.id) tab = 'changes';
       result = next;
+      displayExpired = false;
       feedback = preview
         ? 'Simulated comparison loaded. No files were read.'
         : 'Imported comparison retained. Original files were not checked.';
     } catch {
       if (alive) error = resultReviewError(null);
     } finally {
-      if (alive) pending = false;
+      if (alive) {
+        pending = false;
+        pendingAction = '';
+      }
     }
   }
   function switchTab(event: KeyboardEvent) {
@@ -94,7 +109,54 @@
   <p class="muted">
     {$t('Compare a returned artifact without running its code or writing to your project.')}
   </p>
+  <div class="actions import-actions">
+    <button
+      bind:this={importButton}
+      data-result-import
+      class="button primary"
+      disabled={pending || !available}
+      aria-busy={pendingAction === 'review-result'}
+      onclick={() => run('review-result')}
+      ><Icon name={preview ? 'play' : 'file'} />{$t(
+        preview ? 'Show example comparison' : 'Choose result and compare',
+      )}</button
+    >
+    {#if result}
+      <button
+        class="button"
+        disabled={pending || !available || preview}
+        onclick={() => run('result-status')}>{$t('Refresh retained comparison')}</button
+      >
+      <button
+        class="button"
+        disabled={pending || !available || preview}
+        onclick={() => run('clear-result')}>{$t('Clear retained comparison')}</button
+      >
+    {/if}
+  </div>
+  <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
+    {$t(
+      pending
+        ? pendingAction === 'clear-result'
+          ? 'Clearing the retained comparison…'
+          : pendingAction === 'result-status'
+            ? 'Refreshing retained metadata…'
+            : 'Reading the selected comparison…'
+        : feedback,
+    )}
+  </div>
+  <div role={error ? 'alert' : undefined} aria-live="assertive" aria-atomic="true">{$t(error)}</div>
+  {#if !available}<p class="muted">
+      {$t('Result comparison is unavailable in this runtime. Open the current AEGIS desktop app.')}
+    </p>{/if}
   {#if result}
+    <p class="notice">
+      {$t(
+        result.comparison.complete
+          ? 'Inspect the captured changes, then read Coverage before using the returned files.'
+          : 'This capture is incomplete. Read Coverage; additions, edits and deletions cannot be verified.',
+      )}
+    </p>
     <dl class="summary">
       <div>
         <dt>{$t('Capture source')}</dt>
@@ -112,14 +174,23 @@
       </div>
       <div>
         <dt>{$t('Retained status')}</dt>
-        <dd>{$t('Retained for this window · unreviewed')}</dd>
+        <dd>
+          {$t(
+            displayExpired
+              ? 'Display retained · desktop comparison unavailable'
+              : 'Retained for this window · unreviewed',
+          )}
+        </dd>
       </div>
       <div>
         <dt>{$t('Writer status')}</dt>
         <dd>{$t('Stop unconfirmed')}</dd>
       </div>
     </dl>
-    <small>{$t('Captured at:')} {result.createdAt}</small>
+    <small
+      >{$t('Captured at:')}
+      <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time></small
+    >
     <div class="tabs section-tabs" role="tablist" aria-label={$t('Comparison sections')}>
       <button
         class="button"
@@ -148,43 +219,7 @@
       aria-labelledby={prefix + '-changes'}
       hidden={tab !== 'changes'}
     >
-      {#if !changes.length}<p>
-          {$t(
-            result.comparison.complete
-              ? 'No differing content in the imported snapshots.'
-              : 'Changes cannot be determined from incomplete snapshots.',
-          )}
-        </p>{/if}
-      {#each rows as change (change.id)}
-        <ResultReviewEntry
-          {change}
-          selected={selected.includes(change.id)}
-          onselect={(checked) => select(change.id, checked)}
-        />
-      {/each}
-      {#if pages > 1}<div class="actions">
-          <button
-            class="button"
-            aria-disabled={page === 0}
-            onclick={() => {
-              if (page > 0) page--;
-            }}>{$t('Previous')}</button
-          ><span>{page + 1} / {pages}</span><button
-            class="button"
-            aria-disabled={page + 1 === pages}
-            onclick={() => {
-              if (page + 1 < pages) page++;
-            }}>{$t('Next')}</button
-          >
-        </div>{/if}
-      {#if deletionSelected}<label class="ack"
-          ><input type="checkbox" bind:checked={acknowledgeDeletion} />{$t(
-            'I explicitly reviewed the selected deletions.',
-          )}</label
-        >{/if}
-      <p class="muted">
-        {$t('Selection is a review draft. It does not authorize project writes.')}
-      </p>
+      <ResultReviewChanges {changes} complete={result.comparison.complete} {captureKey} />
     </div>
     <div
       role="tabpanel"
@@ -213,11 +248,7 @@
       </details>
     </div>
     <div class="actions">
-      <button
-        class="button"
-        disabled={pending || !available || preview}
-        onclick={() => run('result-status')}>{$t('Refresh retained comparison')}</button
-      ><button class="button" disabled>{$t('Launch unavailable')}</button><button
+      <button class="button" disabled>{$t('Launch unavailable')}</button><button
         class="button"
         disabled>{$t('Project export unavailable')}</button
       >
@@ -227,24 +258,13 @@
         'Launch and project export require protection and current-original verification that this comparison does not provide.',
       )}
     </p>
-  {:else}<p>{$t('No imported comparison yet.')}</p>{/if}
+  {:else}<p>{$t('No imported comparison yet.')}</p>
+    <p class="muted">
+      {$t(
+        'Choose an AEGIS result bundle with before and after snapshots. A project folder or scanner report belongs in the local review above.',
+      )}
+    </p>{/if}
   {#if preview}<p class="muted">{$t('Preview · simulated comparison only.')}</p>{/if}
-  <div class="actions">
-    <button
-      class="button"
-      disabled={pending || !available}
-      aria-busy={pending}
-      onclick={() => run('review-result')}
-      ><Icon name={preview ? 'play' : 'file'} />{$t(
-        preview ? 'Show example comparison' : 'Choose result and compare',
-      )}</button
-    >
-  </div>
-  <div class="feedback" aria-live="polite" aria-atomic="true">
-    {#if error}<p role="alert">{$t(error)}</p>{:else}<p role="status">
-        {$t(pending ? 'Reading the selected comparison…' : feedback)}
-      </p>{/if}
-  </div>
 </section>
 
 <style>
@@ -286,11 +306,18 @@
   .tabs {
     margin: var(--space-4) 0;
   }
-  .ack {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding-block: var(--space-2);
+  .notice {
+    border: 1px solid var(--strong-border);
+    border-radius: var(--control-radius);
+    padding: var(--space-3);
+  }
+  .primary {
+    border-color: var(--strong-border);
+    font-weight: 600;
+  }
+  button {
+    min-height: var(--control-height);
+    white-space: normal;
   }
   .actions {
     margin-top: var(--space-3);

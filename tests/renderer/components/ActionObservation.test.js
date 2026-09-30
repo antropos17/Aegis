@@ -33,7 +33,11 @@ it('labels self-reported identity, preserves last counters on loss, and never cl
   render(ActionObservation, { host: { localSecurityReview } });
   const choose = screen.getByRole('button', { name: 'Choose observation endpoint' });
   await fireEvent.click(choose);
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Observed'));
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: 'Route observation status' })).toHaveTextContent(
+      'Observed',
+    ),
+  );
   expect(choose).toBeDisabled();
   expect(screen.getByText('Client label · self-reported')).toBeInTheDocument();
   expect(screen.getByText('claude-code · 2.1.263')).toBeInTheDocument();
@@ -41,9 +45,15 @@ it('labels self-reported identity, preserves last counters on loss, and never cl
   expect(screen.getByText('Selected-action MCP stdio')).toBeVisible();
   expect(screen.getByText('Action attempts')).toBeVisible();
   current = { ...observed, state: 'coverage-lost', reason: 'connection-closed' };
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Coverage lost'), {
-    timeout: 2500,
-  });
+  await waitFor(
+    () =>
+      expect(screen.getByRole('status', { name: 'Route observation status' })).toHaveTextContent(
+        'Coverage lost',
+      ),
+    {
+      timeout: 2500,
+    },
+  );
   expect(screen.getByText('2 / 2')).toBeInTheDocument();
   expect(screen.queryByText('Blocking verified')).not.toBeInTheDocument();
   expect(choose).toBeEnabled();
@@ -59,9 +69,15 @@ it('marks host failure as lost evidence and stops polling', async () => {
     .mockRejectedValue(new Error('PRIVATE'));
   render(ActionObservation, { host: { localSecurityReview } });
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Coverage lost'), {
-    timeout: 2500,
-  });
+  await waitFor(
+    () =>
+      expect(screen.getByRole('status', { name: 'Route observation status' })).toHaveTextContent(
+        'Coverage lost',
+      ),
+    {
+      timeout: 2500,
+    },
+  );
   expect(screen.queryByText('PRIVATE')).not.toBeInTheDocument();
   expect(localSecurityReview).toHaveBeenCalledTimes(2);
 });
@@ -81,7 +97,11 @@ it('labels selected-file deletion and retains observed attempts without claiming
   const localSecurityReview = vi.fn(async () => ({ success: true, observation: current }));
   render(ActionObservation, { host: { localSecurityReview } });
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Observed'));
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: 'Route observation status' })).toHaveTextContent(
+      'Observed',
+    ),
+  );
   expect(screen.getByText('Selected file deletion')).toBeVisible();
   expect(screen.getByText('Selected file operations')).toBeVisible();
   expect(screen.getByText('File deletion attempts')).toBeVisible();
@@ -99,9 +119,15 @@ it('labels selected-file deletion and retains observed attempts without claiming
     reason: 'connection-closed',
     snapshot: { ...deletion.snapshot, sequence: 2, ownerSettled: 1 },
   };
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Coverage lost'), {
-    timeout: 2500,
-  });
+  await waitFor(
+    () =>
+      expect(screen.getByRole('status', { name: 'Route observation status' })).toHaveTextContent(
+        'Coverage lost',
+      ),
+    {
+      timeout: 2500,
+    },
+  );
   expect(screen.getByText('1 / 1')).toBeVisible();
   expect(screen.getByText('Selected file deletion')).toBeVisible();
   expect(screen.queryByText(/file was removed/)).toBeNull();
@@ -127,7 +153,11 @@ it('stops observing without an execution request and excludes live attachment in
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Stop observing' })).toBeEnabled());
   await fireEvent.click(screen.getByRole('button', { name: 'Stop observing' }));
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Observation stopped'));
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: 'Route observation status' })).toHaveTextContent(
+      'Observation stopped',
+    ),
+  );
   expect(localSecurityReview).toHaveBeenLastCalledWith({ action: 'stop-observing-route' });
   component.unmount();
   render(ActionObservation, { host: { localSecurityReview }, preview: true });
@@ -151,4 +181,36 @@ it('closes a late attachment after the component was destroyed', async () => {
   await waitFor(() =>
     expect(localSecurityReview).toHaveBeenLastCalledWith({ action: 'stop-observing-route' }),
   );
+});
+
+it('keeps separately named live regions stable through a pending and cancelled endpoint request', async () => {
+  let finish;
+  const localSecurityReview = vi.fn(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(ActionObservation, { host: { localSecurityReview } });
+  const state = screen.getByRole('status', { name: 'Route observation status' });
+  const feedback = screen.getByRole('status', { name: 'Observation request status' });
+  expect(state).toHaveTextContent('No route observation selected');
+  expect(feedback.textContent.trim()).toBe('');
+  expect(feedback).toHaveAttribute('aria-live', 'polite');
+  expect(feedback).toHaveAttribute('aria-atomic', 'true');
+  const choose = screen.getByRole('button', { name: 'Choose observation endpoint' });
+  await fireEvent.click(choose);
+  expect(feedback).toHaveTextContent(
+    'Choose the observation endpoint, then wait for the local connection…',
+  );
+  expect(state).toHaveTextContent('No route observation selected');
+  expect(choose).toBeDisabled();
+  finish({ success: false, cancelled: true });
+  await waitFor(() =>
+    expect(feedback).toHaveTextContent('Cancelled. Previous observation details are retained.'),
+  );
+  expect(screen.getByRole('status', { name: 'Observation request status' })).toBe(feedback);
+  expect(screen.getByRole('status', { name: 'Route observation status' })).toBe(state);
+  expect(choose).toBeEnabled();
+  expect(localSecurityReview).toHaveBeenCalledExactlyOnceWith({ action: 'observe-route' });
 });

@@ -9,6 +9,7 @@ const {
   readResultReviewBundle,
   parseResultReviewBundle,
 } = require('../../src/main/result-review-bundle');
+const { handleResultReview } = require('../../src/main/result-review-ipc');
 let root, file, window, event, dialog;
 const raw = Buffer.from(
   JSON.stringify({
@@ -138,4 +139,86 @@ it('rechecks window authority at bounded reader await points before returning im
     }),
   ).rejects.toThrow('request-denied');
   expect(checks).toBe(4);
+});
+
+it('clears only the owned retained comparison and expires its ID without another dialog', async () => {
+  const first = await ipc.handle(event, { action: 'review-result' });
+  expect(await ipc.handle(event, { action: 'clear-result', id: first.result.id })).toEqual({
+    success: true,
+    cleared: true,
+    id: first.result.id,
+  });
+  for (const action of ['result-status', 'clear-result'])
+    expect(await ipc.handle(event, { action, id: first.result.id })).toEqual({
+      success: false,
+      error: 'result-review-expired',
+    });
+  expect(dialog.showOpenDialog).toHaveBeenCalledOnce();
+});
+
+it('preserves a newer comparison on stale IDs and malformed clear requests', async () => {
+  const first = await ipc.handle(event, { action: 'review-result' });
+  const next = await ipc.handle(event, { action: 'review-result' });
+  expect(await ipc.handle(event, { action: 'clear-result', id: first.result.id })).toEqual({
+    success: false,
+    error: 'result-review-expired',
+  });
+  for (const request of [
+    { action: 'clear-result' },
+    { action: 'clear-result', id: '-'.repeat(36) },
+    { action: 'clear-result', id: next.result.id, path: file },
+    { action: 'clear-result', id: next.result.id, accepted: true },
+    { action: 'clear-result', id: next.result.id, [Symbol('extra')]: true },
+  ])
+    expect(await ipc.handle(event, request)).toEqual({
+      success: false,
+      error: 'invalid-review-request',
+    });
+  expect(await ipc.handle(event, { action: 'result-status', id: next.result.id })).toEqual(next);
+  expect(dialog.showOpenDialog).toHaveBeenCalledTimes(2);
+});
+
+it('refuses foreign frames and clears neither a retained result nor a pending replacement', async () => {
+  const first = await ipc.handle(event, { action: 'review-result' });
+  const clear = { action: 'clear-result', id: first.result.id };
+  expect(await ipc.handle({ ...event, senderFrame: {} }, clear)).toEqual({
+    success: false,
+    error: 'request-denied',
+  });
+  expect(await ipc.handle(event, { action: 'result-status', id: first.result.id })).toEqual(first);
+  let finish;
+  dialog.showOpenDialog.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const replacement = ipc.handle(event, { action: 'review-result' });
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  expect(await ipc.handle(event, clear)).toEqual({ success: false, error: 'review-busy' });
+  finish({ canceled: true });
+  expect(await replacement).toEqual({ success: false, cancelled: true });
+  expect(await ipc.handle(event, { action: 'result-status', id: first.result.id })).toEqual(first);
+  expect(await ipc.handle(event, clear)).toMatchObject({ success: true, cleared: true });
+});
+
+it('does not release retained bytes when the owner revision no longer matches', async () => {
+  const session = {};
+  const context = {
+    session,
+    request: { action: 'review-result' },
+    revision: 0,
+    pick: async () => file,
+    assertOwned: () => {},
+  };
+  const first = await handleResultReview(context);
+  const retained = session.resultRetained;
+  expect(
+    await handleResultReview({
+      ...context,
+      request: { action: 'clear-result', id: first.result.id },
+      revision: 1,
+    }),
+  ).toEqual({ success: false, error: 'result-review-expired' });
+  expect(session.resultRetained).toBe(retained);
 });

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
+  import { resultChangeLabel } from '../runtime/result-review';
   import type { ResultReviewChange, ResultReviewPreview } from '../../../src/shared/types';
   let {
     change,
@@ -40,19 +41,7 @@
       checked={selected}
       onchange={(event) => onselect(event.currentTarget.checked)}
     />
-    <span
-      ><strong>{change.path}</strong><small
-        >{$t(
-          change.type === 'addition'
-            ? 'Addition'
-            : change.type === 'deletion'
-              ? 'Deletion'
-              : change.type === 'edit'
-                ? 'Edit'
-                : 'Unknown change',
-        )}</small
-      ></span
-    >
+    <span><strong>{change.path}</strong><small>{$t(resultChangeLabel(change.type))}</small></span>
   </label>
   <details>
     <summary>{$t('Inspect captured content')}</summary>
@@ -106,6 +95,8 @@
   summary {
     margin-top: var(--space-2);
     cursor: pointer;
+    min-height: var(--control-height);
+    align-content: center;
   }
   .previews {
     display: grid;

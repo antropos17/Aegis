@@ -92,7 +92,8 @@ export interface IpcResult {
 
 /** Native-selected read-only imported result operations on local-security:review. */
 export type ResultReviewRequest =
-  { readonly action: 'review-result' } | { readonly action: 'result-status'; readonly id: string };
+  | { readonly action: 'review-result' }
+  | { readonly action: 'result-status' | 'clear-result'; readonly id: string };
 
 export interface ResultReviewChange {
   readonly id: string;

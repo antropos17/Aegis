@@ -18,6 +18,13 @@ it('does not invoke the host on mount and explains the absent capability', () =>
   expect(screen.getByRole('button', { name: 'Choose folder and review' })).toBeDisabled();
   expect(screen.getByText(/Local review is unavailable/)).toBeVisible();
 });
+it('jumps directly to the returned-result import without starting a folder review or reading files', async () => {
+  const call = vi.fn();
+  render(LocalSecurity, { host: bridge(call) });
+  await fireEvent.click(screen.getByRole('button', { name: 'Compare a returned result' }));
+  expect(screen.getByRole('button', { name: 'Choose result and compare' })).toHaveFocus();
+  expect(call).not.toHaveBeenCalled();
+});
 it('submits bounded options and shows findings, source and incomplete coverage', async () => {
   const call = vi.fn().mockResolvedValue(await reply('scan', true));
   render(LocalSecurity, { host: bridge(call) });

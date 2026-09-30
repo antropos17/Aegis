@@ -98,6 +98,14 @@
 </script>
 
 <div class="local-security-workspace">
+  <button
+    class="button result-jump"
+    onclick={(event) =>
+      event.currentTarget
+        .closest('.local-security-workspace')
+        ?.querySelector<HTMLButtonElement>('[data-result-import]')
+        ?.focus()}>{$t('Compare a returned result')}</button
+  >
   {#if result}
     <button
       class="button setup-link"
@@ -256,6 +264,11 @@
     display: grid;
     gap: var(--space-3);
     min-width: 0;
+  }
+  .result-jump {
+    justify-self: start;
+    max-width: 100%;
+    white-space: normal;
   }
   .review-setup,
   .review-empty {
