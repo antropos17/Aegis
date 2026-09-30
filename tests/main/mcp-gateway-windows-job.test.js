@@ -90,10 +90,10 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
       { cwd: project, windowsHide: true, stdio: 'pipe', timeout: 30000 },
     );
   });
-  afterAll(() => {
+  afterAll(async () => {
     expect(path.dirname(helperRoot)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(helperRoot).isSymbolicLink()).toBe(false);
-    fs.rmSync(helperRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await fs.promises.rm(helperRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mcpjob-'));
@@ -106,7 +106,7 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
     expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
     // Windows can retain a closed fixture briefly after the process exit event.
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('resolves packaged resources and dev Electron build paths separately', () => {
