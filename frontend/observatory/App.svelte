@@ -25,6 +25,7 @@
   } from './runtime/navigation';
   import { cpuPercent } from './runtime/resources';
   import { networkSnapshotStatus } from './runtime/network-coverage';
+  import { observationStatusLabel } from './runtime/observation-status';
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
@@ -321,6 +322,7 @@
     const footerObserver =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeFooter);
     footerObserver?.observe(statusFooter);
+    for (const status of statusFooter.children) footerObserver?.observe(status);
     window.addEventListener('resize', resizeFooter);
     resizeFooter();
     const stop = connectHost(host, (value) => {
@@ -754,8 +756,8 @@
           event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
         onkeydown={scrollFooter}
         onclick={openSensors}
-        ><Icon name="shield" />{String(
-          record(telemetry.stats.appHealth).state ?? 'Unobserved',
+        ><Icon name="shield" />{$t(
+          observationStatusLabel(record(telemetry.stats.appHealth).state),
         )}</button
       ><span
         >{$t('AEGIS CPU')} <b>{ownCpu === null ? '—' : ownCpu.toFixed(1)}%</b>
