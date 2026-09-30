@@ -17,6 +17,9 @@ independent delivery counters. Fixed English and Portuguese feedback omits host
 error text. The preview explicitly simulates readable empty storage. Existing
 section tabs, filters, observation groups and metadata remain the visual basis;
 these read states do not establish writeability or hash-chain integrity.
+The Type selector has a short localized accessible name. Internal storage-read
+codes stay in the host contract; the interface uses the localized storage notice
+and measured bytes instead of duplicating the code in delivery metadata.
 
 ## Rules persistence and readback — 30 September 2026
 

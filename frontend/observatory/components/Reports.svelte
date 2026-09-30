@@ -216,6 +216,7 @@
       >
       <label
         >{$t('Type')}<select
+          aria-label={$t('Type')}
           bind:value={type}
           disabled={loading}
           onchange={(event) => {
@@ -357,7 +358,13 @@
         value={Object.fromEntries(
           Object.entries(details).filter(
             ([key]) =>
-              !['persistedEntries', 'bufferDepth', 'droppedEntries', 'totalSize'].includes(key),
+              ![
+                'persistedEntries',
+                'bufferDepth',
+                'droppedEntries',
+                'totalSize',
+                'storageReadState',
+              ].includes(key),
           ),
         )}
       />
