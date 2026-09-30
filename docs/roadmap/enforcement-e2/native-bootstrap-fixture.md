@@ -2,8 +2,12 @@
 
 Status: **Windows process fixture executed; VM bootstrap/containment unqualified**.
 Base: `567c6b00b3dac04970b7ef5284a20a53e764e191`, merge of PR #695 after actual
-scoped review `vm-fixture-r1-bf464c1-20260928`. This change needs a separate scoped
-review. Protected Session v1 remains inactive and refuses preparation.
+scoped review `vm-fixture-r1-bf464c1-20260928`. This fixture received actual scoped
+PASS `native-bootstrap-fa05fd3-20260928` at HEAD
+`fa05fd39feef3db99fc52a2a02cc984921d253f6`; PR #696 merged as
+`2e325d0591c4011c9c4e25d7bc0522202fb96be1` after five successful CI contexts.
+The review covers this same-principal process fixture only. Protected Session v1
+remains inactive and refuses preparation; full A1 is incomplete.
 
 This is the next executable E1/E2 foundation step. It addresses initialized-child
 observation after the earlier still-suspended loader assumption was rejected.

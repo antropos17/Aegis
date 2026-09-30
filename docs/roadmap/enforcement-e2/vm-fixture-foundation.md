@@ -84,8 +84,14 @@ HEAD `bf464c153ff5b3be87a78a3d21d462991495aa95`. PR #695 merged as
 `567c6b00b3dac04970b7ef5284a20a53e764e191` after five successful CI contexts.
 That review covers this corrected synthetic foundation, with native effects
 still not-run. The next [native process bootstrap fixture](native-bootstrap-fixture.md)
-adds matching Windows process/pipe/Job evidence with its own scoped review;
-it does not implement a VM lifecycle or host/guest transport.
+adds matching Windows process/pipe/Job evidence. Its actual scoped PASS
+`native-bootstrap-fa05fd3-20260928` at HEAD `fa05fd3` preceded PR #696's merge as
+`2e325d0591c4011c9c4e25d7bc0522202fb96be1`. It does not implement a VM lifecycle
+or host/guest transport. The next [channel fixture](guest-channel-fixture.md)
+adds a bidirectional state contract and a trusted same-principal Node/Git task;
+its [evidence](guest-channel-evidence.md) is separate from real guest qualification.
+The [disposable VM plan](disposable-vm-fixture-plan.md) records the exact remaining
+host/image/authority inputs without granting provisioning permission.
 
 ## Persistence and remaining native work
 
