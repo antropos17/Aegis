@@ -484,10 +484,6 @@ describe('actual Node MCP entry', () => {
       try {
         await vi.waitFor(() => expect(fs.existsSync(endpoint)).toBe(true));
         client.diagnostics.mark('endpoint-published');
-        observer = require('../../src/main/action-observation-client').observeActionRoute(endpoint);
-        await vi.waitFor(() =>
-          expectObservationState(observer, 'awaiting-client', client.diagnostics),
-        );
         await client.request({
           jsonrpc: '2.0',
           id: 1,
@@ -498,6 +494,12 @@ describe('actual Node MCP entry', () => {
             clientInfo: { name: 'claude-code', version: '2.1.263' },
           },
         });
+        // The descriptor can exist while its bytes are still being written.
+        // An initialize reply proves runObservedMcp completed publication.
+        observer = require('../../src/main/action-observation-client').observeActionRoute(endpoint);
+        await vi.waitFor(() =>
+          expectObservationState(observer, 'awaiting-client', client.diagnostics),
+        );
         client.child.stdin.write(line({ jsonrpc: '2.0', method: 'notifications/initialized' }));
         client.diagnostics.mark('initialized');
         await vi.waitFor(() => expectObservationState(observer, 'observed', client.diagnostics), {

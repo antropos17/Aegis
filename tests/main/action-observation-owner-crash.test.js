@@ -159,8 +159,6 @@ async function nativeWitness(identity) {
 async function initialize(owner, endpoint) {
   await wait(() => expect(fs.existsSync(endpoint)).toBe(true));
   owner.diagnostics.mark('endpoint-published');
-  const observer = observeActionRoute(endpoint);
-  cleanups.push(() => observer.close());
   owner.send({
     id: 10,
     method: 'initialize',
@@ -171,6 +169,10 @@ async function initialize(owner, endpoint) {
     },
   });
   await wait(() => expect(owner.output()).toContain('"id":10'));
+  // A protocol response proves publication completed; file existence alone
+  // can expose an empty or changing descriptor.
+  const observer = observeActionRoute(endpoint);
+  cleanups.push(() => observer.close());
   owner.send({ method: 'notifications/initialized' });
   owner.diagnostics.mark('initialized');
   await wait(() => expectObservationState(observer, 'observed', owner.diagnostics));
