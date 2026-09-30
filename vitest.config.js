@@ -45,6 +45,8 @@ export default defineConfig({
         'src/main/log-files.js',
         'src/main/agent-event-receiver.js',
         'src/main/action-policy.js',
+        'src/main/helper-artifact-admission.js',
+        'src/main/helper-artifact-reader.js',
         'src/main/action-policy-session.js',
         'src/main/provider-adapter-common.js',
         'src/main/provider-claude-adapter.js',
