@@ -10,8 +10,14 @@
 ## Before Opening an Issue
 
 1. Search [existing issues](https://github.com/antropos17/Aegis/issues) first
-2. Include your OS, Electron version, and steps to reproduce
-3. Attach screenshots if relevant (especially from the Shield or Activity tab)
+2. Include your OS, AEGIS version, whether you use an installer or source checkout, and steps to reproduce.
+3. Include the affected Observatory workspace, such as Monitoring, Events, Alerts, Audit, Statistics, Local security or Action control. Attach a relevant screenshot after removing private paths, file contents, keys and tokens.
+
+For observation problems, include the Sensors panel's state and any visible
+coverage or audit-delivery warning. An unavailable observation is different from
+an observed process exit. For update problems, include the current version and
+target release; the first beta must be installed manually from 0.17.0-alpha.
+See [release verification](../docs/RELEASE-VERIFICATION.md).
 
 ## Security Vulnerabilities
 

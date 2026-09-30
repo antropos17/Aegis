@@ -27,6 +27,11 @@ monitoring does not automatically intercept or block commands.
 
 The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
 
+The next release is being prepared as **0.18.0-beta** for Windows monitoring and
+operator-reviewed selected actions. [Beta readiness](docs/BETA-READINESS.md)
+records its release gates and remaining limits. The beta label does not qualify
+general agent containment or the experimental VM/provider routes.
+
 <p align="center">
   <img src="docs/screenshots/01-monitoring.png" width="980" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar">
 </p>
@@ -79,7 +84,9 @@ Default monitoring observes and logs; it does not automatically block or contain
 
 The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
 
-AEGIS is alpha software. This README describes current source; installed builds contain the features available at their [release tag](https://github.com/antropos17/Aegis/releases).
+The published version is currently alpha. This README describes current source;
+installed builds contain the features available at their
+[release tag](https://github.com/antropos17/Aegis/releases).
 
 ## Opt-in action control
 
@@ -132,6 +139,9 @@ source, which may be ahead of the installer.
 
 When upgrading from 0.14.1-alpha or older, install 0.15.0-alpha or newer
 manually before using signed in-app updates.
+The published 0.17.0-alpha updater cannot discover beta releases: install the
+first beta manually after [verifying its installer](docs/RELEASE-VERIFICATION.md).
+The source updater keeps beta installations on newer beta or stable releases.
 
 ### From source
 
