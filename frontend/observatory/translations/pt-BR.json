@@ -1,4 +1,6 @@
 {
+  "Historical audit counters are still loading.": "Os contadores históricos de auditoria ainda estão carregando.",
+  "Historical audit counters unavailable. Live queue and loss observations remain separate.": "Contadores históricos de auditoria indisponíveis. As observações atuais de fila e perda permanecem separadas.",
   "Language": "Idioma",
   " (default)": " (padrão)",
   " · Observation unavailable": " · Observação indisponível",

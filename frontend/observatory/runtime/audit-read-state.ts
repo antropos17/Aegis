@@ -100,15 +100,24 @@ export function admitAuditStats(value: unknown): RecordData {
     throw new Error('Invalid audit statistics');
   const result: RecordData = {};
   const storage = value.storageReadState;
+  const history = value.historyReadState;
+  if (['ready', 'building', 'unavailable', 'uninitialized'].includes(String(history)))
+    result.historyReadState = history;
   if (storage === 'ready' || storage === 'unavailable' || storage === 'uninitialized')
     result.storageReadState = storage;
   if (storage !== 'uninitialized') {
-    for (const key of ['totalEntries', 'persistedEntries', 'bufferDepth', 'droppedEntries']) {
+    for (const key of ['bufferDepth', 'droppedEntries']) {
       const number = measurement(value[key]);
       if (number !== undefined) result[key] = number;
     }
-    for (const key of ['firstEntry', 'lastEntry'])
-      if (typeof value[key] === 'string' || value[key] === null) result[key] = value[key];
+    if (history === 'ready' || !Object.hasOwn(value, 'historyReadState')) {
+      for (const key of ['totalEntries', 'persistedEntries']) {
+        const number = measurement(value[key]);
+        if (number !== undefined) result[key] = number;
+      }
+      for (const key of ['firstEntry', 'lastEntry'])
+        if (typeof value[key] === 'string' || value[key] === null) result[key] = value[key];
+    }
   }
   if (storage === 'ready')
     for (const key of ['totalSize', 'currentSize']) {
