@@ -1,5 +1,45 @@
 # AEGIS — starting the next chat
 
+## Current enforcement status — 2026-09-30, sealed host import draft
+
+Actual master is `fcdb87a906bf43231e73082d2bb715099e76a263`. PR #697 merged on
+2026-09-30 after an actual independent scoped PASS at BASE `2e325d0` / HEAD
+`b3303ee47e8738e75c68300c8ef343e2b6bfb105` and exact-HEAD CI 5/5. Its raw
+response is `X:/ASTRA_REVIEW_GUEST_CHANNEL_20260930.md`, SHA-256
+`a88bb8c2f8a456b47672f209065642806ae8f81d2f07d5d1af9048f802eebffd`.
+That developer same-principal channel/fixed-task scope remains distinct from
+full A1, which is UNREVIEWED. Older pending-review text below is historical.
+
+The new `codex/enforcement-sealed-import` draft adds a
+[host-only bounded bundle](../docs/roadmap/enforcement-e2/sealed-import-contract-20260930.md)
+and [Windows evidence](../docs/roadmap/enforcement-e2/sealed-import-evidence-20260930.md):
+27 focused tests, zero skips, 41 native invocations and six fixed CLI modes.
+Actual pre-fix RED sources and receipts are preserved. The ten local checks and
+five required CI contexts must be recorded for the final draft HEAD in its
+separate immutable review packet; this run issues no scoped verdict and performs
+no new merge. E2 remains active; no E1-E11 task or A1-A4 gate is completed by this.
+Full Windows coverage is run with file parallelism disabled after default-run
+timeouts/fixture cleanup failures; an existing gateway test gains bounded removal
+retries and a temporary-parent guard. Safety assertions and production cleanup logic are unchanged.
+
+[Claude authentication research](../docs/roadmap/enforcement-e2/claude-subscription-broker-research-20260930.md)
+documents gateway routing with client-side saved OAuth. A credential-free guest
+using host-only subscription credentials remains unverified. The
+[caller/inventory note](../docs/roadmap/enforcement-e2/supervisor-caller-inventory-design-20260930.md)
+is design only. No exact authorized disposable host, licensed Windows image,
+protected provisioning or native guest peer/bootstrap exists. No prohibited
+system or credential effects ran; production `launchAllowed=false`.
+
+Use the existing `X:/AEGIS_ENFORCEMENT_PROGRESS.json` and
+`X:/AEGIS_ENFORCEMENT_TRACKER.html` for progress. The authorized update preserves
+all task IDs/checkmarks/full gate verdicts, corrects current master and #697
+history, and applies guest labels plus E8/E9 dependencies on E6. Next action is a
+separate fresh scoped review of the draft's exact HEAD using its sealed packet;
+later VM work still needs the explicitly authorized disposable host/image.
+
+Historical handoffs below remain unchanged.
+
+
 ## Current enforcement status — 2026-09-28, channel and fixed Node/Git fixture
 
 This is the canonical continuation status; older handoffs below preserve history.

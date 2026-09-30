@@ -75,8 +75,10 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
   afterEach(async () => {
     running?.kill('SIGKILL');
     for (const pid of ownedPids) if (alive(pid)) process.kill(pid, 'SIGKILL');
+    expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
-    fs.rmSync(root, { recursive: true, force: true });
+    // Windows can retain a closed fixture briefly after the process exit event.
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   it('resolves packaged resources and dev Electron build paths separately', () => {
