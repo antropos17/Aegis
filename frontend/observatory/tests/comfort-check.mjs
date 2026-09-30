@@ -519,15 +519,58 @@ export async function checkFooter(browser, url, out) {
               if (focusBounds.buttonWidth > focusBounds.frameWidth) {
                 for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowLeft');
                 await page.waitForTimeout(200);
-                assert(
-                  await delivery.evaluate((node) => {
-                    const box = node.getBoundingClientRect();
-                    const scroller = node.closest('footer');
-                    const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
-                    return box.left >= left - 1 && box.left <= left + scroller.clientWidth - 1;
-                  }),
-                  'Keyboard cannot reveal the beginning of the long delivery label',
-                );
+                const globalBeginning = await delivery.evaluate((node) => {
+                  const scroller = node.closest('footer');
+                  return {
+                    box: node.getBoundingClientRect().toJSON(),
+                    frame: scroller.getBoundingClientRect().toJSON(),
+                    scrollLeft: scroller.scrollLeft,
+                  };
+                });
+                measurements.push({ globalBeginning });
+                assert(globalBeginning.scrollLeft <= 1, 'Keyboard cannot reach footer beginning');
+                // Left reaches the whole footer beginning; preceding statuses can exceed
+                // the viewport. Reveal Delivery's first glyph with real right arrows.
+                const readFirstGlyph = () =>
+                  delivery.evaluate((node) => {
+                    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+                    let text;
+                    while (walker.nextNode())
+                      if (walker.currentNode.textContent.trim()) {
+                        text = walker.currentNode;
+                        break;
+                      }
+                    const range = document.createRange();
+                    const offset = text.textContent.search(/\S/);
+                    range.setStart(text, offset);
+                    range.setEnd(text, offset + 1);
+                    const box = range.getBoundingClientRect();
+                    const footer = node.closest('footer');
+                    const frame = footer.getBoundingClientRect();
+                    const x = box.left + box.width / 2;
+                    const y = box.top + box.height / 2;
+                    return {
+                      visible:
+                        box.width > 0 &&
+                        box.height > 0 &&
+                        x >= frame.left + footer.clientLeft &&
+                        x <= frame.left + footer.clientLeft + footer.clientWidth &&
+                        node.contains(document.elementFromPoint(x, y)),
+                      box: box.toJSON(),
+                      frame: frame.toJSON(),
+                      scrollLeft: footer.scrollLeft,
+                    };
+                  });
+                const initialFirstGlyph = await readFirstGlyph();
+                let firstGlyph = initialFirstGlyph;
+                let revealArrows = 0;
+                while (!firstGlyph.visible && revealArrows < 48) {
+                  await page.keyboard.press('ArrowRight');
+                  firstGlyph = await readFirstGlyph();
+                  revealArrows++;
+                }
+                measurements.push({ initialFirstGlyph, firstGlyph, revealArrows });
+                assert(firstGlyph.visible, 'Keyboard cannot reveal Delivery first glyph');
                 await textEndpoints(delivery, ['first']);
               }
               for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
@@ -634,6 +677,55 @@ export async function checkFooter(browser, url, out) {
               );
               for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
               await textEndpoints(footer.locator(':scope > span').last());
+              if (width === 900) {
+                const statusPush = (state) =>
+                  window.footerFixture.onStatsUpdate({
+                    appHealth: { state, populationReliable: true },
+                    observationGap: { state: 'NONE' },
+                    auditDelivery: { droppedEntries: 0, bufferDepth: 0, writeFailed: true },
+                  });
+                await page.evaluate(statusPush, 'BOOTING');
+                for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
+                await textEndpoints(footer.locator(':scope > span').last());
+                const statusBefore = await footer.evaluate((node) => ({
+                  scrollLeft: node.scrollLeft,
+                  maximum: node.scrollWidth - node.clientWidth,
+                  sensorWidth: node.querySelector('button').getBoundingClientRect().width,
+                }));
+                assert(statusBefore.maximum > 0, 'Status growth lacks a real scroll-end baseline');
+                await page.evaluate(statusPush, undefined);
+                await textEndpoints(
+                  footer.locator(':scope > span').last(),
+                  ['first', 'last'],
+                  true,
+                );
+                const statusAfter = await footer.evaluate((node) => ({
+                  scrollLeft: node.scrollLeft,
+                  maximum: node.scrollWidth - node.clientWidth,
+                  sensorWidth: node.querySelector('button').getBoundingClientRect().width,
+                }));
+                assert(
+                  statusAfter.sensorWidth > statusBefore.sensorWidth,
+                  'Status label did not grow',
+                );
+                assert(
+                  statusAfter.scrollLeft >= statusAfter.maximum - 1,
+                  'Status growth lost reached end',
+                );
+                await page.evaluate(statusPush, 'BOOTING');
+                for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
+                await page.keyboard.press('ArrowLeft');
+                const awayFromEnd = await footer.evaluate((node) => node.scrollLeft);
+                await page.evaluate(statusPush, undefined);
+                await page.waitForTimeout(100);
+                assert(
+                  Math.abs((await footer.evaluate((node) => node.scrollLeft)) - awayFromEnd) <= 1,
+                  'Status resize moved user away-from-end position',
+                );
+                measurements.push({ statusGrowth: { statusBefore, statusAfter, awayFromEnd } });
+                for (let index = 0; index < 48; index++) await page.keyboard.press('ArrowRight');
+                await textEndpoints(footer.locator(':scope > span').last());
+              }
               const trigger = page.locator('.alert-trigger');
               assert(
                 await trigger.evaluate((node) => {

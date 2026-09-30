@@ -6,6 +6,7 @@
   });
 
   import { onMount, tick } from 'svelte';
+  import { mountFooterLayout } from './runtime/footer-layout';
   import {
     connectHost,
     emptyTelemetry,
@@ -25,6 +26,7 @@
   } from './runtime/navigation';
   import { cpuPercent } from './runtime/resources';
   import { networkSnapshotStatus } from './runtime/network-coverage';
+  import { observationStatusLabel } from './runtime/observation-status';
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
@@ -180,6 +182,7 @@
   let workspace: HTMLElement;
   let pageHead: HTMLDivElement;
   let statusFooter: HTMLElement;
+  let footerLayout: ReturnType<typeof mountFooterLayout> | undefined;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
@@ -190,19 +193,7 @@
   let navigationRevision = 0;
   let themeChanged = false;
   function scrollFooter(event: KeyboardEvent) {
-    if (
-      event.defaultPrevented ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
-      event.isComposing ||
-      !['ArrowLeft', 'ArrowRight'].includes(event.key) ||
-      statusFooter.scrollWidth <= statusFooter.clientWidth
-    )
-      return;
-    event.preventDefault();
-    statusFooter.scrollLeft += event.key === 'ArrowRight' ? 40 : -40;
+    footerLayout?.scroll(event);
   }
   let title = $derived(
     scope.agent && view === 'agents'
@@ -298,31 +289,7 @@
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeHead);
     headObserver?.observe(pageHead);
     resizeHead();
-    const rootStyle = document.documentElement.style;
-    const clearanceProperty = '--observatory-footer-height';
-    const previousClearance = rootStyle.getPropertyValue(clearanceProperty);
-    const previousClearancePriority = rootStyle.getPropertyPriority(clearanceProperty);
-    let footerAtEnd = false;
-    const rememberFooterEnd = () => {
-      footerAtEnd =
-        statusFooter.scrollLeft >= statusFooter.scrollWidth - statusFooter.clientWidth - 1;
-    };
-    statusFooter.addEventListener('scroll', rememberFooterEnd);
-    const resizeFooter = () => {
-      if (alive) {
-        if (footerAtEnd)
-          statusFooter.scrollLeft = statusFooter.scrollWidth - statusFooter.clientWidth;
-        rootStyle.setProperty(
-          clearanceProperty,
-          (window.innerWidth >= 800 ? statusFooter.getBoundingClientRect().height : 0) + 'px',
-        );
-      }
-    };
-    const footerObserver =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeFooter);
-    footerObserver?.observe(statusFooter);
-    window.addEventListener('resize', resizeFooter);
-    resizeFooter();
+    footerLayout = mountFooterLayout(statusFooter);
     const stop = connectHost(host, (value) => {
       telemetry = value;
     });
@@ -358,12 +325,8 @@
     return () => {
       alive = false;
       headObserver?.disconnect();
-      footerObserver?.disconnect();
-      window.removeEventListener('resize', resizeFooter);
-      statusFooter.removeEventListener('scroll', rememberFooterEnd);
-      if (previousClearance)
-        rootStyle.setProperty(clearanceProperty, previousClearance, previousClearancePriority);
-      else rootStyle.removeProperty(clearanceProperty);
+      footerLayout?.destroy();
+      footerLayout = undefined;
       stop();
       if (typeof unsubscribe === 'function') unsubscribe();
       if (typeof stopNavigation === 'function') stopNavigation();
@@ -754,8 +717,8 @@
           event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
         onkeydown={scrollFooter}
         onclick={openSensors}
-        ><Icon name="shield" />{String(
-          record(telemetry.stats.appHealth).state ?? 'Unobserved',
+        ><Icon name="shield" />{$t(
+          observationStatusLabel(record(telemetry.stats.appHealth).state),
         )}</button
       ><span
         >{$t('AEGIS CPU')} <b>{ownCpu === null ? '—' : ownCpu.toFixed(1)}%</b>
