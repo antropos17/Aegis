@@ -36,6 +36,10 @@ export type {
   IpcEventChannel,
   SaveInstancePermissionsPayload,
   IpcResult,
+  ResultReviewRequest,
+  ResultReviewChange,
+  ResultReviewPreview,
+  ImportedResultReview,
 } from './ipc';
 
 export type {

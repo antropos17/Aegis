@@ -6,6 +6,7 @@ const { captureSecretPolicy } = require('./mcp-gateway-secrets');
 const { captureGatewayRoute } = require('./mcp-gateway-route');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { validManifest, matchesSchema, validResult } = require('./mcp-gateway-schema');
+const { createGatewayEvidence } = require('./mcp-gateway-evidence');
 const VERSION = '2025-11-25';
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const only = (v, names) => object(v) && Object.keys(v).every((k) => names.includes(k));
@@ -26,7 +27,9 @@ function createMcpGateway({
   grantStorePath,
   secretPolicyPath,
   onFailure,
+  onEvidence,
 }) {
+  const evidence = createGatewayEvidence(onEvidence);
   let phase = 'new',
     closed = false,
     busy = false,
@@ -249,6 +252,7 @@ function createMcpGateway({
     if (grant < 0 || used.has(grant)) return error(id, -32000, 'gateway-grant-unavailable');
     // Consume before asynchronous work, even if upstream fails or the caller cancels.
     used.add(grant);
+    const operationId = evidence.operationId();
     busy = true;
     activeId = id;
     try {
@@ -256,6 +260,7 @@ function createMcpGateway({
       await verifyCredential();
       if (manifest.schemaVersion === 5) await verifyStdioRoute(await recheck());
       if (manifest.schemaVersion >= 2) await step(consumeGatewayGrant(grantStorePath, permission));
+      if (manifest.schemaVersion >= 2) evidence.emit('consumed', operationId);
       await recheck();
       await checkCatalog();
       await recheck();
@@ -266,20 +271,29 @@ function createMcpGateway({
       )
         throw Error('grant-expired');
       secretGuard.assertSafe(params);
+      evidence.emit('dispatch', operationId);
       const returned = await step(peer.request('tools/call', params));
       if (closed || !validResult(tool, returned)) throw Error('upstream-result');
       await step(secretGuard.recheck());
       secretGuard.assertSafe(returned);
       if (closed) throw Error('closed');
+      evidence.emit('completed', operationId);
       return result(id, returned);
     } catch {
       close(true);
+      evidence.emit('failed', operationId);
       return error(id, -32000, 'gateway-call-failed');
     } finally {
       busy = false;
       activeId = undefined;
     }
   }
-  return { receive, close: () => close(), finish: () => peer?.done || Promise.resolve(true) };
+  return {
+    receive,
+    close: () => close(),
+    finish: () => peer?.done || Promise.resolve(true),
+    getEvidenceStatus: evidence.status,
+    finishEvidence: evidence.finish,
+  };
 }
 module.exports = { createMcpGateway };
