@@ -78,5 +78,7 @@ fixtures. Configured typecheck does not check main JS bodies (`checkJs=false`).
 Arbitrary-project capture, hostile filesystem swaps, held-handle destination writes,
 actual writer termination, guest return-channel authenticity, process-isolated
 storage, durable approval/restart authority and power-loss recovery remain
-unqualified. Draft #703's native sealed import is absent on this branch. Generic
-inventory acceptance and report export remain separate from project-result writes.
+unqualified. Draft #703's native sealed-import developer fixture is present on this
+branch, with executed host fixture tests, but is disconnected from result review;
+native protected containment and guest import remain unqualified. Generic inventory
+acceptance and report export remain separate from project-result writes.
