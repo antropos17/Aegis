@@ -12,13 +12,15 @@ const launch = () => ({
   args: ['literal'],
   env: { PRIVATE: 'value' },
 });
-function setup({ hold = false, tty = true, writeError = false } = {}) {
-  const input = Object.assign(new EventEmitter(), {
-    isTTY: tty,
-    resume: vi.fn(),
-    pause: vi.fn(),
-    setEncoding: vi.fn(),
-  });
+function setup({ hold = false, tty = true, writeError = false, readable = false } = {}) {
+  const input = readable
+    ? Object.assign(new PassThrough(), { isTTY: tty })
+    : Object.assign(new EventEmitter(), {
+        isTTY: tty,
+        resume: vi.fn(),
+        pause: vi.fn(),
+        setEncoding: vi.fn(),
+      });
   const output = Object.assign(new EventEmitter(), { isTTY: tty });
   const processEvents = new EventEmitter();
   let preview = '';
@@ -262,6 +264,89 @@ describe('terminal-owned explicit action confirmation', () => {
     t.drain();
     t.input.emit('end');
     expect(await done).toBe(false);
+  });
+
+  it('rejects an exact response written to a real Readable before the preview drains', async () => {
+    const t = setup({ hold: true, readable: true });
+    try {
+      const done = t.run();
+      t.input.write('RUN a1b2c3d4\n');
+      t.drain();
+      expect(await done).toBe(false);
+      expect(t.input.listenerCount('data')).toBe(0);
+    } finally {
+      t.input.destroy();
+    }
+  });
+
+  it('refuses bytes already queued before review even when the preview callback completes immediately', async () => {
+    const t = setup({ hold: true, readable: true });
+    try {
+      t.input.write('RUN a1b2c3d4\n');
+      const done = t.run();
+      t.drain();
+      expect(await done).toBe(false);
+      expect(t.input.listenerCount('data')).toBe(0);
+    } finally {
+      t.input.destroy();
+    }
+  });
+
+  it('refuses input buffered during preview without waiting for its data event', async () => {
+    const t = setup({ hold: true, readable: true });
+    try {
+      const done = t.run();
+      t.input.pause();
+      t.input.write('RUN a1b2c3d4\n');
+      expect(t.input.readableLength).toBeGreaterThan(0);
+      t.drain();
+      expect(await done).toBe(false);
+      expect(t.input.listenerCount('data')).toBe(0);
+    } finally {
+      t.input.destroy();
+    }
+  });
+
+  it('accepts a fresh split response on a real Readable after preview drain and cleans its readers', async () => {
+    const t = setup({ hold: true, readable: true });
+    const controller = new AbortController();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const done = t.run(launch(), { signal: controller.signal });
+      t.drain();
+      t.input.write('RUN a1b2');
+      t.input.write('c3d4\r\n');
+      expect(await done).toBe(true);
+      expect(t.input.isPaused()).toBe(true);
+      expect(t.input.listenerCount('data')).toBe(0);
+      expect(t.input.listenerCount('end')).toBe(0);
+      expect(t.output.listenerCount('close')).toBe(0);
+      expect(t.processEvents.listenerCount('SIGINT')).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      t.input.destroy();
+    }
+  });
+
+  it('keeps cancellation final on a real Readable despite a late preview callback and answer', async () => {
+    const t = setup({ hold: true, readable: true });
+    const controller = new AbortController();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const done = t.run(launch(), { signal: controller.signal });
+      controller.abort();
+      expect(await done).toBe(false);
+      t.drain();
+      t.input.write('RUN a1b2c3d4\n');
+      expect(t.input.isPaused()).toBe(true);
+      expect(t.input.listenerCount('data')).toBe(0);
+      expect(t.input.listenerCount('end')).toBe(0);
+      expect(t.output.listenerCount('close')).toBe(0);
+      expect(t.processEvents.listenerCount('SIGINT')).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      t.input.destroy();
+    }
   });
 
   it('bounds preview drain and cannot accept a late callback or answer', async () => {
