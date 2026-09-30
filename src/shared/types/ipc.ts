@@ -90,6 +90,50 @@ export interface IpcResult {
   readonly count?: number;
 }
 
+/** Native-selected read-only imported result operations on local-security:review. */
+export type ResultReviewRequest =
+  | { readonly action: 'review-result' }
+  | { readonly action: 'result-status' | 'clear-result'; readonly id: string };
+
+export interface ResultReviewChange {
+  readonly id: string;
+  readonly path: string;
+  readonly type: 'addition' | 'edit' | 'deletion' | 'unknown';
+  readonly beforeSha256: string | null;
+  readonly afterSha256: string | null;
+  readonly beforeBytes: number | null;
+  readonly afterBytes: number | null;
+  readonly beforePreview: ResultReviewPreview;
+  readonly afterPreview: ResultReviewPreview;
+}
+
+export interface ResultReviewPreview {
+  readonly state: 'absent' | 'incomplete' | 'binary' | 'text' | 'truncated';
+  readonly text: string | null;
+}
+
+/** Comparison metadata only; payload and imported success/stop/boundary claims stay private. */
+export interface ImportedResultReview {
+  readonly id: string;
+  readonly revision: number;
+  readonly createdAt: string;
+  readonly comparison: {
+    readonly schemaVersion: 1;
+    readonly captureSource: 'imported-artifact';
+    readonly originalState: 'complete-imported-baseline-unverified' | 'incomplete-unknown';
+    readonly retained: true;
+    readonly writerState: 'stop-unconfirmed';
+    readonly acceptance: 'unreviewed';
+    readonly complete: boolean;
+    readonly baselineDigest: string;
+    readonly snapshotDigest: string;
+    readonly bundleDigest: string;
+    readonly changes: readonly ResultReviewChange[];
+    readonly launchAllowed: false;
+    readonly projectExportAllowed: false;
+  };
+}
+
 /** Public updater state. Executable paths and network options never reach the renderer. */
 export interface UpdateStatus {
   readonly status:

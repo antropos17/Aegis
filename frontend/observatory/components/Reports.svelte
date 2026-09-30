@@ -1,14 +1,21 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
 
-  import { onMount } from 'svelte';
-  import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
+  import { onMount, tick } from 'svelte';
+  import { confirmed, invoke, record, type Host, type RecordData } from '../runtime/host';
+  import {
+    admitAuditPage,
+    admitAuditStats,
+    advanceAuditPage,
+    emptyAuditPage,
+    type AuditReadState,
+    type AuditRequest,
+  } from '../runtime/audit-read-state';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import AgentLogo from './AgentLogo.svelte';
   import { instances, type Telemetry } from '../runtime/host';
   import Metadata from './Metadata.svelte';
-  import { selectFields } from '../runtime/detail-fields';
   import { radarGroups, groupRecord, groupEvidence } from '../runtime/radar';
   import ObservationTable from './ObservationTable.svelte';
   import SectionTabs from './SectionTabs.svelte';
@@ -30,19 +37,48 @@
   let groups = $derived(radarGroups(instances(telemetry)));
   let grouping = $state<'resource' | 'agent' | 'none'>('resource');
   let stats = $state<RecordData>({});
-  let rows = $state<RecordData[]>([]);
-  let cursor = $state(new Date().toISOString());
-  let exhausted = $state(false);
-  let boundaryOffset = $state(0);
-  let error = $state('');
+  let page = $state(emptyAuditPage(new Date().toISOString()));
+  let rows = $derived(page.rows);
+  let pageRead = $state<AuditReadState>('idle');
+  let statsRead = $state<AuditReadState>('idle');
+  let statsLoaded = $state(false);
+  let statsFresh = $state(false);
+  let failedRequest = $state<AuditRequest | null>(null);
+  let retryHistoryButton = $state<HTMLButtonElement>();
+  let refreshButton = $state<HTMLButtonElement>();
   let alive = true;
   let type = $state('');
   let generation = 0;
-  let loading = $state(false);
+  let statsGeneration = 0;
+  let pageLoading = $state(false);
+  let statsLoading = $state(false);
+  let loading = $derived(pageLoading || statsLoading);
   let query = $state('');
   let auditSection = $state('entries');
   let reportSection = $state('summary');
-  let appliedType = $state('');
+  let appliedType = $derived(page.appliedType);
+  let displayStats = $derived(
+    !statsFresh
+      ? Object.fromEntries(
+          Object.entries(stats).filter(
+            ([key]) => !['totalSize', 'currentSize', 'storageReadState'].includes(key),
+          ),
+        )
+      : stats,
+  );
+  let details = $derived({
+    ...displayStats,
+    ...(stats.index
+      ? {
+          index: {
+            ...record(stats.index),
+            ...(record(stats.index).lastError
+              ? { lastError: $t('Audit index details unavailable.') }
+              : {}),
+          },
+        }
+      : {}),
+  });
   $effect(() => {
     if (!sectionRequest) return;
     sectionRequest.revision;
@@ -69,72 +105,76 @@
         .includes(query.toLowerCase());
     }),
   );
-  async function refresh(reset = false) {
-    error = '';
-    loading = true;
-    try {
-      await load(reset);
-    } catch (e) {
-      if (alive) {
-        error = e instanceof Error ? e.message : String(e);
-        type = appliedType;
-      }
-      throw e;
-    } finally {
-      if (alive) loading = false;
-    }
+  async function refresh(reset = false, retry?: AuditRequest) {
+    if (loading) return;
+    const request = retry ?? {
+      reset,
+      before: reset ? new Date().toISOString() : page.cursor,
+      boundaryOffset: reset ? 0 : page.boundaryOffset,
+      requestedType: type,
+    };
+    const retryHadFocus = retryHistoryButton === document.activeElement;
+    const ticket = generation + 1;
+    await Promise.all([readHistory(request), readStats()]);
+    if (!alive || ticket !== generation) return;
+    if (pageRead === 'ready') failedRequest = null;
+    await tick();
+    if (alive && ticket === generation && retryHadFocus && document.activeElement === document.body)
+      refreshButton?.focus({ preventScroll: true });
   }
-  async function load(reset = false) {
+  async function readHistory(request: AuditRequest) {
     const ticket = ++generation;
-    const before = reset ? new Date().toISOString() : cursor;
-    const [summary, page] = await Promise.all([
-      invoke(host, 'getAuditStats'),
-      invoke(
+    pageLoading = true;
+    pageRead = 'loading';
+    try {
+      const reply = await invoke(
         host,
         'getAuditEntriesBefore',
-        before,
+        request.before,
         100,
-        type ? [type] : undefined,
-        reset ? 0 : boundaryOffset,
-      ),
-    ]);
-    if (!alive || ticket !== generation) return;
-    stats = record(summary);
-    appliedType = type;
-    const incoming = records(page).map((row) =>
-      row.type === 'network-connection'
-        ? {
-            ...selectFields(record(row.extra ?? row.details), [
-              'localIp',
-              'localPort',
-              'remoteIp',
-              'remotePort',
-              'domain',
-              'state',
-              'verdict',
-              'verdictReason',
-            ]),
-            ...row,
-          }
-        : row,
-    );
-    rows = reset ? incoming : [...incoming, ...rows];
-    exhausted = incoming.length < 100;
-    const times = incoming
-      .map((row) => String(row.timestamp ?? ''))
-      .filter(Boolean)
-      .sort();
-    if (times[0]) {
-      const countAtBoundary = incoming.filter((row) => row.timestamp === times[0]).length;
-      boundaryOffset = countAtBoundary + (!reset && times[0] === cursor ? boundaryOffset : 0);
-      cursor = times[0];
+        request.requestedType ? [request.requestedType] : undefined,
+        request.boundaryOffset,
+      );
+      if (!alive || ticket !== generation) return;
+      page = advanceAuditPage(page, admitAuditPage(reply), request);
+      type = request.requestedType;
+      pageRead = 'ready';
+    } catch {
+      if (alive && ticket === generation) {
+        pageRead = 'failed';
+        failedRequest = { ...request };
+        type = page.appliedType;
+      }
+    } finally {
+      if (alive && ticket === generation) pageLoading = false;
+    }
+  }
+  async function readStats() {
+    const ticket = ++statsGeneration;
+    statsLoading = true;
+    statsRead = 'loading';
+    try {
+      const reply = await invoke(host, 'getAuditStats');
+      if (!alive || ticket !== statsGeneration) return;
+      stats = admitAuditStats(reply);
+      statsLoaded = true;
+      statsFresh = true;
+      statsRead = 'ready';
+    } catch {
+      if (alive && ticket === statsGeneration) {
+        statsFresh = false;
+        statsRead = 'failed';
+      }
+    } finally {
+      if (alive && ticket === statsGeneration) statsLoading = false;
     }
   }
   onMount(() => {
-    if (audit) void refresh(true).catch(() => {});
+    if (audit) void refresh(true);
     return () => {
       alive = false;
       generation++;
+      statsGeneration++;
     };
   });
   const exports = [
@@ -176,6 +216,7 @@
       >
       <label
         >{$t('Type')}<select
+          aria-label={$t('Type')}
           bind:value={type}
           disabled={loading}
           onchange={(event) => {
@@ -194,6 +235,7 @@
           ><option value="none">{$t('Every observation')}</option></select
         ></label
       ><button
+        bind:this={refreshButton}
         class="button"
         disabled={loading}
         aria-busy={loading}
@@ -206,24 +248,50 @@
         ><Icon name="download" />{$t('Export retained audit records')}</Action
       >
     </div>
-    {#if error}<p role="alert" class="notice">{error}</p>{/if}
+    {#if pageRead === 'failed'}<p role="alert" class="notice">
+        {$t(
+          page.loaded
+            ? 'Audit history unavailable. Showing previously loaded entries.'
+            : 'Audit history unavailable. Retry reading.',
+        )}
+      </p>{/if}
+    {#if failedRequest}<button
+        bind:this={retryHistoryButton}
+        class="button"
+        aria-disabled={loading}
+        aria-busy={loading}
+        onclick={() => {
+          if (failedRequest) void refresh(false, failedRequest);
+        }}><Icon name="refresh" />{$t('Retry history')}</button
+      >{/if}
     <p class="entity-note" role="status">
-      {loading
+      {pageLoading
         ? $t('Loading audit entries…')
-        : filtered.length + ' of ' + rows.length + ' loaded entries'}{#if query}
+        : page.loaded
+          ? $t('{visible} of {loaded} loaded entries', {
+              visible: filtered.length,
+              loaded: rows.length,
+            })
+          : $t('Audit history has not been loaded.')}{#if query && page.loaded}
         {$t('· search covers loaded entries')}{/if}
     </p>
-    <ObservationTable
-      rows={filtered}
-      {telemetry}
-      {inspect}
-      {grouping}
-      resetKey={JSON.stringify([appliedType, query])}
-    />
+    {#if page.loaded && rows.length}<ObservationTable
+        rows={filtered}
+        {telemetry}
+        {inspect}
+        {grouping}
+        resetKey={JSON.stringify([appliedType, query])}
+      />{:else if page.loaded}<p class="entity-note">
+        {$t('No entries in this history page.')}
+      </p>{/if}
     <div class="pagination">
-      <span>{rows.length} {$t('audit entries loaded')}</span><button
+      <span
+        >{#if page.loaded}{rows.length} {$t('audit entries loaded')}{:else}{$t(
+            'Loaded history is unknown',
+          )}{/if}</span
+      ><button
         class="button"
-        disabled={exhausted || loading}
+        disabled={!page.loaded || page.exhausted || loading}
         aria-busy={loading}
         onclick={() => void refresh().catch(() => {})}
         ><Icon name="history" />{$t('Load older entries')}</button
@@ -236,6 +304,30 @@
     aria-labelledby="audit-tab-delivery"
     hidden={auditSection !== 'delivery'}
   >
+    {#if statsRead === 'failed'}<p role="alert" class="notice">
+        {$t(
+          statsLoaded
+            ? 'Delivery counters unavailable. Showing last loaded values.'
+            : 'Delivery counters unavailable. Retry reading.',
+        )}
+      </p>
+    {:else if statsLoading}<p role="status" class="entity-note">
+        {$t(statsLoaded ? 'Updating delivery counters…' : 'Loading delivery counters…')}
+      </p>{/if}
+    {#if stats.storageReadState === 'unavailable'}<p class="notice">
+        {$t('Storage measurements unavailable. Delivery counters are separate observations.')}
+      </p>
+    {:else if stats.storageReadState === 'uninitialized'}<p class="notice">
+        {$t('Audit journal has not been initialized.')}
+      </p>{/if}
+    <button
+      class="button"
+      aria-disabled={loading}
+      aria-busy={statsLoading}
+      onclick={() => {
+        if (!loading) void readStats();
+      }}><Icon name="refresh" />{$t('Refresh delivery counters')}</button
+    >
     <section class="panel">
       <div class="inline-stats">
         <div>
@@ -249,8 +341,8 @@
         </div>
         <div>
           <strong
-            >{typeof stats.totalSize === 'number'
-              ? (stats.totalSize / 1024).toFixed(1) + ' KB'
+            >{typeof displayStats.totalSize === 'number'
+              ? (displayStats.totalSize / 1024).toFixed(1) + ' KB'
               : '—'}</strong
           ><span>{$t('stored history')}</span>
         </div>
@@ -260,13 +352,19 @@
     <section class="panel delivery-fields">
       <h2>{$t('Audit delivery details')}</h2>
       <p class="entity-note">
-        {$t('Storage and delivery counters describe retained audit history.')}
+        {$t('Delivery counters do not confirm that the history can be read.')}
       </p>
       <Metadata
         value={Object.fromEntries(
-          Object.entries(stats).filter(
+          Object.entries(details).filter(
             ([key]) =>
-              !['persistedEntries', 'bufferDepth', 'droppedEntries', 'totalSize'].includes(key),
+              ![
+                'persistedEntries',
+                'bufferDepth',
+                'droppedEntries',
+                'totalSize',
+                'storageReadState',
+              ].includes(key),
           ),
         )}
       />

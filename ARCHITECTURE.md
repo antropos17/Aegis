@@ -317,8 +317,11 @@ The provider requests only public GitHub release metadata and assets for
 raw manifest's Ed25519 signature against the public key bundled inside app.asar,
 then binds the version, repository, installer size and SHA-256. Installer bytes are
 checked after download and again after native restart confirmation. Stable versions
-stay on the stable channel; alpha versions can advance to alpha or stable. Lower
-versions are never selected. Release notes are untrusted plain text.
+stay on the stable channel; beta versions can advance to beta or stable; alpha
+versions can advance to alpha, beta or stable. Lower versions are never selected.
+The published 0.17.0-alpha updater does not recognize beta tags, so the first beta
+upgrade requires a manually downloaded and verified installer. Release notes are
+untrusted plain text.
 
 `app-updates.js` owns the lifecycle. Four argument-free IPC operations are restricted
 to the application's own top-level renderer; one push carries safe display state.

@@ -1,6 +1,46 @@
 # AEGIS — starting the next chat
 
-## Current enforcement status — 2026-09-28, native initialized-process fixture
+## Current enforcement status — 2026-09-30, sealed host import draft
+
+Actual master is `fcdb87a906bf43231e73082d2bb715099e76a263`. PR #697 merged on
+2026-09-30 after an actual independent scoped PASS at BASE `2e325d0` / HEAD
+`b3303ee47e8738e75c68300c8ef343e2b6bfb105` and exact-HEAD CI 5/5. Its raw
+response is `X:/ASTRA_REVIEW_GUEST_CHANNEL_20260930.md`, SHA-256
+`a88bb8c2f8a456b47672f209065642806ae8f81d2f07d5d1af9048f802eebffd`.
+That developer same-principal channel/fixed-task scope remains distinct from
+full A1, which is UNREVIEWED. Older pending-review text below is historical.
+
+The new `codex/enforcement-sealed-import` draft adds a
+[host-only bounded bundle](../docs/roadmap/enforcement-e2/sealed-import-contract-20260930.md)
+and [Windows evidence](../docs/roadmap/enforcement-e2/sealed-import-evidence-20260930.md):
+27 focused tests, zero skips, 41 native invocations and six fixed CLI modes.
+Actual pre-fix RED sources and receipts are preserved. The ten local checks and
+five required CI contexts must be recorded for the final draft HEAD in its
+separate immutable review packet; this run issues no scoped verdict and performs
+no new merge. E2 remains active; no E1-E11 task or A1-A4 gate is completed by this.
+Full Windows coverage is run with file parallelism disabled after default-run
+timeouts/fixture cleanup failures; an existing gateway test gains bounded removal
+retries and a temporary-parent guard. Safety assertions and production cleanup logic are unchanged.
+
+[Claude authentication research](../docs/roadmap/enforcement-e2/claude-subscription-broker-research-20260930.md)
+documents gateway routing with client-side saved OAuth. A credential-free guest
+using host-only subscription credentials remains unverified. The
+[caller/inventory note](../docs/roadmap/enforcement-e2/supervisor-caller-inventory-design-20260930.md)
+is design only. No exact authorized disposable host, licensed Windows image,
+protected provisioning or native guest peer/bootstrap exists. No prohibited
+system or credential effects ran; production `launchAllowed=false`.
+
+Use the existing `X:/AEGIS_ENFORCEMENT_PROGRESS.json` and
+`X:/AEGIS_ENFORCEMENT_TRACKER.html` for progress. The authorized update preserves
+all task IDs/checkmarks/full gate verdicts, corrects current master and #697
+history, and applies guest labels plus E8/E9 dependencies on E6. Next action is a
+separate fresh scoped review of the draft's exact HEAD using its sealed packet;
+later VM work still needs the explicitly authorized disposable host/image.
+
+Historical handoffs below remain unchanged.
+
+
+## Current enforcement status — 2026-09-28, channel and fixed Node/Git fixture
 
 This is the canonical continuation status; older handoffs below preserve history.
 E0 is complete after actual A0 PASS at BASE `52fc21f` / HEAD `535c0e8`, with
@@ -42,16 +82,20 @@ The reviewer independently checked 171 Windows cases, old/new ordering controls,
 packet integrity and five exact-HEAD CI contexts. PR #695 merged as
 `567c6b00b3dac04970b7ef5284a20a53e764e191` on 2026-09-28.
 
-Current branch `codex/enforcement-native-fixture` starts from that origin/master
-in the reused managed enforcement-e0 worktree. The original dirty checkout is
-preserved. The [native fixture](../docs/roadmap/enforcement-e2/native-bootstrap-fixture.md)
+The [native fixture](../docs/roadmap/enforcement-e2/native-bootstrap-fixture.md)
 reuses the unchanged atomic Windows Job owner for one fixed trusted same-principal
 child. It observes that held process before handoff and after authenticated
 initialized evidence, before a fixed acknowledgement can run. It exercises
 bounded anonymous pipes, C#/JS framing interoperability, cancellation, six fault
 refusals and Job closure. No production caller, VM mutation, guest transport,
 separate principal, protected inventory or complete runtime/member measurement
-was added. Its separate scoped review is pending; full A1 remains UNREVIEWED.
+was added. Actual independent review `native-bootstrap-fa05fd3-20260928` returned
+scoped PASS at HEAD `fa05fd39feef3db99fc52a2a02cc984921d253f6`; response SHA-256 is
+`8f341f0a87dddc1a7e0d8dd0b905abe8391f7b144b983d55850ce20104e26735`.
+The reviewer independently checked 226 Windows tests, nine native scenarios,
+39 additional controls, complete archive/source integrity and exact-HEAD CI 5/5.
+PR #696 merged as `2e325d0591c4011c9c4e25d7bc0522202fb96be1` on 2026-09-28.
+Full A1 remains UNREVIEWED.
 
 Final focused Windows tests passed 226/226 with no skips: 55 new bootstrap cases
 and the existing 77 VM foundation, 63 inactive protocol and 31 filesystem cases.
@@ -65,6 +109,35 @@ Complete Job member inventory remains unqualified. Unexpected worker failure/EOF
 does not count as a successful injected refusal. Seven CLI controls preserve
 existing receipts and create no compiler scratch. See the
 [native evidence](../docs/roadmap/enforcement-e2/native-bootstrap-evidence.md).
+
+Current branch `codex/enforcement-guest-channel` starts from that merge in the
+reused managed enforcement-e0 worktree. The original dirty checkout is preserved.
+The [new channel fixture](../docs/roadmap/enforcement-e2/guest-channel-fixture.md)
+adds canonical bounded HMAC messages in C#/JS with direction, per-direction
+sequence and phase checks for release, cancellation, opaque result and stopped.
+Actual held-child initialization precedes forwarding a release. A fixed trusted
+project then performs a real edit, Node built-in test, Git baseline and diff under
+the same-principal Job. Native cancellation runs before work; running cancellation
+is covered only by JS state tests. No guest VM/runtime qualification follows.
+
+The [new evidence](../docs/roadmap/enforcement-e2/guest-channel-evidence.md) records
+330/330 Windows tests with no skips in eighteen files, including 104 new cases,
+plus an independent standalone nine-case CLI. All nine held children exited and
+all Jobs were separately queried empty. One authenticated task result and two
+stopped messages were independently checked in Node; every initialized frame was
+also verified. Fixed source/test/diff digests match a local file oracle that runs
+no returned Git/project code. Its parent-junction regression failed before the
+fix; final link/hardlink/budget refusals preserve all files. Earlier startup/task
+failures remain separate diagnostics, never successful denials. Two small
+unconfirmed development projects are retained. The new scoped review is pending.
+
+The [disposable VM plan](../docs/roadmap/enforcement-e2/disposable-vm-fixture-plan.md)
+records exact host/image/license/root/authority inputs, proposed resource budgets,
+transport/guest bootstrap observations and the first native matrix run. All exact
+host/image choices remain unselected. No provisioning, registration, feature,
+service, ACL, network or real-provider effect has occurred. The inactive protocol
+still refuses preparation; vmEffectsRun/guestNodeGitQualified/launchAllowed/
+nativeContainmentQualified remain false.
 
 The preceding native read-only probe observed
 OS build 26200 and hypervisor presence; manager instance availability was unknown
@@ -85,7 +158,7 @@ service, feature, image, WSL, real online agent or original project was modified
 Claude Code was previously observed as 2.1.263 with a claude.ai Pro subscription;
 secret-free broker compatibility remains an open A2 question. E0 retained one
 native MCP teardown EPERM; a passing repeat does not diagnose it. Actual review
-responses remain on the task drive; `ASTRA_REVIEW_VM_FIXTURE_R1.md` is the
+responses remain on the task drive; `ASTRA_REVIEW_NATIVE_BOOTSTRAP.md` is the
 latest consumed response. Keep scoped PASS separate from full acceptance.
 
 The paired local progress JSON/HTML project this status. Local diagnostics and

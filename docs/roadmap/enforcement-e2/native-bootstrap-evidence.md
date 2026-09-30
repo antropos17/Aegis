@@ -65,9 +65,17 @@ native bootstrap assertions; it cannot replace these matching Windows receipts.
 Scripts/tests are outside the application packaging list, production call graph,
 main typecheck and measured main coverage scope. No main module/IPC count changed.
 
-All E1/E2 task checkmarks and full A1 remain incomplete. The preceding actual
-scoped PASS for PR #695 covers its corrected synthetic controller only; it does
-not cover this new native fixture. Its protocol still refuses preparation.
+Actual independent review `native-bootstrap-fa05fd3-20260928` returned scoped
+PASS at HEAD `fa05fd39feef3db99fc52a2a02cc984921d253f6`. It independently checked
+226 Windows tests, nine standalone scenarios, 39 additional controls, archive
+integrity and all five exact-HEAD CI contexts. Raw response SHA-256 is
+`8f341f0a87dddc1a7e0d8dd0b905abe8391f7b144b983d55850ce20104e26735`.
+PR #696 merged as `2e325d0591c4011c9c4e25d7bc0522202fb96be1` on 2026-09-28.
+This review covers only the stated same-principal process fixture. The subsequent
+[channel/Node/Git fixture](guest-channel-fixture.md) needs its own scoped review.
+
+All E1/E2 task checkmarks and full A1 remain incomplete. The inactive protocol
+still refuses preparation.
 VM lifecycle/jobs, protected owner inventory, guest bootstrap/transport, runtime
 closure, private desktop, malicious same-user callers, helper crash/reboot,
 useful Node/Git, file/network effects, real credentials and export remain not-run.

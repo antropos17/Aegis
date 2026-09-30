@@ -128,9 +128,23 @@
 </script>
 
 <div class="action-coverage-workspace">
-  <button type="button" class="button setup-jump" disabled={pending} onclick={focusCheckSetup}
-    >{$t('Go to configuration check')}</button
-  >
+  <nav class="task-links" aria-label={$t('Action control tasks')}>
+    <button type="button" class="button setup-jump" disabled={pending} onclick={focusCheckSetup}
+      >{$t('Go to configuration check')}</button
+    >
+    <button
+      type="button"
+      class="button"
+      onclick={(event) =>
+        event.currentTarget
+          .closest('.action-coverage-workspace')
+          ?.querySelector<HTMLElement>('[data-route-observation]')
+          ?.focus()}>{$t('Go to live observation')}</button
+    >
+    {#if navigate}<button type="button" class="button" onclick={() => navigate?.('local-security')}
+        >{$t('Compare returned files in Local security')}</button
+      >{/if}
+  </nav>
   <ActionObservation {host} {preview} onObservation={(value) => (routeObservation = value)} />
   {#if result || routeObservation}
     <RouteEvidence check={result} observation={routeObservation} />
@@ -285,82 +299,6 @@
         'Check the files that tell AEGIS which commands an agent may run. This does not run commands or change settings.',
       )}
     </p>
-    <section class="selected-file-guide" aria-label={$t('Selected-file deletion setup')}>
-      <h3>{$t('Delete one selected file')}</h3>
-      <p>
-        {$t(
-          'Use the separate terminal-owned exact-file MCP route. The executable/catalog check below does not assess it or establish automatic blocking or general coverage.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('ACTION-DELETE-FILE.md')}
-        >{$t('Open selected-file deletion guide')}</button
-      >
-      {#if guideTarget === 'ACTION-DELETE-FILE.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    <section class="protected-action-guide" aria-label={$t('Protected Windows action setup')}>
-      <h3>{$t('Control an allowed Windows action tree')}</h3>
-      <p>
-        {$t(
-          'The separate Windows Job CLI route controls ordinary descendants after an exact allow. The configuration check below does not assess this CLI route or verify blocking.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('ACTION-EXECUTION.md')}
-        >{$t('Open protected Windows action guide')}</button
-      >
-      {#if guideTarget === 'ACTION-EXECUTION.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    <section class="protected-action-guide" aria-label={$t('Windows AppContainer setup')}>
-      <h3>{$t('Check a selected Windows AppContainer launch')}</h3>
-      <p>
-        {$t(
-          'Choose Windows AppContainer CLI below to check selected files and executable metadata, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('ACTION-APPCONTAINER.md')}>{$t('Open AppContainer guide')}</button
-      >
-      {#if guideTarget === 'ACTION-APPCONTAINER.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    {#if preview}<p class="muted">
-        {$t('External guides are disabled in this simulated preview.')}
-      </p>{:else if !host?.openExternalUrl}<p class="muted">
-        {$t('Opening guides requires the AEGIS desktop connection.')}
-      </p>{/if}
-    {#if preview}<p class="preview-note">
-        {$t('Preview · example checks only. No files are selected or read.')}
-      </p>{/if}
-    {#if !available}<p>
-        {$t('Action checks are unavailable in this runtime. Open the current AEGIS desktop app.')}
-      </p>{/if}
     <form
       onsubmit={(event) => {
         event.preventDefault();
@@ -397,8 +335,11 @@
         </div>
       </div>
       <p id={prefix + '-route-help'} class="muted">{$t(routeHelp[route])}</p>
-      <button type="submit" class="button primary" disabled={pending || !available}
-        >{$t(preview ? 'Show example check' : 'Choose files and check')}</button
+      <button
+        type="submit"
+        class="button primary"
+        disabled={pending || !available}
+        aria-busy={pending}>{$t(preview ? 'Show example check' : 'Choose files and check')}</button
       >
       {#if result}<button
           type="button"
@@ -410,6 +351,83 @@
               ?.focus()}>{$t('View captured result')}</button
         >{/if}
     </form>
+    <section class="selected-file-guide" aria-label={$t('Selected-file deletion setup')}>
+      <h3>{$t('Delete one selected file')}</h3>
+      <p>
+        {$t(
+          'Use the separate terminal-owned exact-file MCP route. The executable/catalog check does not assess it or establish automatic blocking or general coverage.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={() => openGuide('ACTION-DELETE-FILE.md')}
+        >{$t('Open selected-file deletion guide')}</button
+      >
+      {#if guideTarget === 'ACTION-DELETE-FILE.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
+        </p>{/if}
+    </section>
+    <section class="protected-action-guide" aria-label={$t('Protected Windows action setup')}>
+      <h3>{$t('Control an allowed Windows action tree')}</h3>
+      <p>
+        {$t(
+          'The separate Windows Job CLI route controls ordinary descendants after an exact allow. The configuration check does not assess this CLI route or verify blocking.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={() => openGuide('ACTION-EXECUTION.md')}
+        >{$t('Open protected Windows action guide')}</button
+      >
+      {#if guideTarget === 'ACTION-EXECUTION.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
+        </p>{/if}
+    </section>
+    <section class="protected-action-guide" aria-label={$t('Windows AppContainer setup')}>
+      <h3>{$t('Check a selected Windows AppContainer launch')}</h3>
+      <p>
+        {$t(
+          'Select Windows AppContainer CLI to check selected files and executable metadata, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={() => openGuide('ACTION-APPCONTAINER.md')}>{$t('Open AppContainer guide')}</button
+      >
+      {#if guideTarget === 'ACTION-APPCONTAINER.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
+        </p>{/if}
+    </section>
+    {#if preview}<p class="muted">
+        {$t('External guides are disabled in this simulated preview.')}
+      </p>{:else if !host?.openExternalUrl}<p class="muted">
+        {$t('Opening guides requires the AEGIS desktop connection.')}
+      </p>{/if}
+    {#if preview}<p class="preview-note">
+        {$t('Preview · example checks only. No files are selected or read.')}
+      </p>{/if}
+    {#if !available}<p>
+        {$t('Action checks are unavailable in this runtime. Open the current AEGIS desktop app.')}
+      </p>{/if}
+
     <section class="gateway-guide" aria-label={$t('Stdio gateway setup')}>
       <h3>{$t('Third-party MCP server gateway')}</h3>
       <p>
@@ -537,7 +555,12 @@
     min-height: var(--control-height);
     white-space: normal;
   }
-  .setup-jump {
+  .task-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .task-links button {
     justify-self: start;
     max-width: 100%;
     margin-top: 0;

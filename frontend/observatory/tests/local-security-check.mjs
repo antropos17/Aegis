@@ -11,6 +11,13 @@ export async function checkLocalSecurity(browser, url, out) {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  const dismissNotifications = async (name = 'Dismiss notification') => {
+    for (let count = 0; count < 8; count++) {
+      const button = page.getByRole('button', { name, exact: true });
+      if (!(await button.count())) break;
+      await button.first().click();
+    }
+  };
   try {
     await page.goto(url);
     await page
@@ -19,6 +26,75 @@ export async function checkLocalSecurity(browser, url, out) {
       .click();
     await page.getByRole('heading', { name: 'No local review yet' }).waitFor();
     await page.screenshot({ path: resolve(out, 'local-security-empty.png') });
+    const comparison = page.getByRole('region', { name: 'Imported result comparison' });
+    await comparison.getByRole('button', { name: 'Show example comparison' }).click();
+    await comparison.getByText('Stop unconfirmed', { exact: true }).waitFor();
+    await comparison.getByText('Inspect captured content', { exact: true }).first().click();
+    assert.equal(await comparison.locator('.previews script,.previews img').count(), 0);
+    assert(
+      (await comparison.locator('.previews').first().textContent()).includes(
+        '<script>example</script>',
+      ),
+    );
+    assert(await comparison.getByRole('button', { name: 'Launch unavailable' }).isDisabled());
+    assert(
+      await comparison.getByRole('button', { name: 'Project export unavailable' }).isDisabled(),
+    );
+    await dismissNotifications();
+    await comparison.locator('.previews').first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(out, 'result-review-captured-preview.png') });
+    const search = comparison.getByRole('searchbox', { name: 'Find a changed file' });
+    await comparison.getByRole('checkbox', { name: /README.md/ }).check();
+    await search.fill('no matching captured file');
+    await comparison.getByText('No changes match these filters.', { exact: true }).waitFor();
+    assert.equal(await comparison.locator('.change-entry').count(), 0);
+    assert(await comparison.getByText('1 selected · 1 outside the current filter').isVisible());
+    const resetFilters = comparison.getByRole('button', { name: 'Clear filters', exact: true });
+    await resetFilters.focus();
+    await page.keyboard.press('Enter');
+    assert(await resetFilters.evaluate((button) => button === document.activeElement));
+    assert(await comparison.getByRole('checkbox', { name: /README.md/ }).isChecked());
+    await comparison.getByLabel('Change type', { exact: true }).selectOption('deletion');
+    assert.equal(await comparison.locator('.change-entry').count(), 1);
+    assert(await comparison.getByText('1 selected · 1 outside the current filter').isVisible());
+    await search.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(out, 'result-review-filtered-draft.png') });
+    await resetFilters.click();
+    await comparison.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    assert(!(await comparison.getByRole('checkbox', { name: /README.md/ }).isChecked()));
+    await page.setViewportSize({ width: 900, height: 600 });
+    for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
+      await page.evaluate((theme) => {
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.setProperty('--ui-scale', '1.5');
+      }, theme);
+      await comparison.scrollIntoViewIfNeeded();
+      assert(
+        await comparison.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+        'comparison overflow',
+      );
+      await comparison.getByRole('tab', { name: /^Changes/ }).focus();
+      await page.keyboard.press('End');
+      assert.equal(
+        await comparison
+          .getByRole('tab', { name: 'Coverage', exact: true })
+          .getAttribute('aria-selected'),
+        'true',
+      );
+      await page.keyboard.press('Home');
+      await dismissNotifications();
+      await page.screenshot({ path: resolve(out, `result-review-en-900-150-${theme}.png`) });
+      await comparison.locator('.previews').first().scrollIntoViewIfNeeded();
+      await dismissNotifications();
+      await page.screenshot({
+        path: resolve(out, `result-review-en-900-150-${theme}-content.png`),
+      });
+    }
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'dark';
+      document.documentElement.style.setProperty('--ui-scale', '1');
+    });
     const options = page.locator('.review-options');
     assert.equal(
       await options.getAttribute('open'),
@@ -136,6 +212,7 @@ export async function checkLocalSecurity(browser, url, out) {
       .getByRole('button', { name: 'Local security', exact: true })
       .click();
     assert(await page.getByRole('heading', { name: 'Findings need review' }).isVisible());
+    assert(await comparison.getByText('README.md', { exact: true }).isVisible());
     const pt = JSON.parse(
       await readFile(resolve('frontend/observatory/translations/pt-BR.json'), 'utf8'),
     );
@@ -147,6 +224,34 @@ export async function checkLocalSecurity(browser, url, out) {
       .click();
     await page.getByRole('button', { name: pt['Show example result'], exact: true }).click();
     await page.getByRole('heading', { name: pt['Findings need review'], exact: true }).waitFor();
+    await page.getByRole('button', { name: pt['Show example comparison'], exact: true }).click();
+    const translatedComparison = page.getByRole('region', {
+      name: pt['Imported result comparison'],
+    });
+    await translatedComparison
+      .getByText(pt['Inspect captured content'], { exact: true })
+      .first()
+      .click();
+    for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
+      await page.evaluate((theme) => {
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.setProperty('--ui-scale', '1.5');
+      }, theme);
+      assert(
+        await translatedComparison.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth + 1,
+        ),
+        'translated comparison overflow',
+      );
+      await translatedComparison.scrollIntoViewIfNeeded();
+      await dismissNotifications(pt['Dismiss notification']);
+      await page.screenshot({ path: resolve(out, `result-review-pt-900-150-${theme}.png`) });
+      await translatedComparison.locator('.previews').first().scrollIntoViewIfNeeded();
+      await dismissNotifications(pt['Dismiss notification']);
+      await page.screenshot({
+        path: resolve(out, `result-review-pt-900-150-${theme}-content.png`),
+      });
+    }
     for (const theme of ['dark', 'light']) {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;

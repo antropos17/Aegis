@@ -78,6 +78,7 @@ interface ProcessActionResult {
  * `droppedEntries + bufferDepth` is how much would be missing if the process stopped now.
  */
 interface AuditStats {
+  readonly storageReadState: 'uninitialized' | 'ready' | 'unavailable';
   readonly totalEntries: number;
   readonly persistedEntries: number;
   readonly droppedEntries: number;

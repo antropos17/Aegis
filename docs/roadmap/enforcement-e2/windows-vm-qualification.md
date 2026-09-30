@@ -1,16 +1,22 @@
 # Combined filesystem/Windows guest qualification
 
-Status: **native API/process bootstrap foundation executed; guest VM/file-effect matrix not-run**.
+Status: **native API/process/channel and local Node/Git fixtures executed; guest VM/file-effect matrix not-run**.
 The [fixture foundation](vm-fixture-foundation.md) adds a read-only host subset
 and synthetic admission/stop/recovery tests. It implements no native mutation
 adapter, guest bootstrap, protected inventory or production launch.
 The [native process fixture](native-bootstrap-fixture.md) additionally exercises
 initialized held-child observation, anonymous pipes, fixed acknowledgement and
 Job teardown on Windows. Its same-principal, core-runtime and address-codec scope
-does not qualify any complete guest VM row below.
+does not qualify any complete guest VM row below. The subsequent
+[channel fixture](guest-channel-fixture.md) authenticates release/cancel/result
+and runs a fixed dummy Node/Git project inside a same-principal Windows Job.
+Its bounded local oracle and successful task do not qualify guest runtimes,
+real socket transport, hostile returned-project interpretation or host isolation.
 Requires the [scoped direction ADR](windows-vm-boundary-adr.md), reviewed native
 fixture code and explicit authorization of the exact disposable Windows host.
 This document does not authorize feature/service/VM/image/network changes.
+The [one-use VM preparation contract](disposable-vm-fixture-plan.md) makes the
+remaining host/image, resource, authority and first-run inputs explicit.
 
 ## Current executable baseline
 

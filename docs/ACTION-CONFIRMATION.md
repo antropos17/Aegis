@@ -62,6 +62,11 @@ A fresh eight-hexadecimal-character challenge requires the exact response
 more than 128 input bytes or expiry refuse execution. Review has a sixty-second
 deadline in both the prompt and its owner.
 
+Input already buffered in the Node Readable or delivered while the preview is
+pending refuses the review. The owner checks queued bytes again before admitting
+a response after the write callback. This covers Node-observed input ordering;
+it does not establish when unread terminal or kernel bytes physically arrived.
+
 The preview intentionally exposes private arguments and environment values on
 the selected terminal. Scrollback, terminal recording and screen capture can
 retain them. They are not included in stdout reports or application logs by this

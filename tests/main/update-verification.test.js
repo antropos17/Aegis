@@ -37,6 +37,32 @@ afterEach(() => {
 });
 
 describe('signed update boundary', () => {
+  it.each(['0.18.0-beta', '0.18.0-beta.1'])('authenticates a beta installer for %s', (version) => {
+    const betaTag = `aegis-v${version}`;
+    const manifest = fixture({
+      tag: betaTag,
+      files: [
+        {
+          ...fixture().files[0],
+          filename: `AEGIS - AI Monitoring & Threat Detection Setup ${version}.exe`,
+        },
+      ],
+    });
+    const { bytes, signature } = signed(manifest);
+    expect(verification.verifyManifest(bytes, signature, pem, betaTag)).toMatchObject({
+      version,
+      sha256: digest,
+    });
+    expect(() => verification.verifyManifest(bytes, signature, pem, tag)).toThrow('manifest');
+  });
+  it.each([
+    'aegis-v0.18.0-rc.1',
+    'aegis-v0.18.0-beta/../setup',
+    'aegis-v0.18.0-beta.01',
+    'aegis-v0.18.0-beta+private',
+  ])('rejects unsupported or malformed channels: %s', (value) => {
+    expect(verification.releaseVersion(value)).toBeNull();
+  });
   it('accepts the signed installer and rejects changed manifest bytes', () => {
     const { bytes, signature } = signed(fixture());
     expect(verification.verifyManifest(bytes, signature, pem, tag)).toMatchObject({
@@ -109,6 +135,19 @@ const release = (version = '0.15.0-alpha') => ({
   ],
 });
 describe('signed release provider', () => {
+  it('allows alpha to advance to beta and keeps beta installations out of later alpha releases', () => {
+    const releases = [release('0.18.0-beta.1'), release('0.19.0-alpha'), release('0.17.0')];
+    expect(provider.selectRelease(releases, '0.17.0-alpha').tag_name).toBe('aegis-v0.19.0-alpha');
+    expect(provider.selectRelease([release('0.18.0-beta.1')], '0.17.0-alpha').tag_name).toBe(
+      'aegis-v0.18.0-beta.1',
+    );
+    expect(provider.selectRelease(releases, '0.18.0-beta').tag_name).toBe('aegis-v0.18.0-beta.1');
+    expect(provider.selectRelease([release('0.19.0-alpha')], '0.18.0-beta.1')).toBeNull();
+    expect(provider.selectRelease([release('0.18.0')], '0.18.0-beta.1').tag_name).toBe(
+      'aegis-v0.18.0',
+    );
+    expect(provider.selectRelease(releases, '0.17.0')).toBeNull();
+  });
   it('uses the newest complete allowed version, never downgrades or crosses stable into alpha', () => {
     const releases = [
       release('0.14.0-alpha'),
@@ -147,6 +186,55 @@ describe('signed release provider', () => {
     expect(
       calls.slice(1).every((c) => c.options.headers.Accept === 'application/octet-stream'),
     ).toBe(true);
+  });
+  it('loads a signed beta through the fixed repository and skips incomplete or draft beta releases', async () => {
+    const version = '0.18.0-beta.1';
+    const betaTag = `aegis-v${version}`;
+    const { bytes, signature } = signed(
+      fixture({
+        tag: betaTag,
+        files: [
+          {
+            ...fixture().files[0],
+            filename: `AEGIS - AI Monitoring & Threat Detection Setup ${version}.exe`,
+          },
+        ],
+      }),
+    );
+    const releases = [
+      release(version),
+      { ...release('0.18.0-beta.2'), assets: [] },
+      { ...release('0.18.0-beta.3'), draft: true },
+      release('0.19.0-alpha'),
+    ];
+    const calls = [];
+    const fetcher = async (url) => {
+      calls.push(url);
+      return new Response(
+        url.includes('api.github')
+          ? JSON.stringify(releases)
+          : url.endsWith('.sig')
+            ? signature.toString('base64')
+            : bytes,
+      );
+    };
+    const info = await provider.loadRelease({ current: '0.18.0-beta', fetcher, publicKey: pem });
+    expect(info).toMatchObject({ version, files: [{ sha2: digest }] });
+    expect(calls.slice(1)).toEqual([
+      `https://github.com/antropos17/Aegis/releases/download/${betaTag}/manifest.json`,
+      `https://github.com/antropos17/Aegis/releases/download/${betaTag}/manifest.json.sig`,
+    ]);
+    const forged = async (url) =>
+      new Response(
+        url.includes('api.github')
+          ? JSON.stringify(releases)
+          : url.endsWith('.sig')
+            ? Buffer.alloc(64).toString('base64')
+            : bytes,
+      );
+    await expect(
+      provider.loadRelease({ current: '0.18.0-beta', fetcher: forged, publicKey: pem }),
+    ).rejects.toThrow('signature');
   });
   it('refuses a release with a forged manifest signature', async () => {
     const { bytes } = signed(fixture());

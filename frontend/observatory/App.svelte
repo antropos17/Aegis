@@ -179,6 +179,7 @@
   let scrolls: Record<string, number> = {};
   let workspace: HTMLElement;
   let pageHead: HTMLDivElement;
+  let statusFooter: HTMLElement;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
@@ -188,6 +189,21 @@
   let commands = $state(false);
   let navigationRevision = 0;
   let themeChanged = false;
+  function scrollFooter(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.isComposing ||
+      !['ArrowLeft', 'ArrowRight'].includes(event.key) ||
+      statusFooter.scrollWidth <= statusFooter.clientWidth
+    )
+      return;
+    event.preventDefault();
+    statusFooter.scrollLeft += event.key === 'ArrowRight' ? 40 : -40;
+  }
   let title = $derived(
     scope.agent && view === 'agents'
       ? scope.agent
@@ -282,6 +298,31 @@
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeHead);
     headObserver?.observe(pageHead);
     resizeHead();
+    const rootStyle = document.documentElement.style;
+    const clearanceProperty = '--observatory-footer-height';
+    const previousClearance = rootStyle.getPropertyValue(clearanceProperty);
+    const previousClearancePriority = rootStyle.getPropertyPriority(clearanceProperty);
+    let footerAtEnd = false;
+    const rememberFooterEnd = () => {
+      footerAtEnd =
+        statusFooter.scrollLeft >= statusFooter.scrollWidth - statusFooter.clientWidth - 1;
+    };
+    statusFooter.addEventListener('scroll', rememberFooterEnd);
+    const resizeFooter = () => {
+      if (alive) {
+        if (footerAtEnd)
+          statusFooter.scrollLeft = statusFooter.scrollWidth - statusFooter.clientWidth;
+        rootStyle.setProperty(
+          clearanceProperty,
+          (window.innerWidth >= 800 ? statusFooter.getBoundingClientRect().height : 0) + 'px',
+        );
+      }
+    };
+    const footerObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeFooter);
+    footerObserver?.observe(statusFooter);
+    window.addEventListener('resize', resizeFooter);
+    resizeFooter();
     const stop = connectHost(host, (value) => {
       telemetry = value;
     });
@@ -317,6 +358,12 @@
     return () => {
       alive = false;
       headObserver?.disconnect();
+      footerObserver?.disconnect();
+      window.removeEventListener('resize', resizeFooter);
+      statusFooter.removeEventListener('scroll', rememberFooterEnd);
+      if (previousClearance)
+        rootStyle.setProperty(clearanceProperty, previousClearance, previousClearancePriority);
+      else rootStyle.removeProperty(clearanceProperty);
       stop();
       if (typeof unsubscribe === 'function') unsubscribe();
       if (typeof stopNavigation === 'function') stopNavigation();
@@ -701,8 +748,12 @@
         </div>
       </div>
     </main>
-    <footer>
-      <button onclick={openSensors}
+    <footer bind:this={statusFooter}>
+      <button
+        onfocus={(event) =>
+          event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+        onkeydown={scrollFooter}
+        onclick={openSensors}
         ><Icon name="shield" />{String(
           record(telemetry.stats.appHealth).state ?? 'Unobserved',
         )}</button
@@ -716,6 +767,9 @@
         class="audit-delivery"
         class:audit-loss={auditDropped !== null && auditDropped > 0}
         class:audit-write-failed={auditWriteFailed}
+        onfocus={(event) =>
+          event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+        onkeydown={scrollFooter}
         onclick={openAuditDelivery}
         ><Icon name="history" />{$t('Audit delivery')}
         {#if auditDropped === null || auditPending === null}

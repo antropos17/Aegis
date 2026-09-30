@@ -3,6 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { getInventoryProfile } = require('./inventory-profiles');
 const { FORMATS } = require('./static-import-values');
+const { validResultReviewRequest, handleResultReview } = require('./result-review-ipc');
 let deps = {};
 let sessions = new WeakMap();
 
@@ -21,11 +22,16 @@ const ERRORS = new Set([
   'external-report-unsupported-shape',
   'external-baseline-invalid',
   'report-size-limit',
+  'result-bundle-invalid',
+  'result-bundle-unavailable',
+  'result-review-expired',
 ]);
 
 function valid(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return false;
   const keys = Object.keys(request);
+  if (['review-result', 'result-status', 'clear-result'].includes(request.action))
+    return validResultReviewRequest(request);
   if (['observe-route', 'route-observation', 'stop-observing-route'].includes(request.action))
     return keys.length === 1;
   if (['check-route', 'check-catalog'].includes(request.action))
@@ -118,6 +124,7 @@ async function handle(event, request) {
         session.revision++;
         session.controller?.abort();
         session.retained = null;
+        session.resultRetained = null;
         session.observation?.close();
         session.observation = null;
       }
@@ -125,6 +132,7 @@ async function handle(event, request) {
     event.sender.on?.('destroyed', () => {
       session.revision++;
       session.controller?.abort();
+      session.resultRetained = null;
       session.observation?.close();
       session.observation = null;
     });
@@ -145,6 +153,7 @@ async function handle(event, request) {
     session.frame = event.senderFrame;
     session.revision++;
     session.retained = null;
+    session.resultRetained = null;
   }
   const revision = session.revision;
   session.busy = true;
@@ -166,6 +175,15 @@ async function handle(event, request) {
     return result.filePaths[0];
   };
   try {
+    if (['review-result', 'result-status', 'clear-result'].includes(request.action))
+      return await handleResultReview({
+        session,
+        request,
+        revision,
+        pick,
+        assertOwned,
+        readBundle: deps.readResultBundle,
+      });
     if (request.action === 'observe-route') {
       const file = await pick('Select the private AEGIS observation endpoint');
       assertOwned();

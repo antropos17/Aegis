@@ -722,6 +722,7 @@ describe('ipc-handlers', () => {
       '/fixture/work',
     );
     expect(getHandler('reset-permissions-to-defaults')(event)).toEqual({
+      success: true,
       permissions: {
         Claude: { fileAccess: 'monitor' },
         Copilot: { fileAccess: 'monitor' },
@@ -2376,6 +2377,24 @@ describe('ipc-handlers', () => {
       const result = handler(event);
       expect(result.permissions).toBeDefined();
       expect(result.seenAgents).toBeDefined();
+    });
+
+    it('does not confirm default permissions when persistence fails', () => {
+      const { event } = registerOwnedRenderer();
+      const failure = new Error('Fixture settings write failed');
+      mockConfig.saveSettings.mockImplementationOnce(() => {
+        throw failure;
+      });
+
+      expect(() => getHandler('reset-permissions-to-defaults')(event)).toThrow(failure);
+      expect(mockConfig.saveSettings).toHaveBeenCalledExactlyOnceWith({
+        anthropicApiKey: 'key',
+        agentPermissions: {
+          Claude: { fileAccess: 'monitor' },
+          Copilot: { fileAccess: 'monitor' },
+        },
+        seenAgents: ['Claude', 'Copilot'],
+      });
     });
 
     it('resets permissions when legacy seen-agent names are reserved object keys', () => {

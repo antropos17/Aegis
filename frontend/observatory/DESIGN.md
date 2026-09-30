@@ -1,5 +1,59 @@
 # AEGIS Observatory
 
+## Audit history and delivery reads — 30 September 2026
+
+History pages and delivery counters settle independently. A failed first history
+read remains unknown; a successful empty array has a separate empty-page message.
+Later failures preserve accepted rows, cursor, boundary offset and applied Type,
+along with local search and grouping. Retry repeats the captured request; a
+successful filter retry aligns the visible Type with the accepted page. The
+history retry control stays mounted during the pending attempt, and completion
+does not move focus away from a control selected by the user.
+
+Delivery has its own refresh. Failed reads retain previous counters with explicit
+feedback, while both stored and current byte sizes become unknown. Uninitialized
+counter defaults are not observations; unavailable storage does not erase valid
+independent delivery counters. Fixed English and Portuguese feedback omits host
+error text. The preview explicitly simulates readable empty storage. Existing
+section tabs, filters, observation groups and metadata remain the visual basis;
+these read states do not establish writeability or hash-chain integrity.
+The Type selector has a short localized accessible name. Internal storage-read
+codes stay in the host contract; the interface uses the localized storage notice
+and measured bytes instead of duplicating the code in delivery metadata.
+
+## Rules persistence and readback — 30 September 2026
+
+Permissions and detection rules load independently. Each section distinguishes
+loading, a completed empty result and unavailable data, retains its last loaded
+values after a failed read, and offers a read-only retry. Explicit failure replies
+and malformed permission or rule populations remain unavailable.
+
+A confirmed permission write updates the submitted target's saved baseline,
+including while another target is selected. The following readback has separate
+feedback: an unavailable or differing policy preserves local drafts and explains
+what could not be confirmed. Edits made during the write remain unsaved. A default
+reset clears drafts only when the fresh saved policy matches the reset reply;
+missing, differing or failed readback retains them. Late reads from an earlier
+generation and replies after unmount cannot replace current state.
+
+Production and preview reset replies carry explicit success after their save
+completes. English and Portuguese share these states and retain the explanation
+that saved preferences do not activate automatic file or network blocking. The
+existing permission rows, target controls and rule table composition remain.
+
+## Action and returned-result workflow — 30 September 2026
+
+Action control starts with task links and configuration controls before route
+guides. Explicit focus jumps reveal configuration and live observation; the
+returned-files link opens the existing Local security destination. Its comparison
+import action stays above retained content. Search, type filters, matching and
+selected counts, and 20-row pages keep inspection manageable. The selection draft
+is visibly local and unapproved; a changed capture resets it. A rejected retained
+ID labels the displayed capture unavailable. Confirmed clear releases main-owned
+retention and returns focus to import, preserving the input artifact and project.
+Native controls, scoped semantic-token styles, original reference artwork and
+stylesheet order remain the visual basis. Launch and project export stay unavailable.
+
 ## AppContainer executable preflight — 27 September 2026
 
 The captured AppContainer check shows a fixed, path-free executable metadata

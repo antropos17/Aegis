@@ -12,6 +12,7 @@
   } from '../runtime/local-security';
   import Icon from './Icon.svelte';
   import LocalSecurityResults from './LocalSecurityResults.svelte';
+  import ResultReview from './ResultReview.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   const prefix = $props.id();
   let mode = $state('scan');
@@ -97,6 +98,14 @@
 </script>
 
 <div class="local-security-workspace">
+  <button
+    class="button result-jump"
+    onclick={(event) =>
+      event.currentTarget
+        .closest('.local-security-workspace')
+        ?.querySelector<HTMLButtonElement>('[data-result-import]')
+        ?.focus()}>{$t('Compare a returned result')}</button
+  >
   {#if result}
     <button
       class="button setup-link"
@@ -247,6 +256,7 @@
       </div>
       <small>{$t('Observation and review do not enable automatic access blocking.')}</small>
     </section>{/if}
+  <ResultReview {host} {preview} />
 </div>
 
 <style>
@@ -254,6 +264,11 @@
     display: grid;
     gap: var(--space-3);
     min-width: 0;
+  }
+  .result-jump {
+    justify-self: start;
+    max-width: 100%;
+    white-space: normal;
   }
   .review-setup,
   .review-empty {
