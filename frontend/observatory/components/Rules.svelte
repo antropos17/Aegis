@@ -2,17 +2,25 @@
   import { t } from '../runtime/i18n';
 
   import { onMount, untrack } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import {
     confirmed,
     invoke,
-    record,
-    records,
     instances,
     type Host,
     type RecordData,
     type Telemetry,
   } from '../runtime/host';
   import { policyTargets, effectivePolicy, policySaveTarget } from '../runtime/policy-targets';
+  import {
+    permissionEnvelope,
+    permissionMap,
+    ruleReply,
+    permissionCategories,
+    policyDraft,
+    policySnapshot,
+    policyMapSnapshot,
+  } from '../runtime/rules-persistence';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import AgentLogo from './AgentLogo.svelte';
@@ -57,7 +65,12 @@
   let scope = $state('agent');
   let draft = $state<Record<string, string>>({});
   let error = $state('');
+  let writeNotice = $state('');
   let loaded = $state(false);
+  let permissionsState = $state<'loading' | 'ready' | 'failed'>('loading');
+  let rulesState = $state<'loading' | 'ready' | 'failed'>('loading');
+  let rulesLoaded = $state(false);
+  let rulesLoadError = $state('');
   let mutation = $state<'save' | 'reset' | null>(null);
   let ruleQuery = $state('');
   let ruleMutation = $state<string | null>(null);
@@ -65,7 +78,9 @@
   let activeKey = '';
   let draftBaseline = $state('');
   const drafts: Record<string, Record<string, string>> = {};
-  let dirty = $derived(loaded && JSON.stringify(draft) !== draftBaseline);
+  const acknowledged = new SvelteMap<string, { key: string; draft: Record<string, string> }>();
+  let refreshPending: 'save' | 'reset' | null = null;
+  let dirty = $derived(loaded && policySnapshot(draft) !== draftBaseline);
   let filteredRules = $derived(
     rules.filter((rule) =>
       [rule.id, rule.name, rule.reason, rule.category].some((value) =>
@@ -77,7 +92,7 @@
   );
   let alive = true;
   let revision = 0;
-  const categories = ['filesystem', 'sensitive', 'network', 'terminal', 'clipboard', 'screen'];
+  const categories = permissionCategories;
   const presets: Record<string, string[]> = {
     paranoid: ['block', 'block', 'block', 'block', 'block', 'block'],
     strict: ['monitor', 'block', 'block', 'block', 'monitor', 'monitor'],
@@ -108,36 +123,96 @@
   $effect(() => {
     const key = scope + ':' + (contextKey ?? target);
     const current = effectivePolicy(contextKey, agents, permissions);
-    const next = Object.fromEntries(
-      categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
-    );
+    const next = policyDraft(current);
     untrack(() => {
-      if (activeKey) {
-        if (JSON.stringify(draft) !== draftBaseline) drafts[activeKey] = { ...draft };
-        else delete drafts[activeKey];
-      }
+      retainDraft();
       activeKey = key;
       draft = { ...(drafts[key] ?? next) };
-      draftBaseline = JSON.stringify(next);
+      draftBaseline = policySnapshot(next);
     });
   });
-  async function load() {
+  function retainDraft() {
+    if (!activeKey) return;
+    if (policySnapshot(draft) !== draftBaseline) drafts[activeKey] = { ...draft };
+    else delete drafts[activeKey];
+  }
+  function adoptPermissions(next: RecordData, resetExpected?: RecordData | null) {
+    retainDraft();
+    let differs = false;
+    for (const [targetKey, submitted] of acknowledged) {
+      if (
+        policySnapshot(effectivePolicy(targetKey, agents, next)) !== policySnapshot(submitted.draft)
+      ) {
+        if (activeKey === submitted.key) drafts[submitted.key] = { ...draft };
+        else if (!drafts[submitted.key]) drafts[submitted.key] = { ...submitted.draft };
+        differs = true;
+      } else if (
+        drafts[submitted.key] &&
+        policySnapshot(drafts[submitted.key]) === policySnapshot(submitted.draft)
+      ) {
+        delete drafts[submitted.key];
+      }
+    }
+    acknowledged.clear();
+    const resetMatches =
+      resetExpected != null && policyMapSnapshot(next) === policyMapSnapshot(resetExpected);
+    if (resetMatches) for (const key of Object.keys(drafts)) delete drafts[key];
+    // The next effect must not restash a clean draft against its previous baseline.
+    activeKey = '';
+    permissions = next;
+    writeNotice =
+      resetExpected === null
+        ? 'Default policy restored. Could not confirm the current policy. Local drafts are preserved.'
+        : resetExpected !== undefined && !resetMatches
+          ? 'Default policy restored. Current saved policy differs from the reset reply. Local drafts are preserved.'
+          : differs
+            ? 'Current saved policy differs from the submitted permissions. Your draft is preserved.'
+            : '';
+    refreshPending = null;
+  }
+  async function load(options?: { resetExpected: RecordData | null }) {
+    if (!alive) return;
     const ticket = ++revision;
-    const [all, loadedRules] = await Promise.all([
-      invoke(host, 'getAllPermissions'),
-      invoke(host, 'getRules'),
+    permissionsState = 'loading';
+    rulesState = 'loading';
+    await Promise.all([
+      (async () => {
+        try {
+          const next = permissionEnvelope(await invoke(host, 'getAllPermissions'));
+          if (!alive || ticket !== revision) return;
+          adoptPermissions(next, options?.resetExpected);
+          loaded = true;
+          permissionsState = 'ready';
+          error = '';
+        } catch (cause) {
+          if (!alive || ticket !== revision) return;
+          permissionsState = 'failed';
+          error = cause instanceof Error ? cause.message : String(cause);
+          if (refreshPending === 'save')
+            writeNotice = 'Permissions saved. Could not refresh the current policy. Retry loading.';
+          else if (refreshPending === 'reset')
+            writeNotice =
+              'Default policy restored. Could not refresh the current policy. Local drafts are preserved.';
+        }
+      })(),
+      (async () => {
+        try {
+          const next = ruleReply(await invoke(host, 'getRules'));
+          if (!alive || ticket !== revision) return;
+          rules = next;
+          rulesLoaded = true;
+          rulesState = 'ready';
+          rulesLoadError = '';
+        } catch (cause) {
+          if (!alive || ticket !== revision) return;
+          rulesState = 'failed';
+          rulesLoadError = cause instanceof Error ? cause.message : String(cause);
+        }
+      })(),
     ]);
-    if (!alive || ticket !== revision) return;
-    const envelope = record(all);
-    permissions = { ...record(envelope.permissions), ...record(envelope.instancePermissions) };
-    rules = records(loadedRules);
-    loaded = true;
   }
   onMount(() => {
-    const refresh = () =>
-      load().catch((e) => {
-        if (alive) error = String(e);
-      });
+    const refresh = () => void load();
     refresh();
     const cleanup = host?.onRulesReloaded
       ? Reflect.apply(host.onRulesReloaded, host, [refresh])
@@ -151,6 +226,8 @@
   async function mutate(kind: 'save' | 'reset', action: () => Promise<void>) {
     if (mutation) throw new Error('A policy change is already in progress');
     mutation = kind;
+    // Only an acknowledged write invalidates reads of the previous persisted policy.
+    writeNotice = '';
     try {
       await action();
     } finally {
@@ -162,11 +239,20 @@
   }
   async function reset() {
     return mutate('reset', async () => {
-      confirmed(await invoke(host, 'resetPermissionsToDefaults'));
+      const reply = confirmed(await invoke(host, 'resetPermissionsToDefaults'));
+      if (!alive) return;
+      revision++;
+      acknowledged.clear();
+      refreshPending = 'reset';
+      writeNotice = 'Default policy restored. Refreshing the current policy.';
       onPermissionsChanged?.();
-      for (const key of Object.keys(drafts)) delete drafts[key];
-      draftBaseline = JSON.stringify(draft);
-      await load();
+      let resetExpected: RecordData | null = null;
+      try {
+        resetExpected = permissionMap(reply.permissions);
+      } catch {
+        // A confirmed command remains confirmed; missing readback evidence cannot seed defaults.
+      }
+      await load({ resetExpected });
     });
   }
   async function savePermissions() {
@@ -178,10 +264,15 @@
     confirmed(
       await invoke(host, 'saveInstancePermissions', { ...context, permissions: savingDraft }),
     );
+    if (!alive) return;
+    revision++;
+    retainDraft();
+    activeKey = '';
+    permissions = { ...permissions, [savingTarget]: savingDraft };
+    acknowledged.set(savingTarget, { key: savingKey, draft: savingDraft });
+    refreshPending = 'save';
+    writeNotice = 'Permissions saved. Refreshing the current policy.';
     onPermissionsChanged?.();
-    if (JSON.stringify(drafts[savingKey]) === JSON.stringify(savingDraft)) delete drafts[savingKey];
-    if (activeKey === savingKey && JSON.stringify(draft) === JSON.stringify(savingDraft))
-      draftBaseline = JSON.stringify(savingDraft);
     await load();
   }
   async function setRuleEnabled(rule: RecordData, enabled: boolean, input: HTMLInputElement) {
@@ -220,7 +311,17 @@
       )}
     </p>
   </div>
-  {#if error}<p role="alert">{error}</p>{/if}
+  {#if error}<p role="alert">{$t(error)}</p>{/if}
+  {#if writeNotice}<p role="status">{$t(writeNotice)}</p>{/if}
+  {#if permissionsState === 'loading'}<p role="status">{$t('Loading permissions…')}</p>
+  {:else if permissionsState === 'failed'}<p role="status">
+      {loaded
+        ? $t('Permissions unavailable. Showing last loaded preferences.')
+        : $t('Permissions unavailable. Retry loading.')}
+    </p>
+  {:else if !Object.keys(permissions).length}<p role="status">
+      {$t('No saved permission overrides.')}
+    </p>{/if}
   <div class="filterbar target-toolbar">
     <label class="target-field"
       ><span class="target-label">{$t('Agent')}</span>
@@ -228,7 +329,10 @@
         ><AgentLogo
           name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
           size={22}
-        /><select aria-label={$t('Target')} disabled={mutation === 'reset'} bind:value={target}
+        /><select
+          aria-label={$t('Target')}
+          disabled={!loaded || mutation === 'reset'}
+          bind:value={target}
           ><option value="">{$t('Select…')}</option>{#each options as option (option.key)}<option
               value={option.key}>{option.label}</option
             >{/each}</select
@@ -237,7 +341,7 @@
     ><label class="target-field"
       ><span class="target-label"><Icon name="cpu" />{$t('Apply to')}</span>
       <select
-        disabled={mutation === 'reset'}
+        disabled={!loaded || mutation === 'reset'}
         aria-label={$t('Scope')}
         bind:value={scope}
         onchange={() => (target = '')}
@@ -246,7 +350,9 @@
         ></select
       ></label
     ><Action disabled={mutation !== null} action={load}
-      ><Icon name="refresh" />{$t('Refresh')}</Action
+      ><Icon name="refresh" />{permissionsState === 'failed'
+        ? $t('Retry loading')
+        : $t('Refresh')}</Action
     >
   </div>
   <section class="panel">
@@ -256,7 +362,7 @@
           aria-label={$t(name)}
           title={$t(profiles[name][1])}
           data-id={$t(name)}
-          disabled={!target || mutation === 'reset'}
+          disabled={!loaded || !target || mutation === 'reset'}
           aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
           onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
           ><span class="preset-heading"
@@ -281,7 +387,7 @@
         </div>
         <select
           aria-label={$t(labels[category][1])}
-          disabled={!target || mutation === 'reset'}
+          disabled={!loaded || !target || mutation === 'reset'}
           bind:value={draft[category]}
         >
           <option value="allow">{$t('Prefer allow')}</option><option value="monitor"
@@ -292,7 +398,11 @@
     {/each}
     <div class="toolbar inset permission-save">
       <span role="status" class="draft-status"
-        >{dirty ? $t('Unsaved permissions') : $t('Permissions saved')}</span
+        >{loaded && target
+          ? dirty
+            ? $t('Unsaved permissions')
+            : $t('Permissions saved')
+          : ''}</span
       >
       <Action disabled={!loaded || !target || !dirty || mutation !== null} action={save}
         ><Icon name="check" />{$t('Save permissions')}</Action
@@ -300,18 +410,18 @@
         disabled={!dirty || mutation !== null}
         action={async () => {
           delete drafts[activeKey];
+          acknowledged.delete(contextKey);
           const current = effectivePolicy(contextKey, agents, permissions);
-          draft = Object.fromEntries(
-            categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
-          );
-          draftBaseline = JSON.stringify(draft);
+          draft = policyDraft(current);
+          draftBaseline = policySnapshot(draft);
+          writeNotice = '';
         }}><Icon name="close" />{$t('Discard changes')}</Action
       >
     </div>
     <details class="permission-reset">
       <summary>{$t('Restore default policy')}</summary>
       <p>{$t('This restores permissions for every agent and project.')}</p>
-      <Action disabled={mutation !== null} action={reset}
+      <Action disabled={!loaded || mutation !== null} action={reset}
         ><Icon name="refresh" />{$t('Reset all to defaults')}</Action
       >
     </details>
@@ -336,6 +446,16 @@
   <p class="rule-scope muted">
     {$t('Turning off a rule stops its file path match. Other sensors and detections continue.')}
   </p>
+  {#if rulesState === 'loading'}<p role="status">{$t('Loading detection rules…')}</p>
+  {:else if rulesState === 'failed'}
+    <p role="status">
+      {rulesLoaded
+        ? $t('Detection rules unavailable. Showing last loaded rules.')
+        : $t('Detection rules unavailable. Retry loading.')}
+    </p>
+    <p role="alert">{$t(rulesLoadError)}</p>
+    <Action action={load}><Icon name="refresh" />{$t('Retry loading')}</Action>
+  {/if}
   {#if ruleError}<p class="rule-error" role="alert">{ruleError}</p>{/if}
   <div class="filterbar rules-filter">
     <label class="search-field"
@@ -375,9 +495,11 @@
             ></tr
           >{:else}<tr
             ><td colspan="5" class="empty-rules"
-              >{ruleQuery
+              >{ruleQuery && rulesLoaded
                 ? $t('No rules match this search.')
-                : $t('No detection rules loaded.')}</td
+                : rulesState === 'ready'
+                  ? $t('No detection rules loaded.')
+                  : ''}</td
             ></tr
           >{/each}</tbody
       >

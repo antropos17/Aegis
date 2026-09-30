@@ -1646,5 +1646,22 @@
   "Display retained · desktop comparison unavailable": "Exibição mantida · comparação indisponível no desktop",
   "Select Windows AppContainer CLI to check selected files and executable metadata, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.": "Escolha Windows AppContainer CLI na verificação para verificar os arquivos selecionados e metadados do executável, este ambiente Windows, o terminal do processo atual e a presença do auxiliar. Verifique novamente no terminal interativo desejado; a inicialização e a compatibilidade com provedores instalados permanecem sem teste.",
   "Route observation status": "Estado da observação da rota",
-  "Observation request status": "Estado da solicitação de observação"
+  "Observation request status": "Estado da solicitação de observação",
+  "Loading permissions…": "Carregando permissões…",
+  "Permissions unavailable. Retry loading.": "Permissões indisponíveis. Tente carregar novamente.",
+  "Permissions unavailable. Showing last loaded preferences.": "Permissões indisponíveis. Exibindo as últimas preferências carregadas.",
+  "No saved permission overrides.": "Nenhuma exceção de permissão salva.",
+  "Loading detection rules…": "Carregando regras de detecção…",
+  "Detection rules unavailable. Retry loading.": "Regras de detecção indisponíveis. Tente carregar novamente.",
+  "Detection rules unavailable. Showing last loaded rules.": "Regras de detecção indisponíveis. Exibindo as últimas regras carregadas.",
+  "Permissions saved. Could not refresh the current policy. Retry loading.": "Permissões salvas. Não foi possível atualizar a política atual. Tente carregar novamente.",
+  "Permissions saved. Refreshing the current policy.": "Permissões salvas. Atualizando a política atual.",
+  "Current saved policy differs from the submitted permissions. Your draft is preserved.": "A política salva atual difere das permissões enviadas. Seu rascunho foi preservado.",
+  "Default policy restored. Could not refresh the current policy. Local drafts are preserved.": "Política padrão restaurada. Não foi possível atualizar a política atual. Os rascunhos locais foram preservados.",
+  "Default policy restored. Refreshing the current policy.": "Política padrão restaurada. Atualizando a política atual.",
+  "Default policy restored. Current saved policy differs from the reset reply. Local drafts are preserved.": "Política padrão restaurada. A política salva atual difere da resposta da restauração. Os rascunhos locais foram preservados.",
+  "Default policy restored. Could not confirm the current policy. Local drafts are preserved.": "Política padrão restaurada. Não foi possível confirmar a política atual. Os rascunhos locais foram preservados.",
+  "Permission reply is invalid": "A resposta de permissões é inválida",
+  "Permission reply is unavailable": "A resposta de permissões está indisponível",
+  "Detection rule reply is invalid": "A resposta de regras de detecção é inválida"
 }

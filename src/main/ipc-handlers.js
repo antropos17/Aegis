@@ -397,7 +397,7 @@ ${findingsHtml}${recsHtml}
       if (!isReservedPermissionKey(agent)) newPerms[agent] = config.getDefaultPermissions(agent);
     }
     config.saveSettings({ ...settings, agentPermissions: newPerms });
-    return { permissions: newPerms, seenAgents: settings.seenAgents };
+    return { success: true, permissions: newPerms, seenAgents: settings.seenAgents };
   });
 
   ipcMain.handle('get-agent-database', (event) => ownedRead(event, () => scanner.agentDb));

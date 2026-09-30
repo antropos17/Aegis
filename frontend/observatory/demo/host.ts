@@ -150,7 +150,7 @@ export function createPreviewHost(): Host {
     },
     resetPermissionsToDefaults: async () => {
       permissions = {};
-      return { permissions: {} };
+      return { success: true, permissions: {} };
     },
     getRules: async () => [
       {
