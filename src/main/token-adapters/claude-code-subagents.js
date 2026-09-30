@@ -147,11 +147,11 @@ function _listAgentFiles(sessionDir, fs) {
  * complete-line bytes, dedup with the shared `seenIds`. All failures → `[]`.
  * @param {string} file - absolute path to an `agent-*.jsonl`.
  * @param {SessionState} state - caller-owned tail + dedup state.
- * @param {(parsed:*) => ({id:string,model:string,inputTokens:number,outputTokens:number}|null)} extractUsage
+ * @param {(parsed:*) => ({id:string,model:string,inputTokens:number,outputTokens:number,inputBreakdown?: {uncached:number,read:number,write5m:number,write1h:number,writeUnknown:number}}|null)} extractUsage
  * @param {{ statSync: Function, readRange: Function }} fs - injected fs surface.
  * @param {{ warn: Function }} log - injected logger (fixed error codes only).
  * @param {{remaining: number}} budget Shared call byte budget.
- * @returns {Array<{ model: string, inputTokens: number, outputTokens: number, estimated: false }>}
+ * @returns {Array<{ model: string, inputTokens: number, outputTokens: number, estimated: false, inputBreakdown?: {uncached:number,read:number,write5m:number,write1h:number,writeUnknown:number} }>}
  */
 function _tailAgentFile(file, state, extractUsage, fs, log, budget) {
   let size;
@@ -202,6 +202,7 @@ function _tailAgentFile(file, state, extractUsage, fs, log, budget) {
       model: u.model,
       inputTokens: u.inputTokens,
       outputTokens: u.outputTokens,
+      ...(u.inputBreakdown ? { inputBreakdown: u.inputBreakdown } : {}),
       estimated: false,
     });
   }

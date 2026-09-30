@@ -45,6 +45,7 @@ const { readSubagentUsage, readTranscriptBatch } = require('./claude-code-subage
  *   price table → cost approximate downstream; tokens stay measured).
  * @property {number} inputTokens - input_tokens + cache_creation + cache_read.
  * @property {number} outputTokens - output_tokens.
+ * @property {{uncached:number, read:number, write5m:number, write1h:number, writeUnknown:number}} [inputBreakdown] - numeric cache categories only.
  * @property {boolean} estimated - always `false`: measured, not guessed.
  */
 
@@ -128,21 +129,41 @@ function _passesGuard(registry, proc) {
 /**
  * Allowlist-extract measured usage from one parsed line; `null` for non-assistant
  * or usage-less lines (content-bearing lines drop first). @param {*} parsed
- * @returns {{ id: string, model: string, inputTokens: number, outputTokens: number }|null}
+ * @returns {{ id: string, model: string, inputTokens: number, outputTokens: number, inputBreakdown?: {uncached:number, read:number, write5m:number, write1h:number, writeUnknown:number} }|null}
  */
 function _extractUsage(parsed) {
   if (!parsed || parsed.type !== 'assistant') return null;
   const msg = parsed.message;
   if (!msg || !msg.usage || typeof msg.id !== 'string') return null;
   const u = msg.usage;
-  const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
-  const inputTokens =
-    num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
+  const valid = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+  const num = (x) => (valid(x) ? x : 0);
+  const uncached = num(u.input_tokens);
+  const write = num(u.cache_creation_input_tokens);
+  const read = num(u.cache_read_input_tokens);
+  const inputTokens = uncached + write + read;
+  const duration = u.cache_creation;
+  const durationKnown =
+    duration &&
+    valid(duration.ephemeral_5m_input_tokens) &&
+    valid(duration.ephemeral_1h_input_tokens) &&
+    duration.ephemeral_5m_input_tokens + duration.ephemeral_1h_input_tokens === write;
   return {
     id: msg.id,
     model: typeof msg.model === 'string' ? msg.model : '',
     inputTokens,
     outputTokens: num(u.output_tokens),
+    ...(write || read
+      ? {
+          inputBreakdown: {
+            uncached,
+            read,
+            write5m: durationKnown ? duration.ephemeral_5m_input_tokens : 0,
+            write1h: durationKnown ? duration.ephemeral_1h_input_tokens : 0,
+            writeUnknown: durationKnown ? 0 : write,
+          },
+        }
+      : {}),
   };
 }
 
@@ -216,6 +237,7 @@ function _tailMain(tPath, st, pid, budget) {
       model: u.model,
       inputTokens: u.inputTokens,
       outputTokens: u.outputTokens,
+      ...(u.inputBreakdown ? { inputBreakdown: u.inputBreakdown } : {}),
       estimated: false,
     });
   }

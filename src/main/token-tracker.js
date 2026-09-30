@@ -8,8 +8,8 @@
  *   HONESTY MODEL (this drives the whole design). AEGIS cannot observe a
  *   monitored agent's real token usage: those counts live inside that agent's
  *   own TLS session to the model API and never appear on any wire AEGIS sees.
- *   The only place AEGIS ever holds a real `usage` block is its OWN analysis
- *   call (`ai-analysis.js` → `parsed.usage`). Therefore:
+ *   Measured counts can also come from allowlisted numeric usage in matching
+ *   local Claude Code transcripts. Coverage depends on readable supported files.
  *
  *   - A caller that HAS real measured counts passes them as-is → `estimated:false`.
  *   - A caller that only has a proxy computes counts itself and passes them with
@@ -42,53 +42,7 @@
 
 const { buildInstanceId } = require('./process-identity');
 
-/**
- * Published per-model pricing, in USD per 1,000,000 tokens, split into input
- * (prompt) and output (completion) rates.
- *
- * Claude rates verified 2026-06-05 (see the inline note on the Claude block).
- * GPT/Gemini rates are still approximate authoring-time guesses (their inline
- * `TODO: verify pricing`) and none of these auto-refresh — confirm against the
- * provider's current price sheet before presenting any dollar figure as
- * authoritative.
- * @type {Readonly<Record<string, { input: number, output: number }>>}
- */
-const MODEL_PRICING = Object.freeze({
-  // Anthropic — Claude (USD / 1M tokens). Verified 2026-06-05 against the
-  // bundled Anthropic `claude-api` skill (models.md + SKILL.md, cached
-  // 2026-05-26): Opus 4.6/4.7/4.8 = $5/$25, Sonnet 4.6 = $3/$15, Haiku 4.5 =
-  // $1/$5. These bare ids match what Claude Code writes to `message.model`
-  // (confirmed against live transcripts). Re-confirm on the next model launch.
-  'claude-opus-4-8': { input: 5.0, output: 25.0 },
-  'claude-opus-4-7': { input: 5.0, output: 25.0 },
-  'claude-opus-4-6': { input: 5.0, output: 25.0 },
-  'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
-  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
-  'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
-  'claude-opus-4-1': { input: 15.0, output: 75.0 }, // legacy Opus rate (pre price cut)
-  // OpenAI — GPT (USD / 1M tokens). TODO: verify pricing.
-  'gpt-4o': { input: 2.5, output: 10.0 },
-  'gpt-4o-mini': { input: 0.15, output: 0.6 },
-  // Google — Gemini (USD / 1M tokens). TODO: verify pricing.
-  'gemini-1.5-pro': { input: 1.25, output: 5.0 },
-});
-
-/**
- * Fallback price applied to a model id absent from {@link MODEL_PRICING}. Using
- * it forces `estimated:true` on the resulting cost, because the rate itself is a
- * guess for an unknown model.
- *
- * TODO: verify pricing — placeholder mid-range rate, not a real quote.
- * @type {Readonly<{ input: number, output: number }>}
- */
-const DEFAULT_PRICING = Object.freeze({ input: 3.0, output: 15.0 });
-
-/**
- * Tokens per 1,000,000 — divisor turning a token count into the per-million
- * units {@link MODEL_PRICING} is quoted in.
- * @type {number}
- */
-const TOKENS_PER_PRICED_UNIT = 1_000_000;
+const { MODEL_PRICING, DEFAULT_PRICING, computeCost } = require('./token-pricing');
 
 /**
  * @typedef {Object} ProcRef
@@ -111,6 +65,8 @@ const TOKENS_PER_PRICED_UNIT = 1_000_000;
  *   display layer). Rests on the unverified {@link MODEL_PRICING} table.
  * @property {boolean} estimated - true once ANY contributing event had estimated
  *   counts or used an unknown-model fallback price (sticky — never flips back).
+ * @property {boolean} [pricingEstimated] - sticky cache-pricing assumption flag;
+ *   an unknown write duration does not change measured token counts.
  * @property {string[]} models - distinct model ids that contributed, in first-seen order.
  */
 
@@ -119,6 +75,7 @@ const TOKENS_PER_PRICED_UNIT = 1_000_000;
  * @property {string} [model] - model id; matched against {@link MODEL_PRICING}.
  * @property {number} [inputTokens] - measured or caller-estimated input tokens.
  * @property {number} [outputTokens] - measured or caller-estimated output tokens.
+ * @property {{uncached:number, read:number, write5m:number, write1h:number, writeUnknown:number}} [inputBreakdown] - numeric input categories.
  * @property {boolean} [estimated] - set true when the counts above are an
  *   estimate the caller computed, not measured usage.
  */
@@ -142,27 +99,6 @@ function isPositiveNumber(v) {
  */
 function isNonNegativeNumber(v) {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0;
-}
-
-/**
- * Compute the USD cost of a single (model, tokens) pair. Pure — no module state.
- *
- * @param {string} model - model id; unknown ids fall back to {@link DEFAULT_PRICING}.
- * @param {number} inputTokens - input/prompt tokens (coerced to 0 if not finite ≥0).
- * @param {number} outputTokens - output/completion tokens (coerced to 0 if not finite ≥0).
- * @returns {{ costUsd: number, knownModel: boolean }} `knownModel:false` means the
- *   price came from the fallback table and the dollar figure is itself a guess.
- * @since v0.10.0-alpha
- */
-function computeCost(model, inputTokens, outputTokens) {
-  const inTok = isNonNegativeNumber(inputTokens) ? inputTokens : 0;
-  const outTok = isNonNegativeNumber(outputTokens) ? outputTokens : 0;
-  const knownModel = typeof model === 'string' && Object.hasOwn(MODEL_PRICING, model);
-  const price = knownModel ? MODEL_PRICING[model] : DEFAULT_PRICING;
-  const costUsd =
-    (inTok / TOKENS_PER_PRICED_UNIT) * price.input +
-    (outTok / TOKENS_PER_PRICED_UNIT) * price.output;
-  return { costUsd, knownModel };
 }
 
 /**
@@ -249,7 +185,12 @@ function trackTokens(proc, event) {
   const inTok = hasInput ? event.inputTokens : 0;
   const outTok = hasOutput ? event.outputTokens : 0;
   const model = typeof event.model === 'string' ? event.model : '';
-  const { costUsd, knownModel } = computeCost(model, inTok, outTok);
+  const { costUsd, knownModel, cachePricingEstimated } = computeCost(
+    model,
+    inTok,
+    outTok,
+    event.inputBreakdown,
+  );
 
   // estimated is sticky-true: caller-flagged estimate OR an unknown-model price.
   const eventEstimated = event.estimated === true || !knownModel;
@@ -259,6 +200,7 @@ function trackTokens(proc, event) {
   record.outputTokens += outTok;
   record.totalTokens = record.inputTokens + record.outputTokens;
   record.costUsd += costUsd;
+  if (cachePricingEstimated) record.pricingEstimated = true;
   record.estimated = record.estimated || eventEstimated;
   if (model && !record.models.includes(model)) record.models.push(model);
 
