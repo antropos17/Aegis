@@ -12,6 +12,7 @@
   } from '../runtime/local-security';
   import Icon from './Icon.svelte';
   import LocalSecurityResults from './LocalSecurityResults.svelte';
+  import ResultReview from './ResultReview.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   const prefix = $props.id();
   let mode = $state('scan');
@@ -247,6 +248,7 @@
       </div>
       <small>{$t('Observation and review do not enable automatic access blocking.')}</small>
     </section>{/if}
+  <ResultReview {host} {preview} />
 </div>
 
 <style>
