@@ -24,6 +24,46 @@ const fs = require('fs');
 
 /** Fixed seed for the first record of every daily file. */
 const GENESIS = 'AEGIS-AUDIT-GENESIS-v1';
+const TAIL_CHUNK_BYTES = 64 * 1024;
+const MAX_RECORD_BYTES = 1024 * 1024;
+const MAX_TAIL_BYTES = MAX_RECORD_BYTES + TAIL_CHUNK_BYTES;
+
+/** Read only the last nonempty line, with a bounded reverse-read budget.
+ * @param {string} filePath Daily journal path.
+ * @returns {string|null} Last line, or no line for an absent/empty file.
+ * @since 0.18.0
+ */
+function readTailLine(filePath) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) throw Error('audit-tail-unavailable');
+    let position = stat.size;
+    let tail = Buffer.alloc(0);
+    while (position > 0 && tail.length < MAX_TAIL_BYTES) {
+      const length = Math.min(TAIL_CHUNK_BYTES, position, MAX_TAIL_BYTES - tail.length);
+      position -= length;
+      const chunk = Buffer.allocUnsafe(length);
+      if (fs.readSync(fd, chunk, 0, length, position) !== length)
+        throw Error('audit-tail-unavailable');
+      tail = Buffer.concat([chunk, tail]);
+      const text = tail.toString('utf8').trimEnd();
+      const boundary = text.lastIndexOf('\n');
+      if (boundary >= 0) return text.slice(boundary + 1).trim();
+      if (position === 0) return text.trim();
+    }
+    if (position === 0) return null;
+    throw Error('audit-tail-unavailable');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 /**
  * Deterministic, insertion-order-independent serialization of a JSON value.
@@ -127,26 +167,32 @@ function verifyChain(filePath) {
  * @param {string} filePath - Path to today's audit file (may not exist yet).
  * @returns {{prevHash: string, seq: number}} GENESIS/0 if the file is absent,
  *   empty, or its last line predates hash-chaining.
+ * @throws {Error} Fixed, path-free code for an unreadable, oversized or invalid tail.
  * @since v0.1.0
  */
 function seedFromTail(filePath) {
-  let content;
   try {
-    content = fs.readFileSync(filePath, 'utf-8');
+    const line = readTailLine(filePath);
+    if (!line) return { prevHash: GENESIS, seq: 0 };
+    if (Buffer.byteLength(line, 'utf8') > MAX_RECORD_BYTES) throw Error();
+    const last = JSON.parse(line);
+    if (!last || typeof last !== 'object' || Array.isArray(last)) throw Error();
+    if (!Object.hasOwn(last, 'hash') && !Object.hasOwn(last, 'seq'))
+      return { prevHash: GENESIS, seq: 0 };
+    if (
+      typeof last.hash !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(last.hash) ||
+      !Number.isSafeInteger(last.seq) ||
+      last.seq < 0 ||
+      last.seq >= Number.MAX_SAFE_INTEGER
+    )
+      throw Error();
+    return { prevHash: last.hash, seq: last.seq + 1 };
   } catch (_) {
-    return { prevHash: GENESIS, seq: 0 };
+    // Filesystem and JSON parser causes can expose private paths or journal data.
+    // eslint-disable-next-line preserve-caught-error
+    throw Error('audit-tail-unavailable');
   }
-  const lines = content.split('\n').filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return { prevHash: GENESIS, seq: 0 };
-  try {
-    const last = JSON.parse(lines[lines.length - 1]);
-    if (typeof last.hash === 'string' && typeof last.seq === 'number') {
-      return { prevHash: last.hash, seq: last.seq + 1 };
-    }
-  } catch (_) {
-    /* fall through to GENESIS */
-  }
-  return { prevHash: GENESIS, seq: 0 };
 }
 
 module.exports = { GENESIS, canonical, computeHash, verifyChain, seedFromTail };
