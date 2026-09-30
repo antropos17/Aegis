@@ -29,6 +29,7 @@ const os = require('os');
 const path = require('path');
 const logger = require('../logger');
 const { readSubagentUsage, readTranscriptBatch } = require('./claude-code-subagents');
+const { readRegistry } = require('../claude-registry');
 
 /**
  * @typedef {Object} Proc
@@ -79,10 +80,9 @@ let _homedir = () => os.homedir();
 /**
  * Injectable fs surface. `readRange(path, start, length)` returns a Buffer slice —
  * production reads only the new bytes, never the whole file.
- * @type {{ readFileSync: Function, existsSync: Function, statSync: Function, readdirSync: Function, readRange: Function }}
+ * @type {{ existsSync: Function, statSync: Function, readdirSync: Function, readRange: Function }}
  */
 let _fs = {
-  readFileSync: (p, enc) => fs.readFileSync(p, enc),
   existsSync: (p) => fs.existsSync(p),
   statSync: (p) => fs.statSync(p),
   readdirSync: (p) => fs.readdirSync(p),
@@ -179,15 +179,12 @@ function _stateFor(sessionId) {
 
 /**
  * Read the registry for one pid → parsed object or `null` (absent / unreadable /
- * malformed); never logs the file body. @param {number} pid @returns {*}
+ * malformed); never logs the file body. @param {number} pid
+ * @param {{remaining:number}} budget Shared adapter byte budget. @returns {*}
  */
-function _readRegistry(pid) {
+function _readRegistry(pid, budget) {
   const p = path.join(_homedir(), '.claude', 'sessions', `${pid}.json`);
-  try {
-    return JSON.parse(_fs.readFileSync(p, 'utf-8'));
-  } catch (_err) {
-    return null;
-  }
+  return readRegistry(p, _fs, budget);
 }
 
 /**
@@ -255,7 +252,7 @@ function _readOneProc(proc, budget) {
   const pid = proc && proc.pid;
   if (!isPositivePid(pid)) return [];
 
-  const registry = _readRegistry(pid);
+  const registry = _readRegistry(pid, budget);
   if (!_passesGuard(registry, proc)) return [];
   const { sessionId, cwd } = registry;
   if (typeof sessionId !== 'string' || typeof cwd !== 'string') return [];

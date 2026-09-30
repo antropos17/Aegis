@@ -403,7 +403,7 @@ describe('adapter readUsage — end-to-end subagent summation (C-01 + multi-mode
     }
     const fixture = makeFs(files);
     fixture.readRange = vi.fn((file, start, length) =>
-      buffers.get(file).subarray(start, start + length),
+      (buffers.get(file) ?? Buffer.from(files[file])).subarray(start, start + length),
     );
     _setFsForTest(fixture);
     const all = [];
@@ -464,7 +464,12 @@ describe('adapter readUsage — end-to-end subagent summation (C-01 + multi-mode
         ),
       });
       const bytes = Buffer.from(fixture.store.get(file));
-      fixture.readRange = vi.fn((_file, start, length) => bytes.subarray(start, start + length));
+      const originalRead = fixture.readRange.bind(fixture);
+      fixture.readRange = vi.fn((currentFile, start, length) =>
+        currentFile === file
+          ? bytes.subarray(start, start + length)
+          : originalRead(currentFile, start, length),
+      );
       _setFsForTest(fixture);
       const rows = [];
       for (let tick = 0; tick < 4; tick++)

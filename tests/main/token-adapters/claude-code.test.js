@@ -236,7 +236,11 @@ describe('readUsage — offset tailing & cross-call dedup', () => {
       reads.mockClear();
       all.push(...(await readUsage([{ pid: 71, startTime: STARTED }])));
       expect(reads.mock.calls.every((call) => call[2] <= 65536)).toBe(true);
-      expect(reads.mock.calls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(1048576);
+      const transcriptCalls = reads.mock.calls.filter((call) => call[0] === file);
+      expect(transcriptCalls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(1048576);
+      expect(reads.mock.calls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(
+        4 * 1048576,
+      );
     }
     expect(all).toHaveLength(12000);
     expect(all.reduce((sum, row) => sum + row.inputTokens, 0)).toBe(24000);
@@ -392,8 +396,10 @@ describe('readUsage — privacy invariant (regression anchor)', () => {
       [sessionsPath(8)]: registry({ pid: 8, sessionId: sid, cwd }),
       [transcriptPath(cwd, sid)]: jsonl(assistantLine({ id: 'm', input: 1 })),
     });
-    fixture.readRange = () => {
-      throw new Error(SECRET);
+    const originalRead = fixture.readRange.bind(fixture);
+    fixture.readRange = (file, start, length) => {
+      if (file === transcriptPath(cwd, sid)) throw new Error(SECRET);
+      return originalRead(file, start, length);
     };
     _setFsForTest(fixture);
 
