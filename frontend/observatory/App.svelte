@@ -181,6 +181,8 @@
   let workspace: HTMLElement;
   let pageHead: HTMLDivElement;
   let statusFooter: HTMLElement;
+  let footerAtEnd = false;
+  let footerMaximum = 0;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
@@ -204,6 +206,9 @@
       return;
     event.preventDefault();
     statusFooter.scrollLeft += event.key === 'ArrowRight' ? 40 : -40;
+    // Keyboard intent is known now; scroll events may arrive after status layout changes.
+    footerMaximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
+    footerAtEnd = statusFooter.scrollLeft >= footerMaximum - 1;
   }
   let title = $derived(
     scope.agent && view === 'agents'
@@ -303,8 +308,6 @@
     const clearanceProperty = '--observatory-footer-height';
     const previousClearance = rootStyle.getPropertyValue(clearanceProperty);
     const previousClearancePriority = rootStyle.getPropertyPriority(clearanceProperty);
-    let footerAtEnd = false;
-    let footerMaximum = 0;
     const rememberFooterEnd = () => {
       const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
       // Layout can dispatch scroll before ResizeObserver. Compare against the
