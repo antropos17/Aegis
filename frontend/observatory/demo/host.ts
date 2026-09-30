@@ -169,6 +169,9 @@ export function createPreviewHost(): Host {
       return { success: true, id: _id, enabled };
     },
     getAuditStats: async () => ({
+      storageReadState: 'ready',
+      totalSize: 0,
+      currentSize: 0,
       totalEntries: 0,
       persistedEntries: 0,
       droppedEntries: 0,

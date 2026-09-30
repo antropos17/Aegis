@@ -1,5 +1,23 @@
 # AEGIS Observatory
 
+## Audit history and delivery reads — 30 September 2026
+
+History pages and delivery counters settle independently. A failed first history
+read remains unknown; a successful empty array has a separate empty-page message.
+Later failures preserve accepted rows, cursor, boundary offset and applied Type,
+along with local search and grouping. Retry repeats the captured request; a
+successful filter retry aligns the visible Type with the accepted page. The
+history retry control stays mounted during the pending attempt, and completion
+does not move focus away from a control selected by the user.
+
+Delivery has its own refresh. Failed reads retain previous counters with explicit
+feedback, while both stored and current byte sizes become unknown. Uninitialized
+counter defaults are not observations; unavailable storage does not erase valid
+independent delivery counters. Fixed English and Portuguese feedback omits host
+error text. The preview explicitly simulates readable empty storage. Existing
+section tabs, filters, observation groups and metadata remain the visual basis;
+these read states do not establish writeability or hash-chain integrity.
+
 ## Rules persistence and readback — 30 September 2026
 
 Permissions and detection rules load independently. Each section distinguishes
