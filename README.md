@@ -27,7 +27,7 @@ monitoring does not automatically intercept or block commands.
 
 The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
 
-The next release is being prepared as **0.18.0-beta** for Windows monitoring and
+The first beta target is **0.18.0-beta**, for Windows monitoring and
 operator-reviewed selected actions. [Beta readiness](docs/BETA-READINESS.md)
 records its release gates and remaining limits. The beta label does not qualify
 general agent containment or the experimental VM/provider routes.
@@ -84,7 +84,7 @@ Default monitoring observes and logs; it does not automatically block or contain
 
 The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
 
-The published version is currently alpha. This README describes current source;
+This README describes current source;
 installed builds contain the features available at their
 [release tag](https://github.com/antropos17/Aegis/releases).
 
