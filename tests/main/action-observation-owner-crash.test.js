@@ -79,12 +79,23 @@ function fixture(selection) {
       selection === 'catalog'
         ? ['--action-mcp-catalog-stdio', catalog]
         : ['--action-mcp-stdio', actions[0].policyPath, actions[0].requestPath];
-    const child = spawn(process.execPath, [main, ...args, '--observe', endpoint], {
-      cwd: root,
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, TEMP: root, TMP: root },
-    });
+    const child = spawn(
+      process.execPath,
+      [
+        '--require',
+        fileURLToPath(new URL('../fixtures/slow-observation-publication.cjs', import.meta.url)),
+        main,
+        ...args,
+        '--observe',
+        endpoint,
+      ],
+      {
+        cwd: root,
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, TEMP: root, TMP: root },
+      },
+    );
     owners.push(child);
     child.stdin.on('error', () => {});
     let output = '',

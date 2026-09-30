@@ -6,6 +6,7 @@ import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   observationFixtureDiagnostics,
   expectObservationState,
@@ -388,7 +389,13 @@ function nativeFixture(
   return { directory, policyPath, requestPath };
 }
 function nativeLaunch(argv) {
-  const child = spawn(process.execPath, ['src/main/main.js', ...argv], {
+  const publicationFixture = argv.includes('--observe')
+    ? [
+        '--require',
+        fileURLToPath(new URL('../fixtures/slow-observation-publication.cjs', import.meta.url)),
+      ]
+    : [];
+  const child = spawn(process.execPath, [...publicationFixture, 'src/main/main.js', ...argv], {
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
