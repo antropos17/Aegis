@@ -37,7 +37,15 @@
   let reviewRevision = 0;
   let reviewPending = $state(false);
   let centerTrigger: HTMLButtonElement;
+  let measureTrigger: (() => void) | undefined;
   const needsReview = $derived(alerts.filter((item) => !item.reviewed).length);
+
+  $effect(() => {
+    // Update the reserved footer lane in the same DOM update as the badge or label.
+    needsReview;
+    $t;
+    measureTrigger?.();
+  });
 
   $effect(() => {
     if (telemetry.stale) return;
@@ -73,21 +81,22 @@
       style.getPropertyPriority(property),
     ]);
     let alive = true;
-    const measureTrigger = () => {
+    const measure = () => {
       if (!alive) return;
       const box = centerTrigger.getBoundingClientRect();
       style.setProperty(properties[0], box.width + 'px');
       style.setProperty(properties[1], box.height + 'px');
     };
-    const observer =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureTrigger);
+    measureTrigger = measure;
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(centerTrigger);
-    window.addEventListener('resize', measureTrigger);
-    measureTrigger();
+    window.addEventListener('resize', measure);
+    measure();
     return () => {
       alive = false;
+      measureTrigger = undefined;
       observer?.disconnect();
-      window.removeEventListener('resize', measureTrigger);
+      window.removeEventListener('resize', measure);
       for (const [property, value, priority] of previous)
         if (value) style.setProperty(property, value, priority);
         else style.removeProperty(property);
