@@ -6,6 +6,7 @@
   });
 
   import { onMount, tick } from 'svelte';
+  import { mountFooterLayout } from './runtime/footer-layout';
   import {
     connectHost,
     emptyTelemetry,
@@ -181,8 +182,7 @@
   let workspace: HTMLElement;
   let pageHead: HTMLDivElement;
   let statusFooter: HTMLElement;
-  let footerAtEnd = false;
-  let footerMaximum = 0;
+  let footerLayout: ReturnType<typeof mountFooterLayout> | undefined;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
@@ -193,22 +193,7 @@
   let navigationRevision = 0;
   let themeChanged = false;
   function scrollFooter(event: KeyboardEvent) {
-    if (
-      event.defaultPrevented ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
-      event.isComposing ||
-      !['ArrowLeft', 'ArrowRight'].includes(event.key) ||
-      statusFooter.scrollWidth <= statusFooter.clientWidth
-    )
-      return;
-    event.preventDefault();
-    statusFooter.scrollLeft += event.key === 'ArrowRight' ? 40 : -40;
-    // Keyboard intent is known now; scroll events may arrive after status layout changes.
-    footerMaximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
-    footerAtEnd = statusFooter.scrollLeft >= footerMaximum - 1;
+    footerLayout?.scroll(event);
   }
   let title = $derived(
     scope.agent && view === 'agents'
@@ -304,37 +289,7 @@
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeHead);
     headObserver?.observe(pageHead);
     resizeHead();
-    const rootStyle = document.documentElement.style;
-    const clearanceProperty = '--observatory-footer-height';
-    const previousClearance = rootStyle.getPropertyValue(clearanceProperty);
-    const previousClearancePriority = rootStyle.getPropertyPriority(clearanceProperty);
-    const rememberFooterEnd = () => {
-      const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
-      // Layout can dispatch scroll before ResizeObserver. Compare against the
-      // geometry last observed by resize so status growth preserves the end anchor.
-      if (maximum === footerMaximum)
-        footerAtEnd = maximum > 0 && statusFooter.scrollLeft >= maximum - 1;
-    };
-    statusFooter.addEventListener('scroll', rememberFooterEnd);
-    const resizeFooter = () => {
-      if (alive) {
-        const maximum = Math.max(0, statusFooter.scrollWidth - statusFooter.clientWidth);
-        if (footerAtEnd) statusFooter.scrollLeft = maximum;
-        footerMaximum = maximum;
-        rootStyle.setProperty(
-          clearanceProperty,
-          (window.innerWidth >= 800 ? statusFooter.getBoundingClientRect().height : 0) + 'px',
-        );
-      }
-    };
-    const footerObserver =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeFooter);
-    footerObserver?.observe(statusFooter);
-    for (const status of statusFooter.children) footerObserver?.observe(status);
-    window.addEventListener('resize', resizeFooter);
-    window.addEventListener('observatory-alert-lane-before-resize', rememberFooterEnd);
-    window.addEventListener('observatory-alert-lane-resize', resizeFooter);
-    resizeFooter();
+    footerLayout = mountFooterLayout(statusFooter);
     const stop = connectHost(host, (value) => {
       telemetry = value;
     });
@@ -370,14 +325,8 @@
     return () => {
       alive = false;
       headObserver?.disconnect();
-      footerObserver?.disconnect();
-      window.removeEventListener('resize', resizeFooter);
-      window.removeEventListener('observatory-alert-lane-before-resize', rememberFooterEnd);
-      window.removeEventListener('observatory-alert-lane-resize', resizeFooter);
-      statusFooter.removeEventListener('scroll', rememberFooterEnd);
-      if (previousClearance)
-        rootStyle.setProperty(clearanceProperty, previousClearance, previousClearancePriority);
-      else rootStyle.removeProperty(clearanceProperty);
+      footerLayout?.destroy();
+      footerLayout = undefined;
       stop();
       if (typeof unsubscribe === 'function') unsubscribe();
       if (typeof stopNavigation === 'function') stopNavigation();
