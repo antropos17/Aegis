@@ -5,6 +5,7 @@ import {
   emptyTelemetry,
   invoke,
   type RecordData,
+  type Telemetry,
 } from '../../../frontend/observatory/runtime/host';
 import { createPreviewHost } from '../../../frontend/observatory/demo/host';
 
@@ -17,14 +18,16 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
-const telemetry = () => ({
+const telemetry = (): Telemetry => ({
   ...emptyTelemetry(),
   ready: true,
   stale: false,
-  agents: ['Codex', 'Claude Code'].map((agent, index) => ({
+  agents: ['Codex', 'Claude Code'].map((agent, index): Telemetry['agents'][number] => ({
     agent,
     process: 'agent.exe',
     pid: index + 1,
+    status: 'running',
+    category: 'cli-tool',
     instanceId: String(index + 1) + ':live',
     instanceIdSource: 'os',
   })),
