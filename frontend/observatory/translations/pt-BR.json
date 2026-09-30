@@ -1679,5 +1679,10 @@
   "Audit journal has not been initialized.": "O diário de auditoria ainda não foi inicializado.",
   "Refresh delivery counters": "Atualizar os contadores de entrega",
   "Delivery counters do not confirm that the history can be read.": "Os contadores de entrega não confirmam que o histórico pode ser lido.",
-  "{visible} of {loaded} loaded entries": "{visible} de {loaded} registros carregados"
+  "{visible} of {loaded} loaded entries": "{visible} de {loaded} registros carregados",
+  "Starting AEGIS": "Iniciando o AEGIS",
+  "Observation healthy": "Observação saudável",
+  "Observation limited": "Observação limitada",
+  "Observation unknown": "Observação desconhecida",
+  "AEGIS main process": "Processo principal do AEGIS"
 }
