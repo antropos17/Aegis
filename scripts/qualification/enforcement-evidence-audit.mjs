@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
@@ -10,7 +11,7 @@ const { verifyChain } = require('../../src/main/audit-hashchain');
  * @param {object} input Exact generated owner records. @returns {Promise<object>} Metadata and retained records. @since v0.17.0 */
 async function run(input) {
   const root = fs.realpathSync(input.root),
-    parent = fs.realpathSync(process.env.TEMP);
+    parent = fs.realpathSync(os.tmpdir());
   if (
     path.dirname(root) !== parent ||
     !path.basename(root).startsWith('aegis-evidence-') ||

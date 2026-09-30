@@ -8,7 +8,9 @@ Production launch remains unavailable; every receipt retains launchAllowed=false
 Run `node scripts/qualification/qualify-enforcement-evidence.mjs` without arguments.
 Only the generated loopback receiver and fixed audit child are started. The
 qualification imports no unmerged E4/E5/E7/E8 code. TEMP/TMP must select the task
-fixture directory; installed dependencies and sidecars are reused.
+fixture directory (TMPDIR on POSIX); parent and child both resolve os.tmpdir(),
+so Linux does not require the Windows TEMP variable. Installed dependencies and
+sidecars are reused.
 
 ## Owner events and correlation
 
