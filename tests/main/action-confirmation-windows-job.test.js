@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createFixtureProcesses } from '../helpers/fixture-processes';
 
 const require = createRequire(import.meta.url);
 const confirmation = require('../../src/main/action-confirmation');
@@ -13,6 +14,7 @@ const { spawnActionInWindowsJob } = require('../../src/main/mcp-gateway-windows-
 const project = path.resolve(import.meta.dirname, '../..');
 let helperRoot, helper, root;
 let pids = [];
+let processes;
 const alive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -100,14 +102,17 @@ describe.skipIf(process.platform !== 'win32')('confirmed Windows Job execution',
   });
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-confirm-job-'));
-    runner._setDepsForTest({ spawnProtected: (launch) => spawnActionInWindowsJob(launch, helper) });
+    processes = createFixtureProcesses();
+    runner._setDepsForTest({
+      spawnProtected: (launch) => processes.track(spawnActionInWindowsJob(launch, helper)),
+    });
   });
-  afterEach(() => {
+  afterEach(async () => {
     confirmation._resetForTest();
     runner._resetForTest();
     const marker = root && path.join(root, 'PRIVATE_TREE.json');
     if (marker && fs.existsSync(marker)) pids = JSON.parse(fs.readFileSync(marker, 'utf8'));
-    for (const pid of pids) if (alive(pid)) process.kill(pid, 'SIGKILL');
+    await processes.stopAndWait(pids);
     pids = [];
     removeFixture(root);
     root = undefined;
