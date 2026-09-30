@@ -415,9 +415,18 @@ function flush() {
     prevHash = _prevHash;
     seq = _seq;
   } else {
-    const seed = hashchain.seedFromTail(fp);
-    prevHash = seed.prevHash;
-    seq = seed.seq;
+    try {
+      const seed = hashchain.seedFromTail(fp);
+      prevHash = seed.prevHash;
+      seq = seed.seq;
+    } catch (error) {
+      _writeFailed = true;
+      _buffer = entries.concat(_buffer);
+      _trimToCap();
+      notifyDeliveryChange();
+      if (_onFlushError) _onFlushError(error);
+      return;
+    }
   }
 
   const out = [];

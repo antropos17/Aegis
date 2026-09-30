@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -9,15 +9,17 @@ describe('audit-hashchain', () => {
   /** @type {(prevHash: string, event: object) => string} */ let computeHash;
   /** @type {(filePath: string) => {valid: boolean, brokenAtSeq: number|null, reason: string}} */
   let verifyChain;
+  let seedFromTail;
   let tmpDir;
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-hashchain-test-'));
     const mod = await import('../../src/main/audit-hashchain.js');
-    ({ GENESIS, canonical, computeHash, verifyChain } = mod.default);
+    ({ GENESIS, canonical, computeHash, verifyChain, seedFromTail } = mod.default);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -39,6 +41,80 @@ describe('audit-hashchain', () => {
       .split('\n')
       .filter((l) => l.trim().length > 0);
   }
+
+  it('resumes a multi-chunk UTF-8 tail using bounded reads without reading the daily prefix', () => {
+    const fp = path.join(tmpDir, 'large.json');
+    const hash = 'a'.repeat(64);
+    fs.writeFileSync(
+      fp,
+      'legacy prefix\n'.repeat(200000) +
+        JSON.stringify({ seq: 41, hash, detail: 'é'.repeat(70000) }) +
+        '\r\n\n',
+    );
+    const whole = vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+      throw Error('whole-file-read-forbidden');
+    });
+    const reads = vi.spyOn(fs, 'readSync');
+    expect(seedFromTail(fp)).toEqual({ prevHash: hash, seq: 42 });
+    expect(whole).not.toHaveBeenCalled();
+    expect(reads.mock.calls.length).toBeGreaterThan(1);
+    expect(reads.mock.calls.every((call) => call[3] <= 65536)).toBe(true);
+    expect(reads.mock.calls.reduce((sum, call) => sum + call[3], 0)).toBeLessThanOrEqual(196608);
+  });
+  it('preserves fresh and legacy seeds but refuses a malformed trailing fragment after a valid chain', () => {
+    const fp = path.join(tmpDir, 'chain.json');
+    expect(seedFromTail(fp)).toEqual({ prevHash: GENESIS, seq: 0 });
+    fs.writeFileSync(fp, '\r\n  \t\n');
+    expect(seedFromTail(fp)).toEqual({ prevHash: GENESIS, seq: 0 });
+    fs.writeFileSync(fp, '{"type":"legacy"}\n');
+    expect(seedFromTail(fp)).toEqual({ prevHash: GENESIS, seq: 0 });
+    writeChain(fp, [{ type: 'first' }]);
+    fs.appendFileSync(fp, '{"type":"PRIVATE_FRAGMENT');
+    expect(() => seedFromTail(fp)).toThrow('audit-tail-unavailable');
+  });
+  it.each([
+    { seq: -1, hash: 'a'.repeat(64) },
+    { seq: 1.5, hash: 'a'.repeat(64) },
+    { seq: Number.MAX_SAFE_INTEGER, hash: 'a'.repeat(64) },
+    { seq: 1, hash: 'PRIVATE_INVALID_HASH' },
+    { seq: 1, hash: ['a'.repeat(64)] },
+  ])('refuses invalid chained tail metadata without exposing it: %j', (entry) => {
+    const fp = path.join(tmpDir, 'chain.json');
+    fs.writeFileSync(fp, JSON.stringify(entry) + '\n');
+    expect(() => seedFromTail(fp)).toThrow('audit-tail-unavailable');
+  });
+  it('bounds total recovery work for an oversized trailing record', () => {
+    const fp = path.join(tmpDir, 'oversized.json');
+    fs.writeFileSync(
+      fp,
+      JSON.stringify({ seq: 1, hash: 'a'.repeat(64), detail: 'x'.repeat(2 * 1024 * 1024) }) + '\n',
+    );
+    const reads = vi.spyOn(fs, 'readSync');
+    expect(() => seedFromTail(fp)).toThrow('audit-tail-unavailable');
+    expect(reads.mock.calls.every((call) => call[3] <= 65536)).toBe(true);
+    expect(reads.mock.calls.reduce((sum, call) => sum + call[3], 0)).toBeLessThanOrEqual(
+      1024 * 1024 + 65536,
+    );
+  });
+  it.each(['EACCES', 'EIO'])(
+    'refuses an unreadable existing tail with a fixed code: %s',
+    (code) => {
+      vi.spyOn(fs, 'openSync').mockImplementation(() => {
+        throw Object.assign(Error('PRIVATE_PATH'), { code });
+      });
+      expect(() => seedFromTail(path.join(tmpDir, 'private.json'))).toThrow(
+        'audit-tail-unavailable',
+      );
+    },
+  );
+  it('closes the journal descriptor when a concurrent truncation makes a reverse read short', () => {
+    const fp = path.join(tmpDir, 'short.json');
+    writeChain(fp, [{ type: 'first' }]);
+    const close = vi.spyOn(fs, 'closeSync');
+    vi.spyOn(fs, 'readSync').mockReturnValue(0);
+    expect(() => seedFromTail(fp)).toThrow('audit-tail-unavailable');
+    expect(close).toHaveBeenCalledOnce();
+  });
 
   it('canonical() is insertion-order independent (recursively)', () => {
     expect(canonical({ a: 1, b: 2 })).toBe(canonical({ b: 2, a: 1 }));

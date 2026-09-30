@@ -25,6 +25,52 @@ describe('audit-logger', () => {
     expect(fs.existsSync(auditDir)).toBe(true);
   });
 
+  it('retains buffered events and existing journal bytes when tail recovery fails, then resumes the prior chain', async () => {
+    const errors = [];
+    const deliveries = [];
+    const now = new Date('2026-10-01T12:00:00Z');
+    auditLogger.init({
+      userDataPath: tmpDir,
+      now: () => now,
+      onFlushError: (error) => errors.push(error.message),
+      onDeliveryChange: () => deliveries.push(auditLogger.getDeliveryStatus()),
+    });
+    await auditLogger._awaitIndexForTest();
+    const chain = (await import('../../src/main/audit-hashchain.js')).default;
+    const event = { type: 'old', timestamp: now.toISOString() };
+    const prefix =
+      JSON.stringify({ ...event, seq: 0, hash: chain.computeHash(chain.GENESIS, event) }) + '\n';
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const file = path.join(auditLogger.getLogDir(), `aegis-audit-${date}.json`);
+    const damaged = prefix + '{"PRIVATE_FRAGMENT';
+    fs.writeFileSync(file, damaged);
+    auditLogger.log('new', { agent: 'Synthetic' });
+    const append = vi.spyOn(fs, 'appendFileSync');
+    expect(() => auditLogger.flush()).not.toThrow();
+    expect(append).not.toHaveBeenCalled();
+    expect(fs.readFileSync(file, 'utf8')).toBe(damaged);
+    expect(errors).toEqual(['audit-tail-unavailable']);
+    expect(auditLogger.getDeliveryStatus()).toEqual({
+      bufferDepth: 1,
+      droppedEntries: 0,
+      writeFailed: true,
+    });
+    expect(deliveries.at(-1)).toMatchObject({ bufferDepth: 1, writeFailed: true });
+    // Simulate a separately completed repair; the logger itself never edits the old bytes.
+    fs.writeFileSync(file, prefix);
+    auditLogger.flush();
+    append.mockRestore();
+    const rows = fs.readFileSync(file, 'utf8').trim().split('\n').map(JSON.parse);
+    expect(rows.map((row) => row.seq)).toEqual([0, 1]);
+    expect(rows[1].type).toBe('new');
+    expect(auditLogger.verifyChain(file).valid).toBe(true);
+    expect(auditLogger.getDeliveryStatus()).toEqual({
+      bufferDepth: 0,
+      droppedEntries: 0,
+      writeFailed: false,
+    });
+  });
+
   it('log() creates structured entry with all fields', () => {
     auditLogger.init({ userDataPath: tmpDir });
     auditLogger.log('file-access', {
