@@ -6,6 +6,11 @@ import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  observationFixtureDiagnostics,
+  expectObservationState,
+} from '../shared/observation-fixture-state.js';
 
 const require = createRequire(import.meta.url);
 const api = require('../../src/main/action-mcp-stdio');
@@ -384,7 +389,13 @@ function nativeFixture(
   return { directory, policyPath, requestPath };
 }
 function nativeLaunch(argv) {
-  const child = spawn(process.execPath, ['src/main/main.js', ...argv], {
+  const publicationFixture = argv.includes('--observe')
+    ? [
+        '--require',
+        fileURLToPath(new URL('../fixtures/slow-observation-publication.cjs', import.meta.url)),
+      ]
+    : [];
+  const child = spawn(process.execPath, [...publicationFixture, 'src/main/main.js', ...argv], {
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -422,7 +433,7 @@ function nativeLaunch(argv) {
       });
       child.stdin.write(line(message));
     });
-  return { child, done, request };
+  return { child, done, request, diagnostics: observationFixtureDiagnostics(child) };
 }
 async function nativeStatus(client, id) {
   const reply = await client.request({
@@ -472,8 +483,7 @@ describe('actual Node MCP entry', () => {
       let observer;
       try {
         await vi.waitFor(() => expect(fs.existsSync(endpoint)).toBe(true));
-        observer = require('../../src/main/action-observation-client').observeActionRoute(endpoint);
-        await vi.waitFor(() => expect(observer.snapshot().state).toBe('awaiting-client'));
+        client.diagnostics.mark('endpoint-published');
         await client.request({
           jsonrpc: '2.0',
           id: 1,
@@ -484,8 +494,15 @@ describe('actual Node MCP entry', () => {
             clientInfo: { name: 'claude-code', version: '2.1.263' },
           },
         });
+        // The descriptor can exist while its bytes are still being written.
+        // An initialize reply proves runObservedMcp completed publication.
+        observer = require('../../src/main/action-observation-client').observeActionRoute(endpoint);
+        await vi.waitFor(() =>
+          expectObservationState(observer, 'awaiting-client', client.diagnostics),
+        );
         client.child.stdin.write(line({ jsonrpc: '2.0', method: 'notifications/initialized' }));
-        await vi.waitFor(() => expect(observer.snapshot().state).toBe('observed'), {
+        client.diagnostics.mark('initialized');
+        await vi.waitFor(() => expectObservationState(observer, 'observed', client.diagnostics), {
           timeout: 2500,
         });
         expect(observer.snapshot().snapshot.actionAttempts).toBe(0);
@@ -509,7 +526,10 @@ describe('actual Node MCP entry', () => {
         expect((await nativeStatus(client, 3)).messagesObserved).toBe(4);
         client.child.stdin.end();
         expect((await client.done).code).toBe(0);
-        await vi.waitFor(() => expect(observer.snapshot().state).toBe('coverage-lost'));
+        client.diagnostics.mark('owner-ended');
+        await vi.waitFor(() =>
+          expectObservationState(observer, 'coverage-lost', client.diagnostics),
+        );
         expect(fs.existsSync(endpoint)).toBe(false);
       } finally {
         observer?.close();
