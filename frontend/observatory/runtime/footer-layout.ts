@@ -58,6 +58,10 @@ export function mountFooterLayout(footer: HTMLElement) {
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
   observer?.observe(footer);
   for (const status of footer.children) observer?.observe(status);
+  // Text updates can increase scroll extent before a resize callback is delivered.
+  // Batch their DOM mutations independently of the next rendering frame.
+  const mutations = new MutationObserver(resize);
+  mutations.observe(footer, { childList: true, characterData: true, subtree: true });
   resize();
   return {
     scroll(event: KeyboardEvent) {
@@ -80,6 +84,7 @@ export function mountFooterLayout(footer: HTMLElement) {
     destroy() {
       alive = false;
       observer?.disconnect();
+      mutations.disconnect();
       cancelAnimationFrame(wheelFrame);
       footer.removeEventListener('scroll', remember);
       footer.removeEventListener('pointerdown', pointerDown);

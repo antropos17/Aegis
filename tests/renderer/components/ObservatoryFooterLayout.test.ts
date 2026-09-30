@@ -45,6 +45,13 @@ const end = () => {
 };
 
 describe('footer user intent during layout changes', () => {
+  it('preserves the end on text mutations before the next resize delivery', async () => {
+    end();
+    width = 350;
+    footer.lastElementChild!.textContent = 'A longer observed status';
+    await Promise.resolve();
+    expect(footer.scrollLeft).toBe(250);
+  });
   it('retains the keyboard end through deferred layout scroll events', () => {
     end();
     width = 350;
