@@ -702,7 +702,10 @@
       </div>
     </main>
     <footer>
-      <button onclick={openSensors}
+      <button
+        onfocus={(event) =>
+          event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+        onclick={openSensors}
         ><Icon name="shield" />{String(
           record(telemetry.stats.appHealth).state ?? 'Unobserved',
         )}</button
@@ -716,6 +719,8 @@
         class="audit-delivery"
         class:audit-loss={auditDropped !== null && auditDropped > 0}
         class:audit-write-failed={auditWriteFailed}
+        onfocus={(event) =>
+          event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
         onclick={openAuditDelivery}
         ><Icon name="history" />{$t('Audit delivery')}
         {#if auditDropped === null || auditPending === null}

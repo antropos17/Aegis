@@ -74,6 +74,7 @@
 }
 .observatory-app footer > span:nth-child(2) {
   white-space: nowrap;
+  flex-shrink: 0;
 }
 @media (max-height: 700px) {
   .radar-panel > .panel-head {
@@ -111,9 +112,6 @@
   }
   .page-head .workspace-caption {
     display: none;
-  }
-  .observatory-app footer > span:nth-child(2) {
-    white-space: normal;
   }
 }
 
