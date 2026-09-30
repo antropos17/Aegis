@@ -3,16 +3,20 @@ import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import App from '../../../frontend/observatory/App.svelte';
 import { createPreviewHost } from '../../../frontend/observatory/demo/host';
 
-const moduleLoad = vi.hoisted(() => ({ count: 0, release: null }));
+const moduleLoad = vi.hoisted(() => ({ count: 0, release: null, started: null, onStarted: null }));
 vi.mock('../../../frontend/observatory/components/LocalSecurity.svelte', async (importOriginal) => {
   moduleLoad.count++;
   await new Promise((resolve) => {
     moduleLoad.release = resolve;
+    moduleLoad.onStarted();
   });
   return importOriginal();
 });
 
 beforeAll(async () => {
+  moduleLoad.started = new Promise((resolve) => {
+    moduleLoad.onStarted = resolve;
+  });
   // Compile the real Svelte fixture outside the UI readiness assertion. Production
   // ships compiled chunks; cold Vitest transformation is not a navigation delay.
   // importActual bypasses the mock, so its lazy-load counter remains untouched.
@@ -33,6 +37,7 @@ it('loads the local review on first visit and retains its setup and result acros
   await fireEvent.click(navigation().getByRole('button', { name: 'Local security' }));
   expect(screen.getByRole('status', { name: 'Loading local security' })).toBeVisible();
   expect(screen.queryByRole('heading', { name: 'Start with a project folder' })).toBeNull();
+  await moduleLoad.started;
   expect(moduleLoad.count).toBe(1);
   moduleLoad.release();
   expect(
