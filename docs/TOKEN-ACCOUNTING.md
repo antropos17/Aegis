@@ -17,8 +17,21 @@ with a count, without a private path or content excerpt. Its usage is absent fro
 measured subtotal. Unreadable or malformed sources also limit coverage. These figures
 are observed usage, rather than a complete provider bill.
 
-Dollar amounts remain estimates from a local rate table. Cache read/write pricing
-needs separate accounting work ([#636](https://github.com/antropos17/Aegis/issues/636)).
+Dollar amounts remain estimates from a local rate table. For the existing known
+Claude 4.x/Haiku model entries, cache reads cost 0.1 times ordinary input; cache
+writes cost 1.25 times for five minutes and 2 times for one hour. The adapter keeps
+the measured aggregate input count while passing these numeric categories through
+both main and subagent transcripts. Duration fields must sum to the reported cache
+write total. Missing or inconsistent durations use the five-minute rate and set a
+sticky `pricingEstimated` flag; token counts remain measured. Unknown model IDs or
+invalid categories use the existing estimated fallback, rather than applying these
+multipliers to newer models with different rates.
+
+Rates were checked on 2026-10-01 against [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing)
+and [prompt caching usage fields](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+The table does not refresh automatically. Billing endpoint, batch discounts and
+other provider adjustments are not inferred from transcripts; these amounts are
+local estimates rather than invoice totals.
 Session/message-state retention and retained cost-record growth remain tracked in
 [#637](https://github.com/antropos17/Aegis/issues/637); bounded transcript reads do not
 resolve those memory-retention limits.
