@@ -106,13 +106,19 @@ describe.skipIf(process.platform !== 'win32')('Windows selected-action Job lifet
       spawnProtected: (launch) => spawnActionInWindowsJob(launch, helperPath),
     }),
   );
-  afterAll(() => {
+  afterAll(async () => {
     if (!helperRoot) return;
     expect(path.dirname(helperRoot)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(helperRoot).isSymbolicLink()).toBe(false);
-    fs.rmSync(helperRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-  });
-  afterEach(() => {
+    await fs.promises.rm(helperRoot, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
+    helperRoot = undefined;
+  }, 10000);
+  afterEach(async () => {
     runner._resetForTest();
     owner?.kill('SIGKILL');
     owner = undefined;
@@ -121,10 +127,12 @@ describe.skipIf(process.platform !== 'win32')('Windows selected-action Job lifet
     if (root) {
       expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
       expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
-      fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+      // PID exit observation does not establish directory-handle release.
+      // Yield during bounded removal retries instead of blocking exit callbacks.
+      await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
       root = undefined;
     }
-  });
+  }, 10000);
 
   it('returns the selected exit code and counts while withholding output', async () => {
     const selected = fixture(
