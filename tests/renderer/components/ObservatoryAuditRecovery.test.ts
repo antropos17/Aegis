@@ -22,6 +22,51 @@ const row = (id = 1, type = 'file-access') => ({
   action: 'read',
 });
 
+it('keeps historical totals unknown during seeding while admitting live queue observations', async () => {
+  const host = {
+    getAuditEntriesBefore: async () => [],
+    getAuditStats: vi
+      .fn()
+      .mockResolvedValueOnce({
+        historyReadState: 'building',
+        storageReadState: 'ready',
+        persistedEntries: 999,
+        totalEntries: 1000,
+        bufferDepth: 7,
+        droppedEntries: 3,
+        totalSize: 2048,
+        currentSize: 2048,
+      })
+      .mockResolvedValueOnce({
+        historyReadState: 'ready',
+        storageReadState: 'ready',
+        persistedEntries: 2345,
+        totalEntries: 2355,
+        bufferDepth: 7,
+        droppedEntries: 3,
+        totalSize: 2048,
+        currentSize: 2048,
+      }),
+  };
+  render(Reports, {
+    host,
+    telemetry: telemetry(),
+    audit: true,
+    inspect: vi.fn(),
+    navigate: vi.fn(),
+  });
+  await screen.findByText('0 audit entries loaded');
+  await fireEvent.click(screen.getByRole('tab', { name: 'Delivery' }));
+  const persisted = screen.getByText('persisted entries').parentElement!;
+  expect(within(persisted).getByText('—')).toBeVisible();
+  expect(screen.getByText('Historical audit counters are still loading.')).toBeVisible();
+  expect(screen.getByText('7', { selector: 'strong' })).toBeVisible();
+  expect(screen.getByText('3', { selector: 'strong' })).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery counters' }));
+  expect(await screen.findByText('2345', { selector: 'strong' })).toBeVisible();
+  expect(screen.queryByText('Historical audit counters are still loading.')).toBeNull();
+});
+
 it('admits a valid history page while delivery counters are still pending', async () => {
   const stats = deferred<unknown>();
   const host = {

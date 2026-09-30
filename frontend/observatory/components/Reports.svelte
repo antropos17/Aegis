@@ -320,6 +320,14 @@
     {:else if stats.storageReadState === 'uninitialized'}<p class="notice">
         {$t('Audit journal has not been initialized.')}
       </p>{/if}
+    {#if stats.historyReadState === 'building'}<p role="status" class="entity-note">
+        {$t('Historical audit counters are still loading.')}
+      </p>
+    {:else if stats.historyReadState === 'unavailable'}<p class="notice">
+        {$t(
+          'Historical audit counters unavailable. Live queue and loss observations remain separate.',
+        )}
+      </p>{/if}
     <button
       class="button"
       aria-disabled={loading}
