@@ -9,7 +9,7 @@ const MAX_INSTALLER_BYTES = 512 * 1024 * 1024;
 
 /** Validate a release tag without accepting paths or arbitrary channels. @param {string} tag @returns {string|null} @since 0.15.0 */
 function releaseVersion(tag) {
-  if (typeof tag !== 'string' || !/^aegis-v\d+\.\d+\.\d+(?:-alpha(?:\.\d+)?)?$/.test(tag))
+  if (typeof tag !== 'string' || !/^aegis-v\d+\.\d+\.\d+(?:-(?:alpha|beta)(?:\.\d+)?)?$/.test(tag))
     return null;
   return semver.valid(tag.slice(7));
 }
