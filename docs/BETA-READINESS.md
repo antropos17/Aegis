@@ -5,6 +5,28 @@ selected-action workflows. Check the [release page](https://github.com/antropos1
 for published versions and complete artifacts. Changing the prerelease channel
 does not itself publish an installer or establish release readiness.
 
+## Published Windows beta
+
+[0.18.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.18.0-beta)
+was published on 1 October 2026. Final beta revision `3c52c75`
+passed all ten mandatory Windows checks: 421 files, 7,623 passing tests and eight
+skipped, with compile cache disabled. The exact release PR passed five required
+CI contexts. The downloaded installer passed the repository's offline Ed25519
+manifest/hash verification; its extracted application passed a native smoke with
+an isolated profile, settings across restart and six exports.
+
+These checks do not establish installer installation/upgrade/uninstall behavior.
+Those scenarios remain unqualified; macOS/Linux and broader enforcement retain
+the limits below. Manifest signing is separate from Windows Authenticode.
+
+## Windows source-check prerequisites
+
+On a fresh Windows checkout, run `npm ci`, then warm Electron with
+`node -e "require('electron')"` and run `npm run build:sidecar` before the
+ten verification commands. The lazy Electron download must finish before tests
+using fake timers start; selected-action CLI tests also use the default built
+Windows helper. Preparation does not change their assertions or deadlines.
+
 ## Changes with completed development verification
 
 | Change | Evidence |
@@ -64,9 +86,9 @@ does not establish runtime-wide security clearance.
   through [offline verification](RELEASE-VERIFICATION.md). Signing uses the existing
   CI secret; local test artifacts are not signed releases.
 - The existing alpha version is preserved by Release Please's default versioning.
-  A one-time `release-as: 0.18.0-beta` selects the first beta explicitly. After its
-  authorized release PR is merged, remove this override before preparing another
-  release, as described in the [manifest configuration](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md).
+  The one-time `release-as: 0.18.0-beta` override selected the first beta and is
+  removed after publication. Later release PRs use the beta prerelease channel
+  without that fixed override, as described in the [manifest configuration](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md).
 
 ## Scope and remaining limits
 

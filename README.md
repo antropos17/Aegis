@@ -27,7 +27,7 @@ monitoring does not automatically intercept or block commands.
 
 The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
 
-The first beta target is **0.18.0-beta**, for Windows monitoring and
+The first beta release is [**0.18.0-beta**](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.18.0-beta), for Windows monitoring and
 operator-reviewed selected actions. [Beta readiness](docs/BETA-READINESS.md)
 records its release gates and remaining limits. The beta label does not qualify
 general agent containment or the experimental VM/provider routes.

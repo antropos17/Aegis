@@ -7,11 +7,19 @@
       "bump-minor-pre-major": true,
       "prerelease": true,
       "prerelease-type": "beta",
-      "release-as": "0.18.0-beta",
       "extra-files": [
-        { "type": "generic", "path": "README.md" },
-        { "type": "generic", "path": "llms.txt" },
-        { "type": "generic", "path": "llms-full.txt" }
+        {
+          "type": "generic",
+          "path": "README.md"
+        },
+        {
+          "type": "generic",
+          "path": "llms.txt"
+        },
+        {
+          "type": "generic",
+          "path": "llms-full.txt"
+        }
       ]
     }
   }
