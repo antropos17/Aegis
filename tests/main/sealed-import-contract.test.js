@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,6 +6,10 @@ import { createHash } from 'node:crypto';
 import { inspectSealedImportBundle } from '../../scripts/qualification/sealed-import-oracle.mjs';
 import { validateSealedImportReport } from '../../scripts/qualification/sealed-import-report.mjs';
 import { parseSealedImportArguments } from '../../scripts/qualification/qualify-sealed-import.mjs';
+import { createSealedImportHarness } from '../fixtures/sealed-import/harness.mjs';
+
+const corpora = createSealedImportHarness();
+afterAll(corpora.finish);
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const refused = {
@@ -29,9 +33,8 @@ const refused = {
 };
 
 function bundleFixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-sealed-oracle-'));
-  const source = path.join(root, 'source');
-  fs.mkdirSync(source);
+  const { root, source } = corpora.corpus('oracle');
+  fs.unlinkSync(path.join(source, 'readme.txt'));
   const bytes = Buffer.from([0, 255, 42]);
   fs.writeFileSync(path.join(source, 'sample.bin'), bytes);
   const manifest = Buffer.from(
