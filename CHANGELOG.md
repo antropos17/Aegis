@@ -20,6 +20,98 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.18.0-beta (2026-10-01)
+
+## What's Changed
+* fix(logger): bound operational log growth and startup seeding by @antropos17 in https://github.com/antropos17/Aegis/pull/647
+* fix(network): bound DNS concurrency per scan by @antropos17 in https://github.com/antropos17/Aegis/pull/649
+* fix(security): block malformed Claude hook invocations by @antropos17 in https://github.com/antropos17/Aegis/pull/650
+* fix: preserve monitoring state during partial identity loss by @antropos17 in https://github.com/antropos17/Aegis/pull/651
+* fix: limit sequence operational log metadata by @antropos17 in https://github.com/antropos17/Aegis/pull/652
+* Fix Restart Manager holder generation attribution by @antropos17 in https://github.com/antropos17/Aegis/pull/653
+* fix: handle reserved custom agent names safely by @antropos17 in https://github.com/antropos17/Aegis/pull/654
+* fix: reject network scans with stale process scope by @antropos17 in https://github.com/antropos17/Aegis/pull/655
+* fix: bound alternation in custom path regexes by @antropos17 in https://github.com/antropos17/Aegis/pull/656
+* fix: reject UNC paths before reveal filesystem access by @antropos17 in https://github.com/antropos17/Aegis/pull/657
+* fix: classify local mapped and IPv6 network endpoints by @antropos17 in https://github.com/antropos17/Aegis/pull/658
+* fix: escape untrusted AI analysis telemetry by @antropos17 in https://github.com/antropos17/Aegis/pull/659
+* fix: clarify retained audit export scope by @antropos17 in https://github.com/antropos17/Aegis/pull/660
+* fix: continue private report retention past sweep cap by @antropos17 in https://github.com/antropos17/Aegis/pull/661
+* fix: report failed Windows handle scans in sensor health by @antropos17 in https://github.com/antropos17/Aegis/pull/662
+* test: restore Windows Electron smoke coverage by @antropos17 in https://github.com/antropos17/Aegis/pull/663
+* fix: enforce report retention cap across directory batches by @antropos17 in https://github.com/antropos17/Aegis/pull/664
+* fix: bind Windows CWD to process generation by @antropos17 in https://github.com/antropos17/Aegis/pull/665
+* fix(tokens): surface missing birth-time coverage by @antropos17 in https://github.com/antropos17/Aegis/pull/666
+* fix: report skipped process scan intervals by @antropos17 in https://github.com/antropos17/Aegis/pull/667
+* fix: clarify retained file-event rate by @antropos17 in https://github.com/antropos17/Aegis/pull/668
+* feat(audit): surface current-session delivery loss by @antropos17 in https://github.com/antropos17/Aegis/pull/669
+* fix(sensor): propagate POSIX handle query failures by @antropos17 in https://github.com/antropos17/Aegis/pull/670
+* fix(audit): publish live delivery status by @antropos17 in https://github.com/antropos17/Aegis/pull/671
+* fix(monitoring): reject stale file-handle owners after async scans by @antropos17 in https://github.com/antropos17/Aegis/pull/672
+* fix(monitoring): bound handle dedup and retain overflow loss by @antropos17 in https://github.com/antropos17/Aegis/pull/673
+* fix(monitoring): reset handle dedup on witnessed PID reuse by @antropos17 in https://github.com/antropos17/Aegis/pull/674
+* docs(github): refresh 0.17 presentation and source references by @antropos17 in https://github.com/antropos17/Aegis/pull/675
+* Add sensitive activity review and guarded process shortcut by @antropos17 in https://github.com/antropos17/Aegis/pull/676
+* feat(actions): confirm selected Windows Job launches by @antropos17 in https://github.com/antropos17/Aegis/pull/677
+* feat: isolate confirmed Windows actions in AppContainer by @antropos17 in https://github.com/antropos17/Aegis/pull/678
+* perf: optimize bounded IPC event batching by @antropos17 in https://github.com/antropos17/Aegis/pull/680
+* feat: expose Windows AppContainer route preflight by @antropos17 in https://github.com/antropos17/Aegis/pull/679
+* perf(scan): overlap local runtime probes with CWD enrichment by @antropos17 in https://github.com/antropos17/Aegis/pull/681
+* feat: persist sensitive alert review state by @antropos17 in https://github.com/antropos17/Aegis/pull/682
+* feat: import one approved file into AppContainer action by @antropos17 in https://github.com/antropos17/Aegis/pull/683
+* perf: skip premature file-event dedup sweeps by @antropos17 in https://github.com/antropos17/Aegis/pull/684
+* fix: bind AppContainer executable to launch approval by @antropos17 in https://github.com/antropos17/Aegis/pull/685
+* Track retained AppContainer workspaces privately by @antropos17 in https://github.com/antropos17/Aegis/pull/686
+* Verify descendant loopback restriction in AppContainer tests by @antropos17 in https://github.com/antropos17/Aegis/pull/687
+* Check AppContainer executable prerequisites before launch by @antropos17 in https://github.com/antropos17/Aegis/pull/688
+* perf(scan): reuse process snapshot for IDE extension discovery by @antropos17 in https://github.com/antropos17/Aegis/pull/689
+* docs(perf): record completed Windows post-sprint profile by @antropos17 in https://github.com/antropos17/Aegis/pull/690
+* docs(protection): prepare enforcement E0 architecture review by @antropos17 in https://github.com/antropos17/Aegis/pull/691
+* feat(protection): add inactive session supervisor protocol by @antropos17 in https://github.com/antropos17/Aegis/pull/692
+* docs(protection): define token research limits and launch qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/693
+* test(protection): qualify filesystem access and propose guest boundary by @antropos17 in https://github.com/antropos17/Aegis/pull/694
+* test(protection): add VM admission and recovery fixture by @antropos17 in https://github.com/antropos17/Aegis/pull/695
+* feat(enforcement): add native bootstrap qualification fixture by @antropos17 in https://github.com/antropos17/Aegis/pull/696
+* feat(enforcement): qualify bounded channel and fixed Node/Git task by @antropos17 in https://github.com/antropos17/Aegis/pull/697
+* feat(enforcement): integrate local qualification and result review by @antropos17 in https://github.com/antropos17/Aegis/pull/710
+* feat(enforcement): qualify sealed host import fixtures by @antropos17 in https://github.com/antropos17/Aegis/pull/703
+* test(enforcement): qualify scoped MCP workflows by @antropos17 in https://github.com/antropos17/Aegis/pull/704
+* feat(enforcement): broker bounded model requests by @antropos17 in https://github.com/antropos17/Aegis/pull/705
+* feat(enforcement): qualify provider adapter evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/706
+* feat(enforcement): inspect retained result bundles by @antropos17 in https://github.com/antropos17/Aegis/pull/707
+* feat(enforcement): correlate local decisions and observed effects by @antropos17 in https://github.com/antropos17/Aegis/pull/708
+* feat(enforcement): verify offline helper artifacts by @antropos17 in https://github.com/antropos17/Aegis/pull/709
+* test(windows): await bounded native fixture cleanup by @antropos17 in https://github.com/antropos17/Aegis/pull/711
+* feat(ui): clarify local security actions and result review by @antropos17 in https://github.com/antropos17/Aegis/pull/712
+* fix(enforcement): reject terminal input buffered before preview by @antropos17 in https://github.com/antropos17/Aegis/pull/713
+* fix: preserve permission drafts and confirmed reset status by @antropos17 in https://github.com/antropos17/Aegis/pull/714
+* fix(ui): keep footer status readable and keyboard accessible by @antropos17 in https://github.com/antropos17/Aegis/pull/715
+* fix(audit): preserve readable history and truthful delivery state by @antropos17 in https://github.com/antropos17/Aegis/pull/716
+* fix(updates): authenticate beta releases and preserve channel progression by @antropos17 in https://github.com/antropos17/Aegis/pull/717
+* chore(deps): bump the npm-minor-patch group with 5 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/698
+* fix(audit): bound chain tail recovery and preserve pending events by @antropos17 in https://github.com/antropos17/Aegis/pull/718
+* fix(packaging): rebuild the production renderer before every package by @antropos17 in https://github.com/antropos17/Aegis/pull/719
+* fix(tokens): bound Claude transcript reads across each scan by @antropos17 in https://github.com/antropos17/Aegis/pull/720
+* docs(release): prepare beta channel, readiness and upgrade guidance by @antropos17 in https://github.com/antropos17/Aegis/pull/721
+* test(windows): await fixture closure and isolate native helper builds by @antropos17 in https://github.com/antropos17/Aegis/pull/722
+* chore(release): select the first beta version explicitly by @antropos17 in https://github.com/antropos17/Aegis/pull/723
+* fix(ui): localize health states and preserve readable footer status by @antropos17 in https://github.com/antropos17/Aegis/pull/724
+* fix(audit): seed historical counters in bounded cancellable turns by @antropos17 in https://github.com/antropos17/Aegis/pull/725
+* test(mcp): wait for endpoint publication before observation by @antropos17 in https://github.com/antropos17/Aegis/pull/727
+* test(ui): make lazy review readiness deterministic by @antropos17 in https://github.com/antropos17/Aegis/pull/728
+* fix(tokens): account for Claude cache read and write pricing by @antropos17 in https://github.com/antropos17/Aegis/pull/726
+* test(windows): await bounded Job fixture removal by @antropos17 in https://github.com/antropos17/Aegis/pull/729
+* docs(beta): refresh public images and verified release scope by @antropos17 in https://github.com/antropos17/Aegis/pull/730
+* docs(beta): keep release scope accurate across publication by @antropos17 in https://github.com/antropos17/Aegis/pull/731
+* fix(tokens): bound Claude session registry reads by @antropos17 in https://github.com/antropos17/Aegis/pull/732
+* fix(tokens): rotate bounded Claude scans to prevent starvation by @antropos17 in https://github.com/antropos17/Aegis/pull/733
+* docs(beta): record final combined development checks by @antropos17 in https://github.com/antropos17/Aegis/pull/734
+* test(sealed-import): clean owned corpora after fixture completion by @antropos17 in https://github.com/antropos17/Aegis/pull/735
+* fix(deps): update beta runtime and vulnerable dependency ranges by @antropos17 in https://github.com/antropos17/Aegis/pull/736
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.17.0-alpha...aegis-v0.18.0-beta
+
 ## 0.17.0-alpha (2026-09-27)
 
 ## What's Changed
