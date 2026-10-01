@@ -1,6 +1,6 @@
 {
   "name": "aegis",
-  "version": "0.17.0-alpha",
+  "version": "0.18.0-beta",
   "description": "Desktop monitoring and local security reviews for AI agents, with opt-in policy-controlled execution and MCP action tools.",
   "main": "src/main/main.js",
   "scripts": {
