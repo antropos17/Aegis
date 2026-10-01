@@ -15,6 +15,7 @@ import { validateSealedImportReport } from '../../../scripts/qualification/seale
 export function createSealedImportHarness() {
   const scratch = process.env.AEGIS_SEALED_IMPORT_TEST_TMP || os.tmpdir();
   const receipts = [];
+  const corpora = new Set();
   let build;
   function setup() {
     fs.mkdirSync(scratch, { recursive: true });
@@ -22,6 +23,7 @@ export function createSealedImportHarness() {
   }
   function corpus(name) {
     const root = fs.mkdtempSync(path.join(scratch, `aegis-sealed-${name}-`));
+    corpora.add(path.resolve(root));
     const source = path.join(root, 'source');
     const output = path.join(root, 'output');
     fs.mkdirSync(source);
@@ -57,7 +59,7 @@ export function createSealedImportHarness() {
     expect(fs.existsSync(path.join(fixture.output, 'bundle.aegis'))).toBe(false);
     return result;
   }
-  function finish() {
+  function writeReceipt() {
     const destination = process.env.AEGIS_SEALED_IMPORT_TEST_RECEIPT;
     if (!destination || !build) return;
     const sourceFiles = [
@@ -92,6 +94,38 @@ export function createSealedImportHarness() {
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
+    }
+  }
+  async function removeOwned(entry, root) {
+    if (entry !== root && !entry.startsWith(root + path.sep)) {
+      throw new Error('Disposable corpus cleanup escaped its owned root');
+    }
+    try {
+      const stat = await fs.promises.lstat(entry);
+      if (stat.isSymbolicLink()) return;
+      if (stat.isDirectory()) {
+        for (const name of await fs.promises.readdir(entry)) {
+          await removeOwned(path.join(entry, name), root);
+        }
+        await fs.promises.rmdir(entry);
+      } else {
+        await fs.promises.unlink(entry);
+      }
+    } catch (error) {
+      if (!['ENOENT', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EBUSY'].includes(error.code)) throw error;
+    }
+  }
+  async function finish() {
+    try {
+      writeReceipt();
+    } finally {
+      for (const root of corpora) {
+        if (path.dirname(root) !== path.resolve(scratch)) {
+          throw new Error('Disposable corpus must be a direct child of the test scratch directory');
+        }
+        await removeOwned(root, root);
+      }
+      corpora.clear();
     }
   }
   return { setup, corpus, run, rejected, finish };
