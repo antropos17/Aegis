@@ -20,6 +20,7 @@ export function createSealedImportHarness() {
   function setup() {
     fs.mkdirSync(scratch, { recursive: true });
     build = buildSealedImportFixture(scratch);
+    corpora.add(path.resolve(build.scratch));
   }
   function corpus(name) {
     const root = fs.mkdtempSync(path.join(scratch, `aegis-sealed-${name}-`));
@@ -97,6 +98,9 @@ export function createSealedImportHarness() {
     }
   }
   async function removeOwned(entry, root) {
+    if (path.dirname(root) !== path.resolve(scratch)) {
+      throw new Error('Disposable corpus must be a direct child of the test scratch directory');
+    }
     if (entry !== root && !entry.startsWith(root + path.sep)) {
       throw new Error('Disposable corpus cleanup escaped its owned root');
     }
@@ -120,9 +124,6 @@ export function createSealedImportHarness() {
       writeReceipt();
     } finally {
       for (const root of corpora) {
-        if (path.dirname(root) !== path.resolve(scratch)) {
-          throw new Error('Disposable corpus must be a direct child of the test scratch directory');
-        }
         await removeOwned(root, root);
       }
       corpora.clear();

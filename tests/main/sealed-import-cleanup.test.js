@@ -44,6 +44,9 @@ describe('sealed import disposable corpus lifetime', () => {
       expect(harness.run(fixture).status).toBe(0);
       await harness.finish();
       expect(fs.existsSync(fixture.root)).toBe(false);
+      expect(
+        fs.readdirSync(scratch).filter((name) => name.startsWith('aegis-sealed-build-')),
+      ).toEqual([]);
       const preserved = fs.readFileSync(destination, 'utf8');
       expect(JSON.parse(preserved).nativeCases).toHaveLength(1);
       expect(JSON.parse(preserved).launchAllowed).toBe(false);
