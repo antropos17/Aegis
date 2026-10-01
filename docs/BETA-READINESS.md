@@ -1,8 +1,8 @@
 # First beta readiness — 1 October 2026
 
 Target: **0.18.0-beta**, Windows desktop monitoring and explicitly reviewed
-selected-action workflows. The published version remains 0.17.0-alpha until a
-new release is authorized, built and uploaded. Changing the prerelease channel
+selected-action workflows. Check the [release page](https://github.com/antropos17/Aegis/releases)
+for published versions and complete artifacts. Changing the prerelease channel
 does not itself publish an installer or establish release readiness.
 
 ## Changes with completed development verification
@@ -21,6 +21,14 @@ does not itself publish an installer or establish release readiness.
 | Lazy local-review tests separate module compilation from loading behavior | [PR #728](https://github.com/antropos17/Aegis/pull/728), controlled pending import, unchanged visible-state assertions and deadlines, two fresh focused runs and five successful required CI contexts |
 | Claude cache-read and duration-specific write prices | [PR #726](https://github.com/antropos17/Aegis/pull/726), real main/subagent transcript accounting, cross-file deduplication and unknown-duration/model regressions; 65 focused passing tests and five successful required CI contexts |
 | Asynchronous bounded Windows Job fixture deletion | [PR #729](https://github.com/antropos17/Aegis/pull/729), ten consecutive native runs of ten tests; combined Windows coverage at `f9b61ec`: 418 files / 7,615 passing tests, eight skipped, compile cache disabled; five successful required CI contexts |
+| Bounded Claude session registries, including stat/read races | [PR #732](https://github.com/antropos17/Aegis/pull/732), five public-adapter regressions, 45 focused passing tests, all ten mandatory Windows checks and five successful required CI contexts |
+| Claude process fairness under continuously growing transcripts | [PR #733](https://github.com/antropos17/Aegis/pull/733), real continuously appended transcripts failed before rotation and now observe later-process usage once; 59 focused passing tests and five successful required CI contexts |
+
+Combined development revision `2c5d78c` passed all ten mandatory Windows checks:
+420 files, 7,621 passing tests and eight skipped, with compile cache disabled.
+The unchanged production interface passed a fresh browser matrix at `5b0f022`
+(264 workspace and 160 footer checks), followed by native Electron checks of
+eight footer scenarios, twelve Statistics labels and four text-growth cases.
 
 These checks belong to their recorded PR revisions. Final combined-source checks
 and a final-version installer smoke are separate release gates. A source or
