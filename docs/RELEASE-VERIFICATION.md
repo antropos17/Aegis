@@ -158,8 +158,10 @@ not a custom post-processing step.
 `.github/workflows/release-build.yml` runs on every published Release and on the
 release-please path:
 
-1. It refuses to start unless `AEGIS_RELEASE_SIGNING_KEY` is available to the job. There
-   is no code path that publishes an unsigned installer.
+1. It refuses to start unless `AEGIS_RELEASE_SIGNING_KEY` is available to the job.
+   Publication requires a signed manifest covering the installer. This Ed25519
+   manifest signature is separate from Windows Authenticode code signing; it does
+   not make the executable an Authenticode-signed application.
 2. It builds the installer and stages exactly the files that will be uploaded.
 3. `scripts/release-sign.js` writes `manifest.json` and signs its bytes.
 4. `scripts/release-verify.js` re-checks that manifest against the **public** key

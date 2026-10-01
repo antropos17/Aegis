@@ -34,12 +34,25 @@ These checks belong to their recorded PR revisions. Final combined-source checks
 and a final-version installer smoke are separate release gates. A source or
 unpacked-application smoke does not prove installation or upgrade behavior.
 
+## Runtime dependency update
+
+[PR #736](https://github.com/antropos17/Aegis/pull/736) updates the locked
+Electron runtime from 43.4.1 to 43.5.0 and compatible brace-expansion, minimatch,
+undici and fast-uri entries. A fresh installation and full npm audit report zero
+registry findings; no direct major upgrade or new override is included.
+
+Electron 43.5.0 embeds Node 24.19.0. The upstream embedded Undici version is
+7.29.0, which npm audit does not inventory. Current main/shared code uses Node
+HTTP(S) and electron.net.fetch; a static search found no Node fetch, WebSocket,
+Undici interceptors or BalancedPool call sites. This limited reachability check
+does not establish runtime-wide security clearance.
+
 ## Release gates
 
-- Resolve the shipped Electron runtime advisory and review all dependency changes.
-  Electron 43.4.1 is a development dependency but ships in the desktop runtime;
-  a clean `npm audit --omit=dev` cannot clear that risk. See the
-  [Electron advisory](https://github.com/electron/electron/security/advisories/GHSA-qmv3-fv6v-rmhq).
+- Verify the shipped runtime, including embedded libraries outside the npm graph.
+  The locked Electron 43.5.0 update addresses the reported Electron 43.4.1
+  [advisory](https://github.com/electron/electron/security/advisories/GHSA-qmv3-fv6v-rmhq).
+  A clean production-only npm audit does not qualify the desktop runtime.
 - Verify the final combined source with the ten commands in [AGENTS.md](../AGENTS.md),
   a fresh `npm ci`, Windows native fixtures, the production renderer and packaged
   smoke. Retain failures and the actual tested revision. Windows concurrency
