@@ -1,5 +1,15 @@
 # AEGIS Observatory
 
+## Token history retention — 5 October 2026
+
+The token source list labels the aggregate of older exited records as archived
+usage and displays its compacted record count instead of a PID. The current agent
+table and rates continue to use exact live identities; the archive has no process
+identity and cannot contribute to those values. All live counters and 256 recent
+exited rows remain individually retained. Model label omissions have an explicit
+notice and do not change numeric usage, cost or uncertainty flags. This retention
+does not bound the Claude Code transcript adapter's separate dedup state.
+
 ## Observation status — 1 October 2026
 
 The sensor shortcut and Statistics sensor coverage use the same localized observation labels for startup, healthy,
