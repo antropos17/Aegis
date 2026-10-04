@@ -19,6 +19,41 @@ These checks do not establish installer installation/upgrade/uninstall behavior.
 Those scenarios remain unqualified; macOS/Linux and broader enforcement retain
 the limits below. Manifest signing is separate from Windows Authenticode.
 
+## Post-publication follow-up — 5 October 2026
+
+The download remains **0.18.0-beta**. Subsequent source changes need a separately
+verified package and release; PR #738 is still the next release proposal.
+
+[PR #739](https://github.com/antropos17/Aegis/pull/739) replaces Chokidar 3 with
+4.0.3 and pins devalue 5.9.3 and http-cache-semantics 4.3.0. Fresh production and
+full npm audits report zero findings. A real Windows Electron watch-worker fixture
+observes add/change/unlink in a literal brace-containing directory and ignores the
+lockfile. One unchanged component test timed out during concurrent browser QA;
+its isolated rerun and a complete coverage run with two workers passed without
+changing the test or its deadline.
+
+Exited token-cost history now compacts into one explicit archive after 256 recent
+exited records; all live records, run totals and uncertainty flags remain. Provider
+and identity outages, suspend gaps and exit grace prevent premature compaction.
+Regression tests exercise 10,000 identities and 600 live records, and a disposable
+Electron profile renders the archive. The separate Claude transcript dedup state
+and long-duration native qualification remain open in
+[#637](https://github.com/antropos17/Aegis/issues/637).
+
+Outstanding release work remains installer install/upgrade/uninstall in a disposable
+Windows environment, Authenticode, native macOS/Linux and enforcement qualification.
+The README loaded all 20 images at a 390×844 dark browser viewport without page
+overflow; the active GitHub social GIF still needs an authenticated Settings change
+([#626](https://github.com/antropos17/Aegis/issues/626)).
+
+Electron 43.7.7 is a candidate for a separately authorized runtime update. Its
+official Windows binary reports Node 24.21.0 and Undici 7.29.1. Electron 43.5.0
+still embeds 7.29.0, which falls within the affected ranges of the upstream
+[BalancedPool](https://github.com/nodejs/undici/security/advisories/GHSA-w293-vg96-wgc3)
+and [WebSocket](https://github.com/nodejs/undici/security/advisories/GHSA-rfgv-xxqx-mfg5)
+advisories. The main/shared source search described below found no corresponding
+call sites; that limited result does not establish runtime-wide clearance.
+
 ## Windows source-check prerequisites
 
 On a fresh Windows checkout, run `npm ci`, then warm Electron with
