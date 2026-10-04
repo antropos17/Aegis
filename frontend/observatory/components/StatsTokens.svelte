@@ -102,11 +102,15 @@
         <article>
           <div>
             <h4>
-              {agent?.agent || $t('Unlinked source')}
+              {token.archived === true
+                ? $t('Archived exited usage')
+                : agent?.agent || $t('Unlinked source')}
               <small
-                >{typeof token.pid === 'number'
-                  ? 'PID ' + token.pid
-                  : 'Sample ' + (index + 1)}</small
+                >{token.archived === true
+                  ? $t('{count} compacted records', { count: token.archivedRecords })
+                  : typeof token.pid === 'number'
+                    ? 'PID ' + token.pid
+                    : 'Sample ' + (index + 1)}</small
               >
             </h4>
             <span>{token.estimated === true ? $t('Estimated') : $t('Recorded')}</span>
@@ -131,6 +135,9 @@
           </dl>
           {#if Array.isArray(token.models)}<p>
               {token.models.filter((m) => typeof m === 'string').join(' · ')}
+            </p>{/if}
+          {#if token.modelsTruncated === true}<p>
+              {$t('Additional model labels omitted. Usage and cost totals are retained.')}
             </p>{/if}
         </article>
       {:else}<p class="muted">{$t('No source samples are available.')}</p>{/each}

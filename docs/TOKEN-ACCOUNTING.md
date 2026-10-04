@@ -39,6 +39,26 @@ and [prompt caching usage fields](https://platform.claude.com/docs/en/build-with
 The table does not refresh automatically. Billing endpoint, batch discounts and
 other provider adjustments are not inferred from transcripts; these amounts are
 local estimates rather than invoice totals.
-Session/message-state retention and retained cost-record growth remain tracked in
-[#637](https://github.com/antropos17/Aegis/issues/637); bounded transcript reads do not
-resolve those memory-retention limits.
+
+Cost accounting retains every active process record, including the session exit
+grace window, and 256 recently updated exited records. Older exited records are
+folded into one explicitly archived row with no PID or process identity. The sums
+of retained rows and this archive preserve all recorded input/output tokens and
+estimated costs for the current application run, including sticky count/pricing
+uncertainty. The archive is not attributed to current agents or included in their
+rates. Individual archived process counters are no longer available through
+per-instance lookup. Application restart still resets this in-memory accounting.
+
+Each record retains at most 32 model labels, each at most 256 characters. Omitted
+labels are explicitly flagged; all numeric usage and pricing still accumulate.
+Compaction requires a confirmed current population/identity observation and freezes
+during provider failures, missing birth-time witnesses, suspend gaps or a stopped
+scan generation. Its bound scales with the live population plus recent history;
+active processes are not dropped to enforce a fixed fleet-size cap.
+
+The Claude Code adapter's session cursors, message-ID deduplication sets and
+subagent-file maps remain retained for the application lifetime. They are separate
+from the bounded cost history and IPC. Their retention, and long-duration native
+qualification, remain tracked in [#637](https://github.com/antropos17/Aegis/issues/637).
+Deleting those sets would allow resumed or rewritten transcripts to be counted
+again; bounded transcript reads do not resolve this remaining memory limit.

@@ -29,11 +29,12 @@
  *   onto another, and a recycled pid can never inherit a dead instance's
  *   accumulated tokens, cost, or sticky `estimated` flag.
  *
- *   Records for exited instances are RETAINED deliberately: the footer sums
- *   `getAllCosts()` into a session-total spend, and that figure must be
- *   monotonic — an agent exiting must not roll back money already spent. That
- *   is why this module has no prune analogous to the file-watcher's
- *   `pruneKnownHandles` (dedup must not leak; accounting must not forget).
+ *   All active instances and the 256 most recently updated exited records stay
+ *   individually addressable. Older exited records are folded into one explicit
+ *   archive row without a PID or instance identity. Summing `getAllCosts()` still
+ *   preserves lifetime usage and cost for this application run. Compaction requires
+ *   a confirmed population observation; outages and suspend freezes cannot retire
+ *   records. This does not change the transcript adapter's separate dedup state.
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.1.0
@@ -55,9 +56,9 @@ const { MODEL_PRICING, DEFAULT_PRICING, computeCost } = require('./token-pricing
 
 /**
  * @typedef {Object} CostRecord
- * @property {string} instanceId - the process INSTANCE this usage is keyed by
+ * @property {string|null} instanceId - the process INSTANCE this usage is keyed by
  *   (C-01 key; see process-identity.js for the three value spaces).
- * @property {number} pid - the owning process id, stored alongside for display.
+ * @property {number|null} pid - owning process id; null for the archive aggregate.
  * @property {number} inputTokens - accumulated prompt/input tokens.
  * @property {number} outputTokens - accumulated completion/output tokens.
  * @property {number} totalTokens - `inputTokens + outputTokens`.
@@ -69,6 +70,9 @@ const { MODEL_PRICING, DEFAULT_PRICING, computeCost } = require('./token-pricing
  * @property {boolean} [pricingEstimated] - sticky cache-pricing assumption flag;
  *   an unknown write duration does not change measured token counts.
  * @property {string[]} models - distinct model ids that contributed, in first-seen order.
+ * @property {boolean} [modelsTruncated] - additional/oversized labels were omitted.
+ * @property {boolean} [archived] - aggregate of exited history, never a process.
+ * @property {number} [archivedRecords] - number of records folded into the archive.
  */
 
 /**
@@ -83,6 +87,23 @@ const { MODEL_PRICING, DEFAULT_PRICING, computeCost } = require('./token-pricing
 
 /** @type {Map<string, CostRecord>} Accumulated cost records keyed by instanceId. */
 const records = new Map();
+const EXITED_RECORD_LIMIT = 256;
+const MODEL_LABEL_LIMIT = 32;
+const MODEL_LABEL_LENGTH = 256;
+/** @type {CostRecord|null} */
+let archive = null;
+
+/** Retain bounded display labels without changing pricing or numeric accounting.
+ * @param {CostRecord} record @param {string} model @returns {void} @since 0.18.0-beta
+ */
+function rememberModel(record, model) {
+  if (!model || record.models.includes(model)) return;
+  if (model.length > MODEL_LABEL_LENGTH || record.models.length >= MODEL_LABEL_LIMIT) {
+    record.modelsTruncated = true;
+    return;
+  }
+  record.models.push(model);
+}
 
 /**
  * True when `v` is a finite number greater than zero (valid pid).
@@ -139,8 +160,7 @@ function recordKey(proc) {
 }
 
 /**
- * Honest zero-state record for an instance with no tracked usage.
- * `estimated:false` because an exact zero is a fact, not a guess.
+ * Empty retained counter, not proof of zero lifetime usage after compaction.
  * @param {number} pid
  * @param {string} instanceId
  * @returns {CostRecord}
@@ -203,8 +223,10 @@ function trackTokens(proc, event) {
   record.costUsd += costUsd;
   if (cachePricingEstimated) record.pricingEstimated = true;
   record.estimated = record.estimated || eventEstimated;
-  if (model && !record.models.includes(model)) record.models.push(model);
+  rememberModel(record, model);
 
+  // Map order represents the latest usage update, including resumed retained rows.
+  records.delete(key);
   records.set(key, record);
   return record;
 }
@@ -215,7 +237,8 @@ function trackTokens(proc, event) {
  * disagree on identity.
  * @param {number|ProcRef} proc - same shapes as {@link trackTokens}.
  * @returns {CostRecord} the tracked record, or an honest zero-state record when
- *   the instance has no usage (never `null`).
+ *   no individual record is retained (never `null`). Compacted exited usage remains
+ *   in the archive returned by getAllCosts, not in this per-instance lookup.
  * @since v0.10.0-alpha
  */
 function getCost(proc) {
@@ -226,17 +249,52 @@ function getCost(proc) {
 }
 
 /**
- * @returns {CostRecord[]} every tracked per-instance record (excludes untracked
- *   instances; records of exited instances are retained — see the file header).
+ * @returns {CostRecord[]} retained per-instance records plus one archive aggregate
+ *   when history has been compacted; summing these rows preserves lifetime totals.
  * @since v0.10.0-alpha
  */
 function getAllCosts() {
-  return Array.from(records.values());
+  return [...records.values(), ...(archive ? [archive] : [])];
+}
+
+/** Fold older confirmed exited records into a constant-size lifetime aggregate.
+ * The caller's liveness predicate must include the session tracker's exit grace.
+ * Compaction is frozen unless the whole population and identity pass was observed.
+ * Active rows are never capped; retained state scales with the live population,
+ * plus at most 256 exited rows and one archive. No transcripts or IDs are evicted.
+ * @param {(instanceId:string) => boolean} isLive Authoritative session liveness.
+ * @param {boolean} [observed=false] Confirmed, current population/identity evidence.
+ * @returns {void} @since 0.18.0-beta
+ */
+function compactCosts(isLive, observed = false) {
+  if (observed !== true || typeof isLive !== 'function') return;
+  const exited = [];
+  for (const [key, record] of records) if (!isLive(key)) exited.push([key, record]);
+  for (const [key, record] of exited.slice(0, Math.max(0, exited.length - EXITED_RECORD_LIMIT))) {
+    archive ??= {
+      ...zeroRecord(0, ''),
+      pid: null,
+      instanceId: null,
+      archived: true,
+      archivedRecords: 0,
+    };
+    archive.inputTokens += record.inputTokens;
+    archive.outputTokens += record.outputTokens;
+    archive.totalTokens = archive.inputTokens + archive.outputTokens;
+    archive.costUsd += record.costUsd;
+    archive.estimated ||= record.estimated;
+    if (record.pricingEstimated) archive.pricingEstimated = true;
+    if (record.modelsTruncated) archive.modelsTruncated = true;
+    for (const model of record.models) rememberModel(archive, model);
+    archive.archivedRecords++;
+    records.delete(key);
+  }
 }
 
 /** @internal Clear all module state (for tests). @returns {void} */
 function _resetForTest() {
   records.clear();
+  archive = null;
 }
 
 module.exports = {
@@ -246,5 +304,6 @@ module.exports = {
   trackTokens,
   getCost,
   getAllCosts,
+  compactCosts,
   _resetForTest,
 };

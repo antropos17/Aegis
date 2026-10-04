@@ -105,6 +105,67 @@ describe('scan-loop', () => {
     };
   }
 
+  it.each(['provider', 'identity', 'birth-time', 'late-suspend', 'confirmed'])(
+    'freezes token compaction on %s observation unless the pass is confirmed',
+    async (condition) => {
+      const tracker = require_('../../src/main/token-tracker.js');
+      const sessions = require_('../../src/main/session-tracker.js');
+      tracker._resetForTest();
+      sessions._resetForTest();
+      let suspendCount = 0;
+      const live = { agent: 'A', process: 'a.exe', pid: 42, instanceId: '42:live' };
+      tracker.trackTokens(live, { model: 'gpt-4o', inputTokens: 7, outputTokens: 3 });
+      for (let i = 1; i <= 1000; i++) {
+        tracker.trackTokens(
+          { pid: i + 100, instanceId: `${i + 100}:old` },
+          {
+            model: 'gpt-4o',
+            inputTokens: 1,
+            outputTokens: 0,
+          },
+        );
+      }
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: condition === 'provider' ? [] : [live],
+            reliable: condition !== 'provider',
+          }),
+          isIdentityDegraded: () => condition === 'identity',
+          getUnwitnessedPids: () => new Set(condition === 'birth-time' ? [42] : []),
+        },
+        observationGap: { snapshot: () => ({ suspendCount }), noteObserved: vi.fn() },
+      });
+      if (condition === 'late-suspend') {
+        deps.procUtil.annotateWorkingDirs.mockImplementation(async () => {
+          suspendCount++;
+        });
+      }
+      try {
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        const pushed = deps.sendToRenderer.mock.calls.filter(
+          ([channel]) => channel === 'token-costs',
+        );
+        expect(pushed).toHaveLength(1);
+        expect(pushed[0][1]).toHaveLength(condition === 'confirmed' ? 258 : 1001);
+        expect(pushed[0][1].reduce((sum, row) => sum + row.totalTokens, 0)).toBe(1010);
+        expect(tracker.getCost(live).totalTokens).toBe(10);
+        if (condition === 'confirmed') {
+          // A single reliable miss is inside session exit grace, not a confirmed exit.
+          deps.scanner.scanProcesses.mockResolvedValue({ agents: [], reliable: true });
+          await vi.advanceTimersByTimeAsync(5000);
+          expect(sessions.hasInstance(live.instanceId)).toBe(true);
+          expect(tracker.getCost(live).totalTokens).toBe(10);
+        }
+      } finally {
+        tracker._resetForTest();
+        sessions._resetForTest();
+      }
+    },
+  );
+
   it('publishes the fresh population before a slow identity stamp can leave stale PIDs', async () => {
     const agents = [{ agent: 'Claude Code', process: 'claude.exe', pid: 100 }];
     let published = [

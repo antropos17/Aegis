@@ -928,10 +928,16 @@ async function doProcessScan() {
 
     // Token costs ride a separate channel. Pull any new measured per-PID token
     // deltas from the feed and fold them into the tracker, then emit the full
-    // accumulated set. Runs inside this C-02-guarded scan (released only in the
-    // finally below) and never throws. A tick with no self-logging agent yields
-    // an honest empty array — the tracker never fabricates counts.
+    // retained records and explicit archive aggregate. Runs inside this C-02-guarded scan (released only in the
+    // finally below). Retention uses confirmed session exits, including their grace
+    // window, and freezes during provider/identity outages or suspend gaps.
     await collectTokenCosts(agents);
+    tokenTracker.compactCosts(
+      (instanceId) => sessionTracker.hasInstance(instanceId),
+      observed &&
+        resourceGeneration === resourceScanGeneration &&
+        (!gapBefore || deps.observationGap.snapshot().suspendCount === gapBefore.suspendCount),
+    );
     sendToRenderer('token-costs', tokenTracker.getAllCosts());
 
     // Per-agent CPU/RAM/GPU is fetched fire-and-forget AFTER the batch so its
