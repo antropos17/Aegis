@@ -61,8 +61,8 @@ const HOT_DIRS = ['.ssh', '.aws', '.gnupg'];
 /**
  * Whether Restart Manager P/Invoke is usable. Optimistic default (true);
  * downgraded to false ONLY by probeRestartManager() failing — "can't tell" must
- * fail honest, not optimistic. rstrtmgr.dll ships on every Windows Vista+, so the
- * probe really tests "does Add-Type + RmStartSession succeed in this runtime".
+ * fail honest, not optimistic. The native helper or PowerShell fallback must
+ * actually open and close a Restart Manager session.
  * @type {boolean}
  */
 let _rmAvailable = true;
@@ -293,26 +293,35 @@ function parseHolders(stdout, expectedGroups) {
 }
 
 /**
- * One-time startup probe: can this runtime Add-Type the RM wrapper and open a
- * Restart Manager session? Sets _rmAvailable. Errors/timeouts → unavailable
+ * One-time startup probe: can the native helper or PowerShell fallback open and
+ * close a Restart Manager session? Sets _rmAvailable. Errors/timeouts → unavailable
  * (fail honest). Result is consumed by win32.probeReadDetection to drive the
  * combined read-detection capability flag.
  * @returns {Promise<{available: boolean}>}
  * @since v0.10.0
  */
-function probeRestartManager() {
+async function probeRestartManager() {
+  const native = await observer.tryRequest('rm-probe', {}, (rows) => {
+    if (rows.length !== 1 || rows[0]?.available !== true)
+      throw new Error('Invalid Restart Manager probe');
+    return true;
+  });
+  if (native !== null) {
+    _rmAvailable = true;
+    return { available: true };
+  }
   return new Promise((resolve) => {
     const probeBody = [
       '$ErrorActionPreference="Stop"',
       `Add-Type -TypeDefinition @'\n${RM_CSHARP}\n'@`,
-      'try { [void][AegisRm]::GetHolders(@()); "OK" } catch { "FAIL" }',
+      'try { [AegisRm]::Probe(); "OK" } catch { "FAIL" }',
     ].join('\n');
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', probeBody],
-      { timeout: 8000 },
+      { timeout: 8000, windowsHide: true },
       (err, stdout) => {
-        const ok = !err && /OK/.test(stdout || '');
+        const ok = !err && (stdout || '').trim() === 'OK';
         _rmAvailable = ok;
         resolve({ available: ok });
       },

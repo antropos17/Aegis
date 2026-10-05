@@ -31,7 +31,7 @@ public static class ObserverProgram {
     }
 
     public static int Main(string[] args) {
-        if (args.Length != 1 || (args[0] != "tcp" && args[0] != "cwd" && args[0] != "holders")) return 2;
+        if (args.Length != 1 || (args[0] != "tcp" && args[0] != "cwd" && args[0] != "holders" && args[0] != "rm-probe")) return 2;
         try {
             Console.InputEncoding = new UTF8Encoding(false, true);
             Console.OutputEncoding = new UTF8Encoding(false);
@@ -46,7 +46,14 @@ public static class ObserverProgram {
             json.MaxJsonLength = 2097152;
             json.RecursionLimit = 12;
             Dictionary<string, object> request = json.Deserialize<Dictionary<string, object>>(input.ToString());
-            object rows = args[0] == "holders" ? Holders(request) : Query(args[0], request);
+            object rows;
+            if (args[0] == "rm-probe") {
+                if (request.Count != 0) throw new ArgumentException();
+                AegisRm.Probe();
+                rows = new object[] { new { available = true } };
+            } else {
+                rows = args[0] == "holders" ? Holders(request) : Query(args[0], request);
+            }
             string output = json.Serialize(new { version = 1, rows = rows });
             if (Encoding.UTF8.GetByteCount(output) > 2097152) return 1;
             Console.WriteLine(output);
