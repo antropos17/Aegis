@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.18.2-beta (2026-10-05)
+
+## What's Changed
+* docs(release): record verified 0.18.1 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/742
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.18.1-beta...aegis-v0.18.2-beta
+
 ## 0.18.1-beta (2026-10-05)
 
 Exited token-cost history now compacts after 256 recent exited records while
