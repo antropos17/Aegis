@@ -6,6 +6,7 @@
 
 /** IPC invoke channel names (renderer -> main, request-response) */
 export type IpcInvokeChannel =
+  | 'app:quit'
   | 'local-security:review'
   | 'updates:status'
   | 'updates:check'
@@ -85,6 +86,7 @@ export interface SaveInstancePermissionsPayload {
 /** Generic IPC success/failure result */
 export interface IpcResult {
   readonly success: boolean;
+  readonly cancelled?: boolean;
   readonly error?: string;
   readonly path?: string;
   readonly count?: number;

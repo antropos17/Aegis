@@ -23,7 +23,7 @@ const mockElectron = {
     _handlers: handlers,
     _onHandlers: onHandlers,
   },
-  app: { getPath: vi.fn(() => os.tmpdir()) },
+  app: { getPath: vi.fn(() => os.tmpdir()), quit: vi.fn() },
   dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
   shell: { openExternal: vi.fn(), openPath: vi.fn(), showItemInFolder: vi.fn() },
   Notification: Object.assign(
@@ -282,6 +282,33 @@ describe('ipc-handlers', () => {
     ipcHandlers.register();
     return { window, contents, frame, event: { sender: contents, senderFrame: frame } };
   }
+
+  it('requires owned-frame native confirmation before scheduling normal application exit', async () => {
+    mockElectron.app.quit.mockClear();
+    const { event, window } = registerOwnedRenderer();
+    mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+    expect(await getHandler('app:quit')(event)).toMatchObject({ success: false, cancelled: true });
+    expect(mockElectron.app.quit).not.toHaveBeenCalled();
+    mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+    expect(await getHandler('app:quit')(event)).toEqual({ success: true });
+    expect(mockElectron.dialog.showMessageBox).toHaveBeenLastCalledWith(
+      window,
+      expect.objectContaining({ defaultId: 0, cancelId: 0 }),
+    );
+    expect(mockElectron.app.quit).not.toHaveBeenCalled();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(mockElectron.app.quit).toHaveBeenCalledOnce();
+  });
+
+  it('denies application exit from a foreign frame without displaying a prompt', async () => {
+    mockElectron.app.quit.mockClear();
+    const { event } = registerOwnedRenderer();
+    expect(await getHandler('app:quit')({ ...event, senderFrame: {} })).toMatchObject({
+      success: false,
+    });
+    expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
+    expect(mockElectron.app.quit).not.toHaveBeenCalled();
+  });
 
   it('limits sensitive alert reads and review writes to the owned top-level frame', async () => {
     const journal = {

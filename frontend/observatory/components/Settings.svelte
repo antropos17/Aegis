@@ -345,6 +345,11 @@
         title={$t('Desktop startup')}
         description={$t('Choose how AEGIS starts and renders its interface.')}
       >
+        <p class="muted">
+          {$t(
+            'Closing the window keeps AEGIS running in the system tray. Use Quit AEGIS to stop monitoring and exit.',
+          )}
+        </p>
         {#each toggles.slice(2, 5) as [key, label] (key)}<label class="setting"
             ><span>{$t(label)}<small>{$t(startupHelp[key])}</small></span><input
               type="checkbox"
