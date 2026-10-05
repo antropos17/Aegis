@@ -22,6 +22,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 0.19.0-beta (2026-10-05)
 
+Live Observatory charts show recent resource and token activity. Claude transcript
+deduplication uses a bounded run-scoped index; Windows observation startup, network
+scan retries, localized exit confirmation and desktop spacing are corrected. Vitest
+and its V8 coverage provider are updated together to 5.0.3.
+
+The Windows installer and signed manifest are published and verified; installer
+lifecycle, Authenticode and native macOS/Linux qualification remain open. See
+[beta readiness](docs/BETA-READINESS.md) for the executed checks and limitations.
+
 ## What's Changed
 * docs(release): record verified 0.18.1 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/742
 * fix(tokens): bound Claude dedup state without recounting usage by @antropos17 in https://github.com/antropos17/Aegis/pull/744

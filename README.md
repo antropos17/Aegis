@@ -27,7 +27,7 @@ monitoring does not automatically intercept or block commands.
 
 The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
 
-The latest published Windows beta is [**0.18.1-beta**](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.18.1-beta), for monitoring and
+The latest published Windows beta is [**0.19.0-beta**](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.0-beta), for monitoring and
 operator-reviewed selected actions. [Beta readiness](docs/BETA-READINESS.md)
 records its release gates and remaining limits. The beta label does not qualify
 general agent containment or the experimental VM/provider routes.
@@ -133,8 +133,8 @@ check separately.
 ### Windows installer
 
 Get the current prerelease from [GitHub Releases](https://github.com/antropos17/Aegis/releases).
-A Windows release is ready to install when its `.exe`, `manifest.json` and
-`manifest.json.sig` are all available. Download them from the same release and
+A complete Windows download contains the `.exe`, `manifest.json` and
+`manifest.json.sig`. Download them from the same release and
 follow [offline installer verification](docs/RELEASE-VERIFICATION.md). Check
 that release's notes for the features it contains; this README describes current
 source, which may be ahead of the installer.
@@ -215,7 +215,7 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 - **Sensor and audit gaps:** Health status does not prove complete capture. A fully lost file-watch plan gets up to three retry attempts per confirmed outage; the budget resets after a healthy plan is observed. Exited watch workers count as lost roots. Partially degraded roots need separate repair. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
 - **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Configuration and diagnostic exports omit the configured API key. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
 - **Unmeasured claims:** No general detection rate, false-positive rate, startup-time guarantee or whole-app overhead figure has been established.
-- **Token subtotals:** Bounded transcript reads can lag a backlog; records above 512 KiB are skipped with a fixed diagnostic. Token history retains all active records and 256 recent exited records; older records become one labeled archive preserving run totals. Compaction freezes during observation gaps. The published 0.18.1-beta retains transcript deduplication state in memory; current source moves it to a run-scoped 128 MiB SQLite index. Failed index writes postpone the whole usage batch without recounting old IDs. Long-duration qualification remains in [#637](https://github.com/antropos17/Aegis/issues/637). See [token accounting limits](docs/TOKEN-ACCOUNTING.md), including incomplete coverage and estimated dollar amounts.
+- **Token subtotals:** Bounded transcript reads can lag a backlog; records above 512 KiB are skipped with a fixed diagnostic. Token history retains all active records and 256 recent exited records; older records become one labeled archive preserving run totals. Compaction freezes during observation gaps. The published 0.19.0-beta uses a run-scoped 128 MiB SQLite index for transcript deduplication. Failed index writes postpone the whole usage batch without recounting old IDs. Long-duration qualification remains in [#637](https://github.com/antropos17/Aegis/issues/637). See [token accounting limits](docs/TOKEN-ACCOUNTING.md), including incomplete coverage and estimated dollar amounts.
 
 ## Development and roadmap
 
