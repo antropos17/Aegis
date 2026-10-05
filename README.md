@@ -78,6 +78,8 @@ These views use simulated preview data. [More screenshots](docs/screenshots/READ
 
 The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
 
+Current source adds [Liveline-inspired charts](frontend/observatory/DESIGN.md#live-chart-refinement--5-october-2026) to Statistics and agent Resources: short smooth updates, endpoint values, interval buttons and actual-point inspection. Missing readings, coverage, pause and reduced motion remain explicit.
+
 ## Monitor-first
 
 Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants. The separate AppContainer CLI route adds Windows access restrictions for one reviewed offline action in a new workspace; other execution routes retain caller privileges.
