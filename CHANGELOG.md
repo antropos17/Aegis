@@ -20,6 +20,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.18.1-beta (2026-10-05)
+
+Exited token-cost history now compacts after 256 recent exited records while
+preserving active records, cumulative spend and uncertainty. Chokidar is updated
+to 4.0.3 and Electron to 43.7.7, including Node 24.21.0 and Undici 7.29.1.
+Claude transcript dedup state still needs a retention policy. Windows installer
+installation/upgrade/uninstall, Authenticode and macOS/Linux qualification remain
+open; see [beta readiness](docs/BETA-READINESS.md).
+
+## What's Changed
+* chore(release): record first beta publication and clear version override by @antropos17 in https://github.com/antropos17/Aegis/pull/737
+* chore(deps): remove vulnerable Chokidar and development dependency paths by @antropos17 in https://github.com/antropos17/Aegis/pull/739
+* fix(tokens): compact exited history while preserving run totals by @antropos17 in https://github.com/antropos17/Aegis/pull/740
+* chore(deps): update Electron and embedded runtime to 43.7.7 by @antropos17 in https://github.com/antropos17/Aegis/pull/741
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.18.0-beta...aegis-v0.18.1-beta
+
 ## 0.18.0-beta (2026-10-01)
 
 ## What's Changed
