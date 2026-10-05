@@ -135,7 +135,6 @@ function register() {
     'app:quit',
     createQuitAppHandler({
       app,
-      dialog,
       getWindow: () => deps.getWindow?.(),
       rendererUrl: deps.rendererUrl,
     }),

@@ -4,8 +4,10 @@
 
 The sidebar exposes Quit AEGIS independently of workspace or sensor state.
 Closing the native window continues monitoring in the tray; Desktop settings
-explains this behavior. Exit requires a native main-owned confirmation with
-Cancel selected by default. It uses normal app shutdown and preserves its journal
+explains this behavior. Exit uses the Observatory modal and the selected interface
+language, with Cancel focused by default. Escape and the close button cancel and
+restore focus to the sidebar. Confirmation alone sends the explicit true value
+to the main-owned exit handler; pending requests coalesce. It uses normal app shutdown and preserves its journal
 drain. Unsaved edits are explicitly discarded only after confirming exit.
 Pending clicks coalesce without dropping keyboard focus. Cancellation and failure
 leave the control available with fixed localized feedback; preview disables it.
