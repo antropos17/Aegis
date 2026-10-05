@@ -240,6 +240,7 @@ function readSubagentUsage(
     try {
       deltas = _tailAgentFile(file, state, extractUsage, fs, log, budget);
     } catch {
+      if (state.storageFailed?.()) throw Error('dedup-index-failed');
       log.warn('token-feed:claude-code', 'subagent read failed for a file', {
         error: 'subagent-read-failed',
       });
