@@ -133,8 +133,8 @@ check separately.
 ### Windows installer
 
 Get the current prerelease from [GitHub Releases](https://github.com/antropos17/Aegis/releases).
-A Windows release is ready to install when its `.exe`, `manifest.json` and
-`manifest.json.sig` are all available. Download them from the same release and
+A complete Windows download contains the `.exe`, `manifest.json` and
+`manifest.json.sig`. Download them from the same release and
 follow [offline installer verification](docs/RELEASE-VERIFICATION.md). Check
 that release's notes for the features it contains; this README describes current
 source, which may be ahead of the installer.
