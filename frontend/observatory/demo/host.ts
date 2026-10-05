@@ -210,6 +210,7 @@ export function createPreviewHost(): Host {
     'checkForUpdates',
     'downloadUpdate',
     'installUpdate',
+    'quitApp',
   ])
     host[name] = unavailable;
   for (const name of [

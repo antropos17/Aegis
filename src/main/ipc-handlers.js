@@ -32,6 +32,7 @@ const {
   ownsTopLevelRenderer,
 } = require('./external-url-boundary');
 const { writePrivateReport } = require('./private-report-temp');
+const { createQuitAppHandler } = require('./app-quit');
 
 let deps = {};
 let analysisConfirmationPending = false;
@@ -130,6 +131,15 @@ async function confirmAnalysisEgress(event) {
 
 /** @returns {void} @since v0.1.0 */
 function register() {
+  ipcMain.handle(
+    'app:quit',
+    createQuitAppHandler({
+      app,
+      dialog,
+      getWindow: () => deps.getWindow?.(),
+      rendererUrl: deps.rendererUrl,
+    }),
+  );
   const ownedRead = (event, read) =>
     event && ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl)
       ? read()

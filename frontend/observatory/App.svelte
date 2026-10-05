@@ -16,6 +16,7 @@
     type RecordData,
   } from './runtime/host';
   import SensorStatus from './components/SensorStatus.svelte';
+  import AppExit from './components/AppExit.svelte';
   import WorkspaceNavigation from './components/WorkspaceNavigation.svelte';
   import WorkspaceCommands from './components/WorkspaceCommands.svelte';
   import {
@@ -166,7 +167,9 @@
   let isLiveWorkspace = $derived(
     ['overview', 'agents', 'events', 'network', 'stats'].includes(view),
   );
-  let needsObservations = $derived(!['guide', 'local-security', 'action-control'].includes(view));
+  let needsObservations = $derived(
+    !['guide', 'local-security', 'action-control', 'settings'].includes(view),
+  );
   let requestedView = 'overview';
   let renderedView = 'overview';
   let tabs = $state(['overview']);
@@ -427,6 +430,7 @@
       <div class="sidebar-foot">
         {preview ? $t('Preview · simulated data') : $t('Local observations')}
       </div>
+      <AppExit {host} {preview} />
     </div>
   </aside>
   <div class="shell">
