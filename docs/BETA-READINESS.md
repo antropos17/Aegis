@@ -46,8 +46,8 @@ The README loaded all 20 images at a 390×844 dark browser viewport without page
 overflow; the active GitHub social GIF still needs an authenticated Settings change
 ([#626](https://github.com/antropos17/Aegis/issues/626)).
 
-Electron 43.7.7 is a candidate for a separately authorized runtime update. Its
-official Windows binary reports Node 24.21.0 and Undici 7.29.1. Electron 43.5.0
+Current source pins Electron 43.7.7. Its Windows binary reports Node 24.21.0,
+Chromium 150.0.7871.250 and Undici 7.29.1. The published beta's Electron 43.5.0
 still embeds 7.29.0, which falls within the affected ranges of the upstream
 [BalancedPool](https://github.com/nodejs/undici/security/advisories/GHSA-w293-vg96-wgc3)
 and [WebSocket](https://github.com/nodejs/undici/security/advisories/GHSA-rfgv-xxqx-mfg5)
@@ -98,8 +98,8 @@ Electron runtime from 43.4.1 to 43.5.0 and compatible brace-expansion, minimatch
 undici and fast-uri entries. A fresh installation and full npm audit report zero
 registry findings; no direct major upgrade or new override is included.
 
-Electron 43.5.0 embeds Node 24.19.0. The upstream embedded Undici version is
-7.29.0, which npm audit does not inventory. Current main/shared code uses Node
+That first beta's Electron 43.5.0 embeds Node 24.19.0. Its embedded Undici version
+is 7.29.0, which npm audit does not inventory. Main/shared code uses Node
 HTTP(S) and electron.net.fetch; a static search found no Node fetch, WebSocket,
 Undici interceptors or BalancedPool call sites. This limited reachability check
 does not establish runtime-wide security clearance.
@@ -107,7 +107,7 @@ does not establish runtime-wide security clearance.
 ## Release gates
 
 - Verify the shipped runtime, including embedded libraries outside the npm graph.
-  The locked Electron 43.5.0 update addresses the reported Electron 43.4.1
+  The first beta's Electron 43.5.0 update addresses the reported Electron 43.4.1
   [advisory](https://github.com/electron/electron/security/advisories/GHSA-qmv3-fv6v-rmhq).
   A clean production-only npm audit does not qualify the desktop runtime.
 - Verify the final combined source with the ten commands in [AGENTS.md](../AGENTS.md),
