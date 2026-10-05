@@ -1,11 +1,33 @@
 # Windows beta readiness
 
-Target: **0.18.0-beta**, Windows desktop monitoring and explicitly reviewed
+Current release: **0.18.1-beta**, Windows desktop monitoring and explicitly reviewed
 selected-action workflows. Check the [release page](https://github.com/antropos17/Aegis/releases)
 for published versions and complete artifacts. Changing the prerelease channel
 does not itself publish an installer or establish release readiness.
 
 ## Published Windows beta
+
+[0.18.1-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.18.1-beta)
+was published on 5 October 2026 from `2720637` through
+[PR #738](https://github.com/antropos17/Aegis/pull/738). Its candidate `68a9073`
+passed all ten mandatory Windows checks: 423 files, 7,634 passing tests and eight
+skipped, with four workers and compile cache disabled. The exact release PR and
+merged master passed all five required CI contexts. The Windows release workflow
+built and published the installer and both Ed25519 manifest files successfully.
+
+The downloaded installer passed offline signature/hash verification. Its manifest
+names the tag and exact release commit; 223 runtime files match canonical Git after
+line-ending normalization, and 116 renderer files match the local production build.
+The five expected Windows helpers are present. Its extracted application reports
+Electron 43.7.7, Node 24.21.0, Chromium 150.0.7871.250 and Undici 7.29.1; it passed
+native checks of 11 workspaces, real sensors, six exports, configuration import,
+settings across restart and Electron hardening without renderer errors.
+
+The app and installer remain Authenticode **NotSigned**. The installer was extracted
+and its application tested; installation/upgrade/uninstall remain unqualified.
+Local and published installer bytes are not claimed reproducible.
+
+### First beta — 1 October 2026
 
 [0.18.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.18.0-beta)
 was published on 1 October 2026. Final beta revision `3c52c75`
@@ -21,8 +43,8 @@ the limits below. Manifest signing is separate from Windows Authenticode.
 
 ## Post-publication follow-up — 5 October 2026
 
-The download remains **0.18.0-beta**. Subsequent source changes need a separately
-verified package and release; PR #738 is still the next release proposal.
+Before the 0.18.1-beta publication above, the download remained **0.18.0-beta**.
+The following follow-up source checks preceded the final PR #738 qualification.
 
 [PR #739](https://github.com/antropos17/Aegis/pull/739) replaces Chokidar 3 with
 4.0.3 and pins devalue 5.9.3 and http-cache-semantics 4.3.0. Fresh production and
@@ -47,14 +69,14 @@ overflow; the active GitHub social GIF still needs an authenticated Settings cha
 ([#626](https://github.com/antropos17/Aegis/issues/626)).
 
 Current source pins Electron 43.7.7. Its Windows binary reports Node 24.21.0,
-Chromium 150.0.7871.250 and Undici 7.29.1. The published beta's Electron 43.5.0
-still embeds 7.29.0, which falls within the affected ranges of the upstream
+Chromium 150.0.7871.250 and Undici 7.29.1. The first beta's Electron 43.5.0
+embeds 7.29.0, which falls within the affected ranges of the upstream
 [BalancedPool](https://github.com/nodejs/undici/security/advisories/GHSA-w293-vg96-wgc3)
 and [WebSocket](https://github.com/nodejs/undici/security/advisories/GHSA-rfgv-xxqx-mfg5)
 advisories. The main/shared source search described below found no corresponding
 call sites; that limited result does not establish runtime-wide clearance.
 
-## 0.18.1-beta release candidate
+## 0.18.1-beta release qualification
 
 [PR #738](https://github.com/antropos17/Aegis/pull/738) advances source version
 markers to **0.18.1-beta** and includes the dependency, token-history and embedded
@@ -71,8 +93,8 @@ including settings across restart and six exports. That package retained the
 qualification of the final 0.18.1-beta package.
 
 Final candidate packaging, exact-head CI and downloaded release manifest
-verification are separate gates. Installation/upgrade/uninstall and Authenticode
-remain unqualified; publication does not complete those gates.
+verification passed as recorded above. Installation/upgrade/uninstall and
+Authenticode remain unqualified; publication does not complete those gates.
 
 ## Windows source-check prerequisites
 
