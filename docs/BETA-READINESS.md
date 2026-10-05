@@ -1,11 +1,52 @@
 # Windows beta readiness
 
-Current release: **0.18.1-beta**, Windows desktop monitoring and explicitly reviewed
+Current release: **0.19.0-beta**, Windows desktop monitoring and explicitly reviewed
 selected-action workflows. Check the [release page](https://github.com/antropos17/Aegis/releases)
 for published versions and complete artifacts. Changing the prerelease channel
 does not itself publish an installer or establish release readiness.
 
 ## Published Windows beta
+
+[0.19.0-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.0-beta)
+was published on 5 October 2026 (UTC) from `0fd791a` through
+[PR #745](https://github.com/antropos17/Aegis/pull/745). Its qualified candidate
+`e6dc804` has the same Git tree as the release commit. The exact PR and
+[release master CI](https://github.com/antropos17/Aegis/actions/runs/37375610894)
+passed all five required contexts.
+
+All ten mandatory Windows checks passed, including full coverage with two
+workers: 430 files, 7,681 passing tests and eight skipped. The initial four-worker
+run had one native MCP helper startup failure; the unchanged ten-test suite
+passed in isolation and the full two-worker repeat passed. Assertions and
+deadlines were preserved. Both mutation gates and production dependency audit
+passed; the audit reported zero vulnerabilities.
+
+The [release workflow](https://github.com/antropos17/Aegis/actions/runs/37375611527)
+built the Windows x64 installer, signed and verified its Ed25519 manifest, and
+uploaded all three assets. The downloaded files passed offline signature, hash
+and size verification. The manifest names the exact release tag and commit;
+225 runtime files match canonical Git after line-ending normalization,
+and 116 renderer files match the local production build. All five Windows
+helpers are present. Installer bytes are not claimed reproducible across builds.
+
+The extracted published application passed 11 workspaces, native sensors,
+six exports, configuration import, settings across restart and Electron hardening
+without renderer errors. It reports Electron 43.7.7, Node 24.21.0, Chromium
+150.0.7871.250 and Undici 7.29.1. The Restart Manager held-file witness passed,
+and the UI reached `Observation healthy`.
+
+One cold-profile sensor check exceeded its 45-second wait while the agent
+configuration watcher initialized. A separate trace reached full watcher readiness
+after 35 seconds; the unchanged original sensor check passed on retry. The UI
+keeps Starting until all planned groups are ready. No fixed startup time is
+established by these checks.
+
+The application and installer remain Authenticode **NotSigned**. The installer
+was extracted for application checks; installation, upgrade and uninstall remain
+unqualified. Long-duration token accounting, native macOS/Linux and broader
+enforcement qualification remain open.
+
+### Previous beta — 5 October 2026
 
 [0.18.1-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.18.1-beta)
 was published on 5 October 2026 from `2720637` through
