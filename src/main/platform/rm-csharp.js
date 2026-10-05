@@ -6,7 +6,7 @@
  *   native observer sidecar. Extracted to its own module to keep both transports
  *   on the same Restart Manager contract.
  *
- *   The wrapper exposes a single static GetHolders(string[] files) → Holder[]
+ *   The wrapper exposes Probe() and GetHolders(string[] files) → Holder[]
  *   with each PID and its exact creation FILETIME. It uses the two-call RmGetList
  *   protocol: ERROR_MORE_DATA is an expected sizing result, while other API
  *   failures throw so a failed observation cannot appear empty and healthy.
@@ -19,8 +19,8 @@
 
 /**
  * The C# Restart Manager wrapper compiled once per spawn via Add-Type. Exposes
- * a single static GetHolders(string[] files) → Holder[] of PID/birth pairs. Uses the
- * two-call RmGetList protocol, checking both calls for failures.
+ * Probe() for session availability and GetHolders(string[] files) → Holder[] of
+ * PID/birth pairs. Uses the two-call RmGetList protocol, checking both calls.
  * @type {string}
  */
 const RM_CSHARP = [
@@ -46,6 +46,11 @@ const RM_CSHARP = [
   '  [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)] static extern int RmRegisterResources(uint pSessionHandle, uint nFiles, string[] rgsFilenames, uint nApplications, IntPtr rgApplications, uint nServices, string[] rgsServiceNames);',
   '  [DllImport("rstrtmgr.dll")] static extern int RmGetList(uint dwSessionHandle, out uint pnProcInfoNeeded, ref uint pnProcInfo, [In, Out] RM_PROCESS_INFO[] rgAffectedApps, out uint lpdwRebootReasons);',
   '  [DllImport("rstrtmgr.dll")] static extern int RmEndSession(uint pSessionHandle);',
+  '  public static void Probe() {',
+  '    uint session; var key = new StringBuilder(CCH_RM_SESSION_KEY + 1);',
+  '    if (RmStartSession(out session, 0, key) != 0) throw new InvalidOperationException("RmStartSession failed");',
+  '    if (RmEndSession(session) != 0) throw new InvalidOperationException("RmEndSession failed");',
+  '  }',
   '  public static Holder[] GetHolders(string[] files) {',
   '    var holders = new List<Holder>();',
   '    if (files == null || files.Length == 0) return holders.ToArray();',

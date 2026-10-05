@@ -62,6 +62,51 @@ const socket = {
   State: 5,
 };
 
+it('keeps file observation available through the native RM probe when PowerShell fails', async () => {
+  await withProviders(
+    [new Error('PowerShell unavailable'), native([{ available: true }])],
+    async (win, rm, exec) => {
+      expect(await win.probeReadDetection()).toEqual({ available: true, handle: null, rm: true });
+      expect(rm.isRestartManagerAvailable()).toBe(true);
+      expect(exec.mock.calls.map((call) => [call[0], call[1][0]])).toEqual([
+        ['powershell.exe', '-NoProfile'],
+        ['/observer', 'rm-probe'],
+      ]);
+    },
+  );
+});
+
+it.each([
+  new Error('Older helper does not support rm-probe'),
+  native([{ available: false }]),
+  native([{ available: 'true' }]),
+  native([]),
+])('uses a real PowerShell session probe when native startup fails: %s', async (response) => {
+  await withProviders(
+    [new Error('No handle binary'), response, 'OK\r\n'],
+    async (win, rm, exec) => {
+      expect(await win.probeReadDetection()).toEqual({ available: true, handle: null, rm: true });
+      expect(rm.isRestartManagerAvailable()).toBe(true);
+      const fallback = exec.mock.calls.at(-1);
+      expect(fallback[0]).toBe('powershell.exe');
+      expect(fallback[1].at(-1)).toContain('[AegisRm]::Probe()');
+      expect(fallback[1].at(-1)).not.toContain('::GetHolders(@())');
+      expect(fallback[2].windowsHide).toBe(true);
+    },
+  );
+});
+
+it('keeps read detection unavailable when both native and PowerShell probes fail', async () => {
+  await withProviders(
+    [new Error('No handle binary'), new Error('Native probe failed'), 'FAIL\r\n'],
+    async (win, rm) => {
+      expect(await win.probeReadDetection()).toEqual({ available: false, handle: null, rm: false });
+      expect(rm.isRestartManagerAvailable()).toBe(false);
+      expect(win.isReadDetectionAvailable()).toBe(false);
+    },
+  );
+});
+
 it.skipIf(process.platform !== 'win32')(
   'preserves Unicode through the actual CWD fallback pipeline',
   async () => {

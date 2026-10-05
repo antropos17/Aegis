@@ -118,6 +118,12 @@ describe('platform/restart-manager', () => {
       expect(rm.isRestartManagerAvailable()).toBe(false);
     });
 
+    it('does not accept a response that merely contains OK', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, 'NOT OK\r\n'));
+      expect(await rm.probeRestartManager()).toEqual({ available: false });
+      expect(rm.isRestartManagerAvailable()).toBe(false);
+    });
+
     it('marks RM unavailable on probe error (fail honest, not optimistic)', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(new Error('no powershell')));
       const result = await rm.probeRestartManager();

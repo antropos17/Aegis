@@ -9,9 +9,13 @@ or this checkout's build directory, never PATH.
 Modes `tcp`, `cwd` and `holders` select the same MSFT_NetTCPConnection,
 Win32_Process and Restart Manager APIs used by the PowerShell fallback. The build
 compiles the exact `rm-csharp.js` wrapper into the helper, avoiding a second copy.
+The `rm-probe` startup mode accepts an empty object and actually opens and closes
+a Restart Manager session. Its validated success enables the same native holder
+path even when PowerShell is unavailable. Failed or missing helpers use a
+PowerShell probe of that same session lifecycle. Neither probe emits file events.
 Restart Manager sessions remain sequential and close in its existing finally
 block. These are held-handle snapshots; short open/read/close activity can be
-missed. RM's existing empty-on-native-error behavior is preserved.
+missed. Failed observations remain failures rather than successful empty snapshots.
 
 Input JSON goes through stdin. Only the mode appears in arguments. The helper
 never opens file contents or writes diagnostic files. TCP returns the six CIM
