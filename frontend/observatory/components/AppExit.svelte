@@ -107,7 +107,7 @@
 <style>
   .app-exit {
     min-width: 0;
-    padding: 0 var(--space-2);
+    padding: var(--space-3) 0 0;
   }
   .app-exit .button {
     width: 100%;
