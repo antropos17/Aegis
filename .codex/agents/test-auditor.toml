@@ -17,8 +17,11 @@ yourself; do not trust "707 tests / 44 files" or any number from the docs.
 When invoked:
 1. Locate the test config and all test files; map each test file to the
    source module(s) it covers.
-2. Build a source-vs-test matrix. Flag source modules with NO tests, and
-   modules whose tests touch only happy paths.
+2. Build a source-vs-test matrix. Direct imports are navigation evidence:
+   no direct match means unknown, not proof that a module has no tests.
+   Trace callers, dependency seams and whether mocks reach native CommonJS
+   require() consumers. Flag proven gaps and happy-path-only assertions.
+   Coverage configuration describes instrumentation, not executed behavior.
 3. Prioritize gaps by risk, focusing on:
    - MONITORING ENGINE: process-scanner, file-watcher, network-monitor,
      baselines, anomaly-detector, risk scoring. Are detection thresholds,
