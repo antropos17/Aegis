@@ -20,6 +20,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.19.0-beta (2026-10-05)
+
+## What's Changed
+* docs(release): record verified 0.18.1 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/742
+* fix(tokens): bound Claude dedup state without recounting usage by @antropos17 in https://github.com/antropos17/Aegis/pull/744
+* feat(ui): add Liveline-inspired live charts by @antropos17 in https://github.com/antropos17/Aegis/pull/746
+* fix(windows): probe native Restart Manager capability by @antropos17 in https://github.com/antropos17/Aegis/pull/747
+* fix(network): retry scans skipped during process refresh by @antropos17 in https://github.com/antropos17/Aegis/pull/753
+* fix(ui): clarify desktop exit and settings during outages by @antropos17 in https://github.com/antropos17/Aegis/pull/754
+* fix(ui): match exit confirmation to app language and theme by @antropos17 in https://github.com/antropos17/Aegis/pull/755
+* fix(ui): align sidebar exit button and add spacing by @antropos17 in https://github.com/antropos17/Aegis/pull/756
+* chore(deps-dev): bump the npm-minor-patch group with 6 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/748
+* chore(deps-dev): upgrade Vitest and coverage to 5.0.3 by @antropos17 in https://github.com/antropos17/Aegis/pull/757
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.18.1-beta...aegis-v0.19.0-beta
+
 ## 0.18.1-beta (2026-10-05)
 
 Exited token-cost history now compacts after 256 recent exited records while
