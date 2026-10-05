@@ -30,6 +30,7 @@ const path = require('path');
 const logger = require('../logger');
 const { readSubagentUsage, readTranscriptBatch } = require('./claude-code-subagents');
 const { readRegistry } = require('../claude-registry');
+const { createLedger } = require('../token-dedup-ledger');
 
 /**
  * @typedef {Object} Proc
@@ -63,16 +64,24 @@ const GUARD_TOLERANCE_MS = 60_000;
 /**
  * @typedef {Object} SessionState
  * @property {number} offset - bytes of the MAIN transcript already consumed.
- * @property {Set<string>} seenIds - message.ids already counted (counts a
+ * @property {{has: Function, add: Function}} seenIds - message.ids already counted (counts a
  *   boundary-straddling message once); SHARED across main + all subagent files.
- * @property {Map<string, number>} subOffsets - per-subagent-file byte offset
+ * @property {{get: Function, set: Function}} subOffsets - per-subagent-file byte offset
  *   (`agent-*.jsonl` path → bytes consumed); independent of `offset`.
  * @property {boolean} [skippingMain] - Discarding an oversized main record.
- * @property {Set<string>} [subSkipping] - Subagent files discarding oversized records.
+ * @property {{has: Function, add: Function, delete: Function}} [subSkipping] - Subagent files discarding oversized records.
+ * @property {Function} flush - Save the main cursor in the current transaction.
+ * @property {Function} [storageFailed] - Whether an index failure poisoned this batch.
  */
 
-/** @type {Map<string, SessionState>} per-sessionId tail state. */
-const sessions = new Map();
+/** Run-scoped index, opened lazily after a valid process registry is observed. */
+let ledger = null;
+const productionLedger = () =>
+  createLedger({
+    file: path.join(require('electron').app.getPath('userData'), 'token-dedup-run.sqlite'),
+  });
+let ledgerFactory = productionLedger;
+let indexWarning = false;
 
 /** Starting position for the next bounded scan; rotates to prevent starvation. */
 let nextProcIndex = 0;
@@ -170,16 +179,6 @@ function _extractUsage(parsed) {
   };
 }
 
-/** Get-or-create the tail state for a sessionId. @param {string} sessionId @returns {SessionState} */
-function _stateFor(sessionId) {
-  let st = sessions.get(sessionId);
-  if (!st) {
-    st = { offset: 0, seenIds: new Set(), subOffsets: new Map() };
-    sessions.set(sessionId, st);
-  }
-  return st;
-}
-
 /**
  * Read the registry for one pid → parsed object or `null` (absent / unreadable /
  * malformed); never logs the file body. @param {number} pid
@@ -261,14 +260,21 @@ function _readOneProc(proc, budget) {
   if (typeof sessionId !== 'string' || typeof cwd !== 'string') return [];
 
   const projDir = path.join(_homedir(), '.claude', 'projects', _encodeCwd(cwd));
-  const st = _stateFor(sessionId);
-
-  const deltas = _tailMain(path.join(projDir, `${sessionId}.jsonl`), st, pid, budget);
-  const sessionDir = path.join(projDir, sessionId);
-  for (const d of readSubagentUsage(sessionDir, st, _extractUsage, _fs, _log, budget)) {
-    deltas.push({ pid, ...d }); // C-01: subagent tokens → MAIN session pid
+  if (!ledger) {
+    try {
+      ledger = ledgerFactory();
+    } catch {
+      throw Object.assign(Error('dedup-index-unavailable'), { dedupIndex: true });
+    }
   }
-  return deltas;
+  return ledger.withSession(sessionId, (st) => {
+    const deltas = _tailMain(path.join(projDir, `${sessionId}.jsonl`), st, pid, budget);
+    const sessionDir = path.join(projDir, sessionId);
+    for (const d of readSubagentUsage(sessionDir, st, _extractUsage, _fs, _log, budget)) {
+      deltas.push({ pid, ...d }); // C-01: subagent tokens → MAIN session pid
+    }
+    return deltas;
+  });
 }
 
 /**
@@ -281,6 +287,7 @@ function _readOneProc(proc, budget) {
 async function readUsage(procs) {
   if (!Array.isArray(procs) || procs.length === 0) return [];
   const out = [];
+  let indexFailed = false;
   const budget = { remaining: 4 * 1024 * 1024 };
   const start = nextProcIndex % procs.length;
   nextProcIndex = (start + 1) % procs.length;
@@ -290,7 +297,11 @@ async function readUsage(procs) {
     let deltas;
     try {
       deltas = _readOneProc(proc, budget);
-    } catch {
+    } catch (error) {
+      if (error.dedupIndex || ledger?.isFailed()) {
+        indexFailed = true;
+        break;
+      }
       _log.warn('token-feed:claude-code', 'adapter read failed for a pid', {
         error: 'adapter-read-failed',
       });
@@ -298,7 +309,30 @@ async function readUsage(procs) {
     }
     for (const d of deltas) out.push(d);
   }
+  try {
+    // No delta may escape before its IDs and cursors are committed together.
+    if (indexFailed) throw Error('dedup-read-failed');
+    if (ledger?.commit()) indexWarning = false;
+  } catch {
+    ledger?.rollback();
+    if (!indexWarning) {
+      _log.warn('token-feed:claude-code', 'usage batch postponed; dedup index unavailable', {
+        error: 'dedup-batch-not-committed',
+      });
+      indexWarning = true;
+    }
+    return [];
+  }
   return out;
+}
+
+/** @internal Override index construction (tests).
+ * @param {Function} factory @returns {void} @since 0.18.2
+ */
+function _setLedgerFactoryForTest(factory) {
+  ledger?.close();
+  ledger = null;
+  ledgerFactory = factory;
 }
 
 /** @internal Override the home dir (tests). @param {() => string} fn */
@@ -318,7 +352,8 @@ function _setLoggerForTest(obj) {
 
 /** @internal Reset all module state + DI seams (tests). @returns {void} */
 function _resetForTest() {
-  sessions.clear();
+  _setLedgerFactoryForTest(() => createLedger({ file: ':memory:' }));
+  indexWarning = false;
   nextProcIndex = 0;
   _homedir = () => os.homedir();
   _log = logger;
@@ -335,5 +370,6 @@ module.exports = {
   _setHomedirForTest,
   _setFsForTest,
   _setLoggerForTest,
+  _setLedgerFactoryForTest,
   _resetForTest,
 };

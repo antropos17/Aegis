@@ -180,10 +180,14 @@ in [#633](https://github.com/antropos17/Aegis/issues/633). Windows fixture clean
 received a follow-up in [PR #729](https://github.com/antropos17/Aegis/pull/729) after
 a later combined-source run reproduced EPERM. Earlier successful checks remain
 evidence for their recorded revisions, rather than a guarantee for later runs.
-Claude transcript dedup state [#637](https://github.com/antropos17/Aegis/issues/637)
-remains unbounded for the application lifetime. Exited cost history compacts as
-described above. A future dedup retention policy must preserve cumulative spend,
-process-instance attribution and deduplication when a Claude session resumes.
+The published 0.18.1-beta retains Claude transcript dedup state in memory for the
+application lifetime. Current source moves session cursors and hashed message/path
+keys to a run-scoped SQLite index with a 128 MiB file limit and a 2 MiB cache target.
+Commit failures roll back the whole usage batch; session resume and transcript
+rewrite keep their exact dedup history. This source change is not yet in a published
+installer. Long-duration native qualification remains in
+[#637](https://github.com/antropos17/Aegis/issues/637). Exited cost history compacts
+as described above.
 Token totals may lag a backlog or omit oversized records; dollar amounts are local
 estimates rather than provider bills. See [token accounting](TOKEN-ACCOUNTING.md).
 

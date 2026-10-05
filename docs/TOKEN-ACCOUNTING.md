@@ -56,9 +56,23 @@ during provider failures, missing birth-time witnesses, suspend gaps or a stoppe
 scan generation. Its bound scales with the live population plus recent history;
 active processes are not dropped to enforce a fixed fleet-size cap.
 
-The Claude Code adapter's session cursors, message-ID deduplication sets and
-subagent-file maps remain retained for the application lifetime. They are separate
-from the bounded cost history and IPC. Their retention, and long-duration native
-qualification, remain tracked in [#637](https://github.com/antropos17/Aegis/issues/637).
-Deleting those sets would allow resumed or rewritten transcripts to be counted
-again; bounded transcript reads do not resolve this remaining memory limit.
+The Claude Code adapter keeps its run-scoped cursors and exact message-ID index in
+`token-dedup-run.sqlite` under the application profile. The file is limited to
+128 MiB; SQLite uses a 2 MiB page-cache target with memory mapping disabled. This
+cache target is not a bound on total application memory. Only SHA-256 digests of
+session/message IDs and subagent paths, byte offsets and oversized-record flags
+are stored. Transcript content, raw identifiers, paths and models are excluded.
+No JavaScript collection retains every departed session or previously seen ID.
+Resumed and rewritten transcripts still share the original main/subagent dedup
+index for the current run, so dropping an old process does not recount its usage.
+
+Deltas are returned only after their IDs and cursors commit together. If the index
+cannot open, reaches its page limit or fails to commit, the whole batch is rolled
+back and returns no new usage; it retries on subsequent scans. A fixed diagnostic
+is emitted once per uninterrupted failure. Usage can therefore be incomplete
+while storage is unavailable; measured counts are not replaced with estimates.
+A filesystem failure for one process leaves healthy processes readable. Normal
+exit closes and removes the index. Startup resets a leftover marked cache from a
+previous run, while refusing foreign files and links. Cost accounting still resets
+on application restart. Long-duration native qualification remains tracked in
+[#637](https://github.com/antropos17/Aegis/issues/637).
