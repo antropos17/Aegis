@@ -1,4 +1,4 @@
-# First beta readiness — 1 October 2026
+# Windows beta readiness
 
 Target: **0.18.0-beta**, Windows desktop monitoring and explicitly reviewed
 selected-action workflows. Check the [release page](https://github.com/antropos17/Aegis/releases)
@@ -53,6 +53,26 @@ still embeds 7.29.0, which falls within the affected ranges of the upstream
 and [WebSocket](https://github.com/nodejs/undici/security/advisories/GHSA-rfgv-xxqx-mfg5)
 advisories. The main/shared source search described below found no corresponding
 call sites; that limited result does not establish runtime-wide clearance.
+
+## 0.18.1-beta release candidate
+
+[PR #738](https://github.com/antropos17/Aegis/pull/738) advances source version
+markers to **0.18.1-beta** and includes the dependency, token-history and embedded
+runtime updates above. The dependency graph is unchanged from the combined source
+at `30ef329`; only its root package version changes in the release lockfile.
+
+[PR #741](https://github.com/antropos17/Aegis/pull/741) passed all ten mandatory
+Windows checks: 423 files, 7,634 passing tests and eight skipped, with the default
+four workers and compile cache disabled. Its exact revision and merged master
+passed all five required CI contexts. Its locally built NSIS payload matched the
+unpacked application byte for byte and passed a native isolated-profile smoke,
+including settings across restart and six exports. That package retained the
+0.18.0-beta source version; it is evidence for the runtime change, rather than
+qualification of the final 0.18.1-beta package.
+
+Final candidate packaging, exact-head CI and downloaded release manifest
+verification are separate gates. Installation/upgrade/uninstall and Authenticode
+remain unqualified; publication does not complete those gates.
 
 ## Windows source-check prerequisites
 
@@ -138,8 +158,9 @@ in [#633](https://github.com/antropos17/Aegis/issues/633). Windows fixture clean
 received a follow-up in [PR #729](https://github.com/antropos17/Aegis/pull/729) after
 a later combined-source run reproduced EPERM. Earlier successful checks remain
 evidence for their recorded revisions, rather than a guarantee for later runs.
-Retained token state [#637](https://github.com/antropos17/Aegis/issues/637) remains
-unbounded for the application lifetime. Compaction must preserve cumulative spend,
+Claude transcript dedup state [#637](https://github.com/antropos17/Aegis/issues/637)
+remains unbounded for the application lifetime. Exited cost history compacts as
+described above. A future dedup retention policy must preserve cumulative spend,
 process-instance attribution and deduplication when a Claude session resumes.
 Token totals may lag a backlog or omit oversized records; dollar amounts are local
 estimates rather than provider bills. See [token accounting](TOKEN-ACCOUNTING.md).

@@ -22,6 +22,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 0.18.1-beta (2026-10-05)
 
+Exited token-cost history now compacts after 256 recent exited records while
+preserving active records, cumulative spend and uncertainty. Chokidar is updated
+to 4.0.3 and Electron to 43.7.7, including Node 24.21.0 and Undici 7.29.1.
+Claude transcript dedup state still needs a retention policy. Windows installer
+installation/upgrade/uninstall, Authenticode and macOS/Linux qualification remain
+open; see [beta readiness](docs/BETA-READINESS.md).
+
 ## What's Changed
 * chore(release): record first beta publication and clear version override by @antropos17 in https://github.com/antropos17/Aegis/pull/737
 * chore(deps): remove vulnerable Chokidar and development dependency paths by @antropos17 in https://github.com/antropos17/Aegis/pull/739
