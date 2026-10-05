@@ -66,7 +66,7 @@ All 59 preload methods; the original transfer matrix is extended with Local secu
 | --- | --- | --- | --- |
 | localSecurityReview | Added with Local security | `LocalSecurity.svelte` | Component/browser tests and isolated Electron scan, export, fresh acceptance, reload and foreign-document checks |
 | getStats | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
-| quitApp | Added for explicit application exit | `AppExit.svelte` | Main-owned native confirmation; coalesced pending requests, cancel/retry feedback and normal shutdown |
+| quitApp | Added for explicit application exit | `AppExit.svelte` | Observatory confirmation in the UI language; explicit true value, owned-frame guard, coalesced requests, cancel/retry feedback and normal shutdown |
 | listSensitiveAlerts | Added with sensitive alert journal | `Notifications.svelte` | Owned renderer read; bounded saved summaries and status |
 | setSensitiveAlertReviewed | Added with sensitive alert journal | `Notifications.svelte` | Owned renderer write; UUID and boolean only, confirmed after a synced temporary file and atomic replacement |
 | getResourceUsage | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |

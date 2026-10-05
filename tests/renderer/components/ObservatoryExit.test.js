@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import App from '../../../frontend/observatory/App.svelte';
 import { createPreviewHost } from '../../../frontend/observatory/demo/host';
 import { language } from '../../../frontend/observatory/runtime/i18n';
@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 // Full App mounts need the same coverage budget as the audit-delivery integration test.
-it('exposes application exit across workspaces, coalesces clicks and allows retry after cancellation', async () => {
+it('asks before exit, restores focus after cancellation and coalesces confirmed clicks', async () => {
   let finish;
   const host = createPreviewHost();
   host.quitApp = vi.fn(() => new Promise((resolve) => (finish = resolve)));
@@ -19,11 +19,11 @@ it('exposes application exit across workspaces, coalesces clicks and allows retr
   exit.focus();
   await fireEvent.click(exit);
   await fireEvent.click(exit);
-  expect(host.quitApp).toHaveBeenCalledOnce();
-  expect(exit).toHaveAttribute('aria-busy', 'true');
-  expect(exit).toHaveFocus();
-  finish({ success: false, cancelled: true });
-  await waitFor(() => expect(exit).toHaveAttribute('aria-busy', 'false'));
+  const dialog = screen.getByRole('dialog', { name: 'Quit AEGIS?' });
+  const cancel = within(dialog).getByRole('button', { name: 'Cancel', exact: true });
+  expect(cancel).toHaveFocus();
+  expect(host.quitApp).not.toHaveBeenCalled();
+  await fireEvent.click(cancel);
   expect(screen.getByText('Exit cancelled.')).toBeInTheDocument();
   expect(exit).toHaveFocus();
   await fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }));
@@ -32,11 +32,19 @@ it('exposes application exit across workspaces, coalesces clicks and allows retr
     screen.getByText(/Closing the window keeps AEGIS running in the system tray/),
   ).toBeVisible();
   await fireEvent.click(exit);
-  expect(host.quitApp).toHaveBeenCalledTimes(2);
+  const confirm = within(dialog).getByRole('button', { name: 'Quit AEGIS', exact: true });
+  confirm.focus();
+  await fireEvent.click(confirm);
+  await fireEvent.click(confirm);
+  expect(host.quitApp).toHaveBeenCalledExactlyOnceWith(true);
+  expect(confirm).toHaveFocus();
+  await fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  expect(dialog).toHaveAttribute('open');
+  expect(host.quitApp).toHaveBeenCalledOnce();
   finish({ success: true });
-  await screen.findByText('Quitting…');
-  await fireEvent.click(exit);
-  expect(host.quitApp).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(confirm).toHaveTextContent('Quitting…'));
+  await fireEvent.click(confirm);
+  expect(host.quitApp).toHaveBeenCalledOnce();
 }, 15_000);
 
 it('keeps a failed exit actionable without rendering host error details or claiming completion', async () => {
@@ -48,8 +56,11 @@ it('keeps a failed exit actionable without rendering host error details or claim
   render(App, { host });
   const exit = screen.getByRole('button', { name: 'Quit AEGIS', exact: true });
   await fireEvent.click(exit);
+  const dialog = screen.getByRole('dialog', { name: 'Quit AEGIS?' });
+  const confirm = within(dialog).getByRole('button', { name: 'Quit AEGIS', exact: true });
+  await fireEvent.click(confirm);
   await screen.findByText('AEGIS could not quit. Try again.');
-  await fireEvent.click(exit);
+  await fireEvent.click(confirm);
   await waitFor(() => expect(host.quitApp).toHaveBeenCalledTimes(2));
   expect(screen.queryByText(/private|Completed/)).not.toBeInTheDocument();
   expect(exit).toHaveAttribute('aria-busy', 'false');
@@ -69,15 +80,32 @@ it('disables exit in the simulated preview and when the runtime lacks the capabi
   expect(exit).toBeDisabled();
 }, 15_000);
 
-it('localizes exit and cancellation feedback while keeping the control mounted', async () => {
+it('uses only the selected interface language and cancels without a host call', async () => {
   const host = createPreviewHost();
-  host.quitApp = vi.fn(async () => ({ success: false, cancelled: true }));
+  host.quitApp = vi.fn();
   render(App, { host });
   language.set('pt');
   const exit = await screen.findByRole('button', { name: 'Sair do AEGIS', exact: true });
   await fireEvent.click(exit);
+  let dialog = screen.getByRole('dialog', { name: 'Sair do AEGIS?' });
+  expect(
+    within(dialog).getByText('O monitoramento para até você abrir o AEGIS novamente.'),
+  ).toBeVisible();
+  expect(
+    within(dialog).queryByText('Monitoring stops until you open AEGIS again.'),
+  ).not.toBeInTheDocument();
+  const cancel = within(dialog).getByRole('button', { name: 'Cancelar', exact: true });
+  expect(cancel).toHaveFocus();
+  language.set('en');
+  dialog = await screen.findByRole('dialog', { name: 'Quit AEGIS?' });
+  expect(within(dialog).getByText('Monitoring stops until you open AEGIS again.')).toBeVisible();
+  expect(cancel).toHaveFocus();
+  language.set('pt');
+  await fireEvent(dialog, new Event('cancel', { cancelable: true }));
   await screen.findByText('Saída cancelada.');
   expect(exit).toBeInTheDocument();
+  expect(exit).toHaveFocus();
+  expect(host.quitApp).not.toHaveBeenCalled();
 }, 15_000);
 
 it('keeps settings editable during a process outage while retaining sensor and audit warnings', async () => {

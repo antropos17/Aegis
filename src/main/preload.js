@@ -13,7 +13,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('aegis', {
   localSecurityReview: (request) => ipcRenderer.invoke('local-security:review', request),
   getStats: () => ipcRenderer.invoke('get-stats'),
-  quitApp: () => ipcRenderer.invoke('app:quit'),
+  quitApp: (confirmed) => ipcRenderer.invoke('app:quit', confirmed),
   listSensitiveAlerts: () => ipcRenderer.invoke('sensitive-alerts:list'),
   setSensitiveAlertReviewed: (eventId, reviewed) =>
     ipcRenderer.invoke('sensitive-alerts:set-reviewed', eventId, reviewed),
