@@ -6,6 +6,8 @@
   import { metricObservations, plotMaximum } from '../runtime/statistics-plot';
   import { statisticsValue, type StatsMetric } from '../runtime/statistics-metrics';
   import StatsPlot from './StatsPlot.svelte';
+  import StatsWindow from './StatsWindow.svelte';
+  import StatsReadout from './StatsReadout.svelte';
   let {
     samples,
     metrics,
@@ -52,6 +54,7 @@
   let average = $derived(values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
   $effect(() => {
     if (pinnedAt !== null && !observations.some((s) => s.at === pinnedAt)) pinnedAt = null;
+    if (hoverAt !== null && !observations.some((s) => s.at === hoverAt)) hoverAt = null;
   });
   function choose(id: string): void {
     selected = id;
@@ -107,20 +110,21 @@
                 : $t('Selected measurement')} · {time(focused?.at)}
         </p>
       </div>
-      <strong class="current">{statisticsValue(focused?.values[metric.id], metric.unit)}</strong>
+      <StatsReadout
+        value={focused?.values[metric.id]}
+        unit={metric.unit}
+        state={paused
+          ? 'paused'
+          : stale || (focused && focused.at < start)
+            ? 'held'
+            : inspecting !== null
+              ? 'inspecting'
+              : typeof focused?.values[metric.id] === 'number'
+                ? 'live'
+                : 'unavailable'}
+      />
     </header>
-    <div class="monitor-tools">
-      <label
-        >{$t('Time window')}<select
-          aria-label={$t('Performance history length')}
-          bind:value={period}
-          ><option value={60000}>{$t('1 minute')}</option><option value={180000}
-            >{$t('3 minutes')}</option
-          ><option value={300000}>{$t('5 minutes')}</option></select
-        ></label
-      >
-      <span>{values.length} {$t('measured points')}</span>
-    </div>
+    <StatsWindow bind:period points={values.length} />
     <p class="coverage" class:partial={coverage && coverage.measured < coverage.total}>
       {#if coverage}{coverage.measured < coverage.total
           ? $t('Measured subtotal')
@@ -142,8 +146,8 @@
       {start}
       {end}
       {maximum}
-      held={stale}
-      focusedAt={focused?.at ?? null}
+      held={stale || paused}
+      focusedAt={inspecting}
       hover={(at) => (hoverAt = at)}
     />
     <div class="scrubber">
@@ -274,31 +278,6 @@
     font-size: var(--text-caption);
     margin: 7px 0 0;
   }
-  .current {
-    font-size: var(--text-metric);
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-  .monitor-tools {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    color: var(--muted);
-    font-size: var(--text-caption);
-    margin: 0 0 8px;
-  }
-  .monitor-tools label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  select {
-    max-width: none;
-    font-size: var(--text-body);
-  }
   .coverage {
     margin: 0 0 8px;
     min-height: 18px;
@@ -395,9 +374,6 @@
     }
     h2 {
       font-size: var(--text-section);
-    }
-    .current {
-      font-size: var(--text-metric);
     }
   }
   @media (prefers-reduced-motion: reduce) {

@@ -195,7 +195,8 @@ export async function checkUsability(browser, url, out) {
           return {
             agent: size('.agent-context select'),
             action: size('.agent-context .button'),
-            period: size('.statistics-workspace .monitor select'),
+            period: size('.statistics-workspace .history-windows'),
+            interval: size('.statistics-workspace .history-windows button'),
             latest: size('.statistics-workspace .scrubber .button'),
             metric: parseFloat(
               getComputedStyle(document.querySelector('.statistics-workspace .metric-rail strong'))
@@ -203,7 +204,7 @@ export async function checkUsability(browser, url, out) {
             ),
           };
         });
-        for (const control of [dimensions.action, dimensions.period, dimensions.latest]) {
+        for (const control of [dimensions.action, dimensions.latest]) {
           assert(
             Math.abs(control.height - dimensions.agent.height) <= 1,
             'inconsistent control heights',
@@ -211,6 +212,17 @@ export async function checkUsability(browser, url, out) {
           assert.equal(control.radius, dimensions.agent.radius, 'inconsistent control corners');
           assert.equal(control.font, dimensions.agent.font, 'inconsistent control typography');
         }
+        assert(
+          Math.abs(dimensions.period.height - dimensions.agent.height) <= 2,
+          'interval group ignores control height',
+        );
+        assert.equal(
+          dimensions.period.radius,
+          dimensions.agent.radius,
+          'interval group ignores control corners',
+        );
+        assert.equal(dimensions.interval.font, 11 * scale, 'interval caption ignores UI scale');
+        assert(dimensions.interval.height >= 24 * scale, 'interval target too small');
         assert.equal(dimensions.metric, 12 * scale, 'metric rail ignores UI scale');
         await go('Agents');
         await process.selectOption('');

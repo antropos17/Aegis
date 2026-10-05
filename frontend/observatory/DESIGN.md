@@ -1,5 +1,28 @@
 # AEGIS Observatory
 
+## Live chart refinement — 5 October 2026
+
+The user requested the visual approach of [Liveline](https://benji.org/liveline).
+Statistics and the agent Resources panel share a native Svelte/SVG adaptation:
+a quiet horizontal grid, light area fill, a circular endpoint, a right-side value
+badge and scale, and one/three/five-minute interval buttons. The large readout
+separately labels live, selected, paused, held and unavailable states. A retained
+reading outside the selected interval is labelled held. The existing
+Observatory surfaces, typography, colours and workspace composition apply.
+
+Only display coordinates ease for 240 ms after an update. Readouts and hover or
+keyboard inspection use exact delivered values and timestamps. Counter series
+keep their discrete steps. Each missing observation splits both line and fill;
+an unavailable latest reading has no live endpoint badge. Zero remains the axis
+baseline, and an expanding scale takes effect immediately to retain spikes.
+
+The frame loop ends after the transition; unrelated source deliveries with the
+same observations do not restart it. Inspection, pause, stale view, app or
+system reduced motion, document visibility and off-screen/hidden agent panels
+stop motion. Components dispose frames and observers when removed. The history,
+measurement coverage, collection-clock provenance and stamped selection contracts
+continue to govern these charts. No React or additional chart dependency is used.
+
 ## Token history retention — 5 October 2026
 
 The token source list labels the aggregate of older exited records as archived

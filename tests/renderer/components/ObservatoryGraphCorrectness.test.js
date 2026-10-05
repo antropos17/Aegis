@@ -19,9 +19,7 @@ it('renders partial measured values and only its own source points in a real dur
   await fireEvent.input(screen.getByRole('slider'), { target: { value: '0' } });
   expect(mounted.container.querySelector('.current')).toHaveTextContent('10 %');
   expect(screen.getByText(/Measured subtotal/)).toHaveTextContent('1 / 2 processes');
-  await fireEvent.change(screen.getByRole('combobox', { name: 'Performance history length' }), {
-    target: { value: '300000' },
-  });
+  await fireEvent.click(screen.getByRole('button', { name: '5 min', exact: true }));
   expect(screen.getByRole('img')).toHaveAttribute(
     'aria-label',
     expect.stringContaining('300 seconds'),
@@ -49,7 +47,7 @@ it('preserves the displayed measured value at a pause boundary without joining i
   });
   expect(mounted.container.querySelector('.current')).toHaveTextContent('20 %');
   expect(screen.getByText(/^View held/)).toBeVisible();
-  expect(mounted.container.querySelectorAll('.plot path')).toHaveLength(1);
+  expect(mounted.container.querySelectorAll('.plot .trace')).toHaveLength(1);
   await mounted.rerender({ paused: false });
   expect(mounted.container.querySelector('.current')).toHaveTextContent('—');
 });

@@ -6,6 +6,11 @@ export interface PlotPoint {
   x: number;
   y: number;
 }
+export interface PlotGeometry {
+  paths: string[];
+  points: PlotPoint[];
+  segments: PlotPoint[][];
+}
 /** Read only measurements delivered by this metric's own source clock.
  * @param samples Sparse history @param key Metric @param start Window start @param end Window end
  * @returns Actual metric observations, including explicit gaps @since 0.14.1
@@ -51,25 +56,36 @@ export function plotGeometry(
   end: number,
   maximum: number,
   stepped = false,
-): { paths: string[]; points: PlotPoint[] } {
+): PlotGeometry {
   const paths: string[] = [],
-    points: PlotPoint[] = [];
+    points: PlotPoint[] = [],
+    segments: PlotPoint[][] = [];
   let path = '';
+  let segment: PlotPoint[] = [];
   for (const sample of metricObservations(samples, key, start, end)) {
     const value = sample.values[key];
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-      if (path) paths.push(path);
+      if (path) {
+        paths.push(path);
+        segments.push(segment);
+      }
       path = '';
+      segment = [];
       continue;
     }
     const x = plotX(sample.at, start, end),
       y = 160 - Math.min(1, value / Math.max(1e-12, maximum)) * 160;
     const xy = x.toFixed(2) + ' ' + y.toFixed(2);
     path += path ? (stepped ? ' H ' + x.toFixed(2) + ' V ' + y.toFixed(2) : ' L ' + xy) : 'M ' + xy;
-    points.push({ at: sample.at, value, x, y });
+    const point = { at: sample.at, value, x, y };
+    points.push(point);
+    segment.push(point);
   }
-  if (path) paths.push(path);
-  return { paths, points };
+  if (path) {
+    paths.push(path);
+    segments.push(segment);
+  }
+  return { paths, points, segments };
 }
 /** Resolve a cursor to the nearest actual observation, without inventing interpolation.
  * @param samples Metric observations @param at Cursor timestamp @returns Actual observation @since 0.14.1

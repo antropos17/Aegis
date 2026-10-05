@@ -17,6 +17,55 @@ export async function checkGraphs(browser, url, out) {
       undefined,
       { timeout: 30000 },
     );
+    await page.mouse.move(0, 0);
+    const movement = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          let changes = 0;
+          const line = document.querySelector('.plot .trace');
+          const observer = new MutationObserver(() => {
+            changes++;
+          });
+          observer.observe(line, { attributes: true, attributeFilter: ['d'] });
+          setTimeout(() => {
+            observer.disconnect();
+            resolve(changes);
+          }, 3500);
+        }),
+    );
+    assert(movement > 5, 'live trace did not ease between delivered updates');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const reduced = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          let changes = 0;
+          const line = document.querySelector('.plot .trace');
+          const observer = new MutationObserver(() => {
+            changes++;
+          });
+          observer.observe(line, { attributes: true, attributeFilter: ['d'] });
+          setTimeout(() => {
+            observer.disconnect();
+            resolve(changes);
+          }, 1200);
+        }),
+    );
+    assert(reduced <= 4, 'system reduced motion continued interpolating frames');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const five = page
+      .getByRole('group', { name: 'Performance history length' })
+      .getByRole('button', { name: '5 min', exact: true });
+    await five.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await five.getAttribute('aria-pressed'), 'true');
+    assert(await five.evaluate((button) => button === document.activeElement));
+    await page.getByRole('slider', { name: 'Inspect', exact: true }).focus();
+    await page.keyboard.press('Home');
+    assert(
+      await page.locator('.plot-tooltip').isVisible(),
+      'keyboard inspection has no actual-point tooltip',
+    );
+    await page.getByRole('button', { name: 'Latest', exact: true }).click();
     let checks = 0;
     for (const size of [
       { width: 1200, height: 800 },
@@ -34,16 +83,22 @@ export async function checkGraphs(browser, url, out) {
         for (const name of ['Performance', 'Activity', 'Tokens', 'Sensors']) {
           await page.locator('.stats-navigation').getByRole('tab', { name, exact: true }).click();
           await settle();
-          for (const duration of ['60000', '180000', '300000']) {
+          for (const [duration, label] of [
+            [60000, '1 min'],
+            [180000, '3 min'],
+            [300000, '5 min'],
+          ]) {
             await page
-              .getByRole('combobox', { name: 'Performance history length' })
-              .selectOption(duration);
-            const label = await page.locator('.plot').getAttribute('aria-label');
-            assert(label.includes(Number(duration) / 1000 + ' seconds'), label);
+              .getByRole('group', { name: 'Performance history length' })
+              .getByRole('button', { name: label, exact: true })
+              .click();
+            const description = await page.locator('.plot').getAttribute('aria-label');
+            assert(description.includes(Number(duration) / 1000 + ' seconds'), description);
           }
           await page
-            .getByRole('combobox', { name: 'Performance history length' })
-            .selectOption('60000');
+            .getByRole('group', { name: 'Performance history length' })
+            .getByRole('button', { name: '1 min', exact: true })
+            .click();
           const geo = await page.evaluate(() => {
             const m = document.querySelector('#main');
             return (
@@ -97,7 +152,7 @@ export async function checkGraphs(browser, url, out) {
     console.log(
       'Graphs: ' +
         checks +
-        ' theme/viewport/section states; fixed time windows, real points and pause/resume passed.',
+        ' theme/viewport/section states; smooth deliveries, reduced motion, keyboard inspection, fixed time windows, real points and pause/resume passed.',
     );
   } finally {
     await page.close();
