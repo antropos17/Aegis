@@ -44,7 +44,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (59 channels: 48 invoke + 11 push)        │
+│              contextBridge API (60 channels: 49 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -180,7 +180,7 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 48 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
+The 49 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
@@ -227,6 +227,7 @@ The 48 invoke channels below are exposed through `src/main/preload.js`. Handlers
 | `reveal-in-explorer` | main | Open a file's location in the file manager |
 | `open-external-url` | main | Open an http/https URL in the default browser |
 | `get-app-version` | main | Current app version string |
+| `app:quit` | app-quit | Confirm application exit natively, recheck renderer ownership and request normal shutdown |
 | `test-notification` | main | Trigger a test OS notification |
 | `updates:status` | app-updates | Read updater state |
 | `updates:check` | app-updates | Check signed release metadata |

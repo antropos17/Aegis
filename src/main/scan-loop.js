@@ -414,12 +414,17 @@ function doNetworkScan() {
   // the process sensor cannot vouch for. The list is NOT cleared (§2.3 — clearing
   // re-creates B-S01); the consumer is gated instead.
   if (networkScopePending || !isPopulationReliable(scanner)) {
+    // Retry when the next trustworthy, fully annotated process scope is ready,
+    // even if its population is unchanged. Repeated skipped polls share one retry.
+    networkRescanQueued = true;
     logger.debug('scan', 'network-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof network.noteNetworkSkip === 'function') {
       network.noteNetworkSkip(SCOPE_UNAVAILABLE);
     }
     return;
   }
+  // A regular poll on the recovered scope also satisfies a queued replacement.
+  networkRescanQueued = false;
   // B-S08: agent-scoped network sensor — a reliable but empty population still skips
   // the TCP provider, and that skip is a scoped SUCCESS, not a degradation.
   if (agents.length === 0) {

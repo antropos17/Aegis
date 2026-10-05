@@ -143,6 +143,7 @@ interface AgentResourceRecord {
 
 /** Minimal type for the window.aegis IPC bridge exposed by preload.js */
 interface AegisIpcBridge {
+  quitApp(confirmed: true): Promise<{ success: boolean; error?: string }>;
   getUpdateStatus(): Promise<UpdateStatus>;
   checkForUpdates(): Promise<UpdateStatus>;
   downloadUpdate(): Promise<UpdateStatus>;

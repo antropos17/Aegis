@@ -1,5 +1,22 @@
 # AEGIS Observatory
 
+## Explicit application exit — 5 October 2026
+
+The sidebar exposes Quit AEGIS independently of workspace or sensor state.
+Closing the native window continues monitoring in the tray; Desktop settings
+explains this behavior. Exit uses the Observatory modal and the selected interface
+language, with Cancel focused by default. Escape and the close button cancel and
+restore focus to the sidebar. Confirmation alone sends the explicit true value
+to the main-owned exit handler; pending requests coalesce. It uses normal app shutdown and preserves its journal
+drain. Unsaved edits are explicitly discarded only after confirming exit.
+Pending clicks coalesce without dropping keyboard focus. Cancellation and failure
+leave the control available with fixed localized feedback; preview disables it.
+The existing reference cascade, semantic tokens and stationary controls apply.
+
+Settings stays usable without a current process snapshot. Process-outage banners
+remain on observation-dependent workspaces; sensor and audit-delivery warnings
+remain visible in Settings, including the loss warning before application exit.
+
 ## Live chart refinement — 5 October 2026
 
 The user requested the visual approach of [Liveline](https://benji.org/liveline).

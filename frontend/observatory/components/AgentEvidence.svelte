@@ -61,8 +61,9 @@
   <p class="evidence-note">
     {network
       ? $t('Endpoint verification is separate from process identity.')
-      : $t('Unattributed activity stays in the all-agent log.')}{#if rows.length > 4}
-      {$t('Showing 4 of')} {rows.length}.{/if}
+      : $t('Unattributed activity stays in the all-agent log.')}{rows.length > 4
+      ? ' ' + $t('Showing 4 of') + ' ' + rows.length + '.'
+      : ''}
   </p>
 </section>
 
