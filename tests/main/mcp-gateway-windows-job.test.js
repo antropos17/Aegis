@@ -93,7 +93,12 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
   afterAll(async () => {
     expect(path.dirname(helperRoot)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(helperRoot).isSymbolicLink()).toBe(false);
-    await fs.promises.rm(helperRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await fs.promises.rm(helperRoot, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
   });
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mcpjob-'));
@@ -326,7 +331,7 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
 
   it('discards selected stderr, including launch-secret text', async () => {
     const secret = 'PRIVATE_STDERR_VALUE';
-    const code = `process.stderr.write(process.env.AEGIS_TEST_SECRET); process.stdin.resume();`;
+    const code = `process.stderr.write(process.env.AEGIS_TEST_SECRET); process.stdout.write('fixture-started\\n'); process.stdin.resume();`;
     running = processes.track(
       spawnInWindowsJob(launch(code, [], { ...baseEnv(), AEGIS_TEST_SECRET: secret }), helper),
     );
@@ -339,11 +344,13 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
       helperStdout += chunk;
     });
     const closed = once(running, 'close');
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Observe execution of the stderr write before stopping the selected process.
+    expect(await line(running.stdout)).toBe('fixture-started');
     running.stop();
     await closed;
     expect(running.cleanupConfirmed).toBe(true);
     expect(helperStderr + helperStdout).not.toContain(secret);
+    expect(helperStdout).toBe('fixture-started\n');
     expect(helperStderr).toBe('');
   });
 });

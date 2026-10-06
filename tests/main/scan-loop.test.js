@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createRequire } from 'module';
+import Module from 'node:module';
+import os from 'node:os';
 
 describe('scan-loop', () => {
   let scanLoop;
   const require_ = createRequire(import.meta.url);
+  const originalLoad = Module._load;
+  const fakeElectron = {
+    app: { getPath: () => os.tmpdir() },
+    safeStorage: { isEncryptionAvailable: () => false },
+  };
 
   /**
    * Inert command runner for resource-monitor, installed for the WHOLE file.
@@ -35,6 +42,12 @@ describe('scan-loop', () => {
   }
 
   beforeEach(() => {
+    // Collaborators use native CommonJS require, outside vi.mock's transform.
+    // Unit scans must not trigger Electron 44's lazy binary download.
+    Module._load = function (request) {
+      if (request === 'electron') return fakeElectron;
+      return originalLoad.apply(this, arguments);
+    };
     vi.useFakeTimers();
     // Clear CJS cache so each test gets fresh module-level state
     const scanLoopPath = require_.resolve('../../src/main/scan-loop.js');
@@ -49,13 +62,17 @@ describe('scan-loop', () => {
   });
 
   afterEach(async () => {
-    scanLoop.stopScanIntervals();
-    // Settle the fire-and-forget resource push INSIDE the test that started it,
-    // while its own exec is still the installed one. Pending timers are not run;
-    // this only drains microtasks, which is all an inert exec needs.
-    await vi.advanceTimersByTimeAsync(0);
-    vi.useRealTimers();
-    isolateResourceMonitor();
+    try {
+      scanLoop.stopScanIntervals();
+      // Settle the fire-and-forget resource push INSIDE the test that started it,
+      // while its own exec is still the installed one. Pending timers are not run;
+      // this only drains microtasks, which is all an inert exec needs.
+      await vi.advanceTimersByTimeAsync(0);
+      vi.useRealTimers();
+      isolateResourceMonitor();
+    } finally {
+      Module._load = originalLoad;
+    }
   });
 
   /**

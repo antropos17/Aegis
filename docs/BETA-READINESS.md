@@ -225,8 +225,8 @@ The published 0.18.1-beta retains Claude transcript dedup state in memory for th
 application lifetime. Current source moves session cursors and hashed message/path
 keys to a run-scoped SQLite index with a 128 MiB file limit and a 2 MiB cache target.
 Commit failures roll back the whole usage batch; session resume and transcript
-rewrite keep their exact dedup history. This source change is not yet in a published
-installer. Long-duration native qualification remains in
+rewrite keep their exact dedup history. The published 0.19.0-beta installer includes
+this run-scoped index. Long-duration native qualification remains in
 [#637](https://github.com/antropos17/Aegis/issues/637). Exited cost history compacts
 as described above.
 Token totals may lag a backlog or omit oversized records; dollar amounts are local
