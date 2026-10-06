@@ -58,16 +58,16 @@ it('propagates a rejected write without changing the saved mode', () => {
 
 it('keeps complete routes and command aliases behind the compact Simple navigation', () => {
   expect(navigationWorkspaces(false).map(({ label }) => label)).toEqual([
-    'Home',
-    'Agents',
-    'Activity',
+    'Investigate',
     'Check files',
     'Settings',
   ]);
   expect(navigationWorkspaces(true)).toEqual(workspaces);
   const commands = workspaceCommands(false);
   expect(commands.map(({ target }) => target)).toEqual(workspaces.map(({ id }) => id));
-  expect(findCommands(commands, 'home')).toMatchObject([{ target: 'overview', label: 'Home' }]);
+  expect(findCommands(commands, 'home')).toMatchObject([
+    { target: 'overview', label: 'Investigate' },
+  ]);
   expect(findCommands(commands, 'monitoring')).toMatchObject([{ target: 'overview' }]);
   expect(findCommands(commands, 'network')[0]).toMatchObject({ target: 'network' });
 });

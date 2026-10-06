@@ -12,6 +12,7 @@
   import {
     connectHost,
     emptyTelemetry,
+    instances,
     invoke,
     record,
     type Host,
@@ -28,6 +29,7 @@
     navigationWorkspaces,
     workspaceLabel,
     isAdvancedWorkspace,
+    isInvestigationWorkspace,
     type WorkspaceCommand,
   } from './runtime/navigation';
   import { cpuPercent } from './runtime/resources';
@@ -36,7 +38,7 @@
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
-  import SimpleHome from './components/SimpleHome.svelte';
+  import InvestigationWorkbench from './components/InvestigationWorkbench.svelte';
   import ProtectionOverview from './components/ProtectionOverview.svelte';
   import Events from './components/Events.svelte';
   import Rules from './components/Rules.svelte';
@@ -56,9 +58,9 @@
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   const views = workspaces.map((entry) => [entry.id, entry.label, entry.icon]);
   let advanced = $state(readAdvancedMode());
-  let simpleHomeMounted = $state(untrack(() => !advanced));
+  let investigationMounted = $state(untrack(() => !advanced));
   $effect(() => {
-    if (!advanced) simpleHomeMounted = true;
+    if (!advanced) investigationMounted = true;
   });
   let navigationEntries = $derived(navigationWorkspaces(advanced));
 
@@ -107,6 +109,7 @@
   let scope = $state<AgentScope>({ agent: '', instanceId: '' });
   let agentSection = $state<{ id: string; revision: number }>();
   function changeScope(next: AgentScope) {
+    if (next.agent !== scope.agent || next.instanceId !== scope.instanceId) evidenceRequest = null;
     scope = next;
     if (!next.agent) selected = null;
   }
@@ -168,9 +171,11 @@
   });
   let selected = $state<string | null>(null);
   let view = $state('overview');
-  let technicalWorkspace = $derived(isAdvancedWorkspace(view));
+  let simpleInvestigation = $derived(!advanced && isInvestigationWorkspace(view));
+  let technicalWorkspace = $derived(!simpleInvestigation && isAdvancedWorkspace(view));
   let detailedMonitoring = $state(true);
-  let monitoringMounted = $state(true);
+  let monitoringMounted = $state(untrack(() => advanced));
+  let agentWorkspaceMounted = $state(false);
   let policyRevision = $state(0);
   let policyTarget = $state<{ key: string; revision: number }>();
   function openPolicy(key: string) {
@@ -178,7 +183,8 @@
     void navigate('rules');
   }
   $effect(() => {
-    if (detailedMonitoring || view === 'agents') monitoringMounted = true;
+    if (advanced && (detailedMonitoring || view === 'agents')) monitoringMounted = true;
+    if (advanced && view === 'agents' && scope.agent) agentWorkspaceMounted = true;
   });
   let group = $derived(workspaces.find((entry) => entry.id === view)?.group);
   let isLiveWorkspace = $derived(
@@ -204,6 +210,16 @@
   let statusFooter: HTMLElement;
   let footerLayout: ReturnType<typeof mountFooterLayout> | undefined;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
+  let evidenceRequest = $state.raw<{ title: string; row: RecordData; agents: RecordData[] } | null>(
+    null,
+  );
+  let evidenceReturnFocus: HTMLElement | null = null;
+  let exceptionStatusRevision = $state(0);
+  async function refreshExceptionStatus() {
+    await connection?.refreshFalsePositives();
+    exceptionStatusRevision += 1;
+  }
+  let activityChannelRequest = $state<{ channel: 'files' | 'connections'; revision: number }>();
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
   let dark = $state(savedTheme ? savedTheme.startsWith('dark') : false);
@@ -216,8 +232,38 @@
     footerLayout?.scroll(event);
   }
   let title = $derived(
-    scope.agent && view === 'agents' ? scope.agent : $t(workspaceLabel(view, advanced)),
+    scope.agent && view === 'agents' && advanced
+      ? scope.agent
+      : $t(workspaceLabel(simpleInvestigation ? 'overview' : view, advanced)),
   );
+  async function captureEvidence(title: string, row: RecordData, agents?: RecordData[]) {
+    evidenceReturnFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    evidenceRequest = {
+      title,
+      row: structuredClone($state.snapshot(row)),
+      agents: structuredClone(
+        $state.snapshot(agents ?? (instances(displayTelemetry) as unknown as RecordData[])),
+      ),
+    };
+    const captured = evidenceRequest;
+    await navigate('overview');
+    await tick();
+    if (evidenceRequest === captured && simpleInvestigation)
+      document.getElementById('investigation-evidence')?.focus();
+  }
+  async function closeEvidence() {
+    const opener = evidenceReturnFocus;
+    evidenceRequest = null;
+    evidenceReturnFocus = null;
+    await tick();
+    if (evidenceRequest || !simpleInvestigation) return;
+    if (opener?.isConnected && !opener.closest('[hidden]')) opener.focus();
+    else document.getElementById('investigation-activity')?.focus();
+  }
+  function openFullDetails(title: string, row: RecordData) {
+    detail = { title, row };
+  }
   function inspect(title: string, row: RecordData) {
     const kind = detailKind(row);
     const agent =
@@ -229,17 +275,24 @@
     if (agent && (kind === 'group' || isScopedProcess(row))) {
       changeScope({ agent, instanceId: kind === 'process' ? String(row.instanceId) : '' });
       detail = null;
-      scrolls.agents = 0;
-      if (view === 'agents' && workspace) workspace.scrollTop = 0;
+      const destination = advanced ? 'agents' : 'overview';
+      scrolls[destination] = 0;
+      if (view === destination && workspace) workspace.scrollTop = 0;
       agentSection = { id: String(row.detailSection || 'overview'), revision: ++sectionRevision };
-      void navigate('agents').then(() => {
-        if (view === 'agents' && scope.agent === agent) {
-          document.getElementById('agent-workspace-heading')?.focus({ preventScroll: true });
+      void navigate(advanced ? 'agents' : 'overview').then(() => {
+        if (scope.agent === agent) {
+          document
+            .getElementById(advanced ? 'agent-workspace-heading' : 'investigation-context')
+            ?.focus();
         }
       });
       return;
     }
-    detail = { title, row };
+    if (!advanced && (kind === 'resource' || row.type === 'sequence-detection')) {
+      captureEvidence(title, row);
+      return;
+    }
+    openFullDetails(title, row);
   }
   function appearance(nextDark: boolean, nextScale: number, highContrast = contrast) {
     themeChanged = true;
@@ -260,6 +313,14 @@
   });
   async function navigate(next: string, remember = true) {
     if (!views.some((row) => row[0] === next)) return;
+    if (!advanced && isInvestigationWorkspace(next)) {
+      if (next === 'events' || next === 'network')
+        activityChannelRequest = {
+          channel: next === 'network' ? 'connections' : 'files',
+          revision: ++sectionRevision,
+        };
+      next = 'overview';
+    }
     if (next === requestedView) {
       const fromCommands = commands;
       const ticket = navigationRevision;
@@ -402,32 +463,39 @@
 
 <svelte:window onkeydown={keydown} />
 <a href="#main" class="skip">{$t('Skip to content')}</a>
-<div class="app observatory-app" class:paused class:stale={telemetry.stale}>
+<div
+  class="app observatory-app"
+  class:simple={!advanced}
+  class:paused
+  class:stale={telemetry.stale}
+>
   <aside class="sidebar">
     <a class="brand" href="#main"
       ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />{$t(
         'AEGIS',
       )}<span class="version">{version}</span></a
     >
-    <div class="machine">
-      <Icon name="monitor" />
-      <div>
-        <strong>{$t('Workstation')}</strong><small
-          >{preview ? $t('Preview / local') : $t('Desktop / local')}</small
-        >
-      </div>
-      <span class="status-indicator"><Icon name="check" /></span>
-    </div>
+    {#if advanced}<div class="machine">
+        <Icon name="monitor" />
+        <div>
+          <strong>{$t('Workstation')}</strong><small
+            >{preview ? $t('Preview / local') : $t('Desktop / local')}</small
+          >
+        </div>
+        <span class="status-indicator"><Icon name="check" /></span>
+      </div>{/if}
     <nav aria-label={$t('Main navigation')}>
       {#each advanced ? workspaceGroups : [{ id: 'simple', label: 'Simple' }] as category (category.id)}
         <div class="nav-group">
-          <span class="nav-group-label">{$t(category.label)}</span>
+          {#if advanced}<span class="nav-group-label">{$t(category.label)}</span>{/if}
           {#each navigationEntries.filter((entry) => !advanced || entry.group === category.id) as entry (entry.id)}
             <button
               class="nav"
               aria-label={$t(entry.label)}
-              class:active={view === entry.id}
-              aria-current={view === entry.id ? 'page' : undefined}
+              class:active={view === entry.id || (simpleInvestigation && entry.id === 'overview')}
+              aria-current={view === entry.id || (simpleInvestigation && entry.id === 'overview')
+                ? 'page'
+                : undefined}
               onclick={() => navigate(entry.id)}
             >
               <Icon name={entry.icon} /><span>{$t(entry.label)}</span>
@@ -440,11 +508,11 @@
       {/each}
     </nav>
     <div class="sidebar-bottom">
-      <button class="sensor-mini" onclick={openSensors}
-        ><span class="sensor-indicator"><Icon name="shield" /></span><span
-          >{$t('Sensors')}<small>{$t(healthCaption)}</small></span
-        ><Icon name="chevron" /></button
-      >
+      {#if advanced}<button class="sensor-mini" onclick={openSensors}
+          ><span class="sensor-indicator"><Icon name="shield" /></span><span
+            >{$t('Sensors')}<small>{$t(healthCaption)}</small></span
+          ><Icon name="chevron" /></button
+        >{/if}
       <div class="sidebar-foot">
         {preview ? $t('Preview · simulated data') : $t('Local observations')}
       </div>
@@ -555,7 +623,7 @@
           >
         </div>
       {/if}
-      {#if isLiveWorkspace && view !== 'overview'}<AgentContext
+      {#if isLiveWorkspace && view !== 'overview' && !simpleInvestigation}<AgentContext
           telemetry={displayTelemetry}
           {scope}
           change={changeScope}
@@ -595,14 +663,24 @@
           {#if tabs.includes('guide')}<div hidden={view !== 'guide'}>
               <TaskGuide {host} {preview} {navigate} />
             </div>{/if}
-          {#if simpleHomeMounted}<div hidden={view !== 'overview' || advanced}>
-              <SimpleHome
+          {#if investigationMounted}<div hidden={!simpleInvestigation}>
+              <InvestigationWorkbench
                 telemetry={displayTelemetry}
+                liveTelemetry={telemetry}
+                {host}
+                {scope}
+                change={changeScope}
                 {inspect}
-                {navigate}
-                {openStatistics}
+                capture={captureEvidence}
+                request={evidenceRequest}
+                {closeEvidence}
+                fullDetails={openFullDetails}
+                refreshFalsePositives={refreshExceptionStatus}
+                statusRevision={exceptionStatusRevision}
+                inspectorVisible={simpleInvestigation && detail === null}
+                channelRequest={activityChannelRequest}
                 {paused}
-                visible={view === 'overview' && !advanced}
+                visible={simpleInvestigation}
               />
             </div>{/if}
           <div hidden={!advanced || view !== 'overview' || detailedMonitoring}>
@@ -620,8 +698,9 @@
             />
           </div>
           {#if monitoringMounted}<div
-              hidden={(!advanced || view !== 'overview' || !detailedMonitoring) &&
-                (view !== 'agents' || scope.agent !== '')}
+              hidden={!advanced ||
+                ((view !== 'overview' || !detailedMonitoring) &&
+                  (view !== 'agents' || scope.agent !== ''))}
             >
               <Monitoring
                 {advanced}
@@ -639,27 +718,27 @@
                 }}
               />
             </div>{/if}
-          {#if scope.agent}<div hidden={view !== 'agents'}>
+          {#if agentWorkspaceMounted}<div hidden={!advanced || view !== 'agents' || !scope.agent}>
               <AgentWorkspace
                 telemetry={displayTelemetry}
                 liveTelemetry={telemetry}
                 {host}
                 {scope}
-                {advanced}
+                advanced={true}
                 change={changeScope}
                 {inspect}
                 {navigate}
                 {openInterfaceSettings}
                 {paused}
                 sectionRequest={agentSection}
-                visible={view === 'agents'}
+                visible={advanced && view === 'agents'}
               />
             </div>{/if}
-          {#if tabs.includes('events')}<div hidden={view !== 'events'}>
+          {#if tabs.includes('events')}<div hidden={!advanced || view !== 'events'}>
               <Events
                 {advanced}
                 combined={!advanced}
-                visible={view === 'events'}
+                visible={advanced && view === 'events'}
                 viewPaused={paused}
                 showPause={false}
                 telemetry={displayTelemetry}
@@ -667,9 +746,9 @@
                 {inspect}
               />
             </div>{/if}
-          {#if tabs.includes('network')}<div hidden={view !== 'network'}>
+          {#if tabs.includes('network')}<div hidden={!advanced || view !== 'network'}>
               <Events
-                visible={view === 'network'}
+                visible={advanced && view === 'network'}
                 viewPaused={paused}
                 showPause={false}
                 telemetry={displayTelemetry}
@@ -779,13 +858,13 @@
         ><Icon name="shield" />{$t(
           observationStatusLabel(record(telemetry.stats.appHealth).state),
         )}</button
-      ><span
-        >{$t('AEGIS CPU')} <b>{ownCpu === null ? '—' : ownCpu.toFixed(1)}%</b>
-        {$t('· RAM')}
-        <b>{String(telemetry.own.memMB ?? '—')} {$t('MB')}</b>
-        {$t('· heap')}
-        <b>{String(telemetry.own.heapMB ?? '—')} {$t('MB')}</b></span
-      ><button
+      >{#if advanced}<span
+          >{$t('AEGIS CPU')} <b>{ownCpu === null ? '—' : ownCpu.toFixed(1)}%</b>
+          {$t('· RAM')}
+          <b>{String(telemetry.own.memMB ?? '—')} {$t('MB')}</b>
+          {$t('· heap')}
+          <b>{String(telemetry.own.heapMB ?? '—')} {$t('MB')}</b></span
+        >{/if}<button
         class="audit-delivery"
         class:audit-loss={auditDropped !== null && auditDropped > 0}
         class:audit-write-failed={auditWriteFailed}
@@ -822,15 +901,25 @@
 <Details
   {host}
   {telemetry}
-  refreshFalsePositives={async () => {
-    await connection?.refreshFalsePositives();
-  }}
+  refreshFalsePositives={refreshExceptionStatus}
+  statusRevision={exceptionStatusRevision}
   request={detail}
   openAgent={inspect}
   close={() => (detail = null)}
 />
 
 <style>
+  .app.simple {
+    grid-template-columns: 165px minmax(0, 1fr);
+  }
+  .simple .brand {
+    font-size: calc(18px * var(--ui-scale));
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .simple .nav span {
+    white-space: normal;
+  }
   .advanced-workspace-note {
     display: flex;
     flex-wrap: wrap;

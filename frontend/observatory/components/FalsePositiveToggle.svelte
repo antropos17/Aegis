@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { t } from '../runtime/i18n';
   import type { Host } from '../runtime/host';
   import {
@@ -13,18 +13,47 @@
     host,
     target,
     refreshFalsePositives,
+    statusRevision = 0,
+    visible = true,
   }: {
     host: Host | null;
     target: ExactExceptionTarget;
     refreshFalsePositives: () => Promise<void>;
+    statusRevision?: number;
+    visible?: boolean;
   } = $props();
   const feedbackId = $props.id();
   let saved = $state<ExactExceptionStatus | null>(null);
   let pending = $state(true);
   let error = $state('');
   let verified = $state(false);
+  let mounted = $state(false);
   let alive = true;
+  let active = false;
+  let queued = false;
+  let queuedRefresh = false;
+
+  // Saved-state signals and a visible return request verification without
+  // replacing this control or racing its current serialized write/readback.
+  $effect(() => {
+    statusRevision;
+    if (mounted && visible) untrack(() => requestRead());
+  });
+  function requestRead(refresh = false) {
+    if (!alive) return;
+    queued = true;
+    queuedRefresh ||= refresh;
+    flushRead();
+  }
+  function flushRead() {
+    if (!alive || !queued || active || !visible) return;
+    const refresh = queuedRefresh;
+    queued = false;
+    queuedRefresh = false;
+    void read(refresh);
+  }
   async function read(refresh = false) {
+    active = true;
     pending = true;
     error = '';
     try {
@@ -40,17 +69,22 @@
         error = failure instanceof Error ? failure.message : String(failure);
       }
     } finally {
-      if (alive) pending = false;
+      active = false;
+      if (alive) {
+        pending = false;
+        flushRead();
+      }
     }
   }
   onMount(() => {
-    void read();
+    mounted = true;
     return () => {
       alive = false;
     };
   });
   async function toggle() {
     if (!host || pending || !verified || !saved) return;
+    active = true;
     pending = true;
     error = '';
     try {
@@ -62,7 +96,11 @@
         error = failure instanceof Error ? failure.message : String(failure);
       }
     } finally {
-      if (alive) pending = false;
+      active = false;
+      if (alive) {
+        pending = false;
+        flushRead();
+      }
     }
   }
 </script>
@@ -99,7 +137,7 @@
         )}
       </p>{/if}
   </div>
-  {#if !pending && !verified}<button class="button" onclick={() => read(true)}
+  {#if !pending && !verified}<button class="button" onclick={() => requestRead(true)}
       >{$t('Retry status')}</button
     >{/if}
 </div>

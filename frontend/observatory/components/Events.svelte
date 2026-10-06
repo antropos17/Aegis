@@ -19,17 +19,21 @@
     advanced = true,
     combined = false,
     visible = true,
+    channelRequest,
+    captureContext = false,
   }: {
     telemetry: Telemetry;
     network?: boolean;
     showPause?: boolean;
     viewPaused?: boolean;
     scope?: AgentScope;
-    inspect: (_title: string, _row: RecordData) => void;
+    inspect: (_title: string, _row: RecordData, _agents?: RecordData[]) => void;
     openSensors?: () => void | Promise<void>;
     advanced?: boolean;
     combined?: boolean;
     visible?: boolean;
+    channelRequest?: { channel: 'files' | 'connections'; revision: number };
+    captureContext?: boolean;
   } = $props();
   let query = $state(''),
     kind = $state('all'),
@@ -146,6 +150,16 @@
     severity = 'all';
     readingSnapshot = false;
   }
+  let lastChannelRequest = -1;
+  $effect(() => {
+    if (visible && combined && channelRequest && channelRequest.revision !== lastChannelRequest) {
+      const request = channelRequest;
+      untrack(() => {
+        lastChannelRequest = request.revision;
+        chooseChannel(request.channel);
+      });
+    }
+  });
 </script>
 
 {#if combined}<div class="activity-channels" role="group" aria-label={$t('Activity source')}>
@@ -310,6 +324,7 @@
     paused={showingPaused}
     {admissionRevision}
     onSnapshotChange={(held) => (readingSnapshot = held)}
+    {captureContext}
     resetKey={JSON.stringify([
       query,
       effectiveKind,

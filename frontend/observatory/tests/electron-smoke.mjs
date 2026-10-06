@@ -26,11 +26,11 @@ try {
   const window = await app.firstWindow();
   window.on('pageerror', (e) => errors.push(e.message));
   await window
-    .getByRole('heading', { name: 'Home', exact: true, level: 1 })
+    .getByRole('heading', { name: 'Investigate', exact: true, level: 1 })
     .waitFor({ timeout: 30000 });
   assert.equal(
     await window.locator('.sidebar nav button').count(),
-    5,
+    3,
     'fresh profile must show the Simple interface',
   );
   await window.screenshot({ path: resolve(out, 'simple-home-native.png') });

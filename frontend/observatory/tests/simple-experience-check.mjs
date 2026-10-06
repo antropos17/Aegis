@@ -121,26 +121,28 @@ export async function checkSimpleExperience(browser, url, out) {
           { theme, scale },
         );
         await page.goto(url);
-        await page.getByRole('heading', { name: 'Home', exact: true, level: 1 }).waitFor();
+        await page.getByRole('heading', { name: 'Investigate', exact: true, level: 1 }).waitFor();
         const navigation = page.getByRole('navigation', { name: 'Main navigation' });
         assert.deepEqual(
           await navigation
             .getByRole('button')
             .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))),
-          ['Home', 'Agents', 'Activity', 'Check files', 'Settings'],
+          ['Investigate', 'Check files', 'Settings'],
         );
         await page.evaluate(() => window.simpleFixture.publish());
-        await page
-          .locator('.simple-home')
-          .getByRole('button', { name: 'Open', exact: true })
-          .first()
-          .click();
-        await page.getByRole('heading', { name: 'Agent overview', exact: true }).waitFor();
+        const workspace = page.getByRole('region', { name: 'Investigation workspace' });
+        if (width <= 980)
+          await workspace
+            .getByRole('combobox', { name: 'Agent / context', exact: true })
+            .selectOption('Codex');
+        else await workspace.getByRole('button', { name: 'Codex', exact: true }).click();
         assert.equal(await page.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
         assert(await page.getByRole('heading', { name: 'Observed risk', exact: true }).isVisible());
-        const activity = page.getByRole('region', { name: 'Agent activity' });
+        const activity = workspace.locator('.activity-feed');
         await activity.getByText('file-69.txt', { exact: true }).waitFor();
-        await page.getByLabel('Selected process', { exact: true }).selectOption('101:fixture');
+        await page
+          .getByRole('combobox', { name: 'Worker process', exact: true })
+          .selectOption('101:fixture');
         assert(await page.getByRole('button', { name: 'Pause process', exact: true }).isEnabled());
         assert(await page.getByRole('button', { name: 'Resume process', exact: true }).isVisible());
         await page.locator('#main').evaluate((node) => {
@@ -149,18 +151,46 @@ export async function checkSimpleExperience(browser, url, out) {
         await page.screenshot({
           path: resolve(out, `simple-agent-overview-${theme}-${width}-${scale}.png`),
         });
+        const overviewMain = await page.locator('#main').boundingBox();
+        const activityHeading = await activity
+          .getByRole('heading', { name: 'Activity', exact: true })
+          .boundingBox();
+        assert(
+          overviewMain &&
+            activityHeading &&
+            activityHeading.y + activityHeading.height <= overviewMain.y + overviewMain.height,
+          'Agent context and Activity must share the initial viewport',
+        );
         const search = activity.getByRole('searchbox', { name: 'Search events', exact: true });
         await search.fill('file-69');
         await activity
           .getByRole('button', { name: 'Open 1 observations for file-69.txt', exact: true })
           .click();
-        const details = page.getByRole('dialog');
-        await details.getByRole('button', { name: 'Mute false alarm', exact: true }).click();
+        const details = page.getByRole('region', { name: 'Selected evidence' });
+        assert.equal(await page.getByRole('dialog').count(), 0);
+        const folderAction = await details
+          .getByRole('button', { name: 'Show in folder', exact: true })
+          .boundingBox();
+        const technicalAction = await details
+          .getByRole('button', { name: 'Full details', exact: true })
+          .boundingBox();
+        assert(
+          folderAction && technicalAction && Math.abs(folderAction.y - technicalAction.y) <= 2,
+          'Related evidence actions must align',
+        );
+        await details.getByRole('button', { name: 'Full details', exact: true }).click();
+        const modal = page.getByRole('dialog');
+        await modal.getByRole('button', { name: 'Mute false alarm', exact: true }).click();
+        await modal.getByRole('button', { name: 'Re-enable alerts', exact: true }).waitFor();
+        await modal.getByRole('button', { name: 'Close details', exact: true }).click();
         await details.getByRole('button', { name: 'Re-enable alerts', exact: true }).waitFor();
         assert(await details.getByText('Exact file exception saved.', { exact: true }).isVisible());
+        await page.screenshot({
+          path: resolve(out, `simple-evidence-${theme}-${width}-${scale}.png`),
+        });
         await details.getByRole('button', { name: 'Re-enable alerts', exact: true }).click();
         await details.getByText('No saved pattern excludes this file.', { exact: true }).waitFor();
-        await details.getByRole('button', { name: 'Close details', exact: true }).click();
+        await details.getByRole('button', { name: 'Close evidence', exact: true }).click();
         assert(
           await activity.getByText('file-69.txt', { exact: true }).isVisible(),
           'Exception changes discarded retained evidence',
@@ -169,6 +199,7 @@ export async function checkSimpleExperience(browser, url, out) {
         await page.getByLabel('Interface scale percent', { exact: true }).fill('125');
         const advanced = page.getByRole('checkbox', { name: 'Advanced interface', exact: true });
         await advanced.check();
+        assert.equal(await navigation.getByRole('button').count(), 14);
         assert.equal(
           await page.getByLabel('Interface scale percent', { exact: true }).inputValue(),
           '125',
@@ -178,6 +209,7 @@ export async function checkSimpleExperience(browser, url, out) {
           'true',
         );
         await advanced.uncheck();
+        assert.equal(await navigation.getByRole('button').count(), 3);
         assert.equal(
           await page.getByLabel('Interface scale percent', { exact: true }).inputValue(),
           '125',
@@ -190,26 +222,12 @@ export async function checkSimpleExperience(browser, url, out) {
         await page.locator('#main').evaluate((node) => {
           node.scrollTop = node.scrollHeight;
         });
-        await navigation.getByRole('button', { name: 'Agents', exact: true }).click();
+        await navigation.getByRole('button', { name: 'Investigate', exact: true }).click();
         assert.equal(
-          await page.getByLabel('Selected process', { exact: true }).inputValue(),
+          await page.getByRole('combobox', { name: 'Worker process', exact: true }).inputValue(),
           '101:fixture',
         );
         assert.equal(await search.inputValue(), 'file-69');
-        await page
-          .getByRole('button', { name: 'More tools in Advanced mode', exact: true })
-          .click();
-        await advanced.waitFor({ state: 'visible' });
-        const interfaceBounds = await advanced.boundingBox();
-        const mainBounds = await page.locator('#main').boundingBox();
-        assert(
-          interfaceBounds &&
-            mainBounds &&
-            interfaceBounds.y >= mainBounds.y &&
-            interfaceBounds.y + interfaceBounds.height <= mainBounds.y + mainBounds.height,
-          'Advanced signpost restored Settings below the interface preference',
-        );
-        await navigation.getByRole('button', { name: 'Agents', exact: true }).click();
         await search.fill('');
         const older = activity.getByRole('button', { name: 'Show older activity', exact: true });
         await older.focus();
@@ -221,6 +239,34 @@ export async function checkSimpleExperience(browser, url, out) {
         assert.equal(await activity.getByText('file-999.txt', { exact: true }).count(), 0);
         await activity.getByRole('button', { name: 'Show latest', exact: true }).click();
         await activity.getByText('file-999.txt', { exact: true }).waitFor();
+        const lowerRow = activity.getByRole('button', {
+          name: 'Open 1 observations for file-50.txt',
+          exact: true,
+        });
+        await lowerRow.click();
+        await details.waitFor();
+        const selectedBounds = await details.boundingBox();
+        const mainBounds = await page.locator('#main').boundingBox();
+        assert(
+          selectedBounds &&
+            mainBounds &&
+            selectedBounds.y >= mainBounds.y - 2 &&
+            selectedBounds.y < mainBounds.y + mainBounds.height - 24,
+          'Selected evidence must be revealed after opening a scrolled row',
+        );
+        assert(await details.evaluate((node) => node === document.activeElement));
+        await search.fill('filter-out-the-opener');
+        await details.getByRole('button', { name: 'Close evidence', exact: true }).click();
+        assert(
+          await page
+            .locator('#investigation-activity')
+            .evaluate((node) => node === document.activeElement),
+          'Filtered opener must restore focus to Activity',
+        );
+        await search.fill('');
+        await page.locator('#main').evaluate((node) => {
+          node.scrollTop = 0;
+        });
         await page.screenshot({
           path: resolve(out, `simple-agent-${theme}-${width}-${scale}.png`),
         });
@@ -228,7 +274,7 @@ export async function checkSimpleExperience(browser, url, out) {
           const main = document.querySelector('#main').getBoundingClientRect();
           const critical = [
             ...document.querySelectorAll(
-              '.simple-agent-view .risk-reason,.agent-context select,.simple-agent-view .feed-toolbar',
+              '.investigation-header .risk-reason,.investigation-header select,.activity-feed .feed-toolbar',
             ),
           ]
             .filter((node) => node.getClientRects().length)
