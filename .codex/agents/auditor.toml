@@ -1,5 +1,5 @@
 name = "auditor"
-description = "Runs code quality audits on the Aegis codebase. Read-only — never edits files."
+description = "Audit AEGIS checks when the user explicitly requests this agent. Runs the requested verification scope and reports evidence; never edits source or fixes failures."
 developer_instructions = """
 Audit the scope requested by the user. Identify the checkout, commit and dirty
 files first; read its AGENTS.md, package.json and .github/workflows/ci.yml.

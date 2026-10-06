@@ -6,6 +6,41 @@ Read `out/development/context.md` (a short, generated inventory); search
 subsystem. Preserve the historical records. A commit alone does not identify an
 uncommitted tree: generated reports also contain dirty state and a source digest.
 
+Read HEAD, package scripts and Vite configuration before using the generated
+inventory. A preserved dirty checkout can be older than origin/master. Missing
+Observatory files or developer scripts in that checkout do not establish that
+they are missing from the current branch. Isolate new work without switching,
+stashing or resetting someone else's changes. Check existing attached worktrees
+before creating one; archive only task-created worktrees whose needed artifacts
+have been preserved.
+
+## Skills and tool selection
+
+Load the skill for the current task and only references needed for its decision.
+Local `.agents/skills` are ignored tooling; their installation path does not select
+the source checkout. Keep their changes local unless publication is requested.
+Do not force-add them. Repository agent definitions describe delegated roles;
+invoke subagents and external AI CLIs only when the user requests delegation.
+
+| Task | First guidance or capability |
+| --- | --- |
+| Source navigation | `aegis-context`; `rg` for literals, Serena for symbols in large files |
+| Reported regression | `aegis-diagnosing-bugs`; `testing` for the actual harness |
+| Svelte implementation | `svelte-patterns`, `design-system`; connected Svelte docs/autofixer |
+| Change review / readiness | `aegis-code-review` / `audit-check`, according to requested scope |
+| Commit / full PR cycle | `commit-and-track` / local `ship`, using existing authorization |
+| One-time CI or PR check | `ci-monitor` / `pr-monitor`; no recurring automation |
+| Codex settings / other library APIs | Official OpenAI docs / Context7, using public questions |
+
+Prefer built-in tools or an already connected integration before adding a plugin.
+An exposed tool, installed plugin, authenticated connector and successful request
+are separate observations. Use a harmless read in the needed scope to verify a
+connection; plugin search results do not establish OAuth or write access. Preserve
+existing models, permissions and unrelated integrations. An unavailable tool has
+a direct CLI/search fallback where possible; record the missing evidence.
+Resolve connector identity from the plugin's dependency metadata when checking
+app permissions; a plugin ID and its underlying app ID can be different.
+
 ## Navigation and visualizations
 
 After the ordinary root `npm ci`, install the optional, separately locked tools:
@@ -61,6 +96,7 @@ Svelte MCP and OpenAI documentation are already useful for their respective APIs
 Use Svelte's autofixer on changed components, then the repository's own checks.
 Context7 is optional for other dependencies when official/local docs are insufficient;
 send library/version questions, not private source, telemetry or credentials.
+Follow the connected server's documentation workflow when it requires a lookup.
 
 Serena is optional symbol navigation. Install from its official instructions and
 pin a reviewed release or commit. The tested source commit on 2026-09-18 was

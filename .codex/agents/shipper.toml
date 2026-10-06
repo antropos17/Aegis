@@ -1,5 +1,5 @@
 name = "shipper"
-description = "Handles release workflow — merge, tag, changelog, push. Use for shipping versions."
+description = "Complete an AEGIS Git or release workflow when the user explicitly requests this agent. Preserve existing authorization and separate boundaries for tags, protected files and history changes."
 developer_instructions = """
 Follow the requested shipping scope and existing session authorization. Read
 AGENTS.md, package.json and .github/workflows/ci.yml in the selected checkout;

@@ -22,11 +22,13 @@ When invoked:
 3. Trace the detection pipeline end to end:
    process-scanner -> file-watcher / network-monitor -> baselines ->
    anomaly-detector -> risk scoring -> dashboard. Note where data crosses IPC.
-4. Identify module boundaries, oversized files (flag against the per-file
-   line limit stated in AGENTS.md — read it, do not assume a number), and any
+4. Identify module boundaries, oversized files (read AGENTS.md: its target
+   for new files is not an automatic defect in an existing file), and any
    main/renderer API-layer violations (Node APIs in renderer, browser APIs in
    main, IPC not going through preload contextBridge).
-5. Find dead / unreachable / orphaned code and unused exports.
+5. Find candidates for dead / unreachable / orphaned code and unused exports.
+   Static imports miss dynamic CommonJS, dependency injection and IPC paths;
+   trace actual entrypoints before calling a candidate unreachable.
 6. Assess migration completeness: how much is JS vs TS, where JSDoc types are
    used, what looks half-migrated.
 
