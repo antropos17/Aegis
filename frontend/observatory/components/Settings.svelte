@@ -9,6 +9,8 @@
   import SettingsAppearance from './SettingsAppearance.svelte';
   import SettingsMonitoring from './SettingsMonitoring.svelte';
   import SettingsSaveBar from './SettingsSaveBar.svelte';
+  import SettingsKeyboard from './SettingsKeyboard.svelte';
+  import { revealSettingsFocus } from '../runtime/settings-focus';
   import SectionTabs from './SectionTabs.svelte';
   const id = $props.id();
   const tabs = [
@@ -281,7 +283,7 @@
     >
   </div>{/if}
 {#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
-<div class="settings-workspace panel">
+<div class="settings-workspace panel" use:revealSettingsFocus>
   <div class="settings-intro">
     <div>
       <h2>{$t('Application preferences')}</h2>
@@ -447,6 +449,7 @@
         title={$t('Keyboard shortcuts')}
         description={$t('Navigate AEGIS without leaving the keyboard.')}
       >
+        <SettingsKeyboard />
         <dl class="details-grid">
           <dt>{$t('Commands')}</dt>
           <dd><kbd>{$t('Ctrl K')}</kbd></dd>

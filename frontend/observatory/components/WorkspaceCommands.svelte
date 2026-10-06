@@ -19,6 +19,7 @@
   let input: HTMLInputElement;
   let query = $state('');
   let active = $state(0);
+  let resultStatus = $state('');
   let filtered = $derived(
     findCommands(
       entries.map((entry) => ({
@@ -32,6 +33,17 @@
   );
   let trigger: HTMLElement | null = null;
   let selectedDestination = false;
+  $effect(() => {
+    const message = filtered.length
+      ? $t('{count} destinations', { count: filtered.length })
+      : $t('No matching destination.');
+    if (!open) {
+      resultStatus = '';
+      return;
+    }
+    const timer = setTimeout(() => (resultStatus = message), 250);
+    return () => clearTimeout(timer);
+  });
   $effect(() => {
     if (open && !dialog.open) {
       trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -100,7 +112,7 @@
       oninput={() => (active = 0)}
       role="combobox"
       aria-label={$t('Find a workspace or action')}
-      aria-expanded="true"
+      aria-expanded={filtered.length > 0}
       aria-controls="command-results"
       aria-autocomplete="list"
       aria-activedescendant={filtered[active] ? 'command-result-' + active : undefined}
@@ -108,10 +120,18 @@
       onkeydown={move}
     />
   </label>
-  <div id="command-results" role="listbox" aria-label={$t('Destinations')} class="command-results">
+  <div
+    id="command-results"
+    role="listbox"
+    tabindex="-1"
+    aria-label={$t('Destinations')}
+    class="command-results"
+    hidden={!filtered.length}
+  >
     {#each filtered as entry, index (entry.id)}
       <button
         role="option"
+        tabindex="-1"
         id={'command-result-' + index}
         aria-selected={index === active}
         class="command-result"
@@ -121,7 +141,20 @@
           name="chevron"
         />
       </button>
-    {:else}<p class="inset muted">{$t('No matching destination.')}</p>{/each}
+    {/each}
+  </div>
+  <div class="command-feedback">
+    <p role="status" aria-live="polite" aria-atomic="true">{resultStatus}</p>
+    {#if !filtered.length}
+      <button
+        class="button"
+        onclick={() => {
+          query = '';
+          active = 0;
+          input.focus();
+        }}>{$t('Clear search')}</button
+      >
+    {/if}
   </div>
   <div class="command-foot">
     <span>{$t('↑ ↓ to choose · Enter to open')}</span><kbd>{$t('Esc')}</kbd>
@@ -175,6 +208,18 @@
     min-height: 0;
     padding: 4px 10px 10px;
     border-top: 1px solid var(--border);
+  }
+  .command-results[hidden] {
+    display: none;
+  }
+  .command-feedback {
+    padding: var(--space-2) var(--space-5);
+  }
+  .command-feedback p {
+    min-height: 1.5em;
+  }
+  .command-feedback .button {
+    margin-top: var(--space-2);
   }
   .command-result {
     display: flex;

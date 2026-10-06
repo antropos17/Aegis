@@ -6,6 +6,7 @@
   });
 
   import { onMount, tick } from 'svelte';
+  import { mountKeyboardPreferences, singleKeyShortcuts } from './runtime/keyboard-shortcuts';
   import { mountFooterLayout } from './runtime/footer-layout';
   import {
     connectHost,
@@ -281,6 +282,7 @@
     }
   }
   onMount(() => {
+    const stopKeyboardPreferences = mountKeyboardPreferences();
     document.documentElement.dataset.motion = localStorage.getItem('aegis-motion') ?? 'full';
     let alive = true;
     const resizeHead = () =>
@@ -331,6 +333,7 @@
       footerLayout?.destroy();
       footerLayout = undefined;
       stop();
+      stopKeyboardPreferences();
       if (typeof unsubscribe === 'function') unsubscribe();
       if (typeof stopNavigation === 'function') stopNavigation();
     };
@@ -369,6 +372,7 @@
     )
       return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!$singleKeyShortcuts) return;
     if (event.key === 's') void navigate('settings');
     if (event.key === 't') toggleTheme();
     const keys: Record<string, string> = {
