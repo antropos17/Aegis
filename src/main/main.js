@@ -110,6 +110,7 @@ const FILE_EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{
 const path = require('path');
 const { pathToFileURL } = require('node:url');
 const { guardRendererNavigation } = require('./external-url-boundary');
+const { createFileWatchRetryPolicy } = require('./file-watch-retry');
 const { readBoundedConfigFile } = require('./bounded-config-file');
 
 // ═══ HW ACCELERATION (must run before app.whenReady) ═══
@@ -610,10 +611,8 @@ if (!gotLock) {
 
 /** One-shot guard for the startup path and its two rule watchers. @type {boolean} */
 let watchersStarted = false;
-const FILE_WATCH_RETRY_DELAY_MS = 30_000;
-const FILE_WATCH_RETRY_LIMIT = 3;
+const fileWatchRetryPolicy = createFileWatchRetryPolicy();
 let fileWatchRetryTimer = null;
-let fileWatchRetryAttempts = 0;
 let fileWatchSetupInFlight = false;
 let fileWatchSetupRejected = false;
 let fileWatchRetryGeneration = 0;
@@ -650,19 +649,19 @@ function scheduleFileWatchRetry() {
       scheduleFileWatchRetry();
       return;
     }
-    if (plan.state === 'HEALTHY' && plan.liveWatcherCount > 0) fileWatchRetryAttempts = 0;
+    if (plan.state === 'HEALTHY' && plan.liveWatcherCount > 0) fileWatchRetryPolicy.reset();
     const failedBeforePlan = fileWatchSetupRejected && plan.groups.length === 0;
     if (
-      fileWatchRetryAttempts < FILE_WATCH_RETRY_LIMIT &&
+      fileWatchRetryPolicy.canRetry() &&
       plan.liveWatcherCount === 0 &&
       (plan.state === 'FAILED' || failedBeforePlan)
     ) {
-      fileWatchRetryAttempts++;
+      fileWatchRetryPolicy.beginRetry();
       void setupFileWatchers(generation, true);
     } else {
       scheduleFileWatchRetry();
     }
-  }, FILE_WATCH_RETRY_DELAY_MS);
+  }, fileWatchRetryPolicy.pollDelayMs);
   fileWatchRetryTimer.unref?.();
 }
 
@@ -686,12 +685,14 @@ async function setupFileWatchers(generation, retry) {
     fileWatchSetupRejected = true;
     if (!retry) {
       logger.error('main', 'File watcher setup failed', { error: 'file-watcher-setup-failed' });
-    } else if (fileWatchRetryAttempts === FILE_WATCH_RETRY_LIMIT) {
-      logger.error('main', 'File watcher retry exhausted', { attempts: fileWatchRetryAttempts });
+    } else {
+      const notice = fileWatchRetryPolicy.takeExhaustionNotice();
+      if (notice) logger.error('main', 'File watcher fast retries exhausted', notice);
     }
   } finally {
     if (generation === fileWatchRetryGeneration) {
       fileWatchSetupInFlight = false;
+      fileWatchRetryPolicy.finishSetup();
       scheduleFileWatchRetry();
     }
   }
@@ -700,7 +701,7 @@ async function setupFileWatchers(generation, retry) {
 /**
  * Create the startup watcher set exactly once: the chokidar file watchers
  * (credential dirs, agent-config dirs, the app directory, `~/.env*`) plus both
- * rule hot-reload watchers. File-root retries are separately bounded.
+ * rule hot-reload watchers. File-root retries use a bounded fast burst and slow probes.
  *
  * The guard flips before file setup awaits preflight, so a second call landing
  * mid-setup cannot duplicate either rule watcher or file setup.
@@ -1281,7 +1282,7 @@ function _setSensitiveAlertJournalForTest(journal) {
 function _resetWatchersForTest() {
   cancelFileWatchRetry();
   watchersStarted = false;
-  fileWatchRetryAttempts = 0;
+  fileWatchRetryPolicy.reset();
   fileWatchSetupInFlight = false;
   fileWatchSetupRejected = false;
   isQuitting = false;
