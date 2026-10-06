@@ -75,7 +75,15 @@ describe('audit index history and fallback', () => {
     for (const before of [timestamps[50], timestamps[160], cursor()]) {
       for (const limit of [1, 25, 500]) {
         for (const types of [undefined, ['file-access'], ['agent-enter'], ['absent']]) {
+          // Strengthen: verify jsonl() actually took the JSONL path (opened files) before
+          // using its result as the expected value. If the m1 mutant removes the isReady
+          // guard, queryBefore always succeeds and jsonl()'s spy on the exported isReady
+          // has no effect on the private check inside queryBefore — so jsonl() silently
+          // goes through SQL and the parity comparison becomes SQL-vs-SQL (ai-mistakes #21).
+          const baselineReads = vi.spyOn(fs, 'openSync');
           const expected = jsonl(before, limit, types);
+          expect(baselineReads.mock.calls.length).toBeGreaterThan(0);
+          baselineReads.mockRestore();
           const reads = vi.spyOn(fs, 'openSync');
           expect(audit.getEntriesBefore(before, limit, types)).toEqual(expected);
           expect(reads).not.toHaveBeenCalled();
