@@ -1735,5 +1735,8 @@
   "Coverage summary": "Resumo da cobertura",
   "Review scope and coverage": "Revisar escopo e cobertura",
   "First {shown} of {total} coverage notices.": "Primeiros {shown} de {total} avisos de cobertura.",
-  "No itemized coverage notices were returned. The captured review is still incomplete.": "Nenhum aviso detalhado de cobertura foi retornado. A revisão capturada ainda está incompleta."
+  "No itemized coverage notices were returned. The captured review is still incomplete.": "Nenhum aviso detalhado de cobertura foi retornado. A revisão capturada ainda está incompleta.",
+  "Catalog reply is invalid": "Resposta do catálogo inválida",
+  "Catalog changes saved. Refreshing the current catalog.": "As alterações do catálogo foram salvas. Atualizando o catálogo atual.",
+  "Catalog changes saved. Could not refresh the current catalog. Retry loading.": "As alterações do catálogo foram salvas. Não foi possível atualizar o catálogo atual. Tente carregar novamente."
 }

@@ -4,7 +4,7 @@
 
 The user authorized a ten-hour development window, eight hours of section-agent work, and conservative credit use. Start: 2026-10-06 07:55:49 UTC. Section improvements end at 15:55:49 UTC (19:55:49 Asia/Baku). Integration ends at 17:55:49 UTC (21:55:49 Asia/Baku). Finish early when the acceptance criteria are met. The hourly chat continuation is `aegis-ten-hour-development`; local execution requires the computer and Codex app to remain running.
 
-Use English for the plan, handoff, new canonical interface copy and publication. Preserve the optional Portuguese locale and every existing feature. Work in the attached `gap-completion-1006/AEGIS` checkout on `codex/overnight-ux-20261006`, starting from `a42ff3bd445d157368243502b3dc0b4f1236013e`. Preserve the original dirty checkout and other projects.
+Use English for the plan, handoff, new canonical interface copy and publication. Preserve the optional Portuguese locale and every existing feature. Work in the attached `gap-completion-1006/AEGIS` checkout. The first branch, `codex/overnight-ux-20261006`, started from `a42ff3bd445d157368243502b3dc0b4f1236013e` and merged through PR #780. The bounded recovery follow-up is `codex/ux-recovery-20261006`, based on merge revision `b8710bb094f405f44db193e46f7c23b3f1edce0d`. Preserve the original dirty checkout and other projects.
 
 ## Five section assignments
 

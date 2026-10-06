@@ -2,13 +2,17 @@
 
 ## Current UX development — 2026-10-06
 
-AEGIS 0.19.2-beta has been published. The current UX work starts from master
-`a42ff3bd445d157368243502b3dc0b4f1236013e` on
-`codex/overnight-ux-20261006`. Continue with the
+AEGIS 0.19.2-beta has been published. UX context PR #780 merged as
+`b8710bb094f405f44db193e46f7c23b3f1edce0d` after all required checks.
+The recovery follow-up is on `codex/ux-recovery-20261006`, based on that master
+revision. Continue with the
 [English overnight handoff](overnight-ux-2026-10-06.md) and
 [development plan](../docs/development/overnight-ux-2026-10-06.md).
 They contain the current checkout, five section assignments, verification
 status, cost controls and the 17:55:49 UTC stopping time.
+Both planned passes completed their local checks at 10:22 UTC. Read the dated
+handoff, live Git/CI and local `out/development/overnight-result.md` for final
+publication state; do not restart completed section work or duplicate checks.
 
 The source inventory is generated with `npm run dev:context`; use the current
 checkout's source and CI for facts. Earlier enforcement handoffs below retain
