@@ -24,6 +24,7 @@ import { checkActionCoverage } from './action-coverage-check.mjs';
 import { checkTaskGuide } from './task-guide-check.mjs';
 import { checkSequence } from './sequence-check.mjs';
 import { checkConfigurationClarity } from './configuration-clarity-check.mjs';
+import { checkReviewContext } from './review-context-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -97,6 +98,7 @@ const errors = [];
 try {
   await checkTaskGuide(browser, base + '/preview/', out);
   await checkConfigurationClarity(browser, base + '/preview/', out);
+  await checkReviewContext(browser, base + '/desktop/', out);
   await checkActionCoverage(browser, base + '/preview/', out);
   await checkLocalSecurity(browser, base + '/preview/', out);
   await checkUxRecovery(browser, base + '/preview/', out);

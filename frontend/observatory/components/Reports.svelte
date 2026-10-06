@@ -13,6 +13,7 @@
   } from '../runtime/audit-read-state';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
+  import AuditContext from './AuditContext.svelte';
   import AgentLogo from './AgentLogo.svelte';
   import { instances, type Telemetry } from '../runtime/host';
   import Metadata from './Metadata.svelte';
@@ -56,6 +57,13 @@
   let query = $state('');
   let auditSection = $state('entries');
   let reportSection = $state('summary');
+  async function openAuditSection(section: 'entries' | 'delivery') {
+    auditSection = section;
+    await tick();
+    const tab = document.getElementById('audit-tab-' + section);
+    if (alive && tab?.isConnected && !tab.closest('[hidden], [inert]'))
+      tab.focus({ preventScroll: true });
+  }
   let appliedType = $derived(page.appliedType);
   let displayStats = $derived(
     !statsFresh
@@ -187,6 +195,7 @@
 </script>
 
 {#if audit}
+  <AuditContext section={auditSection} select={openAuditSection} />
   <SectionTabs
     tabs={[
       { id: 'entries', label: 'Entries' },

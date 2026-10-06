@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
 
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import {
     confirmed,
     invoke,
@@ -12,6 +12,7 @@
   } from '../runtime/host';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
+  import AssessmentContext from './AssessmentContext.svelte';
   import AgentLogo from './AgentLogo.svelte';
   import Metadata from './Metadata.svelte';
   import EditorDialog from './EditorDialog.svelte';
@@ -46,6 +47,8 @@
   let providerSection = $state('connection');
   let reportTitle = $state('Activity assessment');
   let names = $derived([...new Set(telemetry.agents.map((a) => a.agent))]);
+  const contextId = $props.id();
+  let evidenceHeading = $state<HTMLHeadingElement>();
   $effect(() => {
     if (!visible) return;
     const ticket = keyRevision;
@@ -157,6 +160,13 @@
   }
   function strings(value: unknown) {
     return Array.isArray(value) ? value.map(String) : [];
+  }
+  async function viewRecordedEvidence() {
+    section = 'evidence';
+    await tick();
+    if (!visible || !evidenceHeading?.isConnected || evidenceHeading.closest('[hidden], [inert]'))
+      return;
+    evidenceHeading.focus();
   }
 </script>
 
@@ -354,6 +364,7 @@
               <small>{String(report.scope)} · {String(report.createdAt)}</small>
               <p class="report-text">{String(report.summary ?? 'No summary returned')}</p>
               <p>{String(report.riskJustification ?? '')}</p>
+              <AssessmentContext {report} {contextId} openEvidence={viewRecordedEvidence} />
               <h3><Icon name="shield" />{$t('Findings')}</h3>
               <ol>
                 {#each strings(report.findings) as item, i (i)}<li>{item}</li>{:else}<li>
@@ -371,8 +382,12 @@
               >
             </article>{/if}
         </div>
-        <div hidden={section !== 'evidence'} class="report-section inset">
-          {#if report}<h2>{$t('Recorded scope')}</h2>
+        <div
+          hidden={section !== 'evidence'}
+          class="report-section inset"
+          id={contextId + '-evidence'}
+        >
+          {#if report}<h2 bind:this={evidenceHeading} tabindex="-1">{$t('Recorded scope')}</h2>
             <p class="muted">
               {String(report.countsSource)} · {String(report.scope)}{$t(
                 '. Agents counts distinct products.',

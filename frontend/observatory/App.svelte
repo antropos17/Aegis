@@ -628,6 +628,7 @@
                 {scope}
                 network
                 {inspect}
+                {openSensors}
               />
             </div>{/if}
           {#if tabs.includes('rules')}<div hidden={view !== 'rules'}>

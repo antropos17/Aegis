@@ -105,10 +105,10 @@
           ? 'Review recorded files and coverage before saving a snapshot.'
           : 'Review what was not checked before deciding whether to use these files.',
   );
-  async function inspectNext() {
-    selected = nextSection;
+  async function inspectSection(section: string) {
+    selected = section;
     await tick();
-    const tab = document.getElementById(prefix + '-tab-' + nextSection);
+    const tab = document.getElementById(prefix + '-tab-' + section);
     if (tab && !tab.closest('[hidden], [inert]')) tab.focus({ preventScroll: true });
   }
 </script>
@@ -130,7 +130,7 @@
   <div class="result-intro">
     <div class="next-step">
       <p>{$t(nextStep)}</p>
-      <button class="button" onclick={inspectNext}
+      <button class="button" onclick={() => inspectSection(nextSection)}
         >{$t(
           nextSection === 'findings'
             ? 'Review findings'
@@ -180,6 +180,35 @@
           'External claims are unverified. Scanner execution was not observed. Source matching and any baseline comparison are shown with the evidence.',
         )}
       </p>{/if}
+    {#if rows.coverage.length || !complete}
+      <section class="coverage-preview" aria-label={$t('Coverage summary')}>
+        <div class="coverage-heading">
+          <h3>{$t('Scope & coverage')}</h3>
+          <button class="button" onclick={() => inspectSection('coverage')}
+            >{$t('Review scope and coverage')}</button
+          >
+        </div>
+        {#if rows.coverage.length}
+          <p class="muted">
+            {$t('First {shown} of {total} coverage notices.', {
+              shown: Math.min(3, rows.coverage.length),
+              total: rows.coverage.length,
+            })}
+          </p>
+          <ul>
+            {#each rows.coverage.slice(0, 3) as row (row)}
+              <li>{row.title} · {row.subtitle}</li>
+            {/each}
+          </ul>
+        {:else}
+          <p>
+            {$t(
+              'No itemized coverage notices were returned. The captured review is still incomplete.',
+            )}
+          </p>
+        {/if}
+      </section>
+    {/if}
   </div>
   {#snippet mcpDeclarationContent()}
     <section class="mcp-declarations" aria-label={$t('MCP configuration declarations')}>
@@ -454,6 +483,35 @@
   }
   .result-section[hidden] {
     display: none;
+  }
+  .coverage-preview {
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .coverage-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: space-between;
+  }
+  .coverage-heading h3 {
+    font-size: var(--text-body);
+    margin: 0;
+  }
+  .coverage-heading button {
+    white-space: normal;
+  }
+  .coverage-preview ul {
+    display: grid;
+    gap: var(--space-2);
+    padding-inline-start: var(--space-4);
+    margin: var(--space-2) 0 0;
+  }
+  .coverage-preview li {
+    overflow-wrap: anywhere;
+    line-height: 1.5;
   }
   .snapshot-actions {
     border-top: 1px solid var(--border);
