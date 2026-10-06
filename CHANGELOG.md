@@ -20,6 +20,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.19.2-beta (2026-10-06)
+
+## What's Changed
+* docs(release): record verified 0.19.1 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/767
+* fix(posix-pid): strict PID validation in shared POSIX parsers by @antropos17 in https://github.com/antropos17/Aegis/pull/762
+* fix(desktop): keep packaged renderer selection local by @antropos17 in https://github.com/antropos17/Aegis/pull/769
+* test(linux): boot-ID and concurrent CLK_TCK race tests by @antropos17 in https://github.com/antropos17/Aegis/pull/763
+* fix(watchers): recover after fast retry exhaustion by @antropos17 in https://github.com/antropos17/Aegis/pull/770
+* fix(network): exclude IPv4 link-local endpoints by @antropos17 in https://github.com/antropos17/Aegis/pull/771
+* test(log-files): operational-log storage boundary and failure tests by @antropos17 in https://github.com/antropos17/Aegis/pull/764
+* test(audit-index): automated mutation gate for history-subsystem invariants by @antropos17 in https://github.com/antropos17/Aegis/pull/766
+* chore(deps): defer unsupported TypeScript updates by @antropos17 in https://github.com/antropos17/Aegis/pull/772
+* chore(deps-dev): bump typescript from 5.9.3 to 6.0.3 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/773
+* fix(linux): bind process signals to observed instances by @antropos17 in https://github.com/antropos17/Aegis/pull/775
+* chore(deps): defer incompatible Vite major updates by @antropos17 in https://github.com/antropos17/Aegis/pull/776
+* fix(deps): update vulnerable source-map parser by @antropos17 in https://github.com/antropos17/Aegis/pull/777
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.19.1-beta...aegis-v0.19.2-beta
+
 ## 0.19.1-beta (2026-10-06)
 
 This Windows beta keeps focused Settings controls visible above the save bar,
