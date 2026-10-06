@@ -1,11 +1,56 @@
 # Windows beta readiness
 
-Current release: **0.19.1-beta**, Windows desktop monitoring and explicitly reviewed
+Current release: **0.19.2-beta**, Windows desktop monitoring and explicitly reviewed
 selected-action workflows. Check the [release page](https://github.com/antropos17/Aegis/releases)
 for published versions and complete artifacts. Changing the prerelease channel
 does not itself publish an installer or establish release readiness.
 
 ## Published Windows beta
+
+[0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta)
+was published on 6 October 2026 (UTC) from `0bda7dc` through
+[PR #768](https://github.com/antropos17/Aegis/pull/768). Its candidate `8802166`
+has the same Git tree as the release commit. The exact release PR
+[CI](https://github.com/antropos17/Aegis/actions/runs/37427939809) and
+[release master CI](https://github.com/antropos17/Aegis/actions/runs/37430070653)
+passed all five required contexts, covering all ten verification commands.
+The fresh production-only npm audit reported zero vulnerabilities.
+
+The [release workflow](https://github.com/antropos17/Aegis/actions/runs/37430071034)
+built the x64 installer, signed and verified its Ed25519 manifest, and uploaded
+all three assets. The downloaded installer is 116,261,445 bytes with SHA-256
+`ef389f663487c44b09d3a6528db7eacd70a68f697ccb46d933055a9c9868a226`.
+Offline signature, hash and size verification passed. The manifest names the
+exact tag and release commit. After extraction, 228 runtime files match canonical
+Git after line-ending normalization, 116 renderer files match the local production
+build, and all five Windows helpers are present. Installer bytes are not claimed
+reproducible across builds.
+
+The extracted published application passed 11 workspaces, a reliable native
+process population and class-5 process snapshots, six exports, configuration
+import, settings across restart and Electron hardening without renderer errors.
+Overall observation and the file-watch plan reached `HEALTHY`, with three live
+watchers. The open-handle sensor reported `UNSUPPORTED` on this host; Restart
+Manager was healthy and opt-in ETW was disabled. It reports
+Electron 44.5.1, Node 24.21.0, Chromium 152.0.7977.130 and Undici 7.29.1.
+The local candidate had already passed the packaged smoke and warm watcher check;
+its `app.asar` bytes match the published application's archive.
+
+The release includes watcher recovery after fast retry exhaustion, local packaged
+renderer selection, strict POSIX PIDs, Linux pidfd-based process signals,
+link-local endpoint filtering and log/audit regressions. TypeScript is 6.0.3;
+source-map-js is 1.2.2. The independent Linux owned-child probe passed under
+Ubuntu in WSL2, including stale-witness rejection, suspend, resume and terminate.
+This does not qualify a standalone Linux desktop or forced kernel PID reuse.
+
+The application and installer remain Authenticode **NotSigned**. The installer
+was extracted for application checks; installation, upgrade and uninstall remain
+unqualified. Native macOS, standalone Linux, long-duration production token
+accounting, broader enforcement and screen-reader speech remain open.
+Eight moderate development-dependency audit entries remain; the production
+audit has zero findings. See [release notes](releases/0.19.2-beta.md).
+
+### Previous beta — 6 October 2026
 
 [0.19.1-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.1-beta)
 was published on 6 October 2026 (UTC) from `759801a` through

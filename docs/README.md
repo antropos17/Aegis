@@ -4,6 +4,10 @@ The [project overview](../README.md) explains installation, capabilities and lim
 Documentation here describes the current source tree. For an installed build,
 check its [release tag](https://github.com/antropos17/Aegis/releases).
 
+The current Windows beta is [0.19.2-beta](releases/0.19.2-beta.md).
+Its [readiness record](BETA-READINESS.md) lists verified artifacts and remaining
+qualification limits.
+
 ## Use the desktop
 
 | Task | Guide |

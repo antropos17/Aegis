@@ -27,7 +27,7 @@ monitoring does not automatically intercept or block commands.
 
 The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
 
-The latest published Windows beta is [**0.19.0-beta**](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.0-beta), for monitoring and
+The latest published Windows beta is [**0.19.2-beta**](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta), for monitoring and
 operator-reviewed selected actions. [Beta readiness](docs/BETA-READINESS.md)
 records its release gates and remaining limits. The beta label does not qualify
 general agent containment or the experimental VM/provider routes.
@@ -154,7 +154,7 @@ Linux process actions (pause, resume and terminate) additionally require
 against the pinned process handle; unavailable support returns an explicit error.
 See [Linux process control](docs/development/linux-process-control.md).
 Source builds use Electron 44, which requires 64-bit platforms and macOS 13 or later.
-The published 0.19.0-beta Windows installer retains Electron 43.7.7.
+The published 0.19.2-beta Windows installer uses Electron 44.5.1.
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
@@ -181,6 +181,8 @@ For the complete history, see [GitHub Releases](https://github.com/antropos17/Ae
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta) | 2026-10-06 | Recover lost file watchers, keep packaged renderer loading local, bind Linux signals to observed instances and update source-map parsing |
+| [v0.19.1-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.1-beta) | 2026-10-06 | Keyboard access, Settings focus, custom catalog confirmation and Electron 44.5.1 |
 | [v0.17.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.17.0-alpha) | 2026-09-27 | Selected-action review and MCP route binding, local security reviews, API-key boundary and private-report hardening |
 | [v0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha) | 2026-09-26 | Windows setup wizard, monitoring performance work, scoped local security inventory, direct selected-action and MCP routes |
 | [v0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha) | 2026-09-12 | Observatory desktop, signed Windows updates, Linux process-generation identity and bounded ETW diagnostics |
@@ -219,10 +221,10 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 - **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. Default monitoring does not parse MCP traffic or individual tool calls; the explicitly configured MCP routes handle only their published AEGIS tools.
 - **Platform gaps:** macOS lacks a process-generation witness. Linux generation identity depends on accessible `/proc` data; its fallback has no start-time witness. Missing identity limits process-control guarantees. Measured Claude Code usage requires a process start-time witness and a readable matching session registry/transcript. Windows is the verified primary path; native Linux token collection remains unverified.
 - **Bounded UI history:** Retained event windows can differ from aggregate totals; Statistics shows renderer eviction counters; Audit provides persisted history.
-- **Sensor and audit gaps:** Health status does not prove complete capture. A fully lost file-watch plan gets up to three retry attempts per confirmed outage; the budget resets after a healthy plan is observed. Exited watch workers count as lost roots. Partially degraded roots need separate repair. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
+- **Sensor and audit gaps:** Health status does not prove complete capture. A fully lost file-watch plan gets three fast retries, then recovery probes after a five-minute cooldown; a healthy plan resets the retry budget. Exited watch workers count as lost roots. Partially degraded roots need separate repair. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
 - **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Configuration and diagnostic exports omit the configured API key. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
 - **Unmeasured claims:** No general detection rate, false-positive rate, startup-time guarantee or whole-app overhead figure has been established.
-- **Token subtotals:** Bounded transcript reads can lag a backlog; records above 512 KiB are skipped with a fixed diagnostic. Token history retains all active records and 256 recent exited records; older records become one labeled archive preserving run totals. Compaction freezes during observation gaps. The published 0.19.0-beta uses a run-scoped 128 MiB SQLite index for transcript deduplication. Failed index writes postpone the whole usage batch without recounting old IDs. Long-duration qualification remains in [#637](https://github.com/antropos17/Aegis/issues/637). See [token accounting limits](docs/TOKEN-ACCOUNTING.md), including incomplete coverage and estimated dollar amounts.
+- **Token subtotals:** Bounded transcript reads can lag a backlog; records above 512 KiB are skipped with a fixed diagnostic. Token history retains all active records and 256 recent exited records; older records become one labeled archive preserving run totals. Compaction freezes during observation gaps. The published 0.19.2-beta uses a run-scoped 128 MiB SQLite index for transcript deduplication. Failed index writes postpone the whole usage batch without recounting old IDs. Long-duration qualification remains in [#637](https://github.com/antropos17/Aegis/issues/637). See [token accounting limits](docs/TOKEN-ACCOUNTING.md), including incomplete coverage and estimated dollar amounts.
 
 ## Development and roadmap
 

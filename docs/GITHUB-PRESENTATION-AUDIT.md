@@ -3,6 +3,36 @@
 Audit date: 2026-09-19. This records a documentation and repository-presentation
 review, not a security certification or a new installer release.
 
+## Follow-up — 6 October 2026
+
+The lightweight review checked master `0bda7dc`, the release PR, publication,
+open PRs and issues, remote branches, About metadata, issue templates and branch
+protection through GitHub's API. Release PR #768 and its merged master passed
+all five required CI contexts. The 0.19.2-beta installer and both manifest assets
+were published and passed offline signature, hash and size verification.
+The [beta readiness record](BETA-READINESS.md) retains the packaged checks.
+
+The README now links the current published beta and records its Electron runtime,
+watcher recovery policy and release milestones. The About description, documentation
+homepage and topics already match current capabilities. Automatic merged-branch
+deletion is enabled; after the release merge, the only remote branch was master.
+Its five strict required checks, administrator enforcement and disabled force
+push/deletion were preserved. Historical releases and failed CI runs were retained.
+
+The public README was inspected in the available 881×871 dark browser viewport.
+All 20 images loaded; document and body scroll widths were 866 pixels, with no
+horizontal page overflow. The introduction, badges and download navigation were
+visually checked. This follow-up does not repeat the earlier repository-wide
+external-link audit.
+
+Fourteen open issues remain. They include unresolved native-platform coverage,
+token-accounting qualification and feature requests; age alone did not establish
+resolution. The active social preview still references the historical image
+`f8faae12-dfb3-4cd2-8669-ff5e4bf22101`. The available browser is signed out, so the
+prepared tracked PNG could not be selected in Settings. Issue
+[#626](https://github.com/antropos17/Aegis/issues/626) remains open for that upload
+and remaining presentation qualification.
+
 ## Scope and method
 
 The local-link pass covered 140 Markdown, text and template documents, including
