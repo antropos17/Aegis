@@ -15,6 +15,38 @@ export async function checkUxRecovery(browser, url, out) {
     await page.getByRole('heading', { name: 'Monitoring', exact: true, level: 1 }).waitFor();
     const go = (name) =>
       page.locator('.sidebar').getByRole('button', { name, exact: true }).click();
+    const banner = page.locator('.notification.sensitive');
+    await banner.getByRole('button', { name: 'Review', exact: true }).focus();
+    await page.waitForTimeout(8100);
+    assert(await banner.isVisible(), 'focused sensitive review must survive expiry');
+    assert(
+      await banner
+        .getByRole('button', { name: 'Review', exact: true })
+        .evaluate((element) => element === document.activeElement),
+      'expiry must preserve the focused review control',
+    );
+    await page.screenshot({ path: resolve(out, 'ux-sensitive-toast-focused.png') });
+    await page.keyboard.press('Tab');
+    assert(
+      await banner
+        .getByRole('button', { name: 'Dismiss notification' })
+        .evaluate((element) => element === document.activeElement),
+    );
+    await page.keyboard.press('Enter');
+    const alerts = page.getByRole('button', { name: /^Sensitive activity review/ });
+    await page.waitForFunction(() =>
+      document.activeElement?.getAttribute('aria-label')?.startsWith('Sensitive activity review'),
+    );
+    assert.equal(await banner.count(), 0);
+    await page.keyboard.press('Enter');
+    const review = page.getByRole('dialog', { name: 'Sensitive activity review', exact: true });
+    await review.waitFor();
+    assert(
+      (await review.innerText()).includes('need review'),
+      'dismissal must retain review history',
+    );
+    await page.keyboard.press('Escape');
+    assert(await alerts.evaluate((element) => element === document.activeElement));
     await go('Settings');
     await page.getByLabel('Interface scale percent', { exact: true }).fill('150');
     await page.getByRole('button', { name: 'Save settings', exact: true }).click();
@@ -67,6 +99,19 @@ export async function checkUxRecovery(browser, url, out) {
       'focused invalid field must not be covered by sticky UI',
     );
     await field.fill('10');
+    assert(await page.getByRole('button', { name: 'Save settings', exact: true }).isDisabled());
+    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+    const theme = page.getByRole('combobox', { name: 'Theme', exact: true });
+    await theme.selectOption('light-hc');
+    await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();
+    assert.equal(await theme.inputValue(), 'light-hc', 'shell theme must preserve the draft');
+    assert(await page.getByText('Unsaved changes', { exact: true }).isVisible());
+    await go('Monitoring');
+    await go('Settings');
+    assert.equal(await theme.inputValue(), 'light-hc', 'navigation must preserve the theme draft');
+    await theme.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(out, 'ux-theme-draft-retained.png') });
+    await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
     assert(await page.getByRole('button', { name: 'Save settings', exact: true }).isDisabled());
   } finally {
     await page.close();

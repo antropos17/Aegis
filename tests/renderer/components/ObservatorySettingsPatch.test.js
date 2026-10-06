@@ -337,3 +337,51 @@ it('does not create a dirty draft when the initial shell theme settles after loa
   expect(host.saveSettings).not.toHaveBeenCalled();
   localStorage.removeItem('aegis-theme');
 });
+
+it.each([
+  ['light-hc', 'light'],
+  ['dark-hc', 'light'],
+  ['light', 'dark-hc'],
+])('preserves the unsaved %s selection when the shell becomes %s', async (draft, shell) => {
+  localStorage.setItem('aegis-theme', 'dark');
+  const host = sharedHost();
+  const mounted = mountSettings(host, { currentTheme: 'dark' });
+  await screen.findByText('Settings saved');
+  await fireEvent.change(screen.getByLabelText('Theme'), { target: { value: draft } });
+  await mounted.rerender({ currentTheme: shell });
+  expect(screen.getByLabelText('Theme')).toHaveValue(draft);
+  expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  expect(localStorage.getItem('aegis-theme')).toBe('dark');
+  localStorage.removeItem('aegis-theme');
+});
+
+it('follows a clean shell theme without saving or replacing unrelated drafts', async () => {
+  localStorage.setItem('aegis-theme', 'dark');
+  const host = sharedHost();
+  const mounted = mountSettings(host, { currentTheme: 'dark' });
+  await screen.findByText('Settings saved');
+  await fireEvent.input(screen.getByLabelText('Interface scale percent'), {
+    target: { value: '125' },
+  });
+  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  await fireEvent.click(screen.getByRole('button', { name: '5 s', exact: true }));
+  await fireEvent.input(screen.getByLabelText('Sensitive paths'), {
+    target: { value: 'draft-pattern' },
+  });
+  await mounted.rerender({ currentTheme: 'light-hc' });
+  expect(screen.getByLabelText('Exact scan interval (seconds)')).toHaveValue(5);
+  expect(screen.getByLabelText('Sensitive paths')).toHaveValue('draft-pattern');
+  expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  await fireEvent.click(screen.getByRole('tab', { name: 'Appearance' }));
+  expect(screen.getByLabelText('Theme')).toHaveValue('light-hc');
+  expect(screen.getByLabelText('Interface scale percent')).toHaveValue(125);
+  await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await screen.findByText('Completed');
+  expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
+    { uiScale: 1.25, scanIntervalSec: 5, customSensitivePatterns: ['draft-pattern'] },
+    { patch: true },
+  );
+  localStorage.removeItem('aegis-theme');
+});

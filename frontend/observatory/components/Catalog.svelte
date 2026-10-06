@@ -3,8 +3,9 @@
 
   import { onMount, tick } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
-  import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
+  import { confirmed, invoke, record, type Host, type RecordData } from '../runtime/host';
   import { catalogRecognition, validateCatalog, type CatalogRecognition } from '../runtime/catalog';
+  import { catalogReadPopulations } from '../runtime/catalog-read-state';
   import {
     createEmptyForm,
     formFromAgent,
@@ -36,24 +37,30 @@
   let editorSection = $state('general');
   let query = $state('');
   let error = $state('');
+  let writeNotice = $state('');
   let alive = true;
   let loaded = $state(false);
   let loading = $state(false);
   let mutating = $state(false);
-  type CatalogRow = RecordData & { custom: boolean; recognition: CatalogRecognition };
+  type CatalogRow = {
+    key: string;
+    value: RecordData & { custom: boolean; recognition: CatalogRecognition };
+  };
   let recognition = $derived(catalogRecognition(base, custom));
   let rows = $derived(
     [
-      ...base.map((row, index) => ({ ...row, custom: false, recognition: recognition[index] })),
+      ...base.map((row, index) => ({
+        key: 'bundled:' + index + ':' + String(row.id),
+        value: { ...row, custom: false, recognition: recognition[index] },
+      })),
       ...custom.map((row, index) => ({
-        ...row,
-        custom: true,
-        recognition: recognition[base.length + index],
+        key: 'custom:' + index + ':' + String(row.id),
+        value: { ...row, custom: true, recognition: recognition[base.length + index] },
       })),
     ].filter(
       (row) =>
-        (!category || record(row).category === category) &&
-        JSON.stringify(row).toLowerCase().includes(query.toLowerCase()),
+        (!category || record(row.value).category === category) &&
+        JSON.stringify(row.value).toLowerCase().includes(query.toLowerCase()),
     ) as CatalogRow[],
   );
   let draftRecognition = $derived.by(() => {
@@ -81,10 +88,12 @@
         invoke(host, 'getCustomAgents'),
       ]);
       if (alive) {
-        base = records(record(database).agents ?? database);
-        custom = records(user);
+        const next = catalogReadPopulations(database, user);
+        base = next.base;
+        custom = next.custom;
         loaded = true;
         error = '';
+        writeNotice = '';
       }
     } catch (cause) {
       if (alive) error = cause instanceof Error ? cause.message : String(cause);
@@ -100,9 +109,10 @@
     };
   });
   async function mutate(action: () => Promise<void>) {
-    if (mutating || !loaded) throw new Error('Catalog is not ready for another change');
+    if (mutating || !loaded || loading) throw new Error('Catalog is not ready for another change');
     mutating = true;
     deletedName = null;
+    writeNotice = '';
     try {
       await action();
     } finally {
@@ -118,7 +128,14 @@
     )
       throw new Error('Custom IDs must differ from bundled agent IDs');
     confirmed(await invoke(host, 'saveCustomAgents', validated));
-    await load();
+    if (!alive) return;
+    custom = validated;
+    writeNotice = 'Catalog changes saved. Refreshing the current catalog.';
+    await load().catch(() => {
+      if (alive)
+        writeNotice =
+          'Catalog changes saved. Could not refresh the current catalog. Retry loading.';
+    });
   }
   async function save() {
     if (!form.displayName.trim()) {
@@ -138,8 +155,8 @@
         ? custom.map((row) => (row.id === editing ? applyFormToAgent(row, form) : row))
         : [...custom, buildCustomAgent(form)];
       await persist(next);
-      if (alive) showForm = false;
     });
+    if (alive) showForm = false;
   }
   async function deleteAgent() {
     const target = deletion;
@@ -198,7 +215,7 @@
         editorSection = 'general';
         showForm = true;
       }}><Icon name="plus" />{$t('Add agent')}</button
-    ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}
+    ><Action disabled={mutating || !loaded || loading} action={() => mutate(importAgents)}
       ><Icon name="upload" />{$t('Import')}</Action
     ><Action action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}
       ><Icon name="download" />{$t('Export')}</Action
@@ -207,12 +224,14 @@
 </div>
 
 <p role="status" aria-live="polite" aria-atomic="true" class="catalog-feedback">
-  {deletedName !== null ? $t('Custom agent {name} removed.', { name: deletedName }) : ''}
+  {deletedName !== null
+    ? $t('Custom agent {name} removed.', { name: deletedName })
+    : $t(writeNotice)}
 </p>
 {#if deletion}
   <CatalogDeleteDialog
     name={String(deletion.displayName)}
-    pending={mutating}
+    pending={mutating || loading}
     confirm={deleteAgent}
     cancel={() => (deletion = null)}
   />
@@ -220,7 +239,7 @@
 
 <section class="panel">
   {#if error}<div class="inset">
-      <p role="alert">{error}</p>
+      <p role="alert">{$t(error)}</p>
       <Action action={load} disabled={loading || mutating}
         ><Icon name="refresh" />{$t('Retry loading')}</Action
       >
@@ -238,8 +257,9 @@
           ><th>{$t('Actions')}</th></tr
         ></thead
       ><tbody
-        >{#each rows as row ((row.custom ? 'custom:' : 'bundled:') + String(row.id))}{@const signatures =
-            [...new Set(Array.isArray(row.names) ? row.names : [])]}<tr
+        >{#each rows as entry (entry.key)}{@const row = entry.value}{@const signatures = [
+            ...new Set(Array.isArray(row.names) ? row.names : []),
+          ]}<tr
             ><td
               ><button
                 class="catalog-identity"
@@ -292,15 +312,17 @@
                 >
                 {#if row.custom}<button
                     class="button"
-                    disabled={mutating}
+                    disabled={mutating || loading}
                     onclick={() => {
                       editing = String(row.id);
                       form = formFromAgent(row);
                       editorSection = 'general';
                       showForm = true;
                     }}>{$t('Edit')}</button
-                  ><button class="button" disabled={mutating} onclick={() => (deletion = row)}
-                    >{$t('Delete')}</button
+                  ><button
+                    class="button"
+                    disabled={mutating || loading}
+                    onclick={() => (deletion = row)}>{$t('Delete')}</button
                   >{/if}
               </div></td
             ></tr
@@ -348,7 +370,7 @@
     close={() => (showForm = false)}
   >
     {#snippet children(section)}
-      <fieldset class="detail-section" disabled={mutating}>
+      <fieldset class="detail-section" disabled={mutating || loading}>
         {#if section === 'general'}
           <h3>{$t('Agent profile')}</h3>
           <div class="form-grid">
@@ -426,7 +448,8 @@
     {/snippet}
     {#snippet actions()}<button class="button" onclick={() => (showForm = false)}
         >{$t('Cancel')}</button
-      ><Action disabled={mutating || !loaded} action={save}>{$t('Save agent')}</Action>{/snippet}
+      ><Action disabled={mutating || !loaded || loading} action={save}>{$t('Save agent')}</Action
+      >{/snippet}
   </EditorDialog>
 {/if}
 {#if loaded}<p class="catalog-count muted">

@@ -32,6 +32,8 @@
   let alerts = $state.raw<SensitiveAlert[]>([]);
   let evicted = $state(0);
   let recent = $state.raw<SensitiveAlert[]>([]);
+  let sensitiveFocused = $state(false);
+  let sensitiveBanner = $state<HTMLDivElement>();
   let centerOpen = $state(false);
   let journalStatus = $state('ready');
   let reviewRevision = 0;
@@ -64,10 +66,10 @@
     if (delivery.fresh.length) recent = delivery.fresh;
   });
   $effect(() => {
-    if (!recent.length) return;
+    if (!recent.length || sensitiveFocused) return;
     const shown = recent;
     const timer = setTimeout(() => {
-      if (recent === shown) recent = [];
+      if (recent === shown && !sensitiveBanner?.contains(document.activeElement)) recent = [];
     }, 8000);
     return () => clearTimeout(timer);
   });
@@ -155,7 +157,17 @@
   async function openCenter() {
     centerOpen = true;
     recent = [];
+    sensitiveFocused = false;
     await tick();
+  }
+  async function dismissSensitive() {
+    const ownedFocus = sensitiveBanner?.contains(document.activeElement) === true;
+    recent = [];
+    sensitiveFocused = false;
+    if (ownedFocus) {
+      await tick();
+      centerTrigger?.focus({ preventScroll: true });
+    }
   }
   async function closeCenter() {
     centerOpen = false;
@@ -200,7 +212,17 @@
 {/if}
 <div class="notifications" aria-live="polite" aria-atomic="false">
   {#if !centerOpen && recent.length}
-    <div class="notification sensitive" role="status">
+    <div
+      class="notification sensitive"
+      role="status"
+      bind:this={sensitiveBanner}
+      onfocusin={() => (sensitiveFocused = true)}
+      onfocusout={(event) => {
+        sensitiveFocused =
+          event.relatedTarget instanceof Node &&
+          sensitiveBanner?.contains(event.relatedTarget) === true;
+      }}
+    >
       <div>
         <strong>
           {recent.length === 1
@@ -222,7 +244,7 @@
         </p>
       </div>
       <button onclick={openCenter}>{$t('Review')}</button>
-      <button aria-label={$t('Dismiss notification')} onclick={() => (recent = [])}>×</button>
+      <button aria-label={$t('Dismiss notification')} onclick={dismissSensitive}>×</button>
     </div>
   {/if}
   {#each $toasts as toast (toast.id)}

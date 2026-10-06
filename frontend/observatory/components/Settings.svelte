@@ -103,11 +103,19 @@
   let previousTheme: string | null = null;
   $effect(() => {
     if (loaded && currentTheme && currentTheme !== previousTheme) {
-      const clean = untrack(() => baseline === snapshot());
+      const saved = untrack(() => JSON.parse(baseline) as { form: RecordData; contrast: boolean });
+      const themeClean = untrack(
+        () => form.darkMode === saved.form.darkMode && contrast === saved.contrast,
+      );
       previousTheme = currentTheme;
-      form.darkMode = currentTheme.startsWith('dark');
-      contrast = currentTheme.endsWith('-hc');
-      if (clean) baseline = untrack(snapshot);
+      if (!themeClean) return;
+      const dark = currentTheme.startsWith('dark');
+      const highContrast = currentTheme.endsWith('-hc');
+      form.darkMode = dark;
+      contrast = highContrast;
+      saved.form.darkMode = dark;
+      saved.contrast = highContrast;
+      baseline = JSON.stringify(saved);
     }
   });
   async function load() {
