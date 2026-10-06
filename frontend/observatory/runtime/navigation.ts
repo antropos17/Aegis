@@ -111,6 +111,37 @@ export const workspaces: Workspace[] = [
     keywords: 'preferences theme motion scale settings animations',
   },
 ];
+const simpleLabels: Record<string, string> = {
+  overview: 'Home',
+  agents: 'Agents',
+  events: 'Activity',
+  'local-security': 'Check files',
+  settings: 'Settings',
+};
+/** Select sidebar entries without removing registered routes or commands.
+ * @param advanced Whether to show all workspaces @returns Visible destinations @since 0.19.2
+ */
+export function navigationWorkspaces(advanced: boolean): Workspace[] {
+  if (advanced) return workspaces;
+  return Object.entries(simpleLabels).map(([id, label]) => ({
+    ...workspaces.find((entry) => entry.id === id)!,
+    label,
+  }));
+}
+/** Label a registered workspace for the selected interface.
+ * @param id Route identity @param advanced Interface preference @returns Display label @since 0.19.2
+ */
+export function workspaceLabel(id: string, advanced: boolean): string {
+  return (
+    (!advanced && simpleLabels[id]) || workspaces.find((entry) => entry.id === id)?.label || id
+  );
+}
+/** Identify destinations outside the compact Simple navigation.
+ * @param id Route identity @returns Whether this is a technical destination @since 0.19.2
+ */
+export function isAdvancedWorkspace(id: string): boolean {
+  return id !== 'guide' && !Object.hasOwn(simpleLabels, id);
+}
 export interface WorkspaceCommand {
   id: string;
   label: string;
@@ -119,10 +150,14 @@ export interface WorkspaceCommand {
   target: string;
   section?: string;
 }
-/** Searchable workspace destinations with stable category ordering. @returns Commands @since 0.14.1 */
-export function workspaceCommands(): WorkspaceCommand[] {
+/** Searchable workspace destinations with stable category ordering.
+ * @param advanced Interface preference @returns Commands @since 0.14.1
+ */
+export function workspaceCommands(advanced = true): WorkspaceCommand[] {
   return workspaces.map((view) => ({
     ...view,
+    label: workspaceLabel(view.id, advanced),
+    keywords: view.keywords + ' ' + view.label,
     caption: workspaceGroups.find((group) => group.id === view.group)!.label,
     target: view.id,
   }));

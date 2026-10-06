@@ -2,18 +2,20 @@
   import { t } from '../runtime/i18n';
 
   import { tick } from 'svelte';
-  import { findCommands, type WorkspaceCommand } from '../runtime/navigation';
+  import { findCommands, isAdvancedWorkspace, type WorkspaceCommand } from '../runtime/navigation';
   import Icon from './Icon.svelte';
   let {
     open,
     close,
     entries,
     choose,
+    advanced = true,
   }: {
     open: boolean;
     close: () => void;
     entries: WorkspaceCommand[];
     choose: (_entry: WorkspaceCommand) => void | Promise<void>;
+    advanced?: boolean;
   } = $props();
   let dialog: HTMLDialogElement;
   let input: HTMLInputElement;
@@ -25,7 +27,10 @@
       entries.map((entry) => ({
         ...entry,
         label: $t(entry.label),
-        caption: $t(entry.caption),
+        caption:
+          !advanced && isAdvancedWorkspace(entry.target)
+            ? $t('Advanced') + ' · ' + $t(entry.caption)
+            : $t(entry.caption),
         keywords: entry.keywords + ' ' + entry.label + ' ' + entry.caption,
       })),
       query,
@@ -131,6 +136,7 @@
     {#each filtered as entry, index (entry.id)}
       <button
         role="option"
+        aria-label={entry.label + ' · ' + entry.caption}
         tabindex="-1"
         id={'command-result-' + index}
         aria-selected={index === active}

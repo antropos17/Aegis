@@ -23,6 +23,7 @@
     openStatistics,
     openAgent,
     paused = false,
+    advanced = true,
   }: {
     telemetry: Telemetry;
     liveTelemetry?: Telemetry;
@@ -30,6 +31,7 @@
     inspect: (_title: string, _row: RecordData) => void;
     mode?: string;
     paused?: boolean;
+    advanced?: boolean;
     openStatistics?: (_agent: string) => void;
     openAgent?: (_agent: string) => void;
     navigate?: (_view: string) => void | Promise<void>;
@@ -101,7 +103,7 @@
     </section>
   </div>
 </div>
-<div hidden={mode !== 'agents'}><Agents {telemetry} {inspect} {openStatistics} /></div>
+<div hidden={mode !== 'agents'}><Agents {telemetry} {inspect} {openStatistics} {advanced} /></div>
 
 <style>
   .recent-evidence {

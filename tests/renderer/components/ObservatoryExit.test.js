@@ -109,6 +109,7 @@ it('uses only the selected interface language and cancels without a host call', 
 }, 15_000);
 
 it('keeps settings editable during a process outage while retaining sensor and audit warnings', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   const host = createPreviewHost();
   host.onScanBatch = () => () => {};
   host.getResourceUsage = vi.fn(async () => {

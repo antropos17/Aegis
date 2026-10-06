@@ -1,4 +1,5 @@
 import { mergeResourceDelivery } from './resource-observations';
+import { falsePositivePopulation } from './false-positive-population';
 import type {
   DetectedAgent,
   FileEvent,
@@ -34,6 +35,7 @@ export interface Telemetry {
   own: RecordData;
   anomalies: Record<string, number>;
   falsePositives: FalsePositiveEntry[];
+  falsePositiveReadState: 'pending' | 'ready' | 'unavailable';
   ready: boolean;
   stale: boolean;
   scanning: boolean;
@@ -94,6 +96,7 @@ export function emptyTelemetry(): Telemetry {
     own: {},
     anomalies: {},
     falsePositives: [],
+    falsePositiveReadState: 'pending',
     ready: false,
     stale: true,
     scanning: false,
@@ -226,13 +229,22 @@ export function connectHost(
   const refreshFalsePositives = async (): Promise<void> => {
     const ticket = (revisions.get('fp') ?? 0) + 1;
     revisions.set('fp', ticket);
-    const value = await invoke(host, 'getFalsePositives');
-    if (ticket === revisions.get('fp'))
-      update({ falsePositives: Array.isArray(value) ? (value as FalsePositiveEntry[]) : [] });
+    update({ falsePositiveReadState: 'pending' });
+    try {
+      const value = falsePositivePopulation(await invoke(host, 'getFalsePositives'));
+      if (ticket === revisions.get('fp'))
+        update({ falsePositives: value, falsePositiveReadState: 'ready' });
+    } catch (error) {
+      if (ticket === revisions.get('fp')) update({ falsePositiveReadState: 'unavailable' });
+      throw error;
+    }
   };
   publish(state);
   if (!host) {
-    update({ error: 'Desktop bridge unavailable. Monitoring data cannot be loaded.' });
+    update({
+      error: 'Desktop bridge unavailable. Monitoring data cannot be loaded.',
+      falsePositiveReadState: 'unavailable',
+    });
     return Object.assign(
       () => {
         alive = false;
@@ -293,20 +305,32 @@ export function connectHost(
     }),
   );
   subscribe('onTokenCosts', (value) => update({ tokens: records(value), tokensAt: Date.now() }));
-  const seed = (method: string, revision: string, apply: (value: unknown) => void) => {
+  const seed = (
+    method: string,
+    revision: string,
+    apply: (value: unknown) => void,
+    rejected?: () => void,
+  ) => {
     const before = revisions.get(revision) ?? 0;
     invoke(host, method)
       .then((value) => {
         if (alive && (revisions.get(revision) ?? 0) === before) apply(value);
       })
       .catch((error: unknown) => {
-        if (alive && (revisions.get(revision) ?? 0) === before) fail(error);
+        if (alive && (revisions.get(revision) ?? 0) === before) {
+          rejected?.();
+          fail(error);
+        }
       });
   };
   seed('getStats', 'onStatsUpdate', applyStats);
   seed('getResourceUsage', 'own', (value) => update({ own: record(value), ownAt: Date.now() }));
-  seed('getFalsePositives', 'fp', (value) =>
-    update({ falsePositives: Array.isArray(value) ? (value as FalsePositiveEntry[]) : [] }),
+  seed(
+    'getFalsePositives',
+    'fp',
+    (value) =>
+      update({ falsePositives: falsePositivePopulation(value), falsePositiveReadState: 'ready' }),
+    () => update({ falsePositiveReadState: 'unavailable' }),
   );
   if (host.getSettings) seed('getSettings', 'settings', applySettings);
   const watchdog = setInterval(() => {

@@ -32,6 +32,7 @@ afterEach(() => {
 const navigation = () => within(screen.getByRole('navigation', { name: 'Main navigation' }));
 
 it('loads the local review on first visit and retains its setup and result across workspaces', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: createPreviewHost(), preview: true });
   expect(moduleLoad.count).toBe(0);
   await fireEvent.click(navigation().getByRole('button', { name: 'Local security' }));
@@ -61,6 +62,7 @@ it('loads the local review on first visit and retains its setup and result acros
 
 it('opens a direct Local security link through the same review workspace', async () => {
   window.history.replaceState({}, '', '/?view=local-security');
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: createPreviewHost(), preview: true });
   expect(
     await screen.findByRole('heading', { name: 'Start with a project folder' }, { timeout: 5000 }),

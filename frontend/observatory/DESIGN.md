@@ -681,3 +681,33 @@ Audit introduces retained entries and delivery counters together, with a direct
 action to the other existing tab. Reading history does not establish current
 writeability or hash-chain integrity. Both views retain their original detail,
 export and recovery controls.
+
+### Simple agent experience (2026-10-06)
+
+The user authorized a beginner default with independently enabled Advanced
+controls. Simple navigation contains Home, Agents, Activity, Check files and
+Settings. The stable fourteen workspace routes, contextual links, commands and
+history remain available. Advanced reveals their full navigation. Its verified
+device preference is saved separately from host settings and unsaved drafts.
+
+Simple agent detail places the observed process risk and its leading reason,
+guarded Pause/Resume/Stop actions, and retained file/connection activity in one
+composition. The shared process selector remains the single selection control.
+Expanded risk explanations and technical compositions stay available. Missing
+observations remain qualified; neither a held file nor a connection snapshot
+proves a modification or a connection lifetime.
+
+The common evidence feed uses incremental native scrolling and a stable Show
+older activity keyboard action. Reviewed evidence retains its captured identity,
+rows and focus while new arrivals wait behind Show latest. Search still covers
+the retained source population. Initial rows and loading increments are bounded;
+this is progressive loading, not a fixed-size virtual window for arbitrarily
+large network populations. The authorized arrival reveal must pause when the
+feed is hidden, stale, paused or being read and honor reduced motion.
+
+An exact file exception can be enabled and reversed beside its evidence.
+Confirmed storage and readback govern the shown state. Exceptions affect scoring
+and new notifications; retained Alerts, journal and history remain available.
+Failed preference reads are qualified. Existing canonical process identity,
+confirmation and operation failure handling remain in force. This interface
+change does not establish automatic process blocking.

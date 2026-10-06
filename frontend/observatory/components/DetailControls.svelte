@@ -12,8 +12,12 @@
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import Watchlist from './Watchlist.svelte';
-  let { row, host, telemetry }: { row: RecordData; host: Host | null; telemetry: Telemetry } =
-    $props();
+  let {
+    row,
+    host,
+    telemetry,
+    simple = false,
+  }: { row: RecordData; host: Host | null; telemetry: Telemetry; simple?: boolean } = $props();
   type StopTarget = {
     id: string;
     generationWitness: string;
@@ -78,12 +82,12 @@
     <Action
       disabled={!canControl}
       action={() => processAction('suspendProcess', String(row.instanceId))}
-      ><Icon name="pause" />{$t('Suspend')}</Action
+      ><Icon name="pause" />{$t(simple ? 'Pause process' : 'Suspend')}</Action
     >
     <Action
       disabled={!canControl}
       action={() => processAction('resumeProcess', String(row.instanceId))}
-      ><Icon name="play" />{$t('Resume')}</Action
+      ><Icon name="play" />{$t(simple ? 'Resume process' : 'Resume')}</Action
     >
     <button
       class="button danger"
@@ -104,7 +108,10 @@
       </div>
     </div>{/if}
 </section>
-{#key row.agent ?? row.name}<Watchlist {host} agent={String(row.agent ?? row.name ?? '')} />{/key}
+{#if !simple}{#key row.agent ?? row.name}<Watchlist
+      {host}
+      agent={String(row.agent ?? row.name ?? '')}
+    />{/key}{/if}
 
 <style>
   .control-grid {

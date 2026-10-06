@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { act, fireEvent, render, screen, within } from '@testing-library/svelte';
 import ObservationTable from '../../../frontend/observatory/components/ObservationTable.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
@@ -9,53 +9,53 @@ const rows = Array.from({ length: 65 }, (_, index) => ({
   action: 'read',
 }));
 
-it('keeps pagination focus through full, final and first pages, and ignores unavailable directions', async () => {
-  render(ObservationTable, {
+it('keeps incremental-load focus through full and final batches, and ignores the unavailable direction', async () => {
+  const mounted = render(ObservationTable, {
     rows,
     telemetry: { ...emptyTelemetry(), ready: true },
     inspect: vi.fn(),
   });
-  const pages = within(screen.getByRole('navigation', { name: 'Observation pages' }));
-  const next = pages.getByRole('button', { name: 'Next' });
-  const previous = pages.getByRole('button', { name: 'Previous' });
-  const table = screen.getByRole('table');
-  expect(within(table).getAllByRole('row')).toHaveLength(31);
+  const next = within(
+    mounted.container.querySelector('[data-feed-older]') as HTMLElement,
+  ).getByRole('button', { name: 'Show older activity' });
+  const table = within(mounted.container).getByRole('table') as HTMLTableElement;
+  expect(table.tBodies[0].rows).toHaveLength(30);
   next.focus();
   await fireEvent.click(next);
   expect(next).toHaveFocus();
-  expect(screen.getByRole('navigation')).toHaveTextContent('31\u201360 of 65');
+  expect(table.tBodies[0].rows).toHaveLength(60);
   await fireEvent.click(next);
   expect(next).toHaveFocus();
   expect(next).toHaveAttribute('aria-disabled', 'true');
-  expect(within(table).getAllByRole('row')).toHaveLength(6);
+  expect(table.tBodies[0].rows).toHaveLength(65);
   await fireEvent.click(next);
-  expect(screen.getByRole('navigation')).toHaveTextContent('61\u201365 of 65');
-  previous.focus();
-  await fireEvent.click(previous);
-  await fireEvent.click(previous);
-  expect(previous).toHaveFocus();
-  expect(previous).toHaveAttribute('aria-disabled', 'true');
-  await fireEvent.click(previous);
-  expect(screen.getByRole('navigation')).toHaveTextContent('1\u201330 of 65');
+  expect(next).toHaveFocus();
+  expect(table.tBodies[0].rows).toHaveLength(65);
 });
 
-it('resets to the first page when filters change and handles an empty result', async () => {
+it('resets the loaded batch when filters change and keeps the stable control for empty results', async () => {
   const props = {
     rows,
     telemetry: { ...emptyTelemetry(), ready: true },
     inspect: vi.fn(),
     resetKey: 'all',
   };
-  const { rerender } = render(ObservationTable, props);
-  await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  const { rerender, container } = render(ObservationTable, props);
+  const older = within(container.querySelector('[data-feed-older]') as HTMLElement).getByRole(
+    'button',
+    {
+      name: 'Show older activity',
+    },
+  );
+  const table = within(container).getByRole('table') as HTMLTableElement;
+  await fireEvent.click(older);
+  await act(() => older.focus());
   await rerender({ ...props, rows: [], resetKey: 'empty' });
-  expect(screen.getByRole('navigation')).toHaveTextContent('0\u20130 of 0');
   expect(screen.getByText('No records match these filters.')).toBeVisible();
-  for (const name of ['Previous', 'Next']) {
-    const button = screen.getByRole('button', { name });
-    expect(button).toHaveAttribute('aria-disabled', 'true');
-    await fireEvent.click(button);
-  }
+  expect(older).toHaveFocus();
+  expect(older).toHaveAttribute('aria-disabled', 'true');
+  await fireEvent.click(older);
   await rerender({ ...props, resetKey: 'restored' });
-  expect(screen.getByRole('navigation')).toHaveTextContent('1\u201330 of 65');
+  expect(table.tBodies[0].rows).toHaveLength(30);
+  expect(older).toHaveFocus();
 });

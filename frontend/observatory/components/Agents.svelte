@@ -17,13 +17,25 @@
     telemetry,
     inspect,
     openStatistics,
+    advanced = true,
   }: {
     telemetry: Telemetry;
     inspect: (title: string, row: RecordData) => void;
     openStatistics?: (_agent: string) => void;
+    advanced?: boolean;
   } = $props();
   const panelId = $props.id();
   let section = $state('overview');
+  let effectiveSection = $derived(advanced ? section : 'overview');
+  let panelAttributes = $derived(
+    advanced
+      ? {
+          role: 'tabpanel' as const,
+          tabindex: 0,
+          'aria-labelledby': panelId + '-tab-' + effectiveSection,
+        }
+      : {},
+  );
   const sections = [
     { id: 'overview', label: 'Overview' },
     { id: 'resources', label: 'Resources' },
@@ -74,38 +86,36 @@
   ><button class="button" onclick={() => (descending = !descending)}
     ><Icon name="sort" />{descending ? $t('Descending') : $t('Ascending')}</button
   ><span class="spacer"></span><span class="filter-count"
-    >{agents.length}
+    >{telemetry.ready ? agents.length : '—'}
     {$t('agents ·')}
-    {agents.reduce((sum, a) => sum + a.members.length, 0)}
+    {telemetry.ready ? agents.reduce((sum, a) => sum + a.members.length, 0) : '—'}
     {$t('processes')}</span
   >
 </div>
 <section class="panel">
-  <SectionTabs
-    tabs={sections}
-    selected={section}
-    change={(id) => {
-      section = id;
-    }}
-    prefix={panelId}
-    label={$t('Agent table sections')}
-  />
-  <div
-    class="table-wrap"
-    role="tabpanel"
-    tabindex="0"
-    id={panelId + '-panel-' + section}
-    aria-labelledby={panelId + '-tab-' + section}
-  >
+  <div hidden={!advanced}>
+    <SectionTabs
+      tabs={sections}
+      selected={section}
+      change={(id) => {
+        section = id;
+      }}
+      prefix={panelId}
+      label={$t('Agent table sections')}
+    />
+  </div>
+  <div class="table-wrap" {...panelAttributes} id={panelId + '-panel-' + effectiveSection}>
     <table>
       <thead
         ><tr
           ><th>{$t('Agent')}</th>
-          {#if section === 'overview'}<th>{$t('Status')}</th><th>{$t('Risk')}</th>{/if}
-          {#if section !== 'activity'}<th>{$t('CPU')}</th><th>{$t('RAM')}</th>{/if}
-          {#if section === 'resources'}<th>{$t('Tokens')}</th><th>{$t('Cost')}</th>{/if}
-          {#if section === 'activity'}<th>{$t('Files')}</th><th>{$t('Network')}</th>{/if}
-          {#if section !== 'resources'}<th>{$t('Latest event')}</th>{/if}<th>{$t('Details')}</th>
+          {#if effectiveSection === 'overview'}<th>{$t('Status')}</th><th>{$t('Risk')}</th>{/if}
+          {#if effectiveSection !== 'activity'}<th>{$t('CPU')}</th><th>{$t('RAM')}</th>{/if}
+          {#if effectiveSection === 'resources'}<th>{$t('Tokens')}</th><th>{$t('Cost')}</th>{/if}
+          {#if effectiveSection === 'activity'}<th>{$t('Files')}</th><th>{$t('Network')}</th>{/if}
+          {#if effectiveSection !== 'resources'}<th>{$t('Latest event')}</th>{/if}<th
+            >{$t('Details')}</th
+          >
         </tr></thead
       ><tbody>
         {#each agents as a (a.key)}<tr class="agent-group-row"
@@ -120,7 +130,7 @@
                   name="chevron"
                 /></button
               ></td
-            >{#if section === 'overview'}<td
+            >{#if effectiveSection === 'overview'}<td
                 ><span class="badge low"
                   >{telemetry.stale ? $t('Last snapshot') : $t('Active')}</span
                 ></td
@@ -136,13 +146,14 @@
                   onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'risk' })}
                   >{leadingRiskReason(a.members[0])}</button
                 ></td
-              >{/if}{#if section !== 'activity'}<td class="mono"
+              >{/if}{#if effectiveSection !== 'activity'}<td class="mono"
                 >{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td
               ><td class="mono">{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
-              >{/if}{#if section === 'activity'}<td>{a.files}</td><td>{a.network}</td
-              >{/if}{#if section === 'resources'}<td>{a.tokens?.toLocaleString() ?? '—'}</td><td
-                >{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
-              >{/if}{#if section !== 'resources'}<td class="mono"
+              >{/if}{#if effectiveSection === 'activity'}<td>{a.files}</td><td>{a.network}</td
+              >{/if}{#if effectiveSection === 'resources'}<td
+                >{a.tokens?.toLocaleString() ?? '—'}</td
+              ><td>{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
+              >{/if}{#if effectiveSection !== 'resources'}<td class="mono"
                 >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
               >{/if}<td
               ><button class="text-button" onclick={() => inspect(a.name, groupRecord(a))}
@@ -155,7 +166,7 @@
                 >{/if}</td
             ></tr
           >{:else}<tr
-            ><td colspan={section === 'activity' ? 5 : 7}
+            ><td colspan={effectiveSection === 'activity' ? 5 : 7}
               >{telemetry.ready ? $t('No matching agents.') : $t('Waiting for scan data.')}</td
             ></tr
           >{/each}

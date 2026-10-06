@@ -209,7 +209,13 @@ it('offers process controls only for one live, confirmed, witness-bound identity
 });
 
 it('shows a bottom alert with attribution caveat and offers session review without claiming access denial', async () => {
-  const initial = { ...emptyTelemetry(), ready: true, stale: false, events: [] };
+  const initial = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    events: [],
+    falsePositiveReadState: 'ready' as const,
+  };
   const mounted = render(Notifications, { telemetry: initial });
   const observed = event(1, {
     agent: 'Claude',
@@ -237,7 +243,13 @@ it('shows a bottom alert with attribution caveat and offers session review witho
 });
 
 it('keeps unknown attribution explicit and does not toast the same delivered row twice', async () => {
-  const initial = { ...emptyTelemetry(), ready: true, stale: false, events: [event(1)] };
+  const initial = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    events: [event(1)],
+    falsePositiveReadState: 'ready' as const,
+  };
   const onInspect = vi.fn();
   const mounted = render(Notifications, { telemetry: initial, onInspect });
   expect(screen.queryByText(/Sensitive file observed/)).toBeNull();

@@ -5,6 +5,7 @@ import Settings from '../../../frontend/observatory/components/Settings.svelte';
 
 it('leaves high contrast through the ordinary theme toggle and persists the ordinary theme', async () => {
   localStorage.setItem('aegis-theme', 'light-hc');
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: null });
   await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light-hc'));
   await fireEvent.click(screen.getByLabelText('Toggle theme', { selector: 'button' }));
@@ -21,6 +22,7 @@ it('does not let delayed settings overwrite a theme chosen while the app starts'
     resolveSettings = resolve;
   });
   const host = { getSettings: () => pending };
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host });
   await fireEvent.click(screen.getByLabelText('Toggle theme', { selector: 'button' }));
   expect(document.documentElement.dataset.theme).toBe('light');

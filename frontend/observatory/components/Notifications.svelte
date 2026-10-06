@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick, onDestroy, onMount } from 'svelte';
+  import { tick, untrack, onDestroy, onMount } from 'svelte';
   import { t } from '../runtime/i18n';
   import {
     addToast,
@@ -17,6 +17,8 @@
   } from '../runtime/sensitive-alerts';
   import { confirmed, invoke, type Host, type RecordData, type Telemetry } from '../runtime/host';
   import SensitiveAlertCenter from './SensitiveAlertCenter.svelte';
+  import { matchesFalsePositive } from '../../../src/shared/false-positive-match.js';
+  import { createSensitivePresentation } from '../runtime/sensitive-presentation';
 
   let {
     telemetry,
@@ -29,6 +31,7 @@
   } = $props();
   const anomalyTracker = createAnomalyToastTracker();
   const sensitiveTracker = createSensitiveAlertTracker();
+  const sensitivePresentation = createSensitivePresentation();
   let alerts = $state.raw<SensitiveAlert[]>([]);
   let evicted = $state(0);
   let recent = $state.raw<SensitiveAlert[]>([]);
@@ -63,8 +66,24 @@
     const delivery = sensitiveTracker.ingest(telemetry.events);
     alerts = delivery.items;
     evicted = delivery.evicted;
-    if (delivery.fresh.length) recent = delivery.fresh;
+    const fresh = sensitivePresentation.ingest(
+      delivery.fresh,
+      delivery.items,
+      telemetry.falsePositiveReadState,
+      telemetry.falsePositives,
+    );
+    untrack(() => {
+      if (fresh.length) recent = fresh;
+      else if (telemetry.falsePositiveReadState !== 'pending') removeMatchedBanner();
+    });
   });
+  function removeMatchedBanner(): void {
+    if (sensitiveFocused || sensitiveBanner?.contains(document.activeElement)) return;
+    const remaining = recent.filter(
+      (item) => !matchesFalsePositive(item.event, telemetry.falsePositives),
+    );
+    if (remaining.length !== recent.length) recent = remaining;
+  }
   $effect(() => {
     if (!recent.length || sensitiveFocused) return;
     const shown = recent;
@@ -221,6 +240,7 @@
         sensitiveFocused =
           event.relatedTarget instanceof Node &&
           sensitiveBanner?.contains(event.relatedTarget) === true;
+        if (telemetry.falsePositiveReadState !== 'pending') removeMatchedBanner();
       }}
     >
       <div>
@@ -242,6 +262,9 @@
               ? $t('Possible source: {value0}', { value0: recent[0].event.agent })
               : $t('Source may be unverified; review the evidence.')}
         </p>
+        {#if telemetry.falsePositiveReadState === 'unavailable'}<p>
+            {$t('Saved exceptions could not be checked. Review the evidence.')}
+          </p>{/if}
       </div>
       <button onclick={openCenter}>{$t('Review')}</button>
       <button aria-label={$t('Dismiss notification')} onclick={dismissSensitive}>×</button>

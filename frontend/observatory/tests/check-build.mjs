@@ -26,6 +26,8 @@ import { checkSequence } from './sequence-check.mjs';
 import { checkConfigurationClarity } from './configuration-clarity-check.mjs';
 import { checkReviewContext } from './review-context-check.mjs';
 import { checkCatalogRecovery } from './catalog-recovery-check.mjs';
+import { advancedFixture } from './interface-fixture.mjs';
+import { checkSimpleExperience } from './simple-experience-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -92,11 +94,13 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true });
+const realBrowser = await chromium.launch({ headless: true });
+const browser = advancedFixture(realBrowser);
 const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkSimpleExperience(realBrowser, base + '/desktop/', out);
   await checkTaskGuide(browser, base + '/preview/', out);
   await checkConfigurationClarity(browser, base + '/preview/', out);
   await checkReviewContext(browser, base + '/desktop/', out);

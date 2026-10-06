@@ -84,7 +84,8 @@
       class="button"
       disabled={!policy.agent || telemetry.stale}
       onclick={() =>
-        policy.agent && inspect(policy.agent.name, { ...policy.agent, detailSection: 'processes' })}
+        policy.agent &&
+        inspect(policy.agent.name, { ...policy.agent, detailSection: 'process-controls' })}
       ><Icon name="cpu" />{$t('Agent & controls')}</button
     >
   </div>

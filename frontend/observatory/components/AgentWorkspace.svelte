@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
@@ -15,6 +16,7 @@
   import RiskExplanation from './RiskExplanation.svelte';
   import DetailSummary from './DetailSummary.svelte';
   import DetailControls from './DetailControls.svelte';
+  import SimpleAgentView from './SimpleAgentView.svelte';
   let {
     telemetry,
     liveTelemetry,
@@ -25,7 +27,9 @@
     navigate,
     paused = false,
     visible = true,
+    advanced = true,
     sectionRequest,
+    openInterfaceSettings,
   }: {
     telemetry: Telemetry;
     liveTelemetry: Telemetry;
@@ -36,7 +40,9 @@
     navigate: (_view: string) => void | Promise<void>;
     paused?: boolean;
     visible?: boolean;
+    advanced?: boolean;
     sectionRequest?: { id: string; revision: number };
+    openInterfaceSettings?: () => void | Promise<void>;
   } = $props();
   let all = $derived(instances(telemetry));
   let group = $derived(radarGroups(all).find((row) => row.key === scope.agent));
@@ -70,6 +76,13 @@
   let section = $state('risk');
   let riskOpen = $state(true);
   let processInformationOpen = $state(false);
+  // Keep a visited composition mounted so changing mode preserves its filters.
+  let simpleMounted = $state(untrack(() => !advanced));
+  let advancedMounted = $state(untrack(() => advanced));
+  $effect(() => {
+    if (advanced) advancedMounted = true;
+    else simpleMounted = true;
+  });
   let tabs = $derived([
     { id: 'risk', label: 'Risk', icon: 'shield' },
     { id: 'resources', label: 'Resources', icon: 'chart' },
@@ -117,121 +130,138 @@
               : $t('Observed now')}
       </p>
     </div>
-    <button class="button" onclick={() => navigate('stats')}
-      ><Icon name="chart" />{$t('Detailed statistics')}</button
-    >
+    {#if advanced}<button class="button" onclick={() => navigate('stats')}
+        ><Icon name="chart" />{$t('Detailed statistics')}</button
+      >{/if}
   </section>
-  <AgentContextSummary
-    {telemetry}
-    {scope}
-    {files}
-    {connections}
-    {workerCount}
-    processObserved={!!process}
-    {section}
-    {prefix}
-    select={selectSection}
-    {paused}
-  />
-  <SectionTabs
-    {tabs}
-    selected={section}
-    change={selectSection}
-    {prefix}
-    label={$t('Agent sections')}
-  />
   {#if absent}<p class="notice" role="status">
       {$t(
         'This selection is no longer observed. Its retained activity stays visible; AEGIS will not switch to another process with the same PID.',
       )}
     </p>{/if}
-  <div
-    id={prefix + '-panel-risk'}
-    role="tabpanel"
-    aria-labelledby={prefix + '-tab-risk'}
-    tabindex="0"
-    hidden={section !== 'risk'}
-    class="agent-risk panel"
-  >
-    <details bind:open={riskOpen}>
-      <summary
-        ><span class="risk-heading"
-          >{$t('Observed risk')}
-          <strong class={risk.score === null ? '' : riskBand(risk.score)}
-            >{risk.score ?? '—'}<small>/100</small></strong
-          ></span
-        >
-        <span class="risk-reason"
-          >{!risk.subject
-            ? $t('Current assessment unavailable')
-            : !risk.subject.instanceId
-              ? $t('Process identity not recorded')
-              : (risk.contributions[0]?.label ?? $t('No scored activity'))}<small
-            >{scope.instanceId ? $t('This process') : $t('Highest process score')} · {riskOpen
-              ? $t('Collapse explanation')
-              : $t('Expand explanation')}</small
-          ></span
-        >
-      </summary>
-      <div class="risk-content">
-        <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
+  {#if simpleMounted}<div hidden={advanced}>
+      <SimpleAgentView
+        {telemetry}
+        {liveTelemetry}
+        {host}
+        {scope}
+        {subject}
+        {riskSubject}
+        {inspect}
+        {navigate}
+        {openInterfaceSettings}
+        {paused}
+        visible={visible && !advanced}
+      />
+    </div>{/if}
+  {#if advancedMounted}<div hidden={!advanced} class="advanced-agent-view">
+      <AgentContextSummary
+        {telemetry}
+        {scope}
+        {files}
+        {connections}
+        {workerCount}
+        processObserved={!!process}
+        {section}
+        {prefix}
+        select={selectSection}
+        {paused}
+      />
+      <SectionTabs
+        {tabs}
+        selected={section}
+        change={selectSection}
+        {prefix}
+        label={$t('Agent sections')}
+      />
+      <div
+        id={prefix + '-panel-risk'}
+        role="tabpanel"
+        aria-labelledby={prefix + '-tab-risk'}
+        tabindex="0"
+        hidden={section !== 'risk'}
+        class="agent-risk panel"
+      >
+        <details bind:open={riskOpen}>
+          <summary
+            ><span class="risk-heading"
+              >{$t('Observed risk')}
+              <strong class={risk.score === null ? '' : riskBand(risk.score)}
+                >{risk.score ?? '—'}<small>/100</small></strong
+              ></span
+            >
+            <span class="risk-reason"
+              >{!risk.subject
+                ? $t('Current assessment unavailable')
+                : !risk.subject.instanceId
+                  ? $t('Process identity not recorded')
+                  : (risk.contributions[0]?.label ?? $t('No scored activity'))}<small
+                >{scope.instanceId ? $t('This process') : $t('Highest process score')} · {riskOpen
+                  ? $t('Collapse explanation')
+                  : $t('Expand explanation')}</small
+              ></span
+            >
+          </summary>
+          <div class="risk-content">
+            <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
+          </div>
+        </details>
       </div>
-    </details>
-  </div>
-  <div
-    id={prefix + '-panel-resources'}
-    role="tabpanel"
-    aria-labelledby={prefix + '-tab-resources'}
-    tabindex="0"
-    hidden={section !== 'resources'}
-  >
-    <AgentPerformance {telemetry} {scope} {paused} />
-  </div>
-  <div
-    id={prefix + '-panel-activity'}
-    role="tabpanel"
-    aria-labelledby={prefix + '-tab-activity'}
-    tabindex="0"
-    hidden={section !== 'activity'}
-    class="agent-activity"
-  >
-    <AgentEvidence
-      agents={all as unknown as RecordData[]}
-      rows={files}
-      {inspect}
-      more={() => navigate('events')}
-    />
-    <AgentEvidence
-      agents={all as unknown as RecordData[]}
-      rows={connections}
-      network
-      {inspect}
-      more={() => navigate('network')}
-    />
-  </div>
-  <div
-    id={prefix + '-panel-processes'}
-    role="tabpanel"
-    aria-labelledby={prefix + '-tab-processes'}
-    tabindex="0"
-    hidden={section !== 'processes'}
-    class="agent-process-panel"
-  >
-    <AgentProcesses {telemetry} {scope} {change} />
-    {#if process}
-      <details class="process-information panel" bind:open={processInformationOpen}>
-        <summary>{$t('Process attributes and controls')}</summary>
-        <div class="process-information-body">
-          <DetailSummary row={subject} {telemetry} section="attributes" />
-          {#key scope.instanceId}<DetailControls
-              row={subject}
-              telemetry={liveTelemetry}
-              {host}
-            />{/key}
-        </div>
-      </details>
-    {/if}
-  </div>
+      <div
+        id={prefix + '-panel-resources'}
+        role="tabpanel"
+        aria-labelledby={prefix + '-tab-resources'}
+        tabindex="0"
+        hidden={section !== 'resources'}
+      >
+        <AgentPerformance {telemetry} {scope} paused={paused || !advanced || !visible} />
+      </div>
+      <div
+        id={prefix + '-panel-activity'}
+        role="tabpanel"
+        aria-labelledby={prefix + '-tab-activity'}
+        tabindex="0"
+        hidden={section !== 'activity'}
+        class="agent-activity"
+      >
+        <AgentEvidence
+          agents={all as unknown as RecordData[]}
+          rows={files}
+          {inspect}
+          more={() => navigate('events')}
+        />
+        <AgentEvidence
+          agents={all as unknown as RecordData[]}
+          rows={connections}
+          network
+          {inspect}
+          more={() => navigate('network')}
+        />
+      </div>
+      <div
+        id={prefix + '-panel-processes'}
+        role="tabpanel"
+        aria-labelledby={prefix + '-tab-processes'}
+        tabindex="0"
+        hidden={section !== 'processes'}
+        class="agent-process-panel"
+      >
+        <AgentProcesses {telemetry} {scope} {change} />
+        {#if process}
+          <details class="process-information panel" bind:open={processInformationOpen}>
+            <summary>{$t('Process attributes and controls')}</summary>
+            <div class="process-information-body">
+              <DetailSummary row={subject} {telemetry} section="attributes" />
+              {#key scope.instanceId}<DetailControls
+                  row={subject}
+                  telemetry={liveTelemetry}
+                  {host}
+                />{/key}
+            </div>
+          </details>
+        {/if}
+      </div>
+    </div>{/if}
 </div>
 
 <style>
@@ -239,6 +269,10 @@
     display: grid;
     gap: var(--space-4);
     min-width: 0;
+  }
+  .advanced-agent-view:not([hidden]) {
+    display: grid;
+    gap: var(--space-4);
   }
   .agent-intro {
     display: flex;

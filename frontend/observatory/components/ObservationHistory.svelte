@@ -2,6 +2,7 @@
   import { t } from '../runtime/i18n';
 
   import type { RecordData } from '../runtime/host';
+  import { createRecordKey, keyedRecords } from '../runtime/activity-feed';
   import {
     describeObservation,
     observationTime,
@@ -20,6 +21,7 @@
     limit?: number;
     query?: string;
   } = $props();
+  const key = createRecordKey();
   let matching = $derived(
     rows.filter((row) => {
       const info = describeObservation(row);
@@ -40,7 +42,9 @@
     }),
   );
   let sorted = $derived(
-    [...matching].sort((a, b) => observationTime(b.timestamp) - observationTime(a.timestamp)),
+    keyedRecords(matching, key).sort(
+      (a, b) => observationTime(b.row.timestamp) - observationTime(a.row.timestamp),
+    ),
   );
 </script>
 
@@ -63,10 +67,11 @@
     {rows.length}
     {$t('records · newest first')}
   </p>
-  {#each sorted.slice(0, limit) as row, i (i)}{@const info = describeObservation(row)}
+  {#each sorted.slice(0, limit) as entry (entry.key)}{@const row = entry.row}{@const info =
+      describeObservation(row)}
     <button
       class="recent-event"
-      data-detail-focus={'record-' + i}
+      data-detail-focus={'record-' + entry.key}
       onclick={() => navigate('Observation', row)}
     >
       <time
@@ -91,8 +96,15 @@
   {:else}<p class="entity-note">
       {rows.length ? $t('No records match this search.') : $t('No recorded observations.')}
     </p>{/each}
-  {#if sorted.length > limit}<button class="button" onclick={() => (limit += 20)}
-      >{$t('Show')} {Math.min(20, sorted.length - limit)} {$t('more')}</button
+  {#if sorted.length > limit || limit > 20}<button
+      class="button"
+      aria-disabled={sorted.length <= limit}
+      onclick={() => {
+        if (sorted.length > limit) limit += 20;
+      }}
+      >{#if sorted.length > limit}{$t('Show')}
+        {Math.min(20, sorted.length - limit)}
+        {$t('more')}{:else}{$t('All matching retained activity shown')}{/if}</button
     >{/if}
 </div>
 
