@@ -49,6 +49,7 @@ export default defineConfig({
         'src/main/token-adapters/claude-code.js',
         'src/main/token-adapters/claude-code-subagents.js',
         'src/main/log-files.js',
+        'src/main/file-watch-retry.js',
         'src/main/agent-event-receiver.js',
         'src/main/action-policy.js',
         'src/main/helper-artifact-admission.js',
