@@ -24,6 +24,7 @@
     close,
     refreshFalsePositives,
     openAgent,
+    statusRevision = 0,
   }: {
     host: Host | null;
     telemetry: Telemetry;
@@ -31,6 +32,7 @@
     close: () => void;
     refreshFalsePositives: () => Promise<void>;
     openAgent?: (_title: string, _row: RecordData) => void;
+    statusRevision?: number;
   } = $props();
   interface Visit {
     title: string;
@@ -248,7 +250,12 @@
     {#if current}
       {@const exceptionTarget = exactExceptionTarget(current.row)}
       {#if exceptionTarget}{#key current.row}
-          <FalsePositiveToggle {host} target={exceptionTarget} {refreshFalsePositives} />
+          <FalsePositiveToggle
+            {host}
+            target={exceptionTarget}
+            {refreshFalsePositives}
+            {statusRevision}
+          />
         {/key}{/if}
     {/if}
     <button class="button" onclick={close}>{$t('Close')}</button>

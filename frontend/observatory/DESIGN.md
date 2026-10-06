@@ -1,5 +1,32 @@
 # AEGIS Observatory
 
+## One investigation workspace — 7 October 2026
+
+The user requests further simplification based on popular EDR workflows. Simple
+uses three primary destinations: Investigate, Check files and Settings. Investigate
+contains one compact agent roster, one contextual risk/response header and one
+activity feed. Product selection changes the same App scope without changing
+workspaces. Explicit worker selection stays next to the score and the existing
+manual response actions. No product or reused PID silently becomes an action target.
+
+Selecting a captured observation opens an evidence pane alongside the feed; full
+path/address, recorded actor, action and false-alarm status remain together.
+At narrow widths the pane is placed above the feed within the same workspace.
+Opening it reveals and focuses the captured evidence. Closing it returns focus
+after reflow to the original connected control, or to Activity if that control was
+filtered away. Below 981px a native product selector replaces the roster beside
+the full-width risk/actions and feed. Full technical details
+remain available, and the original Advanced route registry is preserved. Ordinary
+sensor state is compact in the footer; audit loss/write failure and observation
+outages stay explicit. AEGIS resource diagnostics remain in Advanced/Statistics.
+
+This user-authorized composition replaces Simple Home/Agents/Activity navigation.
+It preserves Observatory artwork, typography, semantic colors, motion contracts,
+exact identity, missing/stale data and captured evidence. Progressive feed mounting
+does not become hard virtualization; connection snapshots are not event history.
+Source references and verification ownership are in
+`../../docs/development/edr-investigation-2026-10-07.md`.
+
 ## Explicit application exit — 5 October 2026
 
 The sidebar exposes Quit AEGIS independently of workspace or sensor state.
@@ -682,17 +709,19 @@ action to the other existing tab. Reading history does not establish current
 writeability or hash-chain integrity. Both views retain their original detail,
 export and recovery controls.
 
-### Simple agent experience (2026-10-06)
+### Simple agent experience foundation (2026-10-06)
 
 The user authorized a beginner default with independently enabled Advanced
-controls. Simple navigation contains Home, Agents, Activity, Check files and
-Settings. The stable fourteen workspace routes, contextual links, commands and
+controls. The original five-destination composition was superseded on 7 October
+by Investigate, Check files and Settings as specified above. The stable fourteen
+workspace routes, contextual links, commands and
 history remain available. Advanced reveals their full navigation. Its verified
 device preference is saved separately from host settings and unsaved drafts.
 
 Simple agent detail places the observed process risk and its leading reason,
 guarded Pause/Resume/Stop actions, and retained file/connection activity in one
-composition. The shared process selector remains the single selection control.
+composition. The product roster and nearby explicit worker selector now provide
+selection within the investigation workspace.
 Expanded risk explanations and technical compositions stay available. Missing
 observations remain qualified; neither a held file nor a connection snapshot
 proves a modification or a connection lifetime.

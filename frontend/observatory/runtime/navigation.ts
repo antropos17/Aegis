@@ -24,7 +24,7 @@ export const workspaces: Workspace[] = [
     label: 'Monitoring',
     icon: 'radar',
     group: 'observe',
-    keywords: 'radar live monitor monitoring',
+    keywords: 'home radar live monitor monitoring',
   },
   {
     id: 'agents',
@@ -112,12 +112,16 @@ export const workspaces: Workspace[] = [
   },
 ];
 const simpleLabels: Record<string, string> = {
-  overview: 'Home',
-  agents: 'Agents',
-  events: 'Activity',
+  overview: 'Investigate',
   'local-security': 'Check files',
   settings: 'Settings',
 };
+/** Identify routes that share the Simple investigation context.
+ * @param id Registered route identity @returns Whether Simple uses the shared workbench @since 0.19.2
+ */
+export function isInvestigationWorkspace(id: string): boolean {
+  return ['overview', 'agents', 'events', 'network'].includes(id);
+}
 /** Select sidebar entries without removing registered routes or commands.
  * @param advanced Whether to show all workspaces @returns Visible destinations @since 0.19.2
  */

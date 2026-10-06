@@ -17,17 +17,39 @@
     host,
     telemetry,
     simple = false,
-  }: { row: RecordData; host: Host | null; telemetry: Telemetry; simple?: boolean } = $props();
+    compact = false,
+  }: {
+    row: RecordData;
+    host: Host | null;
+    telemetry: Telemetry;
+    simple?: boolean;
+    compact?: boolean;
+  } = $props();
   type StopTarget = {
     id: string;
     generationWitness: string;
     generationWitnessSource: string;
   };
   let stopTarget = $state<StopTarget | null>(null);
+  function selectedTarget(id: string) {
+    const live = actionTarget(telemetry, id);
+    // Older detail requests may contain only an identity. Captured witness metadata,
+    // when present, must match in both value and source; the millisecond key can collide.
+    if (
+      ('generationWitness' in row || 'generationWitnessSource' in row) &&
+      (live.generationWitness !== row.generationWitness ||
+        live.generationWitnessSource !== row.generationWitnessSource)
+    ) {
+      throw new Error(
+        'This process instance is no longer reliably observed. Wait for a fresh scan.',
+      );
+    }
+    return live;
+  }
   let canControl = $derived.by(() => {
     if (!row.process || typeof row.instanceId !== 'string') return false;
     try {
-      actionTarget(telemetry, row.instanceId);
+      selectedTarget(row.instanceId);
       return true;
     } catch {
       return false;
@@ -35,7 +57,7 @@
   });
   function prepareStop(id: string) {
     try {
-      const live = actionTarget(telemetry, id);
+      const live = selectedTarget(id);
       stopTarget = {
         id,
         generationWitness: live.generationWitness,
@@ -46,7 +68,7 @@
     }
   }
   async function processAction(method: string, id: string, selected?: StopTarget) {
-    const live = actionTarget(telemetry, id);
+    const live = selectedTarget(id);
     if (
       selected &&
       (live.generationWitness !== selected.generationWitness ||
@@ -68,16 +90,16 @@
   }
 </script>
 
-<section class="detail-section">
-  <div class="section-heading">
-    <h3 class="controls-heading"><Icon name="cpu" />{$t('Process controls')}</h3>
-    <span class="badge">{$t('PID')} {String(row.pid ?? 'Unavailable')}</span>
-  </div>
-  <p class="entity-note">
-    {canControl
-      ? $t('Actions apply to this process identity.')
-      : $t('Controls are unavailable until this identity is observed again.')}
-  </p>
+<section class="detail-section" class:compact aria-label={$t('Process controls')}>
+  {#if !compact}<div class="section-heading">
+      <h3 class="controls-heading"><Icon name="cpu" />{$t('Process controls')}</h3>
+      <span class="badge">{$t('PID')} {String(row.pid ?? 'Unavailable')}</span>
+    </div>{/if}
+  {#if !compact || !canControl}<p class="entity-note">
+      {canControl
+        ? $t('Actions apply to this process identity.')
+        : $t('Controls are unavailable until this identity is observed again.')}
+    </p>{/if}
   <div class="control-grid">
     <Action
       disabled={!canControl}
@@ -121,5 +143,31 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+  }
+  .compact {
+    padding: 0;
+    border: 0;
+    background: none;
+    min-width: 0;
+  }
+  .compact .section-heading {
+    margin-bottom: var(--space-1);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .compact .controls-heading,
+  .compact .entity-note {
+    font-size: var(--text-caption);
+  }
+  .compact .entity-note {
+    margin: var(--space-1) 0 var(--space-2);
+  }
+  .compact .control-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .compact .confirm-stop {
+    margin-top: var(--space-2);
   }
 </style>

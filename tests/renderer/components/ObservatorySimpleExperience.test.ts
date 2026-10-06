@@ -139,25 +139,16 @@ function navigation() {
   return within(screen.getByRole('navigation', { name: 'Main navigation' }));
 }
 
-it('starts with five Simple destinations and truthful unknown agent state', () => {
+it('starts with three Simple destinations and truthful unknown agent state', () => {
   const { host } = appBridge();
   render(App, { host });
   expect(
     navigation()
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label')),
-  ).toEqual(['Home', 'Agents', 'Activity', 'Check files', 'Settings']);
-  expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible();
-  expect(
-    screen.getByText(
-      'Waiting for a reliable process observation. Running agents are not yet known.',
-    ),
-  ).toBeVisible();
-  expect(
-    within(screen.getByRole('region', { name: 'Observed agents' })).getByText(
-      /—\s*agents ·\s*—\s*processes/,
-    ),
-  ).toBeVisible();
+  ).toEqual(['Investigate', 'Check files', 'Settings']);
+  expect(screen.getByRole('heading', { level: 1, name: 'Investigate' })).toBeVisible();
+  expect(screen.getByText('Waiting for reliable agent observations.')).toBeVisible();
   expect(screen.queryByRole('heading', { name: 'Agent radar' })).toBeNull();
   expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
 });
@@ -171,19 +162,20 @@ it('opens technical commands and keyboard routes without changing the saved mode
   await fireEvent.input(input, { target: { value: 'network' } });
   expect(screen.getByRole('option', { name: 'Network · Advanced · Investigate' })).toBeVisible();
   await fireEvent.keyDown(input, { key: 'Enter' });
-  await screen.findByRole('heading', { level: 1, name: 'Network' });
-  expect(navigation().getAllByRole('button')).toHaveLength(5);
-  expect(
-    screen.getByText(
-      'This technical workspace remains available in Simple. Show every workspace from Settings.',
+  await screen.findByRole('heading', { level: 1, name: 'Investigate' });
+  expect(navigation().getAllByRole('button')).toHaveLength(3);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Connections' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
     ),
-  ).toBeVisible();
+  );
+  await fireEvent.keyDown(window, { key: '5' });
+  await screen.findByRole('heading', { level: 1, name: 'Statistics' });
   expect(screen.getByRole('main')).toHaveFocus();
   await fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-  await screen.findByRole('heading', { level: 1, name: 'Home' });
+  await screen.findByRole('heading', { level: 1, name: 'Investigate' });
   await fireEvent.click(screen.getByRole('button', { name: 'Forward' }));
-  await screen.findByRole('heading', { level: 1, name: 'Network' });
-  await fireEvent.keyDown(window, { key: '5' });
   await screen.findByRole('heading', { level: 1, name: 'Statistics' });
   expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
 }, 15_000);
@@ -217,7 +209,7 @@ it('retains drafts through interface changes and navigation and restores Advance
   expect(screen.getByRole('heading', { level: 1, name: 'Monitoring' })).toBeVisible();
 }, 15_000);
 
-it('mounts Simple Home only after its first visit and preserves its activity search across mode changes', async () => {
+it('mounts the investigation workspace only after its first visit and preserves its activity search across mode changes', async () => {
   localStorage.setItem('aegis-advanced-mode', 'true');
   const { host } = appBridge();
   render(App, { host });
@@ -227,10 +219,10 @@ it('mounts Simple Home only after its first visit and preserves its activity sea
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
   await screen.findByText('Settings saved');
   await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
-  await fireEvent.click(navigation().getByRole('button', { name: 'Home' }));
-  const homeSearch = within(screen.getByRole('region', { name: 'Recent activity' })).getByLabelText(
-    'Search events',
-  );
+  await fireEvent.click(navigation().getByRole('button', { name: 'Investigate' }));
+  const homeSearch = within(
+    screen.getByRole('region', { name: 'Investigation workspace' }),
+  ).getByLabelText('Search events');
   await fireEvent.input(homeSearch, { target: { value: '/retained-home-draft' } });
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
   await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
@@ -239,10 +231,10 @@ it('mounts Simple Home only after its first visit and preserves its activity sea
   expect(homeSearch).not.toBeVisible();
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
   await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
-  await fireEvent.click(navigation().getByRole('button', { name: 'Home' }));
-  const revisited = within(screen.getByRole('region', { name: 'Recent activity' })).getByLabelText(
-    'Search events',
-  );
+  await fireEvent.click(navigation().getByRole('button', { name: 'Investigate' }));
+  const revisited = within(
+    screen.getByRole('region', { name: 'Investigation workspace' }),
+  ).getByLabelText('Search events');
   expect(revisited).toBe(homeSearch);
   expect(revisited).toHaveValue('/retained-home-draft');
 });

@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import Details from '../../../frontend/observatory/components/Details.svelte';
+import FalsePositiveToggle from '../../../frontend/observatory/components/FalsePositiveToggle.svelte';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
 import { emptyTelemetry, type Host } from '../../../frontend/observatory/runtime/host';
 import type { FalsePositiveEntry, FileEvent } from '../../../src/shared/types';
@@ -198,4 +199,111 @@ it('simple-exceptions: does not offer a saved exception for an unattributed stal
   });
   expect(screen.queryByRole('button', { name: 'Mute false alarm' })).toBeNull();
   expect(host.getFalsePositives).not.toHaveBeenCalled();
+});
+
+it('simple-exceptions: verifies external mute and undo in the same mounted control', async () => {
+  let saved: FalsePositiveEntry[] = [];
+  const host = {
+    getFalsePositives: vi.fn(async () => saved.slice()),
+    addFalsePositive: vi.fn(),
+    saveSettings: vi.fn(),
+  } as unknown as Host;
+  const refresh = vi.fn(async () => {});
+  const mounted = render(FalsePositiveToggle, {
+    props: {
+      host,
+      target: { agentName: 'Claude', file, pattern },
+      refreshFalsePositives: refresh,
+      statusRevision: 0,
+      visible: true,
+    },
+  });
+  const button = screen.getByRole('button', { name: 'Mute false alarm' });
+  await waitFor(() => expect(button).toBeEnabled());
+  button.focus();
+  saved = [exact];
+  await mounted.rerender({ statusRevision: 1 });
+  await waitFor(() => expect(button).toHaveAccessibleName('Re-enable alerts'));
+  expect(button).toHaveFocus();
+  saved = [];
+  await mounted.rerender({ statusRevision: 2 });
+  await waitFor(() => expect(button).toHaveAccessibleName('Mute false alarm'));
+  expect(button).toBeEnabled();
+  expect(host.getFalsePositives).toHaveBeenCalledTimes(3);
+  expect(host.addFalsePositive).not.toHaveBeenCalled();
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
+});
+
+it('simple-exceptions: defers hidden verification and checks saved state on return', async () => {
+  let saved: FalsePositiveEntry[] = [];
+  const host = { getFalsePositives: vi.fn(async () => saved.slice()) } as unknown as Host;
+  const mounted = render(FalsePositiveToggle, {
+    props: {
+      host,
+      target: { agentName: 'Claude', file, pattern },
+      refreshFalsePositives: vi.fn(async () => {}),
+      statusRevision: 0,
+      visible: true,
+    },
+  });
+  const button = screen.getByRole('button', { name: 'Mute false alarm' });
+  await waitFor(() => expect(button).toBeEnabled());
+  await mounted.rerender({ visible: false });
+  saved = [exact];
+  await mounted.rerender({ statusRevision: 1 });
+  expect(host.getFalsePositives).toHaveBeenCalledTimes(1);
+  await mounted.rerender({ visible: true });
+  await waitFor(() => expect(button).toHaveAccessibleName('Re-enable alerts'));
+  expect(button).toBeEnabled();
+  expect(host.getFalsePositives).toHaveBeenCalledTimes(2);
+});
+
+it('simple-exceptions: coalesces external verification behind a pending serialized write', async () => {
+  let saved: FalsePositiveEntry[] = [];
+  let releaseWrite: () => void = () => {};
+  const write = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+  const host = {
+    getFalsePositives: vi.fn(async () => saved.slice()),
+    addFalsePositive: vi.fn(async (entry: FalsePositiveEntry) => {
+      await write;
+      saved = [entry];
+      return { success: true };
+    }),
+  } as unknown as Host;
+  const refresh = vi.fn(async () => {
+    // Another control has confirmed an undo while this control is completing
+    // its own write/readback. The revision must win without a second write.
+    saved = [];
+    await mounted.rerender({ statusRevision: 2 });
+  });
+  const mounted = render(FalsePositiveToggle, {
+    props: {
+      host,
+      target: { agentName: 'Claude', file, pattern },
+      refreshFalsePositives: refresh,
+      statusRevision: 0,
+      visible: true,
+    },
+  });
+  const button = screen.getByRole('button', { name: 'Mute false alarm' });
+  await waitFor(() => expect(button).toBeEnabled());
+  await fireEvent.click(button);
+  await waitFor(() => expect(host.addFalsePositive).toHaveBeenCalledTimes(1));
+  await mounted.rerender({ statusRevision: 1 });
+  expect(button).toBeDisabled();
+  expect(host.getFalsePositives).toHaveBeenCalledTimes(2);
+  releaseWrite();
+  await waitFor(() => {
+    expect(button).toHaveAccessibleName('Mute false alarm');
+    expect(button).toBeEnabled();
+  });
+  expect(host.getFalsePositives).toHaveBeenCalledTimes(4);
+  expect(host.addFalsePositive).toHaveBeenCalledTimes(1);
+  expect(host.addFalsePositive).toHaveBeenCalledWith(
+    expect.objectContaining({ agentName: 'Claude', pattern }),
+  );
+  expect(refresh).toHaveBeenCalledTimes(1);
 });

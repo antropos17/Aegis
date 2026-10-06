@@ -23,10 +23,11 @@
     live = true,
     admissionRevision = 0,
     onSnapshotChange,
+    captureContext = false,
   }: {
     rows: RecordData[];
     telemetry: Telemetry;
-    inspect: (_title: string, _row: RecordData) => void;
+    inspect: (_title: string, _row: RecordData, _agents?: RecordData[]) => void;
     grouping?: 'resource' | 'agent' | 'none';
     resetKey?: string;
     visible?: boolean;
@@ -34,6 +35,7 @@
     live?: boolean;
     admissionRevision?: number;
     onSnapshotChange?: (_held: boolean) => void;
+    captureContext?: boolean;
   } = $props();
   const key = createRecordKey();
   let surface = $state<HTMLElement>();
@@ -99,12 +101,13 @@
     });
   }
   function open(group: (typeof groups)[number]) {
-    inspect(
-      group.rows.length > 1 ? group.label : 'Observation',
+    const title = group.rows.length > 1 ? group.label : 'Observation';
+    const selected =
       group.rows.length > 1
         ? { observationGroup: group.label, observations: group.rows }
-        : group.latest,
-    );
+        : group.latest;
+    if (captureContext) inspect(title, selected, agents);
+    else inspect(title, selected);
   }
 </script>
 
