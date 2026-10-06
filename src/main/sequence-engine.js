@@ -139,7 +139,7 @@ const { normalizeToEcs } = require('../shared/ecs-normalizer');
 const sequenceEvidence = require('./sequence-evidence');
 /** @type {ReturnType<typeof sequenceEvidence.createHistory>|null} */
 let _tupleHistory = null;
-/** @type {ReturnType<import('./sequence-related').createRelated>|null} */
+/** @type {ReturnType<typeof import('./sequence-related').createRelated>|null} */
 let _related = null;
 
 /** Logger module tag — every line this file emits carries it. @type {string} */
