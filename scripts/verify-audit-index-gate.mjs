@@ -184,7 +184,7 @@ function runSuite(copyRoot, outputFile, timeoutMs = 60000) {
   if (fs.existsSync(outputFile)) {
     try {
       json = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
-    } catch (_) {
+    } catch {
       /* leave null — captured below */
     }
   }
@@ -362,11 +362,11 @@ try {
   // main node_modules tree (memory-bank/ai-mistakes.md #37).
   try {
     fs.rmdirSync(junctionPath);
-  } catch (_) {
+  } catch {
     // On non-Windows, rmdirSync on a symlink may throw ENOTDIR; fall back to unlink.
     try {
       fs.unlinkSync(junctionPath);
-    } catch (_2) {
+    } catch {
       /* junction may not exist if setup failed before symlinkSync */
     }
   }
