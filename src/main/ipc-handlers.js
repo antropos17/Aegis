@@ -30,6 +30,7 @@ const {
   parseExternalUrl,
   isTrustedSetupGuide,
   ownsTopLevelRenderer,
+  resolveRendererDocument,
 } = require('./external-url-boundary');
 const { writePrivateReport } = require('./private-report-temp');
 const { createQuitAppHandler } = require('./app-quit');
@@ -71,9 +72,10 @@ function escapeHtml(str) {
  * @since v0.1.0
  */
 function init(injected) {
-  const rendererUrl =
-    process.env.VITE_DEV_SERVER_URL ||
-    pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html')).href;
+  const { url: rendererUrl } = resolveRendererDocument(
+    app.isPackaged,
+    process.env.VITE_DEV_SERVER_URL,
+  );
   deps = { ...injected, rendererUrl };
   analysisConfirmationPending = false;
   localSecurity.init({

@@ -108,8 +108,7 @@ app.on('select-client-certificate', (event, _contents, _url, _certificates, call
 const { randomUUID } = require('node:crypto');
 const FILE_EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const path = require('path');
-const { pathToFileURL } = require('node:url');
-const { guardRendererNavigation } = require('./external-url-boundary');
+const { guardRendererNavigation, resolveRendererDocument } = require('./external-url-boundary');
 const { createFileWatchRetryPolicy } = require('./file-watch-retry');
 const { readBoundedConfigFile } = require('./bounded-config-file');
 
@@ -544,6 +543,10 @@ function auditInitOptions(userDataPath) {
 
 // ═══ WINDOW ═══
 
+/** Create the hardened window and load the selected application document.
+ * @returns {void}
+ * @since v0.1.0
+ */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -580,13 +583,12 @@ function createWindow() {
     });
   });
   desktopShell.attach(mainWindow);
-  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
-  const rendererFile = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
-  guardRendererNavigation(mainWindow.webContents, devServerUrl || pathToFileURL(rendererFile).href);
-  if (devServerUrl) {
-    mainWindow.loadURL(devServerUrl);
+  const document = resolveRendererDocument(app.isPackaged, process.env.VITE_DEV_SERVER_URL);
+  guardRendererNavigation(mainWindow.webContents, document.url);
+  if (document.filePath) {
+    mainWindow.loadFile(document.filePath);
   } else {
-    mainWindow.loadFile(rendererFile);
+    mainWindow.loadURL(document.url);
   }
   mainWindow.setMenuBarVisibility(false);
 
@@ -1314,6 +1316,7 @@ function _loadDeferredModulesForTest() {
 // Exported for the startup-ordering and stats-shape regression tests only — nothing in
 // the app requires main.js. Electron runs it as the entry point.
 module.exports = {
+  createWindow,
   startWatchers,
   startWatchersWhenLoaded,
   // The watcher's per-event handler, exposed so the sequence-engine tap inside it can

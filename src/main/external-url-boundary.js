@@ -1,5 +1,8 @@
 'use strict';
 
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
 const MAX_EXTERNAL_URL_LENGTH = 2048;
 const SETUP_GUIDES = new Set(
   [
@@ -10,6 +13,19 @@ const SETUP_GUIDES = new Set(
     'ACTION-MCP-STATUS.md',
   ].map((file) => `https://github.com/antropos17/Aegis/blob/master/docs/${file}`),
 );
+
+/** Select the document shared by window loading, navigation and IPC ownership.
+ * Only an explicitly unpackaged application can use a development override.
+ * @param {boolean} isPackaged Electron application packaging state.
+ * @param {string|undefined} devServerUrl Launch-time development override.
+ * @returns {{url: string, filePath: string|null}} The trusted document and local file, if used.
+ * @since v0.19.1-beta
+ */
+function resolveRendererDocument(isPackaged, devServerUrl) {
+  if (isPackaged === false && devServerUrl) return { url: devServerUrl, filePath: null };
+  const filePath = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
+  return { url: pathToFileURL(filePath).href, filePath };
+}
 
 /** Parse a renderer supplied website URL before passing its canonical form to the OS.
  * @param {unknown} value Candidate URL.
@@ -127,6 +143,7 @@ function guardRendererNavigation(contents, appDocumentUrl) {
 }
 
 module.exports = {
+  resolveRendererDocument,
   parseExternalUrl,
   isTrustedSetupGuide,
   isAppDocumentUrl,
