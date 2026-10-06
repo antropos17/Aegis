@@ -287,11 +287,12 @@ function matchesCidr(bytes, range) {
   return true;
 }
 
-/** Private, loopback, unspecified and IPv6 link-local ranges excluded from remote TCP results. */
+/** Private, loopback, unspecified and link-local ranges excluded from remote TCP results. */
 const PRIVATE_IP_RANGES = [
   ['0.0.0.0', 32],
   ['10.0.0.0', 8],
   ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
   ['172.16.0.0', 12],
   ['192.168.0.0', 16],
   ['::', 128],
