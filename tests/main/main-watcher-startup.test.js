@@ -98,6 +98,18 @@ function makeWebContents(loading) {
   };
 }
 
+describe('main — public network client certificates', () => {
+  it.each([null, { id: 1 }])('declines OS certificates for webContents %j', (contents) => {
+    const handlers = appListeners['select-client-certificate'] || [];
+    expect(handlers).toHaveLength(1);
+    const event = { preventDefault: vi.fn() };
+    const callback = vi.fn();
+    handlers[0](event, contents, 'https://github.com/', [{ subjectName: 'fixture' }], callback);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(callback).toHaveBeenCalledExactlyOnceWith();
+  });
+});
+
 describe('main — watcher startup ordering', () => {
   let watcherMock;
   let watchPlan;

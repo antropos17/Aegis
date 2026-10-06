@@ -99,6 +99,12 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
 }
 
 const { app, BrowserWindow, globalShortcut } = require('electron');
+// Public API and updater requests must never select an OS client certificate.
+// Electron 44 also emits this event for net requests with null webContents.
+app.on('select-client-certificate', (event, _contents, _url, _certificates, callback) => {
+  event.preventDefault();
+  callback();
+});
 const { randomUUID } = require('node:crypto');
 const FILE_EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const path = require('path');

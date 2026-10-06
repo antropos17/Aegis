@@ -148,6 +148,8 @@ The source updater keeps beta installations on newer beta or stable releases.
 ### From source
 
 Requires **Node.js 24.x**. Windows 10/11 is the primary platform; macOS/Linux support is experimental.
+Source builds use Electron 44, which requires 64-bit platforms and macOS 13 or later.
+The published 0.19.0-beta Windows installer retains Electron 43.7.7.
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
