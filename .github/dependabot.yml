@@ -17,6 +17,10 @@ updates:
     ignore:
       - dependency-name: typescript
         versions: ['>=6.1.0']
+      # vite-plugin-svelte 6.2.4 declares Vite ^6.3.0 || ^7.0.0.
+      # Lift this ceiling with the compatible Svelte plugin migration.
+      - dependency-name: vite
+        versions: ['>=8.0.0']
     groups:
       npm-minor-patch:
         update-types:
