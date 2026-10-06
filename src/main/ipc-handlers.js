@@ -675,7 +675,7 @@ ${findingsHtml}${recsHtml}
       if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
       return target.createTime100ns
         ? await action(target.pid, target.createTime100ns)
-        : await action(target.pid);
+        : await action(target.pid, target.linuxWitness);
     } finally {
       processControlInFlight = false;
     }

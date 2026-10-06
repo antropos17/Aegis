@@ -21,10 +21,21 @@ const {
   parseTcpEndpoint,
   parseLsofFileHandles,
   parseLsofCwd,
-  killProcess,
-  suspendProcess,
-  resumeProcess,
 } = require('./posix-shared');
+const { signalProcess } = require('./linux-process-control');
+
+/** @param {number} pid @param {string} witness @returns {Promise<object>} @since v0.19.2-beta */
+function killProcess(pid, witness) {
+  return signalProcess(pid, witness, 'kill');
+}
+/** @param {number} pid @param {string} witness @returns {Promise<object>} @since v0.19.2-beta */
+function suspendProcess(pid, witness) {
+  return signalProcess(pid, witness, 'suspend');
+}
+/** @param {number} pid @param {string} witness @returns {Promise<object>} @since v0.19.2-beta */
+function resumeProcess(pid, witness) {
+  return signalProcess(pid, witness, 'resume');
+}
 
 /** @type {RegExp[]} Linux-specific file-path patterns to ignore */
 const IGNORE_FILE_PATTERNS = [

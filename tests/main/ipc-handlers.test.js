@@ -1991,9 +1991,9 @@ describe('ipc-handlers', () => {
       expect(mockPlatform.killProcess).not.toHaveBeenCalled();
     });
 
-    it('retains the Linux process action contract without Windows FILETIME', async () => {
+    it('passes the fresh Linux generation to the native process action', async () => {
       const { event, agent, request } = registerObservedProcess();
-      agent.generationWitness = '492781';
+      agent.generationWitness = '11111111-1111-4111-8111-111111111111:492781';
       agent.generationWitnessSource = 'linuxStartTicks';
       mockPlatform.getParentProcessMap.mockResolvedValue(
         new Map([
@@ -2014,7 +2014,7 @@ describe('ipc-handlers', () => {
           generationWitnessSource: agent.generationWitnessSource,
         }),
       ).toEqual({ success: true });
-      expect(mockPlatform.killProcess).toHaveBeenCalledWith(agent.pid);
+      expect(mockPlatform.killProcess).toHaveBeenCalledWith(agent.pid, agent.generationWitness);
     });
 
     it('rejects overlapping process-control channels without another process-map read or queue', async () => {
