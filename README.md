@@ -23,7 +23,7 @@ monitoring does not automatically intercept or block commands.
 
 [Download](#download) · [Start with a task](#start-with-a-task) · [Documentation](docs/README.md) · [Local demo](#try-without-ai-agents) · [Known limits](#known-limits) · [Report a bug](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
 
-**Current source version**: 0.19.0-beta <!-- x-release-please-version -->
+**Current source version**: 0.19.1-beta <!-- x-release-please-version -->
 
 The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
 

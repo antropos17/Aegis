@@ -20,6 +20,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.19.1-beta (2026-10-06)
+
+This Windows beta keeps focused Settings controls visible above the save bar,
+preserves keyboard focus in command search, adds an immediately saved option to
+disable single-key shortcuts, confirms custom-agent deletion, scales catalog
+captions and announces command-search results.
+
+Electron is updated to 44.5.1. Public app requests explicitly decline OS client
+certificates. Windows remains the primary platform; installer lifecycle,
+Authenticode and native macOS/Linux qualification remain open.
+
+## What's Changed
+* docs(release): record verified 0.19.0 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/758
+* chore(dev): clarify skill routing and agent review scope by @antropos17 in https://github.com/antropos17/Aegis/pull/760
+* fix(electron): qualify Electron 44 and decline client certificates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/751
+* fix(types): prepare main checks for the native compiler by @antropos17 in https://github.com/antropos17/Aegis/pull/761
+* fix(ui): resolve keyboard and catalog UX regressions by @antropos17 in https://github.com/antropos17/Aegis/pull/765
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.19.0-beta...aegis-v0.19.1-beta
+
 ## 0.19.0-beta (2026-10-05)
 
 Live Observatory charts show recent resource and token activity. Claude transcript
