@@ -178,6 +178,16 @@ describe('network-monitor', () => {
     });
 
     it.each([
+      ['169.254.0.0', true],
+      ['169.254.1.2', true],
+      ['169.254.255.255', true],
+      ['::ffff:169.254.0.0', true],
+      ['0:0:0:0:0:ffff:169.254.255.255', true],
+      ['::ffff:a9fe:102', true],
+      ['169.253.255.255', false],
+      ['169.255.0.0', false],
+      ['::ffff:0:169.254.1.2', false],
+      ['::169.254.1.2', false],
       ['::ffff:127.0.0.1', true],
       ['::ffff:10.1.2.3', true],
       ['::ffff:172.16.0.1', true],
@@ -566,6 +576,41 @@ describe('network-monitor DI tests', () => {
       expect(results[0].flagged).toBe(false);
       expect(results[1].agent).toBe('Copilot');
       expect(results[1].flagged).toBe(true);
+    });
+
+    it('filters IPv4 link-local sockets and their mapped forms before any DNS query', async () => {
+      const ips = [
+        '169.254.0.0',
+        '169.254.1.2',
+        '169.254.255.255',
+        '::ffff:169.254.0.0',
+        '0:0:0:0:0:ffff:169.254.255.255',
+        '::ffff:a9fe:102',
+      ];
+      mockGetRawTcp.mockResolvedValue(
+        ips.map((ip) => ({ pid: 100, ip, port: 443, state: 'ESTAB' })),
+      );
+      mockDnsReverse.mockResolvedValue([]);
+      const result = await networkMonitor.scanNetworkConnections([
+        { pid: 100, agent: 'Claude Code', instanceId: '100:1' },
+      ]);
+      expect(result).toEqual([]);
+      expect(mockDnsReverse).not.toHaveBeenCalled();
+      expect(mockDnsResolve).not.toHaveBeenCalled();
+      expect(networkMonitor.getNetworkSensorHealth().state).toBe('HEALTHY');
+    });
+
+    it('keeps adjacent public IPv4 endpoints in DNS classification', async () => {
+      const ips = ['169.253.255.255', '169.255.0.0'];
+      mockGetRawTcp.mockResolvedValue(
+        ips.map((ip) => ({ pid: 100, ip, port: 443, state: 'ESTAB' })),
+      );
+      mockDnsReverse.mockResolvedValue([]);
+      const result = await networkMonitor.scanNetworkConnections([
+        { pid: 100, agent: 'Claude Code', instanceId: '100:1' },
+      ]);
+      expect(result.map((row) => row.remoteIp)).toEqual(ips);
+      expect(mockDnsReverse.mock.calls.map(([ip]) => ip).sort()).toEqual(ips);
     });
 
     it('keeps no agent name when the pid is not in the map (C-01)', async () => {
