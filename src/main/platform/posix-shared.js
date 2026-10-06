@@ -25,6 +25,20 @@ function isValidPid(pid) {
 }
 
 /**
+ * Parse a textual PID token from parser output.
+ * Accepts only strings of decimal digits that represent a positive safe integer.
+ * Returns null for empty strings, strings with non-digit characters (including a leading
+ * minus sign), zero, and values outside the safe-integer range.
+ * @param {string} t
+ * @returns {number|null}
+ */
+function parsePidToken(t) {
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/**
  * Parse `ps -axo comm=,pid=` output into an array of {name, pid} objects.
  * Extracts basename from full path. Does NOT handle OS-specific
  * bundle formats (.app) — callers add that post-processing.
@@ -42,8 +56,9 @@ function parsePsOutput(stdout) {
     const lastSpace = trimmed.lastIndexOf(' ');
     if (lastSpace === -1) continue;
     const comm = trimmed.slice(0, lastSpace).trim();
-    const pid = parseInt(trimmed.slice(lastSpace + 1), 10);
-    if (isNaN(pid) || !comm) continue;
+    if (!comm) continue;
+    const pid = parsePidToken(trimmed.slice(lastSpace + 1));
+    if (pid === null) continue;
     // Extract basename from full path
     let name = comm;
     const slashIdx = name.lastIndexOf('/');
@@ -80,7 +95,7 @@ function parseTcpEndpoint(endpoint) {
  */
 function parseLsofOutput(stdout, pidSet) {
   const results = [];
-  let currentPid = -1;
+  let currentPid = null;
   let currentSocket = null;
 
   for (const line of stdout.split('\n')) {
@@ -88,7 +103,9 @@ function parseLsofOutput(stdout, pidSet) {
     const code = line[0];
     const value = line.slice(1);
     if (code === 'p') {
-      currentPid = parseInt(value, 10);
+      // An invalid p record clears the context so subsequent n/T records are not
+      // attributed to a previous valid PID or a partially parsed one.
+      currentPid = parsePidToken(value);
       currentSocket = null;
     } else if (code === 'f') {
       currentSocket = null;
@@ -216,8 +233,11 @@ function parseParentProcessMapFromPs(stdout) {
   for (const line of lines) {
     const parts = line.trim().match(/^\s*(\d+)\s+(\d+)\s+(.+)$/);
     if (!parts) continue;
-    const pid = parseInt(parts[1], 10);
-    const ppid = parseInt(parts[2], 10);
+    // pid must be a positive safe integer; ppid 0 is valid (init/launchd parent).
+    const pid = parsePidToken(parts[1]);
+    if (pid === null) continue;
+    const ppid = Number(parts[2]);
+    if (!Number.isSafeInteger(ppid)) continue;
     let name = parts[3].trim();
     const slashIdx = name.lastIndexOf('/');
     if (slashIdx !== -1) name = name.slice(slashIdx + 1);
