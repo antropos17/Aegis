@@ -256,6 +256,8 @@ describe('ipc-handlers', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
+    delete mockElectron.app.isPackaged;
     if (threatTempRoot) {
       expect(path.dirname(threatTempRoot)).toBe(path.resolve(os.tmpdir()));
       fs.rmSync(threatTempRoot, { recursive: true, force: true });
@@ -267,8 +269,9 @@ describe('ipc-handlers', () => {
     return handlers[channel];
   }
 
-  function registerOwnedRenderer(extraDeps = {}) {
+  function registerOwnedRenderer(extraDeps = {}, documentUrl) {
     const rendererUrl =
+      documentUrl ||
       process.env.VITE_DEV_SERVER_URL ||
       pathToFileURL(path.join(__dirname, '../../dist/renderer/index.html')).href;
     const frame = { url: rendererUrl, isDestroyed: vi.fn(() => false) };
@@ -282,6 +285,32 @@ describe('ipc-handlers', () => {
     ipcHandlers.register();
     return { window, contents, frame, event: { sender: contents, senderFrame: frame } };
   }
+
+  it.each(['https://untrusted.example/app', 'http://127.0.0.1:5173/'])(
+    'keeps packaged IPC on the local renderer despite the dev override %s',
+    (override) => {
+      vi.stubEnv('VITE_DEV_SERVER_URL', override);
+      mockElectron.app.isPackaged = true;
+      const documentUrl = pathToFileURL(
+        path.join(__dirname, '../../dist/renderer/index.html'),
+      ).href;
+      const { event, frame, contents } = registerOwnedRenderer({}, documentUrl);
+      expect(getHandler('get-settings')(event)).toMatchObject({ anthropicApiKeyConfigured: true });
+      frame.url = override;
+      contents.getURL.mockReturnValue(override);
+      expect(getHandler('get-settings')(event)).toEqual({
+        success: false,
+        error: 'Renderer request denied',
+      });
+    },
+  );
+
+  it('retains explicit development renderer IPC ownership', () => {
+    vi.stubEnv('VITE_DEV_SERVER_URL', 'http://localhost:5173/');
+    mockElectron.app.isPackaged = false;
+    const { event } = registerOwnedRenderer();
+    expect(getHandler('get-settings')(event)).toMatchObject({ anthropicApiKeyConfigured: true });
+  });
 
   it('requires explicit owned-frame confirmation before scheduling normal application exit', async () => {
     mockElectron.app.quit.mockClear();
