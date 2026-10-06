@@ -189,9 +189,9 @@ describe('Observatory host boundary', () => {
       .mockReturnValueOnce(newer.promise);
     const one = run.dispose.refreshFalsePositives();
     const two = run.dispose.refreshFalsePositives();
-    newer.resolve([{ agentName: 'new', pattern: 'x' }]);
+    newer.resolve([{ agentName: 'new', pattern: 'x', timestamp: 1 }]);
     await two;
-    older.resolve([{ agentName: 'old', pattern: 'y' }]);
+    older.resolve([{ agentName: 'old', pattern: 'y', timestamp: 1 }]);
     await one;
     expect(run.current.falsePositives[0].agentName).toBe('new');
     run.dispose();

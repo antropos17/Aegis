@@ -55,6 +55,7 @@ it('announces empty command results and restores search after clearing the query
 });
 
 it('lets users disable single-key shortcuts without disabling Commands or button navigation', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: createPreviewHost(), preview: true });
   const navigation = screen.getByRole('navigation', { name: 'Main navigation' });
   await fireEvent.click(within(navigation).getByRole('button', { name: 'Settings' }));

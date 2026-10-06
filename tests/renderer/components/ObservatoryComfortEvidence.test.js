@@ -88,16 +88,21 @@ it('keeps audit entries and filters when opening delivery diagnostics', async ()
 it('filters record history and exposes exactly the remaining records', async () => {
   const rows = Array.from({ length: 23 }, (_, i) => observation(i));
   const navigate = vi.fn(async () => {});
-  render(ObservationHistory, { rows, navigate });
-  expect(screen.getByRole('button', { name: 'Show 3 more', exact: true })).toBeInTheDocument();
-  await fireEvent.click(screen.getByRole('button', { name: 'Show 3 more', exact: true }));
-  expect(screen.getAllByRole('button')).toHaveLength(23);
+  const { container } = render(ObservationHistory, { rows, navigate });
+  const more = screen.getByRole('button', { name: 'Show 3 more', exact: true });
+  more.focus();
+  await fireEvent.click(more);
+  expect(container.querySelectorAll('.recent-event')).toHaveLength(23);
+  expect(more).toHaveFocus();
+  expect(more).toHaveAttribute('aria-disabled', 'true');
   await fireEvent.input(screen.getByLabelText('Find a record'), {
     target: { value: 'review-22/' },
   });
-  expect(screen.getAllByRole('button')).toHaveLength(1);
-  await fireEvent.click(screen.getByRole('button'));
+  expect(container.querySelectorAll('.recent-event')).toHaveLength(1);
+  expect(more).toHaveAttribute('aria-disabled', 'true');
+  await fireEvent.click(screen.getByText(rows[22].file).closest('button'));
   expect(navigate).toHaveBeenCalledWith('Observation', rows[22]);
+  expect(navigate.mock.calls.at(-1)[1]).toBe(rows[22]);
 });
 
 it('searches grouped process activity without attributing unrelated records to the process', async () => {
@@ -116,19 +121,31 @@ it('searches grouped process activity without attributing unrelated records to t
   expect(screen.getByText('No resources match this search.')).toBeInTheDocument();
 });
 
-it('opens the correct observation after paging forward and back', async () => {
+// Coverage on shared CI runners uses the same budget as other workspace integrations.
+it('opens the original observation after incremental loading and returning to latest', async () => {
   const rows = Array.from({ length: 31 }, (_, i) => observation(i));
   const inspect = vi.fn();
   const { container } = render(ObservationTable, { rows, telemetry: telemetry(), inspect });
-  await fireEvent.click(screen.getByRole('button', { name: 'Next', exact: true }));
-  expect(container.querySelectorAll('.observation-group')).toHaveLength(1);
-  await fireEvent.click(container.querySelector('.observation-open'));
+  const newest = container.querySelector('.observation-open');
+  const older = screen.getByRole('button', { name: 'Show older activity', exact: true });
+  older.focus();
+  await fireEvent.click(older);
+  expect(container.querySelectorAll('.observation-group')).toHaveLength(31);
+  expect(older).toHaveFocus();
+  expect(container.querySelector('.observation-open')).toBe(newest);
+  await fireEvent.click(container.querySelectorAll('.observation-open').item(30));
   expect(inspect).toHaveBeenLastCalledWith('Observation', rows[0]);
-  await fireEvent.click(screen.getByRole('button', { name: 'Previous', exact: true }));
+  expect(inspect.mock.calls.at(-1)[1]).toBe(rows[0]);
+  const latest = screen.getByRole('button', { name: 'Show latest', exact: true });
+  latest.focus();
+  await fireEvent.click(latest);
   expect(container.querySelectorAll('.observation-group')).toHaveLength(30);
+  expect(latest).toHaveFocus();
+  expect(container.querySelector('.observation-open')).toBe(newest);
   await fireEvent.click(container.querySelector('.observation-open'));
   expect(inspect).toHaveBeenLastCalledWith('Observation', rows[30]);
-});
+  expect(inspect.mock.calls.at(-1)[1]).toBe(rows[30]);
+}, 15_000);
 
 it('retains loaded audit records and reports a failed refresh without success feedback', async () => {
   const row = observation(8, { type: 'file-access' });

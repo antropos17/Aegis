@@ -10,6 +10,7 @@
   import SettingsMonitoring from './SettingsMonitoring.svelte';
   import SettingsSaveBar from './SettingsSaveBar.svelte';
   import SettingsKeyboard from './SettingsKeyboard.svelte';
+  import SettingsExperience from './SettingsExperience.svelte';
   import { revealSettingsFocus } from '../runtime/settings-focus';
   import SectionTabs from './SectionTabs.svelte';
   const id = $props.id();
@@ -31,6 +32,8 @@
     currentTheme = null,
     sectionRequest,
     onSettingsSaved,
+    advanced = false,
+    onAdvancedChange,
   }: {
     host: Host | null;
     appearance: (dark: boolean, scale: number, contrast?: boolean) => void;
@@ -38,6 +41,8 @@
     currentTheme?: string | null;
     sectionRequest?: { id: string; revision: number };
     onSettingsSaved?: (_settings: RecordData) => void;
+    advanced?: boolean;
+    onAdvancedChange?: (_advanced: boolean) => void;
   } = $props();
   $effect(() => {
     if (sectionRequest && tabs.some((tab) => tab.id === sectionRequest.id)) {
@@ -281,6 +286,13 @@
   ] as const;
 </script>
 
+<SettingsExperience
+  {advanced}
+  onAdvancedChange={(value) => {
+    advanced = value;
+    onAdvancedChange?.(value);
+  }}
+/>
 {#if error}<div class="notice">
     <p role="alert">{error}</p>
     <Action

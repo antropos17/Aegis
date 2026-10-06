@@ -16,7 +16,11 @@ export default defineConfig(({ mode, command }) => {
         apply: 'serve',
         transform(code, id) {
           const normalized = id.replaceAll('\\', '/');
-          if (!/\/src\/shared\/(instance-key|skill-path|observation-display)\.js$/.test(normalized))
+          if (
+            !/\/src\/shared\/(instance-key|skill-path|observation-display|false-positive-match)\.js$/.test(
+              normalized,
+            )
+          )
             return null;
           return {
             code: code
@@ -47,6 +51,7 @@ export default defineConfig(({ mode, command }) => {
         resolve(__dirname, 'src/shared/instance-key.js'),
         resolve(__dirname, 'src/shared/skill-path.js'),
         resolve(__dirname, 'src/shared/observation-display.js'),
+        resolve(__dirname, 'src/shared/false-positive-match.js'),
       ],
     },
     server: { host: '127.0.0.1', port: 8770, strictPort: true },

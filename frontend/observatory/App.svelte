@@ -5,8 +5,9 @@
     document.documentElement.lang = $language === 'pt' ? 'pt-BR' : 'en';
   });
 
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { mountKeyboardPreferences, singleKeyShortcuts } from './runtime/keyboard-shortcuts';
+  import { readAdvancedMode } from './runtime/interface-mode';
   import { mountFooterLayout } from './runtime/footer-layout';
   import {
     connectHost,
@@ -24,6 +25,9 @@
     workspaces,
     workspaceGroups,
     workspaceCommands,
+    navigationWorkspaces,
+    workspaceLabel,
+    isAdvancedWorkspace,
     type WorkspaceCommand,
   } from './runtime/navigation';
   import { cpuPercent } from './runtime/resources';
@@ -32,6 +36,7 @@
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
+  import SimpleHome from './components/SimpleHome.svelte';
   import ProtectionOverview from './components/ProtectionOverview.svelte';
   import Events from './components/Events.svelte';
   import Rules from './components/Rules.svelte';
@@ -50,11 +55,17 @@
   import { isScopedProcess, type AgentScope } from './runtime/agent-scope';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   const views = workspaces.map((entry) => [entry.id, entry.label, entry.icon]);
+  let advanced = $state(readAdvancedMode());
+  let simpleHomeMounted = $state(untrack(() => !advanced));
+  $effect(() => {
+    if (!advanced) simpleHomeMounted = true;
+  });
+  let navigationEntries = $derived(navigationWorkspaces(advanced));
 
   let sectionRequests = $state<Record<string, { id: string; revision: number }>>({});
   let sectionRevision = 0;
-  const commandEntries: WorkspaceCommand[] = [
-    ...workspaceCommands(),
+  let commandEntries: WorkspaceCommand[] = $derived([
+    ...workspaceCommands(advanced),
     ...['processes', 'activity', 'tokens', 'sensors'].map((id) => ({
       id: 'stats-' + id,
       label: 'Statistics · ' + id[0].toUpperCase() + id.slice(1),
@@ -92,7 +103,7 @@
       keywords: task.description,
       target: task.target,
     })),
-  ];
+  ]);
   let scope = $state<AgentScope>({ agent: '', instanceId: '' });
   let agentSection = $state<{ id: string; revision: number }>();
   function changeScope(next: AgentScope) {
@@ -117,6 +128,10 @@
       sectionRequests[entry.target] = { id: entry.section, revision: ++sectionRevision };
     await navigate(entry.target);
     commands = false;
+  }
+  function openInterfaceSettings() {
+    scrolls.settings = 0;
+    void navigate('settings');
   }
   // Host deliveries replace immutable snapshots; deep proxies multiply work per record.
   let telemetry = $state.raw(emptyTelemetry());
@@ -153,6 +168,7 @@
   });
   let selected = $state<string | null>(null);
   let view = $state('overview');
+  let technicalWorkspace = $derived(isAdvancedWorkspace(view));
   let detailedMonitoring = $state(true);
   let monitoringMounted = $state(true);
   let policyRevision = $state(0);
@@ -200,9 +216,7 @@
     footerLayout?.scroll(event);
   }
   let title = $derived(
-    scope.agent && view === 'agents'
-      ? scope.agent
-      : $t(views.find((row) => row[0] === view)?.[1] ?? 'Monitoring'),
+    scope.agent && view === 'agents' ? scope.agent : $t(workspaceLabel(view, advanced)),
   );
   function inspect(title: string, row: RecordData) {
     const kind = detailKind(row);
@@ -405,10 +419,10 @@
       <span class="status-indicator"><Icon name="check" /></span>
     </div>
     <nav aria-label={$t('Main navigation')}>
-      {#each workspaceGroups as category (category.id)}
+      {#each advanced ? workspaceGroups : [{ id: 'simple', label: 'Simple' }] as category (category.id)}
         <div class="nav-group">
           <span class="nav-group-label">{$t(category.label)}</span>
-          {#each workspaces.filter((entry) => entry.group === category.id) as entry (entry.id)}
+          {#each navigationEntries.filter((entry) => !advanced || entry.group === category.id) as entry (entry.id)}
             <button
               class="nav"
               aria-label={$t(entry.label)}
@@ -445,9 +459,13 @@
         canForward={historyIndex < history.length - 1}
       />
       <div class="breadcrumb">
-        {$t(workspaceGroups.find((entry) => entry.id === group)?.label ?? '')}<span>/</span><strong
-          >{title}</strong
-        >
+        {$t(
+          advanced
+            ? (workspaceGroups.find((entry) => entry.id === group)?.label ?? '')
+            : technicalWorkspace
+              ? 'Advanced'
+              : 'Simple',
+        )}<span>/</span><strong>{title}</strong>
       </div>
       <div class="top-actions">
         <button class="command-trigger" onclick={() => (commands = !commands)}
@@ -470,6 +488,7 @@
           <h1 id="page-title">
             <Icon name={views.find((row) => row[0] === view)?.[2] ?? 'file'} />{title}
           </h1>
+          {#if technicalWorkspace}<span class="badge">{$t('Advanced')}</span>{/if}
           {#if isLiveWorkspace}<span class="live-badge"
               ><Icon name="activity" />{paused
                 ? $t('View paused')
@@ -508,7 +527,7 @@
             >
           </div>{/if}
       </div>
-      {#if view === 'overview'}
+      {#if view === 'overview' && advanced}
         <div class="monitoring-view-switch" role="group" aria-label={$t('Monitoring')}>
           <button
             class="button"
@@ -521,6 +540,18 @@
             aria-pressed={!detailedMonitoring}
             onclick={() => (detailedMonitoring = false)}
             ><Icon name="shield" /><span>{$t('Protection overview')}</span></button
+          >
+        </div>
+      {/if}
+      {#if technicalWorkspace && !advanced}
+        <div class="advanced-workspace-note">
+          <p>
+            {$t(
+              'This technical workspace remains available in Simple. Show every workspace from Settings.',
+            )}
+          </p>
+          <button class="button" onclick={openInterfaceSettings}
+            >{$t('Interface settings')}<Icon name="chevron" /></button
           >
         </div>
       {/if}
@@ -564,7 +595,17 @@
           {#if tabs.includes('guide')}<div hidden={view !== 'guide'}>
               <TaskGuide {host} {preview} {navigate} />
             </div>{/if}
-          <div hidden={view !== 'overview' || detailedMonitoring}>
+          {#if simpleHomeMounted}<div hidden={view !== 'overview' || advanced}>
+              <SimpleHome
+                telemetry={displayTelemetry}
+                {inspect}
+                {navigate}
+                {openStatistics}
+                {paused}
+                visible={view === 'overview' && !advanced}
+              />
+            </div>{/if}
+          <div hidden={!advanced || view !== 'overview' || detailedMonitoring}>
             <ProtectionOverview
               {host}
               liveTelemetry={telemetry}
@@ -579,10 +620,11 @@
             />
           </div>
           {#if monitoringMounted}<div
-              hidden={(view !== 'overview' || !detailedMonitoring) &&
+              hidden={(!advanced || view !== 'overview' || !detailedMonitoring) &&
                 (view !== 'agents' || scope.agent !== '')}
             >
               <Monitoring
+                {advanced}
                 liveTelemetry={telemetry}
                 telemetry={displayTelemetry}
                 bind:selected
@@ -590,7 +632,7 @@
                 mode={view}
                 {openStatistics}
                 openAgent={(agent) => inspect(agent, { agentGroupKey: agent, name: agent })}
-                paused={paused || view !== 'overview' || !detailedMonitoring}
+                paused={paused || !advanced || view !== 'overview' || !detailedMonitoring}
                 navigate={(target) => {
                   changeScope({ agent: '', instanceId: '' });
                   return navigate(target);
@@ -603,9 +645,11 @@
                 liveTelemetry={telemetry}
                 {host}
                 {scope}
+                {advanced}
                 change={changeScope}
                 {inspect}
                 {navigate}
+                {openInterfaceSettings}
                 {paused}
                 sectionRequest={agentSection}
                 visible={view === 'agents'}
@@ -613,6 +657,9 @@
             </div>{/if}
           {#if tabs.includes('events')}<div hidden={view !== 'events'}>
               <Events
+                {advanced}
+                combined={!advanced}
+                visible={view === 'events'}
                 viewPaused={paused}
                 showPause={false}
                 telemetry={displayTelemetry}
@@ -622,6 +669,7 @@
             </div>{/if}
           {#if tabs.includes('network')}<div hidden={view !== 'network'}>
               <Events
+                visible={view === 'network'}
                 viewPaused={paused}
                 showPause={false}
                 telemetry={displayTelemetry}
@@ -699,6 +747,8 @@
             </div>{/if}
           {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
               <Settings
+                {advanced}
+                onAdvancedChange={(value) => (advanced = value)}
                 {host}
                 {appearance}
                 {navigate}
@@ -762,6 +812,7 @@
   </div>
 </div>
 <WorkspaceCommands
+  {advanced}
   open={commands}
   close={() => (commands = false)}
   entries={commandEntries}
@@ -780,6 +831,24 @@
 />
 
 <style>
+  .advanced-workspace-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--panel-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--surface-radius);
+    background: var(--panel);
+  }
+  .advanced-workspace-note p {
+    flex: 1 1 240px;
+    margin: 0;
+    color: var(--muted);
+    font-size: var(--text-body);
+    line-height: 1.5;
+  }
   .lazy-workspace-state {
     padding: var(--panel-inset);
   }

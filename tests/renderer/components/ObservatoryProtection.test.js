@@ -38,6 +38,7 @@ const props = () => ({
 });
 
 it('starts with the radar and keeps the protection overview reachable', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   const mounted = render(App, { host: null });
   const panel = mounted.container.querySelector('.radar-panel');
   const heading = await within(panel).findByRole('heading', { name: 'Agent radar' });
@@ -79,7 +80,7 @@ it('connects evidence to the intended policy and keeps inferred ownership visibl
   await fireEvent.click(within(details).getByRole('button', { name: 'Agent & controls' }));
   expect(input.inspect.mock.calls[0][1]).toMatchObject({
     instanceId: '7:first',
-    detailSection: 'processes',
+    detailSection: 'process-controls',
   });
 });
 

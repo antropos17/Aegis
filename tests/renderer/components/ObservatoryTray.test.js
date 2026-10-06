@@ -16,6 +16,7 @@ it('opens settings from the tray without remounting the workspace and disposes i
     getFalsePositives: async () => [],
     getAppVersion: async () => 'test',
   };
+  localStorage.setItem('aegis-advanced-mode', 'true');
   const app = render(App, { host });
   await act(() => navigate('settings'));
   const heading = screen.getByRole('heading', { name: 'Application preferences', exact: true });

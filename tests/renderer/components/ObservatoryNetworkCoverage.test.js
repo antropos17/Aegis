@@ -83,6 +83,7 @@ it('uses network coverage for the Network heading while other page headings keep
       return () => delete listeners[name];
     };
   }
+  localStorage.setItem('aegis-advanced-mode', 'true');
   const mounted = render(App, { host });
   const scan = async (networkState) =>
     act(() =>

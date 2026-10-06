@@ -10,6 +10,7 @@ vi.mock('../../../frontend/observatory/components/LocalSecurity.svelte', () => {
 afterEach(() => localStorage.clear());
 
 it('gives a fixed recovery action when the local review module cannot load', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: createPreviewHost(), preview: true });
   await fireEvent.click(
     within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', {

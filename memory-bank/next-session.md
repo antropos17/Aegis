@@ -2,17 +2,26 @@
 
 ## Current UX development — 2026-10-06
 
+The current task is the three-hour Simple agent experience, not the completed
+overnight pass below. Read [its current handoff](simple-experience-2026-10-06.md)
+and [development plan](../docs/development/simple-experience-2026-10-06.md).
+Five independent audits, implementation, frozen slice reviews and final local
+verification completed on `codex/simple-agent-experience-20261006` from
+`b9ceebed0d4`. Runtime source froze at 16:49:14 UTC. All tests, rendered/native
+checks and required local gates passed; normal publication follows.
+The source cutoff is 16:50:47 UTC and the window ends at 17:50:47 UTC.
+Use live GitHub and the local `out/development/simple-experience-result.md` for
+the actual publication outcome. Do not restart completed UX work or duplicate
+completed checks. No release tag or installer update is part of this task.
+
 AEGIS 0.19.2-beta has been published. UX context PR #780 merged as
 `b8710bb094f405f44db193e46f7c23b3f1edce0d` after all required checks.
-The recovery follow-up is on `codex/ux-recovery-20261006`, based on that master
-revision. Continue with the
-[English overnight handoff](overnight-ux-2026-10-06.md) and
-[development plan](../docs/development/overnight-ux-2026-10-06.md).
-They contain the current checkout, five section assignments, verification
-status, cost controls and the 17:55:49 UTC stopping time.
-Both planned passes completed their local checks at 10:22 UTC. Read the dated
-handoff, live Git/CI and local `out/development/overnight-result.md` for final
-publication state; do not restart completed section work or duplicate checks.
+The overnight recovery follow-up in PR #782 also merged. Its
+[English handoff](overnight-ux-2026-10-06.md) and
+[development plan](../docs/development/overnight-ux-2026-10-06.md) are historical
+records, including their earlier deadlines and assignments. Both planned passes
+completed local checks at 10:22 UTC. Do not resume their completed work or
+duplicate their checks. Follow the current Simple experience handoff above.
 
 The source inventory is generated with `npm run dev:context`; use the current
 checkout's source and CI for facts. Earlier enforcement handoffs below retain

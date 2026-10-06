@@ -67,6 +67,7 @@ it('takes an invalid draft back to its field across settings sections without lo
 });
 
 it('focuses the opened agent heading once and leaves subsequent tab interaction alone', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: createPreviewHost(), preview: true });
   const main = within(screen.getByRole('main'));
   const navigation = screen.getByRole('navigation', { name: 'Main navigation' });

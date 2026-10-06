@@ -76,6 +76,7 @@ function bridge() {
 let scrollDescriptor;
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem('aegis-advanced-mode', 'true');
   localStorage.setItem('aegis-motion', 'reduce');
   scrollDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {

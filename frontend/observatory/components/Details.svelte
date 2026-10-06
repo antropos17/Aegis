@@ -15,6 +15,8 @@
   import RiskExplanation from './RiskExplanation.svelte';
   import DetailControls from './DetailControls.svelte';
   import SectionTabs from './SectionTabs.svelte';
+  import FalsePositiveToggle from './FalsePositiveToggle.svelte';
+  import { exactExceptionTarget } from '../runtime/false-positive-control';
   let {
     host,
     telemetry,
@@ -243,18 +245,12 @@
             ),
           )}>{$t('Show in folder')}</Action
       >{/if}
-    {#if current?.row.file && current.row.agent}<Action
-        action={async () => {
-          confirmed(
-            await invoke(host, 'addFalsePositive', {
-              agentName: current.row.agent,
-              pattern: `^${String(current.row.file).replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&')}$`,
-              timestamp: Date.now(),
-            }),
-          );
-          await refreshFalsePositives();
-        }}>{$t('Mark false positive')}</Action
-      >{/if}
+    {#if current}
+      {@const exceptionTarget = exactExceptionTarget(current.row)}
+      {#if exceptionTarget}{#key current.row}
+          <FalsePositiveToggle {host} target={exceptionTarget} {refreshFalsePositives} />
+        {/key}{/if}
+    {/if}
     <button class="button" onclick={close}>{$t('Close')}</button>
   </div>
 </dialog>

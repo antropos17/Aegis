@@ -27,7 +27,12 @@ function event(id: number): FileEvent {
 }
 
 async function start(host: Host | null = null) {
-  const initial = { ...emptyTelemetry(), ready: true, stale: false };
+  const initial = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    falsePositiveReadState: 'ready' as const,
+  };
   const mounted = render(Notifications, { telemetry: initial, host });
   let events: FileEvent[] = [];
   const receive = async (rows: FileEvent[]) => {

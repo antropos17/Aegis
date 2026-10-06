@@ -13,6 +13,7 @@ afterEach(() => {
 });
 
 it('switches mounted navigation, radar and accessible names without changing route IDs', async () => {
+  localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: null });
   expect(await screen.findByRole('heading', { name: 'Agent radar' })).toBeVisible();
   language.set('pt');

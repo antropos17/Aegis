@@ -26,8 +26,18 @@ try {
   const window = await app.firstWindow();
   window.on('pageerror', (e) => errors.push(e.message));
   await window
-    .getByRole('heading', { name: 'Monitoring', exact: true, level: 1 })
+    .getByRole('heading', { name: 'Home', exact: true, level: 1 })
     .waitFor({ timeout: 30000 });
+  assert.equal(
+    await window.locator('.sidebar nav button').count(),
+    5,
+    'fresh profile must show the Simple interface',
+  );
+  await window.screenshot({ path: resolve(out, 'simple-home-native.png') });
+  await window.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+  await window.getByRole('checkbox', { name: 'Advanced interface', exact: true }).check();
+  assert.equal(await window.evaluate(() => localStorage.getItem('aegis-advanced-mode')), 'true');
+  await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   const deadline = Date.now() + 55000;
   let observed = false;
   while (Date.now() < deadline) {

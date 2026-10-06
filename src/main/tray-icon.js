@@ -15,6 +15,7 @@ const { Tray, Menu, Notification, nativeImage } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
+const { matchesFalsePositive } = require('../shared/false-positive-match');
 
 const TRAY_COLORS = { green: [0, 230, 118], yellow: [255, 193, 7], red: [255, 23, 68] };
 let _state = null;
@@ -76,8 +77,11 @@ function updateTrayIcon() {
  * @returns {void} @since v0.1.0
  */
 function notifySensitive(events) {
-  if (!_state.getSettings().notificationsEnabled) return;
-  const se = events.filter((e) => e.sensitive);
+  const settings = _state.getSettings();
+  if (!settings.notificationsEnabled) return;
+  const se = events.filter(
+    (e) => e.sensitive && !matchesFalsePositive(e, settings.falsePositivePatterns),
+  );
   if (se.length === 0) return;
   const now = Date.now();
   if (now - _state.lastNotificationTime < 30000) return;
@@ -85,7 +89,10 @@ function notifySensitive(events) {
     more = se.length > 1 ? ` (+${se.length - 1} more)` : '';
   // The attribution stamp takes precedence over any stale display name. A path
   // heuristic is a possible owner, not PID-backed proof of the process involved.
-  let source = f.attribution?.status === 'unattributed' ? UNKNOWN_SOURCE_LABEL : f.agent;
+  let source =
+    f.attribution === 'unattributed' || f.attribution?.status === 'unattributed'
+      ? UNKNOWN_SOURCE_LABEL
+      : f.agent;
   if (!source) source = UNKNOWN_SOURCE_LABEL;
   else if (f.attribution?.status === 'inferred') source += ' (inferred)';
   try {

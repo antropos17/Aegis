@@ -41,6 +41,7 @@
   let page = $state(emptyAuditPage(new Date().toISOString()));
   let rows = $derived(page.rows);
   let pageRead = $state<AuditReadState>('idle');
+  let admissionRevision = $state(0);
   let statsRead = $state<AuditReadState>('idle');
   let statsLoaded = $state(false);
   let statsFresh = $state(false);
@@ -145,6 +146,7 @@
       );
       if (!alive || ticket !== generation) return;
       page = advanceAuditPage(page, admitAuditPage(reply), request);
+      admissionRevision += 1;
       type = request.requestedType;
       pageRead = 'ready';
     } catch {
@@ -289,6 +291,8 @@
         {telemetry}
         {inspect}
         {grouping}
+        live={false}
+        {admissionRevision}
         resetKey={JSON.stringify([appliedType, query])}
       />{:else if page.loaded}<p class="entity-note">
         {$t('No entries in this history page.')}
@@ -352,7 +356,9 @@
             >{$t('persisted entries')}</span
           >
         </div>
-        <div><strong>{String(stats.bufferDepth ?? '—')}</strong><span>{$t('queued')}</span></div>
+        <div>
+          <strong>{String(stats.bufferDepth ?? '—')}</strong><span>{$t('queued')}</span>
+        </div>
         <div>
           <strong>{String(stats.droppedEntries ?? '—')}</strong><span>{$t('dropped')}</span>
         </div>
@@ -408,7 +414,9 @@
       aria-labelledby="reports-tab-summary"
       hidden={reportSection !== 'summary'}
     >
-      <div class="panel-head"><h2><Icon name="report" />{$t('Session summary')}</h2></div>
+      <div class="panel-head">
+        <h2><Icon name="report" />{$t('Session summary')}</h2>
+      </div>
       <div class="inline-stats">
         <div>
           <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><span
@@ -458,7 +466,9 @@
       aria-labelledby="reports-tab-export"
       hidden={reportSection !== 'export'}
     >
-      <div class="panel-head"><h2><Icon name="download" />{$t('Export')}</h2></div>
+      <div class="panel-head">
+        <h2><Icon name="download" />{$t('Export')}</h2>
+      </div>
       <div class="export-grid">
         {#each exports as [method, label] (method)}<Action
             action={async () => confirmed(await invoke(host, method))}
