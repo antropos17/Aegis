@@ -630,3 +630,19 @@ and provider editor tabs use the same vocabulary. Tab labels, counts, selection
 and keyboard navigation remain visible and operable at enlarged scale. The
 radar's individual-process action also uses the processor symbol. Worker counts
 in the agent heading follow the selected language.
+
+### Keyboard and catalog recovery (2026-10-06)
+
+Settings measures its sticky save bar when revealing focused controls. The
+visible field stays between the section tabs and save controls at enlarged
+interface scale. Commands keeps keyboard focus in its search field while arrows
+move the selected destination; results do not add individual Tab stops. A polite
+status announces result counts and empty searches, with a Clear search action.
+
+Data & help offers a device-local switch for S, T and 1–5, saved immediately.
+Ctrl K and existing navigation buttons remain available. Custom catalog deletion
+requires confirmation with Cancel initially focused and preserves recorded
+activity. Rejected writes remain retryable; confirmed deletion returns focus to
+catalog search even if a subsequent refresh fails. Catalog signature links and
+counts use the existing scale-aware caption token. New controls are localized
+in English and Portuguese.
