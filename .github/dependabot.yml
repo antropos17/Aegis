@@ -11,6 +11,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # typescript-eslint currently supports TypeScript >=4.8.4 <6.1.0.
+    # Revisit this ceiling with a compatible parser/plugin release:
+    # https://typescript-eslint.io/users/dependency-versions/
+    ignore:
+      - dependency-name: typescript
+        versions: ['>=6.1.0']
     groups:
       npm-minor-patch:
         update-types:
