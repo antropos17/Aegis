@@ -22,6 +22,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 0.19.1-beta (2026-10-06)
 
+This Windows beta keeps focused Settings controls visible above the save bar,
+preserves keyboard focus in command search, adds an immediately saved option to
+disable single-key shortcuts, confirms custom-agent deletion, scales catalog
+captions and announces command-search results.
+
+Electron is updated to 44.5.1. Public app requests explicitly decline OS client
+certificates. Windows remains the primary platform; installer lifecycle,
+Authenticode and native macOS/Linux qualification remain open.
+
 ## What's Changed
 * docs(release): record verified 0.19.0 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/758
 * chore(dev): clarify skill routing and agent review scope by @antropos17 in https://github.com/antropos17/Aegis/pull/760
