@@ -1704,5 +1704,15 @@
   "AEGIS main process": "Processo principal do AEGIS",
   "Archived exited usage": "Uso arquivado de processos encerrados",
   "{count} compacted records": "{count} registros compactados",
-  "Additional model labels omitted. Usage and cost totals are retained.": "Rótulos adicionais de modelos omitidos. Os totais de uso e custo são preservados."
+  "Additional model labels omitted. Usage and cost totals are retained.": "Rótulos adicionais de modelos omitidos. Os totais de uso e custo são preservados.",
+  "Single-key shortcuts": "Atalhos de uma tecla",
+  "Allow S, T and 1–5 outside text fields. Turn off to avoid accidental actions.": "Permitir S, T e 1–5 fora dos campos de texto. Desative para evitar ações acidentais.",
+  "Saved immediately on this device. Ctrl K remains available.": "Salvo imediatamente neste dispositivo. Ctrl K continua disponível.",
+  "{count} destinations": "{count} destinos",
+  "Clear search": "Limpar busca",
+  "Delete custom agent?": "Excluir agente personalizado?",
+  "Remove {name} from your custom catalog?": "Remover {name} do seu catálogo personalizado?",
+  "Its process signatures will no longer identify this custom agent. Recorded activity is kept.": "As assinaturas de processo deixarão de identificar este agente personalizado. A atividade registrada será mantida.",
+  "Delete agent": "Excluir agente",
+  "Custom agent {name} removed.": "Agente personalizado {name} removido."
 }
