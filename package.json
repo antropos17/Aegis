@@ -79,7 +79,13 @@
         "deb"
       ],
       "category": "Utility",
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "extraResources": [
+        {
+          "from": "src/main/platform/linux-process-control.py",
+          "to": "linux-process-control.py"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
