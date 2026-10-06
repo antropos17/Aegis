@@ -16,10 +16,14 @@
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import EditorDialog from './EditorDialog.svelte';
+  import CatalogDeleteDialog from './CatalogDeleteDialog.svelte';
   const prefix = $props.id();
   let category = $state('');
   let nameInput = $state<HTMLInputElement>();
   let processInput = $state<HTMLInputElement>();
+  let searchInput = $state<HTMLInputElement>();
+  let deletion = $state<RecordData | null>(null);
+  let deletedName = $state<string | null>(null);
   let {
     host,
     inspect,
@@ -98,6 +102,7 @@
   async function mutate(action: () => Promise<void>) {
     if (mutating || !loaded) throw new Error('Catalog is not ready for another change');
     mutating = true;
+    deletedName = null;
     try {
       await action();
     } finally {
@@ -136,6 +141,23 @@
       if (alive) showForm = false;
     });
   }
+  async function deleteAgent() {
+    const target = deletion;
+    if (!target || mutating) return;
+    await mutate(async () => {
+      const next = validateCatalog(custom.filter((agent) => agent.id !== target.id));
+      confirmed(await invoke(host, 'saveCustomAgents', next));
+      if (!alive) return;
+      custom = next;
+      deletedName = String(target.displayName);
+      // A failed readback cannot turn a confirmed removal into a retryable write.
+      await load().catch(() => {});
+      if (!alive) return;
+      deletion = null;
+      await tick();
+      searchInput?.focus({ preventScroll: true });
+    });
+  }
   async function importAgents() {
     const imported = confirmed(await invoke(host, 'importAgentDatabase'));
     const incoming = validateCatalog(imported.agents);
@@ -151,6 +173,7 @@
   <div class="catalog-filters">
     <label class="search-field"
       ><Icon name="search" /><input
+        bind:this={searchInput}
         type="search"
         aria-label={$t('Search catalog')}
         bind:value={query}
@@ -182,6 +205,18 @@
     >
   </div>
 </div>
+
+<p role="status" aria-live="polite" aria-atomic="true" class="catalog-feedback">
+  {deletedName !== null ? $t('Custom agent {name} removed.', { name: deletedName }) : ''}
+</p>
+{#if deletion}
+  <CatalogDeleteDialog
+    name={String(deletion.displayName)}
+    pending={mutating}
+    confirm={deleteAgent}
+    cancel={() => (deletion = null)}
+  />
+{/if}
 
 <section class="panel">
   {#if error}<div class="inset">
@@ -264,10 +299,8 @@
                       editorSection = 'general';
                       showForm = true;
                     }}>{$t('Edit')}</button
-                  ><Action
-                    disabled={mutating}
-                    action={() => mutate(() => persist(custom.filter((a) => a.id !== row.id)))}
-                    >{$t('Delete')}</Action
+                  ><button class="button" disabled={mutating} onclick={() => (deletion = row)}
+                    >{$t('Delete')}</button
                   >{/if}
               </div></td
             ></tr
@@ -424,7 +457,7 @@
     white-space: nowrap;
   }
   .catalog-count {
-    font-size: 11px;
+    font-size: var(--text-caption);
     margin-top: 12px;
   }
   .catalog-toolbar {
@@ -505,8 +538,19 @@
   .signature-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px 10px;
-    font-size: 11px;
+    gap: var(--space-2) 10px;
+    font-size: var(--text-caption);
+  }
+  .signature-links .text-link {
+    min-height: calc(24px * var(--ui-scale));
+  }
+  .catalog-feedback {
+    margin: 0;
+    color: var(--muted);
+    font-size: var(--text-body);
+  }
+  .catalog-feedback:not(:empty) {
+    margin: var(--space-3) 0;
   }
   .catalog-conflicts {
     display: grid;

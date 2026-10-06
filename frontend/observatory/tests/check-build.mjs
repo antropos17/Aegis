@@ -18,6 +18,7 @@ import { checkProtection } from './protection-check.mjs';
 import { checkWatchlist } from './watchlist-check.mjs';
 import { checkLocalization } from './localization-check.mjs';
 import { checkUxRecovery } from './ux-recovery-check.mjs';
+import { checkUxAccessibility } from './ux-accessibility-check.mjs';
 import { checkLocalSecurity } from './local-security-check.mjs';
 import { checkActionCoverage } from './action-coverage-check.mjs';
 import { checkTaskGuide } from './task-guide-check.mjs';
@@ -80,8 +81,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(403).end();
       return;
     }
+    const data = await readFile(path);
     res.writeHead(200, { 'Content-Type': types[extname(path)] || 'application/octet-stream' });
-    res.end(await readFile(path));
+    res.end(data);
   } catch {
     res.writeHead(404).end();
   }
@@ -98,6 +100,7 @@ try {
   await checkActionCoverage(browser, base + '/preview/', out);
   await checkLocalSecurity(browser, base + '/preview/', out);
   await checkUxRecovery(browser, base + '/preview/', out);
+  await checkUxAccessibility(browser, base + '/preview/', out);
   await checkProtection(browser, base + '/preview/', out);
   await checkLocalization(browser, base + '/preview/', out);
   for (const file of await readdir(resolve(roots['/desktop/'], 'assets'))) {

@@ -101,8 +101,14 @@ it('does not allow competing whole-catalog deletes while a write is pending', as
   await screen.findByText('One', { exact: true });
   const row = (name) => screen.getByText(name, { exact: true }).closest('tr');
   await fireEvent.click(within(row('One')).getByRole('button', { name: 'Delete' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Delete agent', exact: true }));
   await waitFor(() => expect(host.saveCustomAgents).toHaveBeenCalledTimes(1));
   expect(within(row('Two')).getByRole('button', { name: 'Delete' })).toBeDisabled();
+  const confirmation = screen.getByRole('dialog', { name: 'Delete custom agent?' });
+  await fireEvent.click(within(confirmation).getByRole('button', { name: 'Cancel', exact: true }));
+  await fireEvent(confirmation, new Event('cancel', { cancelable: true }));
+  expect(confirmation).toBeInTheDocument();
+  expect(host.saveCustomAgents).toHaveBeenCalledTimes(1);
   pending.resolve();
   await waitFor(() => expect(screen.queryByText('One', { exact: true })).toBeNull());
 });
