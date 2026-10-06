@@ -646,3 +646,38 @@ activity. Rejected writes remain retryable; confirmed deletion returns focus to
 catalog search even if a subsequent refresh fails. Catalog signature links and
 counts use the existing scale-aware caption token. New controls are localized
 in English and Portuguese.
+
+### Related context beside results (2026-10-06)
+
+The agent workspace keeps a compact context summary above its existing detail
+tabs. Resources, retained activity and worker counts link to their respective
+panels. Values reuse the existing scope and completeness rules; unavailable
+measurements remain dashes and retained network snapshots stay labeled.
+At narrow widths, measurement labels and notes carry the visible summary;
+section names remain in the accessible button names. Reduced spacing and a
+flexible risk-reason column keep the primary reason above the fixed footer.
+
+The file activity card offers All activity and Sensitive events filters without
+leaving the agent workspace. Rows retain attribution, show the qualified action
+and recorded reason, and open the existing evidence inspector. Open-handle
+observations carry their collection caveat. All original detail navigation stays
+available.
+
+Local review results show a bounded preview of source-ordered coverage notices
+beside findings and provenance. The control opens the complete coverage tab and
+focuses its tab only while the workspace remains visible. Filters and pagination
+remain mounted. These additions use scoped token-based styles and preserve the
+approved template, artwork and stylesheet cascade.
+
+When Network has no current snapshot, its existing Statistics advice includes a
+direct sensor-health action. The shared navigation opens the Sensors tab, keeps
+the selected agent/process scope, and uses the existing workspace focus behavior.
+
+Completed AI reports keep their captured scope counts, source and first
+recommended check beside the report header. The evidence shortcut opens the
+existing recorded-scope panel; historical reports retain their own snapshot.
+Captured counts stay on one line and use one column at narrow widths.
+Audit introduces retained entries and delivery counters together, with a direct
+action to the other existing tab. Reading history does not establish current
+writeability or hash-chain integrity. Both views retain their original detail,
+export and recovery controls.

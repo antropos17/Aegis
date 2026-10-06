@@ -106,15 +106,29 @@ export async function checkClarity(browser, url, out) {
             await workspace.locator('.primary-reason').innerText(),
             /Plain HTTP connections/,
           );
+          const reasonBounds = await workspace.locator('.risk-reason').evaluate((node) => {
+            const reason = node.getBoundingClientRect();
+            const main = document.querySelector('#main').getBoundingClientRect();
+            return {
+              top: reason.top,
+              bottom: reason.bottom,
+              visibleTop: main.top,
+              visibleBottom: main.bottom,
+            };
+          });
+          if (
+            reasonBounds.top < reasonBounds.visibleTop ||
+            reasonBounds.bottom > reasonBounds.visibleBottom
+          ) {
+            await page.screenshot({
+              path: resolve(out, `clarity-failure-${width}-${scale}-${theme}.png`),
+            });
+            console.error(JSON.stringify({ width, scale, theme, reasonBounds }));
+          }
           assert(
-            await workspace
-              .locator('.risk-reason')
-              .evaluate(
-                (node) =>
-                  node.getBoundingClientRect().top >= 0 &&
-                  node.getBoundingClientRect().bottom <= innerHeight,
-              ),
-            'main reason requires another navigation',
+            reasonBounds.top >= reasonBounds.visibleTop &&
+              reasonBounds.bottom <= reasonBounds.visibleBottom,
+            `main reason is covered or needs scrolling (${width}/${scale}/${theme})`,
           );
           await page.screenshot({
             path: resolve(out, 'clarity-' + width + '-' + scale + '-' + theme + '.png'),

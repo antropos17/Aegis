@@ -152,6 +152,31 @@ export async function checkDetails(browser, url, out) {
             'agent workspace overflows',
           );
           const sections = workspace.getByRole('tablist', { name: 'Agent sections' });
+          const glance = workspace.getByRole('region', { name: 'Agent context summary' });
+          assert(
+            await glance.evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+            'agent context summary overflows',
+          );
+          for (const [caption, tab] of [
+            ['Resources', 'Resources'],
+            ['Activity', 'Activity'],
+            ['Worker processes', 'Processes'],
+          ]) {
+            const action = glance.getByRole('button', { name: new RegExp('^' + caption) });
+            await action.focus();
+            await action.press('Enter');
+            assert.equal(
+              await sections
+                .getByRole('tab', { name: new RegExp('^' + tab) })
+                .getAttribute('aria-selected'),
+              'true',
+              caption + ' did not open its existing detail panel',
+            );
+            assert(
+              await action.evaluate((node) => node === document.activeElement),
+              caption + ' changed keyboard focus',
+            );
+          }
           const readPosition = () =>
             page.evaluate(() => {
               const strip = document.querySelector('.agent-workspace [role="tablist"]');
@@ -167,7 +192,17 @@ export async function checkDetails(browser, url, out) {
           for (const name of ['Resources', 'Activity', 'Processes', 'Risk']) {
             const control = sections.getByRole('tab', { name: new RegExp('^' + name) });
             await control.click();
-            assert.deepEqual(await readPosition(), position, name + ' moved the page or tab strip');
+            const nextPosition = await readPosition();
+            if (JSON.stringify(nextPosition) !== JSON.stringify(position)) {
+              await page.screenshot({
+                path: resolve(out, `agent-navigation-failure-${size.width}-${scale}-${theme}.png`),
+              });
+            }
+            assert.deepEqual(
+              nextPosition,
+              position,
+              `${name} moved the page or tab strip (${size.width}/${scale}/${theme})`,
+            );
             assert(
               await control.evaluate((node) => node === document.activeElement),
               name + ' stole focus',
@@ -208,10 +243,12 @@ export async function checkDetails(browser, url, out) {
     assert.match(await workspace.innerText(), /detail:20/);
     assert(await page.getByRole('button', { name: 'Suspend', exact: true }).isEnabled());
     await context.getByLabel('Selected process', { exact: true }).selectOption('detail:0');
-    const observation = page.getByRole('button', {
-      name: 'Inspect file observation 1',
-      exact: true,
-    });
+    const observation = workspace
+      .getByRole('button', {
+        name: 'Open evidence · review · Changed a file',
+        exact: true,
+      })
+      .first();
     await workspace.getByRole('tab', { name: /^Activity/ }).click();
     await observation.click();
     await page.getByRole('dialog').waitFor();

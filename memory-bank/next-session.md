@@ -1,5 +1,20 @@
 # AEGIS — starting the next chat
 
+## Current UX development — 2026-10-06
+
+AEGIS 0.19.2-beta has been published. The current UX work starts from master
+`a42ff3bd445d157368243502b3dc0b4f1236013e` on
+`codex/overnight-ux-20261006`. Continue with the
+[English overnight handoff](overnight-ux-2026-10-06.md) and
+[development plan](../docs/development/overnight-ux-2026-10-06.md).
+They contain the current checkout, five section assignments, verification
+status, cost controls and the 17:55:49 UTC stopping time.
+
+The source inventory is generated with `npm run dev:context`; use the current
+checkout's source and CI for facts. Earlier enforcement handoffs below retain
+their historical scope and evidence. UX changes do not establish new enforcement
+or security gate verdicts.
+
 ## Current enforcement status — 2026-09-30, sealed host import draft
 
 Actual master is `fcdb87a906bf43231e73082d2bb715099e76a263`. PR #697 merged on

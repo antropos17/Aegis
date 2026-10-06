@@ -8,6 +8,7 @@
   import { radarGroups, groupRecord, riskBand } from '../runtime/radar';
   import { riskContext } from '../runtime/risk-context';
   import AgentLogo from './AgentLogo.svelte';
+  import AgentContextSummary from './AgentContextSummary.svelte';
   import AgentPerformance from './AgentPerformance.svelte';
   import AgentEvidence from './AgentEvidence.svelte';
   import AgentProcesses from './AgentProcesses.svelte';
@@ -120,6 +121,18 @@
       ><Icon name="chart" />{$t('Detailed statistics')}</button
     >
   </section>
+  <AgentContextSummary
+    {telemetry}
+    {scope}
+    {files}
+    {connections}
+    {workerCount}
+    processObserved={!!process}
+    {section}
+    {prefix}
+    select={selectSection}
+    {paused}
+  />
   <SectionTabs
     {tabs}
     selected={section}
@@ -282,6 +295,9 @@
     color: var(--muted);
   }
   .risk-reason {
+    flex: 1 1 180px;
+    min-width: 0;
+    overflow-wrap: anywhere;
     font-size: var(--text-body);
   }
   .risk-reason small {
@@ -316,6 +332,11 @@
     }
     .agent-intro {
       flex-wrap: wrap;
+    }
+  }
+  @media (max-width: 980px) {
+    .agent-workspace {
+      gap: var(--space-3);
     }
   }
 </style>

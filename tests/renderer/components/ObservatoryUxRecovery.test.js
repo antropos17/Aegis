@@ -68,14 +68,18 @@ it('takes an invalid draft back to its field across settings sections without lo
 
 it('focuses the opened agent heading once and leaves subsequent tab interaction alone', async () => {
   render(App, { host: createPreviewHost(), preview: true });
+  const main = within(screen.getByRole('main'));
   const navigation = screen.getByRole('navigation', { name: 'Main navigation' });
   await fireEvent.click(within(navigation).getByRole('button', { name: 'Agents', exact: true }));
-  const open = (await screen.findAllByRole('button', { name: 'Open', exact: true }))[0];
+  const table = main.getByRole('table');
+  const open = (await within(table).findAllByRole('button', { name: 'Open', exact: true }))[0];
   open.focus();
   await fireEvent.click(open);
-  const heading = await screen.findByRole('heading', { name: 'Agent overview', exact: true });
+  const overview = await main.findByRole('region', { name: 'Agent overview', exact: true });
+  const heading = within(overview).getByRole('heading', { name: 'Agent overview', exact: true });
   await waitFor(() => expect(heading).toHaveFocus());
-  const resources = within(screen.getByRole('tablist', { name: 'Agent sections' })).getByRole(
+  const workspace = within(overview.closest('.agent-workspace'));
+  const resources = within(workspace.getByRole('tablist', { name: 'Agent sections' })).getByRole(
     'tab',
     { name: 'Resources', exact: true },
   );

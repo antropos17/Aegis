@@ -14,6 +14,7 @@
     viewPaused = false,
     scope,
     inspect,
+    openSensors,
   }: {
     telemetry: Telemetry;
     network?: boolean;
@@ -21,6 +22,7 @@
     viewPaused?: boolean;
     scope?: AgentScope;
     inspect: (_title: string, _row: RecordData) => void;
+    openSensors?: () => void | Promise<void>;
   } = $props();
   let query = $state(''),
     kind = $state('all'),
@@ -199,7 +201,14 @@
     >{/if}
 </div>
 {#if network && networkStatus === 'unavailable'}
-  <p class="notice">{$t('No current network snapshot. Check sensor health in Statistics.')}</p>
+  <div class="notice network-recovery">
+    <p>{$t('No current network snapshot. Check sensor health in Statistics.')}</p>
+    {#if openSensors}
+      <button class="button" onclick={openSensors}
+        ><Icon name="activity" />{$t('Review sensor health')}</button
+      >
+    {/if}
+  </div>
 {:else}
   <ObservationTable
     rows={filtered}
@@ -220,6 +229,22 @@
 {/if}
 
 <style>
+  .network-recovery {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .network-recovery p {
+    margin: 0;
+    flex: 1 1 240px;
+  }
+  .network-recovery .button {
+    white-space: normal;
+    min-height: var(--control-height);
+    height: auto;
+  }
   .evidence-filters {
     display: flex;
     flex-wrap: wrap;
