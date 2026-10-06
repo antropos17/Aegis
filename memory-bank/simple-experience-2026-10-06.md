@@ -16,6 +16,8 @@ Final renderer/preview builds, format/lint, TypeScript and Svelte passed after t
 
 All local acceptance work is complete. Publish through the normal authorized commit/push/PR/five-required-CI/merge cycle. Actual publication and scheduler closure are recorded in ignored `out/development/simple-experience-result.json` and `.md` and must be checked against live GitHub. No CI, merge, release tag or installer result is inferred from local checks. Preserve the user's running older desktop session; a normal restart is required to load the changed source build.
 
+PR #783 initially ran CI at `c90b86f713ad7a883b1d5b10a40f3b1601abe694`. Four contexts passed; the coverage job reported only two default five-second interaction-test timeouts on its shared Linux runner. Those two cases now use the existing per-case App integration budget, with every assertion retained. The affected files passed all seventeen tests under coverage at 17:28:30 UTC. Application source, builds, browser/native inputs and gate inputs are unchanged. Reuse that measured evidence and require all five contexts for the actual updated PR head before merging.
+
 ## Verification history
 
 - All five independent audits completed: `simple_audit_navigation`, `simple_audit_agent_journey`, `simple_audit_timeline`, `ux_settings_reports_statistics`, `ux_monitoring_agents`. Source findings and implementation ownership are recorded in the plan. The read-only researchers cannot implement; the three existing writable agents own disjoint implementation scopes.

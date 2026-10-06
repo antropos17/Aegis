@@ -162,6 +162,7 @@ it('starts with five Simple destinations and truthful unknown agent state', () =
   expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
 });
 
+// Multiple full-workspace transitions use the existing App integration coverage budget.
 it('opens technical commands and keyboard routes without changing the saved mode', async () => {
   const { host } = appBridge();
   render(App, { host });
@@ -185,7 +186,7 @@ it('opens technical commands and keyboard routes without changing the saved mode
   await fireEvent.keyDown(window, { key: '5' });
   await screen.findByRole('heading', { level: 1, name: 'Statistics' });
   expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
-});
+}, 15_000);
 
 // Two full App mounts use the same coverage budget as existing workspace integration tests.
 it('retains drafts through interface changes and navigation and restores Advanced after restart', async () => {

@@ -121,6 +121,7 @@ it('searches grouped process activity without attributing unrelated records to t
   expect(screen.getByText('No resources match this search.')).toBeInTheDocument();
 });
 
+// Coverage on shared CI runners uses the same budget as other workspace integrations.
 it('opens the original observation after incremental loading and returning to latest', async () => {
   const rows = Array.from({ length: 31 }, (_, i) => observation(i));
   const inspect = vi.fn();
@@ -144,7 +145,7 @@ it('opens the original observation after incremental loading and returning to la
   await fireEvent.click(container.querySelector('.observation-open'));
   expect(inspect).toHaveBeenLastCalledWith('Observation', rows[30]);
   expect(inspect.mock.calls.at(-1)[1]).toBe(rows[30]);
-});
+}, 15_000);
 
 it('retains loaded audit records and reports a failed refresh without success feedback', async () => {
   const row = observation(8, { type: 'file-access' });
