@@ -235,6 +235,22 @@ canaries passed. Independent review matched all 25 source hashes, and all five
 CI contexts passed that source. This run supplies no cross-principal desktop or
 useful-task acceptance.
 
+The next candidate adds bounded owner-probe diagnostics with a separate
+15-second cold-start budget before either receiver starts. The guest loopback
+receiver's 17.5/18-second fences remain unchanged. Independent host-side TCP,
+UDP and private-DNS receivers require successful host positives, exact VM
+identity and zero adapters before and after guest attempts. A pinned MinGit
+archive supplies a fixed thirteen-command scratch workflow after those probes;
+its configuration, hooks, templates, transports and helpers are constrained.
+Guest helper loading verifies the retained bytes before executing them under
+the unchanged PowerShell policy.
+
+Separate controls passed 24 task cases, 42 archive cases, three actual local Git
+workflows and four owner-probe cases. The integrated local Windows preflight
+stopped at `native-process-deadline`; it is incomplete. The cloud workflow must
+pass that complete entrypoint before creating its VM. These local results do
+not establish actual guest Git or host-route denial.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

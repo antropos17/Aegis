@@ -30,6 +30,9 @@ function run(mode) {
       }),
     ],
     [path.join(root, "input", "numbers.json"), '{"a":2,"b":3}'],
+    [path.join(trusted, "route-endpoint.json"), JSON.stringify({ schemaVersion: 1, addresses: { ipv4: "10.0.0.1", ipv6: null },
+      ports: { tcp4: 30001, udp4: 30002, dns4: 30003, tcp6: null, udp6: null, dns6: null },
+      nonce: "b".repeat(32), sourceSha: "c".repeat(40), vmId: "a0000000-0000-0000-0000-000000000000" })],
     [
       path.join(root, "work", "sum.cjs"),
       mode === "wrong-work" ? "changed" : "module.exports=(a,b)=>a-b;\n",
@@ -62,6 +65,15 @@ function run(mode) {
     },
   };
   const spawnSync = (exe, args, options) => {
+    if (args[0] === path.join(trusted, "route-client.cjs")) {
+      assert.equal(options.timeout, 4500); assert.equal(options.maxBuffer, 8192);
+      assert.equal(files.has(path.join(root, "work", "network-client-result.json")), true);
+      assert.equal(files.get(path.join(root, "work", "sum.cjs")), mode === "wrong-work" ? "changed" : "module.exports=(a,b)=>a-b;\n");
+      const value = { schemaVersion: 1, attemptsComplete: mode !== "route-partial", e3Qualified: false, launchAllowed: mode === "route-permission" };
+      return { status: mode === "route-nonzero" ? 7 : 0, error: mode === "route-deadline" ? { code: "PRIVATE_SENTINEL" } : null,
+        stdout: Buffer.from(mode === "route-malformed" ? "PRIVATE_SENTINEL" : JSON.stringify(value)),
+        stderr: mode === "route-stderr" ? Buffer.from("PRIVATE_SENTINEL") : Buffer.alloc(0) };
+    }
     if (args[0] === path.join(trusted, "client.cjs")) {
       assert.equal(options.timeout, 15000);
       assert.equal(options.maxBuffer, 8192);
@@ -91,6 +103,16 @@ function run(mode) {
             ? Buffer.from("PRIVATE_SENTINEL")
             : Buffer.alloc(0),
       };
+    }
+    if (args[0] === path.join(trusted, "cloud-guest-git.cjs")) {
+      assert.equal(options.timeout, 3000); assert.equal(options.maxBuffer, 4096);
+      assert.equal(files.has(path.join(root, "work", "route-client-result.json")), true);
+      assert.equal(files.has(path.join(root, "scratch", "positive-child.txt")), true);
+      assert.equal(files.get(path.join(root, "work", "sum.cjs")), "module.exports=(a,b)=>a+b;\n");
+      const receipt = {passed:mode!=="git-partial",scope:"fixed-disposable-git",version:"2.56.0.windows.2",commands:13,elapsedMilliseconds:1000,launchAllowed:false};
+      return {status:mode==="git-nonzero"?7:0,error:mode==="git-deadline"?{}:null,
+        stdout:Buffer.from(mode==="git-malformed"?"PRIVATE_SENTINEL":JSON.stringify(receipt)),
+        stderr:mode==="git-stderr"?Buffer.from("PRIVATE_SENTINEL"):Buffer.alloc(0)};
     }
     if (args[0] === "--test") {
       assert.equal(
@@ -127,6 +149,8 @@ function run(mode) {
   const requireDouble = (name) => {
     if (name === path.join(trusted, "protocol.cjs"))
       return require("./protocol.cjs");
+    if (name === path.join(trusted, "route-protocol.cjs")) return { endpoints: value => require("./route-protocol.cjs").endpoints(JSON.parse(JSON.stringify(value))) };
+    if (name === "node:perf_hooks") { let calls=0; return {performance:{now:()=>mode==="git-admission-late"&&calls++>0?9000:0}}; }
     if (name === "node:fs") return doubles;
     if (name === "node:path") return path;
     if (name === "node:child_process") return { spawnSync };
@@ -162,6 +186,12 @@ assert.equal(
   10,
 );
 for (const mode of [
+  "git-partial",
+  "git-nonzero",
+  "git-deadline",
+  "git-malformed",
+  "git-stderr",
+  "git-admission-late",
   "wrong-path",
   "wrong-work",
   "protection-open",
@@ -177,7 +207,12 @@ for (const mode of [
   const refused = run(mode);
   assert.equal(refused.result.passed, false, mode);
   assert.equal(refused.process.exitCode, 1, mode);
-  if (mode.startsWith("network-")) {
+  if (mode.startsWith("git-")) {
+      assert.equal(refused.result.stage, "git");
+      assert.equal(refused.result.readEditTestPassed, true);
+      assert.equal(JSON.stringify(refused.result).includes("PRIVATE_SENTINEL"), false);
+    }
+    if (mode.startsWith("network-")) {
     assert.equal(refused.result.stage, "network");
     assert.equal(refused.result.networkControlsComplete, false);
     assert.equal(refused.result.readEditTestPassed, false);
@@ -209,10 +244,19 @@ for (const mode of [
     );
   }
 }
+for (const mode of ["route-partial", "route-nonzero", "route-deadline", "route-malformed", "route-stderr", "route-permission"]) {
+  const refused = run(mode);
+  assert.equal(refused.result.passed, false); assert.equal(refused.process.exitCode, 1);
+  assert.equal(refused.result.stage, "direct-routes"); assert.equal(refused.result.readEditTestPassed, false);
+  assert.equal(refused.result.networkControlsComplete, true);
+  assert.equal(refused.files.has(path.join(root, "work", "git-result.json")), false);
+  assert.equal(JSON.stringify(refused.result).includes("PRIVATE_SENTINEL"), false);
+}
+
 console.log(
   JSON.stringify({
-    cases: 12,
-    passed: 12,
+    cases: 24,
+    passed: 24,
     scope: "synthetic-task-source-behavior-no-guest-or-VM-effects",
   }),
 );

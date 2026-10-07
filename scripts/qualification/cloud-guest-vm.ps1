@@ -168,14 +168,16 @@ function Invoke-CloudGuestConfiguration([string]$Id, [string]$Name, [string]$VmR
     finally { if ($job.State -in @('Running', 'NotStarted')) { Stop-Job -Job $job -ErrorAction SilentlyContinue }; Remove-Job -Job $job -Force -ErrorAction SilentlyContinue }
 }
 
-function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot, [pscredential]$Admin, [string]$TaskPassword, [string]$TransferRoot) {
+function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot, [pscredential]$Admin, [string]$TaskPassword, [string]$TransferRoot, [string]$SourceSha) {
     Assert-CloudGuestRunner
-    $job = Start-Job -ArgumentList $Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot, $PSScriptRoot -ScriptBlock {
-        param($Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot, $SupportRoot)
+    $job = Start-Job -ArgumentList $Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot, $PSScriptRoot, $SourceSha -ScriptBlock {
+        param($Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot, $SupportRoot, $SourceSha)
         $ErrorActionPreference = 'Stop'; Import-Module Hyper-V
         . (Join-Path $SupportRoot 'cloud-guest-media.ps1')
         . (Join-Path $SupportRoot 'cloud-guest-vm.ps1')
+        . (Join-Path $SupportRoot 'cloud-host-routes.ps1')
         $session = $null; $watch = [Diagnostics.Stopwatch]::StartNew(); $lastDisk = -60
+        $routeOwner = $null; $routeClosed = $null; $routeEvidence = $null; $result = $null
         $diskSamples = [Collections.Generic.List[object]]::new()
         $mediaMutationUnknown = $false
         $progress = @{ phase = 'psdirect-profile-readiness'; sessionEstablished = $false; profileReady = $false; installedOs = $null; transferHashesVerified = $false; mediaDetached = $null; standardTaskSubmitted = $false }
@@ -221,7 +223,7 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                 $trusted = 'C:\ProgramData\AegisCloudLab\trusted'
                 $manifest = Get-Content -LiteralPath "$trusted\manifest.json" -Raw | ConvertFrom-Json
                 foreach ($expected in $manifest.files) {
-                    if ($expected.name -notmatch '^[a-zA-Z0-9-]+\.(dll|exe|ps1|cjs)$' -or $expected.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'guest-transfer-manifest-invalid' }
+                    if (($expected.name -notmatch '^[a-zA-Z0-9-]+\.(dll|exe|ps1|cjs)$' -and $expected.name -cnotin @('git-runtime.zip', 'git-runtime-manifest.json')) -or $expected.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'guest-transfer-manifest-invalid' }
                     $file = Get-Item -LiteralPath (Join-Path $trusted $expected.name) -Force
                     if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or
                         (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected.sha256) { throw 'guest-transfer-hash-mismatch' }
@@ -232,13 +234,40 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             # DVD carries lab credentials and is excluded from every artifact.
             $progress.phase = 'detach-installation-media'
             $progress.mediaDetached = Remove-CloudGuestInstallationMedia $Id $Name $VmRoot ([ref]$mediaMutationUnknown)
+            $progress.phase = 'owned-host-route-positive-controls'
+            $routeOwner = Start-CloudHostRoutes $Id $Name $VmRoot (Join-Path $TransferRoot 'node.exe') $SupportRoot $SourceSha
+            $endpointText = $routeOwner.endpoint | ConvertTo-Json -Compress -Depth 5
+            Invoke-Command -Session $session -ArgumentList $endpointText -ScriptBlock {
+                param($FixedEndpoint)
+                if ([Text.Encoding]::UTF8.GetByteCount($FixedEndpoint) -gt 2048) { throw 'host-route-endpoint-budget' }
+                [IO.File]::WriteAllText('C:\ProgramData\AegisCloudLab\trusted\route-endpoint.json', $FixedEndpoint, [Text.UTF8Encoding]::new($false))
+            }
             $progress.phase = 'trusted-bootstrap-and-standard-task'; $progress.standardTaskSubmitted = $true
             $bootstrapHash = (Get-FileHash -LiteralPath (Join-Path $TransferRoot 'cloud-guest-bootstrap.ps1') -Algorithm SHA256).Hash.ToLowerInvariant()
             $result = Invoke-Command -Session $session -ArgumentList $TaskPassword, $Id, $bootstrapHash -ScriptBlock (Get-CloudGuestBootstrapInvocation)
+            $progress.phase = 'independent-host-route-closure'
+            $jobClosed = $null -ne $result -and $null -ne $result.identity -and $result.identity.jobClosureConfirmed -eq $true
+            $routeClosed = Stop-CloudHostRoutes $routeOwner $jobClosed
+            $after = Get-CloudHostRouteSnapshot $Id $Name $VmRoot
+            if (!$jobClosed) { throw 'host-route-guest-job-closure-unconfirmed' }
+            $routeText = Invoke-Command -Session $session -ScriptBlock {
+                $file = Get-Item -LiteralPath C:/AegisLab/work/route-client-result.json -Force
+                if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -gt 8192) { throw 'host-route-client-result-refused' }
+                return [IO.File]::ReadAllText($file.FullName)
+            }
+            $routeClient = $routeText | ConvertFrom-Json
+            $routeEvidence = Test-CloudHostRoutes $routeOwner $routeClosed $result.identity $routeClient ($result.passed -eq $true) $after
             $progress.phase = 'completed'
-            return @{ guestResult = $result; progress = $progress; failure = $null; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
+            return @{ guestResult = $result; hostRoutes = $routeEvidence; progress = $progress; failure = $null; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
         }
-        catch { return @{ guestResult = $null; progress = $progress; failure = (Get-CloudGuestFailureDetails $_.Exception); mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $null -ne $progress.mediaDetached; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) } }
+        catch {
+            $failure = Get-CloudGuestFailureDetails $_.Exception
+            if ($null -ne $routeOwner -and $null -eq $routeClosed) {
+                try { $routeClosed = Stop-CloudHostRoutes $routeOwner $false } catch { }
+            }
+            return @{ guestResult = $result; hostRoutes = @{ passed = $false; closed = $routeClosed; e3Qualified = $false; launchAllowed = $false };
+                progress = $progress; failure = $failure; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $null -ne $progress.mediaDetached; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
+        }
         finally { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue }; $watch.Stop() }
     }
     try {

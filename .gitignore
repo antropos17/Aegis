@@ -151,3 +151,12 @@ aegis_landing.html
 !/scripts/qualification/test-cloud-guest-network.ps1
 !/scripts/qualification/test-cloud-guest-runtime.ps1
 !/scripts/qualification/test-cloud-guest-desktop.ps1
+
+!/scripts/qualification/cloud-host-routes.ps1
+!/scripts/qualification/test-host-routes.ps1
+
+!/scripts/qualification/cloud-guest-git.ps1
+!/scripts/qualification/test-cloud-guest-git.ps1
+!/scripts/qualification/test-cloud-guest-git-invocation.ps1
+
+!/scripts/qualification/test-cloud-guest-owner-probe.ps1

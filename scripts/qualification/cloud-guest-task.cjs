@@ -2,6 +2,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { performance } = require("node:perf_hooks");
+const taskBegin = performance.now();
 const trusted = "C:\\ProgramData\\AegisCloudLab\\trusted";
 const root = "C:\\AegisLab";
 if (process.platform !== "win32" || process.env.AEGIS_CLOUD_GUEST_TASK !== "1")
@@ -119,6 +121,23 @@ try {
   )
     throw new Error("network-client-refused");
   result.networkControlsComplete = true;
+  childExitCode = null;
+  result.stage = "direct-routes";
+  const routeEndpointText = fs.readFileSync(path.join(trusted, "route-endpoint.json"), "utf8");
+  if (Buffer.byteLength(routeEndpointText) > 2048) throw new Error("route-endpoint-budget");
+  const routeEndpoint = require(path.join(trusted, "route-protocol.cjs")).endpoints(JSON.parse(routeEndpointText));
+  const routes = spawnSync(process.execPath, [path.join(trusted, "route-client.cjs")], {
+    input: JSON.stringify(routeEndpoint), windowsHide: true, timeout: 4500, maxBuffer: 8192,
+    cwd: path.join(root, "scratch"), env: process.env,
+  });
+  childExitCode = Number.isInteger(routes.status) ? routes.status : null;
+  const routeText = routes.stdout?.toString("utf8") || "";
+  if (Buffer.byteLength(routeText) > 8192) throw new Error("route-result-budget");
+  if (routeText) fs.writeFileSync(path.join(root, "work", "route-client-result.json"), routeText);
+  const routeResult = JSON.parse(routeText);
+  if (routes.error || routes.status !== 0 || (routes.stderr?.length || 0) !== 0 ||
+      routeResult.attemptsComplete !== true || routeResult.e3Qualified !== false || routeResult.launchAllowed !== false)
+    throw new Error("route-client-refused");
   childExitCode = null;
   result.stage = "manifest";
   const manifest = JSON.parse(
@@ -245,6 +264,24 @@ try {
       processFailed: leaf.failed,
     });
   }
+  result.stage = "git";
+  // Reserve 3s for fixed Git, 2s for actual Job closure, and the existing
+  // receiver readiness overhead. Slow earlier controls refuse before Git.
+  if (performance.now() - taskBegin >= 9000) throw new Error("git-admission-budget");
+  const git = spawnSync(process.execPath, [path.join(trusted, "cloud-guest-git.cjs")], {
+    windowsHide: true, timeout: 3000, maxBuffer: 4096,
+    cwd: path.join(root, "scratch"), env: process.env,
+  });
+  childExitCode = Number.isInteger(git.status) ? git.status : null;
+  const gitText = git.stdout?.toString("utf8") || "";
+  if (gitText && Buffer.byteLength(gitText) <= 4096)
+    fs.writeFileSync(path.join(root, "work", "git-result.json"), gitText);
+  const gitResult = JSON.parse(gitText);
+  if (git.error || git.status !== 0 || (git.stderr?.length || 0) !== 0 ||
+      gitResult.passed !== true || gitResult.scope !== "fixed-disposable-git" ||
+      gitResult.version !== "2.56.0.windows.2" || gitResult.commands !== 13 ||
+      gitResult.elapsedMilliseconds >= 3000 || gitResult.launchAllowed !== false)
+    throw new Error("git-refused");
   result.stage = "negative-controls";
   if (
     result.protectedProbes.some((p) => !p.denied) ||

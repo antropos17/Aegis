@@ -11,7 +11,7 @@ function Read-CloudGuestTaskDiagnostics([string]$Path) {
         $value = [IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json
         $names = @($value.PSObject.Properties.Name | Sort-Object)
         $expected = @('schemaVersion', 'task', 'passed', 'stage', 'failure', 'networkControlsComplete', 'readEditTestPassed', 'shellAndDescendantPositive', 'hostPathProbes', 'protectedProbes') | Sort-Object
-        $stages = @('network', 'manifest', 'input', 'work-edit', 'scratch', 'unit-test', 'shell-descendant', 'protected-probes', 'host-path-probes', 'negative-controls', 'completed')
+        $stages = @('network', 'direct-routes', 'manifest', 'input', 'work-edit', 'scratch', 'unit-test', 'shell-descendant', 'protected-probes', 'host-path-probes', 'negative-controls', 'completed', 'git')
         if (($names -join ',') -cne ($expected -join ',') -or ($value.schemaVersion -isnot [int] -and $value.schemaVersion -isnot [long]) -or
             $value.schemaVersion -ne 1 -or $value.task -cne 'fixed-read-edit-test' -or $value.stage -isnot [string] -or
             $value.passed -isnot [bool] -or $value.networkControlsComplete -isnot [bool] -or $value.readEditTestPassed -isnot [bool] -or $value.shellAndDescendantPositive -isnot [bool] -or $value.stage -cnotin $stages -or
@@ -146,7 +146,7 @@ function Merge-CloudGuestNetworkControls($Diagnostics, $Network) {
 }
 # Only fixed enums and numeric observations cross the PS Direct boundary.
 function Get-CloudGuestBootstrapFailure([string]$Stage, [Management.Automation.ErrorRecord]$ErrorRecord) {
-    $stages = @('scope', 'administrator', 'accounts', 'secret-cleanup', 'acl-setup', 'native-load', 'native-run', 'result-diagnostics', 'os-receipt')
+    $stages = @('scope', 'administrator', 'accounts', 'secret-cleanup', 'git-runtime', 'acl-setup', 'native-load', 'native-run', 'result-diagnostics', 'os-receipt')
     if ($Stage -cnotin $stages) { $Stage = 'bootstrap-unknown' }
     $types = @('System.Management.Automation.RuntimeException', 'System.Management.Automation.CommandNotFoundException',
         'System.Management.Automation.MethodInvocationException', 'System.Management.Automation.PropertyNotFoundException',
@@ -206,6 +206,41 @@ function FixedAcl([string]$Path, [bool]$Directory, [bool]$TaskWrite, [bool]$Task
     }
     $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')); Set-Acl -LiteralPath $Path -AclObject $acl
 }
+$bootstrapStage = 'git-runtime'
+# Fixed helper intake uses retained bytes so Restricted file policy stays intact.
+$gitSourceFile = Get-Item -LiteralPath (Join-Path $trusted 'cloud-guest-git.ps1') -Force
+$gitSourceManifestFile = Get-Item -LiteralPath (Join-Path $trusted 'manifest.json') -Force
+$gitSourceData = @{}
+foreach ($selected in @($gitSourceFile, $gitSourceManifestFile)) {
+    if ($selected.PSIsContainer -or $selected.Attributes -band [IO.FileAttributes]::ReparsePoint -or $selected.Length -lt 2 -or $selected.Length -gt 64KB) { throw 'git-support-input-refused' }
+    $gitSourceStream = [IO.File]::Open($selected.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $gitSourceBuffer = New-Object byte[] 65537; $gitSourceCount = 0
+        while ($gitSourceCount -lt $gitSourceBuffer.Length) {
+            $read = $gitSourceStream.Read($gitSourceBuffer, $gitSourceCount, $gitSourceBuffer.Length - $gitSourceCount)
+            if ($read -eq 0) { break }; $gitSourceCount += $read
+        }
+        if ($gitSourceCount -lt 2 -or $gitSourceCount -gt 64KB) { throw 'git-support-byte-budget' }
+        $bytes = New-Object byte[] $gitSourceCount; [Array]::Copy($gitSourceBuffer, $bytes, $gitSourceCount)
+        $gitSourceData[$selected.Name] = $bytes
+    } finally { $gitSourceStream.Dispose() }
+}
+$gitSourceEncoding = [Text.UTF8Encoding]::new($false, $true)
+$gitSourceManifest = $gitSourceEncoding.GetString($gitSourceData['manifest.json']) | ConvertFrom-Json
+$gitSourceEntries = @($gitSourceManifest.files | Where-Object { $_.name -ceq 'cloud-guest-git.ps1' })
+if ($gitSourceEntries.Count -ne 1 -or $gitSourceEntries[0].sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'git-support-manifest-refused' }
+$gitSourceBytes = $gitSourceData['cloud-guest-git.ps1']
+$gitSourceHasher = [Security.Cryptography.SHA256]::Create()
+try { $gitSourceHash = [BitConverter]::ToString($gitSourceHasher.ComputeHash($gitSourceBytes)).Replace('-', '').ToLowerInvariant() }
+finally { $gitSourceHasher.Dispose() }
+if ($gitSourceHash -cne $gitSourceEntries[0].sha256) { throw 'git-support-hash-refused' }
+$gitSourceText = $gitSourceEncoding.GetString($gitSourceBytes)
+. ([scriptblock]::Create($gitSourceText))
+$gitManifestFile = Get-Item -LiteralPath "$trusted\git-runtime-manifest.json" -Force
+if ($gitManifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or $gitManifestFile.Length -gt 96KB) { throw 'git-manifest-refused' }
+$gitExpected = [IO.File]::ReadAllText($gitManifestFile.FullName) | ConvertFrom-Json
+$gitActual = Expand-CloudGuestGitArchive "$trusted\git-runtime.zip" "$trusted\git"
+Test-CloudGuestGitManifest $gitExpected $gitActual
 $bootstrapStage = 'acl-setup'
 foreach ($directory in @($root, "$root\input", "$root\work", "$root\scratch", 'C:\ProgramData\AegisCloudLab\admin')) { New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null }
 FixedAcl 'C:\ProgramData\AegisCloudLab' $true $false $true
@@ -219,6 +254,11 @@ FixedAcl 'C:\Users\AegisSetup\aegis-dummy.txt' $false $false $false
 [IO.File]::WriteAllText("$root\input\numbers.json", '{"a":2,"b":3}')
 [IO.File]::WriteAllText("$root\work\sum.cjs", "module.exports=(a,b)=>a-b;`n")
 [IO.File]::WriteAllText("$trusted\sum.test.cjs", "const t=require('node:test'),a=require('node:assert/strict');t('fixed sum',()=>a.equal(require('C:/AegisLab/work/sum.cjs')(2,3),5));")
+foreach ($entry in @(Get-ChildItem -LiteralPath "$trusted\git" -Recurse -Force)) {
+    if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'git-runtime-reparse-refused' }
+    FixedAcl $entry.FullName ([bool]$entry.PSIsContainer) $false $true
+}
+FixedAcl "$trusted\git" $true $false $true
 foreach ($file in @(Get-ChildItem -LiteralPath $trusted -File)) { FixedAcl $file.FullName $false $false $true }
 if ([IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ne 'guest-admin-dummy-control') { throw 'admin-positive-control-failed' }
 $bootstrapStage = 'native-load'
@@ -237,10 +277,12 @@ try { $adminCanary = [IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\
 $diagnostics = Merge-CloudGuestTaskDiagnostics $identity $parsed $adminCanary
 $network = Read-CloudGuestNetworkControls $identity "$trusted\network-endpoint.json" "$root\work\network-client-result.json" 'C:\ProgramData\AegisCloudLab\admin\network-receiver-result.json'
 $diagnostics = Merge-CloudGuestNetworkControls $diagnostics $network
+$gitControls = Read-CloudGuestGitControls "$root\work\git-result.json"
+if (!$gitControls.passed) { $diagnostics.passed = $false; $diagnostics.task.passed = $false; $diagnostics.failureCode = 'guest-git-controls-refused' }
 $bootstrapStage = 'os-receipt'
 $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5
 return @{ schemaVersion = 1; passed = $diagnostics.passed; failureCode = $diagnostics.failureCode; taskResultStatus = $diagnostics.taskResultStatus;
-    guest = @{ version = $os.Version; build = $os.BuildNumber; caption = $os.Caption }; identity = $identity; task = $diagnostics.task; networkControls = $network;
+    guest = @{ version = $os.Version; build = $os.BuildNumber; caption = $os.Caption }; identity = $identity; task = $diagnostics.task; networkControls = $network; gitControls = $gitControls;
     setupAnswerCachesAbsent = $true; autoLogonDisabled = $true; passwordRegistryAbsent = $true; labOnlyPowerShellDirect = $true; atomicJobAtCreation = $false; launchAllowed = $false }
 } catch {
     $failure = Get-CloudGuestBootstrapFailure $bootstrapStage $_

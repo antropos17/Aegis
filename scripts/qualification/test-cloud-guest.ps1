@@ -143,7 +143,7 @@ try {
     }
     foreach ($mode in @('settled-failure', 'unknown', 'lost')) {
         $script:bootstrapMode = $mode; $script:unknown = $false
-        $report = @{ stages = [Collections.Generic.List[object]]::new(); failure = $null; guest = $null }
+        $report = @{ stages = [Collections.Generic.List[object]]::new(); failure = $null; guest = $null; actualHead = ('a' * 40) }
         Require (Refused { Stage 'actual-guest-setup-and-standard-task' $guestOperation })
         Require ($script:unknown -eq ($mode -ne 'settled-failure'))
         if ($mode -ne 'lost') { Require ($report.guest.progress.installedOs.build -eq 26300 -and $report.guest.progress.transferHashesVerified) }
@@ -274,3 +274,9 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
 & (Join-Path $PSScriptRoot 'test-cloud-guest-runtime.ps1')
 
 & (Join-Path $PSScriptRoot 'test-cloud-guest-desktop.ps1')
+
+& (Join-Path $PSScriptRoot 'test-host-routes.ps1')
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-git-invocation.ps1')
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-owner-probe.ps1')

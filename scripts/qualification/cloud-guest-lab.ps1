@@ -2,6 +2,7 @@ param([Parameter(Mandatory = $true)][string]$OutputRoot)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
+. (Join-Path $PSScriptRoot 'cloud-guest-git.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -81,7 +82,7 @@ try {
         $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5; $computer = Get-CimInstance Win32_ComputerSystem -OperationTimeoutSec 5
         $report.host = @{ caption = $os.Caption; build = $os.BuildNumber; admin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); hypervisorPresent = $computer.HypervisorPresent; memoryBytes = [long]$computer.TotalPhysicalMemory; vmms = (Get-Service vmms).Status.ToString() }
         if (!$report.host.admin -or $report.host.vmms -ne 'Running' -or [long]$os.FreePhysicalMemory * 1024 -lt 6GB) { throw 'cloud-hyperv-admin-memory-unavailable' }
-        foreach ($relative in @('scripts/qualification/cloud-guest-lab.ps1', 'scripts/qualification/cloud-guest-vm.ps1', 'scripts/qualification/cloud-guest-media.ps1', 'scripts/qualification/cloud-guest-bootstrap.ps1', 'scripts/qualification/cloud-guest-task.cjs', 'scripts/qualification/cloud-hyperv-operations.ps1', 'scripts/qualification/protocol.cjs', 'scripts/qualification/receiver.cjs', 'scripts/qualification/client.cjs', 'scripts/qualification/cloud-guest-runtime.cjs')) {
+        foreach ($relative in @('scripts/qualification/cloud-guest-lab.ps1', 'scripts/qualification/cloud-guest-vm.ps1', 'scripts/qualification/cloud-guest-media.ps1', 'scripts/qualification/cloud-guest-bootstrap.ps1', 'scripts/qualification/cloud-guest-task.cjs', 'scripts/qualification/cloud-hyperv-operations.ps1', 'scripts/qualification/protocol.cjs', 'scripts/qualification/receiver.cjs', 'scripts/qualification/client.cjs', 'scripts/qualification/cloud-guest-runtime.cjs', 'scripts/qualification/cloud-host-routes.ps1', 'scripts/qualification/route-protocol.cjs', 'scripts/qualification/route-client.cjs', 'scripts/qualification/route-receiver.cjs', 'scripts/qualification/route-oracle.cjs', 'scripts/qualification/cloud-guest-git.cjs', 'scripts/qualification/cloud-guest-git.ps1', 'scripts/qualification/git-runtime-manifest.json')) {
             $file = Get-Item -LiteralPath (Join-Path $project $relative) -Force
             if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'script-source-budget-failed' }
             $report.sourceHashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -126,7 +127,12 @@ try {
         $exitCode = Invoke-CloudGuestNativeProcess $node.FullName @('--version') $versionFile $errorFile 5000
         if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
         $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
-        foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs', 'route-protocol.cjs', 'route-client.cjs', 'cloud-guest-git.cjs', 'cloud-guest-git.ps1', 'git-runtime-manifest.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        $gitArchive = Join-Path $transfer 'git-runtime.zip'
+        Save-CloudGuestGitArchive $gitArchive
+        $report.sourceHashes['git-runtime.zip'] = (Get-FileHash -LiteralPath $gitArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+        & (Join-Path $PSScriptRoot 'test-cloud-guest-git.ps1') -OwnedFixtureRoot (Join-Path $OutputRoot 'temp') -PinnedArchivePath $gitArchive | Out-Null
+        & (Join-Path $PSScriptRoot 'test-cloud-guest-git-invocation.ps1') | Out-Null
         $canaryEntries = @()
         foreach ($index in 1..2) {
             $selected = Join-Path $OutputRoot ('canaries\' + [guid]::NewGuid().ToString('N') + '.txt')
@@ -165,7 +171,7 @@ try {
         # A lost worker may have submitted a device mutation. Only its bounded
         # result can establish whether a later native Stop is safe to request.
         $script:unknown = $true
-        $result = Invoke-CloudGuestBootstrap $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer')
+        $result = Invoke-CloudGuestBootstrap $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') $report.actualHead
         $script:report.guest = $result
         if ($result.mediaMutationUnknown -isnot [bool]) { throw 'guest-bootstrap-failed' }
         $script:unknown = $result.mediaMutationUnknown
@@ -173,7 +179,7 @@ try {
         return $result
     }
     $report.hostCanariesUnchangedAfterTask = CanariesUnchanged
-    if (!$report.hostCanariesUnchangedAfterTask -or !$report.guest.guestResult.task.passed) { throw 'host-or-guest-task-control-failed' }
+    if (!$report.hostCanariesUnchangedAfterTask -or !$report.guest.guestResult.task.passed -or !$report.guest.hostRoutes.passed) { throw 'host-or-guest-task-control-failed' }
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {
