@@ -260,14 +260,15 @@ function createMcpGateway({
     activeId = id;
     try {
       const permission = manifest.grants[grant];
+      let consumption;
       await verifyCredential();
       if (manifest.schemaVersion === 5) await verifyStdioRoute(await recheck());
-      if (grantStore) await step(grantStore.consume(permission));
+      if (grantStore) consumption = await step(grantStore.consume(permission));
       if (manifest.schemaVersion >= 2) evidence.emit('consumed', operationId);
       await recheck();
       await checkCatalog();
       await recheck();
-      if (grantStore) await step(grantStore.recheck());
+      if (grantStore) await step(grantStore.recheck(consumption));
       if (closed) throw Error('closed');
       if (
         manifest.schemaVersion >= 2 &&

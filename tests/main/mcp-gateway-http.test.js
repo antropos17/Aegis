@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -81,6 +82,57 @@ async function ready(mode, options) {
   await gateway.receive(rpc(undefined, 'notifications/initialized'));
 }
 describe('explicit loopback HTTP upstream', () => {
+  it.each(['intact', 'missing', 'replaced', 'truncated', 'rewritten', 'restored-bytes'])(
+    'rechecks this attempt consumed record after catalog work: %s',
+    async (mode) => {
+      const grantStorePath = path.join(root, 'grants');
+      fs.mkdirSync(grantStorePath);
+      const permission = {
+        id: 'g'.repeat(32),
+        taskId: 't'.repeat(32),
+        notBefore: Date.now() - 1000,
+        expiresAt: Date.now() + 60000,
+        tool: 'record',
+        arguments: { recipient: 'chosen' },
+      };
+      const spent = path.join(
+        grantStorePath,
+        createHash('sha256').update(permission.id).digest('hex') + '.used',
+      );
+      save(manifestPath, {
+        schemaVersion: 2,
+        tools: [tool],
+        grants: [permission],
+      });
+      await ready('json', { grantStorePath });
+      fixture.state.onList = (count) => {
+        if (count !== 2) return;
+        expect(fs.readFileSync(spent, 'utf8')).toBe('{"consumed":true}\n');
+        if (mode === 'missing') fs.unlinkSync(spent);
+        if (mode === 'replaced') {
+          fs.renameSync(spent, spent + '.retired');
+          fs.writeFileSync(spent, '{"consumed":true}\n');
+        }
+        if (mode === 'truncated') fs.writeFileSync(spent, '');
+        if (mode === 'rewritten') fs.writeFileSync(spent, '{"consumed":null}\n');
+        if (mode === 'restored-bytes') {
+          fs.writeFileSync(spent, 'damaged');
+          fs.writeFileSync(spent, '{"consumed":true}\n');
+        }
+      };
+      const response = await gateway.receive(call());
+      expect(fixture.state.calls).toHaveLength(mode === 'intact' ? 1 : 0);
+      if (mode === 'intact') {
+        expect(response.result).toBeDefined();
+        expect((await gateway.receive(call(3))).error).toBeDefined();
+        expect(failed).not.toHaveBeenCalled();
+      } else {
+        expect(response.error).toBeDefined();
+        expect(await gateway.receive(call(3))).toBeNull();
+        expect(failed).toHaveBeenCalledOnce();
+      }
+    },
+  );
   it.each(['empty-store', 'copied-key', 'during-catalog', 'v2-store'])(
     'revokes the open grant owner on %s replacement before any receiver effect',
     async (mode) => {
