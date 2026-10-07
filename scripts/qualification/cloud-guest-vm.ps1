@@ -1,5 +1,32 @@
 Set-StrictMode -Version Latest
 
+# Remove credential-bearing drives, then query a newly obtained exact VM object.
+# A retained VirtualMachine object may carry cached device inventory.
+function Remove-CloudGuestInstallationMedia([string]$Id, [string]$Name, [string]$VmRoot, [ref]$MutationUnknown) {
+    Assert-CloudGuestRunner
+    if ($Id -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or
+        $Name -cnotmatch '^aegis-cloud-[0-9]+-[0-9]+-[a-f0-9]{32}$') { throw 'media-eject-owner-mismatch' }
+    $expected = [IO.Path]::GetFullPath($VmRoot).TrimEnd('\')
+    $before = 0
+    foreach ($step in 0..2) {
+        $current = Get-VM -Id ([guid]$Id) -ErrorAction Stop
+        $actual = [IO.Path]::GetFullPath($current.ConfigurationLocation).TrimEnd('\')
+        if ($current.Id.ToString() -cne $Id -or $current.Name -cne $Name -or $current.State -ne 'Running' -or
+            (!$actual.Equals($expected, [StringComparison]::OrdinalIgnoreCase) -and !$actual.StartsWith($expected + '\', [StringComparison]::OrdinalIgnoreCase))) { throw 'media-eject-owner-mismatch' }
+        $drives = @(Get-VMDvdDrive -VM $current -ErrorAction Stop)
+        if ($step -eq 0) { $before = $drives.Count }
+        if ($step -eq 2) {
+            if ($drives.Count -ne 0) { throw 'answer-dvd-ejection-unconfirmed' }
+            return @{ drivesBefore = $before; drivesAfter = 0; freshExactVmObserved = $true }
+        }
+        if ($drives.Count -ne (2 - $step) -or @($drives | Where-Object { $_.ControllerNumber -ne 0 -or $_.ControllerLocation -notin @(1, 2) -or $_.VMId.ToString() -cne $Id }).Count -ne 0 -or
+            @($drives | Select-Object -ExpandProperty ControllerLocation -Unique).Count -ne $drives.Count) { throw 'media-eject-inventory-unexpected' }
+        $MutationUnknown.Value = $true
+        Remove-VMDvdDrive -VMDvdDrive $drives[0] -Confirm:$false -ErrorAction Stop
+        $MutationUnknown.Value = $false
+    }
+}
+
 # All inputs originate in the guarded fresh lab driver; no guest request is routed here.
 function Invoke-CloudGuestConfiguration([string]$Id, [string]$Name, [string]$VmRoot, [string]$WindowsIso, [string]$AnswerIso) {
     Assert-CloudGuestRunner
@@ -44,11 +71,15 @@ function Invoke-CloudGuestConfiguration([string]$Id, [string]$Name, [string]$VmR
 
 function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot, [pscredential]$Admin, [string]$TaskPassword, [string]$TransferRoot) {
     Assert-CloudGuestRunner
-    $job = Start-Job -ArgumentList $Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot -ScriptBlock {
-        param($Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot)
+    $job = Start-Job -ArgumentList $Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot, $PSScriptRoot -ScriptBlock {
+        param($Id, $Name, $VmRoot, $Admin, $TaskPassword, $TransferRoot, $SupportRoot)
         $ErrorActionPreference = 'Stop'; Import-Module Hyper-V
+        . (Join-Path $SupportRoot 'cloud-guest-media.ps1')
+        . (Join-Path $SupportRoot 'cloud-guest-vm.ps1')
         $session = $null; $watch = [Diagnostics.Stopwatch]::StartNew(); $lastDisk = -60
         $diskSamples = [Collections.Generic.List[object]]::new()
+        $mediaMutationUnknown = $false
+        $progress = @{ phase = 'psdirect-profile-readiness'; sessionEstablished = $false; profileReady = $false; installedOs = $null; transferHashesVerified = $false; mediaDetached = $null; standardTaskSubmitted = $false }
         try {
             while ($watch.Elapsed.TotalSeconds -lt 1080) {
                 if ($watch.Elapsed.TotalSeconds - $lastDisk -ge 60) {
@@ -58,17 +89,19 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                 }
                 try {
                     $session = New-PSSession -VMId ([guid]$Id) -Credential $Admin -ErrorAction Stop
+                    $progress.sessionEstablished = $true
                     $profileReady = Invoke-Command -Session $session -ScriptBlock {
                         return $env:USERNAME -eq 'AegisSetup' -and (Test-Path -LiteralPath C:/Users/AegisSetup) -and
                             (Get-ItemProperty 'HKLM:\SYSTEM\Setup').SystemSetupInProgress -eq 0
                     }
-                    if ($profileReady -eq $true) { break }
+                    if ($profileReady -eq $true) { $progress.profileReady = $true; break }
                     Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null
                 }
                 catch { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null } }
                 Start-Sleep -Seconds 10
             }
             if ($null -eq $session) { throw 'guest-setup-psdirect-not-ready' }
+            $progress.phase = 'exact-installed-os'
             $ready = Invoke-Command -Session $session -ScriptBlock {
                 $os = Get-CimInstance Win32_OperatingSystem
                 if ($os.BuildNumber -ne '26300' -or !(Test-Path -LiteralPath C:/Users/AegisSetup) -or $env:USERNAME -ne 'AegisSetup') { throw 'exact-installed-guest-not-ready' }
@@ -77,9 +110,11 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                 $disks = @(Get-CimInstance Win32_DiskDrive)
                 if ($disks.Count -ne 1 -or [long]$disks[0].Size -gt 68719476736 -or [long]$disks[0].Size -lt 68000000000) { throw 'owned-guest-disk-layout-unexpected' }
                 New-Item -ItemType Directory -Path C:/ProgramData/AegisCloudLab/trusted -ErrorAction Stop | Out-Null
-                return $true
+                return @{ build = 26300; ubr = 9457; edition = 'EnterpriseEval'; setupProfileObserved = $true; guestDiskCount = 1 }
             }
-            if ($ready -ne $true) { throw 'guest-readiness-observation-failed' }
+            if ($null -eq $ready -or $ready.build -ne 26300 -or $ready.ubr -ne 9457 -or $ready.edition -cne 'EnterpriseEval') { throw 'guest-readiness-observation-failed' }
+            $progress.installedOs = $ready
+            $progress.phase = 'fixed-runtime-transfer'
             foreach ($file in @(Get-ChildItem -LiteralPath $TransferRoot -File)) { Copy-Item -LiteralPath $file.FullName -Destination C:/ProgramData/AegisCloudLab/trusted/ -ToSession $session }
             Invoke-Command -Session $session -ScriptBlock {
                 $trusted = 'C:\ProgramData\AegisCloudLab\trusted'
@@ -91,13 +126,12 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                         (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected.sha256) { throw 'guest-transfer-hash-mismatch' }
                 }
             }
+            $progress.transferHashesVerified = $true
             # Eject both media before releasing any standard-user code. The answer
             # DVD carries lab credentials and is excluded from every artifact.
-            $vm = Get-VM -Id ([guid]$Id)
-            $actual = [IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\'); $expected = [IO.Path]::GetFullPath($VmRoot).TrimEnd('\')
-            if ($vm.Name -cne $Name -or (!$actual.Equals($expected, [StringComparison]::OrdinalIgnoreCase) -and !$actual.StartsWith($expected + '\', [StringComparison]::OrdinalIgnoreCase))) { throw 'media-eject-owner-mismatch' }
-            foreach ($dvd in @(Get-VMDvdDrive -VM $vm)) { Set-VMDvdDrive -VMDvdDrive $dvd -Path $null }
-            if (@(Get-VMDvdDrive -VM $vm | Where-Object Path).Count) { throw 'answer-dvd-ejection-unconfirmed' }
+            $progress.phase = 'detach-installation-media'
+            $progress.mediaDetached = Remove-CloudGuestInstallationMedia $Id $Name $VmRoot ([ref]$mediaMutationUnknown)
+            $progress.phase = 'trusted-bootstrap-and-standard-task'; $progress.standardTaskSubmitted = $true
             $result = Invoke-Command -Session $session -ArgumentList $TaskPassword, $Id -ScriptBlock {
                 param($Password, $VmId)
                 $env:AEGIS_CLOUD_GUEST_LAB = 'trusted-bootstrap-v1'
@@ -105,8 +139,10 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                 $env:GITHUB_ACTIONS = 'true'; $env:RUNNER_ENVIRONMENT = 'github-hosted'; $env:RUNNER_OS = 'Windows'
                 & C:/ProgramData/AegisCloudLab/trusted/cloud-guest-bootstrap.ps1 -TaskPassword $Password
             }
-            return @{ guestResult = $result; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
+            $progress.phase = 'completed'
+            return @{ guestResult = $result; progress = $progress; failure = $null; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
         }
+        catch { return @{ guestResult = $null; progress = $progress; failure = (Get-CloudGuestFailureDetails $_.Exception); mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $null -ne $progress.mediaDetached; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) } }
         finally { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue }; $watch.Stop() }
     }
     try {

@@ -1,9 +1,13 @@
 # Combined filesystem/Windows guest qualification
 
-Status: **native API/process/channel and local Node/Git fixtures executed; guest VM/file-effect matrix not-run**.
+Status: **cloud Hyper-V create/start/stop/removal executed through PowerShell and native WMI; full guest containment matrix remains unqualified**.
+The [2026-10-07 cloud evidence](cloud-hyperv-evidence-20261007.md) records
+source-bound actual lifecycle runs, management-job settlement and the Windows 11
+evaluation guest lab. Read each run's scope before applying it to the matrix.
 The [fixture foundation](vm-fixture-foundation.md) adds a read-only host subset
-and synthetic admission/stop/recovery tests. It implements no native mutation
-adapter, guest bootstrap, protected inventory or production launch.
+and synthetic admission/stop/recovery tests. Its original scope predates the
+cloud native mutation adapter and guest lab; protected production inventory and
+launch are still unavailable.
 The [native process fixture](native-bootstrap-fixture.md) additionally exercises
 initialized held-child observation, anonymous pipes, fixed acknowledgement and
 Job teardown on Windows. Its same-principal, core-runtime and address-codec scope

@@ -1,0 +1,158 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-07T18:01:58.5819884Z",
+    "sourceSha":  "5f848ee87badc8f520b8c85608e630e5363ea901",
+    "actualHead":  "5f848ee87badc8f520b8c85608e630e5363ea901",
+    "sourceObservation":  {
+                              "exitCode":  0,
+                              "stderrBytes":  0,
+                              "headBytes":  41
+                          },
+    "sourceHashes":  {
+                         "scripts/qualification/cloud-guest-lab.ps1":  "0db40e64a6f393a14564ca348d521b504590f9e1ac1a8bcf9f707bd01008aaca",
+                         "scripts/qualification/cloud-guest-vm.ps1":  "9bc1183e2eadf91eeb087c4ddb441a6f115640a4eeff2f0d54cee0a40a74fce7",
+                         "scripts/qualification/cloud-guest-media.ps1":  "e9810961ffa47a99e0b96c3a7cf02de03d4396a69ed873746232afc4dcbfdc27",
+                         "scripts/qualification/cloud-guest-bootstrap.ps1":  "566137e7d3126997ba837db76019ff6fd36761c59eae510c8477d98fe0e86244",
+                         "scripts/qualification/cloud-guest-task.cjs":  "816cf724422852514a33ebaf9900364166e93942bcfb3f4d4cc52d384573abff",
+                         "scripts/qualification/cloud-hyperv-operations.ps1":  "d579cc11c571d64e0e18082a365df88c82e889569095ba76b6bb703cfbf15851",
+                         "scripts/qualification/CloudGuestMetadata.cs":  "af0bac0dd7c36d5c26c2d1d0f4d7ff2a205f1955c4c9f843ae8e0de03a2b4ec8",
+                         "scripts/qualification/CloudGuestVm.cs":  "db64d57758b68f93da287828c306ff76326bb23e2d21fd351047ac171080706c",
+                         "sidecar/session/OwnedVmLifecycle.cs":  "db2617156227744c90b6395d0d45ba1d0c96defe48bcd4791a10b54800635bbd",
+                         "sidecar/session/VmManagementNative.cs":  "8c63085dbdb55e64b2a71a6c70ffd1a0d1203503fc583ff341d32fed3cdff6de",
+                         "scripts/qualification/CloudGuestProcess.cs":  "fee432521ab0c0750cd2d5ace712e4da324d35080a3985afb0ddac3258b88f89",
+                         "sidecar/session/GuestJobNative.cs":  "525da15edd5c390de395ca707987c8b1fddb3fec8a07128de73b3986621dbe70",
+                         "sidecar/session/GuestJobInventory.cs":  "f2d3e93272a3dc6b9a13cc1248ca4d64db141a0c166563eca3b0330510e4cad8"
+                     },
+    "compilerSha256":  "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "stages":  [
+                   {
+                       "milliseconds":  1718,
+                       "stage":  "host-preflight",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  1558,
+                       "stage":  "compile-fixed-native-helpers",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  64338,
+                       "stage":  "pinned-media-download-and-hash",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  3648,
+                       "stage":  "read-only-exact-wim-metadata",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  582,
+                       "stage":  "tiny-answer-iso",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  849,
+                       "stage":  "stage-fixed-runtime-and-host-controls",
+                       "passed":  true
+                   },
+                   {
+                       "passed":  false,
+                       "hResult":  -2146233087,
+                       "code":  "bounded-stage-failed",
+                       "stage":  "create-exact-owned-vm",
+                       "category":  "OperationStopped",
+                       "milliseconds":  85
+                   }
+               ],
+    "host":  {
+                 "build":  "26100",
+                 "caption":  "Microsoft Windows Server 2025 Datacenter",
+                 "vmms":  "Running",
+                 "memoryBytes":  17174360064,
+                 "hypervisorPresent":  true,
+                 "admin":  true
+             },
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128917331968,
+                                         "freeBytes":  31550427136
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  156102656,
+                                         "freeBytes":  236049268736
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:01:59.1530560Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128919945216,
+                                         "freeBytes":  31547813888
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  8468549632,
+                                         "freeBytes":  227736821760
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:03:11.9328061Z"
+                  }
+              ],
+    "media":  {
+                  "answerIsoBytes":  55296,
+                  "license":  "Microsoft 90-day evaluation; disposable testing",
+                  "hashSource":  "https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file",
+                  "url":  "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso",
+                  "verifiedBeforeMount":  true,
+                  "bytes":  8225329152,
+                  "image":  {
+                                "version":  "10.0.26300.9457",
+                                "name":  "Windows 11 Enterprise Evaluation",
+                                "architecture":  "amd64",
+                                "metadataSource":  "read-only-WIMGAPI-file-information",
+                                "edition":  "EnterpriseEval",
+                                "imageCount":  1,
+                                "index":  1
+                            },
+                  "sha256":  "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38"
+              },
+    "runtime":  {
+                    "path":  "C:\\Program Files\\nodejs\\node.exe",
+                    "sha256":  "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e",
+                    "bytes":  86973768,
+                    "version":  "v22.23.3"
+                },
+    "hardware":  null,
+    "vmName":  "aegis-cloud-37663627029-1-af8f4ea203a24e40a197ee67ae02afd7",
+    "vmId":  null,
+    "startOperation":  null,
+    "stopOperation":  null,
+    "guest":  null,
+    "hostCanariesUnchangedAfterTask":  false,
+    "hostCanariesUnchangedAfterRemoval":  true,
+    "offObserved":  false,
+    "removedObserved":  false,
+    "operationSettlement":  "not-submitted",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "code":  "bounded-stage-failed",
+                    "hResult":  -2146233087,
+                    "stage":  "create-exact-owned-vm",
+                    "category":  "OperationStopped"
+                },
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "completedAt":  "2026-10-07T18:03:11.9328061Z"
+}

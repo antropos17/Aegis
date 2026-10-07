@@ -1,0 +1,47 @@
+[
+  {
+    "runId": "37656883851",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37656883851",
+    "source": "212b6636d047cdf2d1e62cc179691754f6b04bb9",
+    "file": "37656883851.json",
+    "sha256": "da4e26f400e8697e2fa07f4762a3118c31d8d717704aa8d2ce82bdfda975ff2b",
+    "scope": "cloud-hyperv-empty-firmware-lifecycle",
+    "failureStage": null
+  },
+  {
+    "runId": "37660475538",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37660475538",
+    "source": "70389b5287b3527ee1bdc24bd36f45392cc45637",
+    "file": "37660475538.json",
+    "sha256": "0a1d8f21d2753047adec17a30dbae5fd8a50b6d587754e0c24061ff8fef544fc",
+    "scope": "cloud-hyperv-empty-firmware-lifecycle",
+    "failureStage": null
+  },
+  {
+    "runId": "37662441786",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37662441786",
+    "source": "7dbd688e37fadfc367e691ca6308ba69b2e02c30",
+    "file": "37662441786.json",
+    "sha256": "c9b097551429211fe6f8199961ef2b37c1e47a60bacd0fce2eac3709a137a5fe",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "host-preflight"
+  },
+  {
+    "runId": "37663627029",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37663627029",
+    "source": "5f848ee87badc8f520b8c85608e630e5363ea901",
+    "file": "37663627029.json",
+    "sha256": "1d806b1bf0724583bf42380de5550b896d83a51ce0a00a1f426717a57936aad3",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "create-exact-owned-vm"
+  },
+  {
+    "runId": "37664454992",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37664454992",
+    "source": "46031fa0bd19baaf68e892f4c1ae0ea0a9f8f3c4",
+    "file": "37664454992.json",
+    "sha256": "730b0aff795dc80bcd073ed68fb4b07fb40bdf88a2faf7ac2b30373a0e73974f",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "native-start-and-firmware-key"
+  }
+]

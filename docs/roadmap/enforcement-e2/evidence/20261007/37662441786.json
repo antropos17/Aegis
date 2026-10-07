@@ -1,0 +1,82 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-07T17:53:03.7368600Z",
+    "sourceSha":  "7dbd688e37fadfc367e691ca6308ba69b2e02c30",
+    "actualHead":  null,
+    "sourceHashes":  {
+
+                     },
+    "compilerSha256":  null,
+    "stages":  [
+                   {
+                       "passed":  false,
+                       "hResult":  -2146233087,
+                       "code":  "source-head-unavailable",
+                       "stage":  "host-preflight",
+                       "category":  "OperationStopped",
+                       "milliseconds":  934
+                   }
+               ],
+    "host":  null,
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  129006804992,
+                                         "freeBytes":  31460954112
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  156086272,
+                                         "freeBytes":  236049285120
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T17:53:04.5583951Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  129006804992,
+                                         "freeBytes":  31460954112
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  156086272,
+                                         "freeBytes":  236049285120
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T17:53:04.7314529Z"
+                  }
+              ],
+    "media":  null,
+    "runtime":  null,
+    "hardware":  null,
+    "vmName":  "aegis-cloud-37662441786-1-4c7ff7287d9f47cd875728ab6bce1bb0",
+    "vmId":  null,
+    "startOperation":  null,
+    "stopOperation":  null,
+    "guest":  null,
+    "hostCanariesUnchangedAfterTask":  false,
+    "hostCanariesUnchangedAfterRemoval":  false,
+    "offObserved":  false,
+    "removedObserved":  false,
+    "operationSettlement":  "not-submitted",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "code":  "source-head-unavailable",
+                    "hResult":  -2146233087,
+                    "stage":  "host-preflight",
+                    "category":  "OperationStopped"
+                },
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "completedAt":  "2026-10-07T17:53:04.7314529Z"
+}

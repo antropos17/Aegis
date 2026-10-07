@@ -183,7 +183,17 @@ try {
         }
     } | Out-Null
     RecordDisk 'before-guest-setup' | Out-Null
-    $report.guest = Stage 'actual-guest-setup-and-standard-task' { Invoke-CloudGuestBootstrap $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') }
+    $report.guest = Stage 'actual-guest-setup-and-standard-task' {
+        # A lost worker may have submitted a device mutation. Only its bounded
+        # result can establish whether a later native Stop is safe to request.
+        $script:unknown = $true
+        $result = Invoke-CloudGuestBootstrap $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer')
+        $script:report.guest = $result
+        if ($result.mediaMutationUnknown -isnot [bool]) { throw 'guest-bootstrap-failed' }
+        $script:unknown = $result.mediaMutationUnknown
+        if ($null -ne $result.failure) { throw $result.failure.code }
+        return $result
+    }
     $report.hostCanariesUnchangedAfterTask = CanariesUnchanged
     if (!$report.hostCanariesUnchangedAfterTask -or !$report.guest.guestResult.task.passed) { throw 'host-or-guest-task-control-failed' }
 }

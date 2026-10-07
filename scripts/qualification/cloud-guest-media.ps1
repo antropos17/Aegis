@@ -34,9 +34,9 @@ function Get-CloudGuestFailureDetails([Exception]$Exception) {
         'answer-input-invalid', 'fresh-answer-output-required', 'answer-iso-budget-failed', 'answer-iso-stream-failed', 'fixed-media-source-required',
         'trusted-node-input-invalid', 'node-version-observation-failed', 'host-read-write-control-failed', 'host-delete-control-failed', 'owned-name-preexisting', 'created-identity-unknown', 'native-start-unconfirmed',
         'guest-configure-provider-unknown', 'guest-setup-disk-headroom-failed', 'guest-setup-psdirect-not-ready', 'guest-setup-or-task-deadline', 'guest-bootstrap-failed',
-        'guest-edition-version-mismatch', 'guest-readiness-observation-failed', 'guest-transfer-manifest-invalid', 'guest-transfer-hash-mismatch', 'answer-dvd-ejection-unconfirmed',
+        'guest-edition-version-mismatch', 'guest-readiness-observation-failed', 'guest-transfer-manifest-invalid', 'guest-transfer-hash-mismatch', 'answer-dvd-ejection-unconfirmed', 'media-eject-owner-mismatch', 'media-eject-inventory-unexpected',
         'setup-secret-cleanup-unconfirmed', 'guest-result-budget-failed', 'guest-controls-unconfirmed', 'guest-job-inventory-unavailable', 'trusted-guest-bootstrap-required',
-        'job-create', 'job-limits', 'standard-user-create', 'job-assign', 'held-token-open', 'held-token-sid', 'held-token-admin', 'held-token-elevation', 'held-image', 'task-resume', 'task-deadline', 'task-exit', 'guest-job-closure')
+        'job-create', 'job-limits', 'standard-user-create', 'job-assign', 'held-token-open', 'held-token-sid', 'held-token-admin', 'held-token-elevation', 'held-image', 'task-resume', 'task-deadline', 'task-exit', 'task-exit-observation', 'guest-job-closure')
     $parts = $current.Message.Split(':')
     $fixed = $parts.Count -le 2 -and $allowed -ccontains $parts[0] -and ($parts.Count -eq 1 -or $parts[1] -cmatch '^[0-9]{1,10}$')
     $code = if ($fixed) { $current.Message } else { 'bounded-stage-failed' }

@@ -47,6 +47,8 @@ public static class CloudGuestProcess
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int kind, out int data, int length, out int returned);
     private static void Require(bool value, string stage)
     { if (!value) throw new InvalidOperationException(stage + ":" + Marshal.GetLastWin32Error()); }
+    private static void RequireTaskExit(uint exit)
+    { if (exit != 0) throw new InvalidOperationException("task-exit:" + exit); }
     public static Dictionary<string, object> Run(string password, string expectedSid)
     {
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
@@ -91,7 +93,8 @@ public static class CloudGuestProcess
             receipt["heldIdentityBeforeRelease"] = true; receipt["atomicJobAtCreation"] = false;
             Require(ResumeThread(child.Thread) == 1, "task-resume"); resumed = true;
             Require(GuestJobNative.WaitForSingleObject(child.Process, 60000) == 0, "task-deadline");
-            Require(GetExitCodeProcess(child.Process, out exit) && exit == 0, "task-exit");
+            Require(GetExitCodeProcess(child.Process, out exit), "task-exit-observation");
+            RequireTaskExit(exit);
         }
         finally
         {

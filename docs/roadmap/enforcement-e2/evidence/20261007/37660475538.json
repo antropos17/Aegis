@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "scope": "cloud-hyperv-empty-firmware-lifecycle",
+  "startedAt": "2026-10-07T17:37:30.6462391Z",
+  "sourceSha": "70389b5287b3527ee1bdc24bd36f45392cc45637",
+  "actualHead": "70389b5287b3527ee1bdc24bd36f45392cc45637",
+  "scriptSha256": {
+    "qualify-cloud-hyperv.ps1": "80cab18a5688820334a101c71904eff2d36b9d78b4021c1e0c6d4d588a4af79d",
+    "cloud-hyperv-operations.ps1": "d579cc11c571d64e0e18082a365df88c82e889569095ba76b6bb703cfbf15851",
+    "test-cloud-hyperv.ps1": "49ed9ba212392be749981f20f17931df78b738c9e4e0aa9b14f361df2c003a46"
+  },
+  "vmName": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+  "host": {
+    "hypervisorPresent": true,
+    "cpus": [
+      {
+        "Name": "Intel(R) Xeon(R) 6973P-C",
+        "VirtualizationFirmwareEnabled": false,
+        "VMMonitorModeExtensions": false,
+        "SecondLevelAddressTranslationExtensions": false
+      }
+    ],
+    "admin": true,
+    "vmms": "Running",
+    "os": {
+      "architecture": "64-bit",
+      "version": "10.0.26100",
+      "caption": "Microsoft Windows Server 2025 Datacenter",
+      "build": "26100"
+    },
+    "hyperVModule": true,
+    "PSComputerName": "localhost",
+    "RunspaceId": "a0a7eb04-ce93-4889-bcec-ba67841cb663",
+    "PSShowComputerName": false
+  },
+  "diskBefore": [
+    {
+      "drive": "C",
+      "usedBytes": 128943505408,
+      "available": true,
+      "freeBytes": 31524253696
+    },
+    {
+      "drive": "D",
+      "usedBytes": 155971584,
+      "available": true,
+      "freeBytes": 236049399808
+    }
+  ],
+  "diskAfter": [
+    {
+      "drive": "C",
+      "usedBytes": 128946802688,
+      "available": true,
+      "freeBytes": 31520956416
+    },
+    {
+      "drive": "D",
+      "usedBytes": 156000256,
+      "available": true,
+      "freeBytes": 236049371136
+    }
+  ],
+  "lifecycle": {
+    "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+    "initialAbsenceObserved": true,
+    "createAttempted": true,
+    "created": true,
+    "configured": true,
+    "runningObserved": true,
+    "offObserved": true,
+    "removedObserved": true,
+    "cleanupAttempted": true,
+    "passed": true,
+    "guestBoot": "not-run-empty-firmware",
+    "launchAllowed": false,
+    "steps": [
+      {
+        "success": true,
+        "milliseconds": 1000.7138,
+        "observation": {
+          "exists": false,
+          "PSComputerName": "localhost",
+          "RunspaceId": "d5432013-5741-470f-b342-5aa3d78cb8e3",
+          "PSShowComputerName": false
+        },
+        "action": "recover"
+      },
+      {
+        "success": true,
+        "milliseconds": 3007.7985,
+        "observation": {
+          "state": "Off",
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "exists": true,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "PSComputerName": "localhost",
+          "RunspaceId": "d03a6005-fef7-4aca-ba8a-82b971abaf57",
+          "PSShowComputerName": false
+        },
+        "action": "create"
+      },
+      {
+        "success": true,
+        "milliseconds": 1214.6921,
+        "observation": {
+          "dynamicMemory": false,
+          "processors": 1,
+          "exists": true,
+          "nics": 0,
+          "generation": 2,
+          "disks": 0,
+          "memoryStartup": 536870912,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "state": "Off",
+          "PSComputerName": "localhost",
+          "RunspaceId": "ac28fc01-c531-47bc-af60-cba02e4d2130",
+          "PSShowComputerName": false
+        },
+        "action": "configure"
+      },
+      {
+        "success": true,
+        "milliseconds": 3073.8198,
+        "observation": {
+          "pendingUnknown": false,
+          "guestBoot": "not-run-empty-firmware",
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "launchAllowed": false,
+          "startReturnCode": 4096,
+          "stopReturnCode": 4096,
+          "cleanupKnown": true,
+          "scope": "native-hyper-v-fixture-lifecycle",
+          "stopJobCaptured": true,
+          "schemaVersion": 1,
+          "diagnostic": {
+            "operationId": "7c41d441-e17f-4577-a781-092ec45dd278",
+            "hresult": null,
+            "reason": null,
+            "phase": "complete",
+            "jobPath": "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"2568E308-307C-4201-82C3-C8B76CF5FEEE\""
+          },
+          "passed": true,
+          "offObserved": true,
+          "startJobCaptured": true,
+          "runningObserved": true,
+          "PSComputerName": "localhost",
+          "RunspaceId": "e4619dad-02bf-4169-acc2-931e3fb54c93",
+          "PSShowComputerName": false
+        },
+        "action": "native-lifecycle"
+      },
+      {
+        "success": true,
+        "milliseconds": 938.9731,
+        "observation": {
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "dynamicMemory": false,
+          "processors": 1,
+          "exists": true,
+          "nics": 0,
+          "generation": 2,
+          "disks": 0,
+          "memoryStartup": 536870912,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "state": "Off",
+          "PSComputerName": "localhost",
+          "RunspaceId": "3d74e2d2-b926-4f8e-8531-4c329f5695a6",
+          "PSShowComputerName": false
+        },
+        "action": "observe"
+      },
+      {
+        "success": true,
+        "milliseconds": 958.0501,
+        "observation": {
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "dynamicMemory": false,
+          "processors": 1,
+          "exists": true,
+          "nics": 0,
+          "generation": 2,
+          "disks": 0,
+          "memoryStartup": 536870912,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "state": "Off",
+          "PSComputerName": "localhost",
+          "RunspaceId": "956092e9-a504-4646-aa9f-80f8c422b33f",
+          "PSShowComputerName": false
+        },
+        "action": "observe"
+      },
+      {
+        "success": true,
+        "milliseconds": 959.0937,
+        "observation": {
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "dynamicMemory": false,
+          "processors": 1,
+          "exists": true,
+          "nics": 0,
+          "generation": 2,
+          "disks": 0,
+          "memoryStartup": 536870912,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "state": "Off",
+          "PSComputerName": "localhost",
+          "RunspaceId": "d947fb55-c804-4e78-9952-895c3c263447",
+          "PSShowComputerName": false
+        },
+        "action": "observe"
+      },
+      {
+        "success": true,
+        "milliseconds": 974.7108,
+        "observation": {
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "dynamicMemory": false,
+          "processors": 1,
+          "exists": true,
+          "nics": 0,
+          "generation": 2,
+          "disks": 0,
+          "memoryStartup": 536870912,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "state": "Off",
+          "PSComputerName": "localhost",
+          "RunspaceId": "3bb0525c-429d-4287-8755-ce21af9e015d",
+          "PSShowComputerName": false
+        },
+        "action": "stop"
+      },
+      {
+        "success": true,
+        "milliseconds": 942.1192,
+        "observation": {
+          "name": "aegis-cloud-37660475538-1-7f19f2fab609490cabd1b56c352dabce",
+          "dynamicMemory": false,
+          "processors": 1,
+          "exists": true,
+          "nics": 0,
+          "generation": 2,
+          "disks": 0,
+          "memoryStartup": 536870912,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "state": "Off",
+          "PSComputerName": "localhost",
+          "RunspaceId": "c2b900d6-1f4a-44ea-a422-d46e255a0225",
+          "PSShowComputerName": false
+        },
+        "action": "observe"
+      },
+      {
+        "success": true,
+        "milliseconds": 896.1373,
+        "observation": {
+          "removedCommandCompleted": true,
+          "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+          "PSComputerName": "localhost",
+          "RunspaceId": "1531d8b1-8bfc-4069-8209-ebf975631be0",
+          "PSShowComputerName": false
+        },
+        "action": "remove"
+      },
+      {
+        "success": true,
+        "milliseconds": 572.962,
+        "observation": {
+          "exists": false,
+          "PSComputerName": "localhost",
+          "RunspaceId": "10b4135c-a2bf-4462-85fa-120bae82ac05",
+          "PSShowComputerName": false
+        },
+        "action": "observe"
+      }
+    ],
+    "failure": null,
+    "cleanupFailure": null,
+    "operationSettlement": "settled-or-not-submitted",
+    "nativeLifecycle": {
+      "pendingUnknown": false,
+      "guestBoot": "not-run-empty-firmware",
+      "vmId": "c0e7811f-1da1-41cd-b7d0-a71a64e802d4",
+      "launchAllowed": false,
+      "startReturnCode": 4096,
+      "stopReturnCode": 4096,
+      "cleanupKnown": true,
+      "scope": "native-hyper-v-fixture-lifecycle",
+      "stopJobCaptured": true,
+      "schemaVersion": 1,
+      "diagnostic": {
+        "operationId": "7c41d441-e17f-4577-a781-092ec45dd278",
+        "hresult": null,
+        "reason": null,
+        "phase": "complete",
+        "jobPath": "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"2568E308-307C-4201-82C3-C8B76CF5FEEE\""
+      },
+      "passed": true,
+      "offObserved": true,
+      "startJobCaptured": true,
+      "runningObserved": true,
+      "PSComputerName": "localhost",
+      "RunspaceId": "e4619dad-02bf-4169-acc2-931e3fb54c93",
+      "PSShowComputerName": false
+    }
+  },
+  "failure": null,
+  "nativeArtifacts": {
+    "sources": {
+      "sidecar/session/OwnedVmLifecycle.cs": "db2617156227744c90b6395d0d45ba1d0c96defe48bcd4791a10b54800635bbd",
+      "sidecar/session/VmManagementNative.cs": "8c63085dbdb55e64b2a71a6c70ffd1a0d1203503fc583ff341d32fed3cdff6de",
+      "tests/fixtures/vm-lifecycle/OwnedVmLifecycleFixture.cs": "7ec1ed0e646923338d1c5640193d37f3c4ddb42fec98ad4ece7db1ccb8346c38"
+    },
+    "compilerSha256": "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "executableSha256": "129e638d516e12e762fd95f8e9ea385729360c867be05bdffe8bb6035393e561"
+  },
+  "guestBoot": "not-run-no-disk",
+  "launchAllowed": false,
+  "completedAt": "2026-10-07T17:37:50.0370074Z"
+}

@@ -39,6 +39,82 @@ Require ($details.code -ceq 'keyboard-owner-mismatch' -and $details.innerDepth -
 foreach ($text in @('lowercase-secret-shaped-string', 'private Credential Aa1!example', 'keyboard-owner-mismatch:secret')) {
     Require ((Get-CloudGuestFailureDetails ([Exception]::new($text))).code -ceq 'bounded-stage-failed'); $passed++
 }
+# Actual media helper with isolated provider doubles: each VM object captures a
+# stale device snapshot, while Get-VM returns the current provider inventory.
+$vmSource = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'cloud-guest-vm.ps1'), [ref]$tokens, [ref]$errors)
+$mediaDefinition = $vmSource.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Remove-CloudGuestInstallationMedia' }, $true)
+. ([scriptblock]::Create($mediaDefinition.Extent.Text))
+$savedGuard = ${function:Assert-CloudGuestRunner}.ToString()
+function Assert-CloudGuestRunner { }
+$fixtureId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; $fixtureRoot = Join-Path $env:TEMP 'media-owned-vm'; $fixtureName = $name
+function Get-VM {
+    param($Id, $ErrorAction)
+    $script:mediaGets++
+    if ($script:mediaMode -eq 'observe-error' -and $script:mediaGets -eq 3) { throw 'synthetic-read-error' }
+    $selectedId = if ($script:mediaMode -eq 'wrong-id') { [guid]::Empty } else { $fixtureId }
+    $selectedName = if ($script:mediaMode -eq 'wrong-name') { 'foreign' } else { $fixtureName }
+    $selectedState = if ($script:mediaMode -eq 'off') { 'Off' } else { 'Running' }
+    $selectedRoot = if ($script:mediaMode -eq 'wrong-root') { $fixtureRoot + '-foreign' } else { $fixtureRoot }
+    return [pscustomobject]@{ Id = $selectedId; Name = $selectedName; State = $selectedState; ConfigurationLocation = $selectedRoot; CapturedDrives = @($script:mediaDrives) }
+}
+function Get-VMDvdDrive { param($VM, $ErrorAction); return $VM.CapturedDrives }
+function Remove-VMDvdDrive {
+    param($VMDvdDrive, $Confirm, $ErrorAction)
+    $script:mediaRemoves++
+    if ($script:mediaMode -eq 'mutation-error') { throw 'synthetic-worker-error' }
+    if ($script:mediaMode -ne 'no-op') { $script:mediaDrives = @($script:mediaDrives | Where-Object { $_.ControllerLocation -ne $VMDvdDrive.ControllerLocation }) }
+}
+function Set-VMDvdDrive { param($VMDvdDrive, $Path); $script:mediaSets++; $script:mediaDrives = @() }
+function ResetMedia([string]$Mode) {
+    $script:mediaMode = $Mode; $script:mediaGets = 0; $script:mediaRemoves = 0; $script:mediaSets = 0
+    $script:mediaDrives = @(1, 2 | ForEach-Object { [pscustomobject]@{ VMId = $fixtureId; ControllerNumber = 0; ControllerLocation = $_; Path = 'synthetic-private-answer.iso' } })
+}
+try {
+    ResetMedia 'success'
+    # Reproduce the original retained-object ejection check without Hyper-V.
+    $retained = Get-VM -Id $fixtureId
+    foreach ($dvd in @(Get-VMDvdDrive -VM $retained)) { Set-VMDvdDrive -VMDvdDrive $dvd -Path $null }
+    Require (@(Get-VMDvdDrive -VM $retained | Where-Object Path).Count -eq 2 -and $script:mediaDrives.Count -eq 0); $passed++
+    ResetMedia 'success'; $uncertain = $false
+    $detached = Remove-CloudGuestInstallationMedia $fixtureId $fixtureName $fixtureRoot ([ref]$uncertain)
+    Require ($detached.drivesBefore -eq 2 -and $detached.drivesAfter -eq 0 -and $detached.freshExactVmObserved -and !$uncertain -and $script:mediaGets -eq 3 -and $script:mediaRemoves -eq 2); $passed++
+    foreach ($mode in @('wrong-id', 'wrong-name', 'wrong-root', 'off')) {
+        ResetMedia $mode; $uncertain = $false
+        Require (Refused { Remove-CloudGuestInstallationMedia $fixtureId $fixtureName $fixtureRoot ([ref]$uncertain) })
+        Require ($script:mediaRemoves -eq 0 -and !$uncertain); $passed++
+    }
+    ResetMedia 'success'; $script:mediaDrives[0].VMId = [guid]::Empty; $uncertain = $false
+    Require (Refused { Remove-CloudGuestInstallationMedia $fixtureId $fixtureName $fixtureRoot ([ref]$uncertain) }); Require ($script:mediaRemoves -eq 0 -and !$uncertain); $passed++
+    ResetMedia 'mutation-error'; $uncertain = $false
+    Require (Refused { Remove-CloudGuestInstallationMedia $fixtureId $fixtureName $fixtureRoot ([ref]$uncertain) }); Require ($uncertain -and $script:mediaRemoves -eq 1); $passed++
+    ResetMedia 'observe-error'; $uncertain = $false
+    Require (Refused { Remove-CloudGuestInstallationMedia $fixtureId $fixtureName $fixtureRoot ([ref]$uncertain) }); Require (!$uncertain -and $script:mediaRemoves -eq 2); $passed++
+    ResetMedia 'no-op'; $uncertain = $false
+    Require (Refused { Remove-CloudGuestInstallationMedia $fixtureId $fixtureName $fixtureRoot ([ref]$uncertain) }); Require (!$uncertain -and $script:mediaRemoves -eq 1); $passed++
+    # The failure result crosses the same serialization boundary as Start-Job.
+    $phase = @{ phase = 'detach-installation-media'; installedOs = @{ build = 26300; ubr = 9457; edition = 'EnterpriseEval' }; transferHashesVerified = $true }
+    $roundtrip = [Management.Automation.PSSerializer]::Deserialize([Management.Automation.PSSerializer]::Serialize(@{ progress = $phase; failure = @{ code = 'answer-dvd-ejection-unconfirmed' }; mediaMutationUnknown = $false }))
+    Require ($roundtrip.progress.installedOs.build -eq 26300 -and $roundtrip.progress.transferHashesVerified -and $roundtrip.mediaMutationUnknown -is [bool]); $passed++
+    $guestStage = $driver.Find({ param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Stage' -and $node.CommandElements[1].Extent.Text -eq "'actual-guest-setup-and-standard-task'" }, $true)
+    $guestOperation = [scriptblock]::Create($guestStage.CommandElements[2].ScriptBlock.Extent.Text.Trim('{', '}'))
+    $id = $fixtureId; $vmRoot = $fixtureRoot; $adminCredential = $null; $taskPassword = 'synthetic-unused'; $OutputRoot = $env:TEMP
+    function Invoke-CloudGuestBootstrap {
+        if ($script:bootstrapMode -eq 'lost') { throw 'guest-setup-or-task-deadline' }
+        return @{ progress = $phase; failure = @{ code = 'answer-dvd-ejection-unconfirmed' }; mediaMutationUnknown = ($script:bootstrapMode -eq 'unknown') }
+    }
+    foreach ($mode in @('settled-failure', 'unknown', 'lost')) {
+        $script:bootstrapMode = $mode; $script:unknown = $false
+        $report = @{ stages = [Collections.Generic.List[object]]::new(); failure = $null; guest = $null }
+        Require (Refused { Stage 'actual-guest-setup-and-standard-task' $guestOperation })
+        Require ($script:unknown -eq ($mode -ne 'settled-failure'))
+        if ($mode -ne 'lost') { Require ($report.guest.progress.installedOs.build -eq 26300 -and $report.guest.progress.transferHashesVerified) }
+        $passed++
+    }
+}
+finally {
+    Set-Item Function:Assert-CloudGuestRunner ([scriptblock]::Create($savedGuard))
+    foreach ($mock in @('Get-VM', 'Get-VMDvdDrive', 'Remove-VMDvdDrive', 'Set-VMDvdDrive', 'Invoke-CloudGuestBootstrap')) { Remove-Item ('Function:' + $mock) }
+}
 # Actual bounded PS5.1 native process controls; no media, guest or VM operation.
 $temporary = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
 $testRoot = Join-Path $temporary ('aegis-guest-wait-' + [guid]::NewGuid().ToString('N'))
@@ -79,4 +155,4 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntheticCases = 16; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 30; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress

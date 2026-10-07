@@ -1,0 +1,295 @@
+{
+  "schemaVersion": 1,
+  "scope": "cloud-hyperv-empty-firmware-lifecycle",
+  "startedAt": "2026-10-07T17:09:50.3418400Z",
+  "sourceSha": "212b6636d047cdf2d1e62cc179691754f6b04bb9",
+  "actualHead": "212b6636d047cdf2d1e62cc179691754f6b04bb9",
+  "scriptSha256": {
+    "qualify-cloud-hyperv.ps1": "171182e429457dbe92b0444f2608d74404ede8c5364e3e2b07f98c62143bd58f",
+    "cloud-hyperv-operations.ps1": "cdb1321956d35934140bba59df22ae2de4a37672baa795e52f101acb709df2d6",
+    "test-cloud-hyperv.ps1": "b2e95aaf6621846c2002fc508edd24514956a8729b41749ce43b893162f024d8"
+  },
+  "vmName": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+  "host": {
+    "hyperVModule": true,
+    "cpus": [
+      {
+        "Name": "AMD EPYC 7763 64-Core Processor                ",
+        "VirtualizationFirmwareEnabled": true,
+        "VMMonitorModeExtensions": false,
+        "SecondLevelAddressTranslationExtensions": false
+      }
+    ],
+    "admin": true,
+    "hypervisorPresent": true,
+    "vmms": "Running",
+    "os": {
+      "architecture": "64-bit",
+      "caption": "Microsoft Windows Server 2025 Datacenter",
+      "build": "26100",
+      "version": "10.0.26100"
+    },
+    "PSComputerName": "localhost",
+    "RunspaceId": "4b02c603-f5e9-441e-a670-a896c5010bae",
+    "PSShowComputerName": false
+  },
+  "diskBefore": [
+    {
+      "available": true,
+      "freeBytes": 34417799168,
+      "drive": "C",
+      "usedBytes": 126049959936
+    },
+    {
+      "available": true,
+      "freeBytes": 157818429440,
+      "drive": "D",
+      "usedBytes": 3240742912
+    }
+  ],
+  "diskAfter": [
+    {
+      "available": true,
+      "freeBytes": 34601857024,
+      "drive": "C",
+      "usedBytes": 125865902080
+    },
+    {
+      "available": true,
+      "freeBytes": 157817241600,
+      "drive": "D",
+      "usedBytes": 3241930752
+    }
+  ],
+  "lifecycle": {
+    "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+    "initialAbsenceObserved": true,
+    "createAttempted": true,
+    "created": true,
+    "configured": true,
+    "runningObserved": true,
+    "offObserved": true,
+    "removedObserved": true,
+    "cleanupAttempted": true,
+    "passed": true,
+    "guestBoot": "not-run-empty-firmware",
+    "launchAllowed": false,
+    "steps": [
+      {
+        "observation": {
+          "exists": false,
+          "PSComputerName": "localhost",
+          "RunspaceId": "7d78a55c-fd86-4c1f-8ed6-8184b4ffd03c",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "recover",
+        "milliseconds": 1089.5823
+      },
+      {
+        "observation": {
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "exists": true,
+          "state": "Off",
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "PSComputerName": "localhost",
+          "RunspaceId": "87612a1c-7cf3-4329-b66d-393584dea994",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "create",
+        "milliseconds": 3368.2167
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Off",
+          "dynamicMemory": false,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "processors": 1,
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "b191397a-bf3d-4721-95b1-e072573c4d8e",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "configure",
+        "milliseconds": 1564.1611
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Running",
+          "dynamicMemory": false,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "processors": 1,
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "7189787a-153a-4ddc-96df-5d5f6c5230c2",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "start",
+        "milliseconds": 1917.504
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Running",
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "dynamicMemory": false,
+          "processors": 1,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "579547a7-c644-461c-90fa-200d23fe677e",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "observe",
+        "milliseconds": 1137.2023
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Off",
+          "dynamicMemory": false,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "processors": 1,
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "75e97eac-123a-4bb7-bef6-ac5554bb4372",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "stop",
+        "milliseconds": 1278.1833
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Off",
+          "dynamicMemory": false,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "processors": 1,
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "1451e3d3-56a2-4e5a-932c-d75e1562ec24",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "observe",
+        "milliseconds": 1134.7485
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Off",
+          "dynamicMemory": false,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "processors": 1,
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "7d685827-c251-4c6c-b855-ff00a53591ce",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "observe",
+        "milliseconds": 1154.0002
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Off",
+          "dynamicMemory": false,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "processors": 1,
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "b2682525-d4a3-4648-b5df-047090f222ea",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "stop",
+        "milliseconds": 1288.1987
+      },
+      {
+        "observation": {
+          "exists": true,
+          "nics": 0,
+          "state": "Off",
+          "name": "aegis-cloud-37656883851-1-8faa2be7136f4d4bade8a2ce700c87fc",
+          "dynamicMemory": false,
+          "processors": 1,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "generation": 2,
+          "memoryStartup": 536870912,
+          "disks": 0,
+          "PSComputerName": "localhost",
+          "RunspaceId": "b8885cf0-27aa-48d5-bd08-52525aecc7c3",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "observe",
+        "milliseconds": 1175.1044
+      },
+      {
+        "observation": {
+          "removedCommandCompleted": true,
+          "vmId": "429aa76c-01a4-4cd7-82c8-edd27e43845f",
+          "PSComputerName": "localhost",
+          "RunspaceId": "877d6f5f-0eba-4f51-9c0c-ce742454e97f",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "remove",
+        "milliseconds": 1112.1414
+      },
+      {
+        "observation": {
+          "exists": false,
+          "PSComputerName": "localhost",
+          "RunspaceId": "73eab6b1-b433-4623-b3bb-da60c2d00b5a",
+          "PSShowComputerName": false
+        },
+        "success": true,
+        "action": "observe",
+        "milliseconds": 718.484
+      }
+    ],
+    "failure": null,
+    "cleanupFailure": null,
+    "operationSettlement": "settled-or-not-submitted"
+  },
+  "failure": null,
+  "guestBoot": "not-run-no-disk",
+  "launchAllowed": false,
+  "completedAt": "2026-10-07T17:10:10.4236509Z"
+}
