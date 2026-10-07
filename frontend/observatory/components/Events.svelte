@@ -173,134 +173,138 @@
       ><Icon name="network" />{$t('Connections')}</button
     >
   </div>{/if}
-{#if effectiveNetwork}<div class="notice">
-    <Icon name="network" />{$t(
-      'Endpoint verification describes the address. Agent identity is shown separately.',
-    )}
-  </div>{/if}
-<div class="filterbar evidence-filters">
-  <label class="search-field"
-    ><Icon name="search" /><input
-      aria-label={effectiveNetwork ? $t('Search connections') : $t('Search events')}
-      type="search"
-      placeholder={effectiveNetwork ? $t('Address or agent') : $t('Skill, path or agent')}
-      bind:value={query}
-    /></label
-  >
-  {#if advanced}<label class="grouping-filter"
-      >{$t('Grouping')}<select aria-label={$t('Grouping')} bind:value={grouping}
-        ><option value="resource">{$t('By resource')}</option><option value="agent"
-          >{$t('By agent / context')}</option
-        ><option value="none">{$t('Every observation')}</option></select
-      ></label
-    >{/if}
-  <div class="filter-actions">
-    {#if advanced}<button
-        class="button"
-        aria-expanded={filtersOpen}
-        aria-controls={prefix + '-filters'}
-        onclick={() => (filtersOpen = !filtersOpen)}
-        ><Icon name="settings" />{$t('Filters')}
-        {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || effectiveSeverity !== 'all'}<span
-            class="badge">{$t('Active')}</span
-          >{/if}</button
-      >{:else if !effectiveNetwork}
-      <button
-        class="button"
-        aria-pressed={simpleFilter === 'all'}
-        onclick={() => (simpleFilter = 'all')}>{$t('All activity')}</button
-      >
-      <button
-        class="button"
-        aria-pressed={simpleFilter === 'changes'}
-        onclick={() => (simpleFilter = 'changes')}>{$t('Filesystem changes')}</button
-      >
-      <button
-        class="button"
-        aria-pressed={simpleFilter === 'sensitive'}
-        onclick={() => (simpleFilter = 'sensitive')}>{$t('Sensitive events')}</button
-      >
-    {/if}
-    {#if showPause}<button
-        class="button"
-        onclick={() => {
-          if (!paused)
-            held = {
-              files: [...telemetry.events] as unknown as RecordData[],
-              connections: [...telemetry.network] as unknown as RecordData[],
-            };
-          else admissionRevision += 1;
-          paused = !paused;
-        }}
-        ><Icon name={paused ? 'play' : 'pause'} />{paused
-          ? $t('Resume live view')
-          : $t('Pause view')}</button
-      >{/if}
-    <button class="button" aria-label={$t('Reset filters')} onclick={reset}
-      ><Icon name="refresh" />{$t('Reset')}</button
+<div class="evidence-controls">
+  <div class="filterbar evidence-filters">
+    <label class="search-field"
+      ><Icon name="search" /><input
+        aria-label={effectiveNetwork ? $t('Search connections') : $t('Search events')}
+        type="search"
+        placeholder={effectiveNetwork ? $t('Address or agent') : $t('Skill, path or agent')}
+        bind:value={query}
+      /></label
     >
+    {#if advanced}<label class="grouping-filter"
+        >{$t('Grouping')}<select aria-label={$t('Grouping')} bind:value={grouping}
+          ><option value="resource">{$t('By resource')}</option><option value="agent"
+            >{$t('By agent / context')}</option
+          ><option value="none">{$t('Every observation')}</option></select
+        ></label
+      >{/if}
+    <div class="filter-actions">
+      {#if advanced}<button
+          class="button"
+          aria-expanded={filtersOpen}
+          aria-controls={prefix + '-filters'}
+          onclick={() => (filtersOpen = !filtersOpen)}
+          ><Icon name="settings" />{$t('Filters')}
+          {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || effectiveSeverity !== 'all'}<span
+              class="badge">{$t('Active')}</span
+            >{/if}</button
+        >{:else if !effectiveNetwork}
+        <button
+          class="button"
+          aria-pressed={simpleFilter === 'all'}
+          onclick={() => (simpleFilter = 'all')}>{$t('All activity')}</button
+        >
+        <button
+          class="button"
+          aria-pressed={simpleFilter === 'changes'}
+          onclick={() => (simpleFilter = 'changes')}>{$t('Filesystem changes')}</button
+        >
+        <button
+          class="button"
+          aria-pressed={simpleFilter === 'sensitive'}
+          onclick={() => (simpleFilter = 'sensitive')}>{$t('Sensitive events')}</button
+        >
+      {/if}
+      {#if showPause}<button
+          class="button"
+          onclick={() => {
+            if (!paused)
+              held = {
+                files: [...telemetry.events] as unknown as RecordData[],
+                connections: [...telemetry.network] as unknown as RecordData[],
+              };
+            else admissionRevision += 1;
+            paused = !paused;
+          }}
+          ><Icon name={paused ? 'play' : 'pause'} />{paused
+            ? $t('Resume live view')
+            : $t('Pause view')}</button
+        >{/if}
+      <button class="button" aria-label={$t('Reset filters')} onclick={reset}
+        ><Icon name="refresh" />{$t('Reset')}</button
+      >
+    </div>
   </div>
-</div>
-{#if advanced}<div class="advanced-filters" id={prefix + '-filters'} hidden={!filtersOpen}>
-    {#if !scope}<label
-        >{$t('Agent / context')}<select aria-label={$t('Event agent')} bind:value={agent}
-          ><option value="">{$t('All agents and resources')}</option
-          >{#each agentNames as name (name)}<option>{name}</option>{/each}<option
-            value="unattributed">{$t('Actor not recorded')}</option
-          ></select
+  {#if advanced}<div class="advanced-filters" id={prefix + '-filters'} hidden={!filtersOpen}>
+      {#if !scope}<label
+          >{$t('Agent / context')}<select aria-label={$t('Event agent')} bind:value={agent}
+            ><option value="">{$t('All agents and resources')}</option
+            >{#each agentNames as name (name)}<option>{name}</option>{/each}<option
+              value="unattributed">{$t('Actor not recorded')}</option
+            ></select
+          ></label
+        >{:else if !scope.agent}<label
+          >{$t('Attribution')}<select aria-label={$t('Attribution')} bind:value={attribution}>
+            <option value="all">{$t('All attribution')}</option>
+            <option value="unattributed">{$t('Actor not recorded')}</option>
+          </select></label
+        >{/if}
+      <label
+        >{effectiveNetwork ? $t('Classification') : $t('Type')}<select
+          aria-label={$t('Event kind')}
+          bind:value={kind}
+          ><option value="all">{$t('All')}</option>{#if effectiveNetwork}<option value="flagged"
+              >{$t('Not allowlisted')}</option
+            ><option value="unknown">{$t('Endpoint unverified')}</option><option value="allowlisted"
+              >{$t('Allowlisted')}</option
+            >{:else}<option value="skills">{$t('Skills')}</option><option value="sensitive"
+              >{$t('Sensitive events')}</option
+            >{#if !scope}<option value="unattributed">{$t('Actor not recorded')}</option
+              >{/if}{/if}</select
         ></label
-      >{:else if !scope.agent}<label
-        >{$t('Attribution')}<select aria-label={$t('Attribution')} bind:value={attribution}>
-          <option value="all">{$t('All attribution')}</option>
-          <option value="unattributed">{$t('Actor not recorded')}</option>
-        </select></label
+      >
+      {#if !effectiveNetwork}<label
+          >{$t('Severity')}<select bind:value={severity}
+            ><option value="all">{$t('All')}</option><option value="attention"
+              >{$t('Needs review')}</option
+            ><option value="high">{$t('High')}</option><option value="medium">{$t('Medium')}</option
+            ><option value="low">{$t('Low')}</option></select
+          ></label
+        >{/if}
+    </div>{/if}
+  {#if paused}<p class="notice">
+      {$t('View paused · backend monitoring continues.')}
+    </p>{/if}
+  <div class="evidence-status" role="status">
+    <span
+      >{#if readingSnapshot}{$t('Reading retained activity')} · {effectiveNetwork
+          ? $t('Retained network snapshot')
+          : $t('Paused snapshot')}{:else if effectiveNetwork && networkStatus === 'unavailable'}{$t(
+          'Network observation unavailable',
+        )}{:else}{filtered.length}
+        {$t('of')}
+        {rows.length}
+        {effectiveNetwork ? $t('connections') : $t('events')} · {effectiveNetwork &&
+        (networkStatus === 'retained' || readingSnapshot)
+          ? $t('Retained network snapshot')
+          : showingPaused
+            ? $t('Paused snapshot')
+            : effectiveNetwork
+              ? $t('Latest connection snapshot')
+              : $t('Live view')}{/if}</span
+    >{#if query || effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || effectiveSeverity !== 'all'}<span
+        class="badge">{$t('Filters active')}</span
       >{/if}
-    <label
-      >{effectiveNetwork ? $t('Classification') : $t('Type')}<select
-        aria-label={$t('Event kind')}
-        bind:value={kind}
-        ><option value="all">{$t('All')}</option>{#if effectiveNetwork}<option value="flagged"
-            >{$t('Not allowlisted')}</option
-          ><option value="unknown">{$t('Endpoint unverified')}</option><option value="allowlisted"
-            >{$t('Allowlisted')}</option
-          >{:else}<option value="skills">{$t('Skills')}</option><option value="sensitive"
-            >{$t('Sensitive events')}</option
-          >{#if !scope}<option value="unattributed">{$t('Actor not recorded')}</option
-            >{/if}{/if}</select
-      ></label
-    >
-    {#if !effectiveNetwork}<label
-        >{$t('Severity')}<select bind:value={severity}
-          ><option value="all">{$t('All')}</option><option value="attention"
-            >{$t('Needs review')}</option
-          ><option value="high">{$t('High')}</option><option value="medium">{$t('Medium')}</option
-          ><option value="low">{$t('Low')}</option></select
-        ></label
-      >{/if}
-  </div>{/if}
-{#if paused}<p class="notice">
-    {$t('View paused · backend monitoring continues.')}
-  </p>{/if}
-<div class="evidence-status" role="status">
-  <span
-    >{#if readingSnapshot}{$t('Reading retained activity')} · {effectiveNetwork
-        ? $t('Retained network snapshot')
-        : $t('Paused snapshot')}{:else if effectiveNetwork && networkStatus === 'unavailable'}{$t(
-        'Network observation unavailable',
-      )}{:else}{filtered.length}
-      {$t('of')}
-      {rows.length}
-      {effectiveNetwork ? $t('connections') : $t('events')} · {effectiveNetwork &&
-      (networkStatus === 'retained' || readingSnapshot)
-        ? $t('Retained network snapshot')
-        : showingPaused
-          ? $t('Paused snapshot')
-          : effectiveNetwork
-            ? $t('Latest connection snapshot')
-            : $t('Live view')}{/if}</span
-  >{#if query || effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || effectiveSeverity !== 'all'}<span
-      class="badge">{$t('Filters active')}</span
-    >{/if}
+  </div>
+  {#if effectiveNetwork}<p class="evidence-caption">
+      <Icon name="network" /><span
+        >{$t(
+          'Endpoint verification describes the address. Agent identity is shown separately.',
+        )}</span
+      >
+    </p>{/if}
 </div>
 {#if effectiveNetwork && networkStatus === 'unavailable'}
   <div class="notice network-recovery">
@@ -339,6 +343,26 @@
 {/if}
 
 <style>
+  .evidence-controls {
+    min-width: 0;
+    padding: var(--space-3) var(--panel-inset);
+    margin-bottom: var(--space-4);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    background: var(--panel);
+  }
+  .evidence-caption {
+    display: flex;
+    align-items: start;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
+    color: var(--muted);
+    font-size: var(--text-caption);
+    line-height: 1.5;
+  }
+  .evidence-caption :global(.icon) {
+    flex-shrink: 0;
+  }
   .activity-channels {
     display: flex;
     flex-wrap: wrap;
@@ -366,11 +390,12 @@
     min-height: var(--control-height);
     height: auto;
   }
-  .evidence-filters {
+  .evidence-controls .evidence-filters {
     display: flex;
     flex-wrap: wrap;
     align-items: end;
-    gap: 10px;
+    gap: var(--space-3);
+    margin: 0;
   }
   .evidence-filters > label {
     min-width: 0;
@@ -404,12 +429,10 @@
   .advanced-filters {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    padding: 14px;
-    margin-top: 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--border);
   }
   .advanced-filters[hidden] {
     display: none;
@@ -417,7 +440,7 @@
   .advanced-filters label {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-1);
     color: var(--muted);
     font-size: calc(11px * var(--ui-scale));
     min-width: 0;
@@ -431,8 +454,8 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin: 12px 0;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
     color: var(--muted);
     font-size: calc(11px * var(--ui-scale));
   }

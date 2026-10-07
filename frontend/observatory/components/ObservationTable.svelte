@@ -126,25 +126,27 @@
   }}
 >
   <div class="feed-toolbar">
-    <span
-      >{Math.min(limit, groups.length)}
-      {$t('of')}
-      {groups.length}
-      {grouping === 'none' ? $t('records') : $t('groups')} · {accepted?.total ?? rows.length}
-      {$t('observations')}</span
-    >
+    <div class="feed-summary">
+      <span
+        >{Math.min(limit, groups.length)}
+        {$t('of')}
+        {groups.length}
+        {grouping === 'none' ? $t('records') : $t('groups')} · {accepted?.total ?? rows.length}
+        {$t('observations')}</span
+      >
+      <p class="feed-status" role="status">
+        {pending
+          ? $t('Activity updates waiting')
+          : reading
+            ? $t('Reading retained activity')
+            : $t('Following latest retained activity')}
+      </p>
+    </div>
     <div class="toolbar">
       <button class="button" aria-disabled={!pending && !reading} onclick={showLatest}
         ><Icon name="refresh" />{$t('Show latest')}</button
       >
     </div>
-    <p class="feed-status" role="status">
-      {pending
-        ? $t('Activity updates waiting')
-        : reading
-          ? $t('Reading retained activity')
-          : $t('Following latest retained activity')}
-    </p>
   </div>
   <div class="table-wrap">
     <table>
@@ -305,9 +307,16 @@
     border-bottom: 1px solid var(--border);
     border-radius: var(--surface-radius) var(--surface-radius) 0 0;
   }
+  .feed-summary {
+    display: flex;
+    align-items: center;
+    flex: 1 1 280px;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    min-width: 0;
+  }
   .feed-status {
     margin: 0;
-    flex-basis: 100%;
     min-height: 1.5em;
     color: var(--muted);
     font-size: var(--text-caption);

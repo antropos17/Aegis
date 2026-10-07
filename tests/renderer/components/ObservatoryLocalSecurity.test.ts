@@ -351,14 +351,14 @@ it('directs a no-findings result to coverage without implying safety', async () 
   expect(screen.getByText('Incomplete coverage')).toBeVisible();
 });
 
-it('keeps captured evidence before setup and moves focus only through explicit controls', async () => {
+it('keeps captured evidence after setup and moves focus only through explicit controls', async () => {
   render(LocalSecurity, { host: bridge(vi.fn().mockResolvedValue(await reply())) });
   const trigger = screen.getByRole('button', { name: 'Choose folder and review' });
   trigger.focus();
   await start();
   const result = await screen.findByRole('region', { name: 'Local review results' });
   const setup = screen.getByRole('region', { name: 'Local review setup' });
-  expect(result.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(result.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   expect(trigger).toHaveFocus();
   await fireEvent.click(screen.getByRole('button', { name: 'View captured result' }));
   expect(result).toHaveFocus();

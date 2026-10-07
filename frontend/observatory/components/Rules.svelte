@@ -516,6 +516,9 @@
     container-type: inline-size;
     container-name: permissions;
   }
+  .detection-pane {
+    container: detection / inline-size;
+  }
   .permissions-pane > h2 {
     margin: 0;
     font-size: var(--text-body);
@@ -724,7 +727,7 @@
   .rule-meta {
     display: none;
   }
-  @media (max-width: 1000px) {
+  @container detection (max-width: 760px) {
     .rules-table th:nth-child(3),
     .rules-table td:nth-child(3),
     .rules-table th:nth-child(4),

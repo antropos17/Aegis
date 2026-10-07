@@ -257,7 +257,7 @@ try {
               const overlaps = (a, b) =>
                 a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
               const cards = [...document.querySelectorAll('.radar-agent-card')];
-              const toolbar = document.querySelector('.radar-resource-toolbar');
+              const toolbar = document.querySelector('.radar-guidance');
               return {
                 toolbarOverflow: toolbar.scrollHeight > toolbar.clientHeight + 1,
                 crowdedNumbers: cards.some((card) => {
@@ -334,14 +334,28 @@ try {
                   aligned: Math.abs(config.y - report.y) < 1,
                   configWidth: config.width,
                   reportWidth: report.width,
-                  bottom: report.bottom,
+                  outerScroll: getComputedStyle(document.querySelector('#main')).overflowY,
+                  nestedScrolls: [
+                    ...document.querySelectorAll('.analysis-body,.analysis-config-body'),
+                  ].some((node) => ['auto', 'scroll'].includes(getComputedStyle(node).overflowY)),
                 };
               });
               assert(
                 panels.aligned && panels.reportWidth > panels.configWidth * 2,
-                'prototype assessment columns',
+                'assessment and configuration columns',
               );
-              assert(panels.bottom <= 770, 'assessment report extends under footer');
+              assert.equal(panels.outerScroll, 'auto', 'assessment main scrolling is unavailable');
+              assert(!panels.nestedScrolls, 'assessment has competing inner scroll areas');
+              const historyHeading = page.getByRole('heading', { name: 'History', exact: true });
+              await historyHeading.scrollIntoViewIfNeeded();
+              assert(
+                await historyHeading.evaluate((node) => {
+                  const heading = node.getBoundingClientRect();
+                  const main = document.querySelector('#main').getBoundingClientRect();
+                  return heading.top >= main.top && heading.bottom <= main.bottom;
+                }),
+                'assessment history cannot be reached above the footer',
+              );
             }
             if (view === 'Settings') {
               const row = await page

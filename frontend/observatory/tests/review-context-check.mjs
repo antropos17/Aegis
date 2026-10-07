@@ -77,7 +77,7 @@ export async function checkReviewContext(browser, url, out) {
         .evaluate((node) => node === document.activeElement),
     );
     await page
-      .locator('.analysis-output')
+      .locator('.analysis-jumps')
       .getByRole('button', { name: 'Report', exact: true })
       .click();
     for (const { width, height, scale } of [

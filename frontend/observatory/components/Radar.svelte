@@ -98,18 +98,6 @@
       </div>
     </div>
     <div hidden={layer !== 'radar'}>
-      <div class="radar-resource-toolbar">
-        <div class="resource-scope">
-          <strong>{$t('Agent risk')}</strong><span
-            >{$t(
-              'Choose a marker or row. Open the focused agent when you need its controls.',
-            )}</span
-          >
-        </div>
-        {#if chosenGroup}<button class="button" onclick={clearSelection}
-            ><Icon name="close" />{$t('Clear agent focus')}</button
-          >{/if}
-      </div>
       <div id="radar-body">
         <div class="radar-workspace">
           <div class="radar-stage" class:stale={telemetry.stale} data-layer="radar">
@@ -168,6 +156,9 @@
               <h3>{$t('Agents')}</h3>
               <span>{groups.length}</span>
             </div>
+            {#if chosenGroup}<button class="button roster-clear" onclick={clearSelection}
+                ><Icon name="close" />{$t('Clear agent focus')}</button
+              >{/if}
             <div class="roster-items" use:reveal={String(Math.min(page, pages - 1))}>
               {#each plotted as group, i (group.key)}<RadarSummary
                   {group}
@@ -214,6 +205,11 @@
               onclick={() => changePage(1)}><Icon name="chevron" /></button
             >
           </div>{/if}
+        <p class="radar-guidance">
+          <strong>{$t('Agent risk')}</strong> · {$t(
+            'Choose a marker or row. Open the focused agent when you need its controls.',
+          )}
+        </p>
       </div>
     </div>
     {#each ['files', 'network'] as resourceLayer (resourceLayer)}
@@ -239,11 +235,21 @@
 </div>
 
 <style>
-  .radar-resource-toolbar {
-    height: auto;
-    min-height: var(--control-height);
-    overflow: visible;
-    scrollbar-gutter: auto;
+  .radar-clarity .radar-stage {
+    min-height: 360px;
+  }
+  .radar-guidance {
+    flex: 1 1 100%;
+    margin: 0;
+    color: var(--muted);
+    font-size: var(--text-caption);
+    line-height: 1.5;
+  }
+  .roster-clear {
+    margin-bottom: var(--space-3);
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
   }
   .radar-focus {
     margin-top: var(--space-3);
@@ -299,5 +305,18 @@
   }
   .radar-pages button {
     padding: 3px;
+  }
+  @media (max-height: 700px) {
+    .radar-clarity .radar-stage {
+      align-self: start;
+      min-height: 280px;
+    }
+    .radar-clarity .radar-dial {
+      width: min(216px, calc(100cqw - 64px));
+      height: min(216px, calc(100cqw - 64px));
+    }
+    .radar-clarity .roster-items {
+      min-height: 0;
+    }
   }
 </style>

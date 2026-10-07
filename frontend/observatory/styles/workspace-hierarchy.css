@@ -1,4 +1,16 @@
 /* Current workspace hierarchy: distinct evidence and context surfaces at 100%. */
+.observatory-app #main:has(.analysis-workspace) {
+  display: block;
+  overflow: auto;
+}
+.observatory-app #content.analysis-view,
+.observatory-app #content:has(.analysis-workspace),
+.observatory-app .analysis-container:not([hidden]) {
+  display: block;
+  flex: none;
+  min-height: 0;
+}
+
 .observatory-app .panel {
   border-color: var(--strong-border);
 }
