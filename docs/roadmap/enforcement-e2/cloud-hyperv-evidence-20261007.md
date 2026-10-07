@@ -149,6 +149,25 @@ All fourteen source hashes matched the committed revision, whose five required
 CI contexts passed. Both thumbnails contained 153604 bytes and were refused by
 the strict 153600-byte check; no interpretation of the extra bytes is assumed.
 
+The [run at 430b9d29](https://github.com/antropos17/Aegis/actions/runs/37684569298)
+again established the exact Windows build, profile, PowerShell Direct, transferred
+hashes and fresh removal of both DVDs. The fixed, hash-verified bootstrap returned
+under the unchanged Restricted execution policy. Its native launcher refused at
+`held-token-admin` with `SecurityException` HRESULT `0x8013150A`, before task
+release. Job closure was not confirmed; later VM removal does not establish that
+earlier observation. Independent host canaries after the task attempt and removal,
+native stop, Off and exact removal passed. Astra matched all fourteen source
+hashes; all five required CI contexts passed this revision.
+
+A local native reproduction explains the membership-check failure: the .NET
+`WindowsPrincipal` check duplicates a primary token, while the launcher requested
+query access alone. Requesting query and duplicate access permits that check
+without changing privileges. The SID, nonadministrator and elevation guards remain
+mandatory. Four current-process controls reproduce the old exception, compare
+the corrected membership observation and refuse invalid or closed process handles.
+The combined maintained entrypoint passes the preceding 151 controls and these
+four controls. Actual standard-user task completion requires the cloud retry.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

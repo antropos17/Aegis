@@ -47,6 +47,14 @@ public static class CloudGuestProcess
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int kind, out int data, int length, out int returned);
     private static void Require(bool value, string stage)
     { if (!value) throw new InvalidOperationException(stage + ":" + Marshal.GetLastWin32Error()); }
+    private static IntPtr OpenHeldToken(IntPtr heldProcess)
+    {
+        IntPtr token;
+        // Framework IsInRole duplicates a primary token into an identification
+        // token. Query alone cannot perform that check; no privileges are adjusted.
+        Require(OpenProcessToken(heldProcess, 8 | 2, out token), "held-token-open");
+        return token;
+    }
     private sealed class TaskFailure : InvalidOperationException
     {
         internal readonly Dictionary<string, object> Receipt;
@@ -106,14 +114,14 @@ public static class CloudGuestProcess
             stage = "job-assign";
             Require(AssignProcessToJobObject(job, child.Process), "job-assign"); assigned = true;
             stage = "held-token-open";
-            Require(OpenProcessToken(child.Process, 8, out token), "held-token-open");
+            token = OpenHeldToken(child.Process);
             using (var identity = new WindowsIdentity(token))
             {
                 stage = "held-token-sid";
                 Require(identity.User != null && identity.User.Value == expectedSid, "held-token-sid");
+                receipt["sid"] = identity.User.Value;
                 stage = "held-token-admin";
                 Require(!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator), "held-token-admin");
-                receipt["sid"] = identity.User.Value;
             }
             stage = "held-token-elevation"; int elevation, returned;
             Require(GetTokenInformation(token, 20, out elevation, 4, out returned) && returned == 4 && elevation == 0, "held-token-elevation");
