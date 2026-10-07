@@ -162,6 +162,10 @@ function main() {
       `/out:${sessionExe}`,
       path.join(ROOT, 'sidecar', 'session', 'Program.cs'),
       path.join(ROOT, 'sidecar', 'session', 'Protocol.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'CallerNative.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'CallerIdentity.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'CallerRegistration.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'CallerAdmission.cs'),
     ],
     { stdio: 'inherit' },
   );
