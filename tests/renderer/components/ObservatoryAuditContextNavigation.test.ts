@@ -4,7 +4,7 @@ import { tick } from 'svelte';
 import Reports from '../../../frontend/observatory/components/Reports.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
-it('jumps between audit tasks without rereading or losing mounted history filters', async () => {
+it('focuses visible audit sections without rereading or losing mounted history filters', async () => {
   const host = {
     getAuditEntriesBefore: vi.fn(async () => [
       {
@@ -28,21 +28,22 @@ it('jumps between audit tasks without rereading or losing mounted history filter
     navigate: vi.fn(),
   });
   await screen.findByText('1 audit entries loaded');
+  expect(screen.getByRole('region', { name: 'Entries' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Delivery' })).toBeVisible();
   const search = screen.getByRole('searchbox', { name: 'Search audit entries' });
   const grouping = screen.getByRole('combobox', { name: 'Audit grouping' });
   await fireEvent.input(search, { target: { value: 'retained-observation' } });
   await fireEvent.change(grouping, { target: { value: 'none' } });
 
   await fireEvent.click(screen.getByRole('button', { name: 'Check delivery counters' }));
-  const deliveryTab = screen.getByRole('tab', { name: 'Delivery' });
-  await waitFor(() => expect(deliveryTab).toHaveFocus());
-  expect(deliveryTab).toHaveAttribute('aria-selected', 'true');
+  const delivery = screen.getByRole('region', { name: 'Delivery' });
+  await waitFor(() => expect(delivery).toHaveFocus());
   expect(screen.getByRole('heading', { name: 'Audit history and delivery' })).toBeVisible();
   expect(screen.getByText('Delivery counters unavailable. Retry reading.')).toBeVisible();
   expect(screen.getByText('persisted entries').parentElement).toHaveTextContent('—');
 
   await fireEvent.click(screen.getByRole('button', { name: 'Review retained entries' }));
-  await waitFor(() => expect(screen.getByRole('tab', { name: 'Entries' })).toHaveFocus());
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Entries' })).toHaveFocus());
   expect(screen.getByRole('searchbox', { name: 'Search audit entries' })).toBe(search);
   expect(search).toHaveValue('retained-observation');
   expect(grouping).toHaveValue('none');
@@ -64,7 +65,7 @@ it('keeps focus in the next workspace if Audit is hidden before its deferred jum
     navigate: vi.fn(),
   });
   await screen.findByText('0 audit entries loaded');
-  const focusDelivery = vi.spyOn(screen.getByRole('tab', { name: 'Delivery' }), 'focus');
+  const focusDelivery = vi.spyOn(screen.getByRole('region', { name: 'Delivery' }), 'focus');
   const nextWorkspace = document.createElement('button');
   nextWorkspace.textContent = 'Next workspace';
   document.body.append(nextWorkspace);

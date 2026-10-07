@@ -17,14 +17,14 @@ export async function checkConfigurationClarity(browser, url, out) {
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
     for (const { width, height, scale } of [
       { width: 1200, height: 800, scale: 1 },
-      { width: 900, height: 600, scale: 1.5 },
+      { width: 900, height: 600, scale: 1 },
     ]) {
       await page.setViewportSize({ width, height });
       await page.evaluate((scale) => {
         document.documentElement.style.setProperty('--ui-scale', String(scale));
       }, scale);
       await page.locator('.sidebar').getByRole('button', { name: 'Rules & permissions' }).click();
-      await page.getByRole('button', { name: 'Agent permissions' }).click();
+      await page.getByRole('heading', { name: 'Agent permissions', exact: true }).waitFor();
       await page.getByText('Saved preferences · automatic blocking is not active').waitFor();
       await page.locator('.permission-row').last().scrollIntoViewIfNeeded();
       const permissionLayout = await page.evaluate(() => {
@@ -52,7 +52,9 @@ export async function checkConfigurationClarity(browser, url, out) {
       );
       await page.screenshot({ path: resolve(out, `rules-permissions-${width}.png`) });
 
-      await page.getByRole('button', { name: /Detection rules/ }).click();
+      await page
+        .getByRole('heading', { name: 'Loaded detection rules', exact: true })
+        .scrollIntoViewIfNeeded();
       const toggle = page.getByRole('checkbox', {
         name: 'Enable Simulated credential observation',
       });

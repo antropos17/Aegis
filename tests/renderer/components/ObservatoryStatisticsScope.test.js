@@ -27,12 +27,12 @@ it('changes chart scope, preserves it across sections and does not select a recy
   await fireEvent.change(screen.getByLabelText('Statistics process'), {
     target: { value: '1:new' },
   });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Tokens', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Tokens', exact: true }));
   expect(screen.getByLabelText('Statistics agent')).toHaveValue('Codex');
   expect(screen.getByLabelText('Statistics process')).toHaveValue('1:new');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Sensors', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Sensors', exact: true }));
   expect(screen.getByLabelText('Statistics agent')).toBeDisabled();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Performance', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Performance', exact: true }));
   await rerender({
     telemetry: {
       ...telemetry,

@@ -47,7 +47,10 @@ function bridge() {
     },
   };
 }
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem('aegis-advanced-mode', 'false');
+});
 afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();

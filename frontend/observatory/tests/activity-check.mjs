@@ -74,7 +74,7 @@ export async function checkActivity(browser, url, out) {
     let states = 0;
     for (const width of [900, 1200]) {
       await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
-      for (const scale of [1, 1.5]) {
+      for (const scale of [1]) {
         for (const theme of ['light', 'dark', 'light-hc', 'dark-hc']) {
           await page.mouse.move(0, 0);
           await page.evaluate(
@@ -97,7 +97,7 @@ export async function checkActivity(browser, url, out) {
             'chart overflow',
           );
           await page.mouse.move(0, 0);
-          if (width === 900 && scale === 1.5)
+          if (width === 900 && scale === 1)
             await page.screenshot({ path: resolve(out, 'monitoring-activity-' + theme + '.png') });
           if (width === 1200 && scale === 1)
             await page.screenshot({ path: resolve(out, 'activity-overview-' + theme + '.png') });

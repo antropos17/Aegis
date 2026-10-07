@@ -48,92 +48,109 @@
 </script>
 
 <div class="simple-agent-view">
-  <section class="panel agent-status" aria-labelledby={prefix + '-risk'}>
-    <div class="status-summary">
-      <div>
-        <h3 id={prefix + '-risk'}>{$t('Observed risk')}</h3>
-        <p class="risk-value">
-          <strong class={risk.score === null ? '' : riskBand(risk.score)}
-            >{risk.score ?? '—'}</strong
-          ><span>/100</span>
-        </p>
-        <p class="risk-reason">
-          {!risk.subject
-            ? $t('Current assessment unavailable')
-            : !risk.subject.instanceId
-              ? $t('Process identity not recorded')
-              : risk.contributions[0]?.label
-                ? $t(risk.contributions[0].label)
-                : $t('No scored activity')}
-        </p>
-        <p class="muted">
-          {scope.instanceId
-            ? $t('This process')
-            : $t('Highest process score')}{#if risk.subject?.pid}
-            · {$t('PID')} {String(risk.subject.pid)}{/if}
-        </p>
-      </div>
-      <dl class="readings">
-        <div>
-          <dt>{$t('CPU')}</dt>
-          <dd>{statisticsValue(cpu, '%')}</dd>
-        </div>
-        <div>
-          <dt>{$t('RAM')}</dt>
-          <dd>{statisticsValue(memory, 'MB')}</dd>
-        </div>
-      </dl>
+  <div class="activity-column">
+    <section class="agent-live-activity" aria-label={$t('Agent activity')}>
+      <h3><Icon name="activity" />{$t('Recent activity')}</h3>
+      <Events
+        {telemetry}
+        {scope}
+        {inspect}
+        combined
+        advanced={false}
+        showPause={false}
+        viewPaused={paused}
+        {visible}
+      />
+    </section>
+    <div class="extra-tools">
+      <button class="text-button" onclick={() => navigate('stats')}
+        ><Icon name="chart" />{$t('Detailed statistics')}</button
+      >
+      <button
+        class="text-button"
+        onclick={() => (openInterfaceSettings ? openInterfaceSettings() : navigate('settings'))}
+        >{$t('More tools in Advanced mode')}</button
+      >
     </div>
-    <details>
-      <summary>{$t('Why this score?')}</summary>
-      <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
-    </details>
-  </section>
-
-  <section class="process-actions" aria-label={$t('Process actions')}>
-    {#if process && scope.instanceId}
-      {#key scope.instanceId}<DetailControls
-          row={subject}
-          telemetry={liveTelemetry}
-          {host}
-          simple
-        />{/key}
-    {:else}<div class="panel process-choice">
-        <h3>{$t('Process controls')}</h3>
-        <p class="muted">{$t('Choose a worker process to pause, resume or stop.')}</p>
-      </div>{/if}
-  </section>
-
-  <section class="agent-live-activity" aria-label={$t('Agent activity')}>
-    <h3><Icon name="activity" />{$t('Recent activity')}</h3>
-    <Events
-      {telemetry}
-      {scope}
-      {inspect}
-      combined
-      advanced={false}
-      showPause={false}
-      viewPaused={paused}
-      {visible}
-    />
-  </section>
-  <div class="extra-tools">
-    <button class="text-button" onclick={() => navigate('stats')}
-      ><Icon name="chart" />{$t('Detailed statistics')}</button
-    >
-    <button
-      class="text-button"
-      onclick={() => (openInterfaceSettings ? openInterfaceSettings() : navigate('settings'))}
-      >{$t('More tools in Advanced mode')}</button
-    >
   </div>
+  <aside class="context-column" aria-label={$t('Agent details')}>
+    <section class="panel agent-status" aria-labelledby={prefix + '-risk'}>
+      <div class="status-summary">
+        <div>
+          <h3 id={prefix + '-risk'}>{$t('Observed risk')}</h3>
+          <p class="risk-value">
+            <strong class={risk.score === null ? '' : riskBand(risk.score)}
+              >{risk.score ?? '—'}</strong
+            ><span>/100</span>
+          </p>
+          <p class="risk-reason">
+            {!risk.subject
+              ? $t('Current assessment unavailable')
+              : !risk.subject.instanceId
+                ? $t('Process identity not recorded')
+                : risk.contributions[0]?.label
+                  ? $t(risk.contributions[0].label)
+                  : $t('No scored activity')}
+          </p>
+          <p class="muted">
+            {scope.instanceId
+              ? $t('This process')
+              : $t('Highest process score')}{#if risk.subject?.pid}
+              · {$t('PID')} {String(risk.subject.pid)}{/if}
+          </p>
+        </div>
+        <dl class="readings">
+          <div>
+            <dt>{$t('CPU')}</dt>
+            <dd>{statisticsValue(cpu, '%')}</dd>
+          </div>
+          <div>
+            <dt>{$t('RAM')}</dt>
+            <dd>{statisticsValue(memory, 'MB')}</dd>
+          </div>
+        </dl>
+      </div>
+      <section class="risk-explanation-section" aria-label={$t('Why this score?')}>
+        <h3>{$t('Why this score?')}</h3>
+        <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
+      </section>
+    </section>
+
+    <section class="process-actions" aria-label={$t('Process actions')}>
+      {#if process && scope.instanceId}
+        {#key scope.instanceId}<DetailControls
+            row={subject}
+            telemetry={liveTelemetry}
+            {host}
+            simple
+          />{/key}
+      {:else}<div class="panel process-choice">
+          <h3>{$t('Process controls')}</h3>
+          <p class="muted">{$t('Choose a worker process to pause, resume or stop.')}</p>
+        </div>{/if}
+    </section>
+  </aside>
 </div>
 
 <style>
   .simple-agent-view {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.62fr);
     gap: var(--space-4);
     min-width: 0;
+    align-items: start;
+  }
+  .activity-column,
+  .context-column {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .context-column {
+    padding: var(--space-3);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    background: var(--raised);
   }
   .agent-status,
   .process-choice {
@@ -182,11 +199,12 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  details {
+  .risk-explanation-section {
     margin-top: var(--space-3);
-  }
-  details :global(.risk-explanation) {
-    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--strong-border);
+    display: grid;
+    gap: var(--space-2);
   }
   .process-actions {
     display: grid;
@@ -203,7 +221,13 @@
     flex-wrap: wrap;
     gap: var(--space-4);
   }
-  @media (max-width: 700px) {
+  @media (max-width: 760px) {
+    .simple-agent-view {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .context-column {
+      grid-row: 1;
+    }
     .status-summary {
       flex-wrap: wrap;
     }

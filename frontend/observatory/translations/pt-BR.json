@@ -1802,5 +1802,10 @@
   "All worker processes": "Todos os processos de trabalho",
   "Observed risk and process controls": "Risco observado e controles do processo",
   "Select assessed process": "Selecionar processo avaliado",
-  "Project unavailable": "Projeto indisponível"
+  "Project unavailable": "Projeto indisponível",
+  "Preferences are grouped on this page. Your draft stays until you save or discard it.": "As preferências estão agrupadas nesta página. Seu rascunho permanece até você salvar ou descartar.",
+  "Advanced shows every workspace by default. Enable Simple to keep agents, activity and file checks together.": "O modo avançado mostra todos os espaços por padrão. Ative o modo simples para reunir agentes, atividade e verificações de arquivos.",
+  "Simple interface": "Interface simples",
+  "Theme and motion preview immediately. Save to keep them; discard to restore your saved preferences.": "Tema e movimento são visualizados imediatamente. Salve para mantê-los ou descarte para restaurar suas preferências salvas.",
+  "The workspace uses a fixed 100% interface size.": "O espaço de trabalho usa um tamanho de interface fixo em 100%."
 }

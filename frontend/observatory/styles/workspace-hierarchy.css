@@ -1,0 +1,27 @@
+/* Current workspace hierarchy: distinct evidence and context surfaces at 100%. */
+.observatory-app .panel {
+  border-color: var(--strong-border);
+}
+.observatory-app .panel > .panel-head {
+  background: var(--raised);
+  border-bottom: 1px solid var(--strong-border);
+  min-height: 48px;
+}
+.observatory-app .panel-head h2 {
+  font-weight: 700;
+  color: var(--ink);
+}
+.observatory-app .page-title {
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--strong-border);
+}
+.observatory-app .sidebar .nav-group-label {
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-1);
+}
+.observatory-app .inline-stats > div {
+  border-left: 3px solid var(--strong-border);
+  padding-left: var(--space-3);
+}

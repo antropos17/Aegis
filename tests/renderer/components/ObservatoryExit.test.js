@@ -27,7 +27,7 @@ it('asks before exit, restores focus after cancellation and coalesces confirmed 
   expect(screen.getByText('Exit cancelled.')).toBeInTheDocument();
   expect(exit).toHaveFocus();
   await fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }));
-  await fireEvent.click(screen.getByRole('tab', { name: 'Desktop & updates' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Desktop & updates' }));
   expect(
     screen.getByText(/Closing the window keeps AEGIS running in the system tray/),
   ).toBeVisible();
@@ -133,13 +133,20 @@ it('keeps settings editable during a process outage while retaining sensor and a
   expect(screen.queryByText(waiting)).not.toBeInTheDocument();
   expect(screen.getByText(/Degraded sensors:.*network/)).toBeVisible();
   expect(screen.getByText(/The last audit write failed; pending records/)).toBeVisible();
-  const scale = await screen.findByRole('slider', { name: 'Interface scale' });
-  expect(scale).toBeEnabled();
-  await fireEvent.input(scale, { target: { value: '1.25' } });
+  const interval = await screen.findByLabelText('Scan interval (seconds)');
+  expect(interval).toBeEnabled();
+  expect(screen.getByLabelText('Interface scale')).toHaveTextContent('100%');
+  await fireEvent.input(interval, { target: { value: '20' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings', exact: true }));
   await waitFor(() => expect(screen.getByText('Settings saved', { exact: true })).toBeVisible());
-  expect((await host.getSettings()).uiScale).toBe(1.25);
-  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
+  expect((await host.getSettings()).scanIntervalSec).toBe(20);
+  expect((await host.getSettings()).uiScale).toBe(1);
+  await fireEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', {
+      name: 'Monitoring',
+      exact: true,
+    }),
+  );
   expect(screen.getByText(outage)).toBeVisible();
   expect(screen.getByText(waiting)).toBeVisible();
 }, 15_000);

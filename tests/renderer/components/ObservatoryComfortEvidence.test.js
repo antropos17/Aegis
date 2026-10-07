@@ -45,18 +45,21 @@ it('applies audit type immediately and searches loaded pages without dropping re
 it('opens requested report sections without running exports and preserves their failure feedback', async () => {
   const host = { exportLog: vi.fn(async () => ({ success: false })) };
   const mounted = render(Reports, { host, telemetry: telemetry(), inspect: noop, navigate: noop });
-  expect(screen.queryByRole('button', { name: 'JSON activity log', exact: true })).toBeNull();
+  expect(screen.getByRole('button', { name: 'JSON activity log', exact: true })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Session summary' })).toBeVisible();
   await mounted.rerender({ sectionRequest: { id: 'export', revision: 1 } });
-  expect(screen.getByRole('tab', { name: 'Export', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Export' })).toHaveFocus());
   expect(host.exportLog).not.toHaveBeenCalled();
   await fireEvent.click(screen.getByRole('button', { name: 'JSON activity log', exact: true }));
   expect(await screen.findByRole('alert')).toHaveTextContent('cancelled');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Session summary', exact: true }));
-  await fireEvent.click(screen.getByRole('tab', { name: 'Export', exact: true }));
+  await mounted.rerender({ sectionRequest: { id: 'summary', revision: 2 } });
+  await waitFor(() =>
+    expect(screen.getByRole('region', { name: 'Session summary' })).toHaveFocus(),
+  );
+  await mounted.rerender({ sectionRequest: { id: 'export', revision: 3 } });
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Export' })).toHaveFocus());
   expect(screen.getByRole('alert')).toHaveTextContent('cancelled');
+  expect(host.exportLog).toHaveBeenCalledTimes(1);
 });
 
 it('keeps audit entries and filters when opening delivery diagnostics', async () => {
@@ -78,8 +81,10 @@ it('keeps audit entries and filters when opening delivery diagnostics', async ()
   });
   await mounted.rerender({ sectionRequest: { id: 'delivery', revision: 1 } });
   expect(screen.getByRole('heading', { name: 'Audit delivery details' })).toBeInTheDocument();
-  expect(screen.queryByRole('table')).toBeNull();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Entries', exact: true }));
+  expect(screen.getByRole('table')).toBeVisible();
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Delivery' })).toHaveFocus());
+  await mounted.rerender({ sectionRequest: { id: 'entries', revision: 2 } });
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Entries' })).toHaveFocus());
   expect(screen.getByLabelText('Search audit entries')).toHaveValue('review-3');
   expect(screen.getByText(row.file)).toBeInTheDocument();
   expect(host.getAuditEntriesBefore).toHaveBeenCalledOnce();

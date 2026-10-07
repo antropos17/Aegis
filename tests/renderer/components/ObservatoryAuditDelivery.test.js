@@ -67,10 +67,7 @@ it('shows live audit overflow and pending writes on every workspace without a he
   await fireEvent.click(
     screen.getByRole('button', { name: /Audit delivery.*2 lost this session/ }),
   );
-  expect(await screen.findByRole('tab', { name: 'Delivery' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  expect(await screen.findByRole('region', { name: 'Delivery', exact: true })).toBeVisible();
   expect(screen.getByRole('alert')).toHaveTextContent('Audit records lost from the buffer');
 
   await act(() =>

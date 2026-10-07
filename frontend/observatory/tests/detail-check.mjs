@@ -137,7 +137,7 @@ export async function checkDetails(browser, url, out) {
       { width: 900, height: 600 },
     ]) {
       await page.setViewportSize(size);
-      for (const scale of [1, 1.5]) {
+      for (const scale of [1]) {
         for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
           await page.evaluate(
             ({ scale, theme }) => {
@@ -151,13 +151,13 @@ export async function checkDetails(browser, url, out) {
             await workspace.evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
             'agent workspace overflows',
           );
-          const sections = workspace.getByRole('tablist', { name: 'Agent sections' });
+          assert.equal(await workspace.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
           const glance = workspace.getByRole('region', { name: 'Agent context summary' });
           assert(
             await glance.evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
             'agent context summary overflows',
           );
-          for (const [caption, tab] of [
+          for (const [caption, section] of [
             ['Resources', 'Resources'],
             ['Activity', 'Activity'],
             ['Worker processes', 'Processes'],
@@ -166,56 +166,35 @@ export async function checkDetails(browser, url, out) {
             await action.focus();
             await action.press('Enter');
             assert.equal(
-              await sections
-                .getByRole('tab', { name: new RegExp('^' + tab) })
-                .getAttribute('aria-selected'),
-              'true',
-              caption + ' did not open its existing detail panel',
+              await workspace.getByRole('region', { name: section, exact: true }).isVisible(),
+              true,
+              caption + ' lost its continuously visible section',
             );
             assert(
-              await action.evaluate((node) => node === document.activeElement),
-              caption + ' changed keyboard focus',
+              await workspace
+                .getByRole('region', { name: section, exact: true })
+                .evaluate((node) => node === document.activeElement),
+              caption + ' did not focus its destination',
             );
           }
-          const readPosition = () =>
-            page.evaluate(() => {
-              const strip = document.querySelector('.agent-workspace [role="tablist"]');
-              return {
-                top: strip.getBoundingClientRect().top,
-                scroll: document.querySelector('#main').scrollTop,
-              };
-            });
           await page.locator('#main').evaluate((node) => {
             node.scrollTop = 0;
           });
-          const position = await readPosition();
-          for (const name of ['Resources', 'Activity', 'Processes', 'Risk']) {
-            const control = sections.getByRole('tab', { name: new RegExp('^' + name) });
-            await control.click();
-            const nextPosition = await readPosition();
-            if (JSON.stringify(nextPosition) !== JSON.stringify(position)) {
-              await page.screenshot({
-                path: resolve(out, `agent-navigation-failure-${size.width}-${scale}-${theme}.png`),
-              });
-            }
-            assert.deepEqual(
-              nextPosition,
-              position,
-              `${name} moved the page or tab strip (${size.width}/${scale}/${theme})`,
-            );
-            assert(
-              await control.evaluate((node) => node === document.activeElement),
-              name + ' stole focus',
-            );
-            assert.equal(await workspace.getByRole('tabpanel').count(), 1);
-            assert.equal(await control.getAttribute('aria-selected'), 'true');
-          }
+          assert(
+            await workspace.getByRole('region', { name: 'Observed risk', exact: true }).isVisible(),
+          );
+          assert(
+            await workspace.getByRole('region', { name: 'Resources', exact: true }).isVisible(),
+          );
+          assert(
+            await workspace.getByRole('region', { name: 'Activity', exact: true }).isVisible(),
+          );
+          assert(
+            await workspace.getByRole('region', { name: 'Processes', exact: true }).isVisible(),
+          );
           assert.equal(await page.getByRole('dialog').count(), 0);
           assert(!/DO-NOT-DISPLAY/.test(await workspace.innerText()));
-          if (
-            !theme.endsWith('-hc') &&
-            ((size.width === 1200 && scale === 1) || (size.width === 900 && scale === 1.5))
-          ) {
+          if (!theme.endsWith('-hc') && scale === 1) {
             await page.screenshot({
               path: resolve(out, 'agent-workspace-' + theme + '-' + size.width + '.png'),
             });
@@ -229,8 +208,8 @@ export async function checkDetails(browser, url, out) {
       document.documentElement.dataset.theme = 'dark';
     });
     await workspace
-      .getByRole('tablist', { name: 'Agent sections' })
-      .getByRole('tab', { name: 'Processes', exact: true })
+      .getByRole('region', { name: 'Agent context summary' })
+      .getByRole('button', { name: /^Worker processes/ })
       .click();
     await page.getByRole('button', { name: 'Show all 26 processes' }).click();
     await page.getByRole('button', { name: 'PID 220', exact: true }).click();
@@ -239,7 +218,9 @@ export async function checkDetails(browser, url, out) {
       'detail:20',
     );
     await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
-    await page.getByText('Process attributes and controls', { exact: true }).click();
+    assert(
+      await workspace.getByRole('region', { name: 'Process attributes and controls' }).isVisible(),
+    );
     assert.match(await workspace.innerText(), /detail:20/);
     assert(await page.getByRole('button', { name: 'Suspend', exact: true }).isEnabled());
     await context.getByLabel('Selected process', { exact: true }).selectOption('detail:0');
@@ -249,7 +230,10 @@ export async function checkDetails(browser, url, out) {
         exact: true,
       })
       .first();
-    await workspace.getByRole('tab', { name: /^Activity/ }).click();
+    await workspace
+      .getByRole('region', { name: 'Agent context summary' })
+      .getByRole('button', { name: /^Activity/ })
+      .click();
     await observation.click();
     await page.getByRole('dialog').waitFor();
     await tab('Attributes').click();
@@ -262,7 +246,10 @@ export async function checkDetails(browser, url, out) {
       await context.getByLabel('Selected process', { exact: true }).inputValue(),
       'detail:0',
     );
-    await workspace.getByRole('tab', { name: /^Activity/ }).click();
+    await workspace
+      .getByRole('region', { name: 'Agent context summary' })
+      .getByRole('button', { name: /^Activity/ })
+      .click();
     await workspace
       .getByRole('region', { name: 'Selected agent file activity' })
       .getByRole('button', { name: 'View all', exact: true })
@@ -296,7 +283,7 @@ export async function checkDetails(browser, url, out) {
       'Personal agent',
     );
     await page.setViewportSize({ width: 900, height: 600 });
-    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1.5'));
+    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
     for (const name of ['General', 'Recognition']) {
       await tab(name).click();
       await checkLayout();
@@ -319,7 +306,7 @@ export async function checkDetails(browser, url, out) {
       node.scrollTop = node.scrollHeight;
       return node.scrollTop;
     });
-    assert(editorScroll > 0, 'editor fixture must scroll at enlarged scale');
+    assert(editorScroll > 0, 'editor fixture must scroll at the minimum window and 100%');
     await tab('Recognition').click();
     await tab('General').click();
     assert.equal(
@@ -362,7 +349,7 @@ export async function checkDetails(browser, url, out) {
     assert.equal(await page.locator('button button, button a').count(), 0);
     assert.deepEqual(errors, []);
     console.log(
-      'Agent workspace: 16 theme/scale/viewport layouts; direct process scope and evidence-to-agent return; record pagination/history/focus, evidence layout and editor drafts passed.',
+      'Agent workspace: 8 theme/viewport layouts at 100%; direct process scope and evidence-to-agent return; record pagination/history/focus, evidence layout and editor drafts passed.',
     );
   } finally {
     await page.close();

@@ -1,5 +1,31 @@
 # AEGIS Observatory
 
+## Current layout brief — 2026-10-07
+
+The latest user brief supersedes the earlier Simple-default composition below.
+Advanced is the default for fresh or unreadable device preferences; an explicitly
+saved Simple choice remains available in Settings under **Simple interface**.
+The application UI uses a fixed 100% size. Existing OS/browser accessibility
+zoom, themes, keyboard access and reduced motion remain available.
+
+Separate evidence from context with visible bordered surfaces, heading bands
+and space between panels. At supported desktop widths, place related context
+and actions in the right column wherever the main content leaves room. Agent
+activity, resources and worker processes remain visible together; risk, manual
+response and attributes remain visible in their context column. File review
+options are a permanent right card. Settings are four continuous labelled
+sections with right-side jump buttons. Reports combine summary with export;
+audit entries and delivery counters have separate visible regions. Permissions
+and detection rules are visible together, stacking when their tables need width.
+
+Keep bounded category/chart selectors for expensive datasets. Technical record
+and destructive-reset disclosures may remain where they preserve readable
+content or separate a consequential action. Never disguise hidden functionality
+by hiding navigation in CSS. Keep stale-observation and captured-owner checks,
+truthful unsupported blocking labels, drafts and focus restoration.
+
+Earlier briefs below are historical context.
+
 ## One investigation workspace — 7 October 2026
 
 The user requests further simplification based on popular EDR workflows. Simple

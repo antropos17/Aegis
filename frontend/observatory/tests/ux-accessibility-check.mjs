@@ -78,9 +78,13 @@ export async function checkUxAccessibility(browser, url, out) {
     const signature = page.locator('.signature-links button').first();
     assert.equal(await signature.evaluate((node) => getComputedStyle(node).fontSize), '11px');
     await go('Settings');
-    await page.getByLabel('Interface scale percent', { exact: true }).fill('150');
-    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
-    await page.getByText('Settings saved', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel('Interface scale', { exact: true }).innerText(), '100%');
+    assert.equal(
+      await page
+        .locator('html')
+        .evaluate((node) => getComputedStyle(node).getPropertyValue('--ui-scale').trim()),
+      '1',
+    );
     for (const theme of ['dark', 'light']) {
       await page.getByLabel('Theme', { exact: true }).selectOption(theme);
       if (await page.getByRole('button', { name: 'Save settings', exact: true }).isEnabled()) {
@@ -89,17 +93,18 @@ export async function checkUxAccessibility(browser, url, out) {
       }
       await page.locator('#main').focus();
       let checked = 0;
-      for (let step = 0; step < 15; step++) {
+      for (let step = 0; step < 20; step++) {
         await page.keyboard.press('Tab');
         await frames();
         const sample = await page.evaluate(() => {
           const field = document.activeElement;
           const settings = field?.closest('.settings-workspace');
-          if (!settings || field.closest('.settings-save, .section-tabs')) return null;
-          if (field.getAttribute('role') === 'tabpanel') return null;
+          if (!settings || field.closest('.settings-save, .section-navigation')) return null;
+          if (field.matches('h2')) return null;
           const rect = field.getBoundingClientRect();
           const bar = settings.querySelector('.settings-save').getBoundingClientRect();
-          const tabs = settings.querySelector('.section-tabs').getBoundingClientRect();
+          const main = document.querySelector('#main').getBoundingClientRect();
+          const header = document.querySelector('.page-head').getBoundingClientRect();
           const visible = [
             [0.1, 0.1],
             [0.9, 0.1],
@@ -118,13 +123,13 @@ export async function checkUxAccessibility(browser, url, out) {
             visible,
             top: rect.top,
             bottom: rect.bottom,
-            tabsBottom: tabs.bottom,
+            contentTop: Math.max(main.top, header.bottom),
             barTop: bar.top,
           };
         });
         if (!sample) continue;
         assert(
-          sample.visible && sample.top >= sample.tabsBottom && sample.bottom <= sample.barTop,
+          sample.visible && sample.top >= sample.contentTop && sample.bottom <= sample.barTop,
           'focused setting covered: ' + JSON.stringify(sample),
         );
         checked++;
@@ -136,17 +141,21 @@ export async function checkUxAccessibility(browser, url, out) {
       await frames();
       const scroll = await page.locator('#main').evaluate((node) => node.scrollTop);
       await page
-        .getByRole('tab', { name: 'Appearance', exact: true })
+        .getByRole('navigation', { name: 'Settings sections' })
+        .getByRole('button', { name: 'Appearance', exact: true })
         .evaluate((node) => node.focus({ preventScroll: true }));
       await frames();
       assert.equal(
         await page.locator('#main').evaluate((node) => node.scrollTop),
         scroll,
-        'focusing sticky tabs must preserve workspace scroll',
+        'focusing on-page navigation must preserve workspace scroll',
       );
     }
 
-    await page.getByRole('tab', { name: 'Data & help', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('button', { name: 'Data & help', exact: true })
+      .click();
     await page.getByRole('checkbox', { name: 'Single-key shortcuts', exact: true }).uncheck();
     await page.reload();
     await page.getByRole('heading', { name: 'Monitoring', exact: true, level: 1 }).waitFor();
@@ -162,25 +171,28 @@ export async function checkUxAccessibility(browser, url, out) {
     );
     await page.keyboard.press('Escape');
     await go('Settings');
-    await page.getByRole('tab', { name: 'Data & help', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('button', { name: 'Data & help', exact: true })
+      .click();
     const shortcuts = page.getByRole('checkbox', { name: 'Single-key shortcuts', exact: true });
     assert.equal(await shortcuts.isChecked(), false, 'shortcut preference survives reload');
     await shortcuts.check();
     await go('Monitoring');
     await page.keyboard.press('s');
     await page.getByRole('heading', { name: 'Settings', exact: true, level: 1 }).waitFor();
-    // Preview host settings are deliberately in memory; reload resets its scale.
-    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
-    await page.getByLabel('Interface scale percent', { exact: true }).fill('150');
-    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
-    await page.getByText('Settings saved', { exact: true }).waitFor();
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('button', { name: 'Appearance', exact: true })
+      .click();
+    assert.equal(await page.getByLabel('Interface scale', { exact: true }).innerText(), '100%');
 
     await go('Agent catalog');
-    assert.equal(await signature.evaluate((node) => getComputedStyle(node).fontSize), '16.5px');
-    assert(await signature.evaluate((node) => node.getBoundingClientRect().height >= 36));
+    assert.equal(await signature.evaluate((node) => getComputedStyle(node).fontSize), '11px');
+    assert(await signature.evaluate((node) => node.getBoundingClientRect().height >= 24));
     assert.equal(
       await page.locator('.catalog-count').evaluate((node) => getComputedStyle(node).fontSize),
-      '16.5px',
+      '11px',
     );
     await page.getByRole('button', { name: 'Add agent', exact: true }).click();
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill('UX disposable agent');

@@ -48,6 +48,25 @@ it('sends only native selection options, retains uncertainty and renders capture
   expect(screen.getByText('Complete imported snapshots · originals unverified')).toBeVisible();
 });
 
+it('keeps captured changes and coverage visible together while selections and controls remain local', async () => {
+  const call = vi.fn().mockResolvedValue({ success: true, result: previewResultReview() });
+  render(ResultReview, { host: bridge(call) });
+  await start();
+  expect(await screen.findByRole('region', { name: 'Changes (5)' })).toBeVisible();
+  const coverage = screen.getByRole('region', { name: 'Coverage' });
+  expect(coverage).toBeVisible();
+  expect(coverage).toHaveTextContent('No writer termination or protected boundary was observed.');
+  expect(screen.queryByRole('tablist', { name: 'Comparison sections' })).toBeNull();
+  const deletion = screen.getByRole('checkbox', { name: /obsolete.txt/ });
+  await fireEvent.click(deletion);
+  await fireEvent.click(screen.getByLabelText('I explicitly reviewed the selected deletions.'));
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh retained comparison' }));
+  expect(deletion).toBeChecked();
+  expect(screen.getByLabelText('I explicitly reviewed the selected deletions.')).toBeChecked();
+  expect(coverage).toBeVisible();
+  expect(call).toHaveBeenLastCalledWith({ action: 'result-status', id: previewResultReview().id });
+});
+
 it('retains comparison and deletion draft after cancelled or failed native selection', async () => {
   const call = vi
     .fn()

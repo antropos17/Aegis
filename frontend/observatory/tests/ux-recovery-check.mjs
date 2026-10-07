@@ -48,9 +48,8 @@ export async function checkUxRecovery(browser, url, out) {
     await page.keyboard.press('Escape');
     assert(await alerts.evaluate((element) => element === document.activeElement));
     await go('Settings');
-    await page.getByLabel('Interface scale percent', { exact: true }).fill('150');
-    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
-    await page.getByText('Settings saved', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel('Interface scale', { exact: true }).innerText(), '100%');
+    assert.equal(await page.getByLabel('Interface scale percent', { exact: true }).count(), 0);
     await go('Monitoring');
     const more = page.getByRole('button', { name: 'More metrics', exact: true });
     assert(await more.isVisible());
@@ -63,7 +62,7 @@ export async function checkUxRecovery(browser, url, out) {
     await go('Statistics');
     assert.equal(
       await page.locator('.coverage-line').evaluate((e) => getComputedStyle(e).fontSize),
-      '16.5px',
+      '11px',
     );
     const plot = await page.locator('.plot-area').first().boundingBox();
     assert(plot && plot.y < 510, 'minimum window must expose part of the graph');
@@ -72,17 +71,23 @@ export async function checkUxRecovery(browser, url, out) {
     await page.getByRole('button', { name: 'Open', exact: true }).first().focus();
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => document.activeElement?.id === 'agent-workspace-heading');
-    const tabs = page.getByRole('tablist', { name: 'Agent sections' });
-    await tabs.getByRole('tab', { name: 'Risk', exact: true }).focus();
-    await page.keyboard.press('ArrowRight');
-    assert.equal(
-      await tabs.getByRole('tab', { name: 'Resources', exact: true }).getAttribute('aria-selected'),
-      'true',
+    assert.equal(await page.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
+    const resources = page
+      .getByRole('region', { name: 'Agent context summary' })
+      .getByRole('button', { name: /^Resources/ });
+    await resources.focus();
+    await page.keyboard.press('Enter');
+    assert(
+      await page
+        .getByRole('region', { name: 'Resources', exact: true })
+        .evaluate((node) => node === document.activeElement),
     );
+    assert(await page.getByRole('region', { name: 'Resources', exact: true }).isVisible());
     await go('Settings');
-    await page.getByRole('tab', { name: 'Monitoring', exact: true }).click();
+    const settingsNavigation = page.getByRole('navigation', { name: 'Settings sections' });
+    await settingsNavigation.getByRole('button', { name: 'Monitoring', exact: true }).click();
     await page.getByLabel('Exact scan interval (seconds)', { exact: true }).fill('0');
-    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+    await settingsNavigation.getByRole('button', { name: 'Appearance', exact: true }).click();
     const alert = page.locator('.settings-save [role=alert]');
     const box = await alert.boundingBox();
     assert(box && box.y >= 0 && box.y + box.height <= 600, 'validation must stay on screen');
@@ -100,7 +105,7 @@ export async function checkUxRecovery(browser, url, out) {
     );
     await field.fill('10');
     assert(await page.getByRole('button', { name: 'Save settings', exact: true }).isDisabled());
-    await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+    await settingsNavigation.getByRole('button', { name: 'Appearance', exact: true }).click();
     const theme = page.getByRole('combobox', { name: 'Theme', exact: true });
     await theme.selectOption('light-hc');
     await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();

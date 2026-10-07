@@ -9,10 +9,12 @@
     row,
     telemetry,
     navigate,
+    showAssessment = true,
   }: {
     row: RecordData;
     telemetry: Telemetry;
     navigate: (_title: string, _row: RecordData) => void;
+    showAssessment?: boolean;
   } = $props();
   let context = $derived(riskContext(row, telemetry));
   const points = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -30,28 +32,30 @@
     >
   </div>
   {#if context.subject}
-    <div class="assessment-head">
-      <strong
-        class="risk-value"
-        class:low={context.score !== null && riskBand(context.score) === 'low'}
-        class:medium={context.score !== null && riskBand(context.score) === 'medium'}
-        class:high={context.score !== null && riskBand(context.score) === 'high'}
-      >
-        {context.score ?? '—'}<small>/100</small>
-      </strong>
-      <div>
+    {#if showAssessment}
+      <div class="assessment-head">
         <strong
-          >{context.score === null
-            ? $t('Unavailable')
-            : riskBand(context.score) + ' observed risk'}</strong
+          class="risk-value"
+          class:low={context.score !== null && riskBand(context.score) === 'low'}
+          class:medium={context.score !== null && riskBand(context.score) === 'medium'}
+          class:high={context.score !== null && riskBand(context.score) === 'high'}
         >
-        <p class="primary-reason">
-          {!context.subject.instanceId
-            ? $t('Activity cannot be linked')
-            : (context.contributions[0]?.label ?? $t('No scored activity'))}
-        </p>
+          {context.score ?? '—'}<small>/100</small>
+        </strong>
+        <div>
+          <strong
+            >{context.score === null
+              ? $t('Unavailable')
+              : riskBand(context.score) + ' observed risk'}</strong
+          >
+          <p class="primary-reason">
+            {!context.subject.instanceId
+              ? $t('Activity cannot be linked')
+              : (context.contributions[0]?.label ?? $t('No scored activity'))}
+          </p>
+        </div>
       </div>
-    </div>
+    {/if}
     {#if row.agentGroupKey}
       <p class="scope">
         {context.processCount}

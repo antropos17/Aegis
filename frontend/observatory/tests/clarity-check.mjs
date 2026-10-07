@@ -75,13 +75,14 @@ export async function checkClarity(browser, url, out) {
     const context = page.locator('.agent-context');
     await workspace.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0);
-    assert(await workspace.locator('.agent-risk details').evaluate((node) => node.open));
+    assert(await workspace.getByRole('region', { name: 'Observed risk', exact: true }).isVisible());
+    assert.equal(await workspace.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
     assert.match(await workspace.innerText(), /Plain HTTP connections/);
     assert.match(await workspace.innerText(), /SSH \/ cloud credentials/);
     let states = 0;
     for (const width of [900, 1200]) {
       await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
-      for (const scale of [1, 1.5]) {
+      for (const scale of [1]) {
         for (const theme of ['light', 'dark', 'light-hc', 'dark-hc']) {
           await page.evaluate(
             ({ scale, theme }) => {
@@ -90,10 +91,9 @@ export async function checkClarity(browser, url, out) {
             },
             { scale, theme },
           );
-          await workspace
-            .getByRole('tablist', { name: 'Agent sections' })
-            .getByRole('tab', { name: 'Risk', exact: true })
-            .click();
+          await page.locator('#main').evaluate((node) => {
+            node.scrollTop = 0;
+          });
           assert(
             await page.evaluate(
               () =>
@@ -103,7 +103,7 @@ export async function checkClarity(browser, url, out) {
             'risk workspace overflows',
           );
           assert.match(
-            await workspace.locator('.primary-reason').innerText(),
+            await workspace.locator('.risk-reason').innerText(),
             /Plain HTTP connections/,
           );
           const reasonBounds = await workspace.locator('.risk-reason').evaluate((node) => {
@@ -146,10 +146,7 @@ export async function checkClarity(browser, url, out) {
       'clarity:12',
     );
     assert.equal(await page.getByRole('dialog').count(), 0);
-    await workspace
-      .getByRole('tablist', { name: 'Agent sections' })
-      .getByRole('tab', { name: 'Risk', exact: true })
-      .click();
+    assert(await workspace.getByRole('region', { name: 'Observed risk', exact: true }).isVisible());
     assert.match(
       await workspace.locator('.risk-explanation').innerText(),
       /Plain HTTP connections/,

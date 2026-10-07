@@ -61,14 +61,14 @@ it.each([
     expect(view.getByRole('img').querySelector('circle')).toHaveAttribute('cx', heldPoint);
 
     if (Component === Statistics) {
-      await fireEvent.click(view.getByRole('tab', { name: 'Sensors', exact: true }));
+      await fireEvent.click(view.getByRole('button', { name: 'Sensors', exact: true }));
       await mounted.rerender({ telemetry: { ...departed, ownAt: Date.now(), own: { memMB: 80 } } });
       await fireEvent.click(view.getByRole('button', { name: /AEGIS memory/ }));
       const livePoint = view.getByRole('img').querySelector('circle').getAttribute('cx');
       await vi.advanceTimersByTimeAsync(2000);
       await tick();
       expect(view.getByRole('img').querySelector('circle').getAttribute('cx')).not.toBe(livePoint);
-      await fireEvent.click(view.getByRole('tab', { name: 'Performance', exact: true }));
+      await fireEvent.click(view.getByRole('button', { name: 'Performance', exact: true }));
       expect(view.getByRole('img')).toHaveAttribute(
         'aria-label',
         expect.stringContaining('1 measured samples'),

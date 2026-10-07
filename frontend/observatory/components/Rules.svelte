@@ -24,7 +24,6 @@
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import AgentLogo from './AgentLogo.svelte';
-  let section = $state('permissions');
   const profiles: Record<string, [string, string]> = {
     paranoid: ['bell', 'Request block for every category'],
     strict: ['shield', 'Request block for sensitive actions'],
@@ -55,7 +54,6 @@
     if (!loaded || mutation || !targetRequest || targetRequest.revision === appliedTargetRevision)
       return;
     appliedTargetRevision = targetRequest.revision;
-    section = 'permissions';
     scope = targetRequest.key.includes('::') ? 'instance' : 'agent';
     target = targetRequest.key;
   });
@@ -295,219 +293,243 @@
   }
 </script>
 
-<div class="subnav">
-  <button aria-pressed={section === 'permissions'} onclick={() => (section = 'permissions')}
-    ><Icon name="shield" />{$t('Agent permissions')}</button
-  ><button aria-pressed={section === 'rules'} onclick={() => (section = 'rules')}
-    ><Icon name="file" />{$t('Detection rules')} <small>{rules.length}</small></button
-  >
-</div>
-<div hidden={section !== 'permissions'}>
-  <div class="policy-explanation">
-    <strong>{$t('Saved preferences · automatic blocking is not active')}</strong>
-    <p>
+<div class="rules-composition">
+  <section class="permissions-pane" aria-labelledby="permissions-heading">
+    <h2 id="permissions-heading">{$t('Agent permissions')}</h2>
+    <div class="policy-explanation">
+      <strong>{$t('Saved preferences · automatic blocking is not active')}</strong>
+      <p>
+        {$t(
+          'These settings record your intended policy. They do not currently block file or network access, or change which observations are collected. To pause or stop an agent, open its process controls.',
+        )}
+      </p>
+    </div>
+    {#if error}<p role="alert">{$t(error)}</p>{/if}
+    {#if writeNotice}<p role="status">{$t(writeNotice)}</p>{/if}
+    {#if permissionsState === 'loading'}<p role="status">{$t('Loading permissions…')}</p>
+    {:else if permissionsState === 'failed'}<p role="status">
+        {loaded
+          ? $t('Permissions unavailable. Showing last loaded preferences.')
+          : $t('Permissions unavailable. Retry loading.')}
+      </p>
+    {:else if !Object.keys(permissions).length}<p role="status">
+        {$t('No saved permission overrides.')}
+      </p>{/if}
+    <div class="filterbar target-toolbar">
+      <label class="target-field"
+        ><span class="target-label">{$t('Agent')}</span>
+        <span class="target-control"
+          ><AgentLogo
+            name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
+            size={22}
+          /><select
+            aria-label={$t('Target')}
+            disabled={!loaded || mutation === 'reset'}
+            bind:value={target}
+            ><option value="">{$t('Select…')}</option>{#each options as option (option.key)}<option
+                value={option.key}>{option.label}</option
+              >{/each}</select
+          ></span
+        ></label
+      ><label class="target-field"
+        ><span class="target-label"><Icon name="cpu" />{$t('Apply to')}</span>
+        <select
+          disabled={!loaded || mutation === 'reset'}
+          aria-label={$t('Scope')}
+          bind:value={scope}
+          onchange={() => (target = '')}
+          ><option value="agent">{$t('Agent defaults')}</option><option value="instance"
+            >{$t('Project / parent override')}</option
+          ></select
+        ></label
+      ><Action disabled={mutation !== null} action={load}
+        ><Icon name="refresh" />{permissionsState === 'failed'
+          ? $t('Retry loading')
+          : $t('Refresh')}</Action
+      >
+    </div>
+    <section class="panel">
+      <div class="preset-grid">
+        {#each Object.entries(presets) as [name, values] (name)}<button
+            class="preset"
+            aria-label={$t(name)}
+            title={$t(profiles[name][1])}
+            data-id={$t(name)}
+            disabled={!loaded || !target || mutation === 'reset'}
+            aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
+            onclick={() =>
+              (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
+            ><span class="preset-heading"
+              ><Icon name={profiles[name][0]} /><strong>{$t(name)}</strong><Icon
+                name="check"
+                class="preset-check"
+              /></span
+            ><small>{$t(profiles[name][1])}</small></button
+          >{/each}
+      </div>
+      {#if !selectedProfile}<p class="preset-caption">
+          {$t('Custom permissions · adjust individual categories below')}
+        </p>{/if}
+      {#each categories as category (category)}
+        <div class="permission-row">
+          <div class="permission-identity">
+            <Icon name={labels[category][0]} />
+            <div>
+              <h3>{$t(labels[category][1])}</h3>
+              <p>{$t(labels[category][2])}</p>
+            </div>
+          </div>
+          <select
+            aria-label={$t(labels[category][1])}
+            disabled={!loaded || !target || mutation === 'reset'}
+            bind:value={draft[category]}
+          >
+            <option value="allow">{$t('Prefer allow')}</option><option value="monitor"
+              >{$t('Monitor')}</option
+            ><option value="block">{$t('Request block')}</option>
+          </select>
+        </div>
+      {/each}
+      <div class="toolbar inset permission-save">
+        <span role="status" class="draft-status"
+          >{loaded && target
+            ? dirty
+              ? $t('Unsaved permissions')
+              : $t('Permissions saved')
+            : ''}</span
+        >
+        <Action disabled={!loaded || !target || !dirty || mutation !== null} action={save}
+          ><Icon name="check" />{$t('Save permissions')}</Action
+        ><Action
+          disabled={!dirty || mutation !== null}
+          action={async () => {
+            delete drafts[activeKey];
+            acknowledged.delete(contextKey);
+            const current = effectivePolicy(contextKey, agents, permissions);
+            draft = policyDraft(current);
+            draftBaseline = policySnapshot(draft);
+            writeNotice = '';
+          }}><Icon name="close" />{$t('Discard changes')}</Action
+        >
+      </div>
+      <details class="permission-reset">
+        <summary>{$t('Restore default policy')}</summary>
+        <p>{$t('This restores permissions for every agent and project.')}</p>
+        <Action disabled={!loaded || mutation !== null} action={reset}
+          ><Icon name="refresh" />{$t('Reset all to defaults')}</Action
+        >
+      </details>
+    </section>
+    <p class="policy-note">
       {$t(
-        'These settings record your intended policy. They do not currently block file or network access, or change which observations are collected. To pause or stop an agent, open its process controls.',
+        'Project overrides persist by agent, working directory and parent editor. Instances sharing that context share permissions.',
       )}
     </p>
-  </div>
-  {#if error}<p role="alert">{$t(error)}</p>{/if}
-  {#if writeNotice}<p role="status">{$t(writeNotice)}</p>{/if}
-  {#if permissionsState === 'loading'}<p role="status">{$t('Loading permissions…')}</p>
-  {:else if permissionsState === 'failed'}<p role="status">
-      {loaded
-        ? $t('Permissions unavailable. Showing last loaded preferences.')
-        : $t('Permissions unavailable. Retry loading.')}
-    </p>
-  {:else if !Object.keys(permissions).length}<p role="status">
-      {$t('No saved permission overrides.')}
-    </p>{/if}
-  <div class="filterbar target-toolbar">
-    <label class="target-field"
-      ><span class="target-label">{$t('Agent')}</span>
-      <span class="target-control"
-        ><AgentLogo
-          name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
-          size={22}
-        /><select
-          aria-label={$t('Target')}
-          disabled={!loaded || mutation === 'reset'}
-          bind:value={target}
-          ><option value="">{$t('Select…')}</option>{#each options as option (option.key)}<option
-              value={option.key}>{option.label}</option
-            >{/each}</select
-        ></span
-      ></label
-    ><label class="target-field"
-      ><span class="target-label"><Icon name="cpu" />{$t('Apply to')}</span>
-      <select
-        disabled={!loaded || mutation === 'reset'}
-        aria-label={$t('Scope')}
-        bind:value={scope}
-        onchange={() => (target = '')}
-        ><option value="agent">{$t('Agent defaults')}</option><option value="instance"
-          >{$t('Project / parent override')}</option
-        ></select
-      ></label
-    ><Action disabled={mutation !== null} action={load}
-      ><Icon name="refresh" />{permissionsState === 'failed'
-        ? $t('Retry loading')
-        : $t('Refresh')}</Action
-    >
-  </div>
-  <section class="panel">
-    <div class="preset-grid">
-      {#each Object.entries(presets) as [name, values] (name)}<button
-          class="preset"
-          aria-label={$t(name)}
-          title={$t(profiles[name][1])}
-          data-id={$t(name)}
-          disabled={!loaded || !target || mutation === 'reset'}
-          aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
-          onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
-          ><span class="preset-heading"
-            ><Icon name={profiles[name][0]} /><strong>{$t(name)}</strong><Icon
-              name="check"
-              class="preset-check"
-            /></span
-          ><small>{$t(profiles[name][1])}</small></button
-        >{/each}
-    </div>
-    {#if !selectedProfile}<p class="preset-caption">
-        {$t('Custom permissions · adjust individual categories below')}
-      </p>{/if}
-    {#each categories as category (category)}
-      <div class="permission-row">
-        <div class="permission-identity">
-          <Icon name={labels[category][0]} />
-          <div>
-            <h3>{$t(labels[category][1])}</h3>
-            <p>{$t(labels[category][2])}</p>
-          </div>
-        </div>
-        <select
-          aria-label={$t(labels[category][1])}
-          disabled={!loaded || !target || mutation === 'reset'}
-          bind:value={draft[category]}
-        >
-          <option value="allow">{$t('Prefer allow')}</option><option value="monitor"
-            >{$t('Monitor')}</option
-          ><option value="block">{$t('Request block')}</option>
-        </select>
-      </div>
-    {/each}
-    <div class="toolbar inset permission-save">
-      <span role="status" class="draft-status"
-        >{loaded && target
-          ? dirty
-            ? $t('Unsaved permissions')
-            : $t('Permissions saved')
-          : ''}</span
-      >
-      <Action disabled={!loaded || !target || !dirty || mutation !== null} action={save}
-        ><Icon name="check" />{$t('Save permissions')}</Action
-      ><Action
-        disabled={!dirty || mutation !== null}
-        action={async () => {
-          delete drafts[activeKey];
-          acknowledged.delete(contextKey);
-          const current = effectivePolicy(contextKey, agents, permissions);
-          draft = policyDraft(current);
-          draftBaseline = policySnapshot(draft);
-          writeNotice = '';
-        }}><Icon name="close" />{$t('Discard changes')}</Action
-      >
-    </div>
-    <details class="permission-reset">
-      <summary>{$t('Restore default policy')}</summary>
-      <p>{$t('This restores permissions for every agent and project.')}</p>
-      <Action disabled={!loaded || mutation !== null} action={reset}
-        ><Icon name="refresh" />{$t('Reset all to defaults')}</Action
-      >
-    </details>
   </section>
-  <p class="policy-note">
-    {$t(
-      'Project overrides persist by agent, working directory and parent editor. Instances sharing that context share permissions.',
-    )}
-  </p>
-</div>
-<section class="panel" hidden={section !== 'rules'}>
-  <div class="panel-head">
-    <h2>{$t('Loaded detection rules')}</h2>
-    <Action
-      disabled={ruleMutation !== null}
-      action={async () => {
-        confirmed(await invoke(host, 'reloadRules'));
-        await load();
-      }}><Icon name="refresh" />{$t('Reload rules')}</Action
-    >
-  </div>
-  <p class="rule-scope muted">
-    {$t('Turning off a rule stops its file path match. Other sensors and detections continue.')}
-  </p>
-  {#if rulesState === 'loading'}<p role="status">{$t('Loading detection rules…')}</p>
-  {:else if rulesState === 'failed'}
-    <p role="status">
-      {rulesLoaded
-        ? $t('Detection rules unavailable. Showing last loaded rules.')
-        : $t('Detection rules unavailable. Retry loading.')}
-    </p>
-    <p role="alert">{$t(rulesLoadError)}</p>
-    <Action action={load}><Icon name="refresh" />{$t('Retry loading')}</Action>
-  {/if}
-  {#if ruleError}<p class="rule-error" role="alert">{ruleError}</p>{/if}
-  <div class="filterbar rules-filter">
-    <label class="search-field"
-      ><Icon name="search" /><input
-        type="search"
-        aria-label={$t('Search detection rules')}
-        bind:value={ruleQuery}
-        placeholder={$t('Name, category or rule ID…')}
-      /></label
-    ><span class="muted">{filteredRules.length} {$t('of')} {rules.length} {$t('rules')}</span>
-  </div>
-  <div class="table-scroll">
-    <table class="rules-table">
-      <thead
-        ><tr
-          ><th>{$t('ID')}</th><th>{$t('Name')}</th><th>{$t('Category')}</th><th>{$t('Risk')}</th><th
-            >{$t('On / off')}</th
-          ></tr
-        ></thead
-      ><tbody
-        >{#each filteredRules as rule (String(rule.id))}<tr
-            ><td>{String(rule.id)}</td><td
-              >{String(rule.name ?? rule.reason ?? '')}<small class="rule-meta"
-                >{String(rule.category ?? '')} · {String(rule.risk ?? '')}</small
-              ></td
-            ><td>{String(rule.category ?? '')}</td><td>{String(rule.risk ?? '')}</td><td
-              ><label class="rule-toggle"
-                ><input
-                  type="checkbox"
-                  aria-label={$t('Enable {name}', { name: String(rule.name ?? rule.id) })}
-                  checked={rule.enabled !== false}
-                  disabled={ruleMutation !== null}
-                  onchange={(event) =>
-                    void setRuleEnabled(rule, event.currentTarget.checked, event.currentTarget)}
-                /><span>{rule.enabled === false ? $t('Off') : $t('On')}</span></label
-              ></td
-            ></tr
-          >{:else}<tr
-            ><td colspan="5" class="empty-rules"
-              >{ruleQuery && rulesLoaded
-                ? $t('No rules match this search.')
-                : rulesState === 'ready'
-                  ? $t('No detection rules loaded.')
-                  : ''}</td
-            ></tr
-          >{/each}</tbody
+  <section class="panel detection-pane" aria-labelledby="detection-heading">
+    <div class="panel-head">
+      <h2 id="detection-heading">{$t('Loaded detection rules')}</h2>
+      <Action
+        disabled={ruleMutation !== null}
+        action={async () => {
+          confirmed(await invoke(host, 'reloadRules'));
+          await load();
+        }}><Icon name="refresh" />{$t('Reload rules')}</Action
       >
-    </table>
-  </div>
-</section>
+    </div>
+    <p class="rule-scope muted">
+      {$t('Turning off a rule stops its file path match. Other sensors and detections continue.')}
+    </p>
+    {#if rulesState === 'loading'}<p role="status">{$t('Loading detection rules…')}</p>
+    {:else if rulesState === 'failed'}
+      <p role="status">
+        {rulesLoaded
+          ? $t('Detection rules unavailable. Showing last loaded rules.')
+          : $t('Detection rules unavailable. Retry loading.')}
+      </p>
+      <p role="alert">{$t(rulesLoadError)}</p>
+      <Action action={load}><Icon name="refresh" />{$t('Retry loading')}</Action>
+    {/if}
+    {#if ruleError}<p class="rule-error" role="alert">{ruleError}</p>{/if}
+    <div class="filterbar rules-filter">
+      <label class="search-field"
+        ><Icon name="search" /><input
+          type="search"
+          aria-label={$t('Search detection rules')}
+          bind:value={ruleQuery}
+          placeholder={$t('Name, category or rule ID…')}
+        /></label
+      ><span class="muted">{filteredRules.length} {$t('of')} {rules.length} {$t('rules')}</span>
+    </div>
+    <div class="table-scroll">
+      <table class="rules-table">
+        <thead
+          ><tr
+            ><th>{$t('ID')}</th><th>{$t('Name')}</th><th>{$t('Category')}</th><th>{$t('Risk')}</th
+            ><th>{$t('On / off')}</th></tr
+          ></thead
+        ><tbody
+          >{#each filteredRules as rule (String(rule.id))}<tr
+              ><td>{String(rule.id)}</td><td
+                >{String(rule.name ?? rule.reason ?? '')}<small class="rule-meta"
+                  >{String(rule.category ?? '')} · {String(rule.risk ?? '')}</small
+                ></td
+              ><td>{String(rule.category ?? '')}</td><td>{String(rule.risk ?? '')}</td><td
+                ><label class="rule-toggle"
+                  ><input
+                    type="checkbox"
+                    aria-label={$t('Enable {name}', { name: String(rule.name ?? rule.id) })}
+                    checked={rule.enabled !== false}
+                    disabled={ruleMutation !== null}
+                    onchange={(event) =>
+                      void setRuleEnabled(rule, event.currentTarget.checked, event.currentTarget)}
+                  /><span>{rule.enabled === false ? $t('Off') : $t('On')}</span></label
+                ></td
+              ></tr
+            >{:else}<tr
+              ><td colspan="5" class="empty-rules"
+                >{ruleQuery && rulesLoaded
+                  ? $t('No rules match this search.')
+                  : rulesState === 'ready'
+                    ? $t('No detection rules loaded.')
+                    : ''}</td
+              ></tr
+            >{/each}</tbody
+        >
+      </table>
+    </div>
+  </section>
+</div>
 
 <style>
+  .rules-composition {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .permissions-pane,
+  .detection-pane {
+    min-width: 0;
+  }
+  .permissions-pane {
+    container-type: inline-size;
+    container-name: permissions;
+  }
+  .permissions-pane > h2 {
+    margin: 0;
+    font-size: var(--text-body);
+    font-weight: 700;
+  }
+  .detection-pane :global(.panel-head) {
+    flex-wrap: wrap;
+  }
+  @media (max-width: 1100px) {
+    .rules-composition {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   .policy-explanation {
     margin: 10px 0;
     padding: var(--space-4);
@@ -546,6 +568,16 @@
     gap: 8px;
     padding: 16px 18px;
     margin: 0;
+  }
+  @container permissions (max-width: 680px) {
+    .preset-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @container permissions (max-width: 320px) {
+    .preset-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .permission-save {
     position: static;
@@ -703,29 +735,6 @@
     }
     .permission-row {
       grid-template-columns: minmax(0, 1fr);
-    }
-    .preset-caption {
-      margin: 0;
-      padding: 0 18px 14px;
-      color: var(--muted);
-      font-size: calc(12px * var(--ui-scale));
-    }
-    .preset {
-      padding: 10px;
-    }
-    .preset small {
-      display: block;
-    }
-    .preset-heading {
-      gap: 6px;
-    }
-    .preset strong {
-      font-size: calc(11px * var(--ui-scale));
-    }
-    .preset-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
   .preset strong {

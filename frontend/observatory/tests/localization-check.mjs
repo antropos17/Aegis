@@ -43,7 +43,7 @@ export async function checkLocalization(browser, url, out) {
     }
     for (const theme of ['light', 'dark', 'light-hc', 'dark-hc']) {
       for (const width of [900, 1200]) {
-        for (const scale of [1, 1.5]) {
+        for (const scale of [1]) {
           await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
           await page.evaluate(
             ({ theme, scale }) => {
@@ -68,7 +68,7 @@ export async function checkLocalization(browser, url, out) {
       .locator('.sidebar')
       .getByRole('button', { name: 'Configurações', exact: true })
       .click();
-    await page.screenshot({ path: resolve(out, 'settings-pt-150.png') });
+    await page.screenshot({ path: resolve(out, 'settings-pt-100.png') });
     await page.getByLabel('Idioma', { exact: true }).selectOption('en');
     await page.getByRole('heading', { name: 'Settings', level: 1, exact: true }).waitFor();
     await page.evaluate(() => localStorage.setItem('aegis.language', 'unsupported'));
@@ -77,7 +77,7 @@ export async function checkLocalization(browser, url, out) {
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
     assert.deepEqual(errors, []);
     console.log(
-      'Localization: 12 workspaces, saved locale, command search and 16 radar layouts passed.',
+      'Localization: 12 workspaces, saved locale, command search and 8 radar layouts passed.',
     );
   } finally {
     await page.close();

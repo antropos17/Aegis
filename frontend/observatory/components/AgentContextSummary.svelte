@@ -18,6 +18,7 @@
     prefix,
     select,
     paused = false,
+    continuous = false,
   }: {
     telemetry: Telemetry;
     scope: AgentScope;
@@ -29,6 +30,7 @@
     prefix: string;
     select: (_section: string) => void;
     paused?: boolean;
+    continuous?: boolean;
   } = $props();
 
   let scoped = $derived(scopeStatistics(telemetry, scope));
@@ -44,7 +46,7 @@
   <button
     class="context-card"
     aria-controls={prefix + '-panel-resources'}
-    aria-expanded={section === 'resources'}
+    aria-expanded={continuous ? undefined : section === 'resources'}
     onclick={() => select('resources')}
   >
     <span class="context-title"><Icon name="chart" />{$t('Resources')}<Icon name="chevron" /></span>
@@ -65,7 +67,7 @@
   <button
     class="context-card"
     aria-controls={prefix + '-panel-activity'}
-    aria-expanded={section === 'activity'}
+    aria-expanded={continuous ? undefined : section === 'activity'}
     onclick={() => select('activity')}
   >
     <span class="context-title"
@@ -93,8 +95,8 @@
   </button>
   <button
     class="context-card"
-    aria-controls={prefix + '-panel-processes'}
-    aria-expanded={section === 'processes'}
+    aria-controls={prefix + '-panel-' + (continuous ? processSection : 'processes')}
+    aria-expanded={continuous ? undefined : section === 'processes'}
     onclick={() => select(processSection)}
   >
     <span class="context-title"
@@ -180,16 +182,8 @@
     font-variant-numeric: tabular-nums;
   }
   @media (max-width: 980px) {
-    .context-title {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
     .context-card {
-      padding: var(--space-1);
+      padding: var(--space-2);
     }
     .context-values {
       gap: var(--space-1);

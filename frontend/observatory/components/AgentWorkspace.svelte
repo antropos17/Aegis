@@ -3,7 +3,6 @@
   import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
-  import SectionTabs from './SectionTabs.svelte';
   import { instances, type Host, type Telemetry, type RecordData } from '../runtime/host';
   import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
   import { radarGroups, groupRecord, riskBand } from '../runtime/radar';
@@ -73,9 +72,6 @@
   );
   let absent = $derived(scope.instanceId ? !process : !group);
   const prefix = $props.id();
-  let section = $state('risk');
-  let riskOpen = $state(true);
-  let processInformationOpen = $state(false);
   // Keep a visited composition mounted so changing mode preserves its filters.
   let simpleMounted = $state(untrack(() => !advanced));
   let advancedMounted = $state(untrack(() => advanced));
@@ -83,26 +79,19 @@
     if (advanced) advancedMounted = true;
     else simpleMounted = true;
   });
-  let tabs = $derived([
-    { id: 'risk', label: 'Risk', icon: 'shield' },
-    { id: 'resources', label: 'Resources', icon: 'chart' },
-    {
-      id: 'activity',
-      label: 'Activity',
-      icon: 'activity',
-      count: files.length + connections.length,
-    },
-    { id: 'processes', label: 'Processes', icon: 'cpu' },
-  ]);
+
   let lastRequest = -1;
   function selectSection(id: string) {
-    section =
-      id === 'process-controls' ? 'processes' : tabs.some((tab) => tab.id === id) ? id : 'risk';
-    if (section === 'risk') riskOpen = true;
-    if (id === 'process-controls') processInformationOpen = true;
+    if (!visible || !advanced) return;
+    // Overview navigation restores scroll and focuses its heading in App.
+    if (!['risk', 'resources', 'activity', 'processes', 'process-controls'].includes(id)) return;
+    const panel = document.getElementById(prefix + '-panel-' + id);
+    if (!panel?.isConnected || panel.closest('[hidden], [inert]')) return;
+    panel.focus({ preventScroll: true });
+    panel.scrollIntoView?.({ block: 'nearest' });
   }
   $effect(() => {
-    if (visible && sectionRequest && sectionRequest.revision !== lastRequest) {
+    if (visible && advanced && sectionRequest && sectionRequest.revision !== lastRequest) {
       lastRequest = sectionRequest.revision;
       selectSection(sectionRequest.id);
     }
@@ -162,104 +151,115 @@
         {connections}
         {workerCount}
         processObserved={!!process}
-        {section}
+        section="risk"
         {prefix}
         select={selectSection}
         {paused}
+        continuous
       />
-      <SectionTabs
-        {tabs}
-        selected={section}
-        change={selectSection}
-        {prefix}
-        label={$t('Agent sections')}
-      />
-      <div
-        id={prefix + '-panel-risk'}
-        role="tabpanel"
-        aria-labelledby={prefix + '-tab-risk'}
-        tabindex="0"
-        hidden={section !== 'risk'}
-        class="agent-risk panel"
-      >
-        <details bind:open={riskOpen}>
-          <summary
-            ><span class="risk-heading"
-              >{$t('Observed risk')}
-              <strong class={risk.score === null ? '' : riskBand(risk.score)}
-                >{risk.score ?? '—'}<small>/100</small></strong
-              ></span
-            >
-            <span class="risk-reason"
-              >{!risk.subject
-                ? $t('Current assessment unavailable')
-                : !risk.subject.instanceId
-                  ? $t('Process identity not recorded')
-                  : (risk.contributions[0]?.label ?? $t('No scored activity'))}<small
-                >{scope.instanceId ? $t('This process') : $t('Highest process score')} · {riskOpen
-                  ? $t('Collapse explanation')
-                  : $t('Expand explanation')}</small
-              ></span
-            >
-          </summary>
-          <div class="risk-content">
-            <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
-          </div>
-        </details>
-      </div>
-      <div
-        id={prefix + '-panel-resources'}
-        role="tabpanel"
-        aria-labelledby={prefix + '-tab-resources'}
-        tabindex="0"
-        hidden={section !== 'resources'}
-      >
-        <AgentPerformance {telemetry} {scope} paused={paused || !advanced || !visible} />
-      </div>
-      <div
-        id={prefix + '-panel-activity'}
-        role="tabpanel"
-        aria-labelledby={prefix + '-tab-activity'}
-        tabindex="0"
-        hidden={section !== 'activity'}
-        class="agent-activity"
-      >
-        <AgentEvidence
-          agents={all as unknown as RecordData[]}
-          rows={files}
-          {inspect}
-          more={() => navigate('events')}
-        />
-        <AgentEvidence
-          agents={all as unknown as RecordData[]}
-          rows={connections}
-          network
-          {inspect}
-          more={() => navigate('network')}
-        />
-      </div>
-      <div
-        id={prefix + '-panel-processes'}
-        role="tabpanel"
-        aria-labelledby={prefix + '-tab-processes'}
-        tabindex="0"
-        hidden={section !== 'processes'}
-        class="agent-process-panel"
-      >
-        <AgentProcesses {telemetry} {scope} {change} />
-        {#if process}
-          <details class="process-information panel" bind:open={processInformationOpen}>
-            <summary>{$t('Process attributes and controls')}</summary>
-            <div class="process-information-body">
-              <DetailSummary row={subject} {telemetry} section="attributes" />
-              {#key scope.instanceId}<DetailControls
-                  row={subject}
-                  telemetry={liveTelemetry}
-                  {host}
-                />{/key}
+      <div class="agent-columns">
+        <div class="agent-main-column">
+          <section
+            id={prefix + '-panel-activity'}
+            aria-labelledby={prefix + '-heading-activity'}
+            tabindex="-1"
+            class="agent-activity"
+          >
+            <h3 id={prefix + '-heading-activity'} class="section-title">
+              <Icon name="activity" />{$t('Activity')}
+            </h3>
+            <AgentEvidence
+              agents={all as unknown as RecordData[]}
+              rows={files}
+              {inspect}
+              more={() => navigate('events')}
+            />
+            <AgentEvidence
+              agents={all as unknown as RecordData[]}
+              rows={connections}
+              network
+              {inspect}
+              more={() => navigate('network')}
+            />
+          </section>
+          <section
+            id={prefix + '-panel-resources'}
+            aria-labelledby={prefix + '-heading-resources'}
+            tabindex="-1"
+            class="agent-resources panel"
+          >
+            <h3 id={prefix + '-heading-resources'} class="section-title">
+              <Icon name="chart" />{$t('Resources')}
+            </h3>
+            <AgentPerformance {telemetry} {scope} paused={paused || !advanced || !visible} />
+          </section>
+          <section
+            id={prefix + '-panel-processes'}
+            aria-label={$t('Processes')}
+            tabindex="-1"
+            class="agent-process-panel"
+          >
+            <AgentProcesses {telemetry} {scope} {change} />
+          </section>
+        </div>
+        <aside class="agent-context-column" aria-label={$t('Agent details')}>
+          <section
+            id={prefix + '-panel-risk'}
+            aria-label={$t('Observed risk')}
+            tabindex="-1"
+            class="agent-risk panel"
+          >
+            <div class="risk-panel-head">
+              <h3 id={prefix + '-heading-risk'} class="risk-heading">
+                <Icon name="shield" />{$t('Observed risk')}
+                <strong class={risk.score === null ? '' : riskBand(risk.score)}
+                  >{risk.score ?? '—'}<small>/100</small></strong
+                >
+              </h3>
+              <span class="risk-reason"
+                >{!risk.subject
+                  ? $t('Current assessment unavailable')
+                  : !risk.subject.instanceId
+                    ? $t('Process identity not recorded')
+                    : (risk.contributions[0]?.label ?? $t('No scored activity'))}<small
+                  >{scope.instanceId ? $t('This process') : $t('Highest process score')}</small
+                ></span
+              >
             </div>
-          </details>
-        {/if}
+          </section>
+          <section
+            id={prefix + '-panel-process-controls'}
+            class="process-information panel"
+            aria-labelledby={prefix + '-heading-controls'}
+            tabindex="-1"
+          >
+            <h3 id={prefix + '-heading-controls'} class="section-title">
+              <Icon name="cpu" />{$t('Process attributes and controls')}
+            </h3>
+            <div class="process-information-body">
+              {#if process}
+                {#key scope.instanceId}<DetailControls
+                    row={subject}
+                    telemetry={liveTelemetry}
+                    {host}
+                  />{/key}
+              {:else}<p class="entity-note">
+                  {$t('Choose a worker process to pause, resume or stop.')}
+                </p>{/if}
+            </div>
+          </section>
+          <section class="risk-content panel" aria-label={$t('Why this score')}>
+            <RiskExplanation
+              row={riskSubject}
+              {telemetry}
+              navigate={inspect}
+              showAssessment={false}
+            />
+          </section>
+          {#if process}<section class="process-attributes panel" aria-label={$t('Attributes')}>
+              <DetailSummary row={subject} {telemetry} section="attributes" />
+            </section>{/if}
+        </aside>
       </div>
     </div>{/if}
 </div>
@@ -292,32 +292,58 @@
     margin: 5px 0 0;
     font-size: var(--text-body);
   }
-  [role='tabpanel'][hidden] {
-    display: none;
+  .agent-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.62fr);
+    gap: var(--space-4);
+    align-items: start;
   }
-  [role='tabpanel'] {
+  .agent-main-column,
+  .agent-context-column {
+    display: grid;
+    gap: var(--space-4);
     min-width: 0;
+  }
+  .agent-context-column {
+    padding: var(--space-3);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    background: var(--raised);
+  }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-body);
+    font-weight: 600;
+  }
+  .agent-resources {
+    padding: var(--panel-inset);
+    display: grid;
+    gap: var(--space-3);
+    container-type: inline-size;
+  }
+  .agent-columns section {
+    min-width: 0;
+    scroll-margin-block: var(--space-4);
     outline-offset: 4px;
   }
   .agent-process-panel {
     display: grid;
     gap: var(--space-4);
   }
-  summary {
-    cursor: pointer;
+  .risk-panel-head {
+    display: grid;
+    gap: var(--space-2);
     padding: var(--panel-inset);
-  }
-  .agent-risk summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px 30px;
-    align-items: center;
   }
   .risk-heading {
     display: flex;
     align-items: baseline;
     gap: var(--space-3);
     font-size: var(--text-body);
+    margin: 0;
   }
   .risk-heading strong {
     font-size: var(--text-metric);
@@ -329,10 +355,10 @@
     color: var(--muted);
   }
   .risk-reason {
-    flex: 1 1 180px;
     min-width: 0;
     overflow-wrap: anywhere;
     font-size: var(--text-body);
+    font-weight: 600;
   }
   .risk-reason small {
     display: block;
@@ -341,7 +367,9 @@
     font-size: var(--text-caption);
   }
   .risk-content {
-    border-top: 1px solid var(--border);
+    padding: var(--panel-inset);
+  }
+  .process-attributes {
     padding: var(--panel-inset);
   }
   .agent-activity {
@@ -350,7 +378,8 @@
     gap: var(--space-4);
     align-items: start;
   }
-  .process-information summary {
+  .process-information > .section-title {
+    padding: var(--panel-inset);
     font-size: var(--text-body);
     font-weight: 600;
   }
@@ -361,9 +390,6 @@
     border-top: 1px solid var(--border);
   }
   @media (max-width: 1150px) {
-    .agent-activity {
-      grid-template-columns: minmax(0, 1fr);
-    }
     .agent-intro {
       flex-wrap: wrap;
     }
@@ -371,6 +397,31 @@
   @media (max-width: 980px) {
     .agent-workspace {
       gap: var(--space-3);
+    }
+  }
+  @container (max-width: 540px) {
+    .agent-resources :global(.monitor) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .agent-resources :global(.metric-rail) {
+      flex-direction: row;
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .agent-resources :global(.metric-rail button) {
+      flex: 0 0 110px;
+    }
+    .agent-resources :global(.monitor-detail) {
+      padding: var(--space-3);
+    }
+  }
+  @media (max-width: 760px) {
+    .agent-columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .agent-context-column {
+      grid-row: 1;
     }
   }
 </style>

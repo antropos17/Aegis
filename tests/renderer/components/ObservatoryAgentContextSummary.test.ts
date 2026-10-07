@@ -88,7 +88,7 @@ it('shows complete scoped resource readings and retained evidence while the risk
   expect(resources).not.toHaveTextContent('999');
   expect(summary().getByRole('button', { name: /Activity/ })).toHaveTextContent('2');
   expect(summary().getByRole('button', { name: /Worker processes/ })).toHaveTextContent('2');
-  expect(screen.getByRole('tabpanel', { name: 'Risk' })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Observed risk' })).toBeVisible();
 
   await mounted.rerender({ telemetry: { ...state, resources: state.resources.slice(0, 1) } });
   expect(resources.querySelectorAll('strong')[0]).toHaveTextContent('—');
@@ -104,22 +104,61 @@ it('shows complete scoped resource readings and retained evidence while the risk
   expect(resources).toHaveTextContent('Resource measurements incomplete');
 });
 
-it('keeps section links focused and preserves the mounted resource metric selection', async () => {
-  start();
+it('focuses the section destination and preserves its resource metric without jumping from hidden workspaces', async () => {
+  const mounted = start();
   const resources = summary().getByRole('button', { name: /Resources/ });
   resources.focus();
   await fireEvent.click(resources);
-  expect(resources).toHaveFocus();
-  expect(resources).toHaveAttribute('aria-expanded', 'true');
-  const panel = screen.getByRole('tabpanel', { name: 'Resources' });
+  const panel = screen.getByRole('region', { name: 'Resources' });
+  expect(panel).toHaveFocus();
+  expect(resources).not.toHaveAttribute('aria-expanded');
   expect(resources).toHaveAttribute('aria-controls', panel.id);
   const memory = within(panel).getByRole('button', { name: /memory/i });
   await fireEvent.click(memory);
   await fireEvent.click(summary().getByRole('button', { name: /Activity/ }));
-  expect(screen.getByRole('tabpanel', { name: /^Activity/ })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Activity' })).toHaveFocus();
   await fireEvent.click(resources);
-  expect(screen.getByRole('tabpanel', { name: 'Resources' })).toBe(panel);
+  expect(screen.getByRole('region', { name: 'Resources' })).toBe(panel);
+  expect(panel).toHaveFocus();
   expect(memory).toHaveAttribute('aria-pressed', 'true');
+
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+  const scroll = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scroll,
+  });
+  try {
+    memory.focus();
+    await mounted.rerender({ visible: false, sectionRequest: { id: 'resources', revision: 1 } });
+    expect(scroll).not.toHaveBeenCalled();
+    expect(memory).toHaveFocus();
+    await mounted.rerender({ visible: true });
+    expect(scroll.mock.contexts).toContain(panel);
+    expect(panel).toHaveFocus();
+    expect(memory).toHaveAttribute('aria-pressed', 'true');
+
+    scroll.mockClear();
+    memory.focus();
+    mounted.container.setAttribute('inert', '');
+    await mounted.rerender({ sectionRequest: { id: 'resources', revision: 2 } });
+    expect(scroll).not.toHaveBeenCalled();
+    expect(memory).toHaveFocus();
+    mounted.container.removeAttribute('inert');
+    mounted.container.hidden = true;
+    await mounted.rerender({ sectionRequest: { id: 'resources', revision: 3 } });
+    expect(scroll).not.toHaveBeenCalled();
+    expect(memory).toHaveFocus();
+    mounted.container.hidden = false;
+    await mounted.rerender({ sectionRequest: { id: 'resources', revision: 4 } });
+    expect(panel).toHaveFocus();
+    expect(scroll.mock.contexts).toContain(panel);
+  } finally {
+    if (descriptor) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', descriptor);
+    else
+      delete (HTMLElement.prototype as { scrollIntoView?: HTMLElement['scrollIntoView'] })
+        .scrollIntoView;
+  }
 });
 
 it('preserves an absent stamped process and retained evidence through PID reuse and sensor outage', async () => {
@@ -137,7 +176,7 @@ it('preserves an absent stamped process and retained evidence through PID reuse 
     'Retained network snapshot',
   );
   await fireEvent.click(summary().getByRole('button', { name: /Activity/ }));
-  expect(screen.getByRole('tabpanel', { name: /^Activity/ })).toHaveTextContent('file-101.txt');
+  expect(screen.getByRole('region', { name: 'Activity' })).toHaveTextContent('file-101.txt');
 
   await mounted.rerender({ telemetry: { ...state, stale: true } });
   expect(resources.querySelectorAll('strong')[0]).toHaveTextContent('—');
@@ -177,10 +216,10 @@ it('keeps unobserved initial counts unavailable and opens exact-process controls
   const workers = summary().getByRole('button', { name: /Worker processes/ });
   workers.focus();
   await fireEvent.click(workers);
-  expect(workers).toHaveFocus();
-  expect(screen.getByRole('tabpanel', { name: 'Processes' })).toBeVisible();
-  const panel = screen.getByRole('tabpanel', { name: 'Processes' });
-  expect(
-    within(panel).getByText('Process attributes and controls').closest('details'),
-  ).toHaveAttribute('open');
+  expect(screen.getByRole('region', { name: 'Processes' })).toBeVisible();
+  const panel = screen.getByRole('region', { name: 'Process attributes and controls' });
+  expect(panel).toHaveFocus();
+  expect(workers).toHaveAttribute('aria-controls', panel.id);
+  expect(screen.getByRole('region', { name: 'Attributes' })).toBeVisible();
+  expect(panel.querySelector('details')).toBeNull();
 });

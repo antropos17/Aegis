@@ -16,7 +16,6 @@
   let pending = $state(false),
     feedback = $state(''),
     error = $state('');
-  let tab = $state('changes');
   let pendingAction = $state('');
   let importButton: HTMLButtonElement | undefined;
   let alive = true;
@@ -58,7 +57,6 @@
         }
         result = null;
         displayExpired = false;
-        tab = 'changes';
         feedback =
           'Retained comparison cleared from this window. The imported file and project were not changed.';
         pending = false;
@@ -71,7 +69,6 @@
         error = resultReviewError(null);
         return;
       }
-      if (next.id !== result?.id) tab = 'changes';
       result = next;
       displayExpired = false;
       feedback = preview
@@ -85,19 +82,6 @@
         pendingAction = '';
       }
     }
-  }
-  function switchTab(event: KeyboardEvent) {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    tab =
-      event.key === 'Home'
-        ? 'changes'
-        : event.key === 'End'
-          ? 'coverage'
-          : tab === 'changes'
-            ? 'coverage'
-            : 'changes';
-    document.getElementById(prefix + '-' + tab)?.focus();
   }
 </script>
 
@@ -121,18 +105,6 @@
         preview ? 'Show example comparison' : 'Choose result and compare',
       )}</button
     >
-    {#if result}
-      <button
-        class="button"
-        disabled={pending || !available || preview}
-        onclick={() => run('result-status')}>{$t('Refresh retained comparison')}</button
-      >
-      <button
-        class="button"
-        disabled={pending || !available || preview}
-        onclick={() => run('clear-result')}>{$t('Clear retained comparison')}</button
-      >
-    {/if}
   </div>
   <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
     {$t(
@@ -157,107 +129,100 @@
           : 'This capture is incomplete. Read Coverage; additions, edits and deletions cannot be verified.',
       )}
     </p>
-    <dl class="summary">
-      <div>
-        <dt>{$t('Capture source')}</dt>
-        <dd>{$t(preview ? 'Simulated imported artifact' : 'Imported artifact')}</dd>
-      </div>
-      <div>
-        <dt>{$t('Original-state confidence')}</dt>
-        <dd>
-          {$t(
-            result.comparison.complete
-              ? 'Complete imported snapshots · originals unverified'
-              : 'Incomplete snapshots · changes unknown',
-          )}
-        </dd>
-      </div>
-      <div>
-        <dt>{$t('Retained status')}</dt>
-        <dd>
-          {$t(
-            displayExpired
-              ? 'Display retained · desktop comparison unavailable'
-              : 'Retained for this window · unreviewed',
-          )}
-        </dd>
-      </div>
-      <div>
-        <dt>{$t('Writer status')}</dt>
-        <dd>{$t('Stop unconfirmed')}</dd>
-      </div>
-    </dl>
-    <small
-      >{$t('Captured at:')}
-      <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time></small
-    >
-    <div class="tabs section-tabs" role="tablist" aria-label={$t('Comparison sections')}>
-      <button
-        class="button"
-        id={prefix + '-changes'}
-        role="tab"
-        aria-selected={tab === 'changes'}
-        aria-controls={prefix + '-changes-panel'}
-        tabindex={tab === 'changes' ? 0 : -1}
-        onkeydown={switchTab}
-        onclick={() => (tab = 'changes')}>{$t('Changes')} ({changes.length})</button
-      >
-      <button
-        class="button"
-        id={prefix + '-coverage'}
-        role="tab"
-        aria-selected={tab === 'coverage'}
-        aria-controls={prefix + '-coverage-panel'}
-        tabindex={tab === 'coverage' ? 0 : -1}
-        onkeydown={switchTab}
-        onclick={() => (tab = 'coverage')}>{$t('Coverage')}</button
-      >
-    </div>
-    <div
-      role="tabpanel"
-      id={prefix + '-changes-panel'}
-      aria-labelledby={prefix + '-changes'}
-      hidden={tab !== 'changes'}
-    >
-      <ResultReviewChanges {changes} complete={result.comparison.complete} {captureKey} />
-    </div>
-    <div
-      role="tabpanel"
-      id={prefix + '-coverage-panel'}
-      aria-labelledby={prefix + '-coverage'}
-      hidden={tab !== 'coverage'}
-    >
-      <p>
-        {$t(
-          'Imported stop, acceptance and boundary claims are untrusted. No writer termination or protected boundary was observed.',
-        )}
-      </p>
-      <p>
-        {$t(
-          'Current original bytes, hostile filesystem swaps, guest return authenticity and power-loss recovery were not checked.',
-        )}
-      </p>
-      <details>
-        <summary>{$t('Comparison digests')}</summary>
-        <dl class="digests">
-          <dt>{$t('Baseline digest')}</dt>
-          <dd>{result.comparison.baselineDigest}</dd>
-          <dt>{$t('Result digest')}</dt>
-          <dd>{result.comparison.snapshotDigest}</dd>
+    <div class="comparison-layout">
+      <section class="comparison-changes" aria-labelledby={prefix + '-changes'}>
+        <div class="section-title">
+          <Icon name="history" />
+          <h3 id={prefix + '-changes'}>{$t('Changes')} ({changes.length})</h3>
+        </div>
+        <ResultReviewChanges {changes} complete={result.comparison.complete} {captureKey} />
+      </section>
+      <section class="comparison-coverage" aria-labelledby={prefix + '-coverage'}>
+        <div class="section-title">
+          <Icon name="shield" />
+          <h3 id={prefix + '-coverage'}>{$t('Coverage')}</h3>
+        </div>
+        <div class="actions retained-actions">
+          <button
+            class="button"
+            disabled={pending || !available || preview}
+            aria-busy={pendingAction === 'result-status'}
+            onclick={() => run('result-status')}>{$t('Refresh retained comparison')}</button
+          >
+          <button
+            class="button"
+            disabled={pending || !available || preview}
+            aria-busy={pendingAction === 'clear-result'}
+            onclick={() => run('clear-result')}>{$t('Clear retained comparison')}</button
+          >
+        </div>
+        <dl class="summary">
+          <div>
+            <dt>{$t('Capture source')}</dt>
+            <dd>{$t(preview ? 'Simulated imported artifact' : 'Imported artifact')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Original-state confidence')}</dt>
+            <dd>
+              {$t(
+                result.comparison.complete
+                  ? 'Complete imported snapshots · originals unverified'
+                  : 'Incomplete snapshots · changes unknown',
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>{$t('Retained status')}</dt>
+            <dd>
+              {$t(
+                displayExpired
+                  ? 'Display retained · desktop comparison unavailable'
+                  : 'Retained for this window · unreviewed',
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>{$t('Writer status')}</dt>
+            <dd>{$t('Stop unconfirmed')}</dd>
+          </div>
         </dl>
-      </details>
+        <small
+          >{$t('Captured at:')}
+          <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time
+          ></small
+        >
+        <p>
+          {$t(
+            'Imported stop, acceptance and boundary claims are untrusted. No writer termination or protected boundary was observed.',
+          )}
+        </p>
+        <p>
+          {$t(
+            'Current original bytes, hostile filesystem swaps, guest return authenticity and power-loss recovery were not checked.',
+          )}
+        </p>
+        <details>
+          <summary>{$t('Comparison digests')}</summary>
+          <dl class="digests">
+            <dt>{$t('Baseline digest')}</dt>
+            <dd>{result.comparison.baselineDigest}</dd>
+            <dt>{$t('Result digest')}</dt>
+            <dd>{result.comparison.snapshotDigest}</dd>
+          </dl>
+        </details>
+        <div class="actions">
+          <button class="button" disabled>{$t('Launch unavailable')}</button><button
+            class="button"
+            disabled>{$t('Project export unavailable')}</button
+          >
+        </div>
+        <p class="muted">
+          {$t(
+            'Launch and project export require protection and current-original verification that this comparison does not provide.',
+          )}
+        </p>
+      </section>
     </div>
-    <div class="actions">
-      <button class="button" disabled>{$t('Launch unavailable')}</button><button
-        class="button"
-        disabled>{$t('Project export unavailable')}</button
-      >
-    </div>
-    <p class="muted">
-      {$t(
-        'Launch and project export require protection and current-original verification that this comparison does not provide.',
-      )}
-    </p>
   {:else}<p>{$t('No imported comparison yet.')}</p>
     <p class="muted">
       {$t(
@@ -274,7 +239,7 @@
   }
   .title,
   .actions,
-  .tabs {
+  .section-title {
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -284,13 +249,49 @@
     font-size: var(--text-section);
     margin: 0;
   }
+  h3 {
+    margin: 0;
+    font-size: var(--text-body);
+  }
+  .section-title {
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--space-3);
+  }
+  .comparison-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
+    align-items: start;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+    min-width: 0;
+  }
+  .comparison-changes,
+  .comparison-coverage {
+    min-width: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+  }
+  .comparison-changes {
+    container-type: inline-size;
+  }
+  @container (max-width: 380px) {
+    .comparison-changes :global(.filters) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .comparison-coverage {
+    background: var(--bg);
+    border-color: var(--strong-border);
+  }
   p {
     line-height: 1.6;
     margin: var(--space-3) 0;
   }
   .summary {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
   }
   dt,
@@ -302,9 +303,6 @@
   dd {
     margin: var(--space-2) 0 0;
     overflow-wrap: anywhere;
-  }
-  .tabs {
-    margin: var(--space-4) 0;
   }
   .notice {
     border: 1px solid var(--strong-border);
@@ -322,6 +320,10 @@
   .actions {
     margin-top: var(--space-3);
   }
+  .retained-actions {
+    display: grid;
+    margin-block: 0 var(--space-4);
+  }
   .digests {
     max-width: 100%;
   }
@@ -332,8 +334,8 @@
   [role='alert'] {
     color: var(--red);
   }
-  @media (max-width: 980px) {
-    .summary {
+  @media (max-width: 800px) {
+    .comparison-layout {
       grid-template-columns: minmax(0, 1fr);
     }
   }

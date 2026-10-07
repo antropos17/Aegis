@@ -109,7 +109,7 @@ it('uses network coverage for the Network heading while other page headings keep
   expect(badge).not.toHaveTextContent('Live');
   await fireEvent.click(screen.getByRole('button', { name: 'Review sensor health' }));
   expect(screen.getByRole('heading', { name: 'Statistics', level: 1 })).toBeVisible();
-  expect(screen.getByRole('tab', { name: 'Sensors' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('button', { name: 'Sensors', exact: true })).toHaveAttribute('aria-current', 'location');
   expect(mounted.container.querySelector('#main')).toHaveFocus();
   await fireEvent.click(
     within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', {

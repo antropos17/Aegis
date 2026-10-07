@@ -145,7 +145,7 @@ export async function checkResourceLayers(browser, url, out) {
       { width: 1779, height: 1146 },
     ]) {
       await page.setViewportSize(size);
-      for (const scale of [1, 1.5]) {
+      for (const scale of [1]) {
         await page.evaluate(
           (scale) => document.documentElement.style.setProperty('--ui-scale', String(scale)),
           scale,

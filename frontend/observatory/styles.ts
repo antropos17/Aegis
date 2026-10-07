@@ -17,3 +17,4 @@ import './styles/coherence.css';
 import './styles/detail-layout.css';
 
 import './styles/comfort.css';
+import './styles/workspace-hierarchy.css';

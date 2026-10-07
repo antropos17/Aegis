@@ -38,18 +38,19 @@ it('saves language immediately while retaining an independent unsaved settings d
   };
   render(Settings, { host, appearance: vi.fn(), navigate: vi.fn() });
   await screen.findByText('Settings saved');
-  await fireEvent.input(screen.getByLabelText('Interface scale percent'), {
-    target: { value: '125' },
+  await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
+    target: { value: '45' },
   });
   await fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'pt' } });
   await waitFor(() => expect(screen.getByLabelText('Idioma')).toHaveValue('pt'));
-  expect(screen.getByLabelText('Escala da interface em porcentagem')).toHaveValue(125);
+  expect(screen.getByLabelText('Intervalo de varredura (segundos)')).toHaveValue('45');
+  expect(screen.getByLabelText('Escala da interface')).toHaveTextContent('100%');
   expect(screen.getByText('Alterações não salvas')).toBeVisible();
   expect(localStorage.getItem('aegis.language')).toBe('pt');
   expect(host.saveSettings).not.toHaveBeenCalled();
   await fireEvent.click(screen.getByRole('button', { name: 'Descartar alterações' }));
   await waitFor(() =>
-    expect(screen.getByLabelText('Escala da interface em porcentagem')).toHaveValue(100),
+    expect(screen.getByLabelText('Intervalo de varredura (segundos)')).toHaveValue('10'),
   );
   expect(screen.getByLabelText('Idioma')).toHaveValue('pt');
 });

@@ -19,7 +19,6 @@
   import Metadata from './Metadata.svelte';
   import { radarGroups, groupRecord, groupEvidence } from '../runtime/radar';
   import ObservationTable from './ObservationTable.svelte';
-  import SectionTabs from './SectionTabs.svelte';
   import { describeObservation } from '../../../src/shared/observation-display.js';
   let {
     host,
@@ -57,13 +56,14 @@
   let loading = $derived(pageLoading || statsLoading);
   let query = $state('');
   let auditSection = $state('entries');
-  let reportSection = $state('summary');
   async function openAuditSection(section: 'entries' | 'delivery') {
     auditSection = section;
     await tick();
-    const tab = document.getElementById('audit-tab-' + section);
-    if (alive && tab?.isConnected && !tab.closest('[hidden], [inert]'))
+    const tab = document.getElementById('audit-panel-' + section);
+    if (alive && tab?.isConnected && !tab.closest('[hidden], [inert]')) {
       tab.focus({ preventScroll: true });
+      tab.scrollIntoView?.({ block: 'nearest' });
+    }
   }
   let appliedType = $derived(page.appliedType);
   let displayStats = $derived(
@@ -92,9 +92,15 @@
     if (!sectionRequest) return;
     sectionRequest.revision;
     if (audit && ['entries', 'delivery'].includes(sectionRequest.id))
-      auditSection = sectionRequest.id;
+      void openAuditSection(sectionRequest.id as 'entries' | 'delivery');
     if (!audit && ['summary', 'export'].includes(sectionRequest.id))
-      reportSection = sectionRequest.id;
+      void tick().then(() => {
+        const panel = document.getElementById('reports-panel-' + sectionRequest!.id);
+        if (alive && panel?.isConnected && !panel.closest('[hidden], [inert]')) {
+          panel.focus({ preventScroll: true });
+          panel.scrollIntoView?.({ block: 'nearest' });
+        }
+      });
   });
   let filtered = $derived(
     rows.filter((row) => {
@@ -198,224 +204,206 @@
 
 {#if audit}
   <AuditContext section={auditSection} select={openAuditSection} />
-  <SectionTabs
-    tabs={[
-      { id: 'entries', label: 'Entries' },
-      { id: 'delivery', label: 'Delivery' },
-    ]}
-    selected={auditSection}
-    change={(id) => {
-      auditSection = id;
-    }}
-    prefix="audit"
-    label={$t('Audit sections')}
-  />
-  <div
-    role="tabpanel"
-    id="audit-panel-entries"
-    aria-labelledby="audit-tab-entries"
-    hidden={auditSection !== 'entries'}
-  >
-    <div class="filterbar audit-filters">
-      <label class="search-field"
-        ><Icon name="search" /><input
-          type="search"
-          aria-label={$t('Search audit entries')}
-          placeholder={$t('Resource, agent, action or PID')}
-          bind:value={query}
-        /></label
-      >
-      <label
-        >{$t('Type')}<select
-          aria-label={$t('Type')}
-          bind:value={type}
-          disabled={loading}
-          onchange={(event) => {
-            type = event.currentTarget.value;
-            void refresh(true).catch(() => {});
-          }}
-          ><option value="">{$t('All entries')}</option
-          >{#each ['file-access', 'config-access', 'network-connection', 'agent-enter', 'agent-exit', 'anomaly-alert', 'sequence-detection', 'observation-gap', 'permission-deny'] as name (name)}<option
-              >{name}</option
-            >{/each}</select
-        ></label
-      ><label
-        >{$t('Grouping')}<select aria-label={$t('Audit grouping')} bind:value={grouping}
-          ><option value="resource">{$t('By resource')}</option><option value="agent"
-            >{$t('By agent / context')}</option
-          ><option value="none">{$t('Every observation')}</option></select
-        ></label
-      ><button
-        bind:this={refreshButton}
-        class="button"
-        disabled={loading}
-        aria-busy={loading}
-        onclick={() => void refresh(true).catch(() => {})}
-        ><Icon name="refresh" />{$t('Refresh')}</button
-      ><span class="spacer"></span><Action
-        action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
-        ><Icon name="folder" />{$t('Audit folder')}</Action
-      ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
-        ><Icon name="download" />{$t('Export retained audit records')}</Action
-      >
-    </div>
-    {#if pageRead === 'failed'}<p role="alert" class="notice">
-        {$t(
-          page.loaded
-            ? 'Audit history unavailable. Showing previously loaded entries.'
-            : 'Audit history unavailable. Retry reading.',
-        )}
-      </p>{/if}
-    {#if failedRequest}<button
-        bind:this={retryHistoryButton}
-        class="button"
-        aria-disabled={loading}
-        aria-busy={loading}
-        onclick={() => {
-          if (failedRequest) void refresh(false, failedRequest);
-        }}><Icon name="refresh" />{$t('Retry history')}</button
-      >{/if}
-    <p class="entity-note" role="status">
-      {pageLoading
-        ? $t('Loading audit entries…')
-        : page.loaded
-          ? $t('{visible} of {loaded} loaded entries', {
-              visible: filtered.length,
-              loaded: rows.length,
-            })
-          : $t('Audit history has not been loaded.')}{#if query && page.loaded}
-        {$t('· search covers loaded entries')}{/if}
-    </p>
-    {#if page.loaded && rows.length}<ObservationTable
-        rows={filtered}
-        {telemetry}
-        {inspect}
-        {grouping}
-        live={false}
-        {admissionRevision}
-        resetKey={JSON.stringify([appliedType, query])}
-      />{:else if page.loaded}<p class="entity-note">
-        {$t('No entries in this history page.')}
-      </p>{/if}
-    <div class="pagination">
-      <span
-        >{#if page.loaded}{rows.length} {$t('audit entries loaded')}{:else}{$t(
-            'Loaded history is unknown',
-          )}{/if}</span
-      ><button
-        class="button"
-        disabled={!page.loaded || page.exhausted || loading}
-        aria-busy={loading}
-        onclick={() => void refresh().catch(() => {})}
-        ><Icon name="history" />{$t('Load older entries')}</button
-      >
-    </div>
-  </div>
-  <div
-    role="tabpanel"
-    id="audit-panel-delivery"
-    aria-labelledby="audit-tab-delivery"
-    hidden={auditSection !== 'delivery'}
-  >
-    {#if statsRead === 'failed'}<p role="alert" class="notice">
-        {$t(
-          statsLoaded
-            ? 'Delivery counters unavailable. Showing last loaded values.'
-            : 'Delivery counters unavailable. Retry reading.',
-        )}
-      </p>
-    {:else if statsLoading}<p role="status" class="entity-note">
-        {$t(statsLoaded ? 'Updating delivery counters…' : 'Loading delivery counters…')}
-      </p>{/if}
-    {#if stats.storageReadState === 'unavailable'}<p class="notice">
-        {$t('Storage measurements unavailable. Delivery counters are separate observations.')}
-      </p>
-    {:else if stats.storageReadState === 'uninitialized'}<p class="notice">
-        {$t('Audit journal has not been initialized.')}
-      </p>{/if}
-    {#if stats.historyReadState === 'building'}<p role="status" class="entity-note">
-        {$t('Historical audit counters are still loading.')}
-      </p>
-    {:else if stats.historyReadState === 'unavailable'}<p class="notice">
-        {$t(
-          'Historical audit counters unavailable. Live queue and loss observations remain separate.',
-        )}
-      </p>{/if}
-    <button
-      class="button"
-      aria-disabled={loading}
-      aria-busy={statsLoading}
-      onclick={() => {
-        if (!loading) void readStats();
-      }}><Icon name="refresh" />{$t('Refresh delivery counters')}</button
+  <div class="audit-composition">
+    <section
+      class="audit-entries panel"
+      id="audit-panel-entries"
+      tabindex="-1"
+      aria-labelledby="audit-heading-entries"
+      onfocusin={() => (auditSection = 'entries')}
     >
-    <section class="panel">
-      <div class="inline-stats">
-        <div>
-          <strong>{String(stats.persistedEntries ?? '—')}</strong><span
-            >{$t('persisted entries')}</span
-          >
-        </div>
-        <div>
-          <strong>{String(stats.bufferDepth ?? '—')}</strong><span>{$t('queued')}</span>
-        </div>
-        <div>
-          <strong>{String(stats.droppedEntries ?? '—')}</strong><span>{$t('dropped')}</span>
-        </div>
-        <div>
-          <strong
-            >{typeof displayStats.totalSize === 'number'
-              ? (displayStats.totalSize / 1024).toFixed(1) + ' KB'
-              : '—'}</strong
-          ><span>{$t('stored history')}</span>
-        </div>
+      <h2 id="audit-heading-entries">{$t('Entries')}</h2>
+      <div class="filterbar audit-filters">
+        <label class="search-field"
+          ><Icon name="search" /><input
+            type="search"
+            aria-label={$t('Search audit entries')}
+            placeholder={$t('Resource, agent, action or PID')}
+            bind:value={query}
+          /></label
+        >
+        <label
+          >{$t('Type')}<select
+            aria-label={$t('Type')}
+            bind:value={type}
+            disabled={loading}
+            onchange={(event) => {
+              type = event.currentTarget.value;
+              void refresh(true).catch(() => {});
+            }}
+            ><option value="">{$t('All entries')}</option
+            >{#each ['file-access', 'config-access', 'network-connection', 'agent-enter', 'agent-exit', 'anomaly-alert', 'sequence-detection', 'observation-gap', 'permission-deny'] as name (name)}<option
+                >{name}</option
+              >{/each}</select
+          ></label
+        ><label
+          >{$t('Grouping')}<select aria-label={$t('Audit grouping')} bind:value={grouping}
+            ><option value="resource">{$t('By resource')}</option><option value="agent"
+              >{$t('By agent / context')}</option
+            ><option value="none">{$t('Every observation')}</option></select
+          ></label
+        ><button
+          bind:this={refreshButton}
+          class="button"
+          disabled={loading}
+          aria-busy={loading}
+          onclick={() => void refresh(true).catch(() => {})}
+          ><Icon name="refresh" />{$t('Refresh')}</button
+        ><span class="spacer"></span><Action
+          action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
+          ><Icon name="folder" />{$t('Audit folder')}</Action
+        ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
+          ><Icon name="download" />{$t('Export retained audit records')}</Action
+        >
+      </div>
+      {#if pageRead === 'failed'}<p role="alert" class="notice">
+          {$t(
+            page.loaded
+              ? 'Audit history unavailable. Showing previously loaded entries.'
+              : 'Audit history unavailable. Retry reading.',
+          )}
+        </p>{/if}
+      {#if failedRequest}<button
+          bind:this={retryHistoryButton}
+          class="button"
+          aria-disabled={loading}
+          aria-busy={loading}
+          onclick={() => {
+            if (failedRequest) void refresh(false, failedRequest);
+          }}><Icon name="refresh" />{$t('Retry history')}</button
+        >{/if}
+      <p class="entity-note" role="status">
+        {pageLoading
+          ? $t('Loading audit entries…')
+          : page.loaded
+            ? $t('{visible} of {loaded} loaded entries', {
+                visible: filtered.length,
+                loaded: rows.length,
+              })
+            : $t('Audit history has not been loaded.')}{#if query && page.loaded}
+          {$t('· search covers loaded entries')}{/if}
+      </p>
+      {#if page.loaded && rows.length}<ObservationTable
+          rows={filtered}
+          {telemetry}
+          {inspect}
+          {grouping}
+          live={false}
+          {admissionRevision}
+          resetKey={JSON.stringify([appliedType, query])}
+        />{:else if page.loaded}<p class="entity-note">
+          {$t('No entries in this history page.')}
+        </p>{/if}
+      <div class="pagination">
+        <span
+          >{#if page.loaded}{rows.length} {$t('audit entries loaded')}{:else}{$t(
+              'Loaded history is unknown',
+            )}{/if}</span
+        ><button
+          class="button"
+          disabled={!page.loaded || page.exhausted || loading}
+          aria-busy={loading}
+          onclick={() => void refresh().catch(() => {})}
+          ><Icon name="history" />{$t('Load older entries')}</button
+        >
       </div>
     </section>
+    <section
+      class="audit-delivery"
+      id="audit-panel-delivery"
+      tabindex="-1"
+      aria-labelledby="audit-heading-delivery"
+      onfocusin={() => (auditSection = 'delivery')}
+    >
+      <h2 id="audit-heading-delivery">{$t('Delivery')}</h2>
+      {#if statsRead === 'failed'}<p role="alert" class="notice">
+          {$t(
+            statsLoaded
+              ? 'Delivery counters unavailable. Showing last loaded values.'
+              : 'Delivery counters unavailable. Retry reading.',
+          )}
+        </p>
+      {:else if statsLoading}<p role="status" class="entity-note">
+          {$t(statsLoaded ? 'Updating delivery counters…' : 'Loading delivery counters…')}
+        </p>{/if}
+      {#if stats.storageReadState === 'unavailable'}<p class="notice">
+          {$t('Storage measurements unavailable. Delivery counters are separate observations.')}
+        </p>
+      {:else if stats.storageReadState === 'uninitialized'}<p class="notice">
+          {$t('Audit journal has not been initialized.')}
+        </p>{/if}
+      {#if stats.historyReadState === 'building'}<p role="status" class="entity-note">
+          {$t('Historical audit counters are still loading.')}
+        </p>
+      {:else if stats.historyReadState === 'unavailable'}<p class="notice">
+          {$t(
+            'Historical audit counters unavailable. Live queue and loss observations remain separate.',
+          )}
+        </p>{/if}
+      <button
+        class="button"
+        aria-disabled={loading}
+        aria-busy={statsLoading}
+        onclick={() => {
+          if (!loading) void readStats();
+        }}><Icon name="refresh" />{$t('Refresh delivery counters')}</button
+      >
+      <section class="panel">
+        <div class="inline-stats">
+          <div>
+            <strong>{String(stats.persistedEntries ?? '—')}</strong><span
+              >{$t('persisted entries')}</span
+            >
+          </div>
+          <div>
+            <strong>{String(stats.bufferDepth ?? '—')}</strong><span>{$t('queued')}</span>
+          </div>
+          <div>
+            <strong>{String(stats.droppedEntries ?? '—')}</strong><span>{$t('dropped')}</span>
+          </div>
+          <div>
+            <strong
+              >{typeof displayStats.totalSize === 'number'
+                ? (displayStats.totalSize / 1024).toFixed(1) + ' KB'
+                : '—'}</strong
+            ><span>{$t('stored history')}</span>
+          </div>
+        </div>
+      </section>
 
-    <section class="panel delivery-fields">
-      <h2>{$t('Audit delivery details')}</h2>
-      <p class="entity-note">
-        {$t('Delivery counters do not confirm that the history can be read.')}
-      </p>
-      <Metadata
-        value={Object.fromEntries(
-          Object.entries(details).filter(
-            ([key]) =>
-              ![
-                'persistedEntries',
-                'bufferDepth',
-                'droppedEntries',
-                'totalSize',
-                'storageReadState',
-              ].includes(key),
-          ),
-        )}
-      />
+      <section class="panel delivery-fields">
+        <h2>{$t('Audit delivery details')}</h2>
+        <p class="entity-note">
+          {$t('Delivery counters do not confirm that the history can be read.')}
+        </p>
+        <Metadata
+          value={Object.fromEntries(
+            Object.entries(details).filter(
+              ([key]) =>
+                ![
+                  'persistedEntries',
+                  'bufferDepth',
+                  'droppedEntries',
+                  'totalSize',
+                  'storageReadState',
+                ].includes(key),
+            ),
+          )}
+        />
+      </section>
     </section>
   </div>
 {:else}
-  <SectionTabs
-    tabs={[
-      { id: 'summary', label: 'Session summary' },
-      { id: 'export', label: 'Export' },
-    ]}
-    selected={reportSection}
-    change={(id) => {
-      reportSection = id;
-    }}
-    prefix="reports"
-    label={$t('Report sections')}
-  />
   <div class="report-content">
     <div
       class="panel"
-      role="tabpanel"
+      role="region"
+      tabindex="-1"
       id="reports-panel-summary"
-      aria-labelledby="reports-tab-summary"
-      hidden={reportSection !== 'summary'}
+      aria-labelledby="reports-heading-summary"
     >
       <div class="panel-head">
-        <h2><Icon name="report" />{$t('Session summary')}</h2>
+        <h2 id="reports-heading-summary"><Icon name="report" />{$t('Session summary')}</h2>
       </div>
       <div class="inline-stats">
         <div>
@@ -461,13 +449,13 @@
     </div>
     <div
       class="panel"
-      role="tabpanel"
+      role="region"
+      tabindex="-1"
       id="reports-panel-export"
-      aria-labelledby="reports-tab-export"
-      hidden={reportSection !== 'export'}
+      aria-labelledby="reports-heading-export"
     >
       <div class="panel-head">
-        <h2><Icon name="download" />{$t('Export')}</h2>
+        <h2 id="reports-heading-export"><Icon name="download" />{$t('Export')}</h2>
       </div>
       <div class="export-grid">
         {#each exports as [method, label] (method)}<Action
@@ -485,11 +473,38 @@
 {/if}
 
 <style>
-  [role='tabpanel'][hidden] {
-    display: none;
+  .audit-composition,
+  .report-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    gap: var(--space-4);
+    align-items: start;
   }
-  [role='tabpanel'] {
+  .audit-entries {
+    padding: var(--space-4);
+  }
+  .audit-entries > h2,
+  .audit-delivery > h2 {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-body);
+    font-weight: 700;
+  }
+  .audit-delivery {
     min-width: 0;
+    padding: var(--space-4);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    background: var(--raised);
+  }
+  .audit-composition > *,
+  .report-content > * {
+    min-width: 0;
+  }
+  @media (max-width: 800px) {
+    .audit-composition,
+    .report-content {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .audit-filters {
     display: flex;

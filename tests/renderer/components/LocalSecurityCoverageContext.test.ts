@@ -41,13 +41,18 @@ it('keeps bounded collection caveats beside findings with every notice reachable
   expect(within(summary).getAllByRole('listitem')).toHaveLength(3);
   expect(summary).toHaveTextContent('First 3 of 4 coverage notices.');
   expect(summary).not.toHaveTextContent('instruction semantics not analyzed');
-  expect(screen.getByRole('tab', { name: /Findings/ })).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByRole('tabpanel', { name: /Findings/ })).toHaveTextContent('Review this hook');
+  expect(screen.getByRole('button', { name: /Findings/ })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
+  expect(screen.getByRole('region', { name: /Findings/ })).toHaveTextContent('Review this hook');
   expect(screen.getByText('Safety not determined')).toBeVisible();
 
   await fireEvent.click(within(summary).getByRole('button', { name: 'Review scope and coverage' }));
-  await waitFor(() => expect(screen.getByRole('tab', { name: /Scope & coverage/ })).toHaveFocus());
-  const coverage = screen.getByRole('tabpanel', { name: /Scope & coverage/ });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /Scope & coverage/ })).toHaveFocus(),
+  );
+  const coverage = screen.getByRole('region', { name: /Scope & coverage/ });
   expect(within(coverage).getByText('instruction semantics not analyzed')).toBeVisible();
   expect(within(coverage).getByText('4 / 4 records')).toBeVisible();
   expect(action).not.toHaveBeenCalled();
@@ -61,16 +66,16 @@ it('retains evidence filters and coverage pagination through the persistent summ
     })),
   );
   render(LocalSecurityResults, options(review));
-  const findings = screen.getByRole('tabpanel', { name: /Findings/ });
+  const findings = screen.getByRole('region', { name: /Findings/ });
   await fireEvent.input(within(findings).getByLabelText('Filter results'), {
     target: { value: 'hook' },
   });
   const openCoverage = screen.getByRole('button', { name: 'Review scope and coverage' });
   await fireEvent.click(openCoverage);
-  const coverage = screen.getByRole('tabpanel', { name: /Scope & coverage/ });
+  const coverage = screen.getByRole('region', { name: /Scope & coverage/ });
   await fireEvent.click(within(coverage).getByRole('button', { name: 'Next' }));
   expect(within(coverage).getByText('coverage notice 24', { selector: 'strong' })).toBeVisible();
-  await fireEvent.click(screen.getByRole('tab', { name: /Findings/ }));
+  await fireEvent.click(screen.getByRole('button', { name: /Findings/ }));
   expect(within(findings).getByLabelText('Filter results')).toHaveValue('hook');
   await fireEvent.click(openCoverage);
   expect(within(coverage).getByText('coverage notice 24', { selector: 'strong' })).toBeVisible();

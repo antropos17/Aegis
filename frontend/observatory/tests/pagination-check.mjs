@@ -158,8 +158,8 @@ export async function checkPagination(browser, url, out) {
         await settleScroll(page);
       }
       for (const [width, height, scale, theme, reduced] of [
-        [900, 600, 1.5, 'light', true],
-        [900, 600, 1.5, 'dark', false],
+        [900, 600, 1, 'light', true],
+        [900, 600, 1, 'dark', false],
         [1200, 800, 1, 'light-hc', true],
         [1200, 800, 1, 'dark-hc', false],
       ]) {

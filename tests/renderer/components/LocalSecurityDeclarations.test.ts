@@ -18,7 +18,7 @@ const review = (components: Record<string, unknown>[]): LocalReview => ({
   canSaveSnapshot: false,
 });
 
-it('shows redacted declarations in a dedicated tab beside MCP tools', async () => {
+it('shows redacted declarations in a dedicated section beside MCP tools', async () => {
   const components = [
     {
       path: '.mcp.json',
@@ -72,11 +72,13 @@ it('shows redacted declarations in a dedicated tab beside MCP tools', async () =
     savedAcceptance: false,
     action: vi.fn(),
   });
-  const tabs = screen.getAllByRole('tab');
-  const toolsTab = screen.getByRole('tab', { name: /MCP tools/ });
-  const declarationsTab = screen.getByRole('tab', { name: /MCP declarations/ });
+  const tabs = within(
+    screen.getByRole('navigation', { name: 'Local review sections' }),
+  ).getAllByRole('button');
+  const toolsTab = screen.getByRole('button', { name: /MCP tools/ });
+  const declarationsTab = screen.getByRole('button', { name: /MCP declarations/ });
   expect(tabs.indexOf(declarationsTab)).toBe(tabs.indexOf(toolsTab) + 1);
-  expect(screen.getByRole('tab', { name: /Files/ })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('button', { name: /Files/ })).toHaveAttribute('aria-current', 'location');
   expect(screen.queryByRole('region', { name: 'MCP configuration declarations' })).toBeNull();
   await fireEvent.click(declarationsTab);
   const panel = screen.getByRole('region', { name: 'MCP configuration declarations' });
@@ -100,9 +102,9 @@ it('shows redacted declarations in a dedicated tab beside MCP tools', async () =
   expect(panel).not.toHaveTextContent('PRIVATE_SERVER_NAME');
   expect(panel).not.toHaveTextContent('PRIVATE.example.invalid');
   await fireEvent.click(screen.getByRole('button', { name: 'Review coverage' }));
-  expect(screen.getByRole('tab', { name: /Scope & coverage/ })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  expect(screen.getByRole('button', { name: /Scope & coverage/ })).toHaveAttribute(
+    'aria-current',
+    'location',
   );
 });
 
@@ -171,5 +173,5 @@ it('omits the declaration panel when the selected report has no config inventory
     action: vi.fn(),
   });
   expect(screen.queryByRole('region', { name: 'MCP configuration declarations' })).toBeNull();
-  expect(screen.queryByRole('tab', { name: /MCP declarations/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /MCP declarations/ })).toBeNull();
 });

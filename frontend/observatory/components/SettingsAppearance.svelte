@@ -8,21 +8,17 @@
     form = $bindable(),
     contrast = $bindable(),
     motion = $bindable(),
-    scaleInput = $bindable(),
-    validationId,
   }: {
     form: RecordData;
     contrast: boolean;
     motion: boolean;
-    scaleInput?: HTMLInputElement;
-    validationId?: string;
   } = $props();
 </script>
 
 <SettingsGroup
   title={$t('Display & accessibility')}
   description={$t(
-    'Theme, scale and motion preview immediately. Save to keep them; discard to restore your saved preferences.',
+    'Theme and motion preview immediately. Save to keep them; discard to restore your saved preferences.',
   )}
 >
   <label class="setting"
@@ -42,67 +38,9 @@
       ><option value="light-hc">{$t('Light, high contrast')}</option></select
     ></label
   >
-  <label class="setting range"
-    ><span
-      >{$t('Scale')}
-      <output
-        >{Number.isFinite(Number(form.uiScale ?? 1))
-          ? Math.round(Number(form.uiScale ?? 1) * 100) + '%'
-          : '\u2014'}</output
-      ></span
-    ><input
-      aria-label={$t('Interface scale')}
-      type="range"
-      min="0.8"
-      max="1.5"
-      step="0.05"
-      value={Number(form.uiScale ?? 1)}
-      oninput={(e) => {
-        form.uiScale = Number(e.currentTarget.value);
-        document.documentElement.style.setProperty('--ui-scale', String(form.uiScale));
-      }}
-    /></label
-  >
   <div class="setting">
-    <span
-      >{$t('Exact scale')}<small
-        >{$t('Percentage of the default size. 80-150% is recommended for this layout.')}</small
-      ></span
-    >
-    <input
-      class="scale-number"
-      bind:this={scaleInput}
-      aria-describedby={!Number.isFinite(Number(form.uiScale ?? 1)) ||
-      Number(form.uiScale ?? 1) < 0.5 ||
-      Number(form.uiScale ?? 1) > 3
-        ? validationId
-        : undefined}
-      aria-label={$t('Interface scale percent')}
-      aria-invalid={!Number.isFinite(Number(form.uiScale ?? 1)) ||
-        Number(form.uiScale ?? 1) < 0.5 ||
-        Number(form.uiScale ?? 1) > 3}
-      type="number"
-      min="50"
-      max="300"
-      step="1"
-      value={Number(form.uiScale ?? 1) * 100}
-      oninput={(event) => {
-        const value = event.currentTarget.valueAsNumber / 100;
-        form.uiScale = value;
-        if (Number.isFinite(value) && value >= 0.5 && value <= 3)
-          document.documentElement.style.setProperty('--ui-scale', String(value));
-      }}
-    />
-  </div>
-  <div class="presets" role="group" aria-label={$t('Scale presets')}>
-    {#each [1, 1.25, 1.5] as value (value)}<button
-        class="button"
-        aria-pressed={Number(form.uiScale ?? 1) === value}
-        onclick={() => {
-          form.uiScale = value;
-          document.documentElement.style.setProperty('--ui-scale', String(value));
-        }}>{Math.round(value * 100)}%</button
-      >{/each}
+    <span>{$t('Scale')}<small>{$t('The workspace uses a fixed 100% interface size.')}</small></span>
+    <output aria-label={$t('Interface scale')}>100%</output>
   </div>
   <label class="setting"
     ><span
@@ -120,10 +58,3 @@
   >
   <SettingsLanguage />
 </SettingsGroup>
-
-<style>
-  .scale-number {
-    width: 110px;
-    min-width: 0;
-  }
-</style>

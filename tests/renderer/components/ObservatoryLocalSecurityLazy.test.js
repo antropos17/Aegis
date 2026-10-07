@@ -46,7 +46,6 @@ it('loads the local review on first visit and retains its setup and result acros
   ).toBeVisible();
   expect(moduleLoad.count).toBe(1);
 
-  await fireEvent.click(screen.getByText('Review options', { exact: true }));
   const includeTools = screen.getByLabelText('Include an offline MCP tools/list file');
   await fireEvent.click(includeTools);
   await fireEvent.click(screen.getByRole('button', { name: 'Show example result' }));

@@ -78,10 +78,13 @@ export async function checkGraphs(browser, url, out) {
             document.documentElement.dataset.theme = theme;
             document.documentElement.style.setProperty('--ui-scale', String(scale));
           },
-          { theme, scale: size.width === 900 ? 1.5 : 1 },
+          { theme, scale: 1 },
         );
         for (const name of ['Performance', 'Activity', 'Tokens', 'Sensors']) {
-          await page.locator('.stats-navigation').getByRole('tab', { name, exact: true }).click();
+          await page
+            .getByRole('navigation', { name: 'Statistics sections' })
+            .getByRole('button', { name, exact: true })
+            .click();
           await settle();
           for (const [duration, label] of [
             [60000, '1 min'],
@@ -121,8 +124,8 @@ export async function checkGraphs(browser, url, out) {
     }
     await page.setViewportSize({ width: 1200, height: 800 });
     await page
-      .locator('.stats-navigation')
-      .getByRole('tab', { name: 'Performance', exact: true })
+      .getByRole('navigation', { name: 'Statistics sections' })
+      .getByRole('button', { name: 'Performance', exact: true })
       .click();
     await page.getByRole('button', { name: 'Pause view', exact: true }).click();
     await settle();

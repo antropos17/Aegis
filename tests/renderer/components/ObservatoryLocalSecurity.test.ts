@@ -10,7 +10,6 @@ const reply = (mode = 'scan', tools = false) =>
 const bridge = (fn: ReturnType<typeof vi.fn>) => ({ localSecurityReview: fn }) as Host;
 const start = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Choose folder and review' }));
-const options = () => fireEvent.click(screen.getByText('Review options', { exact: true }));
 
 it('does not invoke the host on mount and explains the absent capability', () => {
   render(LocalSecurity, { host: null });
@@ -29,7 +28,6 @@ it('submits bounded options and shows findings, source and incomplete coverage',
   const call = vi.fn().mockResolvedValue(await reply('scan', true));
   render(LocalSecurity, { host: bridge(call) });
   expect(call).not.toHaveBeenCalled();
-  await options();
   await fireEvent.click(screen.getByLabelText('Include an offline MCP tools/list file'));
   await start();
   expect(call).toHaveBeenCalledWith({
@@ -47,7 +45,6 @@ it('submits bounded options and shows findings, source and incomplete coverage',
 it('offers explicit Gemini project, user and Windows system layouts through the existing review action', async () => {
   const call = vi.fn().mockResolvedValue(await reply('inventory'));
   render(LocalSecurity, { host: bridge(call) });
-  await options();
   await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'inventory' } });
   const layout = screen.getByLabelText('Directory layout');
   expect(within(layout).getByRole('option', { name: 'Gemini CLI project settings' })).toBeVisible();
@@ -78,7 +75,7 @@ it('keeps no-findings and unexamined semantics explicit', async () => {
   await start();
   expect(await screen.findByText('No patterns found in the checked subset')).toBeVisible();
   expect(screen.getByText('Incomplete coverage')).toBeVisible();
-  await fireEvent.click(screen.getByRole('tab', { name: /Scope & coverage/ }));
+  await fireEvent.click(screen.getByRole('button', { name: /Scope & coverage/ }));
   expect(screen.getByText('instruction semantics not analyzed')).toBeVisible();
 });
 it('retains the previous result and distinguishes cancellation from completion', async () => {
@@ -126,7 +123,6 @@ it('disables duplicate actions and draft changes while the native operation is p
 it('resets unsupported package scope and exposes inventory packages without a safety verdict', async () => {
   const call = vi.fn().mockResolvedValue(await reply('inventory'));
   render(LocalSecurity, { host: bridge(call) });
-  await options();
   await fireEvent.change(screen.getByLabelText('Directory layout'), {
     target: { value: 'package' },
   });
@@ -134,9 +130,9 @@ it('resets unsupported package scope and exposes inventory packages without a sa
   expect(screen.getByLabelText('Directory layout')).toHaveValue('project');
   await start();
   expect(await screen.findByText('Inventory recorded')).toBeVisible();
-  expect(screen.queryByRole('tab', { name: /Findings/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Findings/ })).toBeNull();
   expect(screen.getByLabelText('Review summary')).toHaveTextContent('packages recorded');
-  await fireEvent.click(screen.getByRole('tab', { name: /Packages/ }));
+  await fireEvent.click(screen.getByRole('button', { name: /Packages/ }));
   expect(screen.getByText('Publisher unverified · installation not established')).toBeVisible();
 });
 it('requires explicit review acknowledgment and sends the displayed digest', async () => {
@@ -149,11 +145,10 @@ it('requires explicit review acknowledgment and sends the displayed digest', asy
   render(LocalSecurity, { host: bridge(call) });
   await start();
   await screen.findByText('Inventory recorded');
-  await fireEvent.click(screen.getByText('Content snapshot'));
   const accept = screen.getByRole('button', { name: 'Recheck and save accepted copy' });
   expect(accept).toBeDisabled();
   expect(
-    within(screen.getByText('Content snapshot').parentElement!).getByText(
+    within(screen.getByRole('region', { name: 'Content snapshot' })).getByText(
       reviewed.snapshot!.digest,
     ),
   ).toBeVisible();
@@ -177,7 +172,6 @@ it('keeps acceptance pending when content changed after review', async () => {
   render(LocalSecurity, { host: bridge(call) });
   await start();
   await screen.findByText('Inventory recorded');
-  await fireEvent.click(screen.getByText('Content snapshot'));
   await fireEvent.click(
     screen.getByLabelText('I reviewed the listed content and the displayed digest.'),
   );
@@ -188,7 +182,6 @@ it('keeps acceptance pending when content changed after review', async () => {
 it('submits external import options and labels claims as unverified', async () => {
   const call = vi.fn().mockResolvedValue(await reply('import'));
   render(LocalSecurity, { host: bridge(call) });
-  await options();
   await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'import' } });
   expect(screen.getByRole('option', { name: 'cfgaudit · SARIF 2.1.0' })).toBeInTheDocument();
   await fireEvent.change(screen.getByLabelText('Report format'), {
@@ -206,7 +199,7 @@ it('submits external import options and labels claims as unverified', async () =
   });
   expect(await screen.findByText(/External claims are unverified/)).toBeVisible();
 });
-it('retains every result through pagination, filtering and keyboard tabs', async () => {
+it('retains every result through pagination, filtering and section navigation', async () => {
   const data = await reply();
   const reviewed = localReview(data.review)!;
   reviewed.report.findings = Array.from({ length: 25 }, (_, index) => ({
@@ -219,7 +212,7 @@ it('retains every result through pagination, filtering and keyboard tabs', async
   });
   await start();
   await screen.findByText('Findings need review');
-  const panel = screen.getByRole('tabpanel', { name: /Findings/ });
+  const panel = screen.getByRole('region', { name: /Findings/ });
   expect(within(panel).queryByText('Finding 24')).toBeNull();
   await fireEvent.click(within(panel).getByRole('button', { name: 'Next' }));
   expect(within(panel).getByText('Finding 24', { selector: 'strong' })).toBeVisible();
@@ -227,8 +220,11 @@ it('retains every result through pagination, filtering and keyboard tabs', async
     target: { value: 'Finding 0' },
   });
   expect(within(panel).getByText('Finding 0', { selector: 'strong' })).toBeVisible();
-  await fireEvent.keyDown(screen.getByRole('tab', { name: /Findings/ }), { key: 'End' });
-  await waitFor(() => expect(screen.getByRole('tab', { name: /Scope & coverage/ })).toHaveFocus());
+  await fireEvent.click(screen.getByRole('button', { name: /Scope & coverage/ }));
+  expect(screen.getByRole('button', { name: /Scope & coverage/ })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
 });
 it('shows high severity built-in findings before the first page fills with low severity', async () => {
   const data = await reply();
@@ -245,7 +241,7 @@ it('shows high severity built-in findings before the first page fills with low s
     host: bridge(vi.fn().mockResolvedValue({ success: true, review: reviewed })),
   });
   await start();
-  const panel = await screen.findByRole('tabpanel', { name: /Findings/ });
+  const panel = await screen.findByRole('region', { name: /Findings/ });
   expect(within(panel).getByText('High finding', { selector: 'strong' })).toBeVisible();
   expect(within(panel).queryByText('Low finding 19', { selector: 'strong' })).toBeNull();
   expect(within(panel).getByText(/Built-in analysis · z-danger.sh/)).toBeVisible();
@@ -256,7 +252,6 @@ it('keeps preview data explicit and disables persistent actions', async () => {
   await fireEvent.click(screen.getByRole('button', { name: 'Show example result' }));
   expect(await screen.findByText('Simulated review loaded. No files were read.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
-  await fireEvent.click(screen.getByText('Content snapshot'));
   expect(screen.getByRole('button', { name: 'Save unreviewed snapshot' })).toBeDisabled();
 });
 it('preserves uncertainty in partial changes and paginated MCP catalogs', () => {
@@ -291,11 +286,14 @@ it('preserves uncertainty in partial changes and paginated MCP catalogs', () => 
   ).toBe('External claim · unverified · .claude/settings.json · Line 7');
 });
 
-it('starts with one default project review and keeps advanced choices collapsed', async () => {
+it('exposes setup immediately without a disclosure and submits the default project review', async () => {
   const call = vi.fn().mockResolvedValue(await reply());
   render(LocalSecurity, { host: bridge(call) });
-  const disclosure = screen.getByText('Review options', { exact: true }).parentElement!;
-  expect(disclosure).not.toHaveAttribute('open');
+  const setup = screen.getByRole('region', { name: 'Local review setup' });
+  expect(within(setup).getByRole('heading', { name: 'Review options' })).toBeVisible();
+  expect(within(setup).getByRole('combobox', { name: 'Review type' })).toBeVisible();
+  expect(within(setup).getByRole('combobox', { name: 'Directory layout' })).toBeVisible();
+  expect(setup.querySelector('details')).toBeNull();
   expect(screen.getByRole('button', { name: 'Choose folder and review' })).toBeVisible();
   expect(screen.getByText(/Ready to review:/)).toHaveTextContent('Security scan');
   await start();
@@ -308,14 +306,12 @@ it('starts with one default project review and keeps advanced choices collapsed'
   });
 });
 
-it('keeps chosen expert options when the disclosure closes and leaves the captured result unchanged', async () => {
+it('edits the visible setup without changing the previous captured result until review runs', async () => {
   const call = vi.fn().mockResolvedValue(await reply());
   render(LocalSecurity, { host: bridge(call) });
   await start();
   await screen.findByText('Findings need review');
-  await options();
   await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'inventory' } });
-  await options();
   expect(screen.getByText(/Ready to review:/)).toHaveTextContent('Component inventory');
   expect(screen.getByRole('heading', { name: 'Findings need review' })).toBeVisible();
   await start();
@@ -328,14 +324,14 @@ it('keeps chosen expert options when the disclosure closes and leaves the captur
   });
 });
 
-it('moves focus to the suggested evidence tab while captured source stays visible', async () => {
+it('moves focus to the suggested evidence section while captured source stays visible', async () => {
   const data = await reply();
   render(LocalSecurity, { host: bridge(vi.fn().mockResolvedValue(data)) });
   await start();
   await screen.findByText('Findings need review');
   expect(screen.getByText(localReview(data.review)!.directory)).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Review findings' }));
-  await waitFor(() => expect(screen.getByRole('tab', { name: /Findings/ })).toHaveFocus());
+  await waitFor(() => expect(screen.getByRole('button', { name: /Findings/ })).toHaveFocus());
   expect(screen.getByText(localReview(data.review)!.directory)).toBeVisible();
 });
 
@@ -348,7 +344,9 @@ it('directs a no-findings result to coverage without implying safety', async () 
   });
   await start();
   await fireEvent.click(await screen.findByRole('button', { name: 'Review coverage' }));
-  await waitFor(() => expect(screen.getByRole('tab', { name: /Scope & coverage/ })).toHaveFocus());
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /Scope & coverage/ })).toHaveFocus(),
+  );
   expect(screen.getByText('Safety not determined')).toBeVisible();
   expect(screen.getByText('Incomplete coverage')).toBeVisible();
 });
@@ -365,10 +363,10 @@ it('keeps captured evidence before setup and moves focus only through explicit c
   await fireEvent.click(screen.getByRole('button', { name: 'View captured result' }));
   expect(result).toHaveFocus();
   await fireEvent.click(screen.getByRole('button', { name: 'Change review setup' }));
-  expect(trigger).toHaveFocus();
+  expect(screen.getByRole('combobox', { name: 'Review type' })).toHaveFocus();
 });
 
-it('does not move delayed evidence-tab focus into a hidden workspace', async () => {
+it('does not move delayed evidence-section focus into a hidden workspace', async () => {
   const view = render(LocalSecurity, { host: bridge(vi.fn().mockResolvedValue(await reply())) });
   await start();
   await screen.findByRole('region', { name: 'Local review results' });
