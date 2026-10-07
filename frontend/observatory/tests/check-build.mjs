@@ -144,8 +144,8 @@ try {
   await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).waitFor();
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
-  // Measured from the reviewed dialogs-14 prototype at 1200x800. These checks
-  // catch a functioning renderer that has silently replaced the approved layout.
+  // Preserve the reviewed desktop structure at 1200x800, with the user's
+  // compact 40px toolbar from the current density brief in DESIGN.md.
   const geometry = await page.evaluate(() => {
     const rect = (selector) => {
       const r = document.querySelector(selector).getBoundingClientRect();
@@ -161,7 +161,7 @@ try {
     };
   });
   assert.equal(geometry.sidebar.width, 184, 'prototype sidebar density');
-  assert(Math.abs(geometry.topbar.height - 46) <= 2, 'prototype toolbar height');
+  assert(Math.abs(geometry.topbar.height - 40) <= 2, 'compact toolbar height');
   assert.equal(await page.locator('.workspace-tabs').count(), 0, 'duplicate navigation returned');
   assert(
     geometry.summary.y >= geometry.head.y + geometry.head.height,
