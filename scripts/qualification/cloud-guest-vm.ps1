@@ -177,7 +177,7 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
         . (Join-Path $SupportRoot 'cloud-guest-vm.ps1')
         . (Join-Path $SupportRoot 'cloud-host-routes.ps1')
         $session = $null; $watch = [Diagnostics.Stopwatch]::StartNew(); $lastDisk = -60
-        $routeOwner = $null; $routeClosed = $null; $routeEvidence = $null; $result = $null
+        $routeOwner = $null; $routeClosed = $null; $routeEvidence = $null; $result = $null; $routeSnapshotDiagnostic = $null
         $diskSamples = [Collections.Generic.List[object]]::new()
         $mediaMutationUnknown = $false
         $progress = @{ phase = 'psdirect-profile-readiness'; sessionEstablished = $false; profileReady = $false; installedOs = $null; transferHashesVerified = $false; mediaDetached = $null; standardTaskSubmitted = $false }
@@ -235,7 +235,8 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             $progress.phase = 'detach-installation-media'
             $progress.mediaDetached = Remove-CloudGuestInstallationMedia $Id $Name $VmRoot ([ref]$mediaMutationUnknown)
             $progress.phase = 'owned-host-route-positive-controls'
-            $routeOwner = Start-CloudHostRoutes $Id $Name $VmRoot (Join-Path $TransferRoot 'node.exe') $SupportRoot $SourceSha
+            try { $routeOwner = Start-CloudHostRoutes $Id $Name $VmRoot (Join-Path $TransferRoot 'node.exe') $SupportRoot $SourceSha ([ref]$routeSnapshotDiagnostic) }
+            finally { $progress.hostRouteSnapshot = $routeSnapshotDiagnostic }
             $endpointText = $routeOwner.endpoint | ConvertTo-Json -Compress -Depth 5
             Invoke-Command -Session $session -ArgumentList $endpointText -ScriptBlock {
                 param($FixedEndpoint)
@@ -248,7 +249,9 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             $progress.phase = 'independent-host-route-closure'
             $jobClosed = $null -ne $result -and $null -ne $result.identity -and $result.identity.jobClosureConfirmed -eq $true
             $routeClosed = Stop-CloudHostRoutes $routeOwner $jobClosed
-            $after = Get-CloudHostRouteSnapshot $Id $Name $VmRoot
+            $afterDiagnostic = $null
+            try { $after = Get-CloudHostRouteSnapshot $Id $Name $VmRoot ([ref]$afterDiagnostic) }
+            finally { $progress.hostRouteSnapshotAfter = $afterDiagnostic }
             if (!$jobClosed) { throw 'host-route-guest-job-closure-unconfirmed' }
             $routeText = Invoke-Command -Session $session -ScriptBlock {
                 $file = Get-Item -LiteralPath C:/AegisLab/work/route-client-result.json -Force

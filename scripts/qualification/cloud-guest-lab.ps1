@@ -14,6 +14,7 @@ foreach ($leaf in @('evidence', 'temp', 'media', 'native', 'transfer', 'vm', 'ca
 $env:TEMP = Join-Path $OutputRoot 'temp'; $env:TMP = $env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
+. (Join-Path $PSScriptRoot 'cloud-host-routes.ps1')
 $name = 'aegis-cloud-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '-' + [guid]::NewGuid().ToString('N')
 $vmRoot = Join-Path $OutputRoot 'vm'; $mediaRoot = Join-Path $OutputRoot 'media'
 $id = $null; $owner = $null; $unknown = $false; $createAttempted = $false; $absence = $false; $mounted = $false
@@ -22,7 +23,7 @@ $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
-    cleanupFailure = $null; failure = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
+    cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
 function RecordDisk([string]$Phase) {
     $values = @('C', 'D') | ForEach-Object { $drive = Get-PSDrive -Name $_; @{ drive = $_; freeBytes = [long]$drive.Free; usedBytes = [long]$drive.Used } }
     $report.disks.Add(@{ phase = $Phase; capturedAt = [DateTime]::UtcNow.ToString('o'); drives = @($values) })
@@ -161,6 +162,11 @@ try {
         $running = $owner.Start(); $report.startOperation = $owner.Operation(); $script:unknown = $owner.PendingUnknown
         if (!$running -or $unknown) { throw 'native-start-unconfirmed' }
         $report.operationSettlement = 'actual-native-start-settled'
+    } | Out-Null
+    Stage 'early-owned-host-route-snapshot' {
+        $earlyDiagnostic = $null
+        try { Get-CloudHostRouteSnapshot $id $name $vmRoot ([ref]$earlyDiagnostic) | Out-Null }
+        finally { $report.hostRouteEarlySnapshot = $earlyDiagnostic }
     } | Out-Null
     Stage 'optional-fixed-setup-key-window' {
         $report.keyboardWindow = Invoke-CloudGuestBootWindow $owner

@@ -58,21 +58,67 @@ function Join-Path([string]$Path, [string]$ChildPath) { return [IO.Path]::Combin
 $OutputRoot = & ([scriptblock]::Create((Assignment 'expectedRoot')))
 $generatedName = & ([scriptblock]::Create((Assignment 'name')))
 $generatedRoot = & ([scriptblock]::Create((Assignment 'vmRoot')))
-$script:ownedVm = [pscustomobject]@{ Id = [guid]'a0000000-0000-0000-0000-000000000000'; Name = $generatedName; ConfigurationLocation = $generatedRoot; State = 'Running' }
+$generatedConfig = [IO.Path]::Combine($generatedRoot, $generatedName)
+$script:ownedVm = [pscustomobject]@{ Id = [guid]'a0000000-0000-0000-0000-000000000000'; Name = $generatedName; ConfigurationLocation = $generatedConfig; State = 'Running' }
 $script:nicCount = 0
+$script:reparseAt = $null
+function FixtureDirectory([string]$Path) {
+    $parentPath = [IO.Path]::GetDirectoryName($Path.TrimEnd('\'))
+    if ($Path -match '^[a-zA-Z]:\\$') { $parentPath = $null }
+    return [pscustomobject]@{ FullName = $Path; PSIsContainer = $true;
+        Attributes = $(if ($script:reparseAt -and $Path.Equals($script:reparseAt, [StringComparison]::OrdinalIgnoreCase)) { [IO.FileAttributes]::ReparsePoint } else { [IO.FileAttributes]::Directory });
+        Parent = $(if ($parentPath) { FixtureDirectory $parentPath } else { $null }) }
+}
+function Get-Item { param($LiteralPath, [switch]$Force, $ErrorAction); return (FixtureDirectory $LiteralPath) }
 function Get-VM { param([guid]$Id) return $script:ownedVm }
 function Get-VMNetworkAdapter { param($VM) for ($index = 0; $index -lt $script:nicCount; $index++) { [pscustomobject]@{ fixture = $true } } }
-$driverSnapshot = Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot
+$diagnostic = $null
+$driverSnapshot = Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot ([ref]$diagnostic)
 Require ($driverSnapshot.name -ceq $generatedName -and $driverSnapshot.vmRoot -ceq $generatedRoot)
+Require ($diagnostic.reason -ceq 'confirmed' -and $diagnostic.observedConfig -ceq $generatedConfig -and $diagnostic.configContained -and $diagnostic.reparseFree)
+# The original equality guard refused the canonical descendant produced by
+# Hyper-V under the actual driver's owned root. No live VM is queried here.
+Require ($ownedVm.ConfigurationLocation.TrimEnd('\') -cne $generatedRoot.TrimEnd('\'))
+$ownedVm.ConfigurationLocation = $generatedConfig.ToLowerInvariant()
+Require ((Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot.ToLowerInvariant()).vmId -ceq $ownedVm.Id.ToString())
+$ownedVm.ConfigurationLocation = $generatedConfig
+foreach ($foreign in @(($generatedRoot + '-sibling'), [IO.Path]::Combine($generatedRoot, '..\foreign'), 'D:\foreign')) {
+    $ownedVm.ConfigurationLocation = $foreign; $diagnostic = $null
+    Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot ([ref]$diagnostic) })
+    Require ($diagnostic.reason -ceq 'provider-config-outside-owned-root' -and $null -eq $diagnostic.observedConfig)
+}
+$ownedVm.ConfigurationLocation = @($generatedConfig); $diagnostic = $null
+Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot ([ref]$diagnostic) })
+Require ($diagnostic.configType -ceq 'other' -and $null -eq $diagnostic.observedConfig)
+$ownedVm.ConfigurationLocation = $generatedConfig
+foreach ($reparse in @($generatedConfig, $generatedRoot, [IO.Path]::GetDirectoryName($generatedRoot))) {
+    $script:reparseAt = $reparse; $diagnostic = $null
+    Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot ([ref]$diagnostic) })
+    Require ($diagnostic.reason -ceq 'provider-config-reparse-or-unavailable' -and !$diagnostic.reparseFree)
+}
+$script:reparseAt = $null
 # V1 rejects this actual producer output before querying its exact GUID.
 Require ($generatedName -cnotmatch '^aegis-cloud-guest-[0-9]+-[0-9]+$')
 Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName ('D:\' + $generatedName + '\vm') })
 Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() 'aegis-cloud-999-1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' $generatedRoot })
 Require (Refused { Get-CloudHostRouteSnapshot 'b0000000-0000-0000-0000-000000000000' $generatedName $generatedRoot })
 $ownedVm.Name = 'foreign'; Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot }); $ownedVm.Name = $generatedName
-$ownedVm.ConfigurationLocation = 'D:\foreign'; Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot }); $ownedVm.ConfigurationLocation = $generatedRoot
+$ownedVm.ConfigurationLocation = 'D:\foreign'; Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot }); $ownedVm.ConfigurationLocation = $generatedConfig
 $ownedVm.State = 'Off'; Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot }); $ownedVm.State = 'Running'
 $script:nicCount = 1; Require (Refused { Get-CloudHostRouteSnapshot $ownedVm.Id.ToString() $generatedName $generatedRoot }); $script:nicCount = 0
+$early = $lab.Find({ param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Stage' -and
+    $node.CommandElements[1].Extent.Text -ceq "'early-owned-host-route-snapshot'" }, $true)
+Require ($null -ne $early)
+$earlyOperation = [scriptblock]::Create($early.CommandElements[2].ScriptBlock.Extent.Text.Trim('{', '}'))
+$id = $ownedVm.Id.ToString(); $name = $generatedName; $vmRoot = $generatedRoot
+$report = @{ hostRouteEarlySnapshot = $null }
+& $earlyOperation
+Require ($report.hostRouteEarlySnapshot.reason -ceq 'confirmed')
+$ownedVm.ConfigurationLocation = 'D:\foreign'
+Require (Refused { & $earlyOperation })
+Require ($report.hostRouteEarlySnapshot.reason -ceq 'provider-config-outside-owned-root' -and $null -eq $report.hostRouteEarlySnapshot.observedConfig)
+$ownedVm.ConfigurationLocation = $generatedConfig
+Remove-Item Function:Get-Item
 function Owner([bool]$Exited, [bool]$Wait, [int]$Exit, [long]$Elapsed) {
     $process = [RouteProcessDouble]::new(); $process.HasExited = $Exited; $process.WaitResult = $Wait; $process.ExitCode = $Exit
     $frame = [Threading.Tasks.TaskCompletionSource[string]]::new(); $frame.SetResult('{"schemaVersion":1}')

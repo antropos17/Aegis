@@ -1,18 +1,53 @@
 # Qualification-only host socket ownership. Never changes interface/firewall policy.
 Set-StrictMode -Version Latest
-function Get-CloudHostRouteSnapshot([string]$Id, [string]$Name, [string]$VmRoot) {
+function Get-CloudHostRouteSnapshot([string]$Id, [string]$Name, [string]$VmRoot, [ref]$Diagnostic) {
     Assert-CloudGuestRunner
+    $observation = @{ phase = 'input'; reason = 'input-unconfirmed'; vmCount = 0; idMatched = $false; nameMatched = $false;
+        configContained = $false; reparseFree = $false; observedId = $null; observedName = $null; observedConfig = $null;
+        state = $null; nics = $null; nameType = 'unobserved'; configType = 'unobserved'; vmType = 'unobserved' }
+    if ($null -ne $Diagnostic) { $Diagnostic.Value = $observation }
     $expectedName = '^aegis-cloud-' + [regex]::Escape($env:GITHUB_RUN_ID) + '-' + [regex]::Escape($env:GITHUB_RUN_ATTEMPT) + '-[a-f0-9]{32}$'
     $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '\vm'
     if ($Id -notmatch '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' -or
         $Name -cnotmatch $expectedName -or
-        [IO.Path]::GetFullPath($VmRoot).TrimEnd('\') -cne $expectedRoot) { throw 'host-route-owned-vm-refused' }
-    $vm = Get-VM -Id ([guid]$Id) -ErrorAction Stop
-    if ($vm.Id.ToString().ToLowerInvariant() -cne $Id -or $vm.Name -cne $Name -or
-        $vm.ConfigurationLocation.TrimEnd('\') -cne $VmRoot.TrimEnd('\')) { throw 'host-route-owned-vm-refused' }
+        ![IO.Path]::GetFullPath($VmRoot).TrimEnd('\').Equals($expectedRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'host-route-owned-vm-refused' }
+    $observation.phase = 'provider-query'; $observation.reason = 'provider-query-unconfirmed'
+    $found = @(Get-VM -Id ([guid]$Id) -ErrorAction Stop); $observation.vmCount = [Math]::Min($found.Count, 2)
+    if ($found.Count -ne 1) { $observation.reason = 'provider-count'; throw 'host-route-owned-vm-refused' }
+    $vm = $found[0]
+    $observation.vmType = if ($vm.PSObject.TypeNames -contains 'Microsoft.HyperV.PowerShell.VirtualMachine') { 'hyperv-vm' } else { 'other' }
+    if ($null -eq $vm.Id) { $observation.reason = 'provider-id-missing'; throw 'host-route-owned-vm-refused' }
+    $observedId = $vm.Id.ToString().ToLowerInvariant()
+    if ($observedId -cmatch '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$') { $observation.observedId = $observedId }
+    $observation.idMatched = $observedId -ceq $Id
+    $observation.nameType = if ($vm.Name -is [string]) { 'string' } else { 'other' }
+    if ($vm.Name -is [string] -and $vm.Name.Length -le 128 -and $vm.Name -cmatch $expectedName) { $observation.observedName = $vm.Name }
+    $observation.nameMatched = $vm.Name -is [string] -and $vm.Name -ceq $Name
+    if (!$observation.idMatched -or !$observation.nameMatched) { $observation.reason = 'provider-identity'; throw 'host-route-owned-vm-refused' }
+    $observation.phase = 'provider-config'; $observation.reason = 'provider-config-unconfirmed'
+    $observation.configType = if ($vm.ConfigurationLocation -is [string]) { 'string' } else { 'other' }
+    if ($vm.ConfigurationLocation -isnot [string] -or $vm.ConfigurationLocation.Length -gt 512) { throw 'host-route-owned-vm-refused' }
+    $actual = [IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\')
+    $observation.configContained = $actual.Equals($expectedRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $actual.StartsWith($expectedRoot + '\', [StringComparison]::OrdinalIgnoreCase)
+    if (!$observation.configContained) { $observation.reason = 'provider-config-outside-owned-root'; throw 'host-route-owned-vm-refused' }
+    $observation.observedConfig = $actual
+    $observation.reason = 'provider-config-reparse-or-unavailable'
+    $cursor = Get-Item -LiteralPath $actual -Force -ErrorAction Stop
+    $ancestors = 0
+    while ($null -ne $cursor) {
+        if (!(($cursor.Attributes -band [IO.FileAttributes]::Directory)) -or
+            ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) -or ++$ancestors -gt 32) { throw 'host-route-owned-vm-refused' }
+        $cursor = $cursor.Parent
+    }
+    $observation.reparseFree = $true
     $nics = @(Get-VMNetworkAdapter -VM $vm -ErrorAction Stop).Count
-    if ($nics -ne 0) { throw 'host-route-zero-nic-unconfirmed' }
-    if ($vm.State.ToString() -cne 'Running') { throw 'host-route-owned-vm-not-running' }
+    $observation.nics = [Math]::Min($nics, 2); $observation.phase = 'provider-state'
+    $state = $vm.State.ToString()
+    $observation.state = if ($state -cin @('Running', 'Off', 'Starting', 'Stopping', 'Saved', 'Paused', 'Saving', 'Pausing', 'Reset')) { $state } else { 'other' }
+    if ($nics -ne 0) { $observation.reason = 'provider-nic-count'; throw 'host-route-zero-nic-unconfirmed' }
+    if ($state -cne 'Running') { $observation.reason = 'provider-not-running'; throw 'host-route-owned-vm-not-running' }
+    $observation.reason = 'confirmed'; $observation.phase = 'complete'
     return @{ vmId = $Id; name = $Name; vmRoot = $expectedRoot; runId = $env:GITHUB_RUN_ID; runAttempt = $env:GITHUB_RUN_ATTEMPT; nics = $nics; state = 'Running' }
 }
 function Get-CloudHostRouteAddresses {
@@ -66,9 +101,9 @@ function New-CloudHostRouteProcess([string]$Node, [string]$Script, [bool]$InputR
         $process.Dispose(); throw 'host-route-process-create-failed'
     }
 }
-function Start-CloudHostRoutes([string]$Id, [string]$Name, [string]$VmRoot, [string]$Node, [string]$SupportRoot, [string]$SourceSha) {
+function Start-CloudHostRoutes([string]$Id, [string]$Name, [string]$VmRoot, [string]$Node, [string]$SupportRoot, [string]$SourceSha, [ref]$Diagnostic) {
     Assert-CloudGuestRunner
-    $before = Get-CloudHostRouteSnapshot $Id $Name $VmRoot
+    $before = Get-CloudHostRouteSnapshot $Id $Name $VmRoot $Diagnostic
     if ($SourceSha -notmatch '^[a-f0-9]{40}$') { throw 'host-route-source-required' }
     $addresses = Get-CloudHostRouteAddresses
     $random = New-Object byte[] 16; $rng = [Security.Cryptography.RandomNumberGenerator]::Create()

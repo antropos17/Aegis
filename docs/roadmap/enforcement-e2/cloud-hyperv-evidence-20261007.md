@@ -251,6 +251,18 @@ stopped at `native-process-deadline`; it is incomplete. The cloud workflow must
 pass that complete entrypoint before creating its VM. These local results do
 not establish actual guest Git or host-route denial.
 
+The [combined run at 73d19f0a](https://github.com/antropos17/Aegis/actions/runs/37695888853)
+passed the complete hosted preflight, installed Windows, verified transferred
+hashes and detached both DVDs. The new host-route ownership guard then refused
+before task submission. The generic refusal does not identify its failing
+predicate; the route guard requires an exact configuration-root match while the
+existing creation/configuration path permits provider-created child directories.
+No owner-Node, desktop, task, guest route or Git observation was produced. Native
+stop, independent Off/removal and post-removal host canaries passed; the separate
+after-task canary check was not reached. Independent review matched 33 source
+hashes and the pinned Git archive. All five CI contexts passed `a5ae2e30`, whose
+only delta removes an unused test variable without changing runtime code.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.
