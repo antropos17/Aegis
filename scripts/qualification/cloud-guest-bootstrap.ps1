@@ -58,7 +58,8 @@ function Read-CloudGuestTaskDiagnostics([string]$Path) {
 function Merge-CloudGuestTaskDiagnostics($Identity, $Parsed, [bool]$AdminCanaryUnchanged) {
     $taskResult = $Parsed.task
     if ($null -eq $taskResult) {
-        $taskResult = @{ schemaVersion = 1; task = 'fixed-read-edit-test'; passed = $false; stage = 'result-unavailable';
+        $taskStage = if ($Parsed.status -ceq 'guest-task-not-run') { 'not-run' } else { 'result-unavailable' }
+        $taskResult = @{ schemaVersion = 1; task = 'fixed-read-edit-test'; passed = $false; stage = $taskStage;
             failure = $null; networkControlsComplete = $false; readEditTestPassed = $false; shellAndDescendantPositive = $false; hostPathProbes = @(); protectedProbes = @() }
     }
     $runtimeReady = $true
@@ -142,6 +143,18 @@ function Merge-CloudGuestNetworkControls($Diagnostics, $Network) {
     $passed = $Diagnostics.passed -eq $true -and $Network.passed -eq $true
     $Diagnostics.passed = [bool]$passed; $Diagnostics.task.passed = [bool]$passed
     if (!$passed -and $null -eq $Diagnostics.failureCode) { $Diagnostics.failureCode = 'guest-network-controls-refused' }
+    return $Diagnostics
+}
+function Get-CloudGuestDownstreamState($Identity) {
+    if ($Identity.ContainsKey('taskReleased') -and $Identity.taskReleased -is [bool] -and !$Identity.taskReleased) { return 'not-run' }
+    if (!$Identity.ContainsKey('taskReleased') -or $Identity.taskReleased -isnot [bool]) { return 'unavailable-release-unconfirmed' }
+    if (!$Identity.ContainsKey('jobClosureConfirmed') -or $Identity.jobClosureConfirmed -isnot [bool] -or !$Identity.jobClosureConfirmed) { return 'unavailable-closure-unknown' }
+    return 'released-closed'
+}
+function Merge-CloudGuestGitControls($Diagnostics, $GitControls) {
+    $passed = $Diagnostics.passed -eq $true -and $GitControls.passed -eq $true
+    $Diagnostics.passed = [bool]$passed; $Diagnostics.task.passed = [bool]$passed
+    if (!$passed -and $null -eq $Diagnostics.failureCode) { $Diagnostics.failureCode = 'guest-git-controls-refused' }
     return $Diagnostics
 }
 # Only fixed enums and numeric observations cross the PS Direct boundary.
@@ -270,19 +283,28 @@ catch {
     if ($null -eq $identity) { throw 'guest-task-process-refused' }
 }
 $bootstrapStage = 'result-diagnostics'
-$parsed = @{ status = 'guest-task-result-unread-closure-unknown'; task = $null }
-if ($identity.jobClosureConfirmed -eq $true) { $parsed = Read-CloudGuestTaskDiagnostics "$root\work\result.json" }
+$downstreamState = Get-CloudGuestDownstreamState $identity
+$parsed = @{ status = ('guest-task-' + $downstreamState); task = $null }
+if ($downstreamState -ceq 'released-closed') { $parsed = Read-CloudGuestTaskDiagnostics "$root\work\result.json" }
 $adminCanary = $false
 try { $adminCanary = [IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ceq 'guest-admin-dummy-control' } catch { }
 $diagnostics = Merge-CloudGuestTaskDiagnostics $identity $parsed $adminCanary
-$network = Read-CloudGuestNetworkControls $identity "$trusted\network-endpoint.json" "$root\work\network-client-result.json" 'C:\ProgramData\AegisCloudLab\admin\network-receiver-result.json'
+$network = @{ passed = $false; status = ('network-controls-' + $downstreamState); receiver = $null; client = $null; e3Qualified = $false; launchAllowed = $false; labCorpusComplete = $false }
+$gitControls = @{ passed = $false; scope = 'fixed-disposable-git'; launchAllowed = $false; e2Qualified = $false; e6Qualified = $false }
+$gitStatus = 'git-controls-' + $downstreamState
+if ($downstreamState -ceq 'released-closed') {
+    $network = Read-CloudGuestNetworkControls $identity "$trusted\network-endpoint.json" "$root\work\network-client-result.json" 'C:\ProgramData\AegisCloudLab\admin\network-receiver-result.json'
+    $gitControls = Read-CloudGuestGitControls "$root\work\git-result.json"
+    $gitStatus = if ($gitControls.passed) { 'verified' } else { 'git-controls-unavailable-or-refused' }
+}
 $diagnostics = Merge-CloudGuestNetworkControls $diagnostics $network
-$gitControls = Read-CloudGuestGitControls "$root\work\git-result.json"
-if (!$gitControls.passed) { $diagnostics.passed = $false; $diagnostics.task.passed = $false; $diagnostics.failureCode = 'guest-git-controls-refused' }
+$diagnostics = Merge-CloudGuestGitControls $diagnostics $gitControls
+$diagnostics.downstreamChecks = @{ task = $parsed.status; network = $network.status; git = $gitStatus; state = $downstreamState }
 $bootstrapStage = 'os-receipt'
 $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5
 return @{ schemaVersion = 1; passed = $diagnostics.passed; failureCode = $diagnostics.failureCode; taskResultStatus = $diagnostics.taskResultStatus;
     guest = @{ version = $os.Version; build = $os.BuildNumber; caption = $os.Caption }; identity = $identity; task = $diagnostics.task; networkControls = $network; gitControls = $gitControls;
+    downstreamChecks = $diagnostics.downstreamChecks;
     setupAnswerCachesAbsent = $true; autoLogonDisabled = $true; passwordRegistryAbsent = $true; labOnlyPowerShellDirect = $true; atomicJobAtCreation = $false; launchAllowed = $false }
 } catch {
     $failure = Get-CloudGuestBootstrapFailure $bootstrapStage $_
@@ -293,7 +315,10 @@ return @{ schemaVersion = 1; passed = $diagnostics.passed; failureCode = $diagno
     }
     $taskResult.passed = $false
     $status = if ($null -ne $diagnostics) { $diagnostics.taskResultStatus } else { 'guest-task-result-unavailable' }
-    return @{ schemaVersion = 1; passed = $false; failureCode = 'guest-bootstrap-refused'; bootstrapFailure = $failure; taskResultStatus = $status;
+    $firstFailure = if ($null -ne $diagnostics -and $diagnostics.ContainsKey('failureCode') -and $null -ne $diagnostics.failureCode) { $diagnostics.failureCode }
+        elseif ($null -ne $identity -and $identity.ContainsKey('passed') -and $identity.passed -is [bool] -and !$identity.passed) { 'guest-task-process-refused' } else { 'guest-bootstrap-refused' }
+    return @{ schemaVersion = 1; passed = $false; failureCode = $firstFailure; bootstrapFailure = $failure; taskResultStatus = $status;
+        downstreamChecks = $(if ($null -ne $diagnostics -and $diagnostics.ContainsKey('downstreamChecks')) { $diagnostics.downstreamChecks } else { $null });
         guest = $null; identity = $identity; task = $taskResult; setupAnswerCachesAbsent = $secretCleanup; autoLogonDisabled = $secretCleanup;
         passwordRegistryAbsent = $secretCleanup; labOnlyPowerShellDirect = $true; atomicJobAtCreation = $false; launchAllowed = $false }
 }

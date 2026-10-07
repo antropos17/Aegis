@@ -63,3 +63,54 @@ $result = InvokeBootstrapModel 'PASSWORD_SENTINEL' 'RefuseBootstrap' $null $null
 CheckBootstrap ($result.bootstrapFailure.stage -ceq 'bootstrap-unknown') 'unknown-bootstrap-stage-exposed'
 if ($bootstrapChecks -ne 20) { throw 'bootstrap-control-count-mismatch' }
 @{passed=$true;checks=$bootstrapChecks;scope='AST-mocked-bootstrap-stages-and-actual-scope-refusal';actualLocalAccountAclOrVm=$false;launchAllowed=$false} | ConvertTo-Json -Depth 4
+
+# Execute the real downstream orchestration statements, with file readers that
+# can only supply fixed controls. No local process/account/ACL/guest execution.
+foreach ($name in @('Merge-CloudGuestTaskDiagnostics', 'Merge-CloudGuestNetworkControls', 'Get-CloudGuestDownstreamState', 'Merge-CloudGuestGitControls')) {
+    $found = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name }, $false))
+    if ($found.Count -ne 1) { throw 'downstream-helper-unavailable' }
+    . ([scriptblock]::Create($found[0].Extent.Text))
+}
+$begin = $source.IndexOf('$downstreamState = Get-CloudGuestDownstreamState')
+$end = $source.IndexOf("`$bootstrapStage = 'os-receipt'", $begin)
+if ($begin -lt 0 -or $end -lt 0) { throw 'downstream-operation-unavailable' }
+$operation = [scriptblock]::Create($source.Substring($begin, $end - $begin))
+function RunDownstreamModel($ModelIdentity, [bool]$NetworkPass, [bool]$GitPass) {
+    $identity = $ModelIdentity; $root = 'C:\fixed-model'; $trusted = 'C:\fixed-trusted-model'
+    $script:downstreamReads = 0
+    function Read-CloudGuestTaskDiagnostics { $script:downstreamReads++; return @{ status = 'verified'; task = @{ passed = $true; stage = 'completed' } } }
+    function Read-CloudGuestNetworkControls { $script:downstreamReads++; return @{ passed = $NetworkPass; status = 'network-model' } }
+    function Read-CloudGuestGitControls { $script:downstreamReads++; return @{ passed = $GitPass } }
+    function Read-AdminControl { return 'guest-admin-dummy-control' }
+    # Only the dummy admin canary read is substituted in this test model.
+    $text = $operation.ToString().Replace("[IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt')", '(Read-AdminControl)')
+    . ([scriptblock]::Create($text))
+    return @{ diagnostics = $diagnostics; network = $network; git = $gitControls; gitStatus = $gitStatus; state = $downstreamState; reads = $script:downstreamReads }
+}
+$earlyIdentity = @{ passed = $false; failureStage = 'held-token-open'; failureHResult = -2146233079; taskReleased = $false; runtimeResumed = $false; jobClosureConfirmed = $false }
+$earlyResult = RunDownstreamModel $earlyIdentity $true $true
+CheckBootstrap ($earlyResult.reads -eq 0 -and !$earlyResult.diagnostics.passed -and $earlyResult.diagnostics.failureCode -ceq 'guest-task-process-refused' -and
+    $earlyResult.diagnostics.identity.failureStage -ceq 'held-token-open' -and $earlyResult.diagnostics.identity.failureHResult -eq -2146233079) 'early-native-failure-overwritten'
+CheckBootstrap ($earlyResult.state -ceq 'not-run' -and $earlyResult.diagnostics.taskResultStatus -ceq 'guest-task-not-run' -and
+    $earlyResult.diagnostics.task.stage -ceq 'not-run' -and $earlyResult.network.status -ceq 'network-controls-not-run' -and
+    $earlyResult.gitStatus -ceq 'git-controls-not-run' -and !$earlyResult.network.passed -and !$earlyResult.git.passed) 'downstream-not-run-lost'
+foreach ($released in @($true, 'true', $null)) {
+    $unknownIdentity = @{ passed = $false; taskReleased = $released; jobClosureConfirmed = $false }
+    $unknownResult = RunDownstreamModel $unknownIdentity $true $true
+    $expected = if ($released -is [bool]) { 'unavailable-closure-unknown' } else { 'unavailable-release-unconfirmed' }
+    CheckBootstrap ($unknownResult.reads -eq 0 -and $unknownResult.state -ceq $expected -and !$unknownResult.diagnostics.passed -and
+        $unknownResult.diagnostics.failureCode -ceq 'guest-task-process-refused') 'unknown-observation-became-success-or-not-run'
+}
+$ready = @{ passed = $true; taskReleased = $true; jobClosureConfirmed = $true; runtimeResumed = $true; runtimeCallerAuthenticated = $true;
+    runtimeInitializedBeforeProject = $true; networkReceiverStartedAfterRuntimeReady = $true; exitCodeObserved = $true; exitCode = 0;
+    heldIdentityBeforeRelease = $true; elevated = $false; administratorEnabled = $false }
+foreach ($pair in @(@($true, $true), @($false, $true), @($true, $false), @($false, $false))) {
+    $merged = RunDownstreamModel $ready $pair[0] $pair[1]
+    $expected = if (!$pair[0]) { 'guest-network-controls-refused' } elseif (!$pair[1]) { 'guest-git-controls-refused' } else { $null }
+    CheckBootstrap ($merged.reads -eq 3 -and $merged.diagnostics.failureCode -ceq $expected -and
+        $merged.diagnostics.passed -eq ($pair[0] -and $pair[1]) -and $merged.diagnostics.task.passed -eq ($pair[0] -and $pair[1])) 'downstream-failure-order-or-positive-control-lost'
+}
+$result = InvokeBootstrapModel 'os-receipt' 'RefuseBootstrap' $earlyIdentity $earlyResult.diagnostics
+CheckBootstrap ($result.failureCode -ceq 'guest-task-process-refused' -and $result.identity.failureStage -ceq 'held-token-open' -and
+    $result.bootstrapFailure.stage -ceq 'os-receipt' -and $result.downstreamChecks.state -ceq 'not-run') 'later-bootstrap-failure-overwrote-native-cause'
+@{ passed = $true; checks = $bootstrapChecks - 20; scope = 'pure-native-first-downstream-cause-ordering'; nativeOrGuestEffects = $false } | ConvertTo-Json -Compress

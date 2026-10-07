@@ -263,6 +263,28 @@ after-task canary check was not reached. Independent review matched 33 source
 hashes and the pinned Git archive. All five CI contexts passed `a5ae2e30`, whose
 only delta removes an unused test variable without changing runtime code.
 
+The [owned-configuration revision run](https://github.com/antropos17/Aegis/actions/runs/37698380607)
+at `979dc3e0` passed the complete hosted preflight and all five CI contexts.
+It observed the exact owned VM under its provider-created configuration child
+directory, Running with zero adapters, before and after the route attempt.
+The owner Node positive exited zero in 2,671 milliseconds. Private desktop
+creation and parent-station restoration passed. Host-side IPv4 TCP, UDP and
+private-DNS positives were observed; IPv6 was unavailable.
+
+The native launcher refused at `held-token-open`, after Job assignment and before
+SID observation, runtime resume or project release. That stage includes both
+`OpenHeldToken` and `WindowsIdentity` construction, so the generic HResult does
+not identify the failed operation. Early cleanup could not confirm Job closure
+because the inventory had not yet been constructed. The outer Git refusal label
+masked this earlier native failure; no guest route, Git or useful-task result
+was produced. Zero guest packets therefore supply no denial qualification.
+The host receiver closed through its input-close refusal path after about
+45 seconds; its `expired` field does not prove the 120-second timer fired.
+Native Off, exact VM removal and post-removal host canaries passed. The after-task
+canary check was not reached. Independent review verified all 33 source hashes
+and the pinned Git archive. This receipt adds observations without changing any
+full enforcement acceptance gate.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

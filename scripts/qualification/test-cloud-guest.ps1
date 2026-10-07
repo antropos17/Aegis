@@ -271,6 +271,8 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
 
 & (Join-Path $PSScriptRoot 'test-cloud-guest-token.ps1')
 
+& (Join-Path $PSScriptRoot 'test-cloud-guest-token-cleanup.ps1')
+
 & (Join-Path $PSScriptRoot 'test-cloud-guest-runtime.ps1')
 
 & (Join-Path $PSScriptRoot 'test-cloud-guest-desktop.ps1')

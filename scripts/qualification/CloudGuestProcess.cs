@@ -46,13 +46,21 @@ public static class CloudGuestProcess
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int kind, out int data, int length, out int returned);
     private static void Require(bool value, string stage)
-    { if (!value) throw new InvalidOperationException(stage + ":" + Marshal.GetLastWin32Error()); }
+    { if (!value) throw new InvalidOperationException(stage); }
+    private sealed class NativeFailure : InvalidOperationException
+    {
+        internal readonly int Win32Error;
+        internal NativeFailure(int error) : base("guest-native-call-refused") { Win32Error = error; }
+    }
+    private static void RequireNative(bool value)
+    { if (!value) throw new NativeFailure(Marshal.GetLastWin32Error()); }
     private static IntPtr OpenHeldToken(IntPtr heldProcess)
     {
         IntPtr token;
         // Framework IsInRole duplicates a primary token into an identification
         // token. Query alone cannot perform that check; no privileges are adjusted.
-        Require(OpenProcessToken(heldProcess, 8 | 2, out token), "held-token-open");
+        RequireNative(OpenProcessToken(heldProcess, 8 | 2, out token));
+        Require(token != IntPtr.Zero, "held-token-handle");
         return token;
     }
     private sealed class TaskFailure : InvalidOperationException
@@ -103,22 +111,30 @@ public static class CloudGuestProcess
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
         CloudGuestDesktop desktopOwner = null;
-        bool assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false; uint exit = 259;
+        bool created = false, assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false, unassignedRootExitObserved = false; uint exit = 259;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
+        receipt["processCreated"] = false; receipt["jobAssignedBeforeAdmission"] = false; receipt["tokenOpened"] = false;
+        receipt["heldProcessHandlePresent"] = false; receipt["heldThreadHandlePresent"] = false; receipt["failureWin32Error"] = null;
         try
         {
             stage = "owner-node-version-positive";
+            try
+            {
+                using (var owner = WindowsIdentity.GetCurrent()) receipt["ownerImpersonationLevel"] = owner.ImpersonationLevel.ToString();
+                using (var thread = WindowsIdentity.GetCurrent(true)) receipt["ownerThreadImpersonating"] = thread != null;
+            }
+            catch { receipt["ownerImpersonationLevel"] = "unknown"; receipt["ownerThreadImpersonating"] = null; }
             CloudGuestDesktop.ProbeOwnerNode(receipt);
             stage = "private-desktop-create";
             desktopOwner = new CloudGuestDesktop(expectedSid);
             receipt["privateDesktopCreated"] = true;
             receipt["privateDesktopParentRestored"] = desktopOwner.Restored;
             stage = "job-create";
-            job = CreateJobObject(IntPtr.Zero, null); Require(job != IntPtr.Zero, "job-create");
+            job = CreateJobObject(IntPtr.Zero, null); RequireNative(job != IntPtr.Zero);
             stage = "job-limits";
             var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8; limits.Basic.Active = 16;
-            Require(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))), "job-limits");
+            RequireNative(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
             stage = "runtime-endpoint-create";
             runtime = new CloudGuestRuntimeGate(expectedSid);
             string values = "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
@@ -127,12 +143,20 @@ public static class CloudGuestProcess
             startup.Desktop = desktopOwner.Path;
             var command = new StringBuilder("\"" + image + "\" \"" + task + "\"");
             stage = "standard-user-create";
-            Require(CreateProcessWithLogonW("AegisTask", ".", password, 1, image, command, 0x08000404,
-                environment, root + @"\work", ref startup, out child), "standard-user-create");
+            RequireNative(CreateProcessWithLogonW("AegisTask", ".", password, 1, image, command, 0x08000404,
+                environment, root + @"\work", ref startup, out child));
+            created = true;
+            receipt["processCreated"] = true; receipt["createdProcessId"] = child.Pid; receipt["createdThreadId"] = child.Tid;
+            receipt["heldProcessHandlePresent"] = child.Process != IntPtr.Zero; receipt["heldThreadHandlePresent"] = child.Thread != IntPtr.Zero;
+            Require(child.Process != IntPtr.Zero && child.Thread != IntPtr.Zero && child.Pid != 0 && child.Tid != 0, "created-handles-refused");
             stage = "job-assign";
-            Require(AssignProcessToJobObject(job, child.Process), "job-assign"); assigned = true;
+            RequireNative(AssignProcessToJobObject(job, child.Process)); assigned = true;
+            receipt["jobAssignedBeforeAdmission"] = true;
             stage = "held-token-open";
+            receipt["tokenRequestedAccess"] = 8 | 2;
             token = OpenHeldToken(child.Process);
+            receipt["tokenOpened"] = true;
+            stage = "held-token-identity";
             using (var identity = new WindowsIdentity(token))
             {
                 stage = "held-token-sid";
@@ -142,7 +166,8 @@ public static class CloudGuestProcess
                 Require(!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator), "held-token-admin");
             }
             stage = "held-token-elevation"; int elevation, returned;
-            Require(GetTokenInformation(token, 20, out elevation, 4, out returned) && returned == 4 && elevation == 0, "held-token-elevation");
+            RequireNative(GetTokenInformation(token, 20, out elevation, 4, out returned));
+            Require(returned == 4 && elevation == 0, "held-token-elevation");
             receipt["elevated"] = false; receipt["administratorEnabled"] = false;
             stage = "held-image";
             Require(String.Equals(GuestJobNative.Image(child.Process), image, StringComparison.OrdinalIgnoreCase), "held-image");
@@ -155,7 +180,8 @@ public static class CloudGuestProcess
             stage = "runtime-registration";
             runtime.Attach(child.Process);
             stage = "runtime-resume";
-            Require(ResumeThread(child.Thread) == 1, "task-resume"); resumed = true;
+            uint suspendCount = ResumeThread(child.Thread); RequireNative(suspendCount != uint.MaxValue);
+            Require(suspendCount == 1, "task-resume"); resumed = true;
             receipt["runtimeResumed"] = true;
             stage = "runtime-authenticated-ready";
             runtime.ObserveInitialized();
@@ -175,9 +201,21 @@ public static class CloudGuestProcess
             stage = "task-deadline";
             Require(GuestJobNative.WaitForSingleObject(child.Process, 60000) == 0, "task-deadline");
             stage = "task-exit-observation";
-            Require(GetExitCodeProcess(child.Process, out exit), "task-exit-observation"); exitObserved = true;
+            RequireNative(GetExitCodeProcess(child.Process, out exit)); exitObserved = true;
         }
-        catch (Exception error) { failureStage = stage; failureHResult = error.HResult; }
+        catch (Exception error)
+        {
+            failureStage = stage; failureHResult = error.HResult;
+            var native = error as NativeFailure;
+            receipt["failureWin32Error"] = native == null ? (object)null : native.Win32Error;
+            if (created && child.Process != IntPtr.Zero)
+            {
+                uint wait = GuestJobNative.WaitForSingleObject(child.Process, 0);
+                int? waitError = wait == uint.MaxValue ? (int?)Marshal.GetLastWin32Error() : null;
+                receipt["failureHeldProcessWaitCode"] = wait; receipt["failureHeldProcessWaitWin32Error"] = waitError;
+                receipt["failureHeldProcessExited"] = wait == 0 ? (object)true : (wait == 0x102 ? (object)false : null);
+            }
+        }
         finally
         {
             if (job != IntPtr.Zero && assigned)
@@ -185,7 +223,11 @@ public static class CloudGuestProcess
                 try
                 {
                     bool terminated = TerminateJobObject(job, 137);
-                    closure = terminated && inventory != null && inventory.ConfirmClosure(2000);
+                    int? terminationError = terminated ? null : (int?)Marshal.GetLastWin32Error();
+                    receipt["cleanupJobTerminationAccepted"] = terminated;
+                    receipt["cleanupWin32Error"] = terminationError;
+                    closure = terminated && ObserveRootExit(child.Process, receipt) &&
+                        (inventory != null ? inventory.ConfirmClosure(2000) : ConfirmEarlyJobClosure(job, child.Process, receipt, 2000));
                 }
                 catch (Exception error)
                 {
@@ -193,7 +235,14 @@ public static class CloudGuestProcess
                     if (failureStage == null) { failureStage = "guest-job-closure"; failureHResult = error.HResult; }
                 }
             }
-            else if (child.Process != IntPtr.Zero) TerminateProcess(child.Process, 137);
+            else if (created && child.Process != IntPtr.Zero)
+            {
+                bool terminated = TerminateProcess(child.Process, 137);
+                int? terminationError = terminated ? null : (int?)Marshal.GetLastWin32Error();
+                receipt["cleanupRootTerminationAccepted"] = terminated;
+                receipt["cleanupWin32Error"] = terminationError;
+                unassignedRootExitObserved = ObserveRootExit(child.Process, receipt); // No Job closure claim for an unassigned process.
+            }
             if (receiver != null)
             {
                 try { receiver.Finish(closure); }
@@ -204,19 +253,63 @@ public static class CloudGuestProcess
             receipt["taskReleased"] = taskReleased; receipt["runtimeResumed"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
             if (runtime != null) runtime.Dispose();
             receipt["privateDesktopHandlesClosedAfterJobClosure"] = false;
-            if (desktopOwner != null && (closure || child.Process == IntPtr.Zero))
+            receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = false;
+            if (desktopOwner != null && CanReleaseDesktop(assigned, closure, created, child.Process, unassignedRootExitObserved))
             {
                 desktopOwner.Dispose();
                 receipt["privateDesktopHandlesClosedAfterJobClosure"] = closure && desktopOwner.Closed;
+                receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = !assigned && created && unassignedRootExitObserved && desktopOwner.Closed;
                 if (!desktopOwner.Closed && failureStage == null) failureStage = "private-desktop-close";
             }
             if (inventory != null) inventory.Dispose();
             if (token != IntPtr.Zero) GuestJobNative.CloseHandle(token);
-            if (child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);
-            if (child.Process != IntPtr.Zero) GuestJobNative.CloseHandle(child.Process);
+            if (created && child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);
+            if (created && child.Process != IntPtr.Zero) GuestJobNative.CloseHandle(child.Process);
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
         }
         return CompleteReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
+    }
+    private static bool CanReleaseDesktop(bool assigned, bool closure, bool created, IntPtr heldRoot, bool rootExitObserved)
+    { return heldRoot == IntPtr.Zero || (assigned && closure) || (!assigned && created && rootExitObserved); }
+    private static bool ObserveRootExit(IntPtr heldRoot, Dictionary<string, object> receipt)
+    {
+        uint wait = GuestJobNative.WaitForSingleObject(heldRoot, 2000);
+        int? waitError = wait == uint.MaxValue ? (int?)Marshal.GetLastWin32Error() : null;
+        receipt["cleanupRootWaitCode"] = wait; receipt["cleanupRootWaitWin32Error"] = waitError;
+        uint exit = 259; bool observed = wait == 0 && GetExitCodeProcess(heldRoot, out exit);
+        int? exitError = wait == 0 && !observed ? (int?)Marshal.GetLastWin32Error() : null;
+        receipt["cleanupRootExitObserved"] = observed; receipt["cleanupRootExitWin32Error"] = exitError;
+        if (observed) receipt["cleanupRootExitCode"] = exit;
+        return observed;
+    }
+    // Cleanup witness only: never supplies initial inventory, identity or release authority.
+    private static bool ConfirmEarlyJobClosure(IntPtr heldJob, IntPtr heldRoot, Dictionary<string, object> receipt, int timeout)
+    {
+        Require(timeout >= 0 && timeout <= 2000, "cleanup-budget-refused");
+        receipt["cleanupBeforeInventory"] = true;
+        // NULL queries the caller's Job, not this owned child's Job. Never fall back to it.
+        if (heldJob == IntPtr.Zero || heldJob == new IntPtr(-1) || heldRoot == IntPtr.Zero || heldRoot == new IntPtr(-1))
+        { receipt["cleanupQueryFailureStage"] = "held-handles"; receipt["cleanupQueryFailureHResult"] = null; return false; }
+        var watch = System.Diagnostics.Stopwatch.StartNew(); string phase = "root-wait";
+        do
+        {
+            try
+            {
+                if (GuestJobNative.WaitForSingleObject(heldRoot, 0) != 0) return false;
+                phase = "job-count-before"; var before = GuestJobNative.Counts(heldJob);
+                phase = "job-members"; uint[] members = GuestJobNative.Members(heldJob);
+                phase = "job-count-after"; var after = GuestJobNative.Counts(heldJob);
+                receipt["cleanupJobActiveBefore"] = before.Active; receipt["cleanupJobMemberCount"] = members.Length;
+                receipt["cleanupJobActiveAfter"] = after.Active; receipt["cleanupJobTotalStable"] = before.Total == after.Total;
+                if (before.Active == 0 && members.Length == 0 && after.Active == 0 && before.Total == after.Total &&
+                    GuestJobNative.WaitForSingleObject(heldRoot, 0) == 0) return true;
+            }
+            catch (Exception error)
+            { receipt["cleanupQueryFailureStage"] = phase; receipt["cleanupQueryFailureHResult"] = error.HResult; return false; }
+            if (watch.ElapsedMilliseconds >= timeout) break;
+            System.Threading.Thread.Sleep(10);
+        } while (true);
+        return false;
     }
 }
