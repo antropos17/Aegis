@@ -75,7 +75,7 @@ public static class CloudGuestProcess
         uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
     {
         if (failureStage == null)
-            foreach (string field in new string[] { "runtimeResumed", "runtimeCallerAuthenticated", "runtimeInitializedBeforeProject", "taskReleased", "networkReceiverStartedAfterRuntimeReady" })
+            foreach (string field in new string[] { "runtimeResumed", "runtimeCallerAuthenticated", "runtimeInitializedBeforeProject", "taskReleased", "networkReceiverStartedAfterRuntimeReady", "ownerNodeVersionPassed", "privateDesktopCreated", "privateDesktopParentRestored", "privateDesktopHandlesClosedAfterJobClosure" })
             {
                 object value;
                 if (!receipt.TryGetValue(field, out value) || !(value is bool) || !(bool)value) { failureStage = "runtime-release-unconfirmed"; break; }
@@ -102,11 +102,19 @@ public static class CloudGuestProcess
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
+        CloudGuestDesktop desktopOwner = null;
         bool assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false; uint exit = 259;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
         try
         {
+            stage = "owner-node-version-positive";
+            CloudGuestDesktop.ProbeOwnerNode(receipt);
+            stage = "private-desktop-create";
+            desktopOwner = new CloudGuestDesktop(expectedSid);
+            receipt["privateDesktopCreated"] = true;
+            receipt["privateDesktopParentRestored"] = desktopOwner.Restored;
+            stage = "job-create";
             job = CreateJobObject(IntPtr.Zero, null); Require(job != IntPtr.Zero, "job-create");
             stage = "job-limits";
             var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8; limits.Basic.Active = 16;
@@ -116,6 +124,7 @@ public static class CloudGuestProcess
             string values = "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
+            startup.Desktop = desktopOwner.Path;
             var command = new StringBuilder("\"" + image + "\" \"" + task + "\"");
             stage = "standard-user-create";
             Require(CreateProcessWithLogonW("AegisTask", ".", password, 1, image, command, 0x08000404,
@@ -194,6 +203,13 @@ public static class CloudGuestProcess
             }
             receipt["taskReleased"] = taskReleased; receipt["runtimeResumed"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
             if (runtime != null) runtime.Dispose();
+            receipt["privateDesktopHandlesClosedAfterJobClosure"] = false;
+            if (desktopOwner != null && (closure || child.Process == IntPtr.Zero))
+            {
+                desktopOwner.Dispose();
+                receipt["privateDesktopHandlesClosedAfterJobClosure"] = closure && desktopOwner.Closed;
+                if (!desktopOwner.Closed && failureStage == null) failureStage = "private-desktop-close";
+            }
             if (inventory != null) inventory.Dispose();
             if (token != IntPtr.Zero) GuestJobNative.CloseHandle(token);
             if (child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);

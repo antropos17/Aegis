@@ -91,7 +91,7 @@ try {
     Stage 'compile-fixed-native-helpers' {
         Add-Type -Path (Compile 'metadata.dll' @('scripts/qualification/CloudGuestMetadata.cs') @('System.Net.Http.dll'))
         Add-Type -Path (Compile 'vm-owner.dll' @('scripts/qualification/CloudGuestVm.cs', 'scripts/qualification/CloudGuestBootDiagnostics.cs', 'sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs') @('System.Management.dll'))
-        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
+        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestDesktop.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
         Copy-Item -LiteralPath $guestDll -Destination (Join-Path $OutputRoot 'transfer\guest-process.dll')
     } | Out-Null
     $report.media = Stage 'pinned-media-download-and-hash' {
@@ -119,7 +119,7 @@ try {
     } | Out-Null
     Stage 'stage-fixed-runtime-and-host-controls' {
         $transfer = Join-Path $OutputRoot 'transfer'
-        $node = Get-Item -LiteralPath (Get-Command node.exe -CommandType Application).Source
+        $node = Get-Item -LiteralPath (Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
         if ($node.Attributes -band [IO.FileAttributes]::ReparsePoint -or $node.Length -gt 256MB) { throw 'trusted-node-input-invalid' }
         Copy-Item -LiteralPath $node.FullName -Destination (Join-Path $transfer 'node.exe')
         $versionFile = Join-Path $OutputRoot 'temp\node-version.txt'; $errorFile = $versionFile + '.error'

@@ -13,7 +13,7 @@ $env:TEMP = $fixture; $env:TMP = $fixture
 try {
 $dll = Join-Path $fixture 'diagnostics-controls.dll'
 $compileArgs = @('/nologo', '/target:library', '/platform:x64', '/warnaserror+', ('/out:"' + $dll + '"'),
-    ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestNetwork.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'),
+    ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestDesktop.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestNetwork.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'),
     ('"' + (Join-Path $project 'sidecar/session/GuestJobInventory.cs') + '"'))
 $compileArgs += @('"' + (Join-Path $PSScriptRoot 'CloudGuestRuntimeGate.cs') + '"')
 foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative')) {
@@ -50,6 +50,8 @@ function NativeReceipt([uint32]$Exit, [bool]$Observed, [bool]$Closure, [string]$
     $receipt['heldIdentityBeforeRelease'] = $true; $receipt['atomicJobAtCreation'] = $false
     $receipt['runtimeResumed'] = $true; $receipt['runtimeCallerAuthenticated'] = $true;
     $receipt['runtimeInitializedBeforeProject'] = $true; $receipt['networkReceiverStartedAfterRuntimeReady'] = $true;
+    # Explicit fixture fields; these models do not qualify desktop creation.
+    foreach ($field in @('ownerNodeVersionPassed','privateDesktopCreated','privateDesktopParentRestored','privateDesktopHandlesClosedAfterJobClosure')) { $receipt[$field] = $true }
     $receipt['taskReleased'] = $true; $receipt['elevated'] = $false; $receipt['administratorEnabled'] = $false
     $failureValue = if ($Failure -eq '') { $null } else { $Failure }
     $hResultValue = if ($null -eq $HResult) { $null } else { [int]$HResult }
@@ -74,6 +76,19 @@ $nativeFailed = NativeReceipt 0 $true $true 'held-token-admin' -123
 Check (!$nativeFailed.passed -and $nativeFailed.failureStage -eq 'held-token-admin' -and $nativeFailed.failureHResult -eq -123) 'native-failure-accepted'
 $successful = NativeReceipt 0 $true $true $null $null
 Check ($successful.passed) 'successful-model-refused'
+foreach ($field in @('ownerNodeVersionPassed','privateDesktopCreated','privateDesktopParentRestored','privateDesktopHandlesClosedAfterJobClosure')) {
+    foreach ($mode in @('missing', 'false', 'string')) {
+        $invalidDesktop = [Collections.Generic.Dictionary[string,object]]::new($successful)
+        if ($mode -eq 'missing') { [void]$invalidDesktop.Remove($field) }
+        elseif ($mode -eq 'false') { $invalidDesktop[$field] = $false }
+        else { $invalidDesktop[$field] = 'true' }
+        try { [void]$complete.Invoke($null, @($invalidDesktop, [uint32]0, $true, $true, $null, $null)); throw 'desktop-receipt-accepted' }
+        catch {
+            $refused = [CloudGuestProcess]::FailureReceipt($_.Exception)
+            Check ($null -ne $refused -and !$refused.passed -and $refused.failureStage -eq 'runtime-release-unconfirmed') 'desktop-receipt-not-refused'
+        }
+    }
+}
 Check ($null -eq [CloudGuestProcess]::FailureReceipt([Exception]::new('SECRET_SENTINEL'))) 'dynamic-exception-exposed'
 
 $protected = @('admin-dummy-read', 'setup-profile-dummy-read', 'trusted-bootstrap-write', 'trusted-runtime-write') | ForEach-Object { @{ label = $_; denied = $true; code = 'EACCES' } }

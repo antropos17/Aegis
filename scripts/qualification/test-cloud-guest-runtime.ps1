@@ -14,7 +14,7 @@ try {
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     $exe = Join-Path $fixture 'RuntimeGateFixture.exe'
     $arguments = @('/nologo', '/warnaserror+', '/target:exe', ('/out:"' + $exe + '"'))
-    foreach ($leaf in @('CloudGuestProcess.cs','CloudGuestNetwork.cs','CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
+    foreach ($leaf in @('CloudGuestProcess.cs','CloudGuestDesktop.cs','CloudGuestNetwork.cs','CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
     foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative','GuestJobNative','GuestJobInventory')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $arguments += ('"' + (Join-Path $fixtureSources 'RuntimeGateFixture.cs') + '"')
     $compile = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000

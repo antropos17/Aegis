@@ -11,7 +11,7 @@ try {
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     $dll = Join-Path $fixture 'token-controls.dll'
     $arguments = @('/nologo', '/target:library', '/platform:x64', '/warnaserror+', ('/out:"' + $dll + '"'),
-        ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestTokenFixture.cs') + '"'),
+        ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestDesktop.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestTokenFixture.cs') + '"'),
         ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobInventory.cs') + '"'))
     foreach ($leaf in @('CloudGuestRuntimeGate.cs','CloudGuestNetwork.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
     foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }

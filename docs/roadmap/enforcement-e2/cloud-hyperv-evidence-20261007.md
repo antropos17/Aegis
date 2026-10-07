@@ -204,6 +204,26 @@ operation settlement remained `not-submitted`. This receipt does not diagnose
 the network's cause or validate the combined guest path. CI passed all five
 required contexts on the same source revision.
 
+The next loader repair creates a fresh private window station and desktop with
+an explicit task-SID access list, restores the parent's station before launch,
+and retains its handles through confirmed task Job closure. It does not change
+an inherited desktop's permissions. A bounded owner-side `node --version`
+positive separates basic image loading from the standard-user launch. Missing
+creation, restoration, owner-positive or post-Job handle-closure observations
+prevent success. Actual local controls reproduce `0xC0000142` on a newly denied
+desktop and exit zero on a newly allowed one; the cloud failure's cause still
+requires a source-bound guest run. The local nonadministrator could not create
+a named station, so that check remains explicitly unavailable locally.
+
+Independent review caught and corrected a fixture-only local working-directory
+assumption before cloud dispatch. The maintained entrypoint then passed with
+native warnings treated as errors, 62 diagnostic assertions, 51 network controls,
+three actual desktop controls and the existing bootstrap/token/runtime checks.
+Twelve task-source cases also passed. Host Node discovery now selects one exact
+application from PATH before inspecting and hashing it, avoiding an array error
+when multiple installations are present. These local results do not replace the
+cross-principal cloud run.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.
