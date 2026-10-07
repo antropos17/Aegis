@@ -27,17 +27,17 @@ function RecordDisk([string]$Phase) {
     $report.disks.Add(@{ phase = $Phase; capturedAt = [DateTime]::UtcNow.ToString('o'); drives = @($values) })
     return @($values)
 }
-function Stage([string]$Name, [scriptblock]$Operation) {
+function Stage([string]$StageName, [scriptblock]$Operation) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
-    Write-Host ('stage-begin ' + $Name + ' ' + [DateTime]::UtcNow.ToString('o'))
-    try { $value = & $Operation; $report.stages.Add(@{ stage = $Name; passed = $true; milliseconds = $watch.ElapsedMilliseconds }); return $value }
+    Write-Host ('stage-begin ' + $StageName + ' ' + [DateTime]::UtcNow.ToString('o'))
+    try { $value = & $Operation; $report.stages.Add(@{ stage = $StageName; passed = $true; milliseconds = $watch.ElapsedMilliseconds }); return $value }
     catch {
         # Never publish dynamic guest error text: remote errors can carry credentials.
         $code = if ($_.Exception.Message -cmatch '^[a-z][a-z0-9-]{2,80}(:[0-9]{1,10})?$') { $_.Exception.Message } else { 'bounded-stage-failed' }
-        $report.stages.Add(@{ stage = $Name; passed = $false; code = $code; milliseconds = $watch.ElapsedMilliseconds; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() })
-        $report.failure = @{ stage = $Name; code = $code; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() }; throw
+        $report.stages.Add(@{ stage = $StageName; passed = $false; code = $code; milliseconds = $watch.ElapsedMilliseconds; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() })
+        $report.failure = @{ stage = $StageName; code = $code; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() }; throw
     }
-    finally { $watch.Stop(); Write-Host ('stage-end ' + $Name + ' ' + [DateTime]::UtcNow.ToString('o')) }
+    finally { $watch.Stop(); Write-Host ('stage-end ' + $StageName + ' ' + [DateTime]::UtcNow.ToString('o')) }
 }
 function Compile([string]$Leaf, [string[]]$Sources, [string[]]$References) {
     $output = Join-Path $OutputRoot ('native\' + $Leaf)
@@ -115,7 +115,7 @@ try {
         return (Get-CloudGuestImageMetadata ([CloudGuestMetadata]::ImageXml(($volumes[0].DriveLetter + ':\sources\install.wim'))))
     }
     $report.media.image = $metadata
-    Dismount-DiskImage -ImagePath $windowsIso; $mounted = $false
+    Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false
     $generator = [Security.Cryptography.RandomNumberGenerator]::Create(); $bytes = New-Object byte[] 24
     $generator.GetBytes($bytes); $adminPassword = 'Aa1!' + [Convert]::ToBase64String($bytes)
     $generator.GetBytes($bytes); $taskPassword = 'Bb2!' + [Convert]::ToBase64String($bytes); $generator.Dispose(); [Array]::Clear($bytes, 0, $bytes.Length)
@@ -194,7 +194,7 @@ finally {
     finally { if ($null -ne $owner) { $owner.Dispose() } }
     if ($unknown) { $report.operationSettlement = 'unknown-provider-operation'; $report.removedObserved = $false }
     elseif ($report.removedObserved) { $report.operationSettlement = 'settled-and-exact-vm-absent' }
-    try { if ($mounted) { Dismount-DiskImage -ImagePath $windowsIso; $mounted = $false } } catch { $report.cleanupFailure = @{ stage = 'trusted-iso-dismount'; hResult = $_.Exception.HResult } }
+    try { if ($mounted) { Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false } } catch { $report.cleanupFailure = @{ stage = 'trusted-iso-dismount'; hResult = $_.Exception.HResult } }
     $report.hostCanariesUnchangedAfterRemoval = $canaries.Count -eq 2 -and (CanariesUnchanged)
     # Only exact closed disposable files are removed. Never mount the guest disk.
     if ($report.removedObserved -and !$mounted) {

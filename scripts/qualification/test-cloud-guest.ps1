@@ -23,6 +23,15 @@ Require ($answer -notmatch 'SkipMachineOOBE|LabConfig|BypassTPM|BypassSecureBoot
 $savedActions = $env:GITHUB_ACTIONS
 try { $env:GITHUB_ACTIONS = $null; Require (Refused { Assert-CloudGuestRunner }); $passed++ }
 finally { $env:GITHUB_ACTIONS = $savedActions }
+# Execute the actual Stage helper: its label must not shadow the owned VM name.
+$tokens = $null; $errors = $null
+$driver = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'cloud-guest-lab.ps1'), [ref]$tokens, [ref]$errors)
+$stageDefinition = $driver.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Stage' }, $true)
+. ([scriptblock]::Create($stageDefinition.Extent.Text))
+$report = @{ stages = [Collections.Generic.List[object]]::new(); failure = $null }
+$name = 'aegis-cloud-123-1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+$observedName = Stage 'create-exact-owned-vm' { return $name }
+Require ($observedName -ceq $name -and $report.stages[0].stage -ceq 'create-exact-owned-vm'); $passed++
 # Actual bounded PS5.1 native process controls; no media, guest or VM operation.
 $temporary = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
 $testRoot = Join-Path $temporary ('aegis-guest-wait-' + [guid]::NewGuid().ToString('N'))
@@ -63,4 +72,4 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntheticCases = 11; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 12; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
