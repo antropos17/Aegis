@@ -128,6 +128,7 @@ export default defineConfig({
         'src/main/local-security-review.js',
         'src/main/local-security-ipc.js',
         'src/main/result-review-bundle.js',
+        'src/main/result-review-sealed-import.js',
         'src/main/result-review-plan.js',
         'src/main/result-review-ipc.js',
         'src/main/static-code-catalog.js',
