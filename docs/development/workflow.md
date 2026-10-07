@@ -1,6 +1,8 @@
 # Development workflow
 
-Start with the actual checkout, `git status --short`, and `npm run dev:context`.
+## Checkout and source navigation
+
+For source navigation, start with the actual checkout, `git status --short`, and `npm run dev:context`.
 Read `out/development/context.md` (a short, generated inventory); search
 `memory-bank/progress.md` and `memory-bank/ai-mistakes.md` only for the current
 subsystem. Preserve the historical records. A commit alone does not identify an
@@ -12,7 +14,14 @@ Observatory files or developer scripts in that checkout do not establish that
 they are missing from the current branch. Isolate new work without switching,
 stashing or resetting someone else's changes. Check existing attached worktrees
 before creating one; archive only task-created worktrees whose needed artifacts
-have been preserved.
+have been preserved. Derive current module and IPC counts with `npm run counts:check`.
+Shared contracts live in `src/shared/types/` (9 TS files); this declaration is
+checked by that gate.
+
+Desktop and preview share `frontend/observatory/`, selected by
+`vite.frontend.config.ts`. `npm start` builds the production entry in
+`dist/renderer`; `npm run dev` is a simulated preview. Retained renderer
+computations and regression fixtures live under `src/renderer/lib/`.
 
 ## Skills and tool selection
 
@@ -73,6 +82,21 @@ the architecture rules, including deliberately invalid import boundaries.
 
 ## Selecting verification
 
+Install application dependencies with `npm ci`. The root `tsconfig.json` is a
+solution file with an empty file list: bare `npx tsc --noEmit` checks nothing and
+exits 0. Use `npm run typecheck` for main, retained renderer code and Observatory;
+`npm run typecheck:svelte` checks Svelte templates.
+
+On Windows, run `npm run build:sidecar` before tests that launch native helpers.
+`npm ci` does not compile them; the MCP gateway fails closed when
+`build/sidecar/aegis-mcpjob.exe` is absent.
+
+The local test suite uses disposable fixtures and has no production access. Run
+it, fix failures caused by the requested change and rerun affected tests without
+asking. Do not write tests for reversible low-impact changes that mirror the
+implementation. Run the checks the change warrants and stop once required checks
+pass.
+
 | Change | First checks | Additional evidence |
 | --- | --- | --- |
 | Main/shared behavior | Relevant `tests/main` / `tests/shared` files, main typecheck | Actual dependency callers; platform behavior on the affected OS |
@@ -80,8 +104,11 @@ the architecture rules, including deliberately invalid import boundaries.
 | Preload, IPC, exports, API handling | Relevant behavioral tests; `dev:security`; security diff review | Trace data across the actual handler, bridge and consumer |
 
 During iteration, run affected tests first. Before merging, run all required gates
-from the current `AGENTS.md` / CI workflow. Do not rerun an unchanged passing suite
-without a reason. Run temporary mutation gates separately from tree-scanning checks.
+defined in [the current CI workflow](../../.github/workflows/ci.yml); resolve their
+commands through `package.json`. Every required context must succeed on the current
+PR revision; pending, missing or skipped checks do not satisfy the gate. Do not
+rerun an unchanged passing suite without a reason. Run temporary mutation gates
+separately from tree-scanning checks.
 The optional developer tools are not new required GitHub contexts.
 
 The active Electron smoke test is `npm run frontend:test:electron`; it launches the
@@ -89,6 +116,27 @@ real host and writes bounded named screenshots under `dist/electron-qa`. Inspect
 environment and effects before running. The old `capture-screenshots.mjs` targets
 the retired demo shell and is not evidence for Observatory. Demo UI screenshots
 alone never verify the real preload bridge or OS sensors.
+
+## Git and PR cycle
+
+The advance permission and actions requiring separate authorisation are in
+[AGENTS.md](../../AGENTS.md#permissions-and-boundaries).
+
+1. Work on a feature branch from `origin/master`. Preserve unrelated work and
+   isolate changes in a worktree when the shared checkout is dirty.
+   `.codex/hooks/branch-guard.js` blocks edits on master. Before Windows worktree
+   cleanup, read the relevant entries in `memory-bank/ai-mistakes.md`.
+2. Review the final diff and stage only task files. Use conventional commits and
+   keep each PR to one logical task. Omit `Co-Authored-By` and "Generated with"
+   attribution from commits and PRs.
+3. Push the feature branch and open one PR against master. Keep it current with
+   master using a merge; a changed PR head needs fresh applicable check results.
+4. Wait for all required contexts from the current CI workflow, then merge with
+   `gh pr merge <n> --merge --delete-branch --match-head-commit <verified-head-sha>`.
+   If master is occupied by another worktree, run the command outside the repository
+   with explicit `--repo` rather than switching the shared checkout.
+5. Verify the PR is merged. Preserve needed artifacts before cleaning up the
+   task-created worktree.
 
 ## MCP
 
