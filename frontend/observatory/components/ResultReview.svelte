@@ -269,7 +269,7 @@
   .comparison-changes,
   .comparison-coverage {
     min-width: 0;
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--border);
     border-radius: var(--control-radius);
   }
@@ -293,6 +293,8 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
+    margin: 0;
+    padding: 0;
   }
   dt,
   small,

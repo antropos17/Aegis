@@ -531,8 +531,8 @@
   }
 
   .policy-explanation {
-    margin: 10px 0;
-    padding: var(--space-4);
+    margin: var(--space-3) 0;
+    padding: var(--panel-inset);
     border: 1px solid var(--border);
     border-radius: var(--surface-radius);
     color: var(--muted);
@@ -542,31 +542,31 @@
     color: var(--amber);
   }
   .policy-explanation p {
-    margin-top: 8px;
+    margin-top: var(--space-2);
     line-height: 1.5;
   }
   .preset-caption {
     margin: 0;
-    padding: 0 18px 14px;
+    padding: 0 var(--panel-inset) var(--space-3);
     color: var(--muted);
     font-size: calc(12px * var(--ui-scale));
   }
   .preset {
-    padding: 10px;
+    padding: var(--space-3);
   }
   .preset small {
     display: block;
   }
   .preset-heading {
-    gap: 6px;
+    gap: var(--space-2);
   }
   .preset strong {
     font-size: calc(11px * var(--ui-scale));
   }
   .preset-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    padding: 16px 18px;
+    gap: var(--space-2);
+    padding: var(--panel-inset);
     margin: 0;
   }
   @container permissions (max-width: 680px) {
@@ -592,7 +592,7 @@
     font-size: calc(12px * var(--ui-scale));
   }
   .permission-reset {
-    padding: 16px 18px;
+    padding: var(--panel-inset);
     border-top: 1px solid var(--border);
     font-size: calc(12px * var(--ui-scale));
   }
@@ -601,15 +601,15 @@
     color: var(--muted);
   }
   .permission-reset p {
-    margin: 12px 0;
+    margin: var(--space-3) 0;
     color: var(--muted);
   }
   .rules-filter {
-    padding: 12px 18px;
+    padding: var(--space-3) var(--panel-inset);
     margin: 0;
   }
   .empty-rules {
-    padding: 24px;
+    padding: var(--panel-inset);
     color: var(--muted);
   }
   .target-toolbar {
@@ -617,7 +617,7 @@
     grid-template-columns: minmax(220px, 1.2fr) minmax(210px, 1fr) auto;
     gap: var(--space-3);
     align-items: end;
-    padding: var(--space-3) 0;
+    padding: 0;
   }
   .target-toolbar .target-field {
     display: flex;
@@ -639,6 +639,20 @@
     min-width: 0;
     width: 100%;
     max-width: none;
+  }
+  @container permissions (max-width: 680px) {
+    .target-toolbar {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .target-toolbar > :global(.action-control) {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+  }
+  @container permissions (max-width: 420px) {
+    .target-toolbar {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .permission-row {
     display: grid;

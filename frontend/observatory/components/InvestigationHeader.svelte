@@ -186,7 +186,7 @@
 <style>
   .investigation-header {
     min-width: 0;
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--strong-border);
     border-radius: var(--surface-radius);
     background: var(--raised);
@@ -326,7 +326,7 @@
   }
   @media (max-width: 980px) {
     .investigation-header {
-      padding: var(--space-2);
+      padding: var(--panel-inset);
     }
   }
   .risk-details > h3 {

@@ -272,7 +272,7 @@
 <style>
   .local-security-workspace {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
     min-width: 0;
   }
   .review-layout {
@@ -284,7 +284,7 @@
   }
   .review-primary {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
     min-width: 0;
   }
   .review-intro {
@@ -384,7 +384,11 @@
   }
   .review-empty {
     text-align: center;
-    padding-block: var(--space-5);
+    padding-block: var(--panel-inset);
+  }
+  .review-empty > :global(.icon) {
+    display: block;
+    margin-inline: auto;
   }
   .review-empty h2 {
     margin-top: var(--space-3);

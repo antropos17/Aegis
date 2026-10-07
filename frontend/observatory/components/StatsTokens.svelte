@@ -158,9 +158,9 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-3);
     justify-content: space-between;
-    padding: 18px;
+    padding: var(--panel-inset);
   }
   h3 {
     margin: 0;
@@ -174,21 +174,21 @@
     line-height: 1.6;
   }
   header p {
-    margin: 6px 0 0;
+    margin: var(--space-1) 0 0;
   }
   header .button {
     font-size: 11px;
   }
   .footnote {
     margin: 0;
-    padding: 16px 18px;
+    padding: var(--panel-inset);
     border-top: 1px solid var(--border);
   }
   .source-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 12px;
-    padding: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    gap: var(--space-3);
+    padding: var(--panel-inset);
     border-top: 1px solid var(--border);
     max-height: 420px;
     overflow: auto;
@@ -196,14 +196,14 @@
   article {
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px;
+    padding: var(--space-3);
     min-width: 0;
   }
   article > div {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: center;
   }
   h4 {
@@ -212,7 +212,7 @@
   }
   h4 small {
     display: block;
-    margin-top: 5px;
+    margin-top: var(--space-1);
     font-weight: 400;
   }
   small,
@@ -225,17 +225,17 @@
   dl {
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
-    margin: 14px 0 0;
+    gap: var(--space-4);
+    margin: var(--space-3) 0 0;
   }
   dd {
     font-size: 12px;
     font-variant-numeric: tabular-nums;
-    margin: 5px 0 0;
+    margin: var(--space-1) 0 0;
   }
   article p {
     overflow-wrap: anywhere;
     line-height: 1.5;
-    margin: 12px 0 0;
+    margin: var(--space-3) 0 0;
   }
 </style>

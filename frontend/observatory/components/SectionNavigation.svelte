@@ -39,14 +39,14 @@
   .section-navigation {
     display: grid;
     gap: var(--space-2);
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--strong-border);
     border-radius: var(--surface-radius);
     background: var(--raised);
     min-width: 0;
   }
   h2 {
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--space-1);
     color: var(--ink);
     font-size: var(--text-body);
     font-weight: 700;

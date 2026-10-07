@@ -508,13 +508,14 @@
     padding: 0;
     min-width: 0;
     display: grid;
-    gap: var(--space-5, 24px);
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
   }
   .settings-page {
     min-width: 0;
     display: grid;
     gap: var(--space-4);
-    padding: 0 0 var(--space-4);
+    padding: 0;
     align-content: start;
     scroll-margin-top: calc(var(--workspace-sticky-offset, 70px) + 12px);
   }

@@ -24,6 +24,13 @@ content or separate a consequential action. Never disguise hidden functionality
 by hiding navigation in CSS. Keep stale-observation and captured-owner checks,
 truthful unsupported blocking labels, drafts and focus restoration.
 
+Use one spacing rhythm across workspaces: 16 px for panel insets and structural
+gaps, 12 px between related content, 8 px for compact control groups and 4 px
+between a heading and its caption. Embedded navigation shares its parent inset
+without a second padded frame. Table edges align with panel headings while rows
+retain their compact density. Container width governs wrapping of side-panel
+controls so that both columns stay within their visible surfaces.
+
 Earlier briefs below are historical context.
 
 ## One investigation workspace — 7 October 2026

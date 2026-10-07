@@ -222,14 +222,14 @@
 
 <style>
   .sensor-panel {
-    padding: 18px;
+    padding: var(--panel-inset);
   }
   header {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
     justify-content: space-between;
     align-items: start;
-    margin-bottom: 18px;
+    margin-bottom: var(--space-4);
   }
   h3 {
     margin: 0;
@@ -239,20 +239,20 @@
   header p {
     color: var(--muted);
     font-size: 11px;
-    margin: 6px 0 0;
+    margin: var(--space-1) 0 0;
     line-height: 1.5;
   }
   .sensor-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-    gap: 12px;
+    gap: var(--space-3);
   }
   .watch-coverage {
     border: 1px solid var(--amber);
     border-radius: 8px;
     background: var(--amber-bg);
-    padding: 13px;
-    margin-bottom: 12px;
+    padding: var(--panel-inset);
+    margin-bottom: var(--space-3);
   }
   .watch-coverage h4 {
     color: var(--amber);
@@ -261,7 +261,7 @@
     color: var(--muted);
     font-size: 11px;
     line-height: 1.5;
-    margin: 6px 0 10px;
+    margin: var(--space-1) 0 var(--space-3);
   }
   .watch-coverage ul {
     list-style: none;
@@ -272,8 +272,8 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 4px 12px;
-    padding: 7px 0;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) 0;
     border-top: 1px solid var(--border);
     font-size: 11px;
   }
@@ -338,7 +338,7 @@
     font-size: 10px;
   }
   dd {
-    margin: 5px 0 0;
+    margin: var(--space-1) 0 0;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }

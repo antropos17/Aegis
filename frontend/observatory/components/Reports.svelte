@@ -463,7 +463,7 @@
             ><Icon name="download" />{$t(label)}</Action
           >{/each}
       </div>
-      <div class="notice" style="margin:0 20px 20px">
+      <div class="notice export-notice">
         <Icon name="file" />{$t(
           'Exports omit watched file contents and the configured Anthropic API key. Paths, agent names and endpoints remain.',
         )}
@@ -481,7 +481,10 @@
     align-items: start;
   }
   .audit-entries {
-    padding: var(--space-4);
+    padding: var(--panel-inset);
+  }
+  .audit-entries > .pagination {
+    padding: var(--space-3) 0;
   }
   .audit-entries > h2,
   .audit-delivery > h2 {
@@ -491,10 +494,13 @@
   }
   .audit-delivery {
     min-width: 0;
-    padding: var(--space-4);
+    padding: var(--panel-inset);
     border: 1px solid var(--strong-border);
     border-radius: var(--surface-radius);
     background: var(--raised);
+  }
+  .audit-delivery > .panel {
+    margin-top: var(--space-3);
   }
   .audit-composition > *,
   .report-content > * {
@@ -510,15 +516,15 @@
     display: flex;
     flex-wrap: wrap;
     align-items: end;
-    margin-top: 16px;
-    gap: 12px;
+    margin-top: var(--space-4);
+    gap: var(--space-3);
   }
   .audit-filters > .search-field {
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex: 1 1 240px;
     min-width: 180px;
   }
@@ -534,11 +540,10 @@
     max-width: 100%;
   }
   .report-content {
-    margin-top: 16px;
+    margin-top: 0;
   }
   .delivery-fields {
-    margin-top: 16px;
-    padding: 20px;
+    padding: var(--panel-inset);
   }
   .delivery-fields h2 {
     font-size: calc(14px * var(--ui-scale));
@@ -550,9 +555,16 @@
       flex-direction: row;
       flex-wrap: nowrap;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
       flex-basis: 100%;
     }
+  }
+  .export-grid {
+    padding: var(--panel-inset);
+    gap: var(--space-3);
+  }
+  .export-notice {
+    margin: 0 var(--panel-inset) var(--panel-inset);
   }
   .export-grid :global(.action-control) {
     display: flex;

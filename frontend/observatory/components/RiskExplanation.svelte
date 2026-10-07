@@ -137,12 +137,18 @@
 <style>
   .risk-explanation {
     display: grid;
-    gap: 14px;
+    gap: var(--space-3);
+  }
+  .risk-explanation > .section-heading {
+    margin-bottom: 0;
+  }
+  .risk-explanation > p {
+    margin-top: 0;
   }
   .assessment-head {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: var(--space-4);
   }
   .assessment-head > div {
     min-width: 0;
@@ -151,7 +157,7 @@
     text-transform: capitalize;
   }
   p {
-    margin: 4px 0 0;
+    margin: var(--space-1) 0 0;
     line-height: 1.5;
     color: var(--muted);
   }
@@ -170,7 +176,7 @@
     overflow: hidden;
   }
   .factor-list li {
-    padding: 12px 14px;
+    padding: var(--space-3) var(--panel-inset);
   }
   .factor-list li + li {
     border-top: 1px solid var(--border);
@@ -180,7 +186,7 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 14px;
+    gap: var(--space-3);
   }
   .factor-list span,
   .adjustment span {

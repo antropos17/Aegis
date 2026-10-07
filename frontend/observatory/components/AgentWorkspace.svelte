@@ -270,6 +270,9 @@
     gap: var(--space-4);
     min-width: 0;
   }
+  .agent-workspace > :global(.agent-context) {
+    margin-bottom: 0;
+  }
   .advanced-agent-view:not([hidden]) {
     display: grid;
     gap: var(--space-4);
@@ -289,7 +292,7 @@
   }
   .agent-description p {
     color: var(--muted);
-    margin: 5px 0 0;
+    margin: var(--space-1) 0 0;
     font-size: var(--text-body);
   }
   .agent-columns {
@@ -305,7 +308,7 @@
     min-width: 0;
   }
   .agent-context-column {
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--strong-border);
     border-radius: var(--surface-radius);
     background: var(--raised);
@@ -362,7 +365,7 @@
   }
   .risk-reason small {
     display: block;
-    margin-top: 4px;
+    margin-top: var(--space-1);
     color: var(--muted);
     font-size: var(--text-caption);
   }
@@ -371,6 +374,13 @@
   }
   .process-attributes {
     padding: var(--panel-inset);
+  }
+  .risk-content > :global(.detail-section),
+  .process-attributes > :global(.detail-section) {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
   }
   .agent-activity {
     display: grid;
@@ -389,14 +399,12 @@
     padding: var(--panel-inset);
     border-top: 1px solid var(--border);
   }
+  .process-information-body > :global(.detail-section) {
+    margin-block: 0;
+  }
   @media (max-width: 1150px) {
     .agent-intro {
       flex-wrap: wrap;
-    }
-  }
-  @media (max-width: 980px) {
-    .agent-workspace {
-      gap: var(--space-3);
     }
   }
   @container (max-width: 540px) {
