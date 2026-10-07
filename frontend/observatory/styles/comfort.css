@@ -1,7 +1,7 @@
 /* Requested workspace consolidation: related destinations and reachable controls. */
 .sidebar .machine {
-  padding-block: 10px;
-  margin-block: 10px 6px;
+  padding-block: 8px;
+  margin-block: 8px 4px;
 }
 .sidebar nav {
   min-height: 0;
@@ -14,16 +14,16 @@
 .sidebar .nav-group {
   display: grid;
   gap: 2px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .sidebar .nav-group-label {
-  margin: 9px 10px 4px;
+  margin: 6px 10px 3px;
   color: var(--faint);
   font: 500 calc(10px * var(--ui-scale))/1.4 var(--sans);
 }
 .sidebar .nav-group .nav {
-  min-height: 34px;
-  padding-block: 7px;
+  min-height: 30px;
+  padding-block: 5px;
 }
 .sidebar .sidebar-bottom {
   padding-top: 8px;
@@ -51,7 +51,7 @@
   gap: var(--space-1);
   width: fit-content;
   max-width: 100%;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
   padding: var(--space-1);
   border: 1px solid var(--strong-border);
   border-radius: var(--surface-radius);
@@ -169,7 +169,7 @@
   overflow-anchor: none;
 }
 .radar-clarity .roster-items {
-  min-height: 280px;
+  min-height: 0;
   align-content: start;
 }
 .monitoring-summary .summary-stat p {

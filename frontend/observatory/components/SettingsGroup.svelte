@@ -38,8 +38,8 @@
   }
   .group-fields :global(.setting) {
     margin: 0;
-    padding: var(--space-4) 0;
-    gap: var(--space-4);
+    padding: var(--space-2) 0;
+    gap: var(--space-3);
     align-items: center;
   }
   .group-fields :global(.setting + .setting) {
@@ -61,7 +61,7 @@
     max-width: 45%;
   }
   .group-fields :global(.setting-stack) {
-    margin: var(--space-4) 0;
+    margin: var(--space-3) 0;
   }
   .group-fields :global(textarea) {
     resize: vertical;
@@ -94,14 +94,14 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
-    padding: 0 0 var(--space-4);
+    padding: 0 0 var(--space-3);
   }
   .group-fields :global(.presets button[aria-pressed='true']) {
     background: var(--hover);
     border-color: var(--strong-border);
   }
   .group-fields :global(.toolbar) {
-    margin: var(--space-3) 0 var(--space-4);
+    margin: var(--space-2) 0 var(--space-3);
   }
   .group-fields :global(.muted) {
     font-size: var(--text-body);

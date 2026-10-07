@@ -60,8 +60,8 @@
     border-radius: var(--surface-radius);
     background: var(--panel);
     color: var(--ink);
-    padding: var(--space-3);
-    min-height: 40px;
+    padding: var(--space-1) var(--space-2);
+    min-height: var(--control-height);
     min-width: 0;
     font-weight: 600;
   }

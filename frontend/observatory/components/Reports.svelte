@@ -595,7 +595,7 @@
   }
   .export-grid :global(.button) {
     width: 100%;
-    min-height: calc(var(--control-height) + var(--space-3));
+    min-height: var(--control-height);
     justify-content: flex-start;
     text-align: left;
     line-height: 1.5;

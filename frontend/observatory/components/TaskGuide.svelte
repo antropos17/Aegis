@@ -130,7 +130,7 @@
 <style>
   .task-guide {
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-3);
     min-width: 0;
     font-size: var(--text-body);
   }
@@ -161,11 +161,11 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--space-3);
+    gap: var(--space-2);
     border: 1px solid var(--border);
     border-radius: var(--surface-radius);
     background: var(--panel);
-    padding: var(--space-4);
+    padding: var(--panel-inset);
     color: var(--text);
     text-align: left;
     font: inherit;
@@ -187,12 +187,12 @@
     border-color: var(--strong-border);
   }
   .more-tasks {
-    padding: var(--space-4);
+    padding: var(--panel-inset);
   }
   .task-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 var(--space-5);
+    gap: 0 var(--space-3);
     margin-top: var(--space-3);
   }
   .task-row {
@@ -202,7 +202,7 @@
     gap: var(--space-3);
     min-width: 0;
     min-height: var(--control-height);
-    padding: var(--space-3) var(--space-2);
+    padding: var(--space-2);
     border: 1px solid transparent;
     border-top-color: var(--border);
     background: transparent;
@@ -224,7 +224,7 @@
   }
   .setup summary {
     cursor: pointer;
-    padding: var(--space-4);
+    padding: var(--panel-inset);
   }
   summary small {
     margin-left: var(--space-3);
@@ -233,7 +233,7 @@
   .setup-body {
     display: grid;
     gap: var(--space-3);
-    padding: 0 var(--space-4) var(--space-4);
+    padding: 0 var(--panel-inset) var(--panel-inset);
   }
   ol {
     margin: 0;

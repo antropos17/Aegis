@@ -1,5 +1,17 @@
 # AEGIS Observatory
 
+## Compact density — 2026-10-07
+
+The user requests smaller buttons and less empty space. At 100% UI size, use
+28 px ordinary controls, 12 px panel insets, 8 px heading padding and 30 px sidebar
+rows. Keep the existing font sizes, wrapping, focus outlines and visual separation
+between panels. Multiline labels grow naturally. Radar markers remain 44 px;
+its roster uses content-sized rows without a blank minimum-height reservation.
+Settings rows, section navigation, task cards and report actions use the compact
+spacing. Empty Action control live-feedback regions remain mounted for assistive
+technology while taking no grid space. This density brief supersedes the 16 px
+panel-inset rule below.
+
 ## Motion and identity refinement — 2026-10-07
 
 The user requests professional motion, a manually authored SVG mark, clearer

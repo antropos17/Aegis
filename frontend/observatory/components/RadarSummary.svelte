@@ -38,7 +38,8 @@
 
 <style>
   button.radar-agent-card {
-    padding-inline: var(--space-4);
+    min-height: 52px;
+    padding: var(--space-2) var(--panel-inset);
     transition:
       background-color var(--motion-fast) var(--ease-standard),
       border-color var(--motion-fast) var(--ease-standard);

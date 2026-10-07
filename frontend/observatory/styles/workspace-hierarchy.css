@@ -112,17 +112,17 @@
   border-color: var(--strong-border);
 }
 .observatory-app .panel > .panel-head {
-  padding: var(--space-3) var(--panel-inset);
+  padding: var(--space-2) var(--panel-inset);
   background: var(--raised);
   border-bottom: 1px solid var(--strong-border);
-  min-height: calc(var(--control-height) + var(--space-3) + var(--space-3));
+  min-height: calc(var(--control-height) + var(--space-2) + var(--space-2));
 }
 .observatory-app .panel-head h2 {
   font-weight: 700;
   color: var(--ink);
 }
 .observatory-app .page-title {
-  padding-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
   border-bottom: 2px solid var(--strong-border);
 }
 .observatory-app .sidebar .nav-group-label {
@@ -138,24 +138,43 @@
 
 /* One outer rhythm; compact controls keep their own smaller inset. */
 .observatory-app .page-head {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 .observatory-app .page-title {
   gap: var(--space-3);
 }
 .observatory-app :is(.overview-grid, .overview-bottom, .dashboard-grid) {
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 .observatory-app .summary.monitoring-summary {
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
   padding-bottom: 0;
 }
 .observatory-app .monitoring-summary > .summary-stat {
   padding: var(--panel-inset);
 }
 .observatory-app :is(.filterbar, .permission-row) {
-  gap: var(--space-3);
+  gap: var(--space-2);
+}
+.observatory-app :is(.table-wrap, .table-scroll) :is(th, td) {
+  padding-block: var(--space-2);
+}
+.observatory-app .radar-roster {
+  padding: var(--panel-inset);
+}
+.observatory-app .roster-heading {
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+/* Keep live regions mounted for announcements without empty grid rows. */
+.observatory-app .action-coverage-workspace :is([role='status'], [role='alert']):empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .observatory-app :is(.table-wrap, .table-scroll) :is(th, td):first-child {
   padding-left: var(--panel-inset);
@@ -171,5 +190,13 @@
   .observatory-app #main {
     padding-inline: var(--panel-inset);
     padding-bottom: var(--panel-inset);
+  }
+  .observatory-app .topbar {
+    min-height: 40px;
+    padding-block: var(--space-1);
+  }
+  .observatory-app .page-head {
+    margin-inline: calc(-1 * var(--panel-inset));
+    padding: var(--space-2) var(--panel-inset);
   }
 }
