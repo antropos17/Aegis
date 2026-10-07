@@ -1,0 +1,89 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-07T18:51:25.0587317Z",
+    "sourceSha":  "73bdaa2563109a8fc29ade99ed6f3e85368478cc",
+    "actualHead":  null,
+    "sourceObservation":  null,
+    "sourceHashes":  {
+
+                     },
+    "compilerSha256":  null,
+    "stages":  [
+                   {
+                       "stage":  "host-preflight",
+                       "category":  "OperationStopped",
+                       "passed":  false,
+                       "code":  "native-exit-observation-unavailable",
+                       "innerDepth":  0,
+                       "milliseconds":  1014,
+                       "exceptionType":  "System.Management.Automation.RuntimeException",
+                       "hResult":  -2146233087
+                   }
+               ],
+    "host":  null,
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125863972864,
+                                         "freeBytes":  34603786240
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  3242205184,
+                                         "freeBytes":  157816967168
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:51:25.9543929Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125863972864,
+                                         "freeBytes":  34603786240
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  3242205184,
+                                         "freeBytes":  157816967168
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:51:26.1490771Z"
+                  }
+              ],
+    "media":  null,
+    "runtime":  null,
+    "hardware":  null,
+    "vmName":  "aegis-cloud-37669955669-1-e175c662d94c4f529229f98d1ca82c86",
+    "vmId":  null,
+    "startOperation":  null,
+    "stopOperation":  null,
+    "guest":  null,
+    "keyboard":  null,
+    "keyboardWindow":  null,
+    "hostCanariesUnchangedAfterTask":  false,
+    "hostCanariesUnchangedAfterRemoval":  false,
+    "offObserved":  false,
+    "removedObserved":  false,
+    "operationSettlement":  "not-submitted",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "hResult":  -2146233087,
+                    "code":  "native-exit-observation-unavailable",
+                    "stage":  "host-preflight",
+                    "exceptionType":  "System.Management.Automation.RuntimeException",
+                    "innerDepth":  0,
+                    "category":  "OperationStopped"
+                },
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "completedAt":  "2026-10-07T18:51:26.1490771Z"
+}

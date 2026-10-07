@@ -27,6 +27,7 @@ function run(mode) {
   };
   const doubles = {
     readFileSync(selected) {
+      if (mode === 'input-private-error' && selected.endsWith('numbers.json')) return fail('PRIVATE_SENTINEL');
       if (files.has(selected)) return files.get(selected);
       if (host.includes(selected)) return fail('ENOENT');
       return fail(mode === 'protection-open' ? 'ENOENT' : 'EACCES');
@@ -49,7 +50,7 @@ function run(mode) {
   const spawnSync = (exe, args) => {
     if (args[0] === '--test') {
       assert.equal(files.get(path.join(root, 'work', 'sum.cjs')), 'module.exports=(a,b)=>a+b;\n');
-      return { status: 0, stdout: Buffer.from('test-control') };
+      return { status: mode === 'unit-test-nonzero' ? 7 : 0, stdout: Buffer.from('test-control') };
     }
     if (args[0] === '-e' && args.length === 2) {
       files.set(path.join(root, 'scratch', 'positive-child.txt'), 'descendant-control');
@@ -81,7 +82,7 @@ function run(mode) {
     }
     throw new Error('unapproved-require');
   };
-  vm.runInNewContext(source, { require: requireDouble, process }, { timeout: 1000 });
+  vm.runInNewContext(source, { require: requireDouble, process, Buffer }, { timeout: 1000 });
   const result = JSON.parse(files.get(path.join(root, 'work', 'result.json')));
   return { result, process, files };
 }
@@ -98,15 +99,24 @@ assert.equal(
     .charCodeAt(positive.files.get(path.join(root, 'work', 'sum.cjs')).length - 1),
   10,
 );
-for (const mode of ['wrong-path', 'wrong-work', 'protection-open', 'shell-control-fails']) {
+for (const mode of ['wrong-path', 'wrong-work', 'protection-open', 'shell-control-fails', 'unit-test-nonzero', 'input-private-error']) {
   const refused = run(mode);
   assert.equal(refused.result.passed, false, mode);
   assert.equal(refused.process.exitCode, 1, mode);
+  if (mode === 'unit-test-nonzero') {
+    assert.equal(refused.result.stage, 'unit-test');
+    assert.deepEqual(refused.result.failure, { stage: 'unit-test', childExitCode: 7 });
+  }
+  if (mode === 'input-private-error') {
+    assert.equal(refused.result.stage, 'input');
+    assert.deepEqual(refused.result.failure, { stage: 'input', childExitCode: null });
+    assert.equal(JSON.stringify(refused.result).includes('PRIVATE_SENTINEL'), false);
+  }
 }
 console.log(
   JSON.stringify({
-    cases: 5,
-    passed: 5,
+    cases: 7,
+    passed: 7,
     scope: 'synthetic-task-source-behavior-no-guest-or-VM-effects',
   }),
 );

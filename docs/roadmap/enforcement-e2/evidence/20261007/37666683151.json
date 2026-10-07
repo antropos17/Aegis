@@ -1,0 +1,250 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-07T18:25:48.2188011Z",
+    "sourceSha":  "91226373793c9ca48c3f26c95f44d7708e7a1908",
+    "actualHead":  "91226373793c9ca48c3f26c95f44d7708e7a1908",
+    "sourceObservation":  {
+                              "exitCode":  0,
+                              "stderrBytes":  0,
+                              "headBytes":  41
+                          },
+    "sourceHashes":  {
+                         "scripts/qualification/cloud-guest-lab.ps1":  "bad1b9091defe2f64400e62a5241198147c6aec06a24767b9967b449b9587228",
+                         "scripts/qualification/cloud-guest-vm.ps1":  "9bc1183e2eadf91eeb087c4ddb441a6f115640a4eeff2f0d54cee0a40a74fce7",
+                         "scripts/qualification/cloud-guest-media.ps1":  "082727e9309a140969f5cc68a24a7ef9dadda74bb7832769d09362186d417ff1",
+                         "scripts/qualification/cloud-guest-bootstrap.ps1":  "566137e7d3126997ba837db76019ff6fd36761c59eae510c8477d98fe0e86244",
+                         "scripts/qualification/cloud-guest-task.cjs":  "816cf724422852514a33ebaf9900364166e93942bcfb3f4d4cc52d384573abff",
+                         "scripts/qualification/cloud-hyperv-operations.ps1":  "d579cc11c571d64e0e18082a365df88c82e889569095ba76b6bb703cfbf15851",
+                         "scripts/qualification/CloudGuestMetadata.cs":  "af0bac0dd7c36d5c26c2d1d0f4d7ff2a205f1955c4c9f843ae8e0de03a2b4ec8",
+                         "scripts/qualification/CloudGuestVm.cs":  "196716276befe56e01012eb62a906c0603b45c91882c8ff5e1d49ffc64510a16",
+                         "sidecar/session/OwnedVmLifecycle.cs":  "db2617156227744c90b6395d0d45ba1d0c96defe48bcd4791a10b54800635bbd",
+                         "sidecar/session/VmManagementNative.cs":  "8c63085dbdb55e64b2a71a6c70ffd1a0d1203503fc583ff341d32fed3cdff6de",
+                         "scripts/qualification/CloudGuestProcess.cs":  "fee432521ab0c0750cd2d5ace712e4da324d35080a3985afb0ddac3258b88f89",
+                         "sidecar/session/GuestJobNative.cs":  "525da15edd5c390de395ca707987c8b1fddb3fec8a07128de73b3986621dbe70",
+                         "sidecar/session/GuestJobInventory.cs":  "f2d3e93272a3dc6b9a13cc1248ca4d64db141a0c166563eca3b0330510e4cad8"
+                     },
+    "compilerSha256":  "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "stages":  [
+                   {
+                       "milliseconds":  3484,
+                       "stage":  "host-preflight",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  3966,
+                       "stage":  "compile-fixed-native-helpers",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  121059,
+                       "stage":  "pinned-media-download-and-hash",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  3118,
+                       "stage":  "read-only-exact-wim-metadata",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  370,
+                       "stage":  "tiny-answer-iso",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  1751,
+                       "stage":  "stage-fixed-runtime-and-host-controls",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  11686,
+                       "stage":  "create-exact-owned-vm",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  9849,
+                       "stage":  "configure-supported-windows11-guest",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  4246,
+                       "stage":  "native-start-and-firmware-key",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  12205,
+                       "stage":  "optional-fixed-setup-key-window",
+                       "passed":  true
+                   },
+                   {
+                       "stage":  "actual-guest-setup-and-standard-task",
+                       "category":  "OperationStopped",
+                       "passed":  false,
+                       "code":  "answer-dvd-ejection-unconfirmed",
+                       "innerDepth":  0,
+                       "milliseconds":  516642,
+                       "exceptionType":  "System.Management.Automation.RemoteException",
+                       "hResult":  -2146233087
+                   }
+               ],
+    "host":  {
+                 "build":  "26100",
+                 "caption":  "Microsoft Windows Server 2025 Datacenter",
+                 "vmms":  "Running",
+                 "memoryBytes":  17174360064,
+                 "hypervisorPresent":  true,
+                 "admin":  true
+             },
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128919826432,
+                                         "freeBytes":  31547932672
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  156106752,
+                                         "freeBytes":  236049264640
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:25:48.8973040Z"
+                  },
+                  {
+                      "phase":  "before-guest-setup",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128947425280,
+                                         "freeBytes":  31520333824
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  8510758912,
+                                         "freeBytes":  227694612480
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:28:40.4359798Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128966471680,
+                                         "freeBytes":  31501287424
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  243179520,
+                                         "freeBytes":  235962191872
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T18:37:19.2259888Z"
+                  }
+              ],
+    "media":  {
+                  "answerIsoBytes":  55296,
+                  "license":  "Microsoft 90-day evaluation; disposable testing",
+                  "hashSource":  "https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file",
+                  "url":  "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso",
+                  "verifiedBeforeMount":  true,
+                  "bytes":  8225329152,
+                  "image":  {
+                                "version":  "10.0.26300.9457",
+                                "name":  "Windows 11 Enterprise Evaluation",
+                                "architecture":  "amd64",
+                                "metadataSource":  "read-only-WIMGAPI-file-information",
+                                "edition":  "EnterpriseEval",
+                                "imageCount":  1,
+                                "index":  1
+                            },
+                  "sha256":  "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38"
+              },
+    "runtime":  {
+                    "path":  "C:\\Program Files\\nodejs\\node.exe",
+                    "sha256":  "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e",
+                    "bytes":  86973768,
+                    "version":  "v22.23.3"
+                },
+    "hardware":  {
+                     "generation":  2,
+                     "hostGuestVhdMounted":  false,
+                     "secureBoot":  "On",
+                     "memoryBytes":  4294967296,
+                     "vmId":  "7068f426-3ace-4627-a670-d90c3a5e4e2f",
+                     "processors":  2,
+                     "diskVirtualBytes":  68719476736,
+                     "nics":  0,
+                     "tpmEnabled":  true,
+                     "PSComputerName":  "localhost",
+                     "RunspaceId":  "4a5788d1-7852-4855-8d04-a80cb0e0dc64",
+                     "PSShowComputerName":  false
+                 },
+    "vmName":  "aegis-cloud-37666683151-1-1628fd797ed64f7b92734f97ef776ed4",
+    "vmId":  "7068f426-3ace-4627-a670-d90c3a5e4e2f",
+    "startOperation":  {
+                           "vmId":  "7068f426-3ace-4627-a670-d90c3a5e4e2f",
+                           "pendingUnknown":  false,
+                           "operationId":  "2770528a-6721-4d9c-992e-90e6d63d9f97",
+                           "requestedState":  2,
+                           "returnCode":  4096,
+                           "jobPath":  "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"3DC642FB-03AE-4F60-9CE5-1B0B5197BEAE\"",
+                           "unresolved":  false,
+                           "failureReason":  null,
+                           "failureHResult":  null
+                       },
+    "stopOperation":  {
+                          "vmId":  "7068f426-3ace-4627-a670-d90c3a5e4e2f",
+                          "pendingUnknown":  false,
+                          "operationId":  "a552a8be-2c80-40ac-aa1b-6fbce7e77032",
+                          "requestedState":  3,
+                          "returnCode":  4096,
+                          "jobPath":  "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"46C11357-44F4-437C-BB04-A65B30A39731\"",
+                          "unresolved":  false,
+                          "failureReason":  null,
+                          "failureHResult":  null
+                      },
+    "guest":  null,
+    "keyboard":  {
+                     "call":  6,
+                     "phase":  "completed",
+                     "count":  1,
+                     "class":  "Msvm_Keyboard",
+                     "systemNameMatch":  true,
+                     "vmRunningObserved":  true,
+                     "keyCode":  32,
+                     "returnCode":  0,
+                     "completed":  true,
+                     "hResult":  null,
+                     "managementStatus":  null
+                 },
+    "keyboardWindow":  {
+                           "attempts":  6,
+                           "completed":  5,
+                           "failure":  null,
+                           "optional":  true
+                       },
+    "hostCanariesUnchangedAfterTask":  false,
+    "hostCanariesUnchangedAfterRemoval":  true,
+    "offObserved":  true,
+    "removedObserved":  true,
+    "operationSettlement":  "settled-and-exact-vm-absent",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "hResult":  -2146233087,
+                    "code":  "answer-dvd-ejection-unconfirmed",
+                    "stage":  "actual-guest-setup-and-standard-task",
+                    "exceptionType":  "System.Management.Automation.RemoteException",
+                    "innerDepth":  0,
+                    "category":  "OperationStopped"
+                },
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "completedAt":  "2026-10-07T18:37:19.2259888Z"
+}

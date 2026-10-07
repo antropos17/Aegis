@@ -47,8 +47,33 @@ public static class CloudGuestProcess
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int kind, out int data, int length, out int returned);
     private static void Require(bool value, string stage)
     { if (!value) throw new InvalidOperationException(stage + ":" + Marshal.GetLastWin32Error()); }
-    private static void RequireTaskExit(uint exit)
-    { if (exit != 0) throw new InvalidOperationException("task-exit:" + exit); }
+    private sealed class TaskFailure : InvalidOperationException
+    {
+        internal readonly Dictionary<string, object> Receipt;
+        internal TaskFailure(Dictionary<string, object> receipt) : base("cloud-guest-process-refused")
+        { Receipt = new Dictionary<string, object>(receipt); }
+    }
+    // Local exception model only. Never publish a dynamic exception or its InnerException.
+    public static Dictionary<string, object> FailureReceipt(Exception exception)
+    {
+        for (int depth = 0; exception != null && depth < 8; depth++, exception = exception.InnerException)
+        {
+            var failure = exception as TaskFailure;
+            if (failure != null) return new Dictionary<string, object>(failure.Receipt);
+        }
+        return null;
+    }
+    private static Dictionary<string, object> CompleteReceipt(Dictionary<string, object> receipt,
+        uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
+    {
+        if (failureStage == null && (!exitObserved || exit != 0)) failureStage = "task-exit";
+        if (failureStage == null && !closure) failureStage = "guest-job-closure";
+        receipt["exitCode"] = exit; receipt["exitCodeObserved"] = exitObserved;
+        receipt["jobClosureConfirmed"] = closure; receipt["failureStage"] = failureStage;
+        receipt["failureHResult"] = failureHResult; receipt["passed"] = failureStage == null;
+        if (failureStage != null) throw new TaskFailure(receipt);
+        return receipt;
+    }
     public static Dictionary<string, object> Run(string password, string expectedSid)
     {
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
@@ -62,46 +87,67 @@ public static class CloudGuestProcess
         string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, "cloud-guest-task.cjs");
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null;
-        bool assigned = false, resumed = false, closure = false; uint exit = 259;
+        bool assigned = false, resumed = false, closure = false, exitObserved = false; uint exit = 259;
+        string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
         try
         {
             job = CreateJobObject(IntPtr.Zero, null); Require(job != IntPtr.Zero, "job-create");
+            stage = "job-limits";
             var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8; limits.Basic.Active = 16;
             Require(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))), "job-limits");
             string values = "AEGIS_CLOUD_GUEST_TASK=1\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             var command = new StringBuilder("\"" + image + "\" \"" + task + "\"");
+            stage = "standard-user-create";
             Require(CreateProcessWithLogonW("AegisTask", ".", password, 1, image, command, 0x08000404,
                 environment, root + @"\work", ref startup, out child), "standard-user-create");
+            stage = "job-assign";
             Require(AssignProcessToJobObject(job, child.Process), "job-assign"); assigned = true;
+            stage = "held-token-open";
             Require(OpenProcessToken(child.Process, 8, out token), "held-token-open");
             using (var identity = new WindowsIdentity(token))
             {
+                stage = "held-token-sid";
                 Require(identity.User != null && identity.User.Value == expectedSid, "held-token-sid");
+                stage = "held-token-admin";
                 Require(!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator), "held-token-admin");
                 receipt["sid"] = identity.User.Value;
             }
-            int elevation, returned;
+            stage = "held-token-elevation"; int elevation, returned;
             Require(GetTokenInformation(token, 20, out elevation, 4, out returned) && returned == 4 && elevation == 0, "held-token-elevation");
             receipt["elevated"] = false; receipt["administratorEnabled"] = false;
+            stage = "held-image";
             Require(String.Equals(GuestJobNative.Image(child.Process), image, StringComparison.OrdinalIgnoreCase), "held-image");
+            stage = "held-birth";
             receipt["pid"] = child.Pid; receipt["birthFileTime"] = GuestJobNative.Birth(child.Process, job, child.Pid);
+            stage = "held-job-inventory";
             inventory = new GuestJobInventory(job, child.Process, new string[] { image, @"C:\Windows\System32\conhost.exe" });
             inventory.ValidateInitial(); receipt["initialJobMembers"] = inventory.InitialCount;
             receipt["heldIdentityBeforeRelease"] = true; receipt["atomicJobAtCreation"] = false;
+            stage = "task-resume";
             Require(ResumeThread(child.Thread) == 1, "task-resume"); resumed = true;
+            stage = "task-deadline";
             Require(GuestJobNative.WaitForSingleObject(child.Process, 60000) == 0, "task-deadline");
-            Require(GetExitCodeProcess(child.Process, out exit), "task-exit-observation");
-            RequireTaskExit(exit);
+            stage = "task-exit-observation";
+            Require(GetExitCodeProcess(child.Process, out exit), "task-exit-observation"); exitObserved = true;
         }
+        catch (Exception error) { failureStage = stage; failureHResult = error.HResult; }
         finally
         {
             if (job != IntPtr.Zero && assigned)
             {
-                bool terminated = TerminateJobObject(job, 137);
-                closure = terminated && inventory != null && inventory.ConfirmClosure(2000);
+                try
+                {
+                    bool terminated = TerminateJobObject(job, 137);
+                    closure = terminated && inventory != null && inventory.ConfirmClosure(2000);
+                }
+                catch (Exception error)
+                {
+                    closure = false;
+                    if (failureStage == null) { failureStage = "guest-job-closure"; failureHResult = error.HResult; }
+                }
             }
             else if (child.Process != IntPtr.Zero) TerminateProcess(child.Process, 137);
             receipt["taskReleased"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
@@ -112,6 +158,6 @@ public static class CloudGuestProcess
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
         }
-        Require(closure, "guest-job-closure"); return receipt;
+        return CompleteReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
     }
 }

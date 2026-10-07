@@ -1,4 +1,75 @@
 param([Parameter(Mandatory = $true)][string]$TaskPassword)
+
+# Fixed local diagnostics helpers. No dynamic exception or arbitrary child text is returned.
+function Read-CloudGuestTaskDiagnostics([string]$Path) {
+    $status = 'guest-task-result-missing'
+    try {
+        if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'refused' }
+        $status = 'guest-task-result-malformed'
+        $file = Get-Item -LiteralPath $Path -Force
+        if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -lt 2 -or $file.Length -gt 16KB) { throw 'refused' }
+        $value = [IO.File]::ReadAllText($file.FullName) | ConvertFrom-Json
+        $names = @($value.PSObject.Properties.Name | Sort-Object)
+        $expected = @('schemaVersion', 'task', 'passed', 'stage', 'failure', 'readEditTestPassed', 'shellAndDescendantPositive', 'hostPathProbes', 'protectedProbes') | Sort-Object
+        $stages = @('manifest', 'input', 'work-edit', 'scratch', 'unit-test', 'shell-descendant', 'protected-probes', 'host-path-probes', 'negative-controls', 'completed')
+        if (($names -join ',') -cne ($expected -join ',') -or ($value.schemaVersion -isnot [int] -and $value.schemaVersion -isnot [long]) -or
+            $value.schemaVersion -ne 1 -or $value.task -cne 'fixed-read-edit-test' -or $value.stage -isnot [string] -or
+            $value.passed -isnot [bool] -or $value.readEditTestPassed -isnot [bool] -or $value.shellAndDescendantPositive -isnot [bool] -or $value.stage -cnotin $stages -or
+            $value.hostPathProbes -isnot [array] -or $value.protectedProbes -isnot [array] -or $value.hostPathProbes.Count -gt 14 -or $value.protectedProbes.Count -gt 4) { throw 'refused' }
+        $codes = @('EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'EIO', 'EBUSY', 'EEXIST', 'UNKNOWN')
+        foreach ($probe in $value.protectedProbes) {
+            $fields = @($probe.PSObject.Properties.Name | Sort-Object) -join ','
+            if ($fields -cnotin @('denied,label', 'code,denied,label') -or $probe.denied -isnot [bool] -or
+                $probe.label -cnotin @('admin-dummy-read', 'setup-profile-dummy-read', 'trusted-bootstrap-write', 'trusted-runtime-write') -or
+                ($fields -ceq 'code,denied,label' -and $probe.code -cnotin $codes)) { throw 'refused' }
+            if (($probe.denied -and ($fields -cne 'code,denied,label' -or $probe.code -cnotin @('EACCES', 'EPERM'))) -or
+                (!$probe.denied -and $fields -ceq 'code,denied,label' -and $probe.code -cin @('EACCES', 'EPERM'))) { throw 'refused' }
+        }
+        foreach ($probe in $value.hostPathProbes) {
+            $fields = @($probe.PSObject.Properties.Name | Sort-Object) -join ','
+            if ($probe.route -ceq 'direct') {
+                if ($fields -cnotin @('action,outcome,route', 'action,code,outcome,route') -or $probe.action -cnotin @('read', 'write', 'delete') -or
+                    $probe.outcome -cnotin @('succeeded-in-guest-namespace', 'absent-in-guest-namespace', 'guest-refused') -or
+                    ($fields -ceq 'action,code,outcome,route' -and $probe.code -cnotin $codes)) { throw 'refused' }
+            } elseif ($probe.route -cin @('shell', 'descendant')) {
+                if ($fields -cne 'action,exitCode,processFailed,route' -or $probe.processFailed -isnot [bool] -or
+                    $probe.action -cnotin @('read', 'write', 'delete', 'read-write-delete') -or
+                    ($null -ne $probe.exitCode -and ($probe.exitCode -isnot [int] -and $probe.exitCode -isnot [long]))) { throw 'refused' }
+            } else { throw 'refused' }
+        }
+        if ($null -ne $value.failure) {
+            if ((@($value.failure.PSObject.Properties.Name | Sort-Object) -join ',') -cne 'childExitCode,stage' -or
+                $value.failure.stage -cnotin $stages -or ($null -ne $value.failure.childExitCode -and
+                $value.failure.childExitCode -isnot [int] -and $value.failure.childExitCode -isnot [long])) { throw 'refused' }
+        }
+        if ($value.passed) {
+            $labels = @($value.protectedProbes | ForEach-Object { $_.label }) -join ','
+            $requiredLabels = 'admin-dummy-read,setup-profile-dummy-read,trusted-bootstrap-write,trusted-runtime-write'
+            $hostCases = @($value.hostPathProbes | ForEach-Object { $_.route + '/' + $_.action }) -join ','
+            $group = 'direct/read,direct/write,direct/delete,shell/read,shell/write,shell/delete,descendant/read-write-delete'
+            if ($value.stage -cne 'completed' -or $null -ne $value.failure -or !$value.readEditTestPassed -or !$value.shellAndDescendantPositive -or
+                $labels -cne $requiredLabels -or $hostCases -cne ($group + ',' + $group) -or
+                @($value.protectedProbes | Where-Object { !$_.denied }).Count -or
+                @($value.hostPathProbes | Where-Object { $_.route -cne 'direct' -and $_.processFailed }).Count) { throw 'refused' }
+        }
+        return @{ status = 'verified'; task = $value }
+    } catch { return @{ status = $status; task = $null } }
+}
+function Merge-CloudGuestTaskDiagnostics($Identity, $Parsed, [bool]$AdminCanaryUnchanged) {
+    $taskResult = $Parsed.task
+    if ($null -eq $taskResult) {
+        $taskResult = @{ schemaVersion = 1; task = 'fixed-read-edit-test'; passed = $false; stage = 'result-unavailable';
+            failure = $null; readEditTestPassed = $false; shellAndDescendantPositive = $false; hostPathProbes = @(); protectedProbes = @() }
+    }
+    $nativePassed = $Identity.ContainsKey('passed') -and $Identity.passed -eq $true -and $Identity.exitCodeObserved -eq $true -and
+        $Identity.exitCode -eq 0 -and $Identity.jobClosureConfirmed -eq $true -and $Identity.taskReleased -eq $true -and
+        $Identity.heldIdentityBeforeRelease -eq $true -and $Identity.elevated -eq $false -and $Identity.administratorEnabled -eq $false
+    $passed = $nativePassed -and $Parsed.status -ceq 'verified' -and $taskResult.passed -eq $true -and $AdminCanaryUnchanged
+    # Existing host driver consumes this field. Child JSON can never override native refusal.
+    $taskResult.passed = [bool]$passed
+    $failure = if ($passed) { $null } elseif (!$nativePassed) { 'guest-task-process-refused' } elseif ($Parsed.status -cne 'verified') { $Parsed.status } else { 'guest-task-controls-refused' }
+    return @{ passed = [bool]$passed; identity = $Identity; task = $taskResult; taskResultStatus = $Parsed.status; failureCode = $failure }
+}
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($env:AEGIS_CLOUD_GUEST_LAB -ne 'trusted-bootstrap-v1' -or $env:GITHUB_ACTIONS -ne 'true' -or
@@ -53,11 +124,17 @@ FixedAcl 'C:\Users\AegisSetup\aegis-dummy.txt' $false $false $false
 foreach ($file in @(Get-ChildItem -LiteralPath $trusted -File)) { FixedAcl $file.FullName $false $false $true }
 if ([IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ne 'guest-admin-dummy-control') { throw 'admin-positive-control-failed' }
 Add-Type -Path "$trusted\guest-process.dll"
-$identity = [CloudGuestProcess]::Run($TaskPassword, $task.SID.Value)
-$resultFile = Get-Item -LiteralPath "$root\work\result.json" -Force
-if ($resultFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or $resultFile.Length -gt 16KB) { throw 'guest-result-budget-failed' }
-$taskResult = [IO.File]::ReadAllText($resultFile.FullName) | ConvertFrom-Json
-if (!$taskResult.passed -or !$identity.jobClosureConfirmed -or [IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ne 'guest-admin-dummy-control') { throw 'guest-controls-unconfirmed' }
+try { $identity = [CloudGuestProcess]::Run($TaskPassword, $task.SID.Value) }
+catch {
+    $identity = [CloudGuestProcess]::FailureReceipt($_.Exception)
+    if ($null -eq $identity) { throw 'guest-task-process-refused' }
+}
+$parsed = @{ status = 'guest-task-result-unread-closure-unknown'; task = $null }
+if ($identity.jobClosureConfirmed -eq $true) { $parsed = Read-CloudGuestTaskDiagnostics "$root\work\result.json" }
+$adminCanary = $false
+try { $adminCanary = [IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ceq 'guest-admin-dummy-control' } catch { }
+$diagnostics = Merge-CloudGuestTaskDiagnostics $identity $parsed $adminCanary
 $os = Get-CimInstance Win32_OperatingSystem
-return @{ schemaVersion = 1; guest = @{ version = $os.Version; build = $os.BuildNumber; caption = $os.Caption }; identity = $identity; task = $taskResult;
+return @{ schemaVersion = 1; passed = $diagnostics.passed; failureCode = $diagnostics.failureCode; taskResultStatus = $diagnostics.taskResultStatus;
+    guest = @{ version = $os.Version; build = $os.BuildNumber; caption = $os.Caption }; identity = $identity; task = $diagnostics.task;
     setupAnswerCachesAbsent = $true; autoLogonDisabled = $true; passwordRegistryAbsent = $true; labOnlyPowerShellDirect = $true; atomicJobAtCreation = $false; launchAllowed = $false }

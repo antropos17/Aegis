@@ -16,4 +16,4 @@ tests/fixtures/bench/** -text
 keys/** -text
 
 # Source-bound cloud qualification receipts keep their downloaded byte hashes.
-docs/roadmap/enforcement-e2/evidence/20261007/*.json -text
+docs/roadmap/enforcement-e2/evidence/20261007/*.json -text whitespace=cr-at-eol

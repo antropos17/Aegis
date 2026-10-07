@@ -45,6 +45,35 @@ $vmSource = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScr
 $mediaDefinition = $vmSource.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Remove-CloudGuestInstallationMedia' }, $true)
 . ([scriptblock]::Create($mediaDefinition.Extent.Text))
 $savedGuard = ${function:Assert-CloudGuestRunner}.ToString()
+$bootDefinition = $vmSource.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-CloudGuestBootWindow' }, $true)
+. ([scriptblock]::Create($bootDefinition.Extent.Text))
+function Start-Sleep { param($Milliseconds, $Seconds) }
+try {
+     foreach ($bootMode in @('keyboard-unavailable', 'vm-mismatch', 'thumbnail-mismatch', 'read-unavailable', 'success-until-stop')) {
+         $nativeDouble = [pscustomobject]@{ Mode = $bootMode; Calls = 0; Captures = 0; Closed = $false; PendingUnknown = $false; KeyboardObservation = @{ phase = 'query'; returnCode = 0; completed = $true } }
+         $nativeDouble | Add-Member ScriptMethod SetupSpaceKey {
+             $this.Calls++
+             if ($this.Mode -eq 'vm-mismatch') { $this.KeyboardObservation.phase = 'vm-observe'; throw 'keyboard-owned-vm-not-running' }
+             if ($this.Mode -eq 'keyboard-unavailable' -or $this.Calls -eq 3) { throw 'exact-vm-keyboard-unavailable' }
+             return $true
+         }
+         $nativeDouble | Add-Member ScriptMethod BootSnapshot {
+             $this.Captures++
+             if ($this.Mode -eq 'read-unavailable') { throw 'synthetic-private-error-must-not-cross-receipt' }
+             return @{ failureCode = $(if ($this.Mode -eq 'thumbnail-mismatch') { 'boot-owned-vm-mismatch' } else { $null }); imageBase64 = $null }
+         }
+         $nativeDouble | Add-Member ScriptMethod CloseBootWindow { $this.Closed = $true }
+         $window = Invoke-CloudGuestBootWindow $nativeDouble
+         Require ($nativeDouble.Closed -and $window.closedBeforeCredentialSession -and $window.attempts -le 3 -and $window.snapshots.Count -le 2)
+         Require ($window.outcomes.Count -eq $window.attempts)
+         Require ($window.mandatoryFailure -eq ($bootMode -in @('vm-mismatch', 'thumbnail-mismatch')))
+         if ($bootMode -eq 'keyboard-unavailable') { Require ($nativeDouble.Captures -eq 0) }
+         if ($bootMode -eq 'thumbnail-mismatch') { Require ($nativeDouble.Calls -eq 1) }
+         if ($bootMode -eq 'read-unavailable') { Require ($window.snapshots[0].failureCode -ceq 'bounded-stage-failed' -and $window.completed -eq 2) }
+         $passed++
+     }
+}
+finally { Remove-Item Function:Start-Sleep }
 function Assert-CloudGuestRunner { }
 $fixtureId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; $fixtureRoot = Join-Path $env:TEMP 'media-owned-vm'; $fixtureName = $name
 function Get-VM {
@@ -115,6 +144,36 @@ finally {
     Set-Item Function:Assert-CloudGuestRunner ([scriptblock]::Create($savedGuard))
     foreach ($mock in @('Get-VM', 'Get-VMDvdDrive', 'Remove-VMDvdDrive', 'Set-VMDvdDrive', 'Invoke-CloudGuestBootstrap')) { Remove-Item ('Function:' + $mock) }
 }
+# Compile actual diagnostic/owner sources, but invoke only pure parsing/window
+# methods. Never construct the owner or call WMI in these regression controls.
+$projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+Add-Type -Path @((Join-Path $PSScriptRoot 'CloudGuestBootDiagnostics.cs'), (Join-Path $PSScriptRoot 'CloudGuestVm.cs'),
+    (Join-Path $projectRoot 'sidecar/session/OwnedVmLifecycle.cs'), (Join-Path $projectRoot 'sidecar/session/VmManagementNative.cs')) -ReferencedAssemblies System.Management
+$diagnosticType = [CloudGuestVm].Assembly.GetType('CloudGuestBootDiagnostics')
+$binding = [Reflection.BindingFlags]'Static,NonPublic'
+$windowMethod = $diagnosticType.GetMethod('WindowAllowed', $binding)
+foreach ($control in @(@($false, 0L, 0, 20000L, 2, $true), @($false, 19999L, 1, 20000L, 2, $true),
+    @($false, 20000L, 0, 20000L, 2, $false), @($true, 0L, 0, 20000L, 2, $false), @($false, 1L, 2, 20000L, 2, $false),
+    @($false, -1L, 0, 20000L, 2, $false), @($false, 60000L, 0, 60000L, 60, $false))) {
+    Require ($windowMethod.Invoke($null, [object[]]$control[0..4]) -eq $control[5]); $passed++
+}
+$settingsMethod = $diagnosticType.GetMethod('SettingsIdentity', $binding)
+foreach ($control in @(@('Microsoft:Hyper-V:System:Realized', $fixtureId, $true), @('Microsoft:Hyper-V:Snapshot:Realized', $fixtureId, $false),
+    @('Microsoft:Hyper-V:System:Realized', '11111111-2222-3333-4444-555555555555', $false))) {
+    Require ($settingsMethod.Invoke($null, [object[]]@($fixtureId, $control[0], $control[1])) -eq $control[2]); $passed++
+}
+$pixelsMethod = $diagnosticType.GetMethod('Pixels', $binding)
+$syntheticPixels = New-Object byte[] 153600
+# Explicit slots avoid PS5.1 boxing the byte array in PSObject for reflection.
+$pixelArguments = New-Object object[] 2; $pixelArguments[0] = [uint32]0; $pixelArguments[1] = $syntheticPixels.PSObject.BaseObject
+$encoded = $pixelsMethod.Invoke($null, $pixelArguments)
+Require ($encoded.Length -eq 204800 -and [Convert]::FromBase64String($encoded).Length -eq 153600); $passed++
+foreach ($control in @(@([uint32]4096, $syntheticPixels), @($null, $syntheticPixels), @([uint16]0, $syntheticPixels),
+    @([uint32]0, $null), @([uint32]0, (New-Object byte[] 153599)), @([uint32]0, (New-Object byte[] 153601)))) {
+    Require (Refused { $pixelsMethod.Invoke($null, [object[]]$control) }); $passed++
+}
+$budget = [Text.Encoding]::UTF8.GetByteCount((@{ snapshots = @(@{ imageBase64 = $encoded }, @{ imageBase64 = $encoded }) } | ConvertTo-Json -Depth 4))
+Require ($budget -lt 512KB); $passed++
 # Actual bounded PS5.1 native process controls; no media, guest or VM operation.
 $temporary = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
 $testRoot = Join-Path $temporary ('aegis-guest-wait-' + [guid]::NewGuid().ToString('N'))
@@ -171,4 +230,6 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntheticCases = 30; nativeProcessCases = 15; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 35; compiledPureCases = 18; nativeProcessCases = 15; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-diagnostics.ps1')

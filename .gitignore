@@ -38,6 +38,7 @@ Thumbs.db
 !/scripts/qualification/cloud-guest-lab.ps1
 !/scripts/qualification/cloud-guest-bootstrap.ps1
 !/scripts/qualification/test-cloud-guest.ps1
+!/scripts/qualification/test-cloud-guest-diagnostics.ps1
 !/sidecar/etw-lifecycle/Capture-SuspendContext.ps1
 cdp_*.js
 # Local assistant tooling — kept on disk, not part of the public tree

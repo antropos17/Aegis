@@ -1,5 +1,38 @@
 Set-StrictMode -Version Latest
 
+# One initial window; provider success does not establish that firmware consumed
+# a key. Closing this window precedes every credential-bearing session attempt.
+function Invoke-CloudGuestBootWindow($NativeOwner) {
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $value = @{ attempts = 0; completed = 0; optional = $true; failure = $null; mandatoryFailure = $false;
+        outcomes = [Collections.Generic.List[object]]::new(); snapshots = [Collections.Generic.List[object]]::new();
+        dispatchWindowMilliseconds = 60000; providerOperationTimeoutSeconds = 5; elapsedMilliseconds = 0; closedBeforeCredentialSession = $false }
+    try {
+        while ($watch.ElapsedMilliseconds -lt 60000 -and $value.attempts -lt 60) {
+            $value.attempts++
+            try { if ($NativeOwner.SetupSpaceKey()) { $value.completed++ } }
+            catch {
+                $value.failure = Get-CloudGuestFailureDetails $_.Exception
+                $value.outcomes.Add(@{ attempt = $value.attempts; elapsedMilliseconds = $watch.ElapsedMilliseconds; failure = $value.failure })
+                $value.mandatoryFailure = $NativeOwner.PendingUnknown -or $NativeOwner.KeyboardObservation.phase -eq 'vm-observe'
+                break
+            }
+            $value.outcomes.Add(@{ attempt = $value.attempts; elapsedMilliseconds = $watch.ElapsedMilliseconds; returnCode = $NativeOwner.KeyboardObservation.returnCode; providerCompleted = $NativeOwner.KeyboardObservation.completed })
+            # Early fresh-install display only; no snapshots during readiness/task.
+            if ($value.attempts -in @(1, 8) -and $watch.ElapsedMilliseconds -lt 20000) {
+                try {
+                    $snapshot = $NativeOwner.BootSnapshot(); $value.snapshots.Add($snapshot)
+                    if ($snapshot.failureCode -eq 'boot-owned-vm-mismatch') { $value.failure = @{ code = 'boot-owned-vm-mismatch' }; $value.mandatoryFailure = $true; break }
+                }
+                catch { $value.snapshots.Add(@{ failureCode = (Get-CloudGuestFailureDetails $_.Exception).code; imageBase64 = $null }) }
+            }
+            Start-Sleep -Milliseconds 1000
+        }
+    }
+    finally { $NativeOwner.CloseBootWindow(); $value.closedBeforeCredentialSession = $true; $value.elapsedMilliseconds = $watch.ElapsedMilliseconds; $watch.Stop() }
+    return $value
+}
+
 # Remove credential-bearing drives, then query a newly obtained exact VM object.
 # A retained VirtualMachine object may carry cached device inventory.
 function Remove-CloudGuestInstallationMedia([string]$Id, [string]$Name, [string]$VmRoot, [ref]$MutationUnknown) {
@@ -84,7 +117,9 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             while ($watch.Elapsed.TotalSeconds -lt 1080) {
                 if ($watch.Elapsed.TotalSeconds - $lastDisk -ge 60) {
                     $free = [long](Get-PSDrive -Name D).Free
-                    $diskSamples.Add(@{ seconds = [int]$watch.Elapsed.TotalSeconds; freeBytes = $free }); $lastDisk = $watch.Elapsed.TotalSeconds
+                    $ownedDisk = Get-Item -LiteralPath (Join-Path $VmRoot 'guest.vhdx') -Force
+                    if ($ownedDisk.PSIsContainer -or ($ownedDisk.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'owned-guest-disk-layout-unexpected' }
+                    $diskSamples.Add(@{ seconds = [int]$watch.Elapsed.TotalSeconds; freeBytes = $free; ownedVhdFileBytes = [long]$ownedDisk.Length }); $lastDisk = $watch.Elapsed.TotalSeconds
                     if ($free -lt 10GB) { throw 'guest-setup-disk-headroom-failed' }
                 }
                 try {

@@ -90,7 +90,7 @@ try {
     } | Out-Null
     Stage 'compile-fixed-native-helpers' {
         Add-Type -Path (Compile 'metadata.dll' @('scripts/qualification/CloudGuestMetadata.cs') @('System.Net.Http.dll'))
-        Add-Type -Path (Compile 'vm-owner.dll' @('scripts/qualification/CloudGuestVm.cs', 'sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs') @('System.Management.dll'))
+        Add-Type -Path (Compile 'vm-owner.dll' @('scripts/qualification/CloudGuestVm.cs', 'scripts/qualification/CloudGuestBootDiagnostics.cs', 'sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs') @('System.Management.dll'))
         $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
         Copy-Item -LiteralPath $guestDll -Destination (Join-Path $OutputRoot 'transfer\guest-process.dll')
     } | Out-Null
@@ -157,18 +157,8 @@ try {
         $report.operationSettlement = 'actual-native-start-settled'
     } | Out-Null
     Stage 'optional-fixed-setup-key-window' {
-        $report.keyboardWindow = @{ attempts = 0; completed = 0; optional = $true; failure = $null }
-        for ($key = 0; $key -lt 6; $key++) {
-            Start-Sleep -Seconds 2; $report.keyboardWindow.attempts++
-            try { if ($owner.SetupSpaceKey()) { $report.keyboardWindow.completed++ } }
-            catch {
-                $report.keyboardWindow.failure = Get-CloudGuestFailureDetails $_.Exception
-                # VM identity/current Running gates remain mandatory. A missing,
-                # ambiguous, rejected or uncertain keyboard dispatches no more keys.
-                if ($owner.PendingUnknown -or $owner.KeyboardObservation.phase -eq 'vm-observe') { throw }
-                break
-            }
-        }
+        $report.keyboardWindow = Invoke-CloudGuestBootWindow $owner
+        if ($report.keyboardWindow.mandatoryFailure) { throw $report.keyboardWindow.failure.code }
     } | Out-Null
     RecordDisk 'before-guest-setup' | Out-Null
     $report.guest = Stage 'actual-guest-setup-and-standard-task' {

@@ -9,9 +9,18 @@ const result = {
   schemaVersion: 1,
   task: 'fixed-read-edit-test',
   passed: false,
+  stage: 'manifest',
+  failure: null,
+  readEditTestPassed: false,
+  shellAndDescendantPositive: false,
   hostPathProbes: [],
   protectedProbes: [],
 };
+let childExitCode = null;
+function fixedCode(error) {
+  return ['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'EIO', 'EBUSY', 'EEXIST'].includes(error.code)
+    ? error.code : 'UNKNOWN';
+}
 function child(exe, args) {
   const value = spawnSync(exe, args, {
     windowsHide: true,
@@ -20,6 +29,7 @@ function child(exe, args) {
     cwd: path.join(root, 'scratch'),
     env: process.env,
   });
+  childExitCode = Number.isInteger(value.status) ? value.status : null;
   return {
     exitCode: value.status,
     failed: !!value.error,
@@ -34,7 +44,7 @@ function denied(label, operation) {
     result.protectedProbes.push({
       label,
       denied: error.code === 'EACCES' || error.code === 'EPERM',
-      code: error.code,
+      code: fixedCode(error),
     });
   }
 }
@@ -49,7 +59,7 @@ function pathProbe(route, operation, value) {
       outcome: ['ENOENT', 'ENOTDIR'].includes(error.code)
         ? 'absent-in-guest-namespace'
         : 'guest-refused',
-      code: error.code,
+      code: fixedCode(error),
     };
   }
 }
@@ -63,20 +73,25 @@ try {
     )
   )
     throw new Error('fixed-host-paths-required');
+  result.stage = 'input';
   const input = JSON.parse(fs.readFileSync(path.join(root, 'input', 'numbers.json'), 'utf8'));
   if (input.a !== 2 || input.b !== 3) throw new Error('input-positive-control');
+  result.stage = 'work-edit';
   const edited = path.join(root, 'work', 'sum.cjs');
   const original = fs.readFileSync(edited, 'utf8');
   if (original !== 'module.exports=(a,b)=>a-b;\n') throw new Error('work-initial-control');
   fs.writeFileSync(edited, 'module.exports=(a,b)=>a+b;\n');
+  result.stage = 'scratch';
   const scratch = path.join(root, 'scratch', 'positive.txt');
   fs.writeFileSync(scratch, 'guest-scratch-control');
   if (fs.readFileSync(scratch, 'utf8') !== 'guest-scratch-control')
     throw new Error('scratch-positive-control');
+  result.stage = 'unit-test';
   const test = child(process.execPath, ['--test', path.join(trusted, 'sum.test.cjs')]);
   if (test.failed || test.exitCode !== 0 || require(edited)(input.a, input.b) !== 5)
     throw new Error('fixed-test-failed');
   result.readEditTestPassed = true;
+  result.stage = 'shell-descendant';
   const ownShell = child('C:\\Windows\\System32\\cmd.exe', ['/d', '/c', 'type "' + scratch + '"']);
   const ownChild = child(process.execPath, [
     '-e',
@@ -91,6 +106,7 @@ try {
   )
     throw new Error('shell-descendant-positive-control');
   result.shellAndDescendantPositive = true;
+  result.stage = 'protected-probes';
   denied('admin-dummy-read', () =>
     fs.readFileSync('C:\\ProgramData\\AegisCloudLab\\admin\\dummy.txt'),
   );
@@ -104,6 +120,7 @@ try {
     const handle = fs.openSync(process.execPath, 'r+');
     fs.closeSync(handle);
   });
+  result.stage = 'host-path-probes';
   for (const selected of manifest.hostCanaries) {
     result.hostPathProbes.push(pathProbe('direct', () => fs.readFileSync(selected), 'read'));
     result.hostPathProbes.push(
@@ -135,14 +152,18 @@ try {
       processFailed: leaf.failed,
     });
   }
+  result.stage = 'negative-controls';
   if (
     result.protectedProbes.some((p) => !p.denied) ||
     result.hostPathProbes.some((p) => p.processFailed)
   )
     throw new Error('negative-control-failed');
   result.passed = true;
-} catch (error) {
-  result.failure = { code: error.code || null, stage: 'fixed-guest-task-failed' };
+  result.stage = 'completed';
+} catch {
+  result.failure = { stage: result.stage, childExitCode };
 }
-fs.writeFileSync(path.join(root, 'work', 'result.json'), JSON.stringify(result));
+const output = JSON.stringify(result);
+if (Buffer.byteLength(output) > 16384) process.exit(2);
+fs.writeFileSync(path.join(root, 'work', 'result.json'), output);
 process.exitCode = result.passed ? 0 : 1;

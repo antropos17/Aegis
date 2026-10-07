@@ -80,7 +80,7 @@ function Get-CloudGuestFailureDetails([Exception]$Exception) {
     while ($null -ne $current.InnerException -and $depth -lt 8) { $current = $current.InnerException; $depth++ }
     # Only source-constant codes may cross the receipt boundary. Arbitrary inner
     # messages (including strings resembling codes) are never published.
-    $allowed = @('keyboard-query-id-invalid', 'keyboard-owned-vm-not-running', 'exact-vm-keyboard-unavailable', 'keyboard-owner-mismatch',
+    $allowed = @('boot-diagnostic-window-closed', 'boot-key-window-closed', 'boot-owned-vm-mismatch', 'keyboard-query-id-invalid', 'keyboard-owned-vm-not-running', 'exact-vm-keyboard-unavailable', 'keyboard-owner-mismatch',
         'setup-key-result-missing', 'setup-key-return-unconfirmed', 'vm-provider-field-invalid', 'vm-provider-path-invalid',
         'native-wait-input-invalid', 'native-process-start-failed', 'native-process-deadline', 'native-output-budget-failed', 'native-exit-observation-unavailable', 'native-source-budget-failed', 'native-compile-failed',
         'source-head-unavailable', 'source-head-mismatch', 'expected-source-required', 'cloud-disk-headroom-unavailable', 'cloud-hyperv-admin-memory-unavailable', 'script-source-budget-failed',

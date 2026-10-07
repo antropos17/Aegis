@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Management;
+using System.Diagnostics;
 using Aegis.ProtectedSession;
 
 // Cloud lab only: retain one native lifecycle owner across Setup and guest work.
@@ -12,6 +13,9 @@ public sealed class CloudGuestVm : IDisposable
     public string VmId { get { return owner.VmId.ToString("D"); } }
     public Dictionary<string, object> KeyboardObservation { get; private set; }
     private int keyboardCalls;
+    private int bootCaptures;
+    private bool bootWindowClosed;
+    private Stopwatch bootWatch;
     public CloudGuestVm(string id)
     {
         Guard(); Guid parsed;
@@ -24,7 +28,24 @@ public sealed class CloudGuestVm : IDisposable
             Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted" ||
             Environment.GetEnvironmentVariable("RUNNER_OS") != "Windows") throw new InvalidOperationException("cloud-lab-only");
     }
-    public bool Start() { Guard(); return owner.Start(); }
+    public bool Start() { Guard(); bool started = owner.Start(); if (started) bootWatch = Stopwatch.StartNew(); return started; }
+    public void CloseBootWindow() { bootWindowClosed = true; }
+    private bool WindowOpen(long limit, int count, int cap)
+    { return bootWatch != null && !owner.PendingUnknown && CloudGuestBootDiagnostics.WindowAllowed(bootWindowClosed, bootWatch.ElapsedMilliseconds, count, limit, cap); }
+    private TimeSpan KeyTimeout()
+    {
+        if (!WindowOpen(60000, keyboardCalls - 1, 60)) throw new InvalidOperationException("boot-key-window-closed");
+        return TimeSpan.FromMilliseconds(Math.Min(5000, 60000 - bootWatch.ElapsedMilliseconds));
+    }
+    public Dictionary<string, object> BootSnapshot()
+    {
+        Guard();
+        if (!WindowOpen(20000, bootCaptures, 2)) throw new InvalidOperationException("boot-diagnostic-window-closed");
+        bootCaptures++;
+        var result = CloudGuestBootDiagnostics.Capture(VmId, delegate { return WindowOpen(20000, bootCaptures - 1, 2); });
+        result["elapsedMilliseconds"] = bootWatch.ElapsedMilliseconds;
+        return result;
+    }
     public bool Stop() { Guard(); return owner.Stop(); }
     public bool ObserveOff() { Guard(); return owner.ObserveOff(); }
     public Dictionary<string, object> Operation()
@@ -62,24 +83,25 @@ public sealed class CloudGuestVm : IDisposable
     public bool SetupSpaceKey()
     {
         Guard();
+        if (!WindowOpen(60000, keyboardCalls, 60)) throw new InvalidOperationException("boot-key-window-closed");
         KeyboardObservation = new Dictionary<string, object> {
             { "call", ++keyboardCalls }, { "phase", "vm-observe" }, { "count", null }, { "class", "Msvm_Keyboard" },
             { "systemNameMatch", false }, { "vmRunningObserved", false }, { "keyCode", 32U },
             { "returnCode", null }, { "completed", false }, { "hResult", null }, { "managementStatus", null }
         };
         // Fixed key through the exact VM's associated virtual keyboard; no host UI.
-        var scope = new ManagementScope(@"\\.\root\virtualization\v2", new ConnectionOptions { Timeout = TimeSpan.FromSeconds(5) });
+        var scope = new ManagementScope(@"\\.\root\virtualization\v2", new ConnectionOptions { Timeout = KeyTimeout() });
         try
         {
         // Verify this exact VM remains Running before every fixed key/retry.
-        using (var vm = new ManagementObject(scope, new ManagementPath("Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\",Name=\"" + VmId + "\""), new ObjectGetOptions { Timeout = TimeSpan.FromSeconds(5) }))
+        using (var vm = new ManagementObject(scope, new ManagementPath("Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\",Name=\"" + VmId + "\""), new ObjectGetOptions { Timeout = KeyTimeout() }))
         {
             vm.Get(); VmManagementNative.ValidatePath(vm.Path.Path, "Msvm_ComputerSystem");
             if (!String.Equals(vm["Name"] as string, VmId, StringComparison.OrdinalIgnoreCase) || VmManagementNative.UInt16Value(vm["EnabledState"]) != 2) throw new InvalidOperationException("keyboard-owned-vm-not-running");
             KeyboardObservation["vmRunningObserved"] = true;
         }
         KeyboardObservation["phase"] = "query";
-        using (var search = new ManagementObjectSearcher(scope, new ObjectQuery(KeyboardQuery(VmId)), new EnumerationOptions { Timeout = TimeSpan.FromSeconds(5), ReturnImmediately = true }))
+        using (var search = new ManagementObjectSearcher(scope, new ObjectQuery(KeyboardQuery(VmId)), new EnumerationOptions { Timeout = KeyTimeout(), ReturnImmediately = true }))
         using (var objects = search.Get())
         {
             KeyboardObservation["count"] = objects.Count;
@@ -92,11 +114,13 @@ public sealed class CloudGuestVm : IDisposable
                 bool matched = KeyboardIdentity(VmId, keyboard["CreationClassName"] as string, keyboard["SystemCreationClassName"] as string, keyboard["SystemName"] as string);
                 KeyboardObservation["systemNameMatch"] = matched;
                 if (!matched) throw new InvalidOperationException("keyboard-owner-mismatch");
+                keyboard.Options.Timeout = KeyTimeout();
                 using (var input = keyboard.GetMethodParameters("TypeKey"))
                 {
+                    if (!WindowOpen(60000, keyboardCalls - 1, 60)) throw new InvalidOperationException("boot-key-window-closed");
                     input["keyCode"] = 32U;
                     KeyboardObservation["phase"] = "invoke";
-                    using (var result = keyboard.InvokeMethod("TypeKey", input, new InvokeMethodOptions { Timeout = TimeSpan.FromSeconds(5) }))
+                    using (var result = keyboard.InvokeMethod("TypeKey", input, new InvokeMethodOptions { Timeout = KeyTimeout() }))
                     {
                         if (result == null) throw new InvalidOperationException("setup-key-result-missing");
                         uint code = VmManagementNative.UInt32Value(result["ReturnValue"]);
