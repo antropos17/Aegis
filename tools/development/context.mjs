@@ -122,6 +122,7 @@ const report = {
   dynamic,
   coverage,
   limitations: [
+    'Source digest covers selected JS/TS/Svelte inventory and configuration inputs. Qualification scripts, native sidecars, workflows, Vite configuration, docs and skills are outside it; use current diffs and relevant file hashes for review.',
     'Static literal IPC calls only; aliases, wrappers, senders and runtime DI need review.',
     'Direct test imports are navigation hints, not proof of coverage or absence of tests.',
     'Svelte syntax edges are not collected; svelte-check is separate. No tests were executed.',

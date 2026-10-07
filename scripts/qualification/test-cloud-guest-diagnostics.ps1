@@ -131,3 +131,5 @@ $summary | ConvertTo-Json -Depth 5
     }
     Remove-Item -LiteralPath $fixture
 }
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-bootstrap.ps1')

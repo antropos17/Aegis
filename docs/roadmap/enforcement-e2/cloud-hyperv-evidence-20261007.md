@@ -137,6 +137,18 @@ readiness is still required. Missing, foreign or malformed VM observations durin
 keyboard admission remain fatal. Thumbnail failures retain only fixed data-type categories, array shape and
 requested dimensions; the exact RGB565 byte-count requirement is unchanged.
 
+The [run at 2b4eb387](https://github.com/antropos17/Aegis/actions/runs/37681388752)
+established a PowerShell Direct session, the setup profile and Windows 11
+EnterpriseEval build 26300.9457. Transferred files matched their hashes, and fresh
+exact-VM observations confirmed both installation DVDs were removed before the
+bootstrap call. That remote call failed without returning a guest task receipt.
+Its submission flag records the call boundary; it does not establish bootstrap
+entry or standard-user process creation. The exception cause is unknown. Native
+stop, Off, exact removal and unchanged host canaries after removal were confirmed.
+All fourteen source hashes matched the committed revision, whose five required
+CI contexts passed. Both thumbnails contained 153604 bytes and were refused by
+the strict 153600-byte check; no interpretation of the extra bytes is assumed.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

@@ -7,6 +7,10 @@ Read `out/development/context.md` (a short, generated inventory); search
 `memory-bank/progress.md` and `memory-bank/ai-mistakes.md` only for the current
 subsystem. Preserve the historical records. A commit alone does not identify an
 uncommitted tree: generated reports also contain dirty state and a source digest.
+That digest covers the selected JS/TS/Svelte inventory and configuration inputs;
+qualification scripts, native sidecars, workflows, Vite configuration, docs and
+skills are outside it. Review the current diff and freeze relevant file hashes
+when those paths or concurrent edits are in scope.
 
 Read HEAD, package scripts and Vite configuration before using the generated
 inventory. A preserved dirty checkout can be older than origin/master. Missing

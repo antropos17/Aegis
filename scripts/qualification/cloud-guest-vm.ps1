@@ -1,5 +1,62 @@
 Set-StrictMode -Version Latest
 
+# The fixed, re-hashed source is invoked in this session without changing policy.
+# Only bounded metadata crosses the boundary if entry or execution fails.
+function Get-CloudGuestBootstrapInvocation {
+    return {
+        param($Password, $VmId, $ExpectedHash)
+        $ErrorActionPreference = 'Stop'
+        $diagnostic = @{ phase = 'fixed-source-validation'; invocationAttempted = $false; executionPolicy = 'unknown';
+            fullLanguage = $false; exceptionKind = $null; category = $null; line = $null; hResult = $null }
+        try {
+            $policy = (Get-ExecutionPolicy).ToString()
+            if ($policy -cin @('Restricted', 'AllSigned', 'RemoteSigned', 'Unrestricted', 'Bypass', 'Undefined', 'Default')) { $diagnostic.executionPolicy = $policy }
+            $diagnostic.fullLanguage = $ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage'
+            if (!$diagnostic.fullLanguage -or $VmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or
+                $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'fixed-bootstrap-input-invalid' }
+            $fixedPath = 'C:\ProgramData\AegisCloudLab\trusted\cloud-guest-bootstrap.ps1'
+            $file = Get-Item -LiteralPath $fixedPath -Force
+            if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -lt 1 -or $file.Length -gt 64KB) { throw 'fixed-bootstrap-source-invalid' }
+            $stream = [IO.File]::Open($fixedPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            try {
+                if ($stream.Length -ne $file.Length -or $stream.Length -lt 1 -or $stream.Length -gt 64KB) { throw 'fixed-bootstrap-source-invalid' }
+                $bytes = [byte[]]::new([int]$stream.Length); $offset = 0
+                while ($offset -lt $bytes.Length) {
+                    $count = $stream.Read($bytes, $offset, $bytes.Length - $offset)
+                    if ($count -le 0) { throw 'fixed-bootstrap-source-invalid' }
+                    $offset += $count
+                }
+                if ($stream.ReadByte() -ne -1) { throw 'fixed-bootstrap-source-invalid' }
+            } finally { $stream.Dispose() }
+            $sha = [Security.Cryptography.SHA256]::Create()
+            try { $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() }
+            finally { $sha.Dispose() }
+            if ($hash -cne $ExpectedHash) { throw 'fixed-bootstrap-source-invalid' }
+            $source = [Text.UTF8Encoding]::new($false, $true).GetString($bytes)
+            $diagnostic.phase = 'fixed-source-parse'
+            $entry = [scriptblock]::Create($source)
+            $env:AEGIS_CLOUD_GUEST_LAB = 'trusted-bootstrap-v1'
+            $env:AEGIS_CLOUD_GUEST_VM_ID = $VmId
+            $env:GITHUB_ACTIONS = 'true'; $env:RUNNER_ENVIRONMENT = 'github-hosted'; $env:RUNNER_OS = 'Windows'
+            $diagnostic.phase = 'fixed-source-invocation'; $diagnostic.invocationAttempted = $true
+            $value = & $entry -TaskPassword $Password
+            $diagnostic.phase = 'fixed-source-returned'
+            if ($value -isnot [hashtable] -or !$value.ContainsKey('task') -or $null -eq $value.task -or $value.task.passed -isnot [bool]) { throw 'fixed-bootstrap-result-invalid' }
+            $value.bootstrapInvocation = $diagnostic
+            return $value
+        } catch {
+            $diagnostic.hResult = $_.Exception.HResult
+            $kind = $_.Exception.GetType().Name
+            $diagnostic.exceptionKind = if ($kind -cin @('RuntimeException', 'PSSecurityException', 'UnauthorizedAccessException', 'MethodInvocationException', 'ParseException', 'CommandNotFoundException', 'ItemNotFoundException', 'ParameterBindingException')) { $kind } else { 'other' }
+            $category = $_.CategoryInfo.Category.ToString()
+            $diagnostic.category = if ($category -cin @('SecurityError', 'PermissionDenied', 'InvalidOperation', 'InvalidArgument', 'ObjectNotFound', 'ParserError', 'OperationStopped', 'NotSpecified')) { $category } else { 'other' }
+            $line = $_.InvocationInfo.ScriptLineNumber
+            if ($line -ge 1 -and $line -le 2048) { $diagnostic.line = [int]$line }
+            return @{ schemaVersion = 1; passed = $false; task = @{ passed = $false }; bootstrapInvocation = $diagnostic; launchAllowed = $false }
+        }
+    }
+}
+
 # One initial window; provider success does not establish that firmware consumed
 # a key. Closing this window precedes every credential-bearing session attempt.
 function Invoke-CloudGuestBootWindow($NativeOwner) {
@@ -176,13 +233,8 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             $progress.phase = 'detach-installation-media'
             $progress.mediaDetached = Remove-CloudGuestInstallationMedia $Id $Name $VmRoot ([ref]$mediaMutationUnknown)
             $progress.phase = 'trusted-bootstrap-and-standard-task'; $progress.standardTaskSubmitted = $true
-            $result = Invoke-Command -Session $session -ArgumentList $TaskPassword, $Id -ScriptBlock {
-                param($Password, $VmId)
-                $env:AEGIS_CLOUD_GUEST_LAB = 'trusted-bootstrap-v1'
-                $env:AEGIS_CLOUD_GUEST_VM_ID = $VmId
-                $env:GITHUB_ACTIONS = 'true'; $env:RUNNER_ENVIRONMENT = 'github-hosted'; $env:RUNNER_OS = 'Windows'
-                & C:/ProgramData/AegisCloudLab/trusted/cloud-guest-bootstrap.ps1 -TaskPassword $Password
-            }
+            $bootstrapHash = (Get-FileHash -LiteralPath (Join-Path $TransferRoot 'cloud-guest-bootstrap.ps1') -Algorithm SHA256).Hash.ToLowerInvariant()
+            $result = Invoke-Command -Session $session -ArgumentList $TaskPassword, $Id, $bootstrapHash -ScriptBlock (Get-CloudGuestBootstrapInvocation)
             $progress.phase = 'completed'
             return @{ guestResult = $result; progress = $progress; failure = $null; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
         }
