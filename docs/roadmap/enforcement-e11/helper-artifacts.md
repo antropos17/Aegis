@@ -27,7 +27,11 @@ schema, ordinary JSON parsing and stat-then-stream file check are not reused.
 
 Manifest schema is aegis-helper-artifact/v1 with exactly schema/keyId/helper/version/
 protocol/platform/architecture/bytes/sha256. Helper/key IDs use a finite32character
-lowercase name profile; versions use finite valid x.y.z[-alpha[.n]]. Platform is
+lowercase name profile; versions use canonical x.y.z, x.y.z-alpha[.n] or
+x.y.z-beta[.n], bounded to 40 characters. Beta includes the current application
+version; the owner still selects the exact helper version. Prefixes, whitespace,
+build metadata and leading-zero numeric prereleases are refused. Downgrades follow
+SemVer ordering, including numeric beta identifiers. Platform is
 win32/linux/darwin, architecture x64/arm64. Manifest cap8KiB, artifact cap4MiB.
 
 The opaque, frozen acceptance is a developer offline snapshot. It binds owner

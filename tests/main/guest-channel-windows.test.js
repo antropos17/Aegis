@@ -25,7 +25,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     }, 60000);
     it('runs the pinned fixed matrix with actual compiler/source/tool provenance and fresh held identities', () => {
       expect(receipt.cases.map((item) => item.proof.mode)).toEqual(GUEST_CHANNEL_MODES);
-      expect(Object.keys(receipt.sourceSha256)).toHaveLength(11);
+      expect(Object.keys(receipt.sourceSha256)).toHaveLength(13);
       expect(receipt.nodeVersion).toBe(process.versions.node);
       expect(receipt.gitVersion).toMatch(/^git version /);
       for (const field of ['processStampSha256', 'jobSha256'])

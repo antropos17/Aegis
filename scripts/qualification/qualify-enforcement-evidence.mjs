@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { cleanup, auditChild, gatewayScenario } from './enforcement-evidence-fixtures.mjs';
 import { createEvidenceReceiver } from './enforcement-evidence-receiver.mjs';
+import {
+  measureEvidenceScenario,
+  summarizeEvidenceMeasurements,
+} from './enforcement-evidence-measurements.mjs';
 const require = createRequire(import.meta.url);
 const evidence = require('../../src/main/enforcement-evidence');
 async function receiverNegative(mode) {
@@ -15,6 +19,7 @@ async function receiverNegative(mode) {
   const grantId = randomUUID(),
     operationId = randomUUID();
   let receiver;
+  let completed = false;
   try {
     await fs.mkdir(path.join(root, 'grants'));
     const name =
@@ -28,37 +33,52 @@ async function receiverNegative(mode) {
         { flag: 'wx' },
       );
     receiver = await createEvidenceReceiver(root, grantId, () => operationId, 'normal');
-    await new Promise((resolve, reject) => {
-      const request = http.request(
-        receiver.endpoint.url,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + receiver.endpoint.bearerToken,
-            'content-type': 'application/json',
-          },
-        },
-        (response) => {
-          let bytes = 0;
-          response.on('data', (chunk) => {
-            bytes += chunk.length;
-            if (bytes > 4096) response.destroy();
-          });
-          response.once('end', resolve);
-          response.once('error', reject);
-        },
-      );
-      request.setTimeout(1000, () => request.destroy(Error('fixture-timeout')));
-      request.once('error', reject);
-      request.end(
-        JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: { name: 'record', arguments: { recipient: 'dummy' } },
+    const { measurement } = await measureEvidenceScenario(
+      () =>
+        new Promise((resolve, reject) => {
+          const request = http.request(
+            receiver.endpoint.url,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer ' + receiver.endpoint.bearerToken,
+                'content-type': 'application/json',
+              },
+            },
+            (response) => {
+              let bytes = 0;
+              const chunks = [];
+              response.on('data', (chunk) => {
+                bytes += chunk.length;
+                if (bytes > 4096) response.destroy();
+                else chunks.push(chunk);
+              });
+              response.once('end', () => {
+                try {
+                  const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+                  completed =
+                    response.statusCode === 200 &&
+                    value.result?.structuredContent?.accepted === true;
+                  resolve();
+                } catch {
+                  reject(Error('fixture-response-invalid'));
+                }
+              });
+              response.once('error', reject);
+            },
+          );
+          request.setTimeout(1000, () => request.destroy(Error('fixture-timeout')));
+          request.once('error', reject);
+          request.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/call',
+              params: { name: 'record', arguments: { recipient: 'dummy' } },
+            }),
+          );
         }),
-      );
-    });
+    );
     return {
       mode: 'receiver-' + mode,
       passed:
@@ -66,12 +86,35 @@ async function receiverNegative(mode) {
         receiver.observations[0]?.consumedRecord === mode &&
         receiver.observations[0]?.effect === 'expected',
       receiverCalls: receiver.count(),
+      completed,
+      observedEffects: receiver.observations.filter((row) => row.effect === 'expected').length,
+      measurement,
       effectDespiteMissingAuthority: receiver.observations[0]?.effect === 'expected',
     };
   } finally {
     await receiver?.close();
     await cleanup(root, parent);
   }
+}
+
+// Same fixed record operation and independent sentinel oracle in both arms.
+// Alternate order across three pairs; retain every measured call, excluding setup.
+async function measureWorkflows() {
+  const samples = [];
+  for (let pair = 0; pair < 3; pair++) {
+    for (const arm of pair % 2 ? ['gateway', 'direct'] : ['direct', 'gateway']) {
+      const row = await (arm === 'direct' ? receiverNegative('absent') : gatewayScenario('normal'));
+      samples.push({
+        pair,
+        arm,
+        passed: row.passed,
+        completed: row.completed,
+        observedEffects: row.observedEffects,
+        measurement: row.measurement,
+      });
+    }
+  }
+  return summarizeEvidenceMeasurements(samples);
 }
 /** Run fixed local policy/gateway/audit/effect scenarios; no native provider or guest runs.
  * @returns {Promise<object>} Bounded metadata-only report. @since v0.17.0 */
@@ -179,11 +222,15 @@ export async function qualifyEnforcementEvidence() {
       await cleanup(root, parent);
     }
   }
+  const measurements = await measureWorkflows();
   return {
     schemaVersion: 1,
-    passed: rows.every((row) => row.passed),
+    passed:
+      rows.every((row) => row.passed) &&
+      measurements.samples.every((row) => row.passed && row.completed && row.observedEffects === 1),
     scope: 'local-developer-evidence',
     rows,
+    measurements,
     launchAllowed: false,
     notRun: [
       'native-provider-hooks',

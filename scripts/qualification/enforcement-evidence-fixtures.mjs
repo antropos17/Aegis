@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createEvidenceReceiver, tool } from './enforcement-evidence-receiver.mjs';
+import { measureEvidenceScenario } from './enforcement-evidence-measurements.mjs';
 const require = createRequire(import.meta.url);
 const { evaluateActionPolicy } = require('../../src/main/action-policy');
 const { createMcpGateway } = require('../../src/main/mcp-gateway');
@@ -196,8 +197,8 @@ export async function gatewayScenario(mode) {
       await fs.writeFile(path.join(grants, sha(Buffer.from(grantId)) + '.used'), 'collision', {
         flag: 'wx',
       });
-    const result = await gateway.receive(
-      rpc(2, 'tools/call', { name: 'record', arguments: { recipient: 'dummy' } }),
+    const { result, measurement } = await measureEvidenceScenario(() =>
+      gateway.receive(rpc(2, 'tools/call', { name: 'record', arguments: { recipient: 'dummy' } })),
     );
     const replay = await gateway.receive(
       rpc(3, 'tools/call', { name: 'record', arguments: { recipient: 'dummy' } }),
@@ -240,6 +241,9 @@ export async function gatewayScenario(mode) {
       passed,
       policyDecision: evaluated.decision,
       receiverCalls: receiver.count(),
+      completed: !!result.result,
+      observedEffects: receiver.observations.filter((row) => row.effect === 'expected').length,
+      measurement,
       observer,
       records,
       value,

@@ -166,6 +166,8 @@ function main() {
       path.join(ROOT, 'sidecar', 'session', 'CallerIdentity.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerRegistration.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerAdmission.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'GuestJobNative.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'GuestJobInventory.cs'),
     ],
     { stdio: 'inherit' },
   );

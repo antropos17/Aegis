@@ -227,6 +227,15 @@ it('requires an explicit store for durable manifests and refuses a misleading st
   }
   expect(fixture.state.messages).toHaveLength(0);
 });
+it('refuses a missing grant owner at initialization before contacting the upstream', async () => {
+  fs.rmdirSync(grantStorePath);
+  const g = createMcpGateway({ endpointPath, manifestPath, grantStorePath, onFailure() {} });
+  gateways.push(g);
+  expect((await g.receive(init())).error).toBeDefined();
+  expect(fixture.state.messages).toHaveLength(0);
+  expect(fixture.state.calls).toHaveLength(0);
+  expect(await g.receive(call())).toBeNull();
+});
 it.each(['expired', 'future', 'missing-store'])('denies %s without tool effects', async (mode) => {
   if (mode === 'expired') {
     manifest.grants[0].notBefore = Date.now() - 2000;
@@ -236,8 +245,8 @@ it.each(['expired', 'future', 'missing-store'])('denies %s without tool effects'
     manifest.grants[0].notBefore = Date.now() + 30000;
   }
   save(manifestPath, manifest);
-  if (mode === 'missing-store') fs.rmdirSync(grantStorePath);
   const g = await ready();
+  if (mode === 'missing-store') fs.rmdirSync(grantStorePath);
   expect((await g.receive(call())).error).toBeDefined();
   expect(fixture.state.calls).toHaveLength(0);
 });

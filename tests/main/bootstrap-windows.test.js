@@ -29,7 +29,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     it('snapshots the fixed matrix and records native provenance with a fresh process/Job for each case', () => {
       expect(receipt.osBuild).toBe(Number(os.release().split('.')[2]));
       expect(receipt.cases.map((item) => item.proof.mode)).toEqual(BOOTSTRAP_MODES);
-      expect(Object.keys(receipt.sourceSha256)).toHaveLength(10);
+      expect(Object.keys(receipt.sourceSha256)).toHaveLength(12);
       for (const hash of [
         receipt.compilerSha256,
         receipt.executableSha256,

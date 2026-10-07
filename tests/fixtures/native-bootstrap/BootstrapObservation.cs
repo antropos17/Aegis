@@ -71,7 +71,16 @@ internal static class BootstrapObservation
         BootstrapWire.Require(pid != 0 && birth > 0);
         return BootstrapWire.Hash(BootstrapWire.Utf8.GetBytes(pid.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + birth.ToString("x16")));
     }
-    internal static Dictionary<string, object> Observe(Native.Session child, string image)
+    internal static Aegis.ProtectedSession.GuestJobInventory RetainInventory(Native.Session child, string image)
+    {
+        // This untrusted fixed byte only settles fixture CLR/console startup;
+        // it supplies no identity or admission evidence. Capture precedes binding input.
+        byte[] ready = BootstrapWire.ReadFrame(child.Output, child.Output.SafeFileHandle.DangerousGetHandle(), 1000);
+        BootstrapWire.Require(ready.Length == 1 && ready[0] == (byte)'B');
+        return new Aegis.ProtectedSession.GuestJobInventory(child.Job, child.Process,
+            new string[] { image, System.IO.Path.Combine(Environment.GetEnvironmentVariable("SystemRoot"), "System32", "conhost.exe") });
+    }
+    internal static Dictionary<string, object> Observe(Native.Session child, string image, Aegis.ProtectedSession.GuestJobInventory inventory)
     {
         BootstrapWire.Phase = "held-process";
         BootstrapWire.Require(Native.WaitForSingleObject(child.Process, 0) == 0x102);
@@ -87,9 +96,9 @@ internal static class BootstrapObservation
         BootstrapWire.Phase = "job-limit-flags";
         BootstrapWire.Require((limits.Flags & 0x2000) != 0 && (limits.Flags & 0x1800) == 0);
         BootstrapWire.Phase = "job-accounting";
-        // .NET Console may add conhost. This fixture pins one held child, not
-        // a complete runtime/member inventory; termination queries the whole Job.
-        BootstrapWire.Require(ActiveProcesses(child.Job) > 0);
+        // Retain every initial member (including a permitted conhost), and refuse
+        // changes before release. Historical post-release descendants remain unqualified.
+        inventory.ValidateInitial();
         BootstrapWire.Phase = "held-principal";
         string principal = PrincipalHash(child.Process);
         BootstrapWire.Require(principal == PrincipalHash(Self));

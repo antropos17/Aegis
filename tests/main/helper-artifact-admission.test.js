@@ -126,6 +126,86 @@ it('rejects correctly signed same-version binary replacement against a retained 
     authority(f, { baseline: { ...baseline, version: '2.0.0' } }).admit(input(f)),
   ).toThrow('helper-artifact-refused');
 });
+it.each([require('../../package.json').version, '0.19.2-beta.2'])(
+  'admits the exact signed beta helper %s and preserves one-attempt byte retention',
+  (version) => {
+    const f = fixture({ version });
+    const owner = authority(f, { expected: { ...expected, version } });
+    const ticket = owner.admit(input(f));
+    expect(ticket).toMatchObject({ version, launchAllowed: false });
+    expect(owner.consume(ticket, 1).artifact.equals(f.artifact)).toBe(true);
+    expect(() => owner.consume(ticket, 1)).toThrow('helper-artifact-stale');
+  },
+);
+it.each([
+  ['0.19.2-beta', '0.19.2-alpha'],
+  ['0.19.2-beta.10', '0.19.2-beta.2'],
+  ['0.19.2', '0.19.2-beta'],
+])('admits the owner-selected signed upgrade %s over %s', (version, prior) => {
+  const f = fixture({ version });
+  const owner = authority(f, {
+    expected: { ...expected, version },
+    baseline: { version: prior, bytes: f.artifact.length, sha256: sha(f.artifact) },
+  });
+  expect(owner.admit(input(f))).toMatchObject({ version, launchAllowed: false });
+});
+it.each([
+  ['0.19.2-alpha', '0.19.2-beta'],
+  ['0.19.2-beta', '0.19.2-beta.1'],
+  ['0.19.2-beta.2', '0.19.2-beta.10'],
+  ['0.19.2-beta', '0.19.2'],
+])('refuses a signed downgrade from %s relative to retained %s', (version, prior) => {
+  const f = fixture({ version });
+  const owner = authority(f, {
+    expected: { ...expected, version },
+    baseline: { version: prior, bytes: f.artifact.length, sha256: sha(f.artifact) },
+  });
+  expect(() => owner.admit(input(f))).toThrow('helper-artifact-refused');
+  expect(owner.status()).toMatchObject({ tickets: 0, bytesRetained: 0 });
+});
+it('preserves exact beta version and binary identity against signed substitution', () => {
+  const version = '0.19.2-beta';
+  const f = fixture({ version });
+  const baseline = { version, bytes: f.artifact.length, sha256: sha(f.artifact) };
+  expect(
+    authority(f, { expected: { ...expected, version }, baseline }).admit(input(f)).version,
+  ).toBe(version);
+  const changed = fixture({ version });
+  changed.artifact = Buffer.from('other signed beta bytes');
+  changed.manifest = Buffer.from(
+    JSON.stringify({
+      ...JSON.parse(changed.manifest),
+      bytes: changed.artifact.length,
+      sha256: sha(changed.artifact),
+    }),
+  );
+  changed.signature = sign(null, changed.manifest, changed.owner.privateKey);
+  expect(() =>
+    authority(changed, { expected: { ...expected, version }, baseline }).admit(input(changed)),
+  ).toThrow('helper-artifact-refused');
+  const differentVersion = fixture({ version: '0.19.2-beta.1' });
+  expect(() =>
+    authority(differentVersion, { expected: { ...expected, version } }).admit(
+      input(differentVersion),
+    ),
+  ).toThrow('helper-artifact-refused');
+});
+it.each([
+  'v0.19.2-beta',
+  '0.19.2-beta.01',
+  '0.19.2-beta+build',
+  '0.19.2-BETA',
+  '0.19.2-rc',
+  '0.19.2-beta\n',
+])('refuses a noncanonical or unsupported helper version %j', (version) => {
+  const f = fixture();
+  expect(() => authority(f, { expected: { ...expected, version } })).toThrow(
+    'helper-owner-invalid',
+  );
+  expect(() =>
+    authority(f, { baseline: { version, bytes: f.artifact.length, sha256: sha(f.artifact) } }),
+  ).toThrow('helper-owner-invalid');
+});
 it('strictly parses signed UTF-8 with duplicate decoded keys, unknown schema/extra fields and malformed JSON', () => {
   const f = fixture();
   for (const raw of [

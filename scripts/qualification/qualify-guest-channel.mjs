@@ -13,6 +13,7 @@ import { cleanGuestFixedTask, observeGuestFixedTask } from './guest-channel-orac
 
 const project = fileURLToPath(new URL('../../', import.meta.url));
 const sources = [
+  ...['GuestJobNative', 'GuestJobInventory'].map((name) => `sidecar/session/${name}.cs`),
   ...[
     'Native',
     'AppContainerProfile',

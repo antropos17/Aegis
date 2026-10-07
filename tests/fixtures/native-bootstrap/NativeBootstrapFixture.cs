@@ -40,6 +40,7 @@ internal static class NativeBootstrapFixture
     {
         BootstrapWire.Phase = "worker-input";
         var input = Console.OpenStandardInput();
+        BootstrapWire.WriteFrame(Console.OpenStandardOutput(), new byte[] { (byte)'B' });
         var binding = BootstrapWire.ReadBinding(input, Native.StandardInput());
         byte[] key = Convert.FromBase64String(BootstrapWire.Text(binding, "key"));
         try
@@ -77,6 +78,7 @@ internal static class NativeBootstrapFixture
         var binding = BootstrapWire.ReadBinding(Console.OpenStandardInput(), Native.StandardInput());
         byte[] key = Convert.FromBase64String(BootstrapWire.Text(binding, "key"));
         Native.Session child = null;
+        Aegis.ProtectedSession.GuestJobInventory inventory = null;
         BootstrapWire.Verifier verifier = null;
         bool accepted = false, released = false, worked = false, empty = false, exited = false;
         string refusal = null;
@@ -89,7 +91,8 @@ internal static class NativeBootstrapFixture
             string environment = "SystemRoot=" + Environment.GetEnvironmentVariable("SystemRoot") + "\0\0";
             BootstrapWire.Phase = "create-owned-child";
             child = Native.Start(Image(), Path.GetDirectoryName(Image()), new string[] { "--worker", mode }, environment);
-            pins = BootstrapObservation.Observe(child, Image());
+            inventory = BootstrapObservation.RetainInventory(child, Image());
+            pins = BootstrapObservation.Observe(child, Image(), inventory);
             uint initialActiveProcesses = BootstrapObservation.ActiveProcesses(child.Job);
             var workerPins = new Dictionary<string, object>();
             foreach (string name in BootstrapWire.Pins) workerPins.Add(name, pins[name]);
@@ -102,7 +105,7 @@ internal static class NativeBootstrapFixture
                 byte[] payload = BootstrapWire.ReadFrame(child.Output, child.Output.SafeFileHandle.DangerousGetHandle(), 2000);
                 verifier.Accept(payload);
                 if (mode == "replay") verifier.Accept(payload);
-                var initialized = BootstrapObservation.Observe(child, Image());
+                var initialized = BootstrapObservation.Observe(child, Image(), inventory);
                 foreach (var item in pins) BootstrapWire.Require((string)item.Value == (string)initialized[item.Key]);
                 BootstrapWire.Require(mode != "observer-loss", "observer-unavailable");
                 frame = Framed(payload);
@@ -127,6 +130,7 @@ internal static class NativeBootstrapFixture
             }
             if (accepted && mode == "admit")
             {
+                inventory.ValidateInitial();
                 BootstrapWire.WriteFrame(child.Input, new byte[] { (byte)'R' });
                 released = true;
                 byte[] done = BootstrapWire.ReadFrame(child.Output, child.Output.SafeFileHandle.DangerousGetHandle(), 1000);
@@ -135,10 +139,13 @@ internal static class NativeBootstrapFixture
             }
             if (mode == "close-job")
             {
+                // The observer owns a duplicate Job handle; release it before
+                // testing last-handle kill-on-close. No empty-Job claim survives.
+                inventory.Dispose(); inventory = null;
                 BootstrapWire.Require(BootstrapObservation.CloseHandle(child.Job));
                 child.Job = IntPtr.Zero;
             }
-            else empty = child.TerminateAndVerify();
+            else empty = child.TerminateAndVerify() && inventory.ConfirmClosure(2000);
             exited = Native.WaitForSingleObject(child.Process, 2000) == 0;
             BootstrapWire.Require(exited && (mode == "close-job" || empty));
             var report = new Dictionary<string, object> {
@@ -165,7 +172,7 @@ internal static class NativeBootstrapFixture
                 if (child != null)
                 {
                     try { if (!exited) child.TerminateAndVerify(); }
-                    finally { child.Dispose(); }
+                    finally { if (inventory != null) inventory.Dispose(); child.Dispose(); }
                 }
             }
             finally

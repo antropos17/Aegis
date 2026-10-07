@@ -1,7 +1,7 @@
 'use strict';
 const { createHash, timingSafeEqual } = require('node:crypto');
 const { readActionFile, parseActionJson, equalActionValue: equal } = require('./action-policy');
-const { consumeGatewayGrant, readGatewayCredentialKey } = require('./mcp-gateway-grants');
+const { captureGatewayGrantStore } = require('./mcp-gateway-grants');
 const { captureSecretPolicy } = require('./mcp-gateway-secrets');
 const { captureGatewayRoute } = require('./mcp-gateway-route');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
@@ -36,6 +36,7 @@ function createMcpGateway({
     route,
     peer,
     secretGuard,
+    grantStore,
     manifest,
     digest,
     activeId;
@@ -87,7 +88,7 @@ function createMcpGateway({
   };
   const verifyCredential = async () => {
     if (manifest.schemaVersion !== 4) return;
-    const key = await step(readGatewayCredentialKey(grantStorePath, controller.signal));
+    const key = await step(grantStore.readCredentialKey(controller.signal));
     try {
       const actual = Buffer.from(route.credentialTag(key), 'hex');
       const expected = Buffer.from(manifest.credentialTag, 'hex');
@@ -99,7 +100,7 @@ function createMcpGateway({
   const verifyStdioRoute = async (launch) => {
     if (manifest.schemaVersion !== 5) return;
     if (typeof route.stdioRouteTag !== 'function') throw Error('gateway-stdio-route-unavailable');
-    const key = await step(readGatewayCredentialKey(grantStorePath, controller.signal));
+    const key = await step(grantStore.readCredentialKey(controller.signal));
     try {
       const actual = Buffer.from(route.stdioRouteTag(key, launch), 'hex');
       const expected = Buffer.from(manifest.stdioRouteTag, 'hex');
@@ -173,6 +174,8 @@ function createMcpGateway({
           (typeof grantStorePath === 'string' && !!grantStorePath)
         )
           throw Error('grant-store-required');
+        if (manifest.schemaVersion >= 2)
+          grantStore = await step(captureGatewayGrantStore(grantStorePath));
         route = await step(
           captureGatewayRoute({ policyPath, requestPath, endpointPath }, controller.signal),
         );
@@ -259,11 +262,12 @@ function createMcpGateway({
       const permission = manifest.grants[grant];
       await verifyCredential();
       if (manifest.schemaVersion === 5) await verifyStdioRoute(await recheck());
-      if (manifest.schemaVersion >= 2) await step(consumeGatewayGrant(grantStorePath, permission));
+      if (grantStore) await step(grantStore.consume(permission));
       if (manifest.schemaVersion >= 2) evidence.emit('consumed', operationId);
       await recheck();
       await checkCatalog();
       await recheck();
+      if (grantStore) await step(grantStore.recheck());
       if (closed) throw Error('closed');
       if (
         manifest.schemaVersion >= 2 &&

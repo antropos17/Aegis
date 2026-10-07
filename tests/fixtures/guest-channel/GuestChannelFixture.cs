@@ -68,6 +68,7 @@ internal static class GuestChannelFixture
     private static int Worker(string mode)
     {
         var input = Console.OpenStandardInput(); var output = Console.OpenStandardOutput();
+        BootstrapWire.WriteFrame(output, new byte[] { (byte)'B' });
         var binding = BootstrapWire.ReadBinding(input, Native.StandardInput());
         byte[] key = Convert.FromBase64String(BootstrapWire.Text(binding, "key"));
         try
@@ -132,6 +133,7 @@ internal static class GuestChannelFixture
         byte[] requested = BootstrapWire.ReadFrame(input, Native.StandardInput(), 1000);
         byte[] key = Convert.FromBase64String(BootstrapWire.Text(binding, "key"));
         Native.Session child = null; bool exited = false;
+        Aegis.ProtectedSession.GuestJobInventory inventory = null;
         try
         {
           Tools(tools);
@@ -144,7 +146,8 @@ internal static class GuestChannelFixture
             Tools(tools);
             BootstrapWire.Phase = "guest-child-create";
             child = Native.Start(Image(), Path.GetDirectoryName(Image()), new string[] { "--worker", mode }, "SystemRoot=" + Environment.GetEnvironmentVariable("SystemRoot") + "\0\0");
-            var pins = BootstrapObservation.Observe(child, Image());
+            inventory = BootstrapObservation.RetainInventory(child, Image());
+            var pins = BootstrapObservation.Observe(child, Image(), inventory);
             uint initialCount = BootstrapObservation.ActiveProcesses(child.Job);
             var workerPins = new Dictionary<string, object>();
             foreach (string name in BootstrapWire.Pins) workerPins.Add(name, pins[name]);
@@ -153,7 +156,7 @@ internal static class GuestChannelFixture
             BootstrapWire.WriteFrame(child.Input, BootstrapWire.Utf8.GetBytes(BootstrapWire.Json().Serialize(workerPins)));
             byte[] initialized = BootstrapWire.ReadFrame(child.Output, child.Output.SafeFileHandle.DangerousGetHandle(), 2000);
             initializedVerifier.Accept(initialized, BootstrapWire.Evidence(binding, workerPins));
-            var observed = BootstrapObservation.Observe(child, Image());
+            var observed = BootstrapObservation.Observe(child, Image(), inventory);
             foreach (var item in pins) BootstrapWire.Require((string)item.Value == (string)observed[item.Key]);
             byte[] command = channel.Send(mode == "cancel" ? "cancel" : "release", new byte[] { mode == "cancel" ? (byte)'C' : (byte)'R' });
             BootstrapWire.Require(Convert.ToBase64String(command) == Convert.ToBase64String(requested));
@@ -164,6 +167,7 @@ internal static class GuestChannelFixture
                 command = Changed(command, key, epoch, (epoch[0] == '0' ? "1" : "0") + epoch.Substring(1));
             }
             if (mode == "wrong-direction-command") command = Changed(command, key, "host-to-guest", "guest-to-host");
+            inventory.ValidateInitial();
             BootstrapWire.WriteFrame(child.Input, command);
             byte[] resultFrame = null, stoppedFrame = null; string refusal = null, operation;
             try
@@ -200,7 +204,7 @@ internal static class GuestChannelFixture
                 else BootstrapWire.Require(error.Message == expected);
                 refusal = expected;
             }
-            bool empty = child.TerminateAndVerify(); exited = Native.WaitForSingleObject(child.Process, 2000) == 0;
+            bool empty = child.TerminateAndVerify() && inventory.ConfirmClosure(2000); exited = Native.WaitForSingleObject(child.Process, 2000) == 0;
             BootstrapWire.Require(empty && exited);
             var report = new Dictionary<string, object> {
                 { "version", 1 }, { "scope", "guest-channel-process-fixture" }, { "mode", mode },
@@ -221,7 +225,7 @@ internal static class GuestChannelFixture
         }
         finally
         {
-            try { if (child != null) { try { if (!exited) child.TerminateAndVerify(); } finally { child.Dispose(); } } }
+            try { if (child != null) { try { if (!exited) child.TerminateAndVerify(); } finally { if (inventory != null) inventory.Dispose(); child.Dispose(); } } }
             finally { Array.Clear(key, 0, key.Length); }
         }
     }

@@ -10,6 +10,7 @@ import { createVmVerifier } from './vm-wire.mjs';
 
 const project = fileURLToPath(new URL('../../', import.meta.url));
 const sources = [
+  ...['GuestJobNative', 'GuestJobInventory'].map((name) => `sidecar/session/${name}.cs`),
   ...[
     'Native',
     'AppContainerProfile',
