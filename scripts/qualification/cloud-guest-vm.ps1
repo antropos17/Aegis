@@ -6,7 +6,7 @@ function Invoke-CloudGuestBootWindow($NativeOwner) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $value = @{ attempts = 0; completed = 0; optional = $true; failure = $null; mandatoryFailure = $false;
         outcomes = [Collections.Generic.List[object]]::new(); snapshots = [Collections.Generic.List[object]]::new();
-        dispatchWindowMilliseconds = 60000; providerOperationTimeoutSeconds = 5; elapsedMilliseconds = 0; closedBeforeCredentialSession = $false }
+        dispatchWindowMilliseconds = 60000; providerOperationTimeoutSeconds = 5; elapsedMilliseconds = 0; closedBeforeCredentialSession = $false; stoppedOnOwnedNonrunning = $false }
     try {
         while ($watch.ElapsedMilliseconds -lt 60000 -and $value.attempts -lt 60) {
             $value.attempts++
@@ -14,7 +14,11 @@ function Invoke-CloudGuestBootWindow($NativeOwner) {
             catch {
                 $value.failure = Get-CloudGuestFailureDetails $_.Exception
                 $value.outcomes.Add(@{ attempt = $value.attempts; elapsedMilliseconds = $watch.ElapsedMilliseconds; failure = $value.failure })
-                $value.mandatoryFailure = $NativeOwner.PendingUnknown -or $NativeOwner.KeyboardObservation.phase -eq 'vm-observe'
+                $observation = $NativeOwner.KeyboardObservation
+                $ownedNonrunning = $observation.phase -ceq 'vm-owned-nonrunning' -and $observation.vmIdentityMatched -eq $true -and
+                    $observation.enabledState -is [uint16] -and $observation.enabledState -ne 2 -and $value.failure.code -ceq 'keyboard-owned-vm-not-running'
+                $value.stoppedOnOwnedNonrunning = $ownedNonrunning -and !$NativeOwner.PendingUnknown
+                $value.mandatoryFailure = $NativeOwner.PendingUnknown -or $observation.phase -ceq 'vm-observe' -or ($observation.phase -ceq 'vm-owned-nonrunning' -and !$ownedNonrunning)
                 break
             }
             $value.outcomes.Add(@{ attempt = $value.attempts; elapsedMilliseconds = $watch.ElapsedMilliseconds; returnCode = $NativeOwner.KeyboardObservation.returnCode; providerCompleted = $NativeOwner.KeyboardObservation.completed })
@@ -23,6 +27,11 @@ function Invoke-CloudGuestBootWindow($NativeOwner) {
                 try {
                     $snapshot = $NativeOwner.BootSnapshot(); $value.snapshots.Add($snapshot)
                     if ($snapshot.failureCode -eq 'boot-owned-vm-mismatch') { $value.failure = @{ code = 'boot-owned-vm-mismatch' }; $value.mandatoryFailure = $true; break }
+                    if ($snapshot.failureCode -eq 'boot-owned-vm-not-running') {
+                        $value.stoppedOnOwnedNonrunning = $snapshot.vmIdentityMatched -eq $true -and $snapshot.enabledState -is [uint16] -and $snapshot.enabledState -ne 2 -and !$NativeOwner.PendingUnknown
+                        $value.mandatoryFailure = !$value.stoppedOnOwnedNonrunning
+                        $value.failure = @{ code = 'boot-owned-vm-not-running' }; break
+                    }
                 }
                 catch { $value.snapshots.Add(@{ failureCode = (Get-CloudGuestFailureDetails $_.Exception).code; imageBase64 = $null }) }
             }

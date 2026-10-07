@@ -121,6 +121,22 @@ the four distinct protected-file controls and both complete seven-case host-path
 probe groups. These parser checks do not make guest-written observations trusted
 host evidence.
 
+The [run at 55cf6b59](https://github.com/antropos17/Aegis/actions/runs/37679061829)
+passed host preparation and native start, then stopped at the seventeenth key
+attempt after the combined VM-name/Running guard failed. The receipt does not
+retain the failing VM name or numeric state, so it cannot establish the cause or
+prove a transient reboot. Both earlier thumbnail calls returned zero but failed
+the exact pixel-size check; no image was retained. Guest setup was not attempted.
+Native stop, independent Off, exact removal and unchanged host canaries after
+removal were confirmed. All five required CI contexts passed this revision.
+
+The next repair separates the exact local VM identity from its typed numeric
+state. An observed non-Running state on that same VM stops further optional key
+dispatch when no native operation is pending; independent PowerShell Direct
+readiness is still required. Missing, foreign or malformed VM observations during
+keyboard admission remain fatal. Thumbnail failures retain only fixed data-type categories, array shape and
+requested dimensions; the exact RGB565 byte-count requirement is unchanged.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

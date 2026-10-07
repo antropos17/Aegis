@@ -11,6 +11,25 @@ internal static class CloudGuestBootDiagnostics
     { return !closed && elapsed >= 0 && elapsed < limit && count < cap; }
     internal static bool SettingsIdentity(string id, string type, string observed)
     { return type == "Microsoft:Hyper-V:System:Realized" && String.Equals(id, observed, StringComparison.OrdinalIgnoreCase); }
+    internal static ushort ObserveVm(Dictionary<string, object> evidence, string id, string creationClass, string name, object rawState)
+    {
+        Guid observed;
+        evidence["observedVmId"] = Guid.TryParseExact(name, "D", out observed) ? observed.ToString("D") : null;
+        bool matched = creationClass == "Msvm_ComputerSystem" && String.Equals(id, name, StringComparison.OrdinalIgnoreCase);
+        evidence["vmIdentityMatched"] = matched;
+        ushort state = VmManagementNative.UInt16Value(rawState); evidence["enabledState"] = state;
+        if (!matched) throw new InvalidOperationException("boot-owned-vm-mismatch");
+        return state;
+    }
+    internal static void ImageMetadata(Dictionary<string, object> evidence, object raw)
+    {
+        // Fixed categories only. Never stringify unexpected provider objects.
+        var bytes = raw as byte[]; var array = raw as Array;
+        evidence["imageDataType"] = raw == null ? "null" : bytes != null ? "byte-array" : array != null ? "other-array" : "other";
+        evidence["imageDataLength"] = array == null ? null : (object)array.LongLength;
+        evidence["imageArrayRank"] = array == null ? null : (object)array.Rank;
+        evidence["expectedImageBytes"] = Width * Height * 2;
+    }
     internal static string Pixels(object code, object raw)
     {
         if (VmManagementNative.UInt32Value(code) != 0) throw new InvalidOperationException("boot-thumbnail-return-unconfirmed");
@@ -23,7 +42,8 @@ internal static class CloudGuestBootDiagnostics
         var evidence = new Dictionary<string, object> {
             { "vmId", id }, { "phase", "vm-observe" }, { "enabledState", null }, { "heartbeatStatus", null },
             { "width", Width }, { "height", Height }, { "format", "RGB565" }, { "imageBase64", null },
-            { "returnCode", null }, { "failureCode", null }, { "hResult", null }, { "captureBeforeCredentialSession", true }
+            { "returnCode", null }, { "failureCode", null }, { "hResult", null }, { "captureBeforeCredentialSession", true },
+            { "vmIdentityMatched", false }, { "observedVmId", null }, { "imageDataType", null }, { "imageDataLength", null }, { "imageArrayRank", null }, { "expectedImageBytes", Width * Height * 2 }
         };
         try
         {
@@ -32,8 +52,8 @@ internal static class CloudGuestBootDiagnostics
             using (var vm = new ManagementObject(scope, new ManagementPath("Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\",Name=\"" + id + "\""), new ObjectGetOptions { Timeout = TimeSpan.FromSeconds(3) }))
             {
                 vm.Get(); VmManagementNative.ValidatePath(vm.Path.Path, "Msvm_ComputerSystem");
-                ushort state = VmManagementNative.UInt16Value(vm["EnabledState"]); evidence["enabledState"] = state;
-                if (!String.Equals(vm["Name"] as string, id, StringComparison.OrdinalIgnoreCase) || state != 2) throw new InvalidOperationException("boot-owned-vm-mismatch");
+                ushort state = ObserveVm(evidence, id, vm["CreationClassName"] as string, vm["Name"] as string, vm["EnabledState"]);
+                if (state != 2) throw new InvalidOperationException("boot-owned-vm-not-running");
                 evidence["phase"] = "realized-settings";
                 string settingsPath = null; int matched = 0, total = 0;
                 using (var settings = vm.GetRelated("Msvm_VirtualSystemSettingData", "Msvm_SettingsDefineState", null, null, "SettingData", "ManagedElement", false,
@@ -87,6 +107,7 @@ internal static class CloudGuestBootDiagnostics
                             {
                                 if (result == null) throw new InvalidOperationException("boot-thumbnail-result-missing");
                                 evidence["returnCode"] = VmManagementNative.UInt32Value(result["ReturnValue"]);
+                                ImageMetadata(evidence, result["ImageData"]);
                                 if (!windowOpen()) throw new InvalidOperationException("boot-diagnostic-window-closed");
                                 evidence["imageBase64"] = Pixels(result["ReturnValue"], result["ImageData"]);
                                 evidence["phase"] = "completed";
@@ -100,7 +121,7 @@ internal static class CloudGuestBootDiagnostics
         {
             evidence["hResult"] = error.HResult;
             // Fixed diagnostics only; never provider messages or screen text.
-            string[] codes = { "boot-diagnostic-window-closed", "boot-owned-vm-mismatch", "boot-settings-identity-invalid", "boot-heartbeat-identity-invalid", "boot-thumbnail-service-unavailable", "boot-thumbnail-result-missing", "boot-thumbnail-return-unconfirmed", "boot-thumbnail-size-invalid" };
+            string[] codes = { "boot-diagnostic-window-closed", "boot-owned-vm-mismatch", "boot-owned-vm-not-running", "boot-settings-identity-invalid", "boot-heartbeat-identity-invalid", "boot-thumbnail-service-unavailable", "boot-thumbnail-result-missing", "boot-thumbnail-return-unconfirmed", "boot-thumbnail-size-invalid" };
             evidence["failureCode"] = Array.IndexOf(codes, error.Message) >= 0 ? error.Message : "boot-diagnostic-read-failed";
         }
         return evidence;

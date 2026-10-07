@@ -87,7 +87,8 @@ public sealed class CloudGuestVm : IDisposable
         KeyboardObservation = new Dictionary<string, object> {
             { "call", ++keyboardCalls }, { "phase", "vm-observe" }, { "count", null }, { "class", "Msvm_Keyboard" },
             { "systemNameMatch", false }, { "vmRunningObserved", false }, { "keyCode", 32U },
-            { "returnCode", null }, { "completed", false }, { "hResult", null }, { "managementStatus", null }
+            { "returnCode", null }, { "completed", false }, { "hResult", null }, { "managementStatus", null },
+            { "vmIdentityMatched", false }, { "observedVmId", null }, { "enabledState", null }
         };
         // Fixed key through the exact VM's associated virtual keyboard; no host UI.
         var scope = new ManagementScope(@"\\.\root\virtualization\v2", new ConnectionOptions { Timeout = KeyTimeout() });
@@ -97,7 +98,8 @@ public sealed class CloudGuestVm : IDisposable
         using (var vm = new ManagementObject(scope, new ManagementPath("Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\",Name=\"" + VmId + "\""), new ObjectGetOptions { Timeout = KeyTimeout() }))
         {
             vm.Get(); VmManagementNative.ValidatePath(vm.Path.Path, "Msvm_ComputerSystem");
-            if (!String.Equals(vm["Name"] as string, VmId, StringComparison.OrdinalIgnoreCase) || VmManagementNative.UInt16Value(vm["EnabledState"]) != 2) throw new InvalidOperationException("keyboard-owned-vm-not-running");
+            ushort state = CloudGuestBootDiagnostics.ObserveVm(KeyboardObservation, VmId, vm["CreationClassName"] as string, vm["Name"] as string, vm["EnabledState"]);
+            if (state != 2) { KeyboardObservation["phase"] = "vm-owned-nonrunning"; throw new InvalidOperationException("keyboard-owned-vm-not-running"); }
             KeyboardObservation["vmRunningObserved"] = true;
         }
         KeyboardObservation["phase"] = "query";
