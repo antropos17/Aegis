@@ -105,9 +105,17 @@ export async function checkLocalSecurity(browser, url, out) {
       await results.evaluate((element) =>
         Boolean(
           element.compareDocumentPosition(document.querySelector('.review-setup')) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
+          Node.DOCUMENT_POSITION_PRECEDING,
         ),
       ),
+    );
+    assert(
+      await results.evaluate((element) => {
+        const result = element.getBoundingClientRect();
+        const workspace = element.closest('.local-security-workspace').getBoundingClientRect();
+        return Math.abs(result.width - workspace.width) <= 2;
+      }),
+      'captured review results do not use the workspace width',
     );
     await page.getByRole('button', { name: 'Change review setup', exact: true }).click();
     assert(

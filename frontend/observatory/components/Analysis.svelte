@@ -42,13 +42,14 @@
   let error = $state('');
   let alive = true;
   let generation = 0;
-  let section = $state('summary');
   let showProvider = $state(false);
   let providerSection = $state('connection');
   let reportTitle = $state('Activity assessment');
   let names = $derived([...new Set(telemetry.agents.map((a) => a.agent))]);
   const contextId = $props.id();
+  let reportHeading = $state<HTMLHeadingElement>();
   let evidenceHeading = $state<HTMLHeadingElement>();
+  let historyHeading = $state<HTMLHeadingElement>();
   $effect(() => {
     if (!visible) return;
     const ticket = keyRevision;
@@ -156,17 +157,17 @@
       createdAt: new Date().toISOString(),
     };
     history = [report, ...history].slice(0, 20);
-    section = 'summary';
   }
   function strings(value: unknown) {
     return Array.isArray(value) ? value.map(String) : [];
   }
-  async function viewRecordedEvidence() {
-    section = 'evidence';
+  async function focusHeading(heading: HTMLHeadingElement | undefined) {
     await tick();
-    if (!visible || !evidenceHeading?.isConnected || evidenceHeading.closest('[hidden], [inert]'))
-      return;
-    evidenceHeading.focus();
+    if (!visible || !heading?.isConnected || heading.closest('[hidden], [inert]')) return;
+    heading.focus();
+  }
+  async function viewRecordedEvidence() {
+    await focusHeading(evidenceHeading);
   }
 </script>
 
@@ -278,6 +279,17 @@
     </EditorDialog>
   {/if}
   {#if error}<p role="alert">{error}</p>{/if}
+  <nav class="analysis-jumps" aria-label={$t('Report sections')}>
+    <button class="button" onclick={() => focusHeading(reportHeading)}
+      ><Icon name="report" />{$t('Report')}</button
+    >
+    <button class="button" onclick={viewRecordedEvidence}
+      ><Icon name="file" />{$t('Evidence')}</button
+    >
+    <button class="button" onclick={() => focusHeading(historyHeading)}
+      ><Icon name="history" />{$t('History')}</button
+    >
+  </nav>
   <div class="analysis-layout">
     <section class="panel analysis-config">
       <div class="panel-head"><h2><Icon name="settings" />{$t('New assessment')}</h2></div>
@@ -324,15 +336,17 @@
         >
       </div>
     </section>
-    <section class="panel analysis-output">
-      <div class="subnav analysis-tabs" aria-label={$t('Report sections')}>
-        {#each [['summary', 'Report', 'report'], ['evidence', 'Evidence', 'file'], ['history', 'History', 'history']] as [id, title, icon] (id)}<button
-            aria-pressed={section === id}
-            onclick={() => (section = id)}><Icon name={icon} />{$t(title)}</button
-          >{/each}
-      </div>
-      <div class="analysis-body">
-        <div hidden={section !== 'summary'} class="report-section">
+    <div class="analysis-output">
+      <section
+        class="panel analysis-report report-section"
+        aria-labelledby={contextId + '-report-heading'}
+      >
+        <div class="panel-head">
+          <h2 id={contextId + '-report-heading'} bind:this={reportHeading} tabindex="-1">
+            <Icon name="report" />{$t('Report')}
+          </h2>
+        </div>
+        <div class="analysis-body">
           {#if !report}<div class="analysis-empty">
               <Icon name="report" />
               <h2>{$t('Review agent activity')}</h2>
@@ -382,12 +396,19 @@
               >
             </article>{/if}
         </div>
-        <div
-          hidden={section !== 'evidence'}
-          class="report-section inset"
-          id={contextId + '-evidence'}
-        >
-          {#if report}<h2 bind:this={evidenceHeading} tabindex="-1">{$t('Recorded scope')}</h2>
+      </section>
+      <section
+        class="panel analysis-evidence report-section"
+        id={contextId + '-evidence'}
+        aria-labelledby={contextId + '-evidence-heading'}
+      >
+        <div class="panel-head">
+          <h2 id={contextId + '-evidence-heading'} bind:this={evidenceHeading} tabindex="-1">
+            <Icon name="file" />{$t('Recorded scope')}
+          </h2>
+        </div>
+        <div class="analysis-body">
+          {#if report}
             <p class="muted">
               {String(report.countsSource)} · {String(report.scope)}{$t(
                 '. Agents counts distinct products.',
@@ -399,12 +420,22 @@
               <p>{$t('Evidence information appears after an analysis completes.')}</p>
             </div>{/if}
         </div>
-        <div hidden={section !== 'history'} class="report-section inset">
+      </section>
+      <section
+        class="panel analysis-history report-section"
+        aria-labelledby={contextId + '-history-heading'}
+      >
+        <div class="panel-head">
+          <h2 id={contextId + '-history-heading'} bind:this={historyHeading} tabindex="-1">
+            <Icon name="history" />{$t('History')}
+          </h2>
+        </div>
+        <div class="analysis-history-body">
           {#each history as previous (previous)}<button
               class="analysis-history-row"
               onclick={() => {
                 report = previous;
-                section = 'summary';
+                void focusHeading(reportHeading);
               }}
               ><Icon name="report" /><span
                 ><strong>{String(previous.title)}</strong><small
@@ -417,15 +448,88 @@
               <p>{$t('Your completed assessments will appear here.')}</p>
             </div>{/each}
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 </div>
 
 <style>
+  .analysis-workspace {
+    display: grid;
+    gap: var(--space-4);
+    flex: none;
+    min-width: 0;
+    min-height: auto;
+  }
+  .analysis-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 280px);
+    gap: var(--space-4);
+    align-items: start;
+    flex: none;
+    min-height: auto;
+  }
+  .analysis-config {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    min-height: auto;
+    overflow: visible;
+  }
+  .analysis-output {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    gap: var(--space-4);
+    min-height: auto;
+    overflow: visible;
+  }
+  .analysis-config-body,
+  .analysis-body {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--panel-inset);
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
+  }
+  .analysis-field {
+    margin: 0;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .analysis-jumps {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .analysis-jumps button {
+    width: auto;
+    flex: none;
+    min-height: var(--control-height);
+    white-space: normal;
+  }
+  .panel-head {
+    flex-wrap: wrap;
+  }
+  .panel-head h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-section);
+    font-weight: 700;
+    scroll-margin-block: var(--space-4);
+  }
+  .panel-head :global(.icon) {
+    flex-shrink: 0;
+  }
   .assessment-actions {
     flex: 0 0 auto;
-    padding: 14px 18px;
+    padding: var(--panel-inset);
     border-top: 1px solid var(--border);
   }
   .assessment-actions :global(.action-control) {
@@ -436,51 +540,91 @@
     justify-content: center;
   }
   .analysis-provider {
-    padding: 12px 16px;
+    padding: var(--panel-inset);
+    margin: 0;
+    flex-wrap: wrap;
   }
   .analysis-provider-name {
-    gap: 12px;
+    gap: var(--space-3);
   }
   .analysis-config .panel-head h2 {
     font-size: calc(14px * var(--ui-scale));
   }
-  .analysis-workspace {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
   .scope-details {
     border-top: 1px solid var(--border);
-    padding-top: 12px;
+    padding-top: var(--space-3);
+  }
+  .scope-details p {
+    margin: 0;
   }
   .scope-details small,
   .provider-note {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--text-caption);
   }
   .provider-note {
     display: flex;
-    gap: 8px;
-    margin-top: 16px;
+    gap: var(--space-2);
+    margin: 0;
+    line-height: 1.6;
+  }
+  .provider-note p {
+    margin: 0;
+  }
+  .provider-note :global(.icon) {
+    flex-shrink: 0;
   }
   .analysis-history-row {
     display: flex;
     width: 100%;
-    padding: 14px 18px;
-    gap: 14px;
+    padding: var(--panel-inset);
+    gap: var(--space-3);
     text-align: left;
     border-bottom: 1px solid var(--border);
   }
   .analysis-history-row > span {
     flex: 1;
+    min-width: 0;
   }
   .analysis-history-row strong,
   .analysis-history-row small {
     display: block;
+    overflow-wrap: anywhere;
+  }
+  .analysis-document,
+  .analysis-empty {
+    padding: 0;
+    min-width: 0;
+  }
+  .analysis-empty {
+    gap: var(--space-3);
+  }
+  .analysis-empty > :global(.icon) {
+    margin-bottom: 0;
+  }
+  .analysis-empty h2,
+  .analysis-empty p,
+  .analysis-empty ol {
+    margin: 0;
+  }
+  .analysis-document > p {
+    margin: var(--space-3) 0;
   }
   .analysis-document li {
-    margin: 8px 0;
+    margin: var(--space-2) 0;
     color: var(--muted);
+  }
+  .analysis-history-body > .analysis-empty {
+    padding: var(--panel-inset);
+  }
+  @media (max-width: 799px) {
+    .analysis-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .analysis-config,
+    .analysis-output {
+      grid-column: 1;
+      grid-row: auto;
+    }
   }
 </style>

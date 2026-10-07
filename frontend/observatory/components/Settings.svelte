@@ -281,13 +281,6 @@
   ] as const;
 </script>
 
-<SettingsExperience
-  {advanced}
-  onAdvancedChange={(value) => {
-    advanced = value;
-    onAdvancedChange?.(value);
-  }}
-/>
 {#if error}<div class="notice">
     <p role="alert">{error}</p>
     <Action
@@ -473,6 +466,15 @@
         label={$t('Settings sections')}
         controls
       />
+      <div class="settings-interface">
+        <SettingsExperience
+          {advanced}
+          onAdvancedChange={(value) => {
+            advanced = value;
+            onAdvancedChange?.(value);
+          }}
+        />
+      </div>
     </aside>
   </div>
   <SettingsSaveBar
@@ -498,9 +500,19 @@
     gap: var(--space-4);
   }
   .settings-navigation {
-    position: sticky;
-    top: var(--workspace-sticky-offset, 70px);
+    display: grid;
+    gap: var(--space-4);
     min-width: 0;
+  }
+  .settings-interface {
+    min-width: 0;
+  }
+  .settings-interface :global(.interface-preference) {
+    margin-bottom: 0;
+  }
+  .settings-interface :global(.setting) {
+    align-items: start;
+    gap: var(--space-2);
   }
   .settings-layout {
     border: 0;
@@ -561,7 +573,6 @@
       grid-template-columns: minmax(0, 1fr);
     }
     .settings-navigation {
-      position: static;
       grid-row: 1;
     }
     .settings-intro {

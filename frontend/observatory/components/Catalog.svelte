@@ -252,7 +252,7 @@
     <table aria-describedby={prefix + '-catalog-scope'}>
       <thead
         ><tr
-          ><th>{$t('Agent')}</th><th>{$t('Category')}</th><th>{$t('Process signatures')}</th><th
+          ><th>{$t('Agent')}</th><th>{$t('Process signatures')}</th><th
             >{$t('Catalog risk profile')}</th
           ><th>{$t('Actions')}</th></tr
         ></thead
@@ -267,12 +267,14 @@
                 ><AgentLogo id={String(row.id)} /><span
                   ><strong>{String(row.displayName)}</strong><small
                     >{String(row.vendor ?? (row.custom ? 'Custom' : 'Bundled'))}</small
+                  ><small class="catalog-category"
+                    >{$t('Category')}: {String(row.category ?? '')}</small
                   >{#if row.custom && base.some((bundled) => bundled.id === row.id)}<small
                       >{$t('Bundled ID conflict · not used for detection')}</small
                     >{/if}</span
                 ></button
               ></td
-            ><td>{String(row.category ?? '')}</td><td
+            ><td
               ><div class="signature-links">
                 {#each signatures.slice(0, 3) as name (name)}<button
                     class="text-link"
@@ -327,7 +329,7 @@
               </div></td
             ></tr
           >{:else}<tr
-            ><td colspan="5" class="catalog-empty"
+            ><td colspan="4" class="catalog-empty"
               ><strong
                 >{!loaded
                   ? loading
@@ -503,6 +505,7 @@
     min-width: 0;
   }
   .catalog-actions {
+    align-items: start;
     justify-content: flex-end;
   }
   .catalog-filters :global(label) {
@@ -524,10 +527,36 @@
     border-bottom: 1px solid var(--border);
   }
   table {
-    min-width: 760px;
+    width: 100%;
+    min-width: 600px;
+    table-layout: fixed;
   }
-  td:nth-child(2) {
-    white-space: nowrap;
+  th:first-child {
+    width: 28%;
+  }
+  th:nth-child(2) {
+    width: 38%;
+  }
+  th:nth-child(3) {
+    width: 16%;
+  }
+  th:last-child {
+    width: 18%;
+  }
+  td:last-child .toolbar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .catalog-identity {
+    max-width: 100%;
+  }
+  .catalog-identity > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .catalog-identity .catalog-category {
+    margin-top: var(--space-1);
+    color: var(--muted);
   }
   @media (max-width: 760px) {
     .catalog-actions {

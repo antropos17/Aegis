@@ -222,39 +222,43 @@
             bind:value={query}
           /></label
         >
-        <label
-          >{$t('Type')}<select
-            aria-label={$t('Type')}
-            bind:value={type}
+        <div class="audit-filter-fields">
+          <label
+            >{$t('Type')}<select
+              aria-label={$t('Type')}
+              bind:value={type}
+              disabled={loading}
+              onchange={(event) => {
+                type = event.currentTarget.value;
+                void refresh(true).catch(() => {});
+              }}
+              ><option value="">{$t('All entries')}</option
+              >{#each ['file-access', 'config-access', 'network-connection', 'agent-enter', 'agent-exit', 'anomaly-alert', 'sequence-detection', 'observation-gap', 'permission-deny'] as name (name)}<option
+                  >{name}</option
+                >{/each}</select
+            ></label
+          ><label
+            >{$t('Grouping')}<select aria-label={$t('Audit grouping')} bind:value={grouping}
+              ><option value="resource">{$t('By resource')}</option><option value="agent"
+                >{$t('By agent / context')}</option
+              ><option value="none">{$t('Every observation')}</option></select
+            ></label
+          >
+        </div>
+        <div class="audit-filter-actions">
+          <button
+            bind:this={refreshButton}
+            class="button"
             disabled={loading}
-            onchange={(event) => {
-              type = event.currentTarget.value;
-              void refresh(true).catch(() => {});
-            }}
-            ><option value="">{$t('All entries')}</option
-            >{#each ['file-access', 'config-access', 'network-connection', 'agent-enter', 'agent-exit', 'anomaly-alert', 'sequence-detection', 'observation-gap', 'permission-deny'] as name (name)}<option
-                >{name}</option
-              >{/each}</select
-          ></label
-        ><label
-          >{$t('Grouping')}<select aria-label={$t('Audit grouping')} bind:value={grouping}
-            ><option value="resource">{$t('By resource')}</option><option value="agent"
-              >{$t('By agent / context')}</option
-            ><option value="none">{$t('Every observation')}</option></select
-          ></label
-        ><button
-          bind:this={refreshButton}
-          class="button"
-          disabled={loading}
-          aria-busy={loading}
-          onclick={() => void refresh(true).catch(() => {})}
-          ><Icon name="refresh" />{$t('Refresh')}</button
-        ><span class="spacer"></span><Action
-          action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
-          ><Icon name="folder" />{$t('Audit folder')}</Action
-        ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
-          ><Icon name="download" />{$t('Export retained audit records')}</Action
-        >
+            aria-busy={loading}
+            onclick={() => void refresh(true).catch(() => {})}
+            ><Icon name="refresh" />{$t('Refresh')}</button
+          ><Action action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
+            ><Icon name="folder" />{$t('Audit folder')}</Action
+          ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
+            ><Icon name="download" />{$t('Export retained audit records')}</Action
+          >
+        </div>
       </div>
       {#if pageRead === 'failed'}<p role="alert" class="notice">
           {$t(
@@ -482,6 +486,8 @@
   }
   .audit-entries {
     padding: var(--panel-inset);
+    container-type: inline-size;
+    container-name: audit-entries;
   }
   .audit-entries > .pagination {
     padding: var(--space-3) 0;
@@ -513,9 +519,7 @@
     }
   }
   .audit-filters {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
+    display: grid;
     margin-top: var(--space-4);
     gap: var(--space-3);
   }
@@ -525,19 +529,42 @@
     flex-wrap: nowrap;
     align-items: center;
     gap: var(--space-2);
-    flex: 1 1 240px;
-    min-width: 180px;
+    min-width: 0;
   }
   .audit-filters > .search-field input {
     flex: 1 1 0;
     width: 100%;
     min-width: 0;
   }
-  .audit-filters > label {
+  .audit-filter-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .audit-filter-fields > label {
+    display: grid;
+    gap: var(--space-1);
     min-width: 0;
   }
   .audit-filters :global(select) {
+    width: 100%;
+    min-width: 0;
     max-width: 100%;
+  }
+  .audit-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .audit-filter-actions :global(.action-control) {
+    min-width: 0;
+  }
+  .audit-filter-actions :global(.button) {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
   }
   .report-content {
     margin-top: 0;
@@ -549,14 +576,9 @@
     font-size: calc(14px * var(--ui-scale));
     margin: 0;
   }
-  @media (max-width: 1050px) {
-    .audit-filters > .search-field {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: nowrap;
-      align-items: center;
-      gap: var(--space-2);
-      flex-basis: 100%;
+  @container audit-entries (max-width: 280px) {
+    .audit-filter-fields {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   .export-grid {
@@ -573,6 +595,12 @@
   }
   .export-grid :global(.button) {
     width: 100%;
-    justify-content: center;
+    min-height: calc(var(--control-height) + var(--space-3));
+    justify-content: flex-start;
+    text-align: left;
+    line-height: 1.5;
+  }
+  .export-grid :global(.icon) {
+    flex-shrink: 0;
   }
 </style>

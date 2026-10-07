@@ -75,7 +75,9 @@
   >
 </div>
 <section class="panel">
-  <div class="table-wrap">
+  <!-- The scroll region lets keyboard users reach every table column. -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <div class="table-wrap" tabindex="0" role="region" aria-label={$t('Observed agents')}>
     <table class:complete={advanced}>
       <thead
         >{#if advanced}<tr class="column-groups">
@@ -157,6 +159,43 @@
   }
   .table-wrap {
     overflow-x: auto;
+    max-width: 100%;
+  }
+  table {
+    min-width: 660px;
+  }
+  table.complete {
+    min-width: 980px;
+  }
+  .agent-group-row > td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .agent-group-row > td:first-child {
+    min-width: 144px;
+    white-space: normal;
+  }
+  .agent-group-row > td:nth-child(3) {
+    min-width: 136px;
+  }
+  .agent-group-row > td:last-child {
+    min-width: 148px;
+  }
+  .table-agent {
+    max-width: 180px;
+  }
+  .table-agent strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .agent-group-row .entity-link:not(.risk-reason),
+  .agent-group-row .text-button {
+    white-space: nowrap;
+  }
+  .agent-group-row .text-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
   }
   .column-groups th {
     background: var(--raised);
@@ -174,6 +213,7 @@
   }
   .risk-reason {
     display: block;
+    min-width: 112px;
     max-width: 170px;
     margin-top: 4px;
     font-size: calc(11px * var(--ui-scale));

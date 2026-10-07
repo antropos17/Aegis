@@ -137,15 +137,7 @@
           {/if}
         </div>
       </section>
-      {#if result}
-        {#key result.id}<LocalSecurityResults
-            review={result}
-            {pending}
-            {preview}
-            {savedAcceptance}
-            action={run}
-          />{/key}
-      {:else}<section class="panel review-empty">
+      {#if !result}<section class="panel review-empty">
           <Icon name="file" />
           <h2>{$t('No local review yet')}</h2>
           <p>
@@ -266,6 +258,15 @@
       </div>
     </section>
   </div>
+  {#if result}
+    {#key result.id}<LocalSecurityResults
+        review={result}
+        {pending}
+        {preview}
+        {savedAcceptance}
+        action={run}
+      />{/key}
+  {/if}
   <ResultReview {host} {preview} />
 </div>
 

@@ -61,7 +61,7 @@ export async function checkConfigurationClarity(browser, url, out) {
       await toggle.waitFor();
       assert.equal(
         await page.locator('.rule-meta').isVisible(),
-        width === 900,
+        await page.locator('.detection-pane').evaluate((pane) => pane.clientWidth <= 760),
         'rule metadata does not match the available width',
       );
       assert(await toggle.isChecked(), 'preview rule starts enabled');
@@ -83,12 +83,20 @@ export async function checkConfigurationClarity(browser, url, out) {
           filters,
           actions,
           toolbar: rect('.catalog-toolbar'),
+          table: rect('.catalog-scope + .table-wrap'),
+          rowActions: rect(
+            '.catalog-scope + .table-wrap tbody tr:first-child td:last-child .toolbar',
+          ),
           mainOverflow:
             document.querySelector('#main').scrollWidth >
             document.querySelector('#main').clientWidth + 2,
         };
       });
       assert(!catalogLayout.mainOverflow, 'catalog workspace overflows');
+      assert(
+        catalogLayout.rowActions.right <= catalogLayout.table.right + 1,
+        'catalog row actions require horizontal scrolling',
+      );
       assert(
         catalogLayout.filters.right <= catalogLayout.actions.left + 1 ||
           catalogLayout.filters.bottom <= catalogLayout.actions.top + 1,

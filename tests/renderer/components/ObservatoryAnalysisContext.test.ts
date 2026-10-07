@@ -77,10 +77,9 @@ it('keeps captured report context and the next-run draft through telemetry updat
   await waitFor(() =>
     expect(screen.getByRole('heading', { name: 'Recorded scope' })).toHaveFocus(),
   );
-  expect(screen.getByRole('button', { name: 'Evidence' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  for (const name of ['Report', 'Recorded scope', 'History']) {
+    expect(screen.getByRole('region', { name })).toBeVisible();
+  }
   expect(host.analyzeSession).toHaveBeenCalledTimes(1);
   await fireEvent.click(screen.getByRole('button', { name: 'Report' }));
   await run();
@@ -152,13 +151,11 @@ it('does not move focus into a hidden retained analysis workspace', async () => 
     await fireEvent.click(shortcut);
     expect(focus).not.toHaveBeenCalled();
     await mounted.rerender({ visible: true });
-    await fireEvent.click(screen.getByRole('button', { name: 'Report' }));
     const container = mounted.container;
     container.setAttribute('inert', '');
     await fireEvent.click(shortcut);
     expect(focus).not.toHaveBeenCalled();
     container.removeAttribute('inert');
-    await fireEvent.click(screen.getByRole('button', { name: 'Report' }));
     container.hidden = true;
     await fireEvent.click(shortcut);
     expect(focus).not.toHaveBeenCalled();
