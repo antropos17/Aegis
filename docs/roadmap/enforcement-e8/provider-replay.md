@@ -86,9 +86,48 @@ An optional explicit diagnostic operation is
 It hashes only the selected regular local files and runs that native binary with
 the fixed `--version` argument. One directly spawned process, a two-second deadline,
 one-second kill wait and four-KiB combined output limit apply. Native files are
-limited to 256 MiB; each wrapper/launcher to one MiB, with before/after identity and
+limited to 384 MiB (402,653,184 bytes); each wrapper/launcher to one MiB, with before/after identity and
 hash rechecks. Diagnostics contain numeric version/platform/Node metadata and
 hashes, never selected paths or raw process errors. This operation requires trusted
 explicit executable selection; it neither installs anything nor proves host hook
 behavior, nested protection or credential isolation. Default replay does not spawn
 installed clients. Historical Claude receipts remain untouched.
+
+## Installed native size compatibility — 2026-10-07
+
+The selected installed npm Codex executable is 322,515,248 bytes, exceeding the
+prior 256-MiB diagnostic limit. With unchanged base HEAD
+`35a2cc8bb464192852e13b35b156c2fe6034e9be`, its explicit selected-file probe
+returned `result=unavailable` before native spawning. Raising only the native
+limit to 384 MiB makes this same probe report `version-observed`, Codex 0.157.1,
+one fixed `--version` process and native SHA-256
+`8cb0e69e99ff2a158c54815db82d0f2e524d8f301bc30184722cfd1ae5973574`.
+The trusted selectors were the npm-installed native binary, `codex.ps1` shim and
+`@openai/codex/bin/codex.js` launcher. Exact paths and separately observed
+app-bundled Codex 0.160.1 metadata are retained in the task's read-only prerequisite
+inventory; this probe selected the npm version explicitly.
+
+Hashing still streams 64-KiB buffers, rechecks held/named identities and byte
+counts, and hashes all selected files again after execution. Wrapper/launcher
+limits remain one MiB. The two-second native deadline, one-second kill wait,
+four-KiB output bound, minimal child environment and refusal/redaction behavior
+are unchanged. The result retains `hostHookBehavior=not-run`,
+`authentication=not-run` and `launchAllowed=false`.
+
+The regression first failed under the old native bound, then all 14 focused probe
+tests passed. The installed-size regression uses a synthetic streamed artifact
+and metadata rather than allocating a 300-MiB disk fixture. Separate bounded-stat
+cases refuse native metadata above 384 MiB and wrapper/launcher metadata above
+one MiB before spawning. Real tiny disposable files prove that growth and named
+file replacement during hashing refuse before spawning; the existing tests retain
+post-execution mutation, output overflow and deadline checks. Synthetic artifact
+evidence and the actual installed `--version` observation are distinct.
+
+Bounded receipts under `X:/tmp/aegis-github-review-20261006/receipts/`:
+`2026-10-07T08-50-07-800Z-provider-probe-before.json`,
+`2026-10-07T08-50-34-772Z-provider-probe-red.json`,
+`2026-10-07T08-50-46-970Z-provider-probe-focused.json` and
+`2026-10-07T08-50-49-417Z-provider-probe-after.json`.
+No credentials, user configuration, actual provider inference or guest execution
+were used. This resolves the observed diagnostic prerequisite refusal; installed
+hook behavior, E8 usefulness, OS containment and authentication remain unqualified.

@@ -9,6 +9,7 @@ let root;
 const streams = [];
 afterEach(async () => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   for (const stream of streams) stream.destroy();
   streams.length = 0;
   if (root) {
@@ -80,6 +81,97 @@ it('does not confuse same version with unchanged native identity', async () => {
   expect(first.version).toBe(second.version);
   expect(first.native.rawSha256).not.toBe(second.native.rawSha256);
 });
+
+it('streams a native artifact at the measured installed Codex size without relaxing source limits', async () => {
+  const selected = await paths();
+  const size = 322515248;
+  const before = await fs.lstat(selected.nativePath);
+  const observed = Object.assign(Object.create(Object.getPrototypeOf(before)), before, { size });
+  const lstat = fs.lstat.bind(fs);
+  const open = fs.open.bind(fs);
+  vi.spyOn(fs, 'lstat').mockImplementation((file, ...args) =>
+    file === selected.nativePath ? Promise.resolve(observed) : lstat(file, ...args),
+  );
+  // A virtual regular artifact exercises every real 64-KiB hash iteration
+  // without allocating a 300-MiB disposable disk file. It is synthetic evidence.
+  const reads = [];
+  const close = vi.fn();
+  vi.spyOn(fs, 'open').mockImplementation(async (file, ...args) => {
+    if (file !== selected.nativePath) return open(file, ...args);
+    return {
+      read: async (buffer, offset, length, position) => {
+        reads.push({ capacity: buffer.length, length });
+        const bytesRead = Math.min(length, size - position);
+        buffer.fill(0, offset, offset + bytesRead);
+        return { bytesRead, buffer };
+      },
+      stat: async () => observed,
+      close,
+    };
+  });
+  const spawnProcess = processDouble();
+  const result = await inspectInstalledProvider(selected, { spawnProcess });
+  expect(result).toMatchObject({
+    result: 'version-observed',
+    native: { bytes: size },
+    launchAllowed: false,
+  });
+  expect(result.native.rawSha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(reads).toHaveLength(2 * Math.ceil(size / 65536));
+  expect(reads.every(({ capacity, length }) => capacity === 65536 && length <= 65536)).toBe(true);
+  expect(close).toHaveBeenCalledTimes(2);
+  expect(spawnProcess).toHaveBeenCalledOnce();
+});
+
+it.each([
+  ['nativePath', 402653185],
+  ['wrapperPath', 1048577],
+  ['launcherPath', 1048577],
+])('refuses oversized %s metadata before any process can spawn', async (key, size) => {
+  const selected = await paths();
+  const lstat = fs.lstat.bind(fs);
+  vi.spyOn(fs, 'lstat').mockImplementation(async (file, ...args) => {
+    const observed = await lstat(file, ...args);
+    return file === selected[key]
+      ? Object.assign(Object.create(Object.getPrototypeOf(observed)), observed, { size })
+      : observed;
+  });
+  const spawnProcess = processDouble();
+  expect((await inspectInstalledProvider(selected, { spawnProcess })).result).toBe('unavailable');
+  expect(spawnProcess).not.toHaveBeenCalled();
+});
+
+it.each(['growth', 'replacement'])(
+  'refuses native %s during hashing before spawning',
+  async (mode) => {
+    const selected = await paths();
+    const open = fs.open.bind(fs);
+    let changed = false;
+    vi.spyOn(fs, 'open').mockImplementation(async (file, ...args) => {
+      const handle = await open(file, ...args);
+      if (file === selected.nativePath) {
+        const read = handle.read.bind(handle);
+        vi.spyOn(handle, 'read').mockImplementation(async (...readArgs) => {
+          const result = await read(...readArgs);
+          if (!changed) {
+            changed = true;
+            if (mode === 'growth') await fs.appendFile(file, Buffer.from([1]));
+            else {
+              await fs.rename(file, path.join(root, 'retained-native'));
+              await fs.writeFile(file, Buffer.from([0x4d, 0x5a]));
+            }
+          }
+          return result;
+        });
+      }
+      return handle;
+    });
+    const spawnProcess = processDouble();
+    expect((await inspectInstalledProvider(selected, { spawnProcess })).result).toBe('unavailable');
+    expect(changed).toBe(true);
+    expect(spawnProcess).not.toHaveBeenCalled();
+  },
+);
 
 it.each(['nativePath', 'wrapperPath', 'launcherPath'])(
   'rejects %s changing during the bounded version operation',

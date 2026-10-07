@@ -131,7 +131,7 @@ export async function inspectInstalledProvider(selected, { spawnProcess = spawn 
       !/\.(?:js|cjs|mjs)$/.test(selected.launcherPath)
     )
       throw Error('invalid');
-    const native = await fileHashes(selected.nativePath, 268435456, false);
+    const native = await fileHashes(selected.nativePath, 402653184, false);
     const wrapper = await fileHashes(selected.wrapperPath, 1048576, true),
       launcher = await fileHashes(selected.launcherPath, 1048576, true);
     const output = await versionProcess(selected.nativePath, spawnProcess);
@@ -140,7 +140,7 @@ export async function inspectInstalledProvider(selected, { spawnProcess = spawn 
         ? /^codex-cli (\d{1,4}\.\d{1,4}\.\d{1,4})$/.exec(output)
         : /^(\d{1,4}\.\d{1,4}\.\d{1,4}) \(Claude Code\)$/.exec(output);
     if (!match) throw Error('invalid');
-    const rechecked = await fileHashes(selected.nativePath, 268435456, false);
+    const rechecked = await fileHashes(selected.nativePath, 402653184, false);
     const wrapperAfter = await fileHashes(selected.wrapperPath, 1048576, true),
       launcherAfter = await fileHashes(selected.launcherPath, 1048576, true);
     if (
