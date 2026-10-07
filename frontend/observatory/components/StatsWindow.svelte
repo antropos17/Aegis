@@ -35,11 +35,11 @@
     gap: var(--space-1);
     border: 1px solid var(--border);
     border-radius: var(--control-radius);
-    padding: 3px;
+    padding: 1px;
   }
   button {
-    min-height: calc(var(--control-height) - 8px);
-    padding: var(--space-1) var(--space-3);
+    min-height: calc(var(--control-height) - 4px);
+    padding: calc(var(--space-1) / 2) var(--space-2);
     border: 1px solid transparent;
     border-radius: 5px;
     color: var(--muted);
