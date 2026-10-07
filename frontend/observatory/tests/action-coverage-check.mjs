@@ -95,7 +95,7 @@ export async function checkActionCoverage(browser, url, out) {
     await page.screenshot({ path: resolve(out, 'action-coverage-empty.png') });
     await page.setViewportSize({ width: 900, height: 600 });
     await page.evaluate(() => {
-      document.documentElement.style.setProperty('--ui-scale', '1.5');
+      document.documentElement.style.setProperty('--ui-scale', '1');
       document.querySelector('#main').scrollTop = 0;
     });
     assert(await inMainViewport(jump), 'configuration jump is hidden at 900×600');
@@ -104,12 +104,12 @@ export async function checkActionCoverage(browser, url, out) {
     assert(await selection.evaluate((element) => element === document.activeElement));
     assert(await inMainViewport(selection), 'configuration selection is hidden at 900×600');
     assert.equal(await results.count(), 0, 'jump must not start a check');
-    await page.screenshot({ path: resolve(out, 'action-coverage-jump-900-1.5.png') });
+    await page.screenshot({ path: resolve(out, 'action-coverage-jump-900-1.png') });
     await root
       .getByRole('button', { name: 'Open selected-file deletion guide' })
       .scrollIntoViewIfNeeded();
     await geometry();
-    await page.screenshot({ path: resolve(out, 'action-coverage-delete-guide-900-1.5.png') });
+    await page.screenshot({ path: resolve(out, 'action-coverage-delete-guide-900-1.png') });
     const gateway = root.getByRole('region', { name: 'Stdio gateway setup', exact: true });
     assert(
       await gateway
@@ -122,7 +122,7 @@ export async function checkActionCoverage(browser, url, out) {
     assert(await gatewayButton.isDisabled(), 'preview must not open the gateway guide');
     await gatewayButton.scrollIntoViewIfNeeded();
     await geometry();
-    await page.screenshot({ path: resolve(out, 'action-coverage-gateway-guide-900-1.5.png') });
+    await page.screenshot({ path: resolve(out, 'action-coverage-gateway-guide-900-1.png') });
     await page.setViewportSize({ width: 1200, height: 800 });
     await page.evaluate(() => {
       document.documentElement.style.setProperty('--ui-scale', '1');
@@ -259,7 +259,7 @@ export async function checkActionCoverage(browser, url, out) {
       { width: 900, height: 600 },
     ]) {
       await page.setViewportSize(viewport);
-      for (const scale of [1, 1.5])
+      for (const scale of [1])
         for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
           await page.evaluate(
             ({ scale, theme }) => {
@@ -271,20 +271,20 @@ export async function checkActionCoverage(browser, url, out) {
           await geometry();
           await rowsReachable();
           await results.scrollIntoViewIfNeeded();
-          if (viewport.width === 900 && scale === 1.5 && theme === 'dark')
-            await captureEvidence('route-evidence-900-1.5-dark');
+          if (viewport.width === 900 && scale === 1 && theme === 'dark')
+            await captureEvidence('route-evidence-900-1-dark');
           await page.screenshot({
             path: resolve(out, `action-coverage-${viewport.width}-${scale}-${theme}.png`),
           });
         }
     }
     await page.evaluate(() => {
-      document.documentElement.style.setProperty('--ui-scale', '2');
+      document.documentElement.style.setProperty('--ui-scale', '1');
       document.documentElement.dataset.theme = 'dark';
     });
     await geometry();
     await rowsReachable();
-    await page.screenshot({ path: resolve(out, 'action-coverage-900-2-dark.png') });
+    await page.screenshot({ path: resolve(out, 'action-coverage-900-1-dark.png') });
     const pt = JSON.parse(
       await readFile(resolve('frontend/observatory/translations/pt-BR.json'), 'utf8'),
     );
@@ -325,14 +325,14 @@ export async function checkActionCoverage(browser, url, out) {
     for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;
-        document.documentElement.style.setProperty('--ui-scale', '1.5');
+        document.documentElement.style.setProperty('--ui-scale', '1');
       }, theme);
       await geometry();
       await rowsReachable();
       await translated.scrollIntoViewIfNeeded();
       if (theme === 'light')
         await captureEvidence(
-          'route-evidence-pt-900-1.5-light',
+          'route-evidence-pt-900-1-light',
           root.getByRole('region', { name: pt['Route evidence'], exact: true }),
         );
       if (theme === 'light') {
@@ -354,14 +354,14 @@ export async function checkActionCoverage(browser, url, out) {
           .scrollIntoViewIfNeeded();
         await geometry();
         await page.screenshot({
-          path: resolve(out, 'action-coverage-gateway-guide-pt-900-1.5-light.png'),
+          path: resolve(out, 'action-coverage-gateway-guide-pt-900-1-light.png'),
         });
       }
-      await page.screenshot({ path: resolve(out, `action-coverage-pt-900-1.5-${theme}.png`) });
+      await page.screenshot({ path: resolve(out, `action-coverage-pt-900-1-${theme}.png`) });
     }
     assert.deepEqual(errors, []);
     console.log(
-      'Action checks: simulated single/catalog results, retained selection, keyboard focus, 16 English layouts, 200% case and four Portuguese layouts passed.',
+      'Action checks: simulated single/catalog results, retained selection, keyboard focus, eight English layouts and four Portuguese layouts at 100% passed.',
     );
   } finally {
     await page.close();

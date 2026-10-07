@@ -1,13 +1,13 @@
 const storageKey = 'aegis-advanced-mode';
 
-/** Read the independently saved interface preference; absent or unreadable means Simple.
- * @returns Whether Advanced was explicitly saved @since 0.19.2
+/** Read the saved preference; absent or unreadable storage uses Advanced.
+ * @returns Whether Advanced is enabled; an explicit Simple preference is retained @since 0.19.2
  */
 export function readAdvancedMode(): boolean {
   try {
-    return localStorage.getItem(storageKey) === 'true';
+    return localStorage.getItem(storageKey) !== 'false';
   } catch {
-    return false;
+    return true;
   }
 }
 

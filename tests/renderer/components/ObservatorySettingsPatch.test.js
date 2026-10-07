@@ -37,11 +37,11 @@ it('preserves independent edits from two settings windows opened on the same old
   const second = within(mountSettings(host).container);
   await first.findByText('Settings saved');
   await second.findByText('Settings saved');
-  await fireEvent.click(first.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(first.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(first.getByLabelText('Scan interval (seconds)'), {
     target: { value: '60' },
   });
-  await fireEvent.click(second.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(second.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.click(second.getByLabelText('Notifications'));
   await fireEvent.click(first.getByRole('button', { name: 'Save settings' }));
   await first.findByText('Completed');
@@ -63,7 +63,7 @@ it('saves settings and provider changes from mounted old drafts without crossing
   const prefs = within(mountSettings(host, { onSettingsSaved }).container);
   const provider = within(render(Analysis, { host, telemetry: emptyTelemetry() }).container);
   await prefs.findByText('Settings saved');
-  await fireEvent.click(prefs.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(prefs.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(prefs.getByLabelText('Scan interval (seconds)'), {
     target: { value: '60' },
   });
@@ -93,7 +93,7 @@ it('keeps a confirmed write saved when its refresh fails and does not publish a 
   const onSettingsSaved = vi.fn();
   mountSettings(host, { onSettingsSaved });
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
     target: { value: '60' },
   });
@@ -114,7 +114,7 @@ it('does not resend unchanged normalized patterns and exclusions', async () => {
   const host = sharedHost();
   mountSettings(host);
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Sensitive paths'), {
     target: { value: '  secret  \n' },
   });
@@ -225,7 +225,7 @@ it('does not overwrite another window theme and motion when saving an old interv
   await fireEvent.click(first.getByRole('button', { name: 'Save settings' }));
   await first.findByText('Completed');
   expect(firstAppearance).toHaveBeenCalledExactlyOnceWith(false, 1, false);
-  await fireEvent.click(second.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(second.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(second.getByLabelText('Scan interval (seconds)'), {
     target: { value: '60' },
   });
@@ -239,7 +239,7 @@ it('does not overwrite another window theme and motion when saving an old interv
   expect(await host.getSettings()).toMatchObject({ darkMode: false, scanIntervalSec: 60 });
 });
 
-it('does not replay saved appearance over a newer global theme or scale preview', async () => {
+it('does not replay saved appearance over a newer global theme draft', async () => {
   localStorage.setItem('aegis-theme', 'dark');
   let resolveWrite;
   const pending = new Promise((resolve) => {
@@ -259,24 +259,20 @@ it('does not replay saved appearance over a newer global theme or scale preview'
   await fireEvent.click(first.getByRole('button', { name: 'Save settings' }));
   await waitFor(() => expect(host.saveSettings).toHaveBeenCalledTimes(1));
   await fireEvent.change(second.getByLabelText('Theme'), { target: { value: 'dark-hc' } });
-  await fireEvent.input(second.getByLabelText('Interface scale'), { target: { value: '1.5' } });
   resolveWrite();
   await first.findByText('Completed');
   expect(document.documentElement.dataset.theme).toBe('dark-hc');
-  expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1.5');
+  expect(second.getByLabelText('Interface scale')).toHaveTextContent('100%');
   expect(appearance).not.toHaveBeenCalled();
   expect(second.getByText('Unsaved changes')).toBeInTheDocument();
 });
 
-it('blocks invalid exact values and saves valid interval and scale changes as a patch', async () => {
+it('blocks invalid exact intervals and saves only the submitted valid interval patch', async () => {
   const host = sharedHost();
   mountSettings(host);
   await screen.findByText('Settings saved');
-  await fireEvent.input(screen.getByLabelText('Interface scale percent'), {
-    target: { value: '125' },
-  });
-  expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1.25');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  expect(screen.getByLabelText('Interface scale')).toHaveTextContent('100%');
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
   const exact = screen.getByLabelText('Exact scan interval (seconds)');
   await fireEvent.input(exact, { target: { value: '' } });
   expect(exact).toHaveAttribute('aria-invalid', 'true');
@@ -288,20 +284,21 @@ it('blocks invalid exact values and saves valid interval and scale changes as a 
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   await screen.findByText('Completed');
   expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
-    { uiScale: 1.25, scanIntervalSec: 17 },
+    { scanIntervalSec: 17 },
     { patch: true },
   );
 });
 
-it('keeps presets as a draft and restores their preview when discarded', async () => {
+it('keeps interval presets and theme as drafts and restores them when discarded', async () => {
   const host = sharedHost();
   const appearance = vi.fn();
   mountSettings(host, { appearance });
   await screen.findByText('Settings saved');
   const savedTheme = screen.getByLabelText('Theme').value;
-  await fireEvent.click(screen.getByRole('button', { name: '125%', exact: true }));
-  expect(screen.getByLabelText('Interface scale percent')).toHaveValue(125);
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  await fireEvent.change(screen.getByLabelText('Theme'), {
+    target: { value: savedTheme.startsWith('dark') ? 'light' : 'dark' },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
   await fireEvent.click(screen.getByRole('button', { name: '5 s', exact: true }));
   expect(screen.getByLabelText('Exact scan interval (seconds)')).toHaveValue(5);
   expect(host.saveSettings).not.toHaveBeenCalled();
@@ -309,6 +306,8 @@ it('keeps presets as a draft and restores their preview when discarded', async (
   await waitFor(() =>
     expect(screen.getByLabelText('Exact scan interval (seconds)')).toHaveValue(10),
   );
+  expect(screen.getByLabelText('Theme')).toHaveValue(savedTheme);
+  expect(screen.getByLabelText('Interface scale')).toHaveTextContent('100%');
   expect(appearance).toHaveBeenLastCalledWith(
     savedTheme.startsWith('dark'),
     1,
@@ -361,10 +360,7 @@ it('follows a clean shell theme without saving or replacing unrelated drafts', a
   const host = sharedHost();
   const mounted = mountSettings(host, { currentTheme: 'dark' });
   await screen.findByText('Settings saved');
-  await fireEvent.input(screen.getByLabelText('Interface scale percent'), {
-    target: { value: '125' },
-  });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
   await fireEvent.click(screen.getByRole('button', { name: '5 s', exact: true }));
   await fireEvent.input(screen.getByLabelText('Sensitive paths'), {
     target: { value: 'draft-pattern' },
@@ -374,14 +370,35 @@ it('follows a clean shell theme without saving or replacing unrelated drafts', a
   expect(screen.getByLabelText('Sensitive paths')).toHaveValue('draft-pattern');
   expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   expect(host.saveSettings).not.toHaveBeenCalled();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Appearance' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Appearance' }));
   expect(screen.getByLabelText('Theme')).toHaveValue('light-hc');
-  expect(screen.getByLabelText('Interface scale percent')).toHaveValue(125);
+  expect(screen.getByLabelText('Interface scale')).toHaveTextContent('100%');
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   await screen.findByText('Completed');
   expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
-    { uiScale: 1.25, scanIntervalSec: 5, customSensitivePatterns: ['draft-pattern'] },
+    { scanIntervalSec: 5, customSensitivePatterns: ['draft-pattern'] },
     { patch: true },
   );
   localStorage.removeItem('aegis-theme');
+});
+
+it('uses 100% for a saved legacy scale without rewriting preferences or adding scale to edits', async () => {
+  const host = sharedHost();
+  const readSettings = host.getSettings;
+  host.getSettings = vi.fn(async () => ({ ...(await readSettings()), uiScale: 1.5 }));
+  mountSettings(host);
+  await screen.findByText('Settings saved');
+  expect(screen.getByLabelText('Interface scale')).toHaveTextContent('100%');
+  expect(screen.queryByLabelText('Interface scale percent')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  await fireEvent.input(screen.getByLabelText('Exact scan interval (seconds)'), {
+    target: { value: '20' },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await screen.findByText('Completed');
+  expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
+    { scanIntervalSec: 20 },
+    { patch: true },
+  );
 });

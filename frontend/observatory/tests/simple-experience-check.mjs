@@ -13,7 +13,7 @@ export async function checkSimpleExperience(browser, url, out) {
   const layouts = [];
   for (const { width, height, scale } of [
     { width: 1200, height: 800, scale: 1 },
-    { width: 900, height: 600, scale: 1.5 },
+    { width: 900, height: 600, scale: 1 },
   ]) {
     for (const theme of ['light', 'dark']) {
       const page = await browser.newPage({ viewport: { width, height } });
@@ -121,8 +121,20 @@ export async function checkSimpleExperience(browser, url, out) {
           { theme, scale },
         );
         await page.goto(url);
-        await page.getByRole('heading', { name: 'Investigate', exact: true, level: 1 }).waitFor();
+        await page.getByRole('heading', { name: 'Monitoring', exact: true, level: 1 }).waitFor();
         const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+        assert.equal(
+          await navigation.getByRole('button').count(),
+          14,
+          'Fresh profiles default to Advanced',
+        );
+        assert.equal(
+          await page.evaluate(() => document.documentElement.style.getPropertyValue('--ui-scale')),
+          '1',
+        );
+        await navigation.getByRole('button', { name: 'Settings', exact: true }).click();
+        await page.getByRole('checkbox', { name: 'Simple interface', exact: true }).check();
+        await navigation.getByRole('button', { name: 'Investigate', exact: true }).click();
         assert.deepEqual(
           await navigation
             .getByRole('button')
@@ -196,28 +208,28 @@ export async function checkSimpleExperience(browser, url, out) {
           'Exception changes discarded retained evidence',
         );
         await navigation.getByRole('button', { name: 'Settings', exact: true }).click();
-        await page.getByLabel('Interface scale percent', { exact: true }).fill('125');
-        const advanced = page.getByRole('checkbox', { name: 'Advanced interface', exact: true });
-        await advanced.check();
+        await page
+          .getByRole('navigation', { name: 'Settings sections', exact: true })
+          .getByRole('button', { name: 'Monitoring', exact: true })
+          .click();
+        const interval = page.getByLabel('Scan interval (seconds)', { exact: true });
+        await interval.fill('45');
+        const simple = page.getByRole('checkbox', { name: 'Simple interface', exact: true });
+        await simple.uncheck();
         assert.equal(await navigation.getByRole('button').count(), 14);
-        assert.equal(
-          await page.getByLabel('Interface scale percent', { exact: true }).inputValue(),
-          '125',
-        );
+        assert.equal(await interval.inputValue(), '45');
         assert.equal(
           await page.evaluate(() => localStorage.getItem('aegis-advanced-mode')),
           'true',
         );
-        await advanced.uncheck();
+        await simple.check();
         assert.equal(await navigation.getByRole('button').count(), 3);
-        assert.equal(
-          await page.getByLabel('Interface scale percent', { exact: true }).inputValue(),
-          '125',
-        );
+        assert.equal(await interval.inputValue(), '45');
         await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+        assert.equal(await interval.inputValue(), '10');
         assert.equal(
-          await page.getByLabel('Interface scale percent', { exact: true }).inputValue(),
-          String(scale * 100),
+          await page.getByLabel('Interface scale', { exact: true }).textContent(),
+          '100%',
         );
         await page.locator('#main').evaluate((node) => {
           node.scrollTop = node.scrollHeight;

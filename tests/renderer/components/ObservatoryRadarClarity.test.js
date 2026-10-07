@@ -37,14 +37,13 @@ it('shows one roster entry and compact marker per agent while grouping many proc
     }),
   );
   expect(screen.getByText('11.0%')).toBeInTheDocument();
-  // jsdom exposes descendants of closed details to role queries; browser QA checks visibility.
-  expect(mounted.container.querySelector('.process-options').open).toBe(false);
+  expect(screen.getByRole('region', { name: 'Individual processes' })).toBeVisible();
+  expect(screen.getByLabelText('Selected process')).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Open agent', exact: true }));
   expect(inspect).toHaveBeenCalledWith('ChatGPT Desktop', {
     agentGroupKey: 'ChatGPT Desktop',
     name: 'ChatGPT Desktop',
   });
-  await fireEvent.click(screen.getByText(/Individual processes/));
   await fireEvent.change(screen.getByLabelText('Selected process'), {
     target: { value: '11:live' },
   });

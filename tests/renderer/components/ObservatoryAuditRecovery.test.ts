@@ -56,7 +56,7 @@ it('keeps historical totals unknown during seeding while admitting live queue ob
     navigate: vi.fn(),
   });
   await screen.findByText('0 audit entries loaded');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Delivery' }));
+  expect(screen.getByRole('region', { name: 'Delivery' })).toBeVisible();
   const persisted = screen.getByText('persisted entries').parentElement!;
   expect(within(persisted).getByText('—')).toBeVisible();
   expect(screen.getByText('Historical audit counters are still loading.')).toBeVisible();
@@ -159,13 +159,13 @@ it('admits counters while a history failure is pending and keeps sizes unknown w
     inspect: vi.fn(),
     navigate: vi.fn(),
   });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Delivery' }));
-  const delivery = screen.getByRole('tabpanel', { name: 'Delivery' });
+  expect(screen.getByRole('region', { name: 'Delivery' })).toBeVisible();
+  const delivery = screen.getByRole('region', { name: 'Delivery' });
   expect(await within(delivery).findByText('4', { selector: 'strong' })).toBeVisible();
   expect(within(delivery).queryByText('1.0 KB')).toBeNull();
   expect(within(delivery).queryByText('Current size')).toBeNull();
   pending.reject(new Error('PRIVATE_PATH_SENTINEL'));
-  await fireEvent.click(screen.getByRole('tab', { name: 'Entries' }));
+  expect(screen.getByRole('region', { name: 'Entries' })).toBeVisible();
   expect(await screen.findByRole('alert')).not.toHaveTextContent('PRIVATE_PATH_SENTINEL');
   expect(screen.queryByRole('table')).toBeNull();
 });
@@ -268,7 +268,7 @@ it('retains delivery counters after RPC failure but does not present old byte si
     navigate: vi.fn(),
   });
   await screen.findByText('No entries in this history page.');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Delivery' }));
+  expect(screen.getByRole('region', { name: 'Delivery' })).toBeVisible();
   expect(await screen.findByText('1.0 KB')).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery counters' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Showing last loaded values');
@@ -321,8 +321,8 @@ it.each([
       navigate: vi.fn(),
     });
     await screen.findByText('No entries in this history page.');
-    await fireEvent.click(screen.getByRole('tab', { name: 'Delivery' }));
-    const delivery = screen.getByRole('tabpanel', { name: 'Delivery' });
+    expect(screen.getByRole('region', { name: 'Delivery' })).toBeVisible();
+    const delivery = screen.getByRole('region', { name: 'Delivery' });
     expect(
       [...delivery.querySelectorAll('.inline-stats strong')].map((node) =>
         node.textContent?.trim(),
@@ -382,7 +382,7 @@ it('retries delivery alone with a stable control and leaves the accepted history
     navigate: vi.fn(),
   });
   await screen.findByText('1 audit entries loaded');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Delivery' }));
+  expect(screen.getByRole('region', { name: 'Delivery' })).toBeVisible();
   await screen.findByRole('alert');
   const retry = screen.getByRole('button', { name: 'Refresh delivery counters' });
   retry.focus();
@@ -395,7 +395,7 @@ it('retries delivery alone with a stable control and leaves the accepted history
   expect(await screen.findByText('3', { selector: 'strong' })).toBeVisible();
   expect(document.activeElement).toBe(retry);
   expect(host.getAuditEntriesBefore).toHaveBeenCalledOnce();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Entries' }));
+  expect(screen.getByRole('region', { name: 'Entries' })).toBeVisible();
   expect(screen.getByText(row().file)).toBeVisible();
 });
 

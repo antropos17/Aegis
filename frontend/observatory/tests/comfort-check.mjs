@@ -37,29 +37,33 @@ export async function checkComfort(browser, url, out) {
             document.documentElement.dataset.theme = theme;
             document.documentElement.style.setProperty('--ui-scale', String(scale));
           },
-          { theme, scale: size.width === 900 ? 1.5 : 1 },
+          { theme, scale: 1 },
         );
         for (const view of ['Agents', 'Statistics', 'Settings', 'Reports', 'Audit']) {
           await navigate(view);
-          const tabs = page
-            .locator('#content > div:not([hidden]) .section-tabs')
-            .first()
-            .getByRole('tab');
-          const labels = await tabs.allTextContents();
+          const navigation = page
+            .locator('#content > div:not([hidden]) .section-navigation')
+            .first();
+          const controls = (await navigation.count())
+            ? navigation.getByRole('button')
+            : page.locator('#content > div:not([hidden]) .section-tabs').first().getByRole('tab');
+          const labels = (await controls.count()) ? await controls.allTextContents() : [null];
           for (const label of labels) {
-            await tabs.filter({ hasText: label.trim() }).click();
+            if (label !== null) await controls.filter({ hasText: label.trim() }).click();
             await settled();
             const dimensions = await page.evaluate(() => ({
               document: document.documentElement.scrollWidth <= innerWidth + 2,
               main:
                 document.querySelector('#main').scrollWidth <=
                 document.querySelector('#main').clientWidth + 2,
-              selected: [...document.querySelectorAll('.section-tabs [aria-selected=true]')].filter(
-                (el) => el.checkVisibility(),
-              ).length,
+              selected: [
+                ...document.querySelectorAll(
+                  '.section-tabs [aria-selected=true], .section-navigation [aria-current=location]',
+                ),
+              ].filter((el) => el.checkVisibility()).length,
             }));
             assert(dimensions.document && dimensions.main, view + ' overflows viewport');
-            assert(dimensions.selected > 0, view + ' has no active section');
+            if (label !== null) assert(dimensions.selected > 0, view + ' has no active section');
             if (view === 'Statistics') {
               const rail = page.locator('.metric-rail:visible button');
               const count = await rail.count();
@@ -90,8 +94,11 @@ export async function checkComfort(browser, url, out) {
     await page.getByRole('heading', { name: 'Statistics', level: 1, exact: true }).waitFor();
     await settled();
     assert.equal(
-      await page.getByRole('tab', { name: 'Tokens', exact: true }).getAttribute('aria-selected'),
-      'true',
+      await page
+        .getByRole('navigation', { name: 'Statistics sections' })
+        .getByRole('button', { name: 'Tokens', exact: true })
+        .getAttribute('aria-current'),
+      'location',
     );
     await page.getByRole('button', { name: 'Pause view', exact: true }).click();
     const paused = await page.locator('.coverage-line').innerText();
@@ -110,11 +117,15 @@ export async function checkComfort(browser, url, out) {
     await settled();
     assert.equal(
       await page
-        .getByRole('tab', { name: 'Appearance', exact: true })
-        .getAttribute('aria-selected'),
-      'true',
+        .getByRole('navigation', { name: 'Settings sections' })
+        .getByRole('button', { name: 'Appearance', exact: true })
+        .getAttribute('aria-current'),
+      'location',
     );
-    await page.getByRole('tab', { name: 'Monitoring', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('button', { name: 'Monitoring', exact: true })
+      .click();
     await page.getByLabel('Scan interval (seconds)', { exact: true }).fill('17');
     await navigate('Events');
     await navigate('Settings');
@@ -304,7 +315,7 @@ export async function checkFooter(browser, url, out) {
         const footer = page.locator('.observatory-app footer');
         await main.getByLabel(t('Target'), { exact: true }).selectOption('Codex');
         for (const width of [900, 1200])
-          for (const scale of [1.5, 1]) {
+          for (const scale of [1]) {
             await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
             for (const theme of ['dark-hc', 'light', 'dark', 'light-hc']) {
               await page.evaluate(
@@ -423,7 +434,7 @@ export async function checkFooter(browser, url, out) {
                 const selected =
                   locale === 'pt' &&
                   width === 900 &&
-                  scale === 1.5 &&
+                  scale === 1 &&
                   theme === 'dark-hc' &&
                   (state === 'unknown' || (phase === 'green' && state === 'loss'));
                 const readyShot =
@@ -505,11 +516,7 @@ export async function checkFooter(browser, url, out) {
                   'Focused delivery is clipped by footer scroll',
                 );
               if (focusBounds.buttonWidth <= focusBounds.frameWidth) await textEndpoints(delivery);
-              if (
-                width === 900 &&
-                scale === 1.5 &&
-                focusBounds.buttonWidth <= focusBounds.frameWidth
-              )
+              if (width === 900 && scale === 1 && focusBounds.buttonWidth <= focusBounds.frameWidth)
                 assert(
                   await footer.evaluate((node) => node.scrollLeft > 0),
                   'Tab did not reveal overflowed delivery',
@@ -579,7 +586,7 @@ export async function checkFooter(browser, url, out) {
                 ['capture', 'final'].includes(process.env.FOOTER_QA_OVERLAY) &&
                 locale === 'pt' &&
                 width === 900 &&
-                scale === 1.5 &&
+                scale === 1 &&
                 theme === 'dark-hc'
               ) {
                 const path = resolve(out, 'footer-overlay-tail.png');
@@ -766,7 +773,7 @@ export async function checkFooter(browser, url, out) {
                 ['capture', 'final'].includes(process.env.FOOTER_QA_OVERLAY) &&
                 locale === 'pt' &&
                 width === 900 &&
-                scale === 1.5 &&
+                scale === 1 &&
                 theme === 'dark-hc'
               ) {
                 const path = resolve(out, 'footer-overlay-center.png');
@@ -819,7 +826,7 @@ export async function checkFooter(browser, url, out) {
                 process.env.FOOTER_QA_OVERLAY === 'capture' &&
                 locale === 'pt' &&
                 width === 900 &&
-                scale === 1.5 &&
+                scale === 1 &&
                 theme === 'dark-hc'
               ) {
                 const path = resolve(out, 'footer-overlay-toast.png');
@@ -856,9 +863,9 @@ export async function checkFooter(browser, url, out) {
                 .waitFor();
               assert.equal(
                 await main
-                  .getByRole('tab', { name: t('Delivery'), exact: true })
-                  .getAttribute('aria-selected'),
-                'true',
+                  .locator('#audit-panel-delivery')
+                  .evaluate((node) => node === document.activeElement),
+                true,
               );
               await sensor.focus();
               await page.keyboard.press('Enter');
@@ -867,9 +874,10 @@ export async function checkFooter(browser, url, out) {
                 .waitFor();
               assert.equal(
                 await main
-                  .getByRole('tab', { name: t('Sensors'), exact: true })
-                  .getAttribute('aria-selected'),
-                'true',
+                  .getByRole('navigation', { name: t('Statistics sections') })
+                  .getByRole('button', { name: t('Sensors'), exact: true })
+                  .getAttribute('aria-current'),
+                'location',
               );
               await page.keyboard.press('Alt+ArrowLeft');
               await main

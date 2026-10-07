@@ -175,20 +175,18 @@ it('StatsTokens explains an unwitnessed Claude Code cost gap only for a fresh po
   expect(screen.queryByText(unavailable)).toBeNull();
 });
 
-it('Statistics Processes shows either comparison or table and retains table filters when switching', async () => {
+it('Statistics keeps process comparison and table together and retains filters across sections', async () => {
   render(Statistics, { telemetry: state(), inspect: vi.fn() });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Processes', exact: true }));
-  const tabs = screen.getByRole('tablist', { name: 'Process comparison view' });
+  const navigation = screen.getByRole('navigation', { name: 'Statistics sections' });
+  await fireEvent.click(within(navigation).getByRole('button', { name: 'Processes', exact: true }));
   expect(screen.getByRole('heading', { name: 'Agent usage' })).toBeInTheDocument();
-  expect(screen.queryByRole('table')).toBeNull();
-  await fireEvent.click(within(tabs).getByRole('tab', { name: 'Table' }));
-  expect(screen.queryByRole('heading', { name: 'Agent usage' })).toBeNull();
   expect(screen.getByRole('table')).toBeInTheDocument();
   await fireEvent.input(screen.getByLabelText('Search agents'), { target: { value: 'missing' } });
-  await fireEvent.click(within(tabs).getByRole('tab', { name: 'Comparison' }));
+  await fireEvent.click(within(navigation).getByRole('button', { name: 'Performance' }));
   expect(screen.queryByRole('table')).toBeNull();
-  await fireEvent.click(within(tabs).getByRole('tab', { name: 'Table' }));
+  await fireEvent.click(within(navigation).getByRole('button', { name: 'Processes' }));
   expect(screen.getByLabelText('Search agents')).toHaveValue('missing');
+  expect(screen.getByRole('heading', { name: 'Agent usage' })).toBeInTheDocument();
 });
 
 it('Reports labels the same retained sensitive population as Monitoring', () => {

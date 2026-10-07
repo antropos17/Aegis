@@ -66,28 +66,22 @@ export async function checkLocalSecurity(browser, url, out) {
     for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;
-        document.documentElement.style.setProperty('--ui-scale', '1.5');
+        document.documentElement.style.setProperty('--ui-scale', '1');
       }, theme);
       await comparison.scrollIntoViewIfNeeded();
       assert(
         await comparison.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
         'comparison overflow',
       );
-      await comparison.getByRole('tab', { name: /^Changes/ }).focus();
-      await page.keyboard.press('End');
-      assert.equal(
-        await comparison
-          .getByRole('tab', { name: 'Coverage', exact: true })
-          .getAttribute('aria-selected'),
-        'true',
-      );
-      await page.keyboard.press('Home');
+      assert(await comparison.getByRole('region', { name: /^Changes/ }).isVisible());
+      assert(await comparison.getByRole('region', { name: 'Coverage', exact: true }).isVisible());
+      assert.equal(await comparison.getByRole('tablist').count(), 0);
       await dismissNotifications();
-      await page.screenshot({ path: resolve(out, `result-review-en-900-150-${theme}.png`) });
+      await page.screenshot({ path: resolve(out, `result-review-en-900-100-${theme}.png`) });
       await comparison.locator('.previews').first().scrollIntoViewIfNeeded();
       await dismissNotifications();
       await page.screenshot({
-        path: resolve(out, `result-review-en-900-150-${theme}-content.png`),
+        path: resolve(out, `result-review-en-900-100-${theme}-content.png`),
       });
     }
     await page.setViewportSize({ width: 1200, height: 800 });
@@ -95,19 +89,10 @@ export async function checkLocalSecurity(browser, url, out) {
       document.documentElement.dataset.theme = 'dark';
       document.documentElement.style.setProperty('--ui-scale', '1');
     });
-    const options = page.locator('.review-options');
-    assert.equal(
-      await options.getAttribute('open'),
-      null,
-      'advanced review options should start closed',
-    );
-    await page.getByText('Review options', { exact: true }).focus();
-    await page.keyboard.press('Enter');
-    assert.notEqual(
-      await options.getAttribute('open'),
-      null,
-      'native keyboard disclosure should open options',
-    );
+    const setup = page.getByRole('region', { name: 'Local review setup' });
+    assert(await setup.getByRole('heading', { name: 'Review options', exact: true }).isVisible());
+    assert(await setup.getByRole('combobox', { name: 'Review type', exact: true }).isVisible());
+    assert.equal(await setup.locator('details').count(), 0);
     await page.getByLabel('Include an offline MCP tools/list file').check();
     await page.getByRole('button', { name: 'Show example result' }).click();
     await page.getByRole('heading', { name: 'Findings need review' }).waitFor();
@@ -127,18 +112,18 @@ export async function checkLocalSecurity(browser, url, out) {
     await page.getByRole('button', { name: 'Change review setup', exact: true }).click();
     assert(
       await page
-        .getByRole('button', { name: 'Show example result' })
+        .getByRole('combobox', { name: 'Review type', exact: true })
         .evaluate((element) => element === document.activeElement),
     );
     await page.getByRole('button', { name: 'Review findings', exact: true }).click();
     assert.equal(
-      await page.getByRole('tab', { name: /Findings/ }).getAttribute('aria-selected'),
-      'true',
+      await page.getByRole('button', { name: /Findings/ }).getAttribute('aria-current'),
+      'location',
     );
     await results.scrollIntoViewIfNeeded();
     await results.locator('.evidence-rows:visible summary').first().click();
     await page.screenshot({ path: resolve(out, 'local-security-findings-dark.png') });
-    await page.getByRole('tab', { name: /Scope & coverage/ }).click();
+    await page.getByRole('button', { name: /Scope & coverage/ }).click();
     await page.getByText('Checked scope and limits', { exact: true }).click();
     await page.screenshot({ path: resolve(out, 'local-security-coverage.png') });
     for (const mode of ['inventory', 'compare', 'import']) {
@@ -146,18 +131,18 @@ export async function checkLocalSecurity(browser, url, out) {
       await page.getByRole('button', { name: 'Show example result' }).click();
       await results.scrollIntoViewIfNeeded();
       if (mode === 'inventory') {
-        assert.equal(await page.getByRole('tab', { name: /Findings/ }).count(), 0);
-        await page.getByRole('tab', { name: /Packages/ }).click();
+        assert.equal(await page.getByRole('button', { name: /Findings/ }).count(), 0);
+        await page.getByRole('button', { name: /Packages/ }).click();
         assert(
           await page
             .getByText('Publisher unverified · installation not established', { exact: true })
             .isVisible(),
         );
-        await page.getByText('Content snapshot', { exact: true }).click();
+        assert(await page.getByRole('region', { name: 'Content snapshot' }).isVisible());
         assert(await page.getByRole('button', { name: 'Save unreviewed snapshot' }).isDisabled());
       }
       if (mode === 'compare') {
-        assert.equal(await page.getByRole('tab', { name: /Findings/ }).count(), 0);
+        assert.equal(await page.getByRole('button', { name: /Findings/ }).count(), 0);
         assert(await page.getByText('components · changed', { exact: true }).isVisible());
       }
       if (mode === 'import')
@@ -169,7 +154,7 @@ export async function checkLocalSecurity(browser, url, out) {
       { width: 900, height: 600 },
     ]) {
       await page.setViewportSize(size);
-      for (const scale of [1, 1.5]) {
+      for (const scale of [1]) {
         for (const theme of ['dark', 'light']) {
           await page.evaluate(
             ({ scale, theme }) => {
@@ -193,13 +178,26 @@ export async function checkLocalSecurity(browser, url, out) {
           }));
           assert(geometry.scroll <= geometry.client + 1, 'local review horizontal overflow');
           assert.equal(geometry.overflowing, 0, 'a local-review control leaves the viewport');
-          await page.getByRole('tab', { name: /Findings/ }).focus();
-          await page.keyboard.press('End');
-          assert.equal(
-            await page.getByRole('tab', { name: /Scope & coverage/ }).getAttribute('aria-selected'),
-            'true',
+          const layout = await page.locator('.review-layout').evaluate((root) => {
+            const primary = root.querySelector('.review-primary').getBoundingClientRect();
+            const setup = root.querySelector('.review-setup').getBoundingClientRect();
+            return { primaryRight: primary.right, setupLeft: setup.left, setupWidth: setup.width };
+          });
+          assert(
+            layout.setupLeft >= layout.primaryRight,
+            'review setup must use the right-hand area',
           );
-          await page.keyboard.press('Home');
+          assert(layout.setupWidth >= 250, 'review setup controls must have a usable width');
+          await page.getByRole('button', { name: /Scope & coverage/ }).focus();
+          await page.keyboard.press('Enter');
+          assert.equal(
+            await page
+              .getByRole('button', { name: /Scope & coverage/ })
+              .getAttribute('aria-current'),
+            'location',
+          );
+          await page.getByRole('button', { name: /Findings/ }).focus();
+          await page.keyboard.press('Enter');
           await page.screenshot({
             path: resolve(out, `local-security-${size.width}-${scale}-${theme}.png`),
           });
@@ -235,7 +233,7 @@ export async function checkLocalSecurity(browser, url, out) {
     for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;
-        document.documentElement.style.setProperty('--ui-scale', '1.5');
+        document.documentElement.style.setProperty('--ui-scale', '1');
       }, theme);
       assert(
         await translatedComparison.evaluate(
@@ -245,29 +243,29 @@ export async function checkLocalSecurity(browser, url, out) {
       );
       await translatedComparison.scrollIntoViewIfNeeded();
       await dismissNotifications(pt['Dismiss notification']);
-      await page.screenshot({ path: resolve(out, `result-review-pt-900-150-${theme}.png`) });
+      await page.screenshot({ path: resolve(out, `result-review-pt-900-100-${theme}.png`) });
       await translatedComparison.locator('.previews').first().scrollIntoViewIfNeeded();
       await dismissNotifications(pt['Dismiss notification']);
       await page.screenshot({
-        path: resolve(out, `result-review-pt-900-150-${theme}-content.png`),
+        path: resolve(out, `result-review-pt-900-100-${theme}-content.png`),
       });
     }
     for (const theme of ['dark', 'light']) {
       await page.evaluate((theme) => {
         document.documentElement.dataset.theme = theme;
-        document.documentElement.style.setProperty('--ui-scale', '1.5');
+        document.documentElement.style.setProperty('--ui-scale', '1');
       }, theme);
       const translated = page.locator('.local-security-workspace');
       assert(
         await translated.evaluate((root) => root.scrollWidth <= root.clientWidth + 1),
-        'Portuguese local review overflows at 900px/150%',
+        'Portuguese local review overflows at 900px/100%',
       );
       await page.getByRole('region', { name: pt['Local review results'] }).scrollIntoViewIfNeeded();
-      await page.screenshot({ path: resolve(out, `local-security-pt-150-${theme}.png`) });
+      await page.screenshot({ path: resolve(out, `local-security-pt-100-${theme}.png`) });
     }
     assert.deepEqual(errors, []);
     console.log(
-      'Local security: four review modes, evidence, coverage, snapshots, keyboard navigation, eight English layouts and two Portuguese 150% layouts passed.',
+      'Local security: four review modes, evidence, visible coverage, snapshots, keyboard navigation, four English layouts and two Portuguese layouts at 100% passed.',
     );
   } finally {
     await page.close();

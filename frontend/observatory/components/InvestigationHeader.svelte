@@ -39,7 +39,6 @@
   );
   const selectedKey = $derived(JSON.stringify([scope.agent, scope.instanceId]));
   let retained = $state<{ key: string; row: RecordData } | null>(null);
-  let explanationOpen = $state(false);
   $effect(() => {
     const key = selectedKey;
     const observed = process;
@@ -177,10 +176,10 @@
           {$t('Choose a worker process to pause, resume or stop.')}
         </p>{/if}
     </section>
-    <details class="risk-details" bind:open={explanationOpen}>
-      <summary>{$t('Why this score?')}</summary>
-      {#if explanationOpen}<RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />{/if}
-    </details>
+    <section class="risk-details" aria-label={$t('Why this score?')}>
+      <h3>{$t('Why this score?')}</h3>
+      <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
+    </section>
   {/if}
 </section>
 
@@ -188,7 +187,9 @@
   .investigation-header {
     min-width: 0;
     padding: var(--space-3);
-    border-bottom: 1px solid var(--border);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    background: var(--raised);
   }
   .identity-row {
     display: flex;
@@ -317,17 +318,20 @@
   }
   .risk-details {
     margin-top: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--strong-border);
     font-size: var(--text-caption);
+    display: grid;
+    gap: var(--space-2);
   }
   @media (max-width: 980px) {
     .investigation-header {
       padding: var(--space-2);
     }
   }
-  .risk-details summary {
-    cursor: pointer;
-    width: fit-content;
-    max-width: 100%;
+  .risk-details > h3 {
+    color: var(--ink);
+    font-weight: 600;
   }
   .observed-state {
     white-space: normal;

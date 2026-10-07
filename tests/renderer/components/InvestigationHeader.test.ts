@@ -73,7 +73,11 @@ it('qualifies the highest process risk and requires an explicit worker choice be
   render(InvestigationHeader, props);
   const header = within(screen.getByRole('region', { name: 'Agent investigation' }));
   expect(header.getByText('Highest process score')).toBeVisible();
-  expect(header.getByText('Sensitive file activity')).toBeVisible();
+  expect(
+    within(header.getByRole('region', { name: 'Observed risk and process controls' })).getByText(
+      'Sensitive file activity',
+    ),
+  ).toBeVisible();
   expect(header.queryByRole('button', { name: 'Pause process' })).toBeNull();
   expect(header.queryByRole('button', { name: 'Resume process' })).toBeNull();
   expect(header.queryByRole('button', { name: 'Stop…' })).toBeNull();

@@ -10,7 +10,7 @@
     reviewModes,
     type LocalReview,
   } from '../runtime/local-security';
-  import SectionTabs from './SectionTabs.svelte';
+  import SectionNavigation from './SectionNavigation.svelte';
   import LocalSecurityRows from './LocalSecurityRows.svelte';
   import Metadata from './Metadata.svelte';
   import Icon from './Icon.svelte';
@@ -108,8 +108,8 @@
   async function inspectSection(section: string) {
     selected = section;
     await tick();
-    const tab = document.getElementById(prefix + '-tab-' + section);
-    if (tab && !tab.closest('[hidden], [inert]')) tab.focus({ preventScroll: true });
+    const control = document.getElementById(prefix + '-section-link-' + section);
+    if (control && !control.closest('[hidden], [inert]')) control.focus({ preventScroll: true });
   }
 </script>
 
@@ -274,117 +274,163 @@
       </ul>
     </section>
   {/snippet}
-  <SectionTabs
-    {tabs}
-    {selected}
-    {prefix}
-    change={(id) => {
-      selected = id;
-    }}
-    label="Local review sections"
-  />
-  {#each tabs as tab (tab.id)}
-    <div
-      class="result-section"
-      hidden={selected !== tab.id}
-      role="tabpanel"
-      id={prefix + '-panel-' + tab.id}
-      aria-labelledby={prefix + '-tab-' + tab.id}
-      tabindex="0"
-    >
-      {#if tab.id === 'declarations'}
-        {@render mcpDeclarationContent()}
-      {:else}
-        <LocalSecurityRows
-          rows={rows[tab.id as keyof typeof rows]}
-          empty={tab.id === 'findings'
-            ? 'No findings in the checked subset. Review Scope & coverage for limits.'
-            : tab.id === 'changes'
-              ? review.report.status === 'incompatible'
-                ? 'No comparable change list is available.'
-                : 'No recorded changes in the comparable observations.'
-              : tab.id === 'coverage'
-                ? 'No collection issues were reported for the declared scope. This is not a safety assessment.'
-                : 'No matching files were observed in this scope.'}
-        />
-      {/if}
-      {#if tab.id === 'coverage'}
-        <details class="scope-details">
-          <summary>{$t('Checked scope and limits')}</summary>
-          <Metadata
-            value={{
-              Profile: review.adapter,
-              Scope: local.scope ?? inventory.scope,
-              Limits: local.limits ?? inventory.limits,
-              Usage: local.usage ?? inventory.usage,
-              'Rule set': local.ruleSet,
-              'MCP catalog': record(local.mcpCatalog).summary ?? record(review.report.catalog),
-              'External source': record(review.report.external).source,
-              'External baseline': record(review.report.external).baseline,
-              'Snapshot comparison':
-                review.mode === 'compare'
-                  ? {
-                      status: review.report.status,
-                      baselineDigest: review.report.baselineDigest,
-                      currentDigest: review.report.currentDigest,
-                      baselineState: review.report.baselineState,
-                    }
-                  : undefined,
-            }}
-          />
-        </details>
-        {#if review.mode === 'scan' || review.mode === 'import'}<p class="muted">
-            {$t(
-              'Checks cover bounded commands, selected JavaScript/Python value flows, shell redirections and four English instruction patterns. General instruction meaning, complex control flow and runtime behavior remain outside this analysis.',
-            )}
-          </p>{/if}
-      {/if}
-    </div>
-  {/each}
-  {#if review.snapshot}<div class="snapshot-actions">
-      <details>
-        <summary>{$t('Content snapshot')}</summary>
-        <p class="muted">
-          {$t(
-            'Save an unreviewed snapshot for later comparison. Acceptance requires a fresh matching capture and records your decision about these exact bytes.',
-          )}
-        </p>
-        <dl>
-          <dt>{$t('Reviewed digest')}</dt>
-          <dd>{review.snapshot.digest}</dd>
-          <dt>{$t('State')}</dt>
-          <dd>{savedAcceptance ? $t('Accepted copy saved') : review.snapshot.state}</dd>
-        </dl>
-        <div class="toolbar">
-          {#if review.canSaveSnapshot}<button
-              class="button"
-              disabled={pending || preview}
-              onclick={() => action('save-snapshot')}
-              ><Icon name="download" />{$t('Save unreviewed snapshot')}</button
-            >{/if}
+  <div class="result-layout">
+    <div class="result-evidence">
+      {#each tabs as tab (tab.id)}
+        <div
+          class="result-section"
+          hidden={selected !== tab.id}
+          role="region"
+          id={prefix + '-panel-' + tab.id}
+          aria-labelledby={prefix + '-section-link-' + tab.id}
+          tabindex="-1"
+        >
+          {#if tab.id === 'declarations'}
+            {@render mcpDeclarationContent()}
+          {:else}
+            <LocalSecurityRows
+              rows={rows[tab.id as keyof typeof rows]}
+              empty={tab.id === 'findings'
+                ? 'No findings in the checked subset. Review Scope & coverage for limits.'
+                : tab.id === 'changes'
+                  ? review.report.status === 'incompatible'
+                    ? 'No comparable change list is available.'
+                    : 'No recorded changes in the comparable observations.'
+                  : tab.id === 'coverage'
+                    ? 'No collection issues were reported for the declared scope. This is not a safety assessment.'
+                    : 'No matching files were observed in this scope.'}
+            />
+          {/if}
+          {#if tab.id === 'coverage'}
+            <details class="scope-details">
+              <summary>{$t('Checked scope and limits')}</summary>
+              <Metadata
+                value={{
+                  Profile: review.adapter,
+                  Scope: local.scope ?? inventory.scope,
+                  Limits: local.limits ?? inventory.limits,
+                  Usage: local.usage ?? inventory.usage,
+                  'Rule set': local.ruleSet,
+                  'MCP catalog': record(local.mcpCatalog).summary ?? record(review.report.catalog),
+                  'External source': record(review.report.external).source,
+                  'External baseline': record(review.report.external).baseline,
+                  'Snapshot comparison':
+                    review.mode === 'compare'
+                      ? {
+                          status: review.report.status,
+                          baselineDigest: review.report.baselineDigest,
+                          currentDigest: review.report.currentDigest,
+                          baselineState: review.report.baselineState,
+                        }
+                      : undefined,
+                }}
+              />
+            </details>
+            {#if review.mode === 'scan' || review.mode === 'import'}<p class="muted">
+                {$t(
+                  'Checks cover bounded commands, selected JavaScript/Python value flows, shell redirections and four English instruction patterns. General instruction meaning, complex control flow and runtime behavior remain outside this analysis.',
+                )}
+              </p>{/if}
+          {/if}
         </div>
-        {#if review.snapshot.canAccept && !savedAcceptance}
-          <label class="acknowledge"
-            ><input type="checkbox" bind:checked={acknowledge} disabled={pending || preview} />{$t(
-              'I reviewed the listed content and the displayed digest.',
-            )}</label
-          >
-          <button
-            class="button"
-            disabled={!acknowledge || pending || preview}
-            onclick={() => action('accept')}
-            ><Icon name="check" />{$t('Recheck and save accepted copy')}</button
-          >
-        {:else if !savedAcceptance}<p class="muted">
-            {$t('Acceptance is unavailable for incomplete, changed or already accepted snapshots.')}
-          </p>{/if}
-      </details>
-    </div>{/if}
+      {/each}
+    </div>
+    <aside class="result-context" aria-label={$t('Local review sections')}>
+      <SectionNavigation
+        {tabs}
+        {selected}
+        {prefix}
+        controls
+        change={(id) => {
+          selected = id;
+        }}
+        label="Local review sections"
+      />
+      {#if review.snapshot}<div class="snapshot-actions">
+          <section aria-label={$t('Content snapshot')}>
+            <h3>{$t('Content snapshot')}</h3>
+            <p class="muted">
+              {$t(
+                'Save an unreviewed snapshot for later comparison. Acceptance requires a fresh matching capture and records your decision about these exact bytes.',
+              )}
+            </p>
+            <dl>
+              <dt>{$t('Reviewed digest')}</dt>
+              <dd>{review.snapshot.digest}</dd>
+              <dt>{$t('State')}</dt>
+              <dd>{savedAcceptance ? $t('Accepted copy saved') : review.snapshot.state}</dd>
+            </dl>
+            <div class="toolbar">
+              {#if review.canSaveSnapshot}<button
+                  class="button"
+                  disabled={pending || preview}
+                  onclick={() => action('save-snapshot')}
+                  ><Icon name="download" />{$t('Save unreviewed snapshot')}</button
+                >{/if}
+            </div>
+            {#if review.snapshot.canAccept && !savedAcceptance}
+              <label class="acknowledge"
+                ><input
+                  type="checkbox"
+                  bind:checked={acknowledge}
+                  disabled={pending || preview}
+                />{$t('I reviewed the listed content and the displayed digest.')}</label
+              >
+              <button
+                class="button"
+                disabled={!acknowledge || pending || preview}
+                onclick={() => action('accept')}
+                ><Icon name="check" />{$t('Recheck and save accepted copy')}</button
+              >
+            {:else if !savedAcceptance}<p class="muted">
+                {$t(
+                  'Acceptance is unavailable for incomplete, changed or already accepted snapshots.',
+                )}
+              </p>{/if}
+          </section>
+        </div>{/if}
+    </aside>
+  </div>
 </section>
 
 <style>
   .review-output {
     min-width: 0;
+    container-type: inline-size;
+  }
+  .result-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: var(--space-3);
+    padding: var(--panel-inset);
+    border-top: 1px solid var(--border);
+    align-items: start;
+  }
+  .result-evidence,
+  .result-context {
+    min-width: 0;
+  }
+  .result-context {
+    background: var(--bg);
+    padding: var(--space-3);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--control-radius);
+  }
+  .snapshot-actions h3 {
+    font-size: var(--text-body);
+    margin: var(--space-3) 0 var(--space-2);
+  }
+  .result-context button {
+    max-width: 100%;
+    white-space: normal;
+  }
+  @container (max-width: 500px) {
+    .result-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .result-context {
+      grid-row: 1;
+    }
   }
   .next-step {
     display: flex;
@@ -415,10 +461,12 @@
   .result-intro p {
     margin: var(--space-2) 0;
   }
-  .result-intro,
-  .result-section,
-  .snapshot-actions {
+  .result-intro {
     padding: var(--panel-inset);
+  }
+  .result-section {
+    padding: 0;
+    min-width: 0;
   }
   .mcp-declarations h3 {
     margin: 0;

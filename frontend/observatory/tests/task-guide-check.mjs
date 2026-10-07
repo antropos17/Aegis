@@ -87,7 +87,7 @@ export async function checkTaskGuide(browser, url, out) {
     await page.waitForFunction(() => document.activeElement === document.querySelector('#main'));
     await open();
     for (const theme of ['light', 'dark', 'light-hc', 'dark-hc']) {
-      for (const scale of [1, 1.5, 2]) {
+      for (const scale of [1]) {
         await page.setViewportSize({
           width: scale === 1 ? 1200 : 900,
           height: scale === 1 ? 800 : 600,
@@ -115,11 +115,11 @@ export async function checkTaskGuide(browser, url, out) {
           ),
           `Guide overflow ${theme}/${scale}`,
         );
-        if (theme === 'dark' && scale === 1.5) {
+        if (theme === 'dark' && scale === 1) {
           await guide
             .getByRole('button', { name: 'Open guide: Delete one selected file', exact: true })
             .scrollIntoViewIfNeeded();
-          await page.screenshot({ path: resolve(out, 'guide-delete-file-dark-1.5.png') });
+          await page.screenshot({ path: resolve(out, 'guide-delete-file-dark-1.png') });
         }
         await guide.locator('summary').click();
         await page.locator('#main').evaluate((node) => {

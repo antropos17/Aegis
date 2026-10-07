@@ -50,7 +50,7 @@ export async function checkSettings(browser, url, out) {
     let states = 0;
     for (const width of [900, 1200]) {
       await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
-      for (const scale of [1, 1.5]) {
+      for (const scale of [1]) {
         for (const theme of ['light', 'dark', 'light-hc', 'dark-hc']) {
           await page.evaluate(
             ({ scale, theme }) => {
@@ -63,10 +63,14 @@ export async function checkSettings(browser, url, out) {
             await page.locator('#main').evaluate((node) => {
               node.scrollTop = 0;
             });
-            const tab = workspace.getByRole('tab', { name, exact: true });
-            await tab.click();
-            assert(await tab.evaluate((node) => document.activeElement === node));
-            assert.equal(await workspace.getByRole('tabpanel').count(), 1);
+            const section = workspace
+              .getByRole('navigation', { name: 'Settings sections' })
+              .getByRole('button', { name, exact: true });
+            await section.click();
+            const heading = workspace.locator('.settings-page > h2').filter({ hasText: name });
+            assert(await heading.evaluate((node) => document.activeElement === node));
+            assert.equal(await workspace.locator('.settings-page:visible').count(), 4);
+            assert.equal(await section.getAttribute('aria-current'), 'location');
             assert(
               await workspace.evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
               name + ' overflows',
@@ -87,10 +91,7 @@ export async function checkSettings(browser, url, out) {
               name + ' save bar is unreachable',
             );
             assert(!/DO-NOT-DISPLAY/.test(await workspace.innerText()));
-            if (
-              !theme.endsWith('-hc') &&
-              ((width === 900 && scale === 1.5) || (width === 1200 && scale === 1))
-            ) {
+            if (!theme.endsWith('-hc') && scale === 1) {
               await page.screenshot({
                 path: resolve(
                   out,
@@ -110,18 +111,16 @@ export async function checkSettings(browser, url, out) {
       }
     }
     await page.setViewportSize({ width: 1200, height: 800 });
-    await workspace.getByRole('tab', { name: 'Appearance', exact: true }).click();
-    await page.getByLabel('Interface scale percent', { exact: true }).fill('125');
-    await workspace.getByRole('tab', { name: 'Monitoring', exact: true }).click();
+    await workspace.getByRole('button', { name: 'Appearance', exact: true }).click();
+    assert.equal(await page.getByLabel('Interface scale', { exact: true }).innerText(), '100%');
+    await workspace.getByRole('button', { name: 'Monitoring', exact: true }).click();
     await page.getByLabel('Exact scan interval (seconds)', { exact: true }).fill('0');
     assert(await page.getByRole('button', { name: 'Save settings', exact: true }).isDisabled());
     await page.getByLabel('Exact scan interval (seconds)', { exact: true }).fill('17');
     assert.deepEqual(await page.evaluate(() => window.settingsWrites), []);
     await page.getByRole('button', { name: 'Save settings', exact: true }).click();
     await page.getByText('Settings saved', { exact: true }).waitFor();
-    assert.deepEqual(await page.evaluate(() => window.settingsWrites), [
-      { uiScale: 1.25, scanIntervalSec: 17 },
-    ]);
+    assert.deepEqual(await page.evaluate(() => window.settingsWrites), [{ scanIntervalSec: 17 }]);
     assert.deepEqual(errors, []);
     console.log(
       'Settings: ' +

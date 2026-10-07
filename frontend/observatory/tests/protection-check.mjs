@@ -61,7 +61,7 @@ export async function checkProtection(browser, url, out) {
         .first()
         .evaluate((node) => document.activeElement === node),
     );
-    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1.5'));
+    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
     const lastVisibleRow = page.locator('.activity-row').nth(7);
     await lastVisibleRow.focus();
     await page.keyboard.press('Enter');
@@ -95,7 +95,7 @@ export async function checkProtection(browser, url, out) {
       { width: 900, height: 600 },
     ]) {
       await page.setViewportSize(size);
-      for (const scale of [1, 1.25, 1.5]) {
+      for (const scale of [1]) {
         for (const theme of ['light', 'dark']) {
           await page.evaluate(
             ({ scale, theme }) => {

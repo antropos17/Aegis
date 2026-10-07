@@ -12,7 +12,6 @@
   import { leadingRiskReason } from '../runtime/risk-context';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
-  import SectionTabs from './SectionTabs.svelte';
   let {
     telemetry,
     inspect,
@@ -24,23 +23,6 @@
     openStatistics?: (_agent: string) => void;
     advanced?: boolean;
   } = $props();
-  const panelId = $props.id();
-  let section = $state('overview');
-  let effectiveSection = $derived(advanced ? section : 'overview');
-  let panelAttributes = $derived(
-    advanced
-      ? {
-          role: 'tabpanel' as const,
-          tabindex: 0,
-          'aria-labelledby': panelId + '-tab-' + effectiveSection,
-        }
-      : {},
-  );
-  const sections = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'resources', label: 'Resources' },
-    { id: 'activity', label: 'Activity' },
-  ];
   let query = $state(''),
     sort = $state('risk'),
     descending = $state(true);
@@ -93,29 +75,21 @@
   >
 </div>
 <section class="panel">
-  <div hidden={!advanced}>
-    <SectionTabs
-      tabs={sections}
-      selected={section}
-      change={(id) => {
-        section = id;
-      }}
-      prefix={panelId}
-      label={$t('Agent table sections')}
-    />
-  </div>
-  <div class="table-wrap" {...panelAttributes} id={panelId + '-panel-' + effectiveSection}>
-    <table>
+  <div class="table-wrap">
+    <table class:complete={advanced}>
       <thead
-        ><tr
+        >{#if advanced}<tr class="column-groups">
+            <th colspan="3" scope="colgroup">{$t('Overview')}</th>
+            <th colspan="4" scope="colgroup">{$t('Resources')}</th>
+            <th colspan="3" scope="colgroup">{$t('Activity')}</th>
+            <th rowspan="2" scope="col">{$t('Details')}</th>
+          </tr>{/if}<tr
           ><th>{$t('Agent')}</th>
-          {#if effectiveSection === 'overview'}<th>{$t('Status')}</th><th>{$t('Risk')}</th>{/if}
-          {#if effectiveSection !== 'activity'}<th>{$t('CPU')}</th><th>{$t('RAM')}</th>{/if}
-          {#if effectiveSection === 'resources'}<th>{$t('Tokens')}</th><th>{$t('Cost')}</th>{/if}
-          {#if effectiveSection === 'activity'}<th>{$t('Files')}</th><th>{$t('Network')}</th>{/if}
-          {#if effectiveSection !== 'resources'}<th>{$t('Latest event')}</th>{/if}<th
-            >{$t('Details')}</th
-          >
+          <th>{$t('Status')}</th><th>{$t('Risk')}</th>
+          <th>{$t('CPU')}</th><th>{$t('RAM')}</th>
+          {#if advanced}<th>{$t('Tokens')}</th><th>{$t('Cost')}</th>
+            <th>{$t('Files')}</th><th>{$t('Network')}</th>{/if}
+          <th>{$t('Latest event')}</th>{#if !advanced}<th>{$t('Details')}</th>{/if}
         </tr></thead
       ><tbody>
         {#each agents as a (a.key)}<tr class="agent-group-row"
@@ -130,32 +104,29 @@
                   name="chevron"
                 /></button
               ></td
-            >{#if effectiveSection === 'overview'}<td
-                ><span class="badge low"
-                  >{telemetry.stale ? $t('Last snapshot') : $t('Active')}</span
-                ></td
-              ><td
-                ><span
-                  class={`risk-value ${riskBand(a.risk)}`}
-                  title={$t("Highest risk among this agent's processes")}
-                  >{a.risk}<small>/100</small></span
-                >
-                <button
-                  class="entity-link risk-reason"
-                  aria-label={'Explain risk for ' + a.name}
-                  onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'risk' })}
-                  >{leadingRiskReason(a.members[0])}</button
-                ></td
-              >{/if}{#if effectiveSection !== 'activity'}<td class="mono"
-                >{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td
-              ><td class="mono">{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
-              >{/if}{#if effectiveSection === 'activity'}<td>{a.files}</td><td>{a.network}</td
-              >{/if}{#if effectiveSection === 'resources'}<td
-                >{a.tokens?.toLocaleString() ?? '—'}</td
-              ><td>{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
-              >{/if}{#if effectiveSection !== 'resources'}<td class="mono"
-                >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
-              >{/if}<td
+            ><td
+              ><span class="badge low">{telemetry.stale ? $t('Last snapshot') : $t('Active')}</span
+              ></td
+            ><td
+              ><span
+                class={`risk-value ${riskBand(a.risk)}`}
+                title={$t("Highest risk among this agent's processes")}
+                >{a.risk}<small>/100</small></span
+              >
+              <button
+                class="entity-link risk-reason"
+                aria-label={'Explain risk for ' + a.name}
+                onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'risk' })}
+                >{leadingRiskReason(a.members[0])}</button
+              ></td
+            ><td class="mono">{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td><td class="mono"
+              >{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
+            >{#if advanced}<td>{a.tokens?.toLocaleString() ?? '—'}</td><td
+                >{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
+              ><td>{a.files}</td><td>{a.network}</td>
+            {/if}<td class="mono"
+              >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
+            ><td
               ><button class="text-button" onclick={() => inspect(a.name, groupRecord(a))}
                 >{$t('Open')}<Icon name="chevron" /></button
               >{#if openStatistics}<button
@@ -166,7 +137,7 @@
                 >{/if}</td
             ></tr
           >{:else}<tr
-            ><td colspan={effectiveSection === 'activity' ? 5 : 7}
+            ><td colspan={advanced ? 11 : 7}
               >{telemetry.ready ? $t('No matching agents.') : $t('Waiting for scan data.')}</td
             ></tr
           >{/each}
@@ -181,6 +152,23 @@
 </div>
 
 <style>
+  .table-wrap {
+    overflow-x: auto;
+  }
+  .column-groups th {
+    background: var(--raised);
+    color: var(--ink);
+    border-right: 1px solid var(--strong-border);
+    font-weight: 600;
+  }
+  .column-groups th:last-child {
+    border-right: 0;
+  }
+  .complete :is(td, th):nth-child(4),
+  .complete :is(td, th):nth-child(8),
+  .complete :is(td, th):nth-child(11) {
+    border-left: 1px solid var(--strong-border);
+  }
   .risk-reason {
     display: block;
     max-width: 170px;

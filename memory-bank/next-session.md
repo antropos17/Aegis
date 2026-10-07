@@ -1,6 +1,25 @@
 # AEGIS — starting the next chat
 
-## Current UX composition — 2026-10-07
+## Active Advanced layout correction — 2026-10-07
+
+The latest user rejected the flat composition and the Review options disclosure.
+The active work is in `X:/tmp/aegis-advanced-layout-20261007` on
+`codex/advanced-layout-hierarchy-20261007`, based on master merge
+`1a87f55c412ac97c92809a82fcd441832c7360d3` (PR #784).
+Read the current brief at the top of `frontend/observatory/DESIGN.md`.
+Advanced defaults on; Simple is an explicit Settings choice. App UI size is 100%.
+Related evidence and context use visibly separated main/right panels; suitable
+workspace tabs and setup disclosures are replaced with visible sections.
+Preserve every technical route, bounded datasets, saved drafts and action guards.
+
+Use the current local verification receipts and live GitHub status for completion.
+Earlier work below has finished and must not restart. The primary checkout has
+unrelated dirty work. Dependencies are a verified junction to the existing managed
+checkout; do not run npm ci or recursively remove this new checkout with that
+junction still attached. Temporary outputs and capped verification logs are on X.
+No release tag, lockfile or workflow change is part of this layout correction.
+
+## Previous UX composition — 2026-10-07
 
 The latest UX change applies source-backed EDR investigation patterns after the user
 reported that the Simple interface still scattered related tasks. Read the

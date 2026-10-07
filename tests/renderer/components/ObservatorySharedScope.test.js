@@ -28,25 +28,25 @@ it('follows shared statistics scope without resetting the selected section or ex
   await waitFor(() => expect(current()).toHaveTextContent('10'));
   expect(screen.queryByLabelText('Statistics agent')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Statistics process')).not.toBeInTheDocument();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Tokens', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Tokens', exact: true }));
   await rerender({
     scope: { agent: 'Claude', instanceId: '2:new' },
     scopeRequest: { agent: 'Codex', revision: 1 },
   });
-  expect(screen.getByRole('tab', { name: 'Tokens', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  expect(screen.getByRole('button', { name: 'Tokens', exact: true })).toHaveAttribute(
+    'aria-current',
+    'location',
   );
-  await fireEvent.click(screen.getByRole('tab', { name: 'Performance', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Performance', exact: true }));
   await waitFor(() => expect(current()).toHaveTextContent('70'));
   await rerender({ scope: { agent: 'Claude', instanceId: '2:departed' } });
   expect(screen.getByText(/Selection no longer observed/)).toBeInTheDocument();
   expect(current()).not.toHaveTextContent('70');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Sensors', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Sensors', exact: true }));
   await rerender({ scope: { agent: 'Codex', instanceId: '' } });
-  expect(screen.getByRole('tab', { name: 'Sensors', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  expect(screen.getByRole('button', { name: 'Sensors', exact: true })).toHaveAttribute(
+    'aria-current',
+    'location',
   );
   expect(screen.getByText(/AEGIS main process/)).toBeInTheDocument();
 });

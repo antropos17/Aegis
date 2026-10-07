@@ -46,23 +46,31 @@
 <section class="investigation-workbench" aria-label={$t('Investigation workspace')}>
   <InvestigationRoster {telemetry} {scope} {change} />
   <div class="investigation-body">
-    <div id="investigation-context" tabindex="-1">
-      <InvestigationHeader {telemetry} {liveTelemetry} {host} {scope} {change} {inspect} {paused} />
+    <div class="activity-feed">
+      <h2 id="investigation-activity" tabindex="-1">{$t('Activity')}</h2>
+      <Events
+        {telemetry}
+        {scope}
+        inspect={capture}
+        advanced={false}
+        combined
+        captureContext
+        showPause={false}
+        viewPaused={paused}
+        {visible}
+        {channelRequest}
+      />
     </div>
-    <div class="evidence-workspace" class:has-evidence={request !== null}>
-      <div class="activity-feed">
-        <h2 id="investigation-activity" tabindex="-1">{$t('Activity')}</h2>
-        <Events
+    <div class="investigation-sidebar">
+      <div id="investigation-context" tabindex="-1">
+        <InvestigationHeader
           {telemetry}
+          {liveTelemetry}
+          {host}
           {scope}
-          inspect={capture}
-          advanced={false}
-          combined
-          captureContext
-          showPause={false}
-          viewPaused={paused}
-          {visible}
-          {channelRequest}
+          {change}
+          {inspect}
+          {paused}
         />
       </div>
       {#if request}
@@ -91,21 +99,27 @@
     min-width: 0;
   }
   .investigation-body,
+  .investigation-sidebar,
   .activity-feed {
     min-width: 0;
   }
   .investigation-body {
     display: grid;
-    gap: var(--space-3);
-  }
-  .evidence-workspace {
-    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
     gap: var(--space-3);
     align-items: start;
-    min-width: 0;
   }
-  .evidence-workspace.has-evidence {
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  .investigation-sidebar {
+    display: grid;
+    gap: var(--space-3);
+    align-self: stretch;
+    align-content: start;
+  }
+  .activity-feed {
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    padding: var(--space-3);
+    background: var(--panel);
   }
   .activity-feed > h2 {
     margin: 0 0 var(--space-2);
@@ -114,14 +128,6 @@
   .activity-feed :global(.activity-channels) {
     margin-bottom: var(--space-2);
   }
-  @media (max-width: 1180px) {
-    .evidence-workspace.has-evidence {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .has-evidence :global(.investigation-inspector) {
-      grid-row: 1;
-    }
-  }
   @media (max-width: 980px) {
     .investigation-workbench {
       grid-template-columns: minmax(0, 1fr);
@@ -129,12 +135,18 @@
     }
     .investigation-body {
       gap: var(--space-2);
+      grid-template-columns: minmax(0, 1fr) 250px;
     }
     .investigation-workbench :global(.investigation-roster) {
       max-width: none;
     }
     .investigation-workbench :global(.roster-list) {
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    }
+  }
+  @media (max-width: 760px) {
+    .investigation-body {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

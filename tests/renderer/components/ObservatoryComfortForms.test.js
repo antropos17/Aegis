@@ -41,7 +41,7 @@ it('keeps settings drafts across sections and direct requests, and retains edits
   });
   await screen.findByText('Settings saved');
   expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
     target: { value: '23' },
   });
@@ -49,11 +49,16 @@ it('keeps settings drafts across sections and direct requests, and retains edits
     target: { value: 'X:/builds' },
   });
   await rerender({ sectionRequest: { id: 'desktop', revision: 1 } });
-  expect(screen.getByRole('tab', { name: 'Desktop & updates' })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Desktop & updates' })).toHaveFocus(),
   );
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  expect(screen.getByRole('button', { name: 'Desktop & updates' })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
+  expect(screen.getByRole('region', { name: 'Appearance', exact: true })).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Data & help', exact: true })).toBeVisible();
   expect(screen.getByLabelText('Scan interval (seconds)')).toHaveValue('23');
   expect(screen.getByLabelText('Additional exclusions')).toHaveValue('X:/builds');
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
@@ -109,7 +114,7 @@ it('filters loaded rules by readable name or category and explains empty results
     },
     telemetry: telemetry(),
   });
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('heading', { name: 'Loaded detection rules' })).toBeVisible();
   await screen.findByText('SSH access');
   await fireEvent.input(screen.getByLabelText('Search detection rules'), {
     target: { value: 'network' },
@@ -137,7 +142,7 @@ it('switches detection rules independently and restores a failed change', async 
     },
     telemetry: telemetry(),
   });
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('heading', { name: 'Loaded detection rules' })).toBeVisible();
   const ssh = await screen.findByRole('checkbox', { name: 'Enable SSH access' });
   const network = screen.getByRole('checkbox', { name: 'Enable External connection' });
   await fireEvent.click(ssh);
@@ -204,16 +209,16 @@ it('reveals and focuses sensitive paths when the host rejects a pattern from ano
   };
   render(Settings, { host, appearance: vi.fn(), navigate: vi.fn() });
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Sensitive paths'), {
     target: { value: '(invalid' },
   });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Data & help' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Data & help' }));
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   await waitFor(() => expect(screen.getByLabelText('Sensitive paths')).toHaveFocus());
-  expect(screen.getByRole('tab', { name: 'Monitoring', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  expect(screen.getByRole('button', { name: 'Monitoring', exact: true })).toHaveAttribute(
+    'aria-current',
+    'location',
   );
   expect(screen.getByLabelText('Sensitive paths')).toHaveValue('(invalid');
   expect(await screen.findByRole('alert')).toHaveTextContent('Unsafe or invalid regex pattern');

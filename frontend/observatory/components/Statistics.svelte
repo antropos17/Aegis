@@ -17,7 +17,7 @@
     statisticsTabs,
     type StatsSection,
   } from '../runtime/statistics-metrics';
-  import SectionTabs from './SectionTabs.svelte';
+  import SectionNavigation from './SectionNavigation.svelte';
   import StatsChart from './StatsChart.svelte';
   import StatsSensors from './StatsSensors.svelte';
   import StatsTokens from './StatsTokens.svelte';
@@ -55,11 +55,7 @@
   let allNow = $state(Date.now());
   let scopedNow = $state(Date.now());
   let historyPeriod = $state(60000);
-  let processView = $state('comparison');
-  const processViews = [
-    { id: 'comparison', label: 'Comparison' },
-    { id: 'table', label: 'Table' },
-  ];
+  let processesVisited = $state(false);
   let allHistory = createStatisticsHistory();
   let scopedHistory = createStatisticsHistory();
   let allSamples = $state.raw<StatisticsSample[]>([]);
@@ -93,6 +89,9 @@
     ).length,
   );
   let health = $derived(record(telemetry.stats.appHealth));
+  $effect(() => {
+    if (section === 'processes') processesVisited = true;
+  });
   onMount(() => {
     const timer = setInterval(() => {
       if (!paused && !telemetry.stale) allNow = Date.now();
@@ -133,94 +132,14 @@
 </script>
 
 <div class="statistics-workspace">
-  {#if !scope}<div class="statistics-scope">
-      <label
-        >{$t('Agent')}
-        <select
-          aria-label={$t('Statistics agent')}
-          bind:value={localAgent}
-          disabled={sensorView}
-          onchange={(event) => {
-            localInstanceId = '';
-            changeScope?.({ agent: event.currentTarget.value, instanceId: '' });
-          }}
+  <div class="statistics-content">
+    {#each statisticsTabs.filter((item) => item.id !== 'processes') as item (item.id)}
+      {#if section === item.id}
+        <section
+          id={'statistics-panel-' + item.id}
+          aria-label={$t(item.label)}
+          class="statistics-section"
         >
-          <option value="">{$t('All agents')}</option>
-          {#each groups as group (group.key)}<option value={group.key}>{group.name}</option>{/each}
-          {#if agent && !groups.some((group) => group.key === agent)}
-            <option value={agent}>{agent} {$t('· no longer observed')}</option>
-          {/if}
-        </select>
-      </label>
-      <label
-        >{$t('Process')}
-        <select
-          aria-label={$t('Statistics process')}
-          bind:value={localInstanceId}
-          onchange={(event) =>
-            changeScope?.({ agent: localAgent, instanceId: event.currentTarget.value })}
-          disabled={sensorView || !agent}
-        >
-          <option value="">{$t('All processes')}</option>
-          {#each members.filter((row) => row.instanceId) as row (row.instanceId)}
-            <option value={row.instanceId}
-              >{$t('PID')} {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
-            >
-          {/each}
-          {#if instanceId && !members.some((row) => row.instanceId === instanceId)}
-            <option value={instanceId}>{$t('Selected process · no longer observed')}</option>
-          {/if}
-        </select>
-      </label>
-      <span class="scope-caption"
-        >{sensorView
-          ? $t('AEGIS health · independent of agent selection')
-          : agent
-            ? $t('History starts with this selection.')
-            : $t('Combined measurements of observed agents')}</span
-      >
-    </div>{/if}
-  <div class="stats-navigation">
-    <SectionTabs
-      tabs={statisticsTabs}
-      selected={section}
-      change={(id) => {
-        section = id as StatsSection;
-      }}
-      prefix="statistics"
-      label={$t('Statistics sections')}
-    />
-  </div>
-  <div class="coverage-line">
-    <span
-      >{sensorView
-        ? $t('AEGIS main process') + ' · ' + $t(observationStatusLabel(health.state))
-        : agent && !scoped.agents.length
-          ? $t('Selection no longer observed · last measurements retained')
-          : section === 'tokens'
-            ? $t('Supported agent logs · measured coverage')
-            : section === 'activity'
-              ? $t('Observed connections and risk')
-              : coverage + ' / ' + scoped.agents.length + ' process resource samples'}</span
-    >
-    <span class="live-state"
-      >{paused
-        ? $t('View paused · ')
-        : telemetry.stale
-          ? $t('Last observation · ')
-          : ''}{samples.length}
-      {$t('source updates · up to 5 minutes')}</span
-    >
-  </div>
-  {#each statisticsTabs as tab (tab.id)}
-    <div
-      id={'statistics-panel-' + tab.id}
-      role="tabpanel"
-      aria-labelledby={'statistics-tab-' + tab.id}
-      hidden={section !== tab.id}
-    >
-      {#if section === tab.id}
-        {#if section !== 'processes'}
           {#key sensorView ? 'sensors' : JSON.stringify([agent, instanceId])}
             <StatsChart
               {samples}
@@ -232,71 +151,158 @@
               stale={(sensorView ? telemetry.stale : scoped.stale) || paused}
             />
           {/key}
-        {/if}
-        {#if section === 'processes'}
-          <div class="process-view-selector">
-            <SectionTabs
-              tabs={processViews}
-              selected={processView}
-              change={(id) => {
-                processView = id;
-              }}
-              prefix="statistics-process"
-              label={$t('Process comparison view')}
-            />
-          </div>
-          <div
-            role="tabpanel"
-            id="statistics-process-panel-comparison"
-            aria-labelledby="statistics-process-tab-comparison"
-            hidden={processView !== 'comparison'}
-          >
-            <ResourceUsage telemetry={scoped} {inspect} />
-          </div>
-          <div
-            role="tabpanel"
-            id="statistics-process-panel-table"
-            aria-labelledby="statistics-process-tab-table"
-            hidden={processView !== 'table'}
-          >
-            <Agents telemetry={scoped} {inspect} />
-          </div>
-        {:else if section === 'activity'}
-          <p class="scope-note">
-            {agent
-              ? $t(
-                  'Only connections with an exact selected process identity are included. Per-agent cumulative file counters are unavailable, so file rates are not shown.',
-                )
-              : $t(
-                  'Connections are counts, not bandwidth. File rates use delivered global counters.',
-                )}
-          </p>
-        {:else if section === 'tokens'}
-          <div class="supporting-content"><StatsTokens telemetry={scoped} {inspect} /></div>
-        {:else if section === 'sensors'}
-          <div class="supporting-content"><StatsSensors {telemetry} /></div>
-        {/if}
+          {#if section === 'activity'}
+            <p class="scope-note">
+              {agent
+                ? $t(
+                    'Only connections with an exact selected process identity are included. Per-agent cumulative file counters are unavailable, so file rates are not shown.',
+                  )
+                : $t(
+                    'Connections are counts, not bandwidth. File rates use delivered global counters.',
+                  )}
+            </p>
+          {:else if section === 'tokens'}
+            <div class="supporting-content"><StatsTokens telemetry={scoped} {inspect} /></div>
+          {:else if section === 'sensors'}
+            <div class="supporting-content"><StatsSensors {telemetry} /></div>
+          {/if}
+        </section>
       {/if}
+    {/each}
+    {#if processesVisited}
+      <section
+        id="statistics-panel-processes"
+        aria-label={$t('Processes')}
+        class="statistics-processes"
+        hidden={section !== 'processes'}
+      >
+        <ResourceUsage telemetry={scoped} {inspect} />
+        <section class="panel process-table" aria-label={$t('Table')}>
+          <div class="panel-head"><h2>{$t('Processes')}</h2></div>
+          <div class="process-table-content"><Agents telemetry={scoped} {inspect} /></div>
+        </section>
+      </section>
+    {/if}
+  </div>
+  <aside class="statistics-context">
+    <SectionNavigation
+      tabs={statisticsTabs}
+      selected={section}
+      change={(value) => {
+        section = value as StatsSection;
+      }}
+      prefix="statistics"
+      label={$t('Statistics sections')}
+      controls={false}
+    />
+    {#if !scope}
+      <div class="statistics-scope">
+        <label>
+          {$t('Agent')}
+          <select
+            aria-label={$t('Statistics agent')}
+            bind:value={localAgent}
+            disabled={sensorView}
+            onchange={(event) => {
+              localInstanceId = '';
+              changeScope?.({ agent: event.currentTarget.value, instanceId: '' });
+            }}
+          >
+            <option value="">{$t('All agents')}</option>
+            {#each groups as group (group.key)}<option value={group.key}>{group.name}</option
+              >{/each}
+            {#if agent && !groups.some((group) => group.key === agent)}
+              <option value={agent}>{agent} {$t('· no longer observed')}</option>
+            {/if}
+          </select>
+        </label>
+        <label>
+          {$t('Process')}
+          <select
+            aria-label={$t('Statistics process')}
+            bind:value={localInstanceId}
+            onchange={(event) =>
+              changeScope?.({ agent: localAgent, instanceId: event.currentTarget.value })}
+            disabled={sensorView || !agent}
+          >
+            <option value="">{$t('All processes')}</option>
+            {#each members.filter((row) => row.instanceId) as row (row.instanceId)}
+              <option value={row.instanceId}>
+                {$t('PID')}
+                {row.pid}{row.projectName ? ' · ' + row.projectName : ''}
+              </option>
+            {/each}
+            {#if instanceId && !members.some((row) => row.instanceId === instanceId)}
+              <option value={instanceId}>{$t('Selected process · no longer observed')}</option>
+            {/if}
+          </select>
+        </label>
+        <p class="scope-caption">
+          {sensorView
+            ? $t('AEGIS health · independent of agent selection')
+            : agent
+              ? $t('History starts with this selection.')
+              : $t('Combined measurements of observed agents')}
+        </p>
+      </div>
+    {/if}
+    <div class="coverage-line">
+      <strong>
+        {sensorView
+          ? $t('AEGIS main process') + ' · ' + $t(observationStatusLabel(health.state))
+          : agent && !scoped.agents.length
+            ? $t('Selection no longer observed · last measurements retained')
+            : section === 'tokens'
+              ? $t('Supported agent logs · measured coverage')
+              : section === 'activity'
+                ? $t('Observed connections and risk')
+                : coverage + ' / ' + scoped.agents.length + ' process resource samples'}
+      </strong>
+      <span class="live-state">
+        {paused
+          ? $t('View paused · ')
+          : telemetry.stale
+            ? $t('Last observation · ')
+            : ''}{samples.length}
+        {$t('source updates · up to 5 minutes')}
+      </span>
     </div>
-  {/each}
+  </aside>
 </div>
 
 <style>
   .statistics-workspace {
     min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 200px;
+    align-items: start;
+    gap: var(--space-4);
+  }
+  .statistics-content {
+    min-width: 0;
+    container-type: inline-size;
+  }
+  .statistics-context {
+    min-width: 0;
+    position: sticky;
+    top: var(--workspace-sticky-offset, 70px);
+    display: grid;
+    gap: var(--space-4);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
+    background: var(--panel);
+    padding: var(--space-3);
   }
   .statistics-scope {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    gap: 12px;
-    margin-bottom: 12px;
+    display: grid;
+    gap: var(--space-3);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-3);
   }
   .statistics-scope label {
     display: grid;
     gap: 6px;
     min-width: 0;
-    flex: 1 1 160px;
     color: var(--muted);
     font-size: var(--text-caption);
   }
@@ -306,50 +312,69 @@
     min-height: 36px;
   }
   .scope-caption {
-    flex: 1 1 180px;
-    min-height: 32px;
+    margin: 0;
     color: var(--muted);
     font-size: var(--text-caption);
     line-height: 1.5;
   }
-  .stats-navigation {
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--panel);
-    overflow: hidden;
-    margin-bottom: 12px;
-  }
-  .stats-navigation :global(.section-tabs) {
-    border: 0;
-    padding: 0 10px;
-  }
   .coverage-line {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 16px;
-    margin-bottom: 10px;
+    display: grid;
+    gap: var(--space-2);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-3);
     color: var(--muted);
     font-size: var(--text-caption);
+    line-height: 1.5;
+  }
+  .coverage-line strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .supporting-content,
+  .statistics-processes {
+    display: grid;
+    gap: var(--space-4);
   }
   .supporting-content {
-    margin-top: 18px;
+    margin-top: var(--space-4);
   }
-  .process-view-selector {
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--panel);
-    overflow: hidden;
-    margin-bottom: 12px;
+  .statistics-processes[hidden] {
+    display: none;
   }
-  .process-view-selector :global(.section-tabs) {
-    border: 0;
+  .process-table-content {
+    padding: 0 var(--space-3) var(--space-3);
   }
   .scope-note {
     color: var(--muted);
     font-size: var(--text-caption);
     line-height: 1.7;
     margin: 12px 0 0;
+  }
+  @container (max-width: 720px) {
+    .statistics-content :global(.monitor) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .statistics-content :global(.metric-rail) {
+      flex-direction: row;
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .statistics-content :global(.metric-rail button) {
+      flex: 0 0 142px;
+      padding: 8px;
+    }
+    .statistics-content :global(.monitor-detail) {
+      padding: var(--space-4);
+    }
+  }
+  @media (max-width: 700px) {
+    .statistics-workspace {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .statistics-context {
+      position: static;
+      grid-row: 1;
+    }
   }
 </style>

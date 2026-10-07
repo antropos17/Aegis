@@ -52,6 +52,7 @@ assert.deepEqual(
     'styles/coherence.css',
     'styles/detail-layout.css',
     'styles/comfort.css',
+    'styles/workspace-hierarchy.css',
   ],
   'approved cascade order',
 );
@@ -211,7 +212,7 @@ try {
     { width: 900, height: 600 },
   ]) {
     await page.setViewportSize(size);
-    for (const scale of [1, 1.5]) {
+    for (const scale of [1]) {
       await page.evaluate(
         (scale) => document.documentElement.style.setProperty('--ui-scale', String(scale)),
         scale,
@@ -243,7 +244,7 @@ try {
             'high contrast replaced the template surfaces',
           );
         }
-        await page.emulateMedia({ reducedMotion: scale === 1.5 ? 'reduce' : 'no-preference' });
+        await page.emulateMedia({ reducedMotion: size.width === 900 ? 'reduce' : 'no-preference' });
         for (const view of views) {
           await page.locator('.sidebar').getByRole('button', { name: view, exact: true }).click();
           await page.getByRole('heading', { name: view, exact: true, level: 1 }).waitFor();
@@ -427,11 +428,8 @@ try {
     .getByLabel('Selected process', { exact: true })
     .selectOption({ index: 1 });
   await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
-  await page
-    .getByRole('tablist', { name: 'Agent sections' })
-    .getByRole('tab', { name: 'Processes', exact: true })
-    .click();
-  await page.getByText('Process attributes and controls', { exact: true }).click();
+  assert.equal(await page.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
+  assert(await page.getByRole('region', { name: 'Process attributes and controls' }).isVisible());
   await page.getByRole('button', { name: 'Suspend', exact: true }).waitFor();
   await page.screenshot({ path: resolve(out, 'instance.png') });
   assert.equal(await page.locator('button button, button a').count(), 0);
@@ -480,7 +478,7 @@ try {
   await desktop.close();
   assert.deepEqual(errors, [], 'browser runtime errors');
   console.log(
-    'Shared Svelte preview: 264 viewport/theme/scale view checks; four themes; theme persistence and ordinary toggle; isolated bridge; dialog; desktop unavailable state; production fixture exclusion passed.',
+    'Shared Svelte preview: 132 viewport/theme view checks at 100%; four themes; theme persistence and ordinary toggle; isolated bridge; dialog; desktop unavailable state; production fixture exclusion passed.',
   );
 } finally {
   await browser.close();

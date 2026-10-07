@@ -140,7 +140,7 @@ export async function checkSequence(browser, url, out, related = false, ancestry
       await page.setViewportSize(size);
       for (const theme of ['dark', 'light']) {
         await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
-        for (const scale of [1, 1.5]) {
+        for (const scale of [1]) {
           await page.evaluate(
             (scale) => document.documentElement.style.setProperty('--ui-scale', String(scale)),
             scale,

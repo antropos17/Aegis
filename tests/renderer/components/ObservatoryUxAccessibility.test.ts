@@ -59,7 +59,7 @@ it('lets users disable single-key shortcuts without disabling Commands or button
   render(App, { host: createPreviewHost(), preview: true });
   const navigation = screen.getByRole('navigation', { name: 'Main navigation' });
   await fireEvent.click(within(navigation).getByRole('button', { name: 'Settings' }));
-  await fireEvent.click(screen.getByRole('tab', { name: 'Data & help' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Data & help' }));
   const option = screen.getByRole('checkbox', { name: 'Single-key shortcuts' });
   expect(option).toBeChecked();
   await fireEvent.click(option);

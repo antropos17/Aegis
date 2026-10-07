@@ -203,9 +203,9 @@ it('offers process controls only for one live, confirmed, witness-bound identity
     navigate: vi.fn(),
     sectionRequest: { id: 'process-controls', revision: 1 },
   });
-  expect(screen.getByText('Process attributes and controls').closest('details')).toHaveAttribute(
-    'open',
-  );
+  const controls = screen.getByRole('region', { name: 'Process attributes and controls' });
+  expect(controls).toBeVisible();
+  expect(controls.querySelector('details')).toBeNull();
 });
 
 it('shows a bottom alert with attribution caveat and offers session review without claiming access denial', async () => {

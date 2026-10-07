@@ -4,7 +4,7 @@
   import SettingsGroup from './SettingsGroup.svelte';
 
   let {
-    advanced = false,
+    advanced = true,
     onAdvancedChange,
   }: {
     advanced?: boolean;
@@ -16,11 +16,11 @@
 
   function change(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
-    const next = input.checked;
+    const next = !input.checked;
     try {
       saveAdvancedMode(next);
     } catch {
-      input.checked = advanced;
+      input.checked = !advanced;
       saved = false;
       error = true;
       return;
@@ -35,21 +35,21 @@
   <SettingsGroup
     title={$t('Interface')}
     description={$t(
-      'Simple keeps agents, activity and file checks together. Advanced shows every technical workspace.',
+      'Advanced shows every workspace by default. Enable Simple to keep agents, activity and file checks together.',
     )}
   >
     <label class="setting">
       <span>
-        {$t('Advanced interface')}
+        {$t('Simple interface')}
         <small id={id + '-help'}
           >{$t('Saved separately on this device. Your settings draft is unchanged.')}</small
         >
       </span>
       <input
         type="checkbox"
-        aria-label={$t('Advanced interface')}
+        aria-label={$t('Simple interface')}
         aria-describedby={id + '-help'}
-        checked={advanced}
+        checked={!advanced}
         onchange={change}
       />
     </label>

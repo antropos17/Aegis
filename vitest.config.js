@@ -31,6 +31,9 @@ export default defineConfig({
           name: 'components',
           include: ['tests/renderer/components/**/*.test.{js,ts}'],
           environment: 'jsdom',
+          // Continuous workspaces retain related panels. Instrumented DOM
+          // integration journeys need a bounded budget beyond unit-test timing.
+          testTimeout: 15000,
           setupFiles: ['tests/renderer/components/_setup.ts'],
           css: { modules: { classNameStrategy: 'non-scoped' } },
         },

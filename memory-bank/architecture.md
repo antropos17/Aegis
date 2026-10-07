@@ -43,13 +43,13 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
-86 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
+87 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 
 runtime/host.ts owns seven telemetry subscriptions, revision-guarded seed results/errors, outage retention, source-specific receipt clocks and freshness updated after confirmed settings saves. runtime/resource-observations.ts merges sequence-ordered per-instance readings and suppresses cached numeric history points; statistics-history.ts preserves collection ranges and resets timelines on backwards wall-clock changes. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
 
-styles.ts loads twelve approved template stylesheets in their original order, followed by radar-clarity, feedback, desktop, coherence, detail-layout and comfort refinements. reference/SOURCE.json records the template source hashes and stylesheet order. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
+styles.ts loads twelve approved template stylesheets in their original order, followed by radar-clarity, feedback, desktop, coherence, detail-layout, comfort and workspace-hierarchy refinements. reference/SOURCE.json records the template source hashes and stylesheet order. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
 
 ## Shared (src/shared/)
 - constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS

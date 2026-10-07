@@ -40,7 +40,7 @@ it('keeps edits made while settings save is pending and saves only the submitted
   const onSettingsSaved = vi.fn();
   render(Settings, { host, appearance: vi.fn(), navigate: vi.fn(), onSettingsSaved });
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
     target: { value: '20' },
   });
@@ -153,14 +153,14 @@ it('publishes settings only after confirmed writes and rereads successful import
   };
   render(Settings, { host, appearance: vi.fn(), navigate: vi.fn(), onSettingsSaved });
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
     target: { value: '20' },
   });
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   await screen.findByText('Save refused');
   expect(onSettingsSaved).not.toHaveBeenCalled();
-  await fireEvent.click(screen.getByRole('tab', { name: 'Data & help' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Data & help' }));
   await fireEvent.click(screen.getByRole('button', { name: 'Import', exact: true }));
   await screen.findByText('Operation cancelled or not completed');
   expect(onSettingsSaved).not.toHaveBeenCalled();

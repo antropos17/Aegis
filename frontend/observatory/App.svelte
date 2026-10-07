@@ -224,7 +224,6 @@
   const savedTheme = localStorage.getItem('aegis-theme');
   let dark = $state(savedTheme ? savedTheme.startsWith('dark') : false);
   let contrast = $state(localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false);
-  let scale = $state(1);
   let commands = $state(false);
   let navigationRevision = 0;
   let themeChanged = false;
@@ -278,9 +277,30 @@
       const destination = advanced ? 'agents' : 'overview';
       scrolls[destination] = 0;
       if (view === destination && workspace) workspace.scrollTop = 0;
-      agentSection = { id: String(row.detailSection || 'overview'), revision: ++sectionRevision };
-      void navigate(advanced ? 'agents' : 'overview').then(() => {
-        if (scope.agent === agent) {
+      const section = String(row.detailSection || 'overview');
+      const request = { id: section, revision: ++sectionRevision };
+      agentSection = request;
+      const requestedInstance = scope.instanceId;
+      void navigate(destination).then(() => {
+        if (
+          scope.agent === agent &&
+          scope.instanceId === requestedInstance &&
+          agentSection?.revision === request.revision &&
+          view === destination
+        ) {
+          if (
+            advanced &&
+            ['risk', 'resources', 'activity', 'processes', 'process-controls'].includes(section)
+          ) {
+            const panel = workspace.querySelector<HTMLElement>(
+              '.agent-workspace [id$="-panel-' + section + '"]',
+            );
+            if (panel?.isConnected && !panel.closest('[hidden], [inert]')) {
+              panel.focus({ preventScroll: true });
+              panel.scrollIntoView?.({ block: 'nearest' });
+            }
+            return;
+          }
           document
             .getElementById(advanced ? 'agent-workspace-heading' : 'investigation-context')
             ?.focus();
@@ -294,11 +314,10 @@
     }
     openFullDetails(title, row);
   }
-  function appearance(nextDark: boolean, nextScale: number, highContrast = contrast) {
+  function appearance(nextDark: boolean, _nextScale: number, highContrast = contrast) {
     themeChanged = true;
     contrast = highContrast;
     dark = nextDark;
-    scale = nextScale;
   }
   function toggleTheme() {
     themeChanged = true;
@@ -309,7 +328,7 @@
     const theme = (dark ? 'dark' : 'light') + (contrast ? '-hc' : '');
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('aegis-theme', theme);
-    document.documentElement.style.setProperty('--ui-scale', String(scale));
+    document.documentElement.style.setProperty('--ui-scale', '1');
   });
   async function navigate(next: string, remember = true) {
     if (!views.some((row) => row[0] === next)) return;
@@ -395,7 +414,6 @@
           const settings = record(value);
           if (!themeChanged) {
             dark = savedTheme ? savedTheme.startsWith('dark') : settings.darkMode === true;
-            scale = Number(settings.uiScale ?? 1);
           }
         }
       })

@@ -9,7 +9,10 @@ import {
   type RecordData,
 } from '../../../frontend/observatory/runtime/host';
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem('aegis-advanced-mode', 'false');
+});
 afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
@@ -30,16 +33,16 @@ it('saves the interface separately while preserving an unsaved monitoring draft'
   const onAdvancedChange = vi.fn();
   render(Settings, { host, appearance: vi.fn(), navigate: vi.fn(), onAdvancedChange });
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
   await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
     target: { value: '45' },
   });
   await fireEvent.input(screen.getByLabelText('Sensitive paths'), {
     target: { value: 'draft-secret' },
   });
-  await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
-  expect(localStorage.getItem('aegis-advanced-mode')).toBe('true');
-  expect(onAdvancedChange).toHaveBeenCalledExactlyOnceWith(true);
+  await fireEvent.click(screen.getByRole('checkbox', { name: 'Simple interface' }));
+  expect(localStorage.getItem('aegis-advanced-mode')).toBe('false');
+  expect(onAdvancedChange).toHaveBeenCalledExactlyOnceWith(false);
   expect(screen.getByLabelText('Scan interval (seconds)')).toHaveValue('45');
   expect(screen.getByLabelText('Sensitive paths')).toHaveValue('draft-secret');
   expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled();
@@ -51,7 +54,7 @@ it('saves the interface separately while preserving an unsaved monitoring draft'
       { patch: true },
     ),
   );
-  expect(localStorage.getItem('aegis-advanced-mode')).toBe('true');
+  expect(localStorage.getItem('aegis-advanced-mode')).toBe('false');
 });
 
 it('leaves the previous interface selected when persistence fails', async () => {
@@ -66,11 +69,11 @@ it('leaves the previous interface selected when persistence fails', async () => 
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
     throw new Error('Quota exceeded');
   });
-  await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
-  expect(screen.getByRole('checkbox', { name: 'Advanced interface' })).not.toBeChecked();
-  expect(screen.getByRole('alert')).toHaveTextContent('Could not save interface preference');
+  await fireEvent.click(screen.getByRole('checkbox', { name: 'Simple interface' }));
+  expect(screen.getByRole('checkbox', { name: 'Simple interface' })).not.toBeChecked();
+  expect(screen.getByText(/Could not save interface preference/)).toHaveAttribute('role', 'alert');
   expect(onAdvancedChange).not.toHaveBeenCalled();
-  expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
+  expect(localStorage.getItem('aegis-advanced-mode')).toBe('false');
 });
 
 it('keeps the independently saved interface available when host settings cannot load', async () => {
@@ -85,13 +88,19 @@ it('keeps the independently saved interface available when host settings cannot 
     navigate: vi.fn(),
     onAdvancedChange,
   });
-  await screen.findByRole('alert');
-  const control = screen.getByRole('checkbox', { name: 'Advanced interface' });
+  await waitFor(() =>
+    expect(
+      screen
+        .getAllByRole('alert')
+        .some((node) => node.textContent?.includes('Settings unavailable')),
+    ).toBe(true),
+  );
+  const control = screen.getByRole('checkbox', { name: 'Simple interface' });
   expect(control).toBeEnabled();
   await fireEvent.click(control);
   expect(control).toBeChecked();
-  expect(onAdvancedChange).toHaveBeenCalledExactlyOnceWith(true);
-  expect(localStorage.getItem('aegis-advanced-mode')).toBe('true');
+  expect(onAdvancedChange).toHaveBeenCalledExactlyOnceWith(false);
+  expect(localStorage.getItem('aegis-advanced-mode')).toBe('false');
   expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled();
 });
 
@@ -139,17 +148,17 @@ function navigation() {
   return within(screen.getByRole('navigation', { name: 'Main navigation' }));
 }
 
-it('starts with three Simple destinations and truthful unknown agent state', () => {
+it('starts with all Advanced destinations and a fixed 100% interface on a fresh profile', async () => {
+  localStorage.removeItem('aegis-advanced-mode');
+  document.documentElement.style.setProperty('--ui-scale', '1.5');
   const { host } = appBridge();
+  host.getSettings = async () => ({ darkMode: false, uiScale: 2, scanIntervalSec: 10 });
   render(App, { host });
-  expect(
-    navigation()
-      .getAllByRole('button')
-      .map((button) => button.getAttribute('aria-label')),
-  ).toEqual(['Investigate', 'Check files', 'Settings']);
-  expect(screen.getByRole('heading', { level: 1, name: 'Investigate' })).toBeVisible();
-  expect(screen.getByText('Waiting for reliable agent observations.')).toBeVisible();
-  expect(screen.queryByRole('heading', { name: 'Agent radar' })).toBeNull();
+  expect(navigation().getAllByRole('button')).toHaveLength(14);
+  expect(screen.getByRole('heading', { level: 1, name: 'Monitoring' })).toBeVisible();
+  await waitFor(() =>
+    expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1'),
+  );
   expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
 });
 
@@ -177,7 +186,7 @@ it('opens technical commands and keyboard routes without changing the saved mode
   await screen.findByRole('heading', { level: 1, name: 'Investigate' });
   await fireEvent.click(screen.getByRole('button', { name: 'Forward' }));
   await screen.findByRole('heading', { level: 1, name: 'Statistics' });
-  expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
+  expect(localStorage.getItem('aegis-advanced-mode')).toBe('false');
 }, 15_000);
 
 // Two full App mounts use the same coverage budget as existing workspace integration tests.
@@ -186,11 +195,11 @@ it('retains drafts through interface changes and navigation and restores Advance
   const mounted = render(App, { host: transport.host });
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring' }));
   await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
     target: { value: '45' },
   });
-  const mode = screen.getByRole('checkbox', { name: 'Advanced interface' });
+  const mode = screen.getByRole('checkbox', { name: 'Simple interface' });
   mode.focus();
   await fireEvent.click(mode);
   expect(mode).toHaveFocus();
@@ -200,7 +209,7 @@ it('retains drafts through interface changes and navigation and restores Advance
   expect(screen.getByLabelText('Scan interval (seconds)')).toHaveValue('45');
   await fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
   expect(screen.getByLabelText('Scan interval (seconds)')).toHaveValue('10');
-  expect(mode).toBeChecked();
+  expect(mode).not.toBeChecked();
   expect(localStorage.getItem('aegis-advanced-mode')).toBe('true');
   mounted.unmount();
   const next = appBridge();
@@ -218,19 +227,19 @@ it('mounts the investigation workspace only after its first visit and preserves 
   expect(screen.getAllByLabelText('Search events')).toHaveLength(1);
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
+  await fireEvent.click(screen.getByRole('checkbox', { name: 'Simple interface' }));
   await fireEvent.click(navigation().getByRole('button', { name: 'Investigate' }));
   const homeSearch = within(
     screen.getByRole('region', { name: 'Investigation workspace' }),
   ).getByLabelText('Search events');
   await fireEvent.input(homeSearch, { target: { value: '/retained-home-draft' } });
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
-  await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
+  await fireEvent.click(screen.getByRole('checkbox', { name: 'Simple interface' }));
   await fireEvent.click(navigation().getByRole('button', { name: 'Monitoring' }));
   expect(homeSearch).toBeInTheDocument();
   expect(homeSearch).not.toBeVisible();
   await fireEvent.click(navigation().getByRole('button', { name: 'Settings' }));
-  await fireEvent.click(screen.getByRole('checkbox', { name: 'Advanced interface' }));
+  await fireEvent.click(screen.getByRole('checkbox', { name: 'Simple interface' }));
   await fireEvent.click(navigation().getByRole('button', { name: 'Investigate' }));
   const revisited = within(
     screen.getByRole('region', { name: 'Investigation workspace' }),
@@ -239,15 +248,21 @@ it('mounts the investigation workspace only after its first visit and preserves 
   expect(revisited).toHaveValue('/retained-home-draft');
 });
 
-it('keeps the Advanced agent table section while Simple uses the compact overview', async () => {
+it('keeps the agent search while Advanced exposes all table groups and Simple uses compact columns', async () => {
   const telemetry = { ...emptyTelemetry(), ready: true, stale: false };
   const mounted = render(Agents, { telemetry, inspect: vi.fn() });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Resources' }));
+  const search = screen.getByRole('searchbox', { name: 'Search agents' });
+  await fireEvent.input(search, { target: { value: 'retained search' } });
+  expect(screen.queryByRole('tablist')).toBeNull();
   expect(screen.getByRole('columnheader', { name: 'Tokens' })).toBeVisible();
+  expect(screen.getByRole('columnheader', { name: 'Files' })).toBeVisible();
+  expect(screen.getByRole('columnheader', { name: 'Risk' })).toBeVisible();
   await mounted.rerender({ advanced: false });
   expect(screen.queryByRole('tab')).toBeNull();
   expect(screen.getByRole('columnheader', { name: 'Risk' })).toBeVisible();
   await mounted.rerender({ advanced: true });
-  expect(screen.getByRole('tab', { name: 'Resources' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('searchbox', { name: 'Search agents' })).toBe(search);
+  expect(search).toHaveValue('retained search');
   expect(screen.getByRole('columnheader', { name: 'Tokens' })).toBeVisible();
+  expect(screen.getByRole('columnheader', { name: 'Files' })).toBeVisible();
 });

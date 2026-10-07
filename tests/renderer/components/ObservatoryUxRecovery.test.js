@@ -45,14 +45,14 @@ it('takes an invalid draft back to its field across settings sections without lo
   };
   render(Settings, { host, appearance: vi.fn(), navigate: vi.fn() });
   await screen.findByText('Settings saved');
-  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Monitoring', exact: true }));
   await fireEvent.input(screen.getByLabelText('Additional exclusions'), {
     target: { value: 'X:/fixture' },
   });
   await fireEvent.input(screen.getByLabelText('Exact scan interval (seconds)'), {
     target: { value: '0' },
   });
-  await fireEvent.click(screen.getByRole('tab', { name: 'Appearance', exact: true }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Appearance', exact: true }));
   const alert = screen.getByRole('alert');
   expect(alert.closest('.settings-save')).not.toBeNull();
   await fireEvent.click(screen.getByRole('button', { name: 'Fix invalid setting' }));
@@ -66,7 +66,7 @@ it('takes an invalid draft back to its field across settings sections without lo
   expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled();
 });
 
-it('focuses the opened agent heading once and leaves subsequent tab interaction alone', async () => {
+it('focuses the opened agent heading once and moves section shortcuts to their destination', async () => {
   localStorage.setItem('aegis-advanced-mode', 'true');
   render(App, { host: createPreviewHost(), preview: true });
   const main = within(screen.getByRole('main'));
@@ -80,11 +80,10 @@ it('focuses the opened agent heading once and leaves subsequent tab interaction 
   const heading = within(overview).getByRole('heading', { name: 'Agent overview', exact: true });
   await waitFor(() => expect(heading).toHaveFocus());
   const workspace = within(overview.closest('.agent-workspace'));
-  const resources = within(workspace.getByRole('tablist', { name: 'Agent sections' })).getByRole(
-    'tab',
-    { name: 'Resources', exact: true },
-  );
+  const resources = within(
+    workspace.getByRole('region', { name: 'Agent context summary' }),
+  ).getByRole('button', { name: /Resources/ });
   resources.focus();
   await fireEvent.click(resources);
-  expect(resources).toHaveFocus();
+  expect(workspace.getByRole('region', { name: 'Resources', exact: true })).toHaveFocus();
 });

@@ -185,20 +185,32 @@ export async function checkMotion(page) {
   stable(await geometry(navigation), navBefore, 'press shrank navigation');
   await page.mouse.up();
   await page.getByRole('heading', { level: 1, name: 'Statistics', exact: true }).waitFor();
-  await page.getByRole('tab', { name: 'Performance', exact: true }).click();
   await page
-    .getByRole('tab', { name: 'Performance', exact: true })
+    .getByRole('navigation', { name: 'Statistics sections' })
+    .getByRole('button', { name: 'Performance', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Statistics sections' })
+    .getByRole('button', { name: 'Performance', exact: true })
     .evaluate((node) => node.focus({ preventScroll: true }));
   const keyboardScroll = await page.locator('#main').evaluate((node) => {
     node.scrollTop = 220;
     return node.scrollTop;
   });
-  await page.keyboard.press('End');
+  for (let step = 0; step < 4; step++) await page.keyboard.press('Tab');
   await page.waitForFunction(() => document.activeElement?.textContent.trim() === 'Sensors');
   assert.equal(
     await page.locator('#main').evaluate((node) => node.scrollTop),
     keyboardScroll,
-    'keyboard tab navigation scrolled the surrounding workspace',
+    'keyboard section navigation scrolled the surrounding workspace',
+  );
+  await page.keyboard.press('Enter');
+  assert.equal(
+    await page
+      .getByRole('navigation', { name: 'Statistics sections' })
+      .getByRole('button', { name: 'Sensors', exact: true })
+      .getAttribute('aria-current'),
+    'location',
   );
   await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   page.off('pageerror', onError);

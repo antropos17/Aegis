@@ -109,11 +109,9 @@ try {
   const report = JSON.parse(await readFile(saved, 'utf8'));
   assert(report.findings.some((finding) => finding.ruleId === 'STA012' && finding.line === 1));
   assert(!JSON.stringify(report).includes('Ignore all previous instructions'));
-  await page.getByText('Review options', { exact: true }).click();
   await page.getByLabel('Review type', { exact: true }).selectOption('inventory');
   await page.getByRole('button', { name: 'Choose folder and review' }).click();
   await page.getByRole('heading', { name: 'Inventory recorded' }).waitFor();
-  await page.getByText('Content snapshot', { exact: true }).click();
   await page.getByLabel('I reviewed the listed content and the displayed digest.').check();
   await page.getByRole('button', { name: 'Recheck and save accepted copy' }).click();
   await page.getByText('Accepted copy saved', { exact: true }).waitFor();

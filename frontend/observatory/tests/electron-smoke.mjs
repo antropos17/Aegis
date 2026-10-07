@@ -26,16 +26,19 @@ try {
   const window = await app.firstWindow();
   window.on('pageerror', (e) => errors.push(e.message));
   await window
-    .getByRole('heading', { name: 'Investigate', exact: true, level: 1 })
+    .getByRole('heading', { name: 'Monitoring', exact: true, level: 1 })
     .waitFor({ timeout: 30000 });
   assert.equal(
     await window.locator('.sidebar nav button').count(),
-    3,
-    'fresh profile must show the Simple interface',
+    14,
+    'fresh profile must show the Advanced interface',
   );
-  await window.screenshot({ path: resolve(out, 'simple-home-native.png') });
+  await window.screenshot({ path: resolve(out, 'advanced-home-native.png') });
   await window.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
-  await window.getByRole('checkbox', { name: 'Advanced interface', exact: true }).check();
+  await window.getByRole('checkbox', { name: 'Simple interface', exact: true }).check();
+  assert.equal(await window.locator('.sidebar nav button').count(), 3);
+  await window.getByRole('checkbox', { name: 'Simple interface', exact: true }).uncheck();
+  assert.equal(await window.locator('.sidebar nav button').count(), 14);
   assert.equal(await window.evaluate(() => localStorage.getItem('aegis-advanced-mode')), 'true');
   await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   const deadline = Date.now() + 55000;
@@ -99,7 +102,7 @@ try {
     );
     assert.equal(await processFilter.inputValue(), selectedProcess);
   }
-  await window.getByRole('tab', { name: 'Tokens', exact: true }).click();
+  await window.getByRole('button', { name: 'Tokens', exact: true }).click();
   assert.equal(await processFilter.inputValue(), selectedProcess);
   await context.getByLabel('Selected agent', { exact: true }).selectOption('');
   await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
@@ -176,9 +179,10 @@ try {
       await window.getByRole('heading', { name: 'Agent overview', exact: true }).waitFor();
       assert.equal(await window.getByRole('dialog').count(), 0);
       assert.equal(await window.getByRole('button', { name: 'Suspend', exact: true }).count(), 0);
+      assert.equal(await window.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
       await window
-        .getByRole('tablist', { name: 'Agent sections' })
-        .getByRole('tab', { name: 'Processes', exact: true })
+        .getByRole('region', { name: 'Agent context summary' })
+        .getByRole('button', { name: /^Worker processes/ })
         .click();
       assert(
         (await window.locator('.agent-processes tbody tr').count()) > 0,
@@ -188,7 +192,10 @@ try {
     }
   }
   await window.getByLabel('Theme', { exact: true }).selectOption('light-hc');
-  await window.getByRole('tab', { name: 'Monitoring', exact: true }).click();
+  await window
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name: 'Monitoring', exact: true })
+    .click();
   await window.getByLabel('Scan interval (seconds)', { exact: true }).evaluate((input) => {
     input.value = '20';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -203,7 +210,10 @@ try {
     20,
   );
   assert.equal(await window.evaluate(() => localStorage.getItem('aegis-theme')), 'light-hc');
-  await window.getByRole('tab', { name: 'Appearance', exact: true }).click();
+  await window
+    .getByRole('navigation', { name: 'Settings sections', exact: true })
+    .getByRole('button', { name: 'Appearance', exact: true })
+    .click();
   await window.getByRole('button', { name: 'Toggle theme', exact: true }).click();
   assert.equal(await window.getByLabel('Theme', { exact: true }).inputValue(), 'dark');
   await window.getByRole('button', { name: 'Toggle theme', exact: true }).click();

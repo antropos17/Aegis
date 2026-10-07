@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
  */
 export async function checkCatalogRecovery(browser, url, out) {
   for (const { width, height, scale } of [
-    { width: 900, height: 600, scale: 1.5 },
+    { width: 900, height: 600, scale: 1 },
     { width: 1200, height: 800, scale: 1 },
   ]) {
     for (const theme of ['dark', 'light']) {

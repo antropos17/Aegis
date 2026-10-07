@@ -85,8 +85,7 @@ export async function checkWatchlist(browser, url, out) {
     await page.getByRole('button', { name: /Select Codex,/ }).click();
     await page.getByRole('button', { name: 'Open agent', exact: true }).click();
     await page.getByLabel('Selected process', { exact: true }).selectOption('42:watch');
-    await page.getByRole('tab', { name: 'Processes', exact: true }).click();
-    await page.getByText('Process attributes and controls', { exact: true }).click();
+    assert(await page.getByRole('region', { name: 'Process attributes and controls' }).isVisible());
     const watch = page.getByRole('region', { name: 'Alert watchlist' });
     await watch.getByText('Watchlist is up to date.').waitFor();
     await watch.getByRole('button', { name: 'Watch agent', exact: true }).click();
@@ -98,7 +97,7 @@ export async function checkWatchlist(browser, url, out) {
     await watch.getByText('Other watchlist entries (2)', { exact: true }).click();
     assert.equal(await watch.locator('li').count(), 2);
     for (const width of [900, 1200])
-      for (const scale of [1, 1.5])
+      for (const scale of [1])
         for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
           await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
           await page.evaluate(
@@ -140,7 +139,7 @@ export async function checkWatchlist(browser, url, out) {
     assert.equal(await page.evaluate(() => window.watchlistFixture.adds), 1);
     assert.deepEqual(errors, []);
     console.log(
-      'Watchlist: pending/success/failure feedback, canonical add/remove, duplicate/PID grouping, keyboard focus and 16 layouts passed.',
+      'Watchlist: pending/success/failure feedback, canonical add/remove, duplicate/PID grouping, keyboard focus and 8 layouts at 100% passed.',
     );
   } finally {
     await page.close();

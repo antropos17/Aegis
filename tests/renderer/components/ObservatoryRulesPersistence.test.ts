@@ -44,7 +44,7 @@ it('rejects missing rule identities before keyed rendering and recovers through 
     reloadRules: vi.fn(),
   };
   render(Rules, { host, telemetry: telemetry() });
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
   await screen.findByText('Detection rule reply is invalid');
   expect(screen.getByText('Detection rules unavailable. Retry loading.')).toBeVisible();
   expect(screen.queryByText('No detection rules loaded.')).toBeNull();
@@ -62,7 +62,7 @@ it('keeps search results unknown after initial rule load failure until a populat
       .mockResolvedValue([{ id: 'FS001', name: 'Healthy rule' }]),
   };
   render(Rules, { host, telemetry: telemetry() });
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
   await screen.findByText('Detection rules unavailable. Retry loading.');
   await fireEvent.input(screen.getByLabelText('Search detection rules'), {
     target: { value: 'missing' },
@@ -91,7 +91,7 @@ it.each(
     .mockResolvedValueOnce(reply)
     .mockResolvedValue([{ id: 'preview-rule', name: 'Recovered rule', enabled: true }]);
   render(Rules, { host, telemetry: telemetry() });
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
   await screen.findByText('Retained rule');
   reload();
   await screen.findByText('Detection rule reply is invalid');
@@ -166,7 +166,7 @@ it('loads permissions independently of failed rules and recovers rules through a
   render(Rules, { host, telemetry: telemetry() });
   await waitFor(() => expect(screen.getByLabelText('Target')).toHaveValue('Codex'));
   expect(screen.getByText('No saved permission overrides.')).toBeVisible();
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
   expect(screen.getByText('Detection rules unavailable. Retry loading.')).toBeVisible();
   expect(screen.queryByText('No detection rules loaded.')).toBeNull();
   await fireEvent.click(screen.getByRole('button', { name: 'Retry loading' }));
@@ -354,7 +354,7 @@ it.each(['resolve', 'reject'] as const)(
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.getByLabelText('Network')).toHaveValue('block');
     expect(screen.queryByText('Old permissions failure')).toBeNull();
-    await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+    expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
     expect(screen.getByText('Fresh rule')).toBeVisible();
     expect(screen.queryByText('Old rule')).toBeNull();
     expect(screen.queryByText('Old rules failure')).toBeNull();
@@ -404,7 +404,7 @@ it('retains reliable permissions and rules on malformed refresh replies', async 
   reload();
   await screen.findByText('Permissions unavailable. Showing last loaded preferences.');
   expect(screen.getByLabelText('Network')).toHaveValue('block');
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
   expect(screen.getByText('Detection rules unavailable. Showing last loaded rules.')).toBeVisible();
   expect(screen.getByText('Retained rule')).toBeVisible();
   expect(screen.queryByText('No detection rules loaded.')).toBeNull();
@@ -427,7 +427,7 @@ it('lets an in-flight refresh settle after a refused write without leaving loadi
   rules.resolve([{ id: 'settled', name: 'Settled rule' }]);
   await waitFor(() => expect(screen.queryByText('Loading permissions…')).toBeNull());
   expect(screen.getByLabelText('Network')).toHaveValue('block');
-  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  expect(screen.getByRole('region', { name: 'Loaded detection rules' })).toBeVisible();
   expect(screen.getByText('Settled rule')).toBeVisible();
 });
 

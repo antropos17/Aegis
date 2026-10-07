@@ -12,7 +12,7 @@
   import SettingsKeyboard from './SettingsKeyboard.svelte';
   import SettingsExperience from './SettingsExperience.svelte';
   import { revealSettingsFocus } from '../runtime/settings-focus';
-  import SectionTabs from './SectionTabs.svelte';
+  import SectionNavigation from './SectionNavigation.svelte';
   const id = $props.id();
   const tabs = [
     { id: 'appearance', label: 'Appearance' },
@@ -21,6 +21,17 @@
     { id: 'data', label: 'Data & help' },
   ];
   let section = $state('appearance');
+  let workspace = $state<HTMLDivElement>();
+  let lastSectionRequest = -1;
+  async function revealSection(value: string): Promise<void> {
+    section = value;
+    await tick();
+    if (!alive) return;
+    const heading = document.getElementById(id + '-heading-' + value);
+    if (!heading || !workspace?.contains(heading)) return;
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+  }
   let baseline = $state('');
   function snapshot(): string {
     return JSON.stringify({ form, patterns, ignored, contrast, motion });
@@ -32,7 +43,7 @@
     currentTheme = null,
     sectionRequest,
     onSettingsSaved,
-    advanced = false,
+    advanced = true,
     onAdvancedChange,
   }: {
     host: Host | null;
@@ -45,9 +56,13 @@
     onAdvancedChange?: (_advanced: boolean) => void;
   } = $props();
   $effect(() => {
-    if (sectionRequest && tabs.some((tab) => tab.id === sectionRequest.id)) {
-      void sectionRequest.revision;
-      section = sectionRequest.id;
+    if (
+      sectionRequest &&
+      sectionRequest.revision !== lastSectionRequest &&
+      tabs.some((tab) => tab.id === sectionRequest.id)
+    ) {
+      lastSectionRequest = sectionRequest.revision;
+      void revealSection(sectionRequest.id);
     }
   });
   let form = $state<RecordData>({});
@@ -62,17 +77,12 @@
   let ignored = $state('');
   let patternInput = $state<HTMLTextAreaElement>();
   let intervalInput = $state<HTMLInputElement>();
-  let scaleInput = $state<HTMLInputElement>();
   const validationId = id + '-validation';
   async function fixValidation() {
-    const intervalInvalid =
-      !Number.isFinite(Number(form.scanIntervalSec ?? 10)) ||
-      Number(form.scanIntervalSec ?? 10) <= 0;
-    section = intervalInvalid ? 'monitoring' : 'appearance';
+    section = 'monitoring';
     await tick();
-    const input = intervalInvalid ? intervalInput : scaleInput;
-    input?.focus({ preventScroll: true });
-    input?.scrollIntoView?.({ block: 'center', behavior: 'instant' });
+    intervalInput?.focus({ preventScroll: true });
+    intervalInput?.scrollIntoView?.({ block: 'center', behavior: 'instant' });
   }
   let dirty = $derived(loaded && baseline !== snapshot());
   let validation = $derived(
@@ -81,11 +91,7 @@
       : !Number.isFinite(Number(form.scanIntervalSec ?? 10)) ||
           Number(form.scanIntervalSec ?? 10) <= 0
         ? 'Scan interval must be a positive number of seconds.'
-        : !Number.isFinite(Number(form.uiScale ?? 1)) ||
-            Number(form.uiScale ?? 1) < 0.5 ||
-            Number(form.uiScale ?? 1) > 3
-          ? 'Interface scale must be between 50% and 300%.'
-          : '',
+        : '',
   );
   const updateLabels: Record<string, string> = {
     idle: 'Ready to check for updates',
@@ -130,6 +136,8 @@
     const { anthropicApiKey: _key, ...safe } = settings;
     const editable = ['darkMode', 'uiScale', 'scanIntervalSec', ...toggles.map(([key]) => key)];
     form = Object.fromEntries(editable.map((key) => [key, safe[key]]));
+    // The renderer uses a fixed 100% layout without silently rewriting saved preferences.
+    form.uiScale = 1;
     const theme = localStorage.getItem('aegis-theme');
     if (theme) form.darkMode = theme.startsWith('dark');
     patterns = Array.isArray(safe.customSensitivePatterns)
@@ -162,11 +170,9 @@
     const themeChanged =
       submitted.form.darkMode !== previous.form.darkMode ||
       submitted.contrast !== previous.contrast;
-    const scaleChanged = submitted.form.uiScale !== previous.form.uiScale;
     const motionChanged = submitted.motion !== previous.motion;
     const preview = {
       theme: document.documentElement.dataset.theme,
-      scale: document.documentElement.style.getPropertyValue('--ui-scale'),
       motion: document.documentElement.dataset.motion,
     };
     const patch: RecordData = Object.fromEntries(
@@ -184,24 +190,13 @@
         (submitted.form.darkMode ? 'dark' : 'light') + (submitted.contrast ? '-hc' : '');
       if (themeChanged) localStorage.setItem('aegis-theme', savedTheme);
       if (
-        (themeChanged || scaleChanged) &&
+        themeChanged &&
         form.darkMode === submitted.form.darkMode &&
-        form.uiScale === submitted.form.uiScale &&
         contrast === submitted.contrast &&
-        document.documentElement.dataset.theme === preview.theme &&
-        document.documentElement.style.getPropertyValue('--ui-scale') === preview.scale
+        document.documentElement.dataset.theme === preview.theme
       ) {
-        // A combined appearance callback must keep the other window's unchanged fields.
-        const theme = themeChanged
-          ? savedTheme
-          : (preview.theme ?? localStorage.getItem('aegis-theme') ?? savedTheme);
-        appearance(
-          theme.startsWith('dark'),
-          Number(
-            scaleChanged ? submitted.form.uiScale : preview.scale || submitted.form.uiScale || 1,
-          ),
-          theme.endsWith('-hc'),
-        );
+        // An earlier save must not replace a newer theme draft.
+        appearance(savedTheme.startsWith('dark'), 1, savedTheme.endsWith('-hc'));
       }
       if (motionChanged) {
         localStorage.setItem('aegis-motion', submitted.motion ? 'full' : 'reduce');
@@ -303,188 +298,183 @@
     >
   </div>{/if}
 {#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
-<div class="settings-workspace panel" use:revealSettingsFocus>
+<div class="settings-workspace" bind:this={workspace} use:revealSettingsFocus>
   <div class="settings-intro">
     <div>
       <h2>{$t('Application preferences')}</h2>
-      <p>{$t('Configure this workstation. Your draft stays here when you switch sections.')}</p>
+      <p>
+        {$t('Preferences are grouped on this page. Your draft stays until you save or discard it.')}
+      </p>
     </div>
     <span class="badge">{$t('Local settings')}</span>
   </div>
-  <SectionTabs
-    {tabs}
-    selected={section}
-    prefix={id}
-    label={$t('Settings sections')}
-    change={(value) => {
-      section = value;
-    }}
-  />
-  <fieldset class="settings-layout" disabled={!loaded || mutation === 'replace'}>
-    <div
-      class="settings-page"
-      role="tabpanel"
-      tabindex="0"
-      id={id + '-panel-appearance'}
-      aria-labelledby={id + '-tab-appearance'}
-      hidden={section !== 'appearance'}
-    >
-      <SettingsAppearance
-        bind:form
-        bind:contrast
-        bind:motion
-        bind:scaleInput
-        validationId={validation.startsWith('Interface scale') ? validationId : undefined}
-      />
-    </div>
-    <div
-      class="settings-page"
-      role="tabpanel"
-      tabindex="0"
-      id={id + '-panel-monitoring'}
-      aria-labelledby={id + '-tab-monitoring'}
-      hidden={section !== 'monitoring'}
-    >
-      <SettingsMonitoring
-        bind:form
-        bind:patterns
-        bind:ignored
-        bind:patternInput
-        bind:intervalInput
-        validationId={validation.startsWith('Scan interval') ? validationId : undefined}
-        {host}
-      />
-    </div>
-    <div
-      class="settings-page"
-      role="tabpanel"
-      tabindex="0"
-      id={id + '-panel-desktop'}
-      aria-labelledby={id + '-tab-desktop'}
-      hidden={section !== 'desktop'}
-    >
-      <SettingsGroup
-        title={$t('Desktop startup')}
-        description={$t('Choose how AEGIS starts and renders its interface.')}
+  <div class="settings-composition">
+    <fieldset class="settings-layout" disabled={!loaded || mutation === 'replace'}>
+      <section
+        class="settings-page"
+        id={id + '-panel-appearance'}
+        aria-labelledby={id + '-heading-appearance'}
+        onfocusin={() => (section = 'appearance')}
       >
-        <p class="muted">
-          {$t(
-            'Closing the window keeps AEGIS running in the system tray. Use Quit AEGIS to stop monitoring and exit.',
-          )}
-        </p>
-        {#each toggles.slice(2, 5) as [key, label] (key)}<label class="setting"
-            ><span>{$t(label)}<small>{$t(startupHelp[key])}</small></span><input
-              type="checkbox"
-              aria-label={$t(label)}
-              checked={form[key] === true}
-              onchange={(e) => (form[key] = e.currentTarget.checked)}
-            /></label
-          >{/each}
-      </SettingsGroup>
-      <SettingsGroup
-        title={$t('Updates')}
-        description={$t('Check for releases and choose when to install them.')}
+        <h2 id={id + '-heading-appearance'} tabindex="-1">{$t('Appearance')}</h2>
+        <SettingsAppearance bind:form bind:contrast bind:motion />
+      </section>
+      <section
+        class="settings-page"
+        id={id + '-panel-monitoring'}
+        aria-labelledby={id + '-heading-monitoring'}
+        onfocusin={() => (section = 'monitoring')}
       >
-        <label class="setting"
-          ><span
-            >{$t('Check automatically')}<small
-              >{$t('Look for available releases in the background.')}</small
-            ></span
-          ><input
-            type="checkbox"
-            checked={form.automaticUpdatesEnabled === true}
-            onchange={(e) => (form.automaticUpdatesEnabled = e.currentTarget.checked)}
-          /></label
+        <h2 id={id + '-heading-monitoring'} tabindex="-1">{$t('Monitoring')}</h2>
+        <SettingsMonitoring
+          bind:form
+          bind:patterns
+          bind:ignored
+          bind:patternInput
+          bind:intervalInput
+          validationId={validation.startsWith('Scan interval') ? validationId : undefined}
+          {host}
+        />
+      </section>
+      <section
+        class="settings-page"
+        id={id + '-panel-desktop'}
+        aria-labelledby={id + '-heading-desktop'}
+        onfocusin={() => (section = 'desktop')}
+      >
+        <h2 id={id + '-heading-desktop'} tabindex="-1">{$t('Desktop & updates')}</h2>
+        <SettingsGroup
+          title={$t('Desktop startup')}
+          description={$t('Choose how AEGIS starts and renders its interface.')}
         >
-        <p class="muted" role="status">
-          {$t(updateLabels[String(updates.status)] ?? 'Update status unavailable')}
-          {String(updates.version ?? '')}
-        </p>
-        {#if updates.notes}<p class="muted">{String(updates.notes)}</p>{/if}{#if updates.error}<p
-            role="alert"
-          >
-            {String(updates.error)}
-          </p>{/if}{#if updates.status === 'downloading'}<progress
-            max="100"
-            value={Number(updates.progress ?? 0)}
-          ></progress>{/if}
-        <div class="toolbar">
-          <Action
-            disabled={['checking', 'downloading', 'installing', 'unsupported'].includes(
-              String(updates.status),
+          <p class="muted">
+            {$t(
+              'Closing the window keeps AEGIS running in the system tray. Use Quit AEGIS to stop monitoring and exit.',
             )}
-            action={() => update('checkForUpdates')}
-            ><Icon name="refresh" />{$t('Check for updates')}</Action
-          >{#if updates.status === 'available'}<Action action={() => update('downloadUpdate')}
-              ><Icon name="download" />{$t('Download update')}</Action
-            >{/if}{#if updates.status === 'ready'}<Action action={() => update('installUpdate')}
-              ><Icon name="refresh" />{$t('Install and restart')}</Action
-            >{/if}
-        </div>
-      </SettingsGroup>
-    </div>
-    <div
-      class="settings-page"
-      role="tabpanel"
-      tabindex="0"
-      id={id + '-panel-data'}
-      aria-labelledby={id + '-tab-data'}
-      hidden={section !== 'data'}
-    >
-      <SettingsGroup
-        title={$t('Anthropic analysis')}
-        description={$t(
-          'Manage the provider connection and analysis options in their dedicated workspace.',
-        )}
-      >
-        <p class="muted">
-          {$t(
-            'Connect Anthropic, review evidence and customize reports in the AI analysis workspace.',
-          )}
-        </p>
-        <div class="toolbar">
-          <button class="button" onclick={() => navigate('analysis')}
-            ><Icon name="shield" />{$t('Open AI analysis')}</button
+          </p>
+          {#each toggles.slice(2, 5) as [key, label] (key)}<label class="setting"
+              ><span>{$t(label)}<small>{$t(startupHelp[key])}</small></span><input
+                type="checkbox"
+                aria-label={$t(label)}
+                checked={form[key] === true}
+                onchange={(e) => (form[key] = e.currentTarget.checked)}
+              /></label
+            >{/each}
+        </SettingsGroup>
+        <SettingsGroup
+          title={$t('Updates')}
+          description={$t('Check for releases and choose when to install them.')}
+        >
+          <label class="setting"
+            ><span
+              >{$t('Check automatically')}<small
+                >{$t('Look for available releases in the background.')}</small
+              ></span
+            ><input
+              type="checkbox"
+              checked={form.automaticUpdatesEnabled === true}
+              onchange={(e) => (form.automaticUpdatesEnabled = e.currentTarget.checked)}
+            /></label
           >
-        </div>
-      </SettingsGroup>
-      <SettingsGroup
-        title={$t('Configuration')}
-        description={$t('Back up saved preferences or restore them from a configuration file.')}
+          <p class="muted" role="status">
+            {$t(updateLabels[String(updates.status)] ?? 'Update status unavailable')}
+            {String(updates.version ?? '')}
+          </p>
+          {#if updates.notes}<p class="muted">{String(updates.notes)}</p>{/if}{#if updates.error}<p
+              role="alert"
+            >
+              {String(updates.error)}
+            </p>{/if}{#if updates.status === 'downloading'}<progress
+              max="100"
+              value={Number(updates.progress ?? 0)}
+            ></progress>{/if}
+          <div class="toolbar">
+            <Action
+              disabled={['checking', 'downloading', 'installing', 'unsupported'].includes(
+                String(updates.status),
+              )}
+              action={() => update('checkForUpdates')}
+              ><Icon name="refresh" />{$t('Check for updates')}</Action
+            >{#if updates.status === 'available'}<Action action={() => update('downloadUpdate')}
+                ><Icon name="download" />{$t('Download update')}</Action
+              >{/if}{#if updates.status === 'ready'}<Action action={() => update('installUpdate')}
+                ><Icon name="refresh" />{$t('Install and restart')}</Action
+              >{/if}
+          </div>
+        </SettingsGroup>
+      </section>
+      <section
+        class="settings-page"
+        id={id + '-panel-data'}
+        aria-labelledby={id + '-heading-data'}
+        onfocusin={() => (section = 'data')}
       >
-        <p class="muted">
-          {$t(
-            'Export contains saved settings without the API key. Import replaces saved preferences and the current draft; imported values are validated.',
+        <h2 id={id + '-heading-data'} tabindex="-1">{$t('Data & help')}</h2>
+        <SettingsGroup
+          title={$t('Anthropic analysis')}
+          description={$t(
+            'Manage the provider connection and analysis options in their dedicated workspace.',
           )}
-        </p>
-        <div class="toolbar">
-          <Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
-            ><Icon name="download" />{$t('Export')}</Action
-          ><Action disabled={mutation !== null} action={() => replaceSettings(true)}
-            ><Icon name="upload" />{$t('Import')}</Action
-          >
-        </div>
-      </SettingsGroup>
-      <SettingsGroup
-        title={$t('Keyboard shortcuts')}
-        description={$t('Navigate AEGIS without leaving the keyboard.')}
-      >
-        <SettingsKeyboard />
-        <dl class="details-grid">
-          <dt>{$t('Commands')}</dt>
-          <dd><kbd>{$t('Ctrl K')}</kbd></dd>
-          <dt>{$t('Views')}</dt>
-          <dd><kbd>1</kbd> — <kbd>5</kbd></dd>
-          <dt>{$t('Theme / settings')}</dt>
-          <dd><kbd>{$t('T')}</kbd> / <kbd>{$t('S')}</kbd></dd>
-          <dt>{$t('History')}</dt>
-          <dd><kbd>{$t('Alt ←')}</kbd> / <kbd>{$t('Alt →')}</kbd></dd>
-          <dt>{$t('Close dialog')}</dt>
-          <dd><kbd>{$t('Esc')}</kbd></dd>
-        </dl>
-      </SettingsGroup>
-    </div>
-  </fieldset>
+        >
+          <p class="muted">
+            {$t(
+              'Connect Anthropic, review evidence and customize reports in the AI analysis workspace.',
+            )}
+          </p>
+          <div class="toolbar">
+            <button class="button" onclick={() => navigate('analysis')}
+              ><Icon name="shield" />{$t('Open AI analysis')}</button
+            >
+          </div>
+        </SettingsGroup>
+        <SettingsGroup
+          title={$t('Configuration')}
+          description={$t('Back up saved preferences or restore them from a configuration file.')}
+        >
+          <p class="muted">
+            {$t(
+              'Export contains saved settings without the API key. Import replaces saved preferences and the current draft; imported values are validated.',
+            )}
+          </p>
+          <div class="toolbar">
+            <Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
+              ><Icon name="download" />{$t('Export')}</Action
+            ><Action disabled={mutation !== null} action={() => replaceSettings(true)}
+              ><Icon name="upload" />{$t('Import')}</Action
+            >
+          </div>
+        </SettingsGroup>
+        <SettingsGroup
+          title={$t('Keyboard shortcuts')}
+          description={$t('Navigate AEGIS without leaving the keyboard.')}
+        >
+          <SettingsKeyboard />
+          <dl class="details-grid">
+            <dt>{$t('Commands')}</dt>
+            <dd><kbd>{$t('Ctrl K')}</kbd></dd>
+            <dt>{$t('Views')}</dt>
+            <dd><kbd>1</kbd> — <kbd>5</kbd></dd>
+            <dt>{$t('Theme / settings')}</dt>
+            <dd><kbd>{$t('T')}</kbd> / <kbd>{$t('S')}</kbd></dd>
+            <dt>{$t('History')}</dt>
+            <dd><kbd>{$t('Alt ←')}</kbd> / <kbd>{$t('Alt →')}</kbd></dd>
+            <dt>{$t('Close dialog')}</dt>
+            <dd><kbd>{$t('Esc')}</kbd></dd>
+          </dl>
+        </SettingsGroup>
+      </section>
+    </fieldset>
+    <aside class="settings-navigation">
+      <SectionNavigation
+        {tabs}
+        selected={section}
+        change={(value) => revealSection(value)}
+        prefix={id}
+        label={$t('Settings sections')}
+        controls
+      />
+    </aside>
+  </div>
   <SettingsSaveBar
     {loaded}
     {dirty}
@@ -500,28 +490,42 @@
 <style>
   .settings-workspace {
     min-width: 0;
-    overflow: clip;
   }
-  .settings-workspace :global(.section-tabs) {
+  .settings-composition {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 184px;
+    align-items: start;
+    gap: var(--space-4);
+  }
+  .settings-navigation {
     position: sticky;
     top: var(--workspace-sticky-offset, 70px);
-    z-index: 3;
-    background: var(--panel);
+    min-width: 0;
   }
   .settings-layout {
     border: 0;
     margin: 0;
     padding: 0;
     min-width: 0;
-    display: block;
+    display: grid;
+    gap: var(--space-5, 24px);
   }
   .settings-page {
     min-width: 0;
     display: grid;
     gap: var(--space-4);
-    padding: var(--panel-inset);
-    min-height: 420px;
+    padding: 0 0 var(--space-4);
     align-content: start;
+    scroll-margin-top: calc(var(--workspace-sticky-offset, 70px) + 12px);
+  }
+  .settings-page > h2 {
+    margin: 0;
+    padding: var(--space-3) var(--panel-inset);
+    border-left: 3px solid var(--accent);
+    border-bottom: 1px solid var(--strong-border);
+    background: var(--hover);
+    font-size: var(--text-section);
+    scroll-margin-top: calc(var(--workspace-sticky-offset, 70px) + 12px);
   }
   .settings-intro {
     display: flex;
@@ -529,6 +533,10 @@
     justify-content: space-between;
     gap: var(--space-4);
     padding: var(--panel-inset);
+    margin-bottom: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--surface-radius);
+    background: var(--panel);
   }
   .settings-intro h2 {
     margin: 0;
@@ -543,14 +551,18 @@
   .settings-intro .badge {
     flex-shrink: 0;
   }
-  .settings-page[hidden] {
-    display: none;
-  }
 
   .toolbar {
     margin-top: 12px;
   }
   @media (max-width: 700px) {
+    .settings-composition {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .settings-navigation {
+      position: static;
+      grid-row: 1;
+    }
     .settings-intro {
       flex-wrap: wrap;
     }

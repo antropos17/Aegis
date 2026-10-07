@@ -98,164 +98,174 @@
 </script>
 
 <div class="local-security-workspace">
-  <button
-    class="button result-jump"
-    onclick={(event) =>
-      event.currentTarget
-        .closest('.local-security-workspace')
-        ?.querySelector<HTMLButtonElement>('[data-result-import]')
-        ?.focus()}>{$t('Compare a returned result')}</button
-  >
-  {#if result}
-    <button
-      class="button setup-link"
-      onclick={() => document.getElementById(prefix + '-run')?.focus()}
-      >{$t('Change review setup')}</button
-    >
-    {#key result.id}<LocalSecurityResults
-        review={result}
-        {pending}
-        {preview}
-        {savedAcceptance}
-        action={run}
-      />{/key}
-  {/if}
-
-  <section class="panel review-setup" aria-label={$t('Local review setup')}>
-    <div class="setup-title">
-      <Icon name="shield" />
-      <div>
-        <h2>{$t('Start with a project folder')}</h2>
-        <p class="muted">
-          {$t(
-            'AEGIS checks recognized agent files for risky patterns. No code execution, server connections or uploads.',
-          )}
-        </p>
-      </div>
+  <div class="review-layout">
+    <div class="review-primary">
+      <section class="panel review-intro" aria-label={$t('Start with a project folder')}>
+        <div class="setup-title">
+          <Icon name="shield" />
+          <div>
+            <h2>{$t('Start with a project folder')}</h2>
+            <p class="muted">
+              {$t(
+                'AEGIS checks recognized agent files for risky patterns. No code execution, server connections or uploads.',
+              )}
+            </p>
+          </div>
+        </div>
+        {#if preview}<p class="preview-note">
+            {$t(
+              'Preview · simulated results only. File selection, exports and acceptance require the desktop app.',
+            )}
+          </p>{:else if !available}<p role="status">
+            {$t('Local review is unavailable in this runtime. Open the current AEGIS desktop app.')}
+          </p>{/if}
+        <div class="review-links">
+          <button
+            class="button result-jump"
+            onclick={(event) =>
+              event.currentTarget
+                .closest('.local-security-workspace')
+                ?.querySelector<HTMLButtonElement>('[data-result-import]')
+                ?.focus()}>{$t('Compare a returned result')}</button
+          >
+          {#if result}
+            <button
+              class="button setup-link"
+              onclick={() => document.getElementById(prefix + '-mode')?.focus()}
+              >{$t('Change review setup')}</button
+            >
+          {/if}
+        </div>
+      </section>
+      {#if result}
+        {#key result.id}<LocalSecurityResults
+            review={result}
+            {pending}
+            {preview}
+            {savedAcceptance}
+            action={run}
+          />{/key}
+      {:else}<section class="panel review-empty">
+          <Icon name="file" />
+          <h2>{$t('No local review yet')}</h2>
+          <p>
+            {$t(
+              'Choose a folder to begin. Use Review options for inventory, comparison or external reports.',
+            )}
+          </p>
+          <div class="capabilities">
+            <span>{$t('Commands & scripts')}</span><span>{$t('Hooks & MCP configuration')}</span
+            ><span>{$t('Instruction patterns')}</span><span>{$t('Content changes')}</span>
+          </div>
+          <small>{$t('Observation and review do not enable automatic access blocking.')}</small>
+        </section>{/if}
     </div>
-    {#if preview}<p class="preview-note">
-        {$t(
-          'Preview · simulated results only. File selection, exports and acceptance require the desktop app.',
-        )}
-      </p>{:else if !available}<p role="status">
-        {$t('Local review is unavailable in this runtime. Open the current AEGIS desktop app.')}
-      </p>{/if}
-    <details class="review-options">
-      <summary>{$t('Review options')}</summary>
-      <p class="muted">
-        {$t('Change the review type, choose a profile layout or add an offline report.')}
-      </p>
-      <div class="review-fields">
-        <div class="field">
-          <label for={prefix + '-mode'}>{$t('Review type')}</label><select
-            id={prefix + '-mode'}
-            bind:value={mode}
-            onchange={changeMode}
-            disabled={pending}
-            aria-describedby={prefix + '-mode-help'}
-            >{#each reviewModes as item (item.id)}<option value={item.id}>{$t(item.label)}</option
-              >{/each}</select
-          >
-          <small id={prefix + '-mode-help'}
-            >{$t(reviewModes.find((item) => item.id === mode)?.description ?? '')}</small
-          >
-        </div>
-        <div class="field">
-          <label for={prefix + '-adapter'}>{$t('Directory layout')}</label><select
-            id={prefix + '-adapter'}
-            bind:value={adapter}
-            disabled={pending}
-            aria-describedby={prefix + '-adapter-help'}
-            >{#each adapters as item (item.id)}<option value={item.id}>{$t(item.label)}</option
-              >{/each}</select
-          >
-          <small id={prefix + '-adapter-help'}
-            >{$t(reviewAdapters.find((item) => item.id === adapter)?.hint ?? '')}</small
-          >
-        </div>
+    <section class="panel review-setup" aria-label={$t('Local review setup')}>
+      <div class="setup-title">
+        <Icon name="settings" />
+        <h2>{$t('Review options')}</h2>
       </div>
-      {#if mode === 'import'}<div class="review-fields">
+      <div class="review-options">
+        <p class="muted">
+          {$t('Change the review type, choose a profile layout or add an offline report.')}
+        </p>
+        <div class="review-fields">
           <div class="field">
-            <label for={prefix + '-format'}>{$t('Report format')}</label><select
-              id={prefix + '-format'}
-              bind:value={format}
+            <label for={prefix + '-mode'}>{$t('Review type')}</label><select
+              id={prefix + '-mode'}
+              bind:value={mode}
+              onchange={changeMode}
               disabled={pending}
-              >{#each reportFormats as [id, label] (id)}<option value={id}>{label}</option
+              aria-describedby={prefix + '-mode-help'}
+              >{#each reviewModes as item (item.id)}<option value={item.id}>{$t(item.label)}</option
                 >{/each}</select
             >
+            <small id={prefix + '-mode-help'}
+              >{$t(reviewModes.find((item) => item.id === mode)?.description ?? '')}</small
+            >
           </div>
-          <label class="check"
-            ><input type="checkbox" bind:checked={baseline} disabled={pending} />{$t(
-              'Compare with a previous AEGIS static report',
+          <div class="field">
+            <label for={prefix + '-adapter'}>{$t('Directory layout')}</label><select
+              id={prefix + '-adapter'}
+              bind:value={adapter}
+              disabled={pending}
+              aria-describedby={prefix + '-adapter-help'}
+              >{#each adapters as item (item.id)}<option value={item.id}>{$t(item.label)}</option
+                >{/each}</select
+            >
+            <small id={prefix + '-adapter-help'}
+              >{$t(reviewAdapters.find((item) => item.id === adapter)?.hint ?? '')}</small
+            >
+          </div>
+        </div>
+        {#if mode === 'import'}<div class="review-fields">
+            <div class="field">
+              <label for={prefix + '-format'}>{$t('Report format')}</label><select
+                id={prefix + '-format'}
+                bind:value={format}
+                disabled={pending}
+                >{#each reportFormats as [id, label] (id)}<option value={id}>{label}</option
+                  >{/each}</select
+              >
+            </div>
+            <label class="check"
+              ><input type="checkbox" bind:checked={baseline} disabled={pending} />{$t(
+                'Compare with a previous AEGIS static report',
+              )}</label
+            >
+          </div>{:else}<label class="check"
+            ><input type="checkbox" bind:checked={tools} disabled={pending} />{$t(
+              'Include an offline MCP tools/list file',
             )}</label
-          >
-        </div>{:else}<label class="check"
-          ><input type="checkbox" bind:checked={tools} disabled={pending} />{$t(
-            'Include an offline MCP tools/list file',
-          )}</label
-        >{/if}
-    </details>
-    <p class="selection-summary">
-      {$t('Ready to review:')}
-      {$t(reviewModes.find((item) => item.id === mode)?.label ?? '')} ·
-      {$t(reviewAdapters.find((item) => item.id === adapter)?.label ?? '')}
-    </p>
-    <div class="run-row">
-      {#if result}<button
-          class="button"
-          onclick={(event) =>
-            event.currentTarget
-              .closest('.local-security-workspace')
-              ?.querySelector<HTMLElement>('.review-output')
-              ?.focus()}>{$t('View captured result')}</button
-        >{/if}
-      <button
-        id={prefix + '-run'}
-        class="button primary"
-        disabled={pending || !available}
-        aria-busy={pending}
-        onclick={() => run()}
-        ><Icon name={preview ? 'play' : 'folder'} />{$t(
-          preview ? 'Show example result' : 'Choose folder and review',
-        )}</button
-      >
-      <span class="muted"
-        >{$t(
-          mode === 'compare'
-            ? 'You will also choose the inventory snapshot to compare.'
-            : mode === 'import'
-              ? 'You will also choose the external report. No scanner is launched.'
-              : tools
-                ? 'You will also choose the MCP export. No server is contacted.'
-                : 'Only the selected directory is reviewed.',
-        )}</span
-      >
-    </div>
-    <div class="review-feedback" aria-live="polite" aria-atomic="true">
-      {#if error}<p role="alert">{$t(error)}</p>{:else}<p role="status">
-          {$t(
-            pending
-              ? 'Choose the requested files, then wait for the bounded local review…'
-              : feedback,
-          )}
-        </p>{/if}
-    </div>
-  </section>
-  {#if !result}<section class="panel review-empty">
-      <Icon name="file" />
-      <h2>{$t('No local review yet')}</h2>
-      <p>
-        {$t(
-          'Choose a folder to begin. Use Review options for inventory, comparison or external reports.',
-        )}
-      </p>
-      <div class="capabilities">
-        <span>{$t('Commands & scripts')}</span><span>{$t('Hooks & MCP configuration')}</span><span
-          >{$t('Instruction patterns')}</span
-        ><span>{$t('Content changes')}</span>
+          >{/if}
       </div>
-      <small>{$t('Observation and review do not enable automatic access blocking.')}</small>
-    </section>{/if}
+      <p class="selection-summary">
+        {$t('Ready to review:')}
+        {$t(reviewModes.find((item) => item.id === mode)?.label ?? '')} ·
+        {$t(reviewAdapters.find((item) => item.id === adapter)?.label ?? '')}
+      </p>
+      <div class="run-row">
+        {#if result}<button
+            class="button"
+            onclick={(event) =>
+              event.currentTarget
+                .closest('.local-security-workspace')
+                ?.querySelector<HTMLElement>('.review-output')
+                ?.focus()}>{$t('View captured result')}</button
+          >{/if}
+        <button
+          id={prefix + '-run'}
+          class="button primary"
+          disabled={pending || !available}
+          aria-busy={pending}
+          onclick={() => run()}
+          ><Icon name={preview ? 'play' : 'folder'} />{$t(
+            preview ? 'Show example result' : 'Choose folder and review',
+          )}</button
+        >
+        <span class="muted"
+          >{$t(
+            mode === 'compare'
+              ? 'You will also choose the inventory snapshot to compare.'
+              : mode === 'import'
+                ? 'You will also choose the external report. No scanner is launched.'
+                : tools
+                  ? 'You will also choose the MCP export. No server is contacted.'
+                  : 'Only the selected directory is reviewed.',
+          )}</span
+        >
+      </div>
+      <div class="review-feedback" aria-live="polite" aria-atomic="true">
+        {#if error}<p role="alert">{$t(error)}</p>{:else}<p role="status">
+            {$t(
+              pending
+                ? 'Choose the requested files, then wait for the bounded local review…'
+                : feedback,
+            )}
+          </p>{/if}
+      </div>
+    </section>
+  </div>
   <ResultReview {host} {preview} />
 </div>
 
@@ -265,6 +275,27 @@
     gap: var(--space-3);
     min-width: 0;
   }
+  .review-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
+    align-items: start;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .review-primary {
+    display: grid;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .review-intro {
+    padding: var(--panel-inset);
+  }
+  .review-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
   .result-jump {
     justify-self: start;
     max-width: 100%;
@@ -273,6 +304,10 @@
   .review-setup,
   .review-empty {
     padding: var(--panel-inset);
+  }
+  .review-setup {
+    border-color: var(--strong-border);
+    box-shadow: var(--surface-shadow);
   }
   .setup-title {
     display: flex;
@@ -289,19 +324,13 @@
   }
   .review-fields {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
-    margin: var(--space-4) 0;
+    margin: var(--space-3) 0;
   }
   .review-options {
     margin-top: var(--space-3);
     border-top: 1px solid var(--border);
-  }
-  .review-options summary {
-    padding-block: var(--space-3);
-    cursor: pointer;
-    min-height: 40px;
-    font-weight: 600;
   }
   .selection-summary {
     font-size: var(--text-caption);
@@ -328,20 +357,20 @@
     flex-shrink: 0;
   }
   .run-row {
-    display: flex;
-    align-items: center;
+    display: grid;
     gap: var(--space-3);
-    flex-wrap: wrap;
     margin-top: var(--space-4);
   }
   .run-row > span {
-    flex: 1;
-    min-width: min(100%, 200px);
     font-size: var(--text-caption);
   }
   .primary {
     border-color: var(--strong-border);
     font-weight: 600;
+  }
+  button {
+    min-width: 0;
+    white-space: normal;
   }
   .review-feedback {
     min-height: 1.8em;
@@ -384,8 +413,8 @@
     border: 1px solid var(--border);
     border-radius: var(--control-radius);
   }
-  @media (max-width: 980px) {
-    .review-fields {
+  @media (max-width: 800px) {
+    .review-layout {
       grid-template-columns: minmax(0, 1fr);
     }
   }

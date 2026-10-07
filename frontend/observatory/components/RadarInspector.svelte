@@ -31,14 +31,6 @@
     selected: string | null;
     inspect: (title: string, row: RecordData) => void;
   } = $props();
-  let processOptions = $state(false);
-  let previousGroup: string | undefined;
-  $effect(() => {
-    if (group?.key !== previousGroup) {
-      previousGroup = group?.key;
-      processOptions = false;
-    }
-  });
   let ids = $derived(new Set(group?.members.map((a) => a.instanceId).filter(Boolean)));
   let events = $derived(telemetry.events.filter((e) => e.instanceId && ids.has(e.instanceId)));
   let latest = $derived([...events].sort((a, b) => b.timestamp - a.timestamp)[0]);
@@ -134,8 +126,8 @@
       <button class="button inspector-open" onclick={openGroup}
         >{$t('Open agent')}<Icon name="chevron" /></button
       >
-      <details class="process-options" bind:open={processOptions}>
-        <summary>{$t('Individual processes')} <span>{group.members.length}</span></summary>
+      <section class="process-options inspector-block" aria-label={$t('Individual processes')}>
+        <h3>{$t('Individual processes')} <span>{group.members.length}</span></h3>
         <label class="instance-picker"
           ><span>{$t('Choose a process')}</span><select
             aria-label={$t('Selected process')}
@@ -153,7 +145,7 @@
         <button class="button" onclick={openProcess} disabled={!chosen}
           ><Icon name="cpu" />{$t('Process')}</button
         >
-      </details>
+      </section>
     {:else}
       <div class="radar-no-selection">
         <Icon name="radar" />
@@ -167,3 +159,27 @@
     {/if}
   </div>
 </aside>
+
+<style>
+  .process-options {
+    display: grid;
+    gap: var(--space-3);
+    border-top: 1px solid var(--strong-border);
+  }
+  .process-options h3 {
+    margin: 0;
+  }
+  .process-options h3 span {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .instance-picker {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .instance-picker select {
+    width: 100%;
+    min-width: 0;
+  }
+</style>

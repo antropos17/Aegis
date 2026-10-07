@@ -23,7 +23,7 @@ export async function checkUsability(browser, url, out) {
     await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
     for (const [width, height, scale] of [
       [1200, 800, 1],
-      [900, 600, 1.5],
+      [900, 600, 1],
     ]) {
       await page.setViewportSize({ width, height });
       for (const theme of ['dark', 'light']) {
@@ -41,7 +41,7 @@ export async function checkUsability(browser, url, out) {
           await page
             .locator('.sidebar nav')
             .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
-          'sidebar text overflows at enlarged scale',
+          'sidebar text overflows at 100%',
         );
         for (const layer of ['Files', 'Network', 'Radar']) {
           await page
@@ -84,14 +84,11 @@ export async function checkUsability(browser, url, out) {
         const selectedProcess = await process.inputValue();
         assert(selectedProcess, 'fixture lacks a stamped process');
         await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
+        assert.equal(await page.getByRole('tablist', { name: 'Agent sections' }).count(), 0);
+        assert(await page.getByRole('region', { name: 'Observed risk', exact: true }).isVisible());
         await page
-          .getByRole('tablist', { name: 'Agent sections' })
-          .getByRole('tab', { name: 'Risk', exact: true })
-          .click();
-        assert(await page.locator('.agent-risk details').evaluate((node) => node.open));
-        await page
-          .getByRole('tablist', { name: 'Agent sections' })
-          .getByRole('tab', { name: 'Processes', exact: true })
+          .getByRole('region', { name: 'Agent context summary' })
+          .getByRole('button', { name: /^Worker processes/ })
           .click();
         assert(await page.getByRole('region', { name: 'Agent worker processes' }).isVisible());
         assert.equal(await page.getByRole('dialog').count(), 0);
@@ -121,15 +118,18 @@ export async function checkUsability(browser, url, out) {
           if (graphY !== null) assert(Math.abs(y - graphY) < 2, 'metric choice moved the plot');
           graphY = y;
         }
-        await page.getByRole('tab', { name: 'Tokens', exact: true }).click();
+        const statisticsNavigation = page.getByRole('navigation', { name: 'Statistics sections' });
+        await statisticsNavigation.getByRole('button', { name: 'Tokens', exact: true }).click();
         assert.equal(await process.inputValue(), selectedProcess);
-        await page.getByRole('tab', { name: 'Sensors', exact: true }).click();
+        await statisticsNavigation.getByRole('button', { name: 'Sensors', exact: true }).click();
         assert.equal(
           await process.inputValue(),
           selectedProcess,
           'sensor view discarded selection',
         );
-        await page.getByRole('tab', { name: 'Performance', exact: true }).click();
+        await statisticsNavigation
+          .getByRole('button', { name: 'Performance', exact: true })
+          .click();
         assert.equal(await process.inputValue(), selectedProcess);
         const filterScroll = await page.locator('#main').evaluate((node) => {
           node.scrollTop = 80;
@@ -233,7 +233,7 @@ export async function checkUsability(browser, url, out) {
     }
     assert.deepEqual(errors, []);
     console.log(
-      'Usability: four theme/viewport/scale states; shared agent/process in Events, Network and Statistics; in-page agent/risk/process workflows; stable graph; Back and no overflow passed.',
+      'Usability: four theme/viewport states at 100%; shared agent/process in Events, Network and Statistics; in-page agent/risk/process workflows; stable graph; Back and no overflow passed.',
     );
   } finally {
     await page.close();

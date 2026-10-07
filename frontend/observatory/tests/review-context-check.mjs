@@ -82,7 +82,7 @@ export async function checkReviewContext(browser, url, out) {
       .click();
     for (const { width, height, scale } of [
       { width: 1200, height: 800, scale: 1 },
-      { width: 900, height: 600, scale: 1.5 },
+      { width: 900, height: 600, scale: 1 },
     ]) {
       await page.setViewportSize({ width, height });
       for (const theme of ['light', 'dark']) {
@@ -129,7 +129,7 @@ export async function checkReviewContext(browser, url, out) {
         await jump.press('Enter');
         assert(
           await page
-            .getByRole('tab', { name: 'Delivery', exact: true })
+            .locator('#audit-panel-delivery')
             .evaluate((node) => node === document.activeElement),
         );
         await page

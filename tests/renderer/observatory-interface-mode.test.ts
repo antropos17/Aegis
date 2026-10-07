@@ -22,8 +22,13 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-it.each([null, 'false', 'TRUE', '1', 'invalid'])('defaults to Simple for %s', (value) => {
+it.each([null, 'TRUE', '1', 'invalid'])('defaults to Advanced for %s', (value) => {
   if (value !== null) values.set('aegis-advanced-mode', value);
+  expect(readAdvancedMode()).toBe(true);
+});
+
+it('keeps Simple as an explicitly saved preference', () => {
+  values.set('aegis-advanced-mode', 'false');
   expect(readAdvancedMode()).toBe(false);
 });
 
@@ -42,7 +47,7 @@ it('defaults safely when storage cannot be read and rejects unverified saves', (
   storage.getItem.mockImplementation(() => {
     throw new Error('Storage unavailable');
   });
-  expect(readAdvancedMode()).toBe(false);
+  expect(readAdvancedMode()).toBe(true);
   expect(() => saveAdvancedMode(true)).toThrow('Storage unavailable');
   storage.getItem.mockReturnValue(null);
   expect(() => saveAdvancedMode(true)).toThrow('could not be saved');
@@ -53,7 +58,7 @@ it('propagates a rejected write without changing the saved mode', () => {
     throw new Error('Quota exceeded');
   });
   expect(() => saveAdvancedMode(true)).toThrow('Quota exceeded');
-  expect(readAdvancedMode()).toBe(false);
+  expect(readAdvancedMode()).toBe(true);
 });
 
 it('keeps complete routes and command aliases behind the compact Simple navigation', () => {
