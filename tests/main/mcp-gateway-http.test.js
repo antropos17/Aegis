@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { httpFixture } from './fixtures/mcp-http-server';
 const require = createRequire(import.meta.url);
 const { createMcpGateway } = require('../../src/main/mcp-gateway');
+const { initializeGatewayCredentialKey } = require('../../src/main/mcp-gateway-grants');
+const { captureGatewayRoute } = require('../../src/main/mcp-gateway-route');
 const schema = (properties) => ({
   type: 'object',
   properties,
@@ -67,18 +69,74 @@ afterEach(async () => {
   expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
   fs.rmSync(root, { recursive: true, force: true });
 });
-function create(mode = 'json') {
+function create(mode = 'json', options = {}) {
   fixture.state.mode = mode;
-  gateway = createMcpGateway({ endpointPath, manifestPath, onFailure: failed });
+  gateway = createMcpGateway({ endpointPath, manifestPath, onFailure: failed, ...options });
 }
-async function ready(mode) {
-  create(mode);
+async function ready(mode, options) {
+  create(mode, options);
   expect((await gateway.receive(init())).result?.capabilities.tools).toEqual({
     listChanged: false,
   });
   await gateway.receive(rpc(undefined, 'notifications/initialized'));
 }
 describe('explicit loopback HTTP upstream', () => {
+  it.each(['empty-store', 'copied-key', 'during-catalog', 'v2-store'])(
+    'revokes the open grant owner on %s replacement before any receiver effect',
+    async (mode) => {
+      const grantStorePath = path.join(root, 'grants');
+      const retired = path.join(root, 'retired-grants');
+      fs.mkdirSync(grantStorePath);
+      const key = await initializeGatewayCredentialKey(grantStorePath);
+      const route = await captureGatewayRoute({ endpointPath }, new AbortController().signal);
+      const grant = {
+        id: 'g'.repeat(32),
+        taskId: 't'.repeat(32),
+        notBefore: Date.now() - 1000,
+        expiresAt: Date.now() + 60000,
+        tool: 'record',
+        arguments: { recipient: 'chosen' },
+      };
+      save(manifestPath, {
+        schemaVersion: mode === 'v2-store' ? 2 : 4,
+        ...(mode === 'v2-store'
+          ? {}
+          : { route: route.identity, credentialTag: route.credentialTag(key) }),
+        tools: [tool],
+        grants: [grant],
+      });
+      key.fill(0);
+      route.close();
+      await ready('json', { grantStorePath });
+      const replace = () => {
+        fs.renameSync(grantStorePath, retired);
+        fs.mkdirSync(grantStorePath);
+        if (!['empty-store', 'v2-store'].includes(mode))
+          fs.copyFileSync(
+            path.join(retired, '.credential-key'),
+            path.join(grantStorePath, '.credential-key'),
+          );
+      };
+      if (mode === 'during-catalog')
+        fixture.state.onList = (count) => {
+          if (count === 2) replace();
+        };
+      else replace();
+      expect((await gateway.receive(call())).error).toBeDefined();
+      expect(fixture.state.calls).toHaveLength(0);
+      expect(fs.readdirSync(grantStorePath)).toEqual(
+        ['empty-store', 'v2-store'].includes(mode) ? [] : ['.credential-key'],
+      );
+      expect(fs.readdirSync(retired).filter((name) => name.endsWith('.used'))).toHaveLength(
+        mode === 'during-catalog' ? 1 : 0,
+      );
+      expect(failed).toHaveBeenCalledOnce();
+      // Restoring a directory after an observed replacement cannot revive the closed owner.
+      fs.renameSync(grantStorePath, path.join(root, 'replacement-grants'));
+      fs.renameSync(retired, grantStorePath);
+      expect(await gateway.receive(call(3))).toBeNull();
+    },
+  );
   it.each(['json', 'sse'])(
     'forwards one exact grant through %s with pinned headers and session',
     async (mode) => {

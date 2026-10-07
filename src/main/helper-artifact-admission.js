@@ -20,8 +20,8 @@ const keyIdValid = (v) => typeof v === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test
 const versionValid = (v) =>
   typeof v === 'string' &&
   v.length <= 40 &&
-  /^\d+\.\d+\.\d+(?:-alpha(?:\.\d+)?)?$/.test(v) &&
-  !!semver.valid(v);
+  /^\d+\.\d+\.\d+(?:-(?:alpha|beta)(?:\.\d+)?)?$/.test(v) &&
+  semver.valid(v) === v;
 const tupleKeys = ['helper', 'version', 'protocol', 'platform', 'architecture'];
 function tupleValid(v) {
   return (

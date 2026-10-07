@@ -85,3 +85,22 @@ per-process heap limits do not bound all native or host memory.
 VM protection, hostile storage, rollback/power-loss guarantees, original project
 writes, real provider enforcement and A1-A4 remain unqualified. A hash chain,
 signature, matching timestamp or imported success never supplies these authorities.
+
+## Local operation measurements
+
+The same qualification also runs three matched pairs of a fixed `record` tool
+call, directly over loopback HTTP and through the actual policy-approved gateway.
+Both arms send the same operation and use the receiver's independent byte sentinel.
+Order alternates between pairs; all six samples are retained, including the first.
+Timing covers one tool call, including durable grant consumption in the gateway arm;
+fixture setup, initialization, replay checks and cleanup are outside that interval.
+The direct control intentionally has no grant enforcement. This compares one local
+generated operation, with three observations per arm; it is not a general overhead estimate.
+
+The report includes raw monotonic durations, nearest-rank p50/p95, task denominators,
+successful tasks, observed effects and completion claims without an observed effect.
+CPU uses the qualification process's user/system deltas and includes the receiver;
+RSS/heap are the maximum of samples immediately before and after each call, not
+continuous peaks or system-wide measurements. Fault scenarios retain their existing
+refusal, approval and observer-loss evidence separately. Protected Session, installed
+Claude/Codex and other-product comparisons are explicitly `not-run`.

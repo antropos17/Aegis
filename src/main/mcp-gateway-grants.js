@@ -21,7 +21,7 @@ async function inspectStore(storePath) {
   if (normalized(canonical) !== normalized(resolved)) throw Error('grant-store-unavailable');
   const chain = [];
   for (let current = resolved; ; current = path.dirname(current)) {
-    const stat = await fs.lstat(current);
+    const stat = await fs.lstat(current, { bigint: true });
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw Error('grant-store-unavailable');
     chain.push({ path: current, stat });
     if (path.dirname(current) === current) break;
@@ -38,6 +38,18 @@ async function verifyStore(store) {
     throw Error('grant-store-changed');
 }
 
+async function releaseLock(store, lock, lockStat) {
+  // Retain an uncertain or replaced lock. Failed cleanup never admits an operation.
+  await lock.close();
+  await verifyStore(store);
+  const filename = path.join(store.path, LOCK);
+  const actual = await fs.lstat(filename);
+  if (!lockStat || !actual.isFile() || actual.isSymbolicLink() || !same(actual, lockStat))
+    throw Error('grant-store-changed');
+  await fs.unlink(filename);
+  await verifyStore(store);
+}
+
 /** Read the private store key used for HTTP bearer or stdio route tags.
  * A missing, replaced or malformed key never falls back to an unbound grant.
  * @param {string} storePath Explicit absolute grant-store directory.
@@ -45,12 +57,16 @@ async function verifyStore(store) {
  * @returns {Promise<Buffer>} A 32-byte key that the caller must zero after use.
  * @since v0.17.0 */
 async function readGatewayCredentialKey(storePath, signal) {
+  return readCredentialKey(await inspectStore(storePath), signal);
+}
+
+async function readCredentialKey(store, signal) {
   let handle,
     key,
     failed = false;
   try {
     if (signal?.aborted) throw Error('credential-key-unavailable');
-    const store = await inspectStore(storePath);
+    await verifyStore(store);
     const filename = path.join(store.path, CREDENTIAL_KEY);
     const before = await fs.lstat(filename);
     if (!before.isFile() || before.isSymbolicLink() || before.size !== 32)
@@ -144,14 +160,8 @@ async function initializeGatewayCredentialKey(storePath) {
     failed = true;
   }
   if (lock) {
-    await lock.close().catch(() => {});
     try {
-      await verifyStore(store);
-      const actual = await fs.lstat(path.join(store.path, LOCK));
-      if (!lockStat || !actual.isFile() || actual.isSymbolicLink() || !same(actual, lockStat))
-        throw Error('grant-store-changed');
-      await fs.unlink(path.join(store.path, LOCK));
-      await verifyStore(store);
+      await releaseLock(store, lock, lockStat);
     } catch {
       failed = true;
     }
@@ -187,11 +197,15 @@ function validTime(grant) {
  * @returns {Promise<boolean>} True only after syncing the receipt and releasing the lock.
  * @since v0.15.1 */
 async function consumeGatewayGrant(storePath, grant) {
-  let store, lock, lockStat, receipt;
+  return consumeGrant(await inspectStore(storePath), grant);
+}
+
+async function consumeGrant(store, grant) {
+  let lock, lockStat, receipt;
   let failed = false;
   try {
     if (!validTime(grant)) throw Error('grant-unavailable');
-    store = await inspectStore(storePath);
+    await verifyStore(store);
     lock = await fs.open(path.join(store.path, LOCK), 'wx', 0o600);
     lockStat = await lock.stat();
     await verifyStore(store);
@@ -216,15 +230,8 @@ async function consumeGatewayGrant(storePath, grant) {
   }
   if (receipt) await receipt.close().catch(() => {});
   if (lock) {
-    await lock.close().catch(() => {});
-    // Never remove a replaced lock or touch a directory whose identity no longer matches.
     try {
-      await verifyStore(store);
-      const actual = await fs.lstat(path.join(store.path, LOCK));
-      if (!lockStat || !actual.isFile() || actual.isSymbolicLink() || !same(actual, lockStat))
-        throw Error('grant-store-changed');
-      await fs.unlink(path.join(store.path, LOCK));
-      await verifyStore(store);
+      await releaseLock(store, lock, lockStat);
     } catch {
       failed = true;
     }
@@ -233,8 +240,24 @@ async function consumeGatewayGrant(storePath, grant) {
   return true;
 }
 
+/** Pin one gateway's store and ancestor identities for its connection lifetime.
+ * Replacing the selected directory never renews an open owner's grants. This
+ * does not establish protected ownership or resist rollback across restarts.
+ * @param {string} storePath Existing canonical absolute store directory.
+ * @returns {Promise<object>} Private consume, key-read and final identity check.
+ * @since v0.19.2 */
+async function captureGatewayGrantStore(storePath) {
+  const store = await inspectStore(storePath);
+  return Object.freeze({
+    consume: (grant) => consumeGrant(store, grant),
+    readCredentialKey: (signal) => readCredentialKey(store, signal),
+    recheck: () => verifyStore(store),
+  });
+}
+
 module.exports = {
   consumeGatewayGrant,
   readGatewayCredentialKey,
   initializeGatewayCredentialKey,
+  captureGatewayGrantStore,
 };

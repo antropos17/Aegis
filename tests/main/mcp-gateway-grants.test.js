@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { createHash, randomBytes } from 'node:crypto';
 import { fork } from 'node:child_process';
@@ -10,9 +10,12 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const subject = require.resolve('../../src/main/mcp-gateway-grants');
-const { consumeGatewayGrant, initializeGatewayCredentialKey, readGatewayCredentialKey } = require(
-  subject,
-);
+const {
+  consumeGatewayGrant,
+  initializeGatewayCredentialKey,
+  readGatewayCredentialKey,
+  captureGatewayGrantStore,
+} = require(subject);
 const fixture = fileURLToPath(new URL('./fixtures/mcp-grant-consumer.cjs', import.meta.url));
 let dir;
 const children = new Set();
@@ -43,6 +46,7 @@ beforeEach(async () => {
   dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'aegis-grants-')));
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const child of children) {
     if (child.exitCode === null && child.signalCode === null) {
       const exited = once(child, 'exit');
@@ -56,6 +60,58 @@ afterEach(async () => {
 });
 
 describe('persistent one-shot MCP grants', () => {
+  it('pins every ancestor even when the selected child directory identity is retained', async () => {
+    const parent = path.join(dir, 'parent');
+    const storePath = path.join(parent, 'store');
+    await fs.mkdir(storePath, { recursive: true });
+    const store = await captureGatewayGrantStore(storePath);
+    const retired = path.join(dir, 'retired');
+    await fs.rename(parent, retired);
+    await fs.mkdir(parent);
+    await fs.rename(path.join(retired, 'store'), storePath);
+    await expect(store.recheck()).rejects.toThrow();
+    await expect(store.consume(grant())).rejects.toThrow();
+    await expect(store.readCredentialKey()).rejects.toThrow();
+    expect(await fs.readdir(storePath)).toEqual([]);
+  });
+
+  it.each(['consume', 'initialize-key'])(
+    'retains the lock and refuses %s after lock close fails',
+    async (mode) => {
+      const open = fs.open.bind(fs);
+      const value = grant();
+      let retainedKey;
+      vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+        const handle = await open(...args);
+        if (path.basename(args[0]) === '.consume-lock') {
+          const close = handle.close.bind(handle);
+          handle.close = async () => {
+            await close();
+            throw Error('injected-close-failure');
+          };
+        } else if (
+          mode === 'initialize-key' &&
+          path.basename(args[0]) === '.credential-key' &&
+          args[1] === 'wx'
+        ) {
+          const write = handle.writeFile.bind(handle);
+          handle.writeFile = async (bytes) => {
+            retainedKey = bytes;
+            return write(bytes);
+          };
+        }
+        return handle;
+      });
+      await expect(
+        mode === 'consume' ? consumeGatewayGrant(dir, value) : initializeGatewayCredentialKey(dir),
+      ).rejects.toThrow();
+      expect((await fs.readdir(dir)).sort()).toEqual(
+        ['.consume-lock', mode === 'consume' ? marker(value) : '.credential-key'].sort(),
+      );
+      if (retainedKey) expect(retainedKey.equals(Buffer.alloc(32))).toBe(true);
+      await expect(consumeGatewayGrant(dir, grant())).rejects.toThrow();
+    },
+  );
   it('persists one private credential key and fails closed on damage or a held lock', async () => {
     await fs.writeFile(path.join(dir, '.consume-lock'), '');
     await expect(initializeGatewayCredentialKey(dir)).rejects.toThrow();

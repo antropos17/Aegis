@@ -18,6 +18,32 @@ it('executes actual policy/gateway/receiver and fresh-process audit failure, evi
     completeness: 'incomplete',
   });
   expect(result.launchAllowed).toBe(false);
+  expect(result.measurements.samples).toHaveLength(6);
+  expect(result.measurements.samples.map(({ arm }) => arm)).toEqual([
+    'direct',
+    'gateway',
+    'gateway',
+    'direct',
+    'direct',
+    'gateway',
+  ]);
+  for (const arm of ['direct', 'gateway']) {
+    expect(result.measurements.groups[arm]).toMatchObject({
+      sampleCount: 3,
+      taskDenominator: 3,
+      taskSuccesses: 3,
+      observedEffects: 3,
+      completionsWithoutObservedEffect: 0,
+    });
+  }
+  for (const sample of result.measurements.samples) {
+    expect(sample.passed).toBe(true);
+    for (const value of Object.values(sample.measurement)) {
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
+    }
+  }
+  expect(result.measurements.notRun).toContain('protected-session');
   expect(JSON.stringify(result)).not.toMatch(/Bearer|bearerToken|AEGIS_DUMMY_LABEL/);
 }, 15000);
 
