@@ -1,5 +1,13 @@
 # E1.1/E1.2 supervisor caller and owned-inventory design — 2026-09-30
 
+Historical scope note: the authorization and availability statements below describe
+the September 30 run. The later authorized disposable cloud lab and its actual
+observations are recorded in [cloud Hyper-V evidence](cloud-hyperv-evidence-20261007.md);
+native caller primitives are tracked in [caller evidence](supervisor-caller-native-evidence.md).
+Use the current session authorization when selecting effects. The completed E1.1
+design also includes the [UI/broker operation contract](ui-broker-operation-contract.md).
+These later results do not activate the production helper or accept the full boundary.
+
 Status: design only; no implementation, native acceptance result or A-gate verdict. This note defines a later bounded implementation. Current authorization excludes VM, services, accounts, registry, ACL, WFP/firewall changes, images/downloads and real credentials; none were performed. Production `launchAllowed=false` remains mandatory.
 
 ## Existing evidence and boundary

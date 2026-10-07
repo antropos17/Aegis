@@ -224,6 +224,17 @@ application from PATH before inspecting and hashing it, avoiding an array error
 when multiple installations are present. These local results do not replace the
 cross-principal cloud run.
 
+The [private-desktop revision run](https://github.com/antropos17/Aegis/actions/runs/37692352150)
+at `571c8843` completed Windows setup, profile readiness, hash-checked transfer
+and removal of both installation DVDs. Its new owner-side Node positive refused
+before desktop creation, standard-user process creation or runtime admission.
+The receipt records no owner exit observation and only a generic failure HResult;
+it cannot establish whether the three-second probe deadline or another condition
+caused the refusal. Native stop, independent Off, exact VM removal and both host
+canaries passed. Independent review matched all 25 source hashes, and all five
+CI contexts passed that source. This run supplies no cross-principal desktop or
+useful-task acceptance.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.
