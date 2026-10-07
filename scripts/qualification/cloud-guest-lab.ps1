@@ -18,7 +18,7 @@ $vmRoot = Join-Path $OutputRoot 'vm'; $mediaRoot = Join-Path $OutputRoot 'media'
 $id = $null; $owner = $null; $unknown = $false; $createAttempted = $false; $absence = $false; $mounted = $false
 $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaRoot 'answer.iso'
 $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard-user-lab'; startedAt = [DateTime]::UtcNow.ToString('o'); sourceSha = $env:EXPECTED_SOURCE_SHA;
-    actualHead = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
+    actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
@@ -52,8 +52,8 @@ function Compile([string]$Leaf, [string[]]$Sources, [string[]]$References) {
     $stdout = Join-Path $OutputRoot ('native\' + $Leaf + '.txt'); $stderr = $stdout + '.error'
     $process = Start-Process -FilePath $compiler -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     try {
-        if (!$process.WaitForExit(30000)) { $process.Kill(); throw 'native-compile-deadline' }
-        if ($process.ExitCode -ne 0 -or (Get-Item -LiteralPath $output).Length -gt 1MB -or (Get-Item -LiteralPath $stdout).Length -gt 64KB -or (Get-Item -LiteralPath $stderr).Length -gt 64KB) { throw 'native-compile-failed' }
+        $exitCode = Wait-CloudGuestNativeProcess $process 30000
+        if ($exitCode -ne 0 -or (Get-Item -LiteralPath $output).Length -gt 1MB -or (Get-Item -LiteralPath $stdout).Length -gt 64KB -or (Get-Item -LiteralPath $stderr).Length -gt 64KB) { throw 'native-compile-failed' }
     }
     finally { $process.Dispose() }
     return $output
@@ -76,10 +76,14 @@ try {
         if (@($disks | Where-Object { ($_.drive -eq 'D' -and $_.freeBytes -lt 80GB) -or ($_.drive -eq 'C' -and $_.freeBytes -lt 8GB) }).Count) { throw 'cloud-disk-headroom-unavailable' }
         if ($report.sourceSha -notmatch '^[a-f0-9]{40}$') { throw 'expected-source-required' }
         $headFile = Join-Path $OutputRoot 'temp\head.txt'; $gitError = Join-Path $OutputRoot 'temp\git-error.txt'
-        $git = Start-Process git.exe -ArgumentList @('-C', $project, 'rev-parse', 'HEAD') -PassThru -WindowStyle Hidden -RedirectStandardOutput $headFile -RedirectStandardError $gitError
-        if (!$git.WaitForExit(10000)) { $git.Kill(); throw 'source-head-deadline' }
-        if ($git.ExitCode -ne 0 -or (Get-Item $headFile).Length -gt 128) { throw 'source-head-unavailable' }
-        $report.actualHead = [IO.File]::ReadAllText($headFile).Trim(); $git.Dispose()
+        $git = Start-Process git.exe -ArgumentList @('-C', ('"' + $project + '"'), 'rev-parse', 'HEAD') -PassThru -WindowStyle Hidden -RedirectStandardOutput $headFile -RedirectStandardError $gitError
+        try {
+            $exitCode = Wait-CloudGuestNativeProcess $git 10000
+            $report.sourceObservation = @{ exitCode = $exitCode; headBytes = (Get-Item -LiteralPath $headFile).Length; stderrBytes = (Get-Item -LiteralPath $gitError).Length }
+            if ($exitCode -ne 0 -or $report.sourceObservation.headBytes -gt 128 -or $report.sourceObservation.stderrBytes -ne 0) { throw 'source-head-unavailable' }
+            $report.actualHead = [IO.File]::ReadAllText($headFile).Trim()
+        }
+        finally { $git.Dispose() }
         if ($report.actualHead -cne $report.sourceSha) { throw 'source-head-mismatch' }
         $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
         $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5; $computer = Get-CimInstance Win32_ComputerSystem -OperationTimeoutSec 5
@@ -128,9 +132,12 @@ try {
         Copy-Item -LiteralPath $node.FullName -Destination (Join-Path $transfer 'node.exe')
         $versionFile = Join-Path $OutputRoot 'temp\node-version.txt'; $errorFile = $versionFile + '.error'
         $child = Start-Process -FilePath $node.FullName -ArgumentList '--version' -PassThru -WindowStyle Hidden -RedirectStandardOutput $versionFile -RedirectStandardError $errorFile
-        if (!$child.WaitForExit(5000)) { $child.Kill(); throw 'node-version-deadline' }
-        if ($child.ExitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
-        $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }; $child.Dispose()
+        try {
+            $exitCode = Wait-CloudGuestNativeProcess $child 5000
+            if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
+            $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
+        }
+        finally { $child.Dispose() }
         foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
         $canaryEntries = @()
         foreach ($index in 1..2) {

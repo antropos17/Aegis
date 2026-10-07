@@ -1,5 +1,20 @@
 Set-StrictMode -Version Latest
 
+# Windows PowerShell5.1 Start-Process can otherwise lose ExitCode after exit.
+# Retain the native handle before waiting, then require an observed numeric code.
+function Wait-CloudGuestNativeProcess([Diagnostics.Process]$Process, [int]$Milliseconds) {
+    if ($null -eq $Process -or $Milliseconds -lt 1 -or $Milliseconds -gt 30000) { throw 'native-wait-input-invalid' }
+    [void]$Process.Handle
+    if (!$Process.WaitForExit($Milliseconds)) {
+        if (!$Process.HasExited) { $Process.Kill() }
+        throw 'native-process-deadline'
+    }
+    $Process.WaitForExit()
+    $code = $Process.ExitCode
+    if ($null -eq $code) { throw 'native-exit-observation-unavailable' }
+    return [int]$code
+}
+
 function Assert-CloudGuestRunner {
     if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows' -or
         $env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'cloud-guest-runner-scope-refused' }

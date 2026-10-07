@@ -23,8 +23,44 @@ Require ($answer -notmatch 'SkipMachineOOBE|LabConfig|BypassTPM|BypassSecureBoot
 $savedActions = $env:GITHUB_ACTIONS
 try { $env:GITHUB_ACTIONS = $null; Require (Refused { Assert-CloudGuestRunner }); $passed++ }
 finally { $env:GITHUB_ACTIONS = $savedActions }
+# Actual bounded PS5.1 native process controls; no media, guest or VM operation.
+$temporary = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
+$testRoot = Join-Path $temporary ('aegis-guest-wait-' + [guid]::NewGuid().ToString('N'))
+$parent = Get-Item -LiteralPath $temporary -Force
+while ($null -ne $parent) { if ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'native-test-reparse-parent-refused' }; $parent = $parent.Parent }
+New-Item -ItemType Directory -Path $testRoot | Out-Null
+$outputs = @()
+try {
+    foreach ($mode in @('zero', 'seven', 'head')) {
+        $stdout = Join-Path $testRoot ($mode + '.txt'); $stderr = $stdout + '.error'; $outputs += @($stdout, $stderr)
+        $executable = if ($mode -eq 'head') { 'git.exe' } else { Join-Path $env:WINDIR 'System32\cmd.exe' }
+        $arguments = if ($mode -eq 'head') { @('-C', ('"' + [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')) + '"'), 'rev-parse', 'HEAD') } elseif ($mode -eq 'zero') { @('/d', '/c', 'exit 0') } else { @('/d', '/c', 'exit 7') }
+        $process = Start-Process -FilePath $executable -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        try {
+            $exitCode = Wait-CloudGuestNativeProcess $process 5000
+            Require ($exitCode -eq $(if ($mode -eq 'seven') { 7 } else { 0 }))
+            Require ((Get-Item -LiteralPath $stdout).Length -le 128 -and (Get-Item -LiteralPath $stderr).Length -eq 0)
+            if ($mode -eq 'head') {
+                $head = [IO.File]::ReadAllText($stdout).Trim(); Require ($head -cmatch '^[a-f0-9]{40}$')
+                if ($env:EXPECTED_SOURCE_SHA) { Require ($head -ceq $env:EXPECTED_SOURCE_SHA) }
+            }
+            $passed++
+        }
+        finally { $process.Dispose() }
+    }
+}
+finally {
+    foreach ($selected in $outputs) {
+        if (Test-Path -LiteralPath $selected) {
+            $file = Get-Item -LiteralPath $selected -Force
+            if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.PSIsContainer -or $file.Length -gt 64KB -or !$file.FullName.StartsWith($testRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'native-test-cleanup-scope-invalid' }
+            Remove-Item -LiteralPath $selected -Force
+        }
+    }
+    Remove-Item -LiteralPath $testRoot
+}
 foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-lab.ps1', 'cloud-guest-bootstrap.ps1')) {
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntaxFiles = 4; scope = 'synthetic-media-answer-controls-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 11; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
