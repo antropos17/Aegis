@@ -1,0 +1,182 @@
+name: Qualify native enforcement fixtures
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-fixtures:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      EXPECTED_SOURCE_SHA: ${{ github.sha }}
+      HUSKY: '0'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Create owned scratch and record host before execution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'Invalid run identity' }
+          $taskRoot = Join-Path $env:RUNNER_TEMP ('aegis-enforcement-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $taskRoot) { throw 'Scratch already exists' }
+          if ($taskRoot -match '[\r\n]') { throw 'Invalid scratch path' }
+          New-Item -ItemType Directory -Path $taskRoot | Out-Null
+          foreach ($name in @('temp', 'cache', 'evidence', 'raw')) { New-Item -ItemType Directory -Path (Join-Path $taskRoot $name) | Out-Null }
+          @(
+            ('AEGIS_QUALIFICATION_ROOT=' + $taskRoot)
+            ('TEMP=' + (Join-Path $taskRoot 'temp'))
+            ('TMP=' + (Join-Path $taskRoot 'temp'))
+            ('npm_config_cache=' + (Join-Path $taskRoot 'cache/npm'))
+            ('ELECTRON_CACHE=' + (Join-Path $taskRoot 'cache/electron'))
+            ('ELECTRON_BUILDER_CACHE=' + (Join-Path $taskRoot 'cache/builder'))
+            ('NODE_COMPILE_CACHE=' + (Join-Path $taskRoot 'cache/node'))
+            ('AEGIS_SEALED_IMPORT_TEST_TMP=' + (Join-Path $taskRoot 'temp'))
+            ('AEGIS_SEALED_IMPORT_TEST_RECEIPT=' + (Join-Path $taskRoot 'raw/native-seal.json'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+          $os = Get-CimInstance -ClassName Win32_OperatingSystem
+          $driveNames = @((Split-Path -Qualifier $env:GITHUB_WORKSPACE).TrimEnd(':'), (Split-Path -Qualifier $taskRoot).TrimEnd(':')) | Sort-Object -Unique
+          $disks = @($driveNames | ForEach-Object { $disk = Get-PSDrive -Name $_; @{ drive = $_; freeBytes = $disk.Free; usedBytes = $disk.Used } })
+          if ($disks | Where-Object { $_.freeBytes -lt 2GB }) { throw 'Insufficient runner free space' }
+          @{ schemaVersion = 1; phase = 'before'; capturedAt = [DateTime]::UtcNow.ToString('o'); os = @{ caption = $os.Caption; version = $os.Version; build = $os.BuildNumber; architecture = $os.OSArchitecture }; disks = $disks } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $taskRoot 'evidence/host-before.json') -Encoding utf8
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Prepare bounded command runner and source receipt
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $runner = @'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const cp = require('node:child_process');
+          const crypto = require('node:crypto');
+          const root = path.resolve(process.env.AEGIS_QUALIFICATION_ROOT);
+          const evidence = path.join(root, 'evidence');
+          const raw = path.join(root, 'raw');
+          const hash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          const write = (name, value) => fs.writeFileSync(path.join(evidence, name), JSON.stringify(value, null, 2) + '\n', { flag: 'wx' });
+          const suiteFiles = ['tests/main/session-caller-windows.test.js', 'tests/main/result-review-sealed-import.test.js', 'tests/main/provider-installed-probe.test.js'];
+          const inputFiles = ['package.json', 'package-lock.json', 'vitest.config.js', ...suiteFiles,
+            'sidecar/session/CallerNative.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerAdmission.cs',
+            'tests/fixtures/session-caller/SessionCallerFixture.cs', 'src/main/result-review-sealed-import.js', 'src/main/result-review-bundle.js', 'src/main/result-review-ipc.js', 'src/main/inventory-config.js',
+            'tests/fixtures/sealed-import/ImportNative.cs', 'tests/fixtures/sealed-import/ImportCapture.cs', 'tests/fixtures/sealed-import/ImportSeal.cs', 'tests/fixtures/sealed-import/ImportFixture.cs', 'tests/fixtures/sealed-import/harness.mjs',
+            'scripts/qualification/sealed-import-build.mjs', 'scripts/qualification/sealed-import-oracle.mjs', 'scripts/qualification/sealed-import-report.mjs',
+            'scripts/qualification/provider-installed-probe.mjs', 'scripts/qualification/qualify-vm-inspection.mjs', 'scripts/qualification/vm-report.mjs', 'tests/fixtures/vm-inspection-probe.cs'];
+          const head = () => cp.execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true, timeout: 10000, maxBuffer: 1024 }).trim();
+          const scope = { nativeCaller: 'same-principal-native-fixture', sealedBaseline: 'native-capture-and-main-reader', providerProbe: 'synthetic-process-and-file-behavior', vmInspection: 'read-only-provider-subset', authentication: 'not-run', vmMutation: 'not-run', A1: 'not-qualified', launchAllowed: false };
+          async function run(mode) {
+            const commands = {
+              install: { args: [path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'), 'ci'], timeout: 240000 },
+              tests: { args: ['node_modules/vitest/vitest.mjs', 'run', ...suiteFiles, '--maxWorkers=1', '--reporter=json', '--outputFile=' + path.join(raw, 'tests.json')], timeout: 180000 },
+              inspection: { args: ['scripts/qualification/qualify-vm-inspection.mjs', '--receipt', path.join(raw, 'vm-inspection.json')], timeout: 45000 },
+            };
+            const command = commands[mode];
+            if (!command) throw Error('unknown-mode');
+            const log = fs.openSync(path.join(evidence, mode + '.log'), 'wx');
+            const cap = 2 * 1024 * 1024;
+            let observed = 0, stored = 0, timedOut = false, spawnFailed = false;
+            const startedAt = new Date().toISOString();
+            const child = cp.spawn(process.execPath, command.args, { cwd: process.cwd(), env: process.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+            const append = (chunk) => { observed += chunk.length; const keep = chunk.subarray(0, Math.max(0, cap - stored)); if (keep.length) { fs.writeSync(log, keep); stored += keep.length; } };
+            child.stdout.on('data', append); child.stderr.on('data', append);
+            const timer = setTimeout(() => { timedOut = true; cp.spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, timeout: 10000, stdio: 'ignore' }); }, command.timeout);
+            const exitCode = await new Promise((resolve) => { child.once('error', () => { spawnFailed = true; resolve(null); }); child.once('close', (code) => resolve(code)); });
+            clearTimeout(timer); fs.closeSync(log);
+            write(mode + '-command.json', { schemaVersion: 1, startedAt, completedAt: new Date().toISOString(), command: [process.execPath, ...command.args], exitCode, timedOut, spawnFailed, observedBytes: observed, storedBytes: stored, truncated: observed > cap, scope });
+            if (exitCode !== 0 || timedOut || spawnFailed) process.exitCode = 1;
+          }
+          const mode = process.argv[2];
+          (async () => {
+            if (mode === 'prepare') {
+              if (process.platform !== 'win32' || process.arch !== 'x64' || process.versions.node.split('.')[0] !== '24') throw Error('unsupported-toolchain');
+              const expected = process.env.EXPECTED_SOURCE_SHA;
+              const actual = head();
+              if (!/^[a-f0-9]{40}$/.test(expected || '') || actual !== expected) throw Error('source-revision-mismatch');
+              const compiler = path.join(process.env.WINDIR, 'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
+              if (!fs.statSync(compiler).isFile()) throw Error('inbox-compiler-unavailable');
+              const files = inputFiles.map((file) => { const stat = fs.lstatSync(file); if (!stat.isFile() || stat.isSymbolicLink()) throw Error('input-unavailable'); return { file, bytes: stat.size, sha256: hash(file) }; });
+              write('inputs.json', { schemaVersion: 1, expectedSourceSha: expected, actualHead: actual, nodeVersion: process.version, platform: process.platform, architecture: process.arch, compilerSha256: hash(compiler), files, scope });
+            } else if (mode === 'finish') {
+              let failure = false;
+              const issues = [];
+              const fail = (reason) => { failure = true; issues.push(reason); };
+              const inputsPath = path.join(evidence, 'inputs.json');
+              if (!fs.existsSync(inputsPath)) fail('missing-source-receipt');
+              else { const initial = JSON.parse(fs.readFileSync(inputsPath)); if (head() !== initial.actualHead || initial.files.some((row) => !fs.existsSync(row.file) || hash(row.file) !== row.sha256)) fail('source-or-lock-changed'); }
+              for (const mode of ['install', 'tests', 'inspection']) {
+                const receipt = path.join(evidence, mode + '-command.json');
+                if (!fs.existsSync(receipt)) { fail('missing-' + mode); continue; }
+                const result = JSON.parse(fs.readFileSync(receipt));
+                if (result.exitCode !== 0 || result.timedOut || result.spawnFailed) fail('failed-' + mode);
+              }
+              for (const name of ['tests.json', 'native-seal.json', 'vm-inspection.json']) {
+                const selected = path.join(raw, name);
+                if (!fs.existsSync(selected)) { fail('missing-' + name); continue; }
+                const stat = fs.lstatSync(selected);
+                if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4 * 1024 * 1024) { fail('invalid-or-oversized-' + name); continue; }
+                fs.copyFileSync(selected, path.join(evidence, name), fs.constants.COPYFILE_EXCL);
+              }
+              const testsPath = path.join(evidence, 'tests.json');
+              if (fs.existsSync(testsPath)) {
+                const result = JSON.parse(fs.readFileSync(testsPath));
+                const suites = result.testResults || [];
+                if (result.success !== true || result.numFailedTests !== 0 || result.numPendingTests !== 0 || suites.length !== suiteFiles.length || suiteFiles.some((file) => !suites.some((suite) => suite.name.replaceAll('\\', '/').endsWith('/' + file) && suite.assertionResults.length > 0 && suite.assertionResults.every((test) => test.status === 'passed')))) fail('missing-failed-or-skipped-tests');
+              }
+              write('summary.json', { schemaVersion: 1, completedAt: new Date().toISOString(), fixtureChecksPassed: !failure, issues, scope });
+              if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, 'Native fixtures: ' + (failure ? 'FAILED/INCOMPLETE' : 'passed') + '. E1/E9 use native disposable fixtures; E8 uses synthetic process doubles. VM query is read-only. A1 remains not qualified.\n');
+              if (failure) process.exitCode = 1;
+            } else await run(mode);
+          })().catch(() => { try { write('failure-' + mode + '.json', { schemaVersion: 1, failure: 'qualification-runner-failed', mode, scope }); } catch {} process.stderr.write('qualification-runner-failed\n'); process.exitCode = 1; });
+          '@
+          $runner | Set-Content -LiteralPath (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs') -Encoding utf8
+          node (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs') prepare
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install locked dependencies
+        run: |
+          node (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs') install
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run selected E1 E9 and E8 tests with one worker
+        run: |
+          node (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs') tests
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Query the hosted Hyper-V provider without mutation
+        if: always()
+        run: |
+          if (!(Test-Path -LiteralPath (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs'))) { throw 'Runner unavailable' }
+          node (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs') inspection
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Record host after execution and finalize bounded evidence
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!(Test-Path -LiteralPath $env:AEGIS_QUALIFICATION_ROOT)) { throw 'Scratch unavailable' }
+          $os = Get-CimInstance -ClassName Win32_OperatingSystem
+          $driveNames = @((Split-Path -Qualifier $env:GITHUB_WORKSPACE).TrimEnd(':'), (Split-Path -Qualifier $env:AEGIS_QUALIFICATION_ROOT).TrimEnd(':')) | Sort-Object -Unique
+          $disks = @($driveNames | ForEach-Object { $disk = Get-PSDrive -Name $_; @{ drive = $_; freeBytes = $disk.Free; usedBytes = $disk.Used } })
+          $temporaryBytes = (Get-ChildItem -LiteralPath (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'temp') -File -Recurse | Measure-Object -Property Length -Sum).Sum
+          @{ schemaVersion = 1; phase = 'after'; capturedAt = [DateTime]::UtcNow.ToString('o'); os = @{ caption = $os.Caption; version = $os.Version; build = $os.BuildNumber; architecture = $os.OSArchitecture }; disks = $disks; temporaryBytes = $temporaryBytes } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'evidence/host-after.json') -Encoding utf8
+          node (Join-Path $env:AEGIS_QUALIFICATION_ROOT 'runner.cjs') finish
+          $qualificationExit = $LASTEXITCODE
+          $evidence = Join-Path $env:AEGIS_QUALIFICATION_ROOT 'evidence'
+          $allowed = @('host-before.json', 'host-after.json', 'inputs.json', 'install.log', 'install-command.json', 'tests.log', 'tests-command.json', 'tests.json', 'inspection.log', 'inspection-command.json', 'native-seal.json', 'vm-inspection.json', 'summary.json', 'failure-prepare.json', 'failure-install.json', 'failure-tests.json', 'failure-inspection.json', 'failure-finish.json')
+          $files = @(Get-ChildItem -LiteralPath $evidence -Force)
+          if ($files | Where-Object { $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Name -notin $allowed -or $_.Length -gt 4MB }) { throw 'Evidence file budget or allowlist failed' }
+          if (($files | Measure-Object -Property Length -Sum).Sum -gt 64MB) { throw 'Evidence aggregate budget failed' }
+          'AEGIS_EVIDENCE_BOUNDED=true' | Add-Content -LiteralPath $env:GITHUB_ENV
+          if ($qualificationExit) { exit $qualificationExit }
+      - name: Preserve bounded native qualification receipts
+        if: always() && env.AEGIS_EVIDENCE_BOUNDED == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: enforcement-native-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_QUALIFICATION_ROOT }}/evidence/
+          retention-days: 7
+          if-no-files-found: error
