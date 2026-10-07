@@ -5,6 +5,7 @@ const fs = require('node:fs/promises');
 const { constants } = require('node:fs');
 const { TextDecoder } = require('node:util');
 const { parseInventoryConfig } = require('./inventory-config');
+const { decodeSealedResultReviewBaseline } = require('./result-review-sealed-import');
 const owned = new WeakMap();
 const LIMITS = Object.freeze({
   files: 128,
@@ -97,6 +98,7 @@ function snapshot(value, budget) {
 }
 
 /** Parse exact versioned selected bytes into copied snapshots; imported claims carry no authority.
+ * Schema 2 accepts a sealed-format artifact baseline without authenticating its producer/source.
  * @param {Buffer} bytes Selected strict JSON bundle bytes.
  * @returns {object} Opaque retained review with bounded immutable comparison metadata. @since v0.17.0 */
 function parseResultReviewBundle(bytes) {
@@ -106,16 +108,26 @@ function parseResultReviewBundle(bytes) {
       parsed = parseInventoryConfig(copy, 'json');
     if (parsed.parseStatus !== 'parsed') invalid();
     const value = parsed.value;
+    const sealed = value.schemaVersion === 2;
     if (
-      !exact(value, ['schemaVersion', 'captureSource', 'before', 'after', 'claims']) ||
-      value.schemaVersion !== 1 ||
+      !exact(value, [
+        'schemaVersion',
+        'captureSource',
+        sealed ? 'beforeSealedImportBase64' : 'before',
+        'after',
+        'claims',
+      ]) ||
+      ![1, 2].includes(value.schemaVersion) ||
       value.captureSource !== 'external-result' ||
       !exact(value.claims, ['accepted', 'stopped', 'boundaryPassed']) ||
       !Object.values(value.claims).every((claim) => typeof claim === 'boolean')
     )
       invalid();
     const budget = { bytes: 0 },
-      before = snapshot(value.before, budget),
+      before = snapshot(
+        sealed ? decodeSealedResultReviewBaseline(value.beforeSealedImportBase64) : value.before,
+        budget,
+      ),
       after = snapshot(value.after, budget);
     const names = [...new Set([...before.files.keys(), ...after.files.keys()])].sort();
     if (
