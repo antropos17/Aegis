@@ -1,10 +1,11 @@
 <script lang="ts">
   import ActionObservation from './ActionObservation.svelte';
   import RouteEvidence from './RouteEvidence.svelte';
+  import ActionSetupGuides from './ActionSetupGuides.svelte';
+  import Icon from './Icon.svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
-  import { confirmed, invoke, record, type Host } from '../runtime/host';
-  import { setupGuideUrl } from '../runtime/task-guide';
+  import { invoke, record, type Host } from '../runtime/host';
   import {
     actionRoutes,
     actionCheckGuidance,
@@ -31,15 +32,6 @@
   let pending = $state(false);
   let feedback = $state('');
   let error = $state('');
-  let guidePending = $state(false);
-  let guideFeedback = $state('');
-  let guideFailed = $state(false);
-  type GuideFile =
-    | 'ACTION-DELETE-FILE.md'
-    | 'ACTION-EXECUTION.md'
-    | 'ACTION-APPCONTAINER.md'
-    | 'MCP-STDIO-GATEWAY.md';
-  let guideTarget = $state<GuideFile | null>(null);
   let result = $state.raw<ActionCheck | null>(null);
   let routeObservation = $state.raw<RouteObservation | null>(null);
   let alive = true;
@@ -69,26 +61,6 @@
   }
   function focusCheckSetup() {
     document.getElementById(prefix + '-kind')?.focus();
-  }
-  async function openGuide(file: GuideFile) {
-    const url = setupGuideUrl(file);
-    if (guidePending || preview || !host?.openExternalUrl || !url) return;
-    guidePending = true;
-    guideTarget = file;
-    guideFeedback = '';
-    guideFailed = false;
-    try {
-      confirmed(await invoke(host, 'openExternalUrl', url));
-      if (alive) guideFeedback = 'Guide opened in your browser.';
-    } catch {
-      if (alive) {
-        guideFailed = true;
-        guideFeedback =
-          'Could not open the guide. Try again when the desktop connection is available.';
-      }
-    } finally {
-      if (alive) guidePending = false;
-    }
   }
   async function check() {
     if (pending || !available) return;
@@ -145,344 +117,316 @@
         >{$t('Compare returned files in Local security')}</button
       >{/if}
   </nav>
-  <ActionObservation {host} {preview} onObservation={(value) => (routeObservation = value)} />
-  {#if result || routeObservation}
-    <RouteEvidence check={result} observation={routeObservation} />
-  {/if}
-  {#if result}
-    <section class="panel result" tabindex="-1" aria-label={$t('Action check result')}>
-      <button class="button setup-link" onclick={focusCheckSetup}>{$t('Change check setup')}</button
-      >
-
-      <h2>{$t('Captured configuration check')}</h2>
-      {#if guidance}<p class="result-summary">{$t(guidance.summary)}</p>{/if}
-      <p class="captured">
-        {$t(result.kind === 'single' ? 'Single action' : 'Action catalog')} · {$t(
-          actionRoutes.find((item) => item.id === result?.route)?.label ?? '',
-        )}
-      </p>
-      <p class="muted">
-        {$t('Captured at')}
-        <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time>
-      </p>
-      <p>{$t('This is a retained observation, not live route status or permission to execute.')}</p>
-      {#if guidance}<div class="next-step">
-          <h3>{$t('Next step')}</h3>
-          <p>{$t(guidance.next)}</p>
-        </div>{/if}
-      <p class="muted">
-        {$t(
-          result.route === 'appcontainer'
-            ? 'AppContainer launch, isolation, descendant cleanup and installed provider compatibility have not been tested. The check does not authorize execution.'
-            : 'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
-        )}
-      </p>
-      {#if result.kind === 'catalog'}
-        <h3>{$t('Selected catalog actions')}</h3>
-        {#if result.report.actions.length}
-          <p class="muted">
-            {$t('These counts describe the captured configuration check. No actions were run.')}
-          </p>
-          <dl class="outcome-counts">
-            <div>
-              <dt>{$t('Allow')}</dt>
-              <dd>{actionCounts.allow}</dd>
-            </div>
-            <div>
-              <dt>{$t('Ask')}</dt>
-              <dd>{actionCounts.ask}</dd>
-            </div>
-            <div>
-              <dt>{$t('Deny')}</dt>
-              <dd>{actionCounts.deny}</dd>
-            </div>
-            <div>
-              <dt>{$t('Invalid configuration')}</dt>
-              <dd>{actionCounts.invalid}</dd>
-            </div>
-            {#if actionCounts.unassessed}<div>
-                <dt>{$t('Not assessed')}</dt>
-                <dd>{actionCounts.unassessed}</dd>
-              </div>{/if}
-          </dl>
-          <ul class="actions">
-            {#each result.report.actions as action (action.name)}
-              <li>
-                <h4>{action.name}</h4>
-                <dl>
-                  <div>
-                    <dt>{$t('Configuration')}</dt>
-                    <dd>{$t(coverageLabels[action.configuration])}</dd>
-                  </div>
-                  <div>
-                    <dt>{$t('Policy decision')}</dt>
-                    <dd>{$t(coverageLabels[action.policyDecision])}</dd>
-                  </div>
-                </dl>
-                {#if action.configuration === 'invalid' || action.policyDecision === 'ask' || action.policyDecision === 'deny'}
-                  <p class="action-reason">
-                    <strong>{$t('Check detail')}:</strong>
-                    {$t(coverageLabels[action.reason] ?? 'Reason unavailable')}
-                  </p>
-                {:else}
-                  <details>
-                    <summary>{$t('Check detail')}</summary>
-                    <p>{$t(coverageLabels[action.reason] ?? 'Reason unavailable')}</p>
-                  </details>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        {:else}<p>{$t('No individual action observations are available for this check.')}</p>{/if}
-      {/if}
-      <details class="technical">
-        <summary>{$t('Technical details')}</summary>
-        <dl>
-          <div>
-            <dt>{$t('Configuration')}</dt>
-            <dd>{$t(coverageLabels[result.report.configuration])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Policy decision')}</dt>
-            <dd>{$t(coverageLabels[result.report.policyDecision])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Check detail')}</dt>
-            <dd>{$t(coverageLabels[result.report.reason])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Current AEGIS runtime')}</dt>
-            <dd>{$t(coverageLabels[result.report.runtime])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Terminal in the checking process')}</dt>
-            <dd>{$t(coverageLabels[result.report.terminal])}</dd>
-          </div>
-          {#if result.route === 'appcontainer'}<div>
-              <dt>{$t('AppContainer helper file')}</dt>
-              <dd>{$t(coverageLabels[result.report.helper])}</dd>
-            </div>
-            <div>
-              <dt>{$t('Selected executable metadata')}</dt>
-              <dd>{$t(coverageLabels[result.report.executableObservation])}</dd>
-            </div>{/if}
-          <div>
-            <dt>{$t('Configuration observation')}</dt>
-            <dd>{$t('Not retained as a binding or authorization')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Agent connection')}</dt>
-            <dd>{$t('Not checked')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Blocking verification')}</dt>
-            <dd>{$t('Not performed')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Outside-route coverage')}</dt>
-            <dd>{$t('Unknown')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Descendant control')}</dt>
-            <dd>{$t(result.route === 'appcontainer' ? 'Not started' : 'Unsupported')}</dd>
-          </div>
-        </dl>
-      </details>
-    </section>
-  {/if}
-
-  <section class="panel setup" aria-label={$t('Action check setup')}>
-    <h2>{$t('Check action configuration')}</h2>
-    <p class="notice">{$t('Configuration check only; blocking has not been verified.')}</p>
-    <p class="muted">
-      {$t(
-        'Check the files that tell AEGIS which commands an agent may run. This does not run commands or change settings.',
-      )}
-    </p>
-    <form
-      onsubmit={(event) => {
-        event.preventDefault();
-        void check();
-      }}
-      aria-busy={pending}
-    >
-      <p class="file-help">
-        {$t(
-          kind === 'single'
-            ? 'For one action, choose its policy JSON file, then its request JSON file.'
-            : 'For a catalog, choose the catalog JSON file that lists your actions.',
-        )}
-      </p>
-      <div class="fields">
-        <div class="field">
-          <label for={prefix + '-kind'}>{$t('Selection type')}</label>
-          <select id={prefix + '-kind'} bind:value={kind} onchange={changeKind} disabled={pending}>
-            <option value="single">{$t('Single action')}</option><option value="catalog"
-              >{$t('Action catalog')}</option
-            >
-          </select>
+  <div class="action-columns">
+    <div class="action-check-column">
+      <section class="panel setup" aria-label={$t('Action check setup')}>
+        <div class="panel-head">
+          <h2><Icon name="file" />{$t('Check action configuration')}</h2>
         </div>
-        <div class="field">
-          <label for={prefix + '-route'}>{$t('Execution route')}</label>
-          <select
-            id={prefix + '-route'}
-            bind:value={route}
-            disabled={pending}
-            aria-describedby={prefix + '-route-help'}
+        <div class="panel-body">
+          <p class="notice">{$t('Configuration check only; blocking has not been verified.')}</p>
+          <form
+            onsubmit={(event) => {
+              event.preventDefault();
+              void check();
+            }}
+            aria-busy={pending}
           >
-            {#each routes as item (item.id)}<option value={item.id}>{$t(item.label)}</option>{/each}
-          </select>
+            <div class="fields">
+              <div class="field">
+                <label for={prefix + '-kind'}>{$t('Selection type')}</label>
+                <select
+                  id={prefix + '-kind'}
+                  bind:value={kind}
+                  onchange={changeKind}
+                  disabled={pending}
+                >
+                  <option value="single">{$t('Single action')}</option><option value="catalog"
+                    >{$t('Action catalog')}</option
+                  >
+                </select>
+              </div>
+              <div class="field">
+                <label for={prefix + '-route'}>{$t('Execution route')}</label>
+                <select
+                  id={prefix + '-route'}
+                  bind:value={route}
+                  disabled={pending}
+                  aria-describedby={prefix + '-route-help'}
+                >
+                  {#each routes as item (item.id)}<option value={item.id}>{$t(item.label)}</option
+                    >{/each}
+                </select>
+              </div>
+            </div>
+            <p class="file-help">
+              {$t(
+                kind === 'single'
+                  ? 'For one action, choose its policy JSON file, then its request JSON file.'
+                  : 'For a catalog, choose the catalog JSON file that lists your actions.',
+              )}
+            </p>
+            <p id={prefix + '-route-help'} class="muted">{$t(routeHelp[route])}</p>
+            <button
+              type="submit"
+              class="button primary"
+              disabled={pending || !available}
+              aria-busy={pending}
+              >{$t(preview ? 'Show example check' : 'Choose files and check')}</button
+            >
+            {#if result}<button
+                type="button"
+                class="button"
+                onclick={(event) =>
+                  event.currentTarget
+                    .closest('.action-coverage-workspace')
+                    ?.querySelector<HTMLElement>('.result')
+                    ?.focus()}>{$t('View captured result')}</button
+              >{/if}
+          </form>
+          <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
+            {$t(
+              pending
+                ? 'Choose the requested files and wait for the configuration check…'
+                : feedback,
+            )}
+          </div>
+          <div role="alert" aria-atomic="true">{$t(error)}</div>
+          <p class="muted">
+            {$t(
+              'Check the files that tell AEGIS which commands an agent may run. This does not run commands or change settings.',
+            )}
+          </p>
+          {#if preview}<p class="preview-note">
+              {$t('Preview · example checks only. No files are selected or read.')}
+            </p>{/if}
+          {#if !available}<p>
+              {$t(
+                'Action checks are unavailable in this runtime. Open the current AEGIS desktop app.',
+              )}
+            </p>{/if}
+          <p class="muted">
+            {$t(
+              'Runtime and terminal availability describe this AEGIS process, not a future agent process.',
+            )}
+          </p>
         </div>
-      </div>
-      <p id={prefix + '-route-help'} class="muted">{$t(routeHelp[route])}</p>
-      <button
-        type="submit"
-        class="button primary"
-        disabled={pending || !available}
-        aria-busy={pending}>{$t(preview ? 'Show example check' : 'Choose files and check')}</button
-      >
-      {#if result}<button
-          type="button"
-          class="button"
-          onclick={(event) =>
-            event.currentTarget
-              .closest('.action-coverage-workspace')
-              ?.querySelector<HTMLElement>('.result')
-              ?.focus()}>{$t('View captured result')}</button
-        >{/if}
-    </form>
-    <section class="selected-file-guide" aria-label={$t('Selected-file deletion setup')}>
-      <h3>{$t('Delete one selected file')}</h3>
-      <p>
-        {$t(
-          'Use the separate terminal-owned exact-file MCP route. The executable/catalog check does not assess it or establish automatic blocking or general coverage.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('ACTION-DELETE-FILE.md')}
-        >{$t('Open selected-file deletion guide')}</button
-      >
-      {#if guideTarget === 'ACTION-DELETE-FILE.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    <section class="protected-action-guide" aria-label={$t('Protected Windows action setup')}>
-      <h3>{$t('Control an allowed Windows action tree')}</h3>
-      <p>
-        {$t(
-          'The separate Windows Job CLI route controls ordinary descendants after an exact allow. The configuration check does not assess this CLI route or verify blocking.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('ACTION-EXECUTION.md')}
-        >{$t('Open protected Windows action guide')}</button
-      >
-      {#if guideTarget === 'ACTION-EXECUTION.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    <section class="protected-action-guide" aria-label={$t('Windows AppContainer setup')}>
-      <h3>{$t('Check a selected Windows AppContainer launch')}</h3>
-      <p>
-        {$t(
-          'Select Windows AppContainer CLI to check selected files and executable metadata, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('ACTION-APPCONTAINER.md')}>{$t('Open AppContainer guide')}</button
-      >
-      {#if guideTarget === 'ACTION-APPCONTAINER.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    {#if preview}<p class="muted">
-        {$t('External guides are disabled in this simulated preview.')}
-      </p>{:else if !host?.openExternalUrl}<p class="muted">
-        {$t('Opening guides requires the AEGIS desktop connection.')}
-      </p>{/if}
-    {#if preview}<p class="preview-note">
-        {$t('Preview · example checks only. No files are selected or read.')}
-      </p>{/if}
-    {#if !available}<p>
-        {$t('Action checks are unavailable in this runtime. Open the current AEGIS desktop app.')}
-      </p>{/if}
-
-    <section class="gateway-guide" aria-label={$t('Stdio gateway setup')}>
-      <h3>{$t('Third-party MCP server gateway')}</h3>
-      <p>
-        {$t(
-          'The separate stdio gateway (--mcp-gateway-stdio) has its own setup and limits. Action control does not check gateway setup, a running gateway, or live coverage.',
-        )}
-      </p>
-      <button
-        type="button"
-        class="button"
-        disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={() => openGuide('MCP-STDIO-GATEWAY.md')}>{$t('Open stdio gateway guide')}</button
-      >
-      {#if guideTarget === 'MCP-STDIO-GATEWAY.md'}<p
-          class="guide-feedback"
-          role={guideFailed ? 'alert' : 'status'}
-          aria-live="polite"
-        >
-          {$t(guideFeedback)}
-        </p>{/if}
-    </section>
-    <p class="muted">
-      {$t(
-        'Runtime and terminal availability describe this AEGIS process, not a future agent process.',
-      )}
-    </p>
-    <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
-      {$t(pending ? 'Choose the requested files and wait for the configuration check…' : feedback)}
+      </section>
+      {#if result}
+        <section class="panel result" tabindex="-1" aria-label={$t('Action check result')}>
+          <div class="panel-head">
+            <h2><Icon name="shield" />{$t('Captured configuration check')}</h2>
+            <button class="button setup-link" onclick={focusCheckSetup}
+              >{$t('Change check setup')}</button
+            >
+          </div>
+          <div class="panel-body">
+            {#if guidance}<p class="result-summary">{$t(guidance.summary)}</p>{/if}
+            <p class="captured">
+              {$t(result.kind === 'single' ? 'Single action' : 'Action catalog')} · {$t(
+                actionRoutes.find((item) => item.id === result?.route)?.label ?? '',
+              )}
+            </p>
+            <p class="muted">
+              {$t('Captured at')}
+              <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time>
+            </p>
+            <p>
+              {$t(
+                'This is a retained observation, not live route status or permission to execute.',
+              )}
+            </p>
+            {#if guidance}<div class="next-step">
+                <h3>{$t('Next step')}</h3>
+                <p>{$t(guidance.next)}</p>
+              </div>{/if}
+            <p class="muted">
+              {$t(
+                result.route === 'appcontainer'
+                  ? 'AppContainer launch, isolation, descendant cleanup and installed provider compatibility have not been tested. The check does not authorize execution.'
+                  : 'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
+              )}
+            </p>
+            {#if result.kind === 'catalog'}
+              <h3>{$t('Selected catalog actions')}</h3>
+              {#if result.report.actions.length}
+                <p class="muted">
+                  {$t(
+                    'These counts describe the captured configuration check. No actions were run.',
+                  )}
+                </p>
+                <dl class="outcome-counts">
+                  <div>
+                    <dt>{$t('Allow')}</dt>
+                    <dd>{actionCounts.allow}</dd>
+                  </div>
+                  <div>
+                    <dt>{$t('Ask')}</dt>
+                    <dd>{actionCounts.ask}</dd>
+                  </div>
+                  <div>
+                    <dt>{$t('Deny')}</dt>
+                    <dd>{actionCounts.deny}</dd>
+                  </div>
+                  <div>
+                    <dt>{$t('Invalid configuration')}</dt>
+                    <dd>{actionCounts.invalid}</dd>
+                  </div>
+                  {#if actionCounts.unassessed}<div>
+                      <dt>{$t('Not assessed')}</dt>
+                      <dd>{actionCounts.unassessed}</dd>
+                    </div>{/if}
+                </dl>
+                <ul class="actions">
+                  {#each result.report.actions as action (action.name)}
+                    <li>
+                      <h4>{action.name}</h4>
+                      <dl>
+                        <div>
+                          <dt>{$t('Configuration')}</dt>
+                          <dd>{$t(coverageLabels[action.configuration])}</dd>
+                        </div>
+                        <div>
+                          <dt>{$t('Policy decision')}</dt>
+                          <dd>{$t(coverageLabels[action.policyDecision])}</dd>
+                        </div>
+                      </dl>
+                      <p class="action-reason">
+                        <strong>{$t('Check detail')}:</strong>
+                        {$t(coverageLabels[action.reason] ?? 'Reason unavailable')}
+                      </p>
+                    </li>
+                  {/each}
+                </ul>
+              {:else}<p>
+                  {$t('No individual action observations are available for this check.')}
+                </p>{/if}
+            {/if}
+            <details class="technical">
+              <summary>{$t('Technical details')}</summary>
+              <dl>
+                <div>
+                  <dt>{$t('Configuration')}</dt>
+                  <dd>{$t(coverageLabels[result.report.configuration])}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Policy decision')}</dt>
+                  <dd>{$t(coverageLabels[result.report.policyDecision])}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Check detail')}</dt>
+                  <dd>{$t(coverageLabels[result.report.reason])}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Current AEGIS runtime')}</dt>
+                  <dd>{$t(coverageLabels[result.report.runtime])}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Terminal in the checking process')}</dt>
+                  <dd>{$t(coverageLabels[result.report.terminal])}</dd>
+                </div>
+                {#if result.route === 'appcontainer'}<div>
+                    <dt>{$t('AppContainer helper file')}</dt>
+                    <dd>{$t(coverageLabels[result.report.helper])}</dd>
+                  </div>
+                  <div>
+                    <dt>{$t('Selected executable metadata')}</dt>
+                    <dd>{$t(coverageLabels[result.report.executableObservation])}</dd>
+                  </div>{/if}
+                <div>
+                  <dt>{$t('Configuration observation')}</dt>
+                  <dd>{$t('Not retained as a binding or authorization')}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Agent connection')}</dt>
+                  <dd>{$t('Not checked')}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Blocking verification')}</dt>
+                  <dd>{$t('Not performed')}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Outside-route coverage')}</dt>
+                  <dd>{$t('Unknown')}</dd>
+                </div>
+                <div>
+                  <dt>{$t('Descendant control')}</dt>
+                  <dd>{$t(result.route === 'appcontainer' ? 'Not started' : 'Unsupported')}</dd>
+                </div>
+              </dl>
+            </details>
+          </div>
+        </section>
+      {/if}
+      {#if !result}
+        <section class="panel empty">
+          <div class="panel-head"><h2><Icon name="report" />{$t('No action check yet')}</h2></div>
+          <div class="panel-body">
+            <p>
+              {$t(
+                'Already have AEGIS configuration files? Choose them above. If not, ask the person setting up your agent for a policy and request, or a catalog.',
+              )}
+            </p>
+            {#if navigate}<button class="button" onclick={() => navigate?.('guide')}
+                >{$t('Open setup guide')}</button
+              >{/if}
+          </div>
+        </section>
+      {/if}
     </div>
-    <div role="alert" aria-atomic="true">{$t(error)}</div>
-  </section>
-  {#if !result}
-    <section class="panel empty">
-      <h2>{$t('No action check yet')}</h2>
-      <p>
-        {$t(
-          'Already have AEGIS configuration files? Choose them above. If not, ask the person setting up your agent for a policy and request, or a catalog.',
-        )}
-      </p>
-      {#if navigate}<button class="button" onclick={() => navigate?.('guide')}
-          >{$t('Open setup guide')}</button
-        >{/if}
-    </section>
-  {/if}
+    <div class="action-observation-column">
+      <ActionObservation {host} {preview} onObservation={(value) => (routeObservation = value)} />
+      {#if result || routeObservation}
+        <RouteEvidence check={result} observation={routeObservation} />
+      {/if}
+    </div>
+  </div>
+  <ActionSetupGuides {host} {preview} />
 </div>
 
 <style>
   .action-coverage-workspace {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .action-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+    align-items: start;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  .action-check-column,
+  .action-observation-column {
+    display: grid;
+    gap: var(--space-4);
     min-width: 0;
   }
   .panel {
-    padding: var(--panel-inset);
+    padding: 0;
     min-width: 0;
+    container-type: inline-size;
+  }
+  .panel-head {
+    flex-wrap: wrap;
+  }
+  .panel-head h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 700;
+  }
+  .panel-head :global(.icon) {
+    flex-shrink: 0;
+  }
+  .panel-head button {
+    margin: 0;
+  }
+  .panel-body {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--panel-inset);
   }
   h2 {
     font-size: var(--text-section);
@@ -490,7 +434,7 @@
   }
   h3 {
     font-size: var(--text-body);
-    margin: var(--space-4) 0 var(--space-2);
+    margin: 0;
   }
   h4 {
     margin: 0 0 var(--space-2);
@@ -499,7 +443,7 @@
   }
   p {
     line-height: 1.6;
-    margin: var(--space-2) 0;
+    margin: 0;
   }
   .muted {
     color: var(--muted);
@@ -512,34 +456,24 @@
   }
   .notice {
     font-weight: 600;
+    border-left: 3px solid var(--amber);
+    background: var(--amber-bg);
   }
-  .selected-file-guide,
-  .protected-action-guide,
-  .gateway-guide {
-    border-top: 1px solid var(--border);
-    margin-top: var(--space-4);
-    padding-top: var(--space-3);
+  form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    gap: var(--space-3);
   }
-  .selected-file-guide h3,
-  .protected-action-guide h3,
-  .gateway-guide h3 {
-    margin-top: 0;
-  }
-  .selected-file-guide .button,
-  .protected-action-guide .button,
-  .gateway-guide .button {
-    margin-top: var(--space-2);
-  }
-  .selected-file-guide .guide-feedback,
-  .protected-action-guide .guide-feedback,
-  .gateway-guide .guide-feedback {
-    margin-bottom: 0;
+  form > p,
+  .fields {
+    flex-basis: 100%;
   }
   .fields {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
     gap: var(--space-3);
-    margin-block: var(--space-4);
+    width: 100%;
   }
   .field {
     display: grid;
@@ -551,12 +485,15 @@
     min-width: 0;
   }
   button {
-    margin-top: var(--space-3);
+    margin: 0;
     min-height: var(--control-height);
     white-space: normal;
+    max-width: 100%;
+    justify-self: start;
   }
   .task-links {
     display: flex;
+    flex-direction: row;
     flex-wrap: wrap;
     gap: var(--space-2);
   }
@@ -566,12 +503,16 @@
     margin-top: 0;
   }
   .primary {
-    border-color: var(--strong-border);
+    border-color: var(--selection-border);
+    background: var(--selection);
     font-weight: 600;
   }
-  .feedback {
-    min-height: 1.8em;
-    margin-top: var(--space-2);
+  .feedback:not(:empty),
+  [role='alert']:not(:empty) {
+    padding: var(--space-3);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--control-radius);
+    background: var(--raised);
   }
   [role='alert'] {
     color: var(--red);
@@ -579,7 +520,7 @@
   dl {
     display: grid;
     gap: var(--space-3);
-    margin: var(--space-3) 0;
+    margin: 0;
   }
   dl > div {
     display: grid;
@@ -648,11 +589,20 @@
     align-content: center;
   }
   .next-step h3 {
-    margin-top: var(--space-2);
+    margin-bottom: var(--space-1);
   }
-  @media (max-width: 600px) {
-    .fields,
+  @container (max-width: 340px) {
+    .fields {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @container (max-width: 420px) {
     dl > div {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 780px) {
+    .action-columns {
       grid-template-columns: minmax(0, 1fr);
     }
   }

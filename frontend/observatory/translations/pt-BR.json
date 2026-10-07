@@ -1343,6 +1343,7 @@
   "Tip: use Commands or Ctrl K to find a task, workspace or setting.": "Dica: use Comandos ou Ctrl K para encontrar uma tarefa, área de trabalho ou configuração.",
   "Check the files that tell AEGIS which commands an agent may run. This does not run commands or change settings.": "Verifique os arquivos que definem quais comandos um agente pode executar pelo AEGIS. Isso não executa comandos nem altera configurações.",
   "Selected-file deletion setup": "Configuração da exclusão de arquivo selecionado",
+  "Route setup guides": "Guias de configuração de rotas",
   "Use the separate terminal-owned exact-file MCP route. The executable/catalog check below does not assess it or establish automatic blocking or general coverage.": "Use a rota MCP separada para um arquivo exato, controlada pelo terminal. A verificação de executáveis e catálogos abaixo não avalia essa rota nem estabelece bloqueio automático ou cobertura geral.",
   "Open selected-file deletion guide": "Abrir guia de exclusão de arquivo selecionado",
   "Stdio gateway setup": "Configuração do gateway stdio",

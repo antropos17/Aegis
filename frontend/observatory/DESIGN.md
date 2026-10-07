@@ -31,6 +31,13 @@ without a second padded frame. Table edges align with panel headings while rows
 retain their compact density. Container width governs wrapping of side-panel
 controls so that both columns stay within their visible surfaces.
 
+Action control starts with configuration selection in the main column and one
+persistent live-observation panel beside it. Captured checks follow their setup;
+route evidence stays beside observation. Heading bands separate the surfaces,
+and check feedback stays beside the form. Four route setup guides are visible
+in their own cards below the workspace. Ordinary connection instructions and
+catalog reasons stay visible; technical record details retain their disclosure.
+
 Earlier briefs below are historical context.
 
 ## One investigation workspace — 7 October 2026

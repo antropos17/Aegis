@@ -414,14 +414,14 @@ it('shows live owner evidence separately from the retained configuration check',
   expect(call).toHaveBeenCalledWith({ action: 'check-route', route: 'mcp-stdio' });
 });
 
-it('puts captured checks first without stealing focus and provides explicit setup navigation', async () => {
+it('keeps setup before captured checks without stealing focus and provides explicit result navigation', async () => {
   render(ActionCoverage, { host: bridge(vi.fn().mockResolvedValue(await example())) });
   const trigger = screen.getByRole('button', { name: 'Choose files and check' });
   trigger.focus();
   await start();
   const result = await screen.findByRole('region', { name: 'Action check result' });
   const setup = screen.getByRole('region', { name: 'Action check setup' });
-  expect(result.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(setup.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(trigger).toHaveFocus();
   await fireEvent.click(screen.getByRole('button', { name: 'View captured result' }));
   expect(result).toHaveFocus();
