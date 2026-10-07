@@ -86,7 +86,10 @@ export async function checkActionCoverage(browser, url, out) {
     );
     const jump = root.getByRole('button', { name: 'Go to configuration check', exact: true });
     const selection = page.getByLabel('Selection type', { exact: true });
+    const submit = page.getByRole('button', { name: 'Show example check', exact: true });
     assert(await inMainViewport(jump), 'configuration jump is hidden on first arrival');
+    assert(await inMainViewport(selection), 'configuration selection is hidden on first arrival');
+    assert(await inMainViewport(submit), 'configuration check button is hidden on first arrival');
     await jump.focus();
     await page.keyboard.press('Enter');
     assert(await selection.evaluate((element) => element === document.activeElement));
@@ -99,6 +102,14 @@ export async function checkActionCoverage(browser, url, out) {
       document.querySelector('#main').scrollTop = 0;
     });
     assert(await inMainViewport(jump), 'configuration jump is hidden at 900×600');
+    assert(
+      await inMainViewport(selection),
+      'configuration selection is hidden on arrival at 900×600',
+    );
+    assert(
+      await inMainViewport(submit),
+      'configuration check button is hidden on arrival at 900×600',
+    );
     await jump.focus();
     await page.keyboard.press('Enter');
     assert(await selection.evaluate((element) => element === document.activeElement));
@@ -131,7 +142,6 @@ export async function checkActionCoverage(browser, url, out) {
     await route.selectOption('direct');
     await route.focus();
     await page.keyboard.press('Tab');
-    const submit = page.getByRole('button', { name: 'Show example check', exact: true });
     assert(
       await submit.evaluate((element) => element === document.activeElement),
       'native Tab should reach check button',
@@ -168,9 +178,9 @@ export async function checkActionCoverage(browser, url, out) {
     assert(
       await results.evaluate((element) =>
         Boolean(
-          element.compareDocumentPosition(
-            document.querySelector('.action-coverage-workspace .setup'),
-          ) & Node.DOCUMENT_POSITION_FOLLOWING,
+          document
+            .querySelector('.action-coverage-workspace .setup')
+            .compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
         ),
       ),
     );
