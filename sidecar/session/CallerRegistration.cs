@@ -1,0 +1,78 @@
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+namespace Aegis.ProtectedSession
+{
+    // Construct only from a trusted launcher's retained process handle, never JSON.
+    internal sealed class CallerRegistration : IDisposable
+    {
+        internal readonly object Gate = new object();
+        private readonly SafeFileHandle process, token;
+        private readonly uint pid;
+        private readonly long birth;
+        private readonly CallerIdentity identity;
+        internal readonly string Generation, Session;
+        private bool revoked;
+
+        internal CallerRegistration(IntPtr heldProcess, string session)
+        {
+            CallerNative.Require(System.Text.RegularExpressions.Regex.IsMatch(session ?? "", "\\A[a-f0-9]{32}\\z"));
+            process = CallerNative.Duplicate(heldProcess);
+            try
+            {
+                pid = CallerNative.GetProcessId(process);
+                long exit, kernel, user;
+                CallerNative.Require(pid != 0 && CallerNative.GetProcessTimes(process, out birth, out exit, out kernel, out user));
+                token = CallerNative.ProcessToken(process);
+                identity = CallerIdentity.Observe(token);
+                CallerNative.Require(identity.PermittedBroker());
+                Session = session;
+                Generation = Guid.NewGuid().ToString("N");
+                CheckLive(pid);
+            }
+            catch { if (token != null) token.Dispose(); process.Dispose(); throw; }
+        }
+
+        internal void CheckLive(uint observedPid)
+        {
+            CallerNative.Require(!revoked && !process.IsClosed && observedPid == pid &&
+                CallerNative.WaitForSingleObject(process, 0) == 0x102);
+            long observedBirth, exit, kernel, user;
+            CallerNative.Require(CallerNative.GetProcessTimes(process, out observedBirth, out exit, out kernel, out user) &&
+                observedBirth == birth && birth > 0 && CallerNative.GetProcessId(process) == pid);
+            // Re-query the current process token too: replacing a primary token
+            // cannot preserve registration by leaving the original token held.
+            using (SafeFileHandle current = CallerNative.ProcessToken(process))
+                CallerNative.Require(identity.SameContext(CallerIdentity.Observe(current)));
+        }
+
+        internal void CheckCaller(uint observedPid, CallerIdentity caller)
+        {
+            CheckLive(observedPid);
+            CallerNative.Require(caller.Type == 2 && caller.Level == 2 && identity.SameContext(caller));
+        }
+
+        internal void VerifyServer(SafeHandle pipe)
+        {
+            lock (Gate)
+            {
+                uint observed;
+                CallerNative.Require(CallerNative.GetNamedPipeServerProcessId(pipe, out observed));
+                CheckLive(observed);
+            }
+        }
+
+        internal void CheckCurrent() { CheckLive(pid); }
+
+        public void Dispose()
+        {
+            lock (Gate)
+            {
+                revoked = true;
+                if (token != null) token.Dispose();
+                process.Dispose();
+            }
+        }
+    }
+}
