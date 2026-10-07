@@ -401,7 +401,7 @@
   .result-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 180px;
-    gap: var(--space-3);
+    gap: var(--space-4);
     padding: var(--panel-inset);
     border-top: 1px solid var(--border);
     align-items: start;
@@ -412,9 +412,14 @@
   }
   .result-context {
     background: var(--bg);
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--strong-border);
     border-radius: var(--control-radius);
+  }
+  .result-context :global(.section-navigation) {
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
   .snapshot-actions h3 {
     font-size: var(--text-body);

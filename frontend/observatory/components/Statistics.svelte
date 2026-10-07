@@ -291,7 +291,12 @@
     border: 1px solid var(--strong-border);
     border-radius: var(--surface-radius);
     background: var(--panel);
-    padding: var(--space-3);
+    padding: var(--panel-inset);
+  }
+  .statistics-context :global(.section-navigation) {
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
   .statistics-scope {
     display: grid;
@@ -301,7 +306,7 @@
   }
   .statistics-scope label {
     display: grid;
-    gap: 6px;
+    gap: var(--space-2);
     min-width: 0;
     color: var(--muted);
     font-size: var(--text-caption);
@@ -342,13 +347,13 @@
     display: none;
   }
   .process-table-content {
-    padding: 0 var(--space-3) var(--space-3);
+    padding: 0 var(--panel-inset) var(--panel-inset);
   }
   .scope-note {
     color: var(--muted);
     font-size: var(--text-caption);
     line-height: 1.7;
-    margin: 12px 0 0;
+    margin: var(--space-3) 0 0;
   }
   @container (max-width: 720px) {
     .statistics-content :global(.monitor) {

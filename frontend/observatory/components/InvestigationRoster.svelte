@@ -165,7 +165,7 @@
     width: 100%;
     max-width: 230px;
     min-width: 0;
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--border);
     border-radius: var(--surface-radius);
     background: var(--panel);
@@ -267,7 +267,7 @@
   }
   @media (max-width: 980px) {
     .investigation-roster {
-      padding: var(--space-2);
+      padding: var(--panel-inset);
     }
     .roster-compact {
       display: flex;

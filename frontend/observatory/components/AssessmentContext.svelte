@@ -48,7 +48,7 @@
 <style>
   .assessment-context {
     margin-top: var(--space-4);
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     border: 1px solid var(--border);
     border-radius: var(--surface-radius);
     overflow-wrap: anywhere;

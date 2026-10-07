@@ -90,7 +90,7 @@
     display: grid;
     gap: var(--space-2);
     min-width: 0;
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     position: sticky;
     top: var(--workspace-sticky-offset, 0px);
   }

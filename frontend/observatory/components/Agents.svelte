@@ -145,13 +145,16 @@
     </table>
   </div>
 </section>
-<div class="notice" style="margin-top:18px">
+<div class="notice agent-summary-note">
   <Icon name="cpu" />{$t(
     'One row per agent. Usage combines its processes; risk shows the highest process score. A dash means the total is incomplete. Open an agent to inspect individual processes.',
   )}
 </div>
 
 <style>
+  .agent-summary-note {
+    margin-top: var(--space-4);
+  }
   .table-wrap {
     overflow-x: auto;
   }

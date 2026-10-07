@@ -94,7 +94,7 @@
   .investigation-workbench {
     display: grid;
     grid-template-columns: minmax(155px, 195px) minmax(0, 1fr);
-    gap: var(--space-3);
+    gap: var(--space-4);
     align-items: start;
     min-width: 0;
   }
@@ -106,19 +106,19 @@
   .investigation-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
-    gap: var(--space-3);
+    gap: var(--space-4);
     align-items: start;
   }
   .investigation-sidebar {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
     align-self: stretch;
     align-content: start;
   }
   .activity-feed {
     border: 1px solid var(--strong-border);
     border-radius: var(--surface-radius);
-    padding: var(--space-3);
+    padding: var(--panel-inset);
     background: var(--panel);
   }
   .activity-feed > h2 {
@@ -131,10 +131,10 @@
   @media (max-width: 980px) {
     .investigation-workbench {
       grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-2);
+      gap: var(--space-4);
     }
     .investigation-body {
-      gap: var(--space-2);
+      gap: var(--space-4);
       grid-template-columns: minmax(0, 1fr) 250px;
     }
     .investigation-workbench :global(.investigation-roster) {
