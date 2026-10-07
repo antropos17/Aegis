@@ -10,6 +10,7 @@ on:
         options:
           - native-fixtures
           - cloud-hyperv
+          - cloud-hyperv-native
 
 permissions:
   contents: read
@@ -191,7 +192,7 @@ jobs:
           if-no-files-found: error
 
   cloud-hyperv:
-    if: inputs.mode == 'cloud-hyperv'
+    if: inputs.mode == 'cloud-hyperv' || inputs.mode == 'cloud-hyperv-native'
     runs-on: windows-2025
     timeout-minutes: 10
     defaults:
@@ -199,6 +200,7 @@ jobs:
         shell: pwsh
     env:
       EXPECTED_SOURCE_SHA: ${{ github.sha }}
+      AEGIS_NATIVE_LIFECYCLE: ${{ inputs.mode == 'cloud-hyperv-native' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -211,7 +213,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $taskRoot = Join-Path $env:RUNNER_TEMP ('aegis-cloud-hyperv-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
           ('AEGIS_HYPERV_ROOT=' + $taskRoot) | Add-Content -LiteralPath $env:GITHUB_ENV
-          ./scripts/qualification/qualify-cloud-hyperv.ps1 -OutputRoot $taskRoot
+          ./scripts/qualification/qualify-cloud-hyperv.ps1 -OutputRoot $taskRoot -NativeLifecycle:($env:AEGIS_NATIVE_LIFECYCLE -eq 'true')
       - name: Validate the fixed bounded receipt before upload
         if: always()
         run: |

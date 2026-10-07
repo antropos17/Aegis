@@ -160,6 +160,7 @@ function main() {
       '/optimize+',
       '/warnaserror+',
       `/out:${sessionExe}`,
+      '/reference:System.Management.dll',
       path.join(ROOT, 'sidecar', 'session', 'Program.cs'),
       path.join(ROOT, 'sidecar', 'session', 'Protocol.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerNative.cs'),
@@ -168,6 +169,8 @@ function main() {
       path.join(ROOT, 'sidecar', 'session', 'CallerAdmission.cs'),
       path.join(ROOT, 'sidecar', 'session', 'GuestJobNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'GuestJobInventory.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'OwnedVmLifecycle.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'VmManagementNative.cs'),
     ],
     { stdio: 'inherit' },
   );

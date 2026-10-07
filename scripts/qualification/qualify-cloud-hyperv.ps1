@@ -1,4 +1,4 @@
-param([Parameter(Mandatory = $true)][string]$OutputRoot)
+param([Parameter(Mandatory = $true)][string]$OutputRoot, [switch]$NativeLifecycle)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 # Explicitly restricted to the user-authorized disposable hosted runner. No local VM effects.
@@ -20,7 +20,7 @@ $env:TMP = $env:TEMP
 $name = 'aegis-cloud-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '-' + [guid]::NewGuid().ToString('N')
 $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-hyperv-empty-firmware-lifecycle'; startedAt = [DateTime]::UtcNow.ToString('o');
     sourceSha = $env:EXPECTED_SOURCE_SHA; actualHead = $null; scriptSha256 = [ordered]@{}; vmName = $name; host = $null;
-    diskBefore = $null; diskAfter = $null; lifecycle = $null; failure = $null; guestBoot = 'not-run-no-disk'; launchAllowed = $false }
+    diskBefore = $null; diskAfter = $null; lifecycle = $null; failure = $null; nativeArtifacts = $null; guestBoot = 'not-run-no-disk'; launchAllowed = $false }
 function Disks {
     return @('C', 'D') | ForEach-Object {
         $drive = Get-PSDrive -Name $_ -ErrorAction SilentlyContinue
@@ -67,7 +67,29 @@ try {
     $report.host = HostFacts
     if (!$report.host.admin -or $report.host.vmms -ne 'Running' -or !$report.host.hyperVModule) { throw 'Hyper-V administration prerequisite unavailable' }
     . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
-    $report.lifecycle = Invoke-OwnedHyperVSequence -Name $name -VmRoot $vmRoot -Command ${function:Invoke-CloudHyperVCommand}
+    $nativeExe = $null
+    if ($NativeLifecycle) {
+        $nativeRoot = (New-Item -ItemType Directory -Path (Join-Path $OutputRoot 'native')).FullName
+        $nativeExe = Join-Path $nativeRoot 'lifecycle.exe'
+        $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+        $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+        $sources = @('sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs', 'tests/fixtures/vm-lifecycle/OwnedVmLifecycleFixture.cs')
+        $hashes = [ordered]@{}; $arguments = @('/nologo', '/target:exe', '/platform:x64', '/optimize+', '/warnaserror+', '/reference:System.Management.dll', ('/out:"' + $nativeExe + '"'))
+        foreach ($relative in $sources) {
+            $file = Get-Item -LiteralPath (Join-Path $project $relative) -Force
+            if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'Invalid native source input' }
+            $hashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $arguments += ('"' + $file.FullName + '"')
+        }
+        $compiled = Start-Process -FilePath $compiler -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $nativeRoot 'compile.txt') -RedirectStandardError (Join-Path $nativeRoot 'compile-error.txt')
+        if (!$compiled.WaitForExit(30000)) { $compiled.Kill(); throw 'Native compiler timeout' }
+        if ($compiled.ExitCode -ne 0 -or (Get-Item -LiteralPath $nativeExe).Length -gt 1MB) { throw 'Native compiler failed' }
+        foreach ($log in @('compile.txt', 'compile-error.txt')) {
+            if ((Get-Item -LiteralPath (Join-Path $nativeRoot $log)).Length -gt 64KB) { throw 'Compiler output budget exceeded' }
+        }
+        $report.nativeArtifacts = @{ sources = $hashes; compilerSha256 = (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant(); executableSha256 = (Get-FileHash -LiteralPath $nativeExe -Algorithm SHA256).Hash.ToLowerInvariant() }
+    }
+    $report.lifecycle = Invoke-OwnedHyperVSequence -Name $name -VmRoot $vmRoot -Command ${function:Invoke-CloudHyperVCommand} -NativeExe $nativeExe
 }
 catch {
     $text = $_.Exception.Message -replace '[\r\n]', ' '
