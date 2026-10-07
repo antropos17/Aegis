@@ -1,5 +1,37 @@
 # AEGIS Observatory
 
+## Motion and identity refinement — 2026-10-07
+
+The user requests professional motion, a manually authored SVG mark, clearer
+hover/focus feedback and stronger information hierarchy. Use productive motion
+from [Carbon](https://www.carbondesignsystem.com/building-blocks/foundations/motion/overview):
+110 ms control feedback, 150 ms content entrances and shared productive easing.
+Pointer navigation may use a small opacity/position entrance; keyboard navigation
+and restored reading positions remain immediate. A new navigation cancels the
+previous animation. Motion never delays focus, user actions or data updates.
+This also follows [Atlassian's motion guidance](https://atlassian.design/foundations/motion/applying-motion)
+on frequency, duration, early focus and reduced motion.
+
+The existing radar is an abstract observed-risk view. Its restrained sweep is
+an AEGIS adaptation, not a scan progress indicator. Keep stable marker geometry
+and animate only the sweep transform. Freeze its phase for paused, stale,
+unavailable or hidden views and reduced motion. Do not invent arrival pulses,
+threat events or data-dependent motion without corresponding observations.
+
+Follow [Carbon's text and interaction color roles](https://www.carbondesignsystem.com/building-blocks/foundations/color/overview):
+headings, values and action labels use primary ink; supporting copy uses secondary
+ink. Hover strengthens the surface and text without moving the target. Keyboard
+focus uses a visible two-pixel outline, including forced colors. Check relevant
+text pairs against [W3C's contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+and focus boundaries against its [focus guidance](https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html).
+The measured states do not constitute whole-application accessibility certification.
+
+The new AEGIS mark is a simple local currentColor SVG. It replaces only the live
+renderer brand; preserve the original reference assets and third-party agent
+logos. Keep the existing Tabler icon vocabulary and
+[24-pixel design grid](https://docs.tabler.io/icons/design-guide), decorative SVG
+semantics and visible action labels. No gradients, glow or illustrative effects.
+
 ## Current layout brief — 2026-10-07
 
 The latest user brief supersedes the earlier Simple-default composition below.

@@ -9,6 +9,7 @@
   import { mountKeyboardPreferences, singleKeyShortcuts } from './runtime/keyboard-shortcuts';
   import { readAdvancedMode } from './runtime/interface-mode';
   import { mountFooterLayout } from './runtime/footer-layout';
+  import { mountWorkspaceMotion } from './runtime/motion';
   import {
     connectHost,
     emptyTelemetry,
@@ -36,6 +37,7 @@
   import { networkSnapshotStatus } from './runtime/network-coverage';
   import { observationStatusLabel } from './runtime/observation-status';
   import Icon from './components/Icon.svelte';
+  import BrandMark from './components/BrandMark.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
   import InvestigationWorkbench from './components/InvestigationWorkbench.svelte';
@@ -209,6 +211,7 @@
   let pageHead: HTMLDivElement;
   let statusFooter: HTMLElement;
   let footerLayout: ReturnType<typeof mountFooterLayout> | undefined;
+  let workspaceMotion: ReturnType<typeof mountWorkspaceMotion> | undefined;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let evidenceRequest = $state.raw<{ title: string; row: RecordData; agents: RecordData[] } | null>(
     null,
@@ -350,6 +353,7 @@
       }
       return;
     }
+    const enter = workspaceMotion?.begin();
     requestedView = next;
     if (workspace) scrolls[renderedView] = workspace.scrollTop;
     if (next === 'local-security') loadLocalSecurity();
@@ -363,9 +367,11 @@
     commands = false;
     await tick();
     if (ticket === navigationRevision) {
-      workspace.scrollTop = scrolls[next] ?? 0;
+      const restoredScroll = scrolls[next] ?? 0;
+      workspace.scrollTop = restoredScroll;
       renderedView = next;
       workspace.focus({ preventScroll: true });
+      if (remember && !(restoredScroll > 0)) enter?.();
     }
   }
   function back(delta: number) {
@@ -378,6 +384,9 @@
   onMount(() => {
     const stopKeyboardPreferences = mountKeyboardPreferences();
     document.documentElement.dataset.motion = localStorage.getItem('aegis-motion') ?? 'full';
+    workspaceMotion = mountWorkspaceMotion(
+      workspace.querySelector<HTMLElement>('#workspace-content') ?? workspace,
+    );
     let alive = true;
     const resizeHead = () =>
       workspace.style.setProperty(
@@ -425,6 +434,8 @@
       headObserver?.disconnect();
       footerLayout?.destroy();
       footerLayout = undefined;
+      workspaceMotion?.destroy();
+      workspaceMotion = undefined;
       stop();
       stopKeyboardPreferences();
       if (typeof unsubscribe === 'function') unsubscribe();
@@ -489,9 +500,7 @@
 >
   <aside class="sidebar">
     <a class="brand" href="#main"
-      ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />{$t(
-        'AEGIS',
-      )}<span class="version">{version}</span></a
+      ><BrandMark />{$t('AEGIS')}<span class="version">{version}</span></a
     >
     {#if advanced}<div class="machine">
         <Icon name="monitor" />
