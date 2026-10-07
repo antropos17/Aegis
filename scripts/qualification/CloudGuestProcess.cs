@@ -45,6 +45,10 @@ public static class CloudGuestProcess
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int kind, out int data, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true, EntryPoint = "GetTokenInformation")]
+    private static extern bool QueryTokenGroups(IntPtr token, int kind, IntPtr data, int length, out int returned);
+    [StructLayout(LayoutKind.Sequential)] private struct SidAttributes { internal IntPtr Sid; internal uint Attributes; }
+    [StructLayout(LayoutKind.Sequential)] private struct TokenGroups { internal uint Count; internal SidAttributes First; }
     private static void Require(bool value, string stage)
     { if (!value) throw new InvalidOperationException(stage); }
     private sealed class NativeFailure : InvalidOperationException
@@ -57,11 +61,50 @@ public static class CloudGuestProcess
     private static IntPtr OpenHeldToken(IntPtr heldProcess)
     {
         IntPtr token;
-        // Framework IsInRole duplicates a primary token into an identification
-        // token. Query alone cannot perform that check; no privileges are adjusted.
-        RequireNative(OpenProcessToken(heldProcess, 8 | 2, out token));
+        // SID, all group SIDs and elevation need QUERY only. Never use IsInRole
+        // on this handle: Framework would request an implicit token duplication.
+        RequireNative(OpenProcessToken(heldProcess, 8, out token));
         Require(token != IntPtr.Zero, "held-token-handle");
         return token;
+    }
+    private static bool HasAnyAdministratorGroup(IntPtr token)
+    {
+        int needed;
+        bool sized = QueryTokenGroups(token, 2, IntPtr.Zero, 0, out needed);
+        int error = sized ? 0 : Marshal.GetLastWin32Error();
+        if (!sized && error != 122) throw new NativeFailure(error);
+        Require(!sized && needed >= 4 && needed <= 65536, "held-token-groups-size");
+        IntPtr data = Marshal.AllocHGlobal(needed);
+        try
+        {
+            int returned;
+            RequireNative(QueryTokenGroups(token, 2, data, needed, out returned));
+            Require(returned >= 4 && returned <= needed, "held-token-groups-size");
+            return DecodeAdministratorGroups(data, returned);
+        }
+        finally { Marshal.FreeHGlobal(data); }
+    }
+    private static bool DecodeAdministratorGroups(IntPtr data, int length)
+    {
+        Require(data != IntPtr.Zero && length >= 4 && length <= 65536, "held-token-groups-buffer");
+        uint count = unchecked((uint)Marshal.ReadInt32(data));
+        int offset = Marshal.OffsetOf(typeof(TokenGroups), "First").ToInt32();
+        int stride = Marshal.SizeOf(typeof(SidAttributes));
+        Require(count <= 256 && (count == 0 || offset + (long)count * stride <= length), "held-token-groups-count");
+        long start = data.ToInt64(), tableEnd = start + offset + (long)count * stride, end = checked(start + length);
+        bool administrator = false;
+        for (int index = 0; index < count; index++)
+        {
+            IntPtr sid = Marshal.ReadIntPtr(data, offset + index * stride); long address = sid.ToInt64();
+            Require(address >= tableEnd && address <= end - 8, "held-token-group-sid-range");
+            int subAuthorities = Marshal.ReadByte(sid, 1), bytes = 8 + subAuthorities * 4;
+            Require(Marshal.ReadByte(sid) == 1 && subAuthorities <= 15 && bytes <= end - address, "held-token-group-sid-shape");
+            // Scan every valid entry, including disabled and deny-only groups.
+            // WindowsIdentity.Groups filters those attributes and cannot prove absence.
+            var value = new SecurityIdentifier(sid);
+            if (value.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid)) administrator = true;
+        }
+        return administrator;
     }
     private sealed class TaskFailure : InvalidOperationException
     {
@@ -97,6 +140,10 @@ public static class CloudGuestProcess
         return receipt;
     }
     public static Dictionary<string, object> Run(string password, string expectedSid)
+    { return RunFixed(password, expectedSid, false); }
+    public static Dictionary<string, object> RunClaude(string password, string expectedSid)
+    { return RunFixed(password, expectedSid, true); }
+    private static Dictionary<string, object> RunFixed(string password, string expectedSid, bool claude)
     {
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
@@ -106,10 +153,11 @@ public static class CloudGuestProcess
             throw new InvalidOperationException("trusted-guest-bootstrap-required");
         const string trusted = @"C:\ProgramData\AegisCloudLab\trusted";
         const string root = @"C:\AegisLab";
-        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, "cloud-guest-runtime.cjs");
+        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs");
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
+        CloudGuestClaudeReceiver claudeReceiver = null;
         CloudGuestDesktop desktopOwner = null;
         bool created = false, assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false, unassignedRootExitObserved = false; uint exit = 259;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
@@ -137,7 +185,7 @@ public static class CloudGuestProcess
             RequireNative(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
             stage = "runtime-endpoint-create";
             runtime = new CloudGuestRuntimeGate(expectedSid);
-            string values = "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
+            string values = (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "") + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             startup.Desktop = desktopOwner.Path;
@@ -153,7 +201,7 @@ public static class CloudGuestProcess
             RequireNative(AssignProcessToJobObject(job, child.Process)); assigned = true;
             receipt["jobAssignedBeforeAdmission"] = true;
             stage = "held-token-open";
-            receipt["tokenRequestedAccess"] = 8 | 2;
+            receipt["tokenRequestedAccess"] = 8;
             token = OpenHeldToken(child.Process);
             receipt["tokenOpened"] = true;
             stage = "held-token-identity";
@@ -163,7 +211,9 @@ public static class CloudGuestProcess
                 Require(identity.User != null && identity.User.Value == expectedSid, "held-token-sid");
                 receipt["sid"] = identity.User.Value;
                 stage = "held-token-admin";
-                Require(!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator), "held-token-admin");
+                Require(!HasAnyAdministratorGroup(token), "held-token-admin");
+                receipt["administratorGroupPresent"] = false;
+                receipt["administratorGroupScan"] = "all-attributes";
             }
             stage = "held-token-elevation"; int elevation, returned;
             RequireNative(GetTokenInformation(token, 20, out elevation, 4, out returned));
@@ -192,14 +242,29 @@ public static class CloudGuestProcess
             Require(GuestJobNative.Birth(child.Process, job, child.Pid) == (long)receipt["birthFileTime"], "runtime-held-birth");
             receipt["runtimeInitializedBeforeProject"] = true;
             receipt["clientServerAttestationQualified"] = false;
-            stage = "network-receiver-start";
-            receiver = new CloudGuestNetwork(job, receipt);
-            receipt["networkReceiverStartedAfterRuntimeReady"] = true;
-            receiver.BeforeRelease();
+            if (claude)
+            {
+                stage = "claude-receiver-start";
+                claudeReceiver = new CloudGuestClaudeReceiver(job, receipt);
+                receipt["claudeReceiverStartedAfterRuntimeReady"] = true;
+                claudeReceiver.BeforeRelease();
+                receipt["claudeDescendantCallerAuthenticated"] = false;
+                receipt["trustedTestProcessObservation"] = "unknown";
+                receipt["acceptancePassed"] = false;
+            }
+            else
+            {
+                stage = "network-receiver-start";
+                receiver = new CloudGuestNetwork(job, receipt);
+                receipt["networkReceiverStartedAfterRuntimeReady"] = true;
+                receiver.BeforeRelease();
+            }
             stage = "project-release-ack";
             runtime.ReleaseFixedTask(inventory); taskReleased = true;
             stage = "task-deadline";
-            Require(GuestJobNative.WaitForSingleObject(child.Process, 60000) == 0, "task-deadline");
+            uint waitBudget = claude ? claudeReceiver.RemainingTaskWait() : 60000;
+            receipt["taskWaitMilliseconds"] = waitBudget;
+            Require(GuestJobNative.WaitForSingleObject(child.Process, waitBudget) == 0, "task-deadline");
             stage = "task-exit-observation";
             RequireNative(GetExitCodeProcess(child.Process, out exit)); exitObserved = true;
         }
@@ -250,6 +315,13 @@ public static class CloudGuestProcess
                 finally { receiver.Dispose(); }
                 if (receipt["networkReceiverDisposalUnknown"].Equals(true) && failureStage == null) failureStage = "network-receiver-cleanup";
             }
+            if (claudeReceiver != null)
+            {
+                try { claudeReceiver.Finish(closure); }
+                catch (Exception error) { if (failureStage == null) { failureStage = "claude-receiver-cleanup"; failureHResult = error.HResult; } }
+                finally { claudeReceiver.Dispose(); }
+                if (receipt["claudeReceiverDisposalUnknown"].Equals(true) && failureStage == null) failureStage = "claude-receiver-cleanup";
+            }
             receipt["taskReleased"] = taskReleased; receipt["runtimeResumed"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
             if (runtime != null) runtime.Dispose();
             receipt["privateDesktopHandlesClosedAfterJobClosure"] = false;
@@ -268,7 +340,25 @@ public static class CloudGuestProcess
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
         }
-        return CompleteReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
+        return claude ? CompleteClaudeReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult) :
+            CompleteReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
+    }
+    private static Dictionary<string, object> CompleteClaudeReceipt(Dictionary<string, object> receipt,
+        uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
+    {
+        if (failureStage == null)
+            foreach (string field in new string[] { "runtimeResumed", "runtimeCallerAuthenticated", "runtimeInitializedBeforeProject", "taskReleased", "claudeReceiverStartedAfterRuntimeReady", "claudeReceiverExitObserved", "claudeReceiverStoppedAfterJobClosure", "claudeReceiverResultWritten", "ownerNodeVersionPassed", "privateDesktopCreated", "privateDesktopParentRestored", "privateDesktopHandlesClosedAfterJobClosure" })
+            {
+                object value;
+                if (!receipt.TryGetValue(field, out value) || !(value is bool) || !(bool)value) { failureStage = "claude-runtime-release-unconfirmed"; break; }
+            }
+        if (failureStage == null && (!exitObserved || exit != 0)) failureStage = "claude-task-exit";
+        if (failureStage == null && !closure) failureStage = "guest-job-closure";
+        receipt["exitCode"] = exit; receipt["exitCodeObserved"] = exitObserved; receipt["jobClosureConfirmed"] = closure;
+        receipt["failureStage"] = failureStage; receipt["failureHResult"] = failureHResult; receipt["passed"] = failureStage == null;
+        receipt["acceptancePassed"] = false; receipt["trustedTestProcessObservation"] = "unknown";
+        if (failureStage != null) throw new TaskFailure(receipt);
+        return receipt;
     }
     private static bool CanReleaseDesktop(bool assigned, bool closure, bool created, IntPtr heldRoot, bool rootExitObserved)
     { return heldRoot == IntPtr.Zero || (assigned && closure) || (!assigned && created && rootExitObserved); }

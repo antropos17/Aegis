@@ -161,3 +161,15 @@ aegis_landing.html
 !/scripts/qualification/test-cloud-guest-git-invocation.ps1
 
 !/scripts/qualification/test-cloud-guest-owner-probe.ps1
+
+!/scripts/qualification/cloud-guest-claude-public.ps1
+
+!/scripts/qualification/cloud-guest-claude-phase.ps1
+
+!/scripts/qualification/cloud-guest-claude-bootstrap.ps1
+
+!/scripts/qualification/test-cloud-guest-claude.ps1
+
+!/scripts/qualification/test-cloud-guest-claude-first-phase.ps1
+
+!/scripts/qualification/claude-public/provenance.ps1

@@ -13,7 +13,7 @@ $env:TEMP = $fixture; $env:TMP = $fixture
 try {
 $dll = Join-Path $fixture 'diagnostics-controls.dll'
 $compileArgs = @('/nologo', '/target:library', '/platform:x64', '/warnaserror+', ('/out:"' + $dll + '"'),
-    ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestDesktop.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestNetwork.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'),
+    ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestDesktop.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestNetwork.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestClaudeReceiver.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'),
     ('"' + (Join-Path $project 'sidecar/session/GuestJobInventory.cs') + '"'))
 $compileArgs += @('"' + (Join-Path $PSScriptRoot 'CloudGuestRuntimeGate.cs') + '"')
 foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative')) {

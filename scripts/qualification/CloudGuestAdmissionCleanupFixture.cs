@@ -87,7 +87,7 @@ internal static class CloudGuestAdmissionCleanupFixture
         IntPtr token = (IntPtr)Method("OpenHeldToken").Invoke(null, new object[] { GetCurrentProcess() });
         try {
             using (var identity = new WindowsIdentity(token)) using (var current = WindowsIdentity.GetCurrent())
-            { Check(identity.User.Equals(current.User)); Check(new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator) == new WindowsPrincipal(current).IsInRole(WindowsBuiltInRole.Administrator)); }
+            { Check(identity.User.Equals(current.User)); Check((bool)Method("HasAnyAdministratorGroup").Invoke(null, new object[] { token }) == (bool)Method("HasAnyAdministratorGroup").Invoke(null, new object[] { current.Token })); }
         } finally { Check(GuestJobNative.CloseHandle(token)); }
     }
     private static void Unassigned()

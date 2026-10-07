@@ -13,7 +13,7 @@ try {
     $source = Join-Path $ProjectRoot 'scripts/qualification'
     $arguments = @('/nologo', '/target:exe', '/platform:x64', '/warnaserror+', ('/out:"' + $exe + '"'),
         ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestAdmissionCleanupFixture.cs') + '"'))
-    foreach ($leaf in @('CloudGuestDesktop.cs', 'CloudGuestNetwork.cs', 'CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $source $leaf) + '"') }
+    foreach ($leaf in @('CloudGuestDesktop.cs', 'CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs', 'CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $source $leaf) + '"') }
     foreach ($leaf in @('GuestJobNative', 'GuestJobInventory', 'CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative')) {
         $arguments += ('"' + (Join-Path $ProjectRoot ('sidecar/session/' + $leaf + '.cs')) + '"')
     }

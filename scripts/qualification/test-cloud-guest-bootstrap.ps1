@@ -114,3 +114,62 @@ $result = InvokeBootstrapModel 'os-receipt' 'RefuseBootstrap' $earlyIdentity $ea
 CheckBootstrap ($result.failureCode -ceq 'guest-task-process-refused' -and $result.identity.failureStage -ceq 'held-token-open' -and
     $result.bootstrapFailure.stage -ceq 'os-receipt' -and $result.downstreamChecks.state -ceq 'not-run') 'later-bootstrap-failure-overwrote-native-cause'
 @{ passed = $true; checks = $bootstrapChecks - 20; scope = 'pure-native-first-downstream-cause-ordering'; nativeOrGuestEffects = $false } | ConvertTo-Json -Compress
+# Models execute the actual connected VM completion helper. Stubs represent only
+# remote task-file reading and retained receiver/VM observations; no native effects.
+$vmAst = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'cloud-guest-vm.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'route-completion-source-parse-refused' }
+foreach ($name in @('Get-CloudGuestResultField', 'Get-CloudGuestNativeResultFailure', 'Complete-CloudGuestHostRouteObservation')) {
+    $definition = $vmAst.FindAll({ param($item) $item -is [Management.Automation.Language.FunctionDefinitionAst] }, $false) | Where-Object Name -ceq $name
+    if (@($definition).Count -ne 1) { throw 'route-completion-helper-missing' }; . ([scriptblock]::Create($definition.Extent.Text))
+}
+. (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
+$routeChecks = 0
+function NeedRoute([bool]$Value) { if (!$Value) { throw 'route-completion-control-refused' }; $script:routeChecks++ }
+function InvokeRouteModel($Native, [string]$Fault = '') {
+    $script:routeStops = 0; $script:routeSnapshots = 0; $script:routeReads = 0; $script:routeOracles = 0; $script:routeJobClosed = $null
+    function Stop-CloudHostRoutes($Owner, [bool]$JobClosed) {
+        $script:routeStops++; $script:routeJobClosed = $JobClosed
+        if ($Fault -ceq 'stop') { throw 'host-route-exit-unconfirmed' }
+        return @{ owner = @{ closed = $true; exitObserved = $true; exitCode = $(if ($Fault -ceq 'exit') { 7 } else { 0 }); forced = $false; stopAfterJobClosure = $JobClosed };
+            receiver = @{ socketsClosed = $true; stoppedOnRequest = $true; positivePassed = $true; expired = $false } }
+    }
+    function Get-CloudHostRouteSnapshot($Id, $Name, $Root, [ref]$Diagnostic) {
+        $script:routeSnapshots++; $Diagnostic.Value = @{ reason = 'confirmed' }
+        if ($Fault -ceq 'snapshot') { throw 'host-route-owned-vm-refused' }
+        return @{ vmId = $Id; state = 'Running'; nics = 0 }
+    }
+    function Invoke-Command($Session, $ScriptBlock) { $script:routeReads++; if ($Fault -ceq 'read') { throw 'PASSWORD_SENTINEL' }; return '{}' }
+    function Test-CloudHostRoutes($Owner, $Closed, $Identity, $Client, $Passed, $After) {
+        $script:routeOracles++; if ($Fault -ceq 'oracle') { throw 'host-route-oracle-refused' }
+        return @{ passed = $true; status = 'verified'; owner = $Closed.owner; receiver = $Closed.receiver }
+    }
+    $owner = @{ before = @{ state = 'Running'; nics = 0 } }; $closed = $null; $after = $null
+    $value = Complete-CloudGuestHostRouteObservation @{ identity = $Native; passed = $Native.passed } $owner '00000000-0000-0000-0000-000000000001' 'fixed-owned-model' 'X:\fixed-model' 'fixed-session' ([ref]$closed) ([ref]$after)
+    NeedRoute ($script:routeStops -eq 1 -and $script:routeSnapshots -eq 1)
+    return $value
+}
+$native = @{ passed = $false; taskReleased = $false; jobClosureConfirmed = $true; failureStage = 'held-token-open'; failureHResult = -2146233079 }
+$value = InvokeRouteModel $native
+NeedRoute ($value.failure.code -ceq 'guest-task-process-refused' -and $value.failure.nativeStage -ceq 'held-token-open' -and $value.evidence.status -ceq 'not-run' -and !$value.evidence.passed -and $value.evidence.independentClosureConfirmed -and $script:routeReads -eq 0 -and $script:routeOracles -eq 0 -and $script:routeJobClosed)
+foreach ($fault in @('stop', 'snapshot', 'exit')) {
+    $value = InvokeRouteModel $native $fault
+    NeedRoute ($value.failure.nativeStage -ceq 'held-token-open' -and $null -ne $value.downstreamFailure -and !$value.evidence.passed -and $script:routeReads -eq 0)
+}
+foreach ($released in @($null, 'true', 'false')) {
+    $native.taskReleased = $released; $value = InvokeRouteModel $native
+    NeedRoute ($value.evidence.status -ceq 'unavailable-release-unconfirmed' -and !$value.evidence.passed -and $script:routeReads -eq 0 -and $value.failure.nativeStage -ceq 'held-token-open')
+}
+$native.taskReleased = $true; $native.jobClosureConfirmed = 'true'; $value = InvokeRouteModel $native
+NeedRoute (!$script:routeJobClosed -and $value.evidence.status -ceq 'unavailable-closure-unknown' -and $script:routeReads -eq 0)
+$native.jobClosureConfirmed = $true
+foreach ($fault in @('read', 'oracle')) {
+    $value = InvokeRouteModel $native $fault
+    NeedRoute ($value.failure.nativeStage -ceq 'held-token-open' -and !$value.evidence.passed -and $script:routeReads -eq 1)
+}
+$native.passed = $true; $native.failureStage = $null; $value = InvokeRouteModel $native
+NeedRoute ($value.evidence.passed -and $null -eq $value.failure -and $script:routeReads -eq 1 -and $script:routeOracles -eq 1 -and $value.evidence.independentClosureConfirmed)
+$native.taskReleased = $false; $value = InvokeRouteModel $native
+NeedRoute (!$value.evidence.passed -and $value.failure.code -ceq 'guest-controls-unconfirmed' -and $script:routeReads -eq 0)
+$native.passed = $false; $native.failureStage = 'PASSWORD_SENTINEL'; $value = InvokeRouteModel $native
+NeedRoute ($value.failure.nativeStage -ceq 'unknown' -and ($value | ConvertTo-Json -Depth 8) -cnotmatch 'PASSWORD_SENTINEL')
+@{ scope = 'actual-host-route-completion-pure-models'; passed = $routeChecks; cases = $routeChecks; nativeEffects = $false } | ConvertTo-Json -Compress

@@ -3,6 +3,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-git.ps1')
+. (Join-Path $PSScriptRoot 'cloud-guest-claude-public.ps1')
+. (Join-Path $PSScriptRoot 'cloud-guest-claude-phase.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -22,6 +24,7 @@ $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaR
 $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard-user-lab'; startedAt = [DateTime]::UtcNow.ToString('o'); sourceSha = $env:EXPECTED_SOURCE_SHA;
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
+    claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
 function RecordDisk([string]$Phase) {
@@ -89,11 +92,19 @@ try {
             $report.sourceHashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         }
         $report.compilerSha256 = (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant()
+        foreach ($relative in @('cloud-guest-claude-public.ps1', 'cloud-guest-claude-phase.ps1', 'cloud-guest-claude-bootstrap.ps1',
+            'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs',
+            'claude-public/provenance.ps1', 'claude-public/official-manifest.json', 'claude-public/official-manifest.json.sig', 'claude-public/official-release-key.asc')) {
+            $file = Get-Item -LiteralPath (Join-Path $PSScriptRoot $relative) -Force
+            if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'claude-fixed-source-refused' }
+            $report.sourceHashes['scripts/qualification/' + $relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
     } | Out-Null
     Stage 'compile-fixed-native-helpers' {
         Add-Type -Path (Compile 'metadata.dll' @('scripts/qualification/CloudGuestMetadata.cs') @('System.Net.Http.dll'))
         Add-Type -Path (Compile 'vm-owner.dll' @('scripts/qualification/CloudGuestVm.cs', 'scripts/qualification/CloudGuestBootDiagnostics.cs', 'sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs') @('System.Management.dll'))
-        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestDesktop.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
+        Add-Type -Path (Compile 'claude-download.dll' @('scripts/qualification/CloudGuestClaudeDownload.cs') @('System.Net.Http.dll'))
+        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestDesktop.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestClaudeReceiver.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
         Copy-Item -LiteralPath $guestDll -Destination (Join-Path $OutputRoot 'transfer\guest-process.dll')
     } | Out-Null
     $report.media = Stage 'pinned-media-download-and-hash' {
@@ -129,6 +140,8 @@ try {
         if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
         $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
         foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs', 'route-protocol.cjs', 'route-client.cjs', 'cloud-guest-git.cjs', 'cloud-guest-git.ps1', 'git-runtime-manifest.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        foreach ($leaf in @('cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        $report.claudeProvenance = Save-CloudGuestClaudeBinary $transfer (Join-Path $OutputRoot 'temp')
         $gitArchive = Join-Path $transfer 'git-runtime.zip'
         Save-CloudGuestGitArchive $gitArchive
         $report.sourceHashes['git-runtime.zip'] = (Get-FileHash -LiteralPath $gitArchive -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -186,6 +199,12 @@ try {
     }
     $report.hostCanariesUnchangedAfterTask = CanariesUnchanged
     if (!$report.hostCanariesUnchangedAfterTask -or !$report.guest.guestResult.task.passed -or !$report.guest.hostRoutes.passed) { throw 'host-or-guest-task-control-failed' }
+    $report.claudePhase = Stage 'second-fixed-claude-guest-phase' {
+        Invoke-CloudGuestClaudePhase $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') $report.guest
+    }
+    $report.claudeCorpusComplete = $report.claudePhase.passed -eq $true
+    $report.hostCanariesUnchangedAfterTask = CanariesUnchanged
+    if (!$report.claudeCorpusComplete -or !$report.hostCanariesUnchangedAfterTask) { throw 'claude-fixed-corpus-incomplete' }
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {

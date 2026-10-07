@@ -1,6 +1,7 @@
+param([string]$ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')))
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$project = $ProjectRoot
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 $temporary = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
 $parent = Get-Item -LiteralPath $temporary -Force
@@ -13,7 +14,7 @@ try {
     $arguments = @('/nologo', '/target:library', '/platform:x64', '/warnaserror+', ('/out:"' + $dll + '"'),
         ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestDesktop.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestTokenFixture.cs') + '"'),
         ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobInventory.cs') + '"'))
-    foreach ($leaf in @('CloudGuestRuntimeGate.cs','CloudGuestNetwork.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
+    foreach ($leaf in @('CloudGuestRuntimeGate.cs','CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
     foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $exit = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000
     if ($exit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 1MB) { throw 'token-native-compile-failed' }
@@ -23,8 +24,10 @@ try {
     $current = $type.GetMethod('Observe').Invoke($null, @($false))
     if ($old.membershipObserved -or !$old.sidMatches -or $null -ne $old.administratorEnabled -or
         $old.hResult -ne -2146233078 -or $old.win32Error -ne 5) { throw 'query-only-regression-not-reproduced' }
-    if (!$current.membershipObserved -or !$current.sidMatches -or $current.administratorEnabled -isnot [bool] -or
-        $current.administratorEnabled -ne $current.baselineAdministratorEnabled) { throw 'actual-held-token-membership-failed' }
+    if (!$current.membershipObserved -or !$current.sidMatches -or !$current.filteredGroupsAvailable -or $current.administratorGroupPresent -isnot [bool] -or
+        $current.administratorGroupPresent -ne $current.baselineAdministratorGroupPresent) { throw 'actual-held-token-membership-failed' }
+    $groupControls = $type.GetMethod('GroupControls').Invoke($null, @())
+    if ($groupControls -ne 13) { throw 'all-attributes-group-controls-failed' }
     foreach ($closed in @($false, $true)) {
         if (!$type.GetMethod('RefusesInvalid').Invoke($null, @($closed))) { throw 'invalid-held-process-accepted' }
     }
@@ -34,7 +37,7 @@ try {
     foreach ($closed in @($false,$true)) {
         if (!$type.GetMethod('RefusesInvalidReceiver').Invoke($null, @($closed))) { throw 'invalid-receiver-held-process-accepted' }
     }
-    @{passed=$true;cases=7;actualReceiverOpener=$receiver;queryOnly=$old;actualLauncher=$current;invalidAndClosedHandlesRefused=$true;
+    @{passed=$true;cases=20;allAttributesGroupControls=$groupControls;actualReceiverOpener=$receiver;queryOnly=$old;actualLauncher=$current;invalidAndClosedHandlesRefused=$true;
         powerShell=$PSVersionTable.PSVersion.ToString();nativeCompiledWarningsAsErrors=$true;currentProcessOnly=$true;
         childLaunchAccountAclOrVmEffects=$false;launchAllowed=$false} | ConvertTo-Json -Depth 5
 } finally {

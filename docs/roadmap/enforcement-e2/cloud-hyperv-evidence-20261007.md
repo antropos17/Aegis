@@ -17,7 +17,8 @@ Independent review matched the receipt's input hashes against its immutable Git
 revision and accepted these scoped observations.
 The [receipt index](evidence/20261007/index.json) preserves downloaded JSON bytes,
 their SHA-256 hashes, source revisions and run links, including failed attempts.
-Repository attributes disable newline conversion only for these evidence files.
+Repository attributes preserve these evidence bytes and the pinned public Claude
+provenance inputs without newline conversion.
 
 `OwnedVmLifecycle` keeps an unresolved operation before submitting a provider
 mutation. Return code 4096 requires polling the returned exact local management
@@ -284,6 +285,58 @@ Native Off, exact VM removal and post-removal host canaries passed. The after-ta
 canary check was not reached. Independent review verified all 33 source hashes
 and the pinned Git archive. This receipt adds observations without changing any
 full enforcement acceptance gate.
+
+The [split-token-diagnostics run](https://github.com/antropos17/Aegis/actions/runs/37702024365)
+at `577cc431` passed the complete hosted preflight and all five CI contexts.
+Its distinct `held-token-open` stage records `OpenProcessToken` returning false
+with Win32 error 5 for requested access 10 (`QUERY | DUPLICATE`). The retained
+process was still live and suspended; token construction was not reached.
+This establishes access denial for the combined request without identifying
+which requested right or token security condition caused it.
+
+The repaired early cleanup independently observed retained-root exit 137, zero
+active members before and after an empty Job query, stable Job totals and private
+desktop closure. The host receiver stopped after Job closure and exited zero
+without force or expiry. Native Off, exact VM removal and post-removal host
+canaries also passed. The bootstrap retained the native cause and marked task,
+network and Git checks not-run. A subsequent host-controller attempt to read the
+unwritten route result produced a generic outer failure; it supplied no guest
+route observation. The after-task canary check was not reached. Independent
+review matched all 33 source hashes. These cleanup observations add no useful-task
+or full-boundary acceptance.
+
+## Fixed Claude second phase
+
+The next token revision requests only `TOKEN_QUERY` and reads native
+`TOKEN_GROUPS` through a bounded parser. Any Administrators SID, including a
+disabled or deny-only entry, causes refusal. It retains the exact SID, elevation,
+held process, Job, desktop and initialized-runtime checks. Twenty local token
+controls and eleven native cleanup controls passed; these same-principal checks
+do not establish access to the dedicated guest user's token.
+
+The host controller also preserves the earliest native failure after stopping
+its receiver and observing the exact VM again. It reads route results only after
+a typed positive project-release observation. Fifty-six pure PowerShell controls
+cover the bootstrap and connected host-controller path; actual guest observations
+remain source-bound to the next cloud run.
+
+The next lab revision includes a separate Claude corpus after the first task and
+both of its receivers have exited with verified native observations. It pins
+Claude Code 2.1.292 for Windows x64 to 254,858,400 bytes and SHA-256
+`eb95bb65955f8b1702e800815f9a2c0388a5de0f196c354c7ee1dd5cb9a2ba23`.
+The hosted runner verifies the signed public manifest and Authenticode before
+transferring the binary. A fresh guest work directory and separate Job reuse the
+held identity and initialized-runtime admission checks. The fixed local API stub
+uses dummy credentials and a separate 45-second receiver lifetime; the Claude
+process has a 30-second budget. The first phase's receiver fences stay unchanged.
+
+Independent source review matched the complete download, compiler, transfer,
+ACL, admission, receiver and result path. Fifty-seven pure PowerShell controls
+passed, and five warning-as-error compilation checks stayed within the existing
+binary limits. These observations do not establish actual guest Claude execution.
+Task-observed edits and test output remain explicitly distinct from a trusted
+test-process observation, which is still unknown. Full E6 acceptance and production
+launch permission remain false even if this fixed local corpus later succeeds.
 
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and

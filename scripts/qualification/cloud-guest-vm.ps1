@@ -1,5 +1,83 @@
 Set-StrictMode -Version Latest
 
+function Get-CloudGuestResultField($Value, [string]$Name) {
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [Collections.IDictionary]) { if ($Value.Contains($Name)) { return $Value[$Name] }; return $null }
+    $property = $Value.PSObject.Properties[$Name]
+    if ($null -ne $property) { return $property.Value }
+    return $null
+}
+function Get-CloudGuestNativeResultFailure($Result) {
+    $native = Get-CloudGuestResultField $Result 'identity'
+    $passed = Get-CloudGuestResultField $native 'passed'
+    if ($passed -isnot [bool] -or $passed) { return $null }
+    $stage = Get-CloudGuestResultField $native 'failureStage'
+    $known = @('owner-node-version-positive', 'private-desktop-create', 'job-create', 'job-limits', 'runtime-endpoint-create',
+        'standard-user-create', 'job-assign', 'held-token-open', 'held-token-identity', 'held-token-sid', 'held-token-admin',
+        'held-token-elevation', 'held-image', 'held-birth', 'held-job-inventory', 'runtime-registration', 'runtime-resume',
+        'runtime-authenticated-ready', 'runtime-held-job-recheck', 'network-receiver-start', 'project-release-ack',
+        'task-deadline', 'task-exit-observation', 'network-receiver-cleanup', 'private-desktop-close', 'guest-job-closure', 'task-exit', 'runtime-release-unconfirmed')
+    $hResult = Get-CloudGuestResultField $native 'failureHResult'
+    if (($hResult -isnot [int] -and $hResult -isnot [long]) -or $hResult -lt [int]::MinValue -or $hResult -gt [int]::MaxValue) { $hResult = $null }
+    return @{ code = 'guest-task-process-refused'; nativeStage = $(if ($stage -is [string] -and $stage -cin $known) { $stage } else { 'unknown' });
+        hResult = $hResult; exceptionType = 'native-result'; innerDepth = 0 }
+}
+
+# This helper consumes the actual returned native observation before any project
+# file. Independent receiver shutdown and fresh exact-VM observation always run.
+function Complete-CloudGuestHostRouteObservation($Result, $Owner, [string]$Id, [string]$Name, [string]$VmRoot,
+    $Session, [ref]$Closed, [ref]$AfterDiagnostic) {
+    $native = Get-CloudGuestResultField $Result 'identity'
+    $released = Get-CloudGuestResultField $native 'taskReleased'; $closure = Get-CloudGuestResultField $native 'jobClosureConfirmed'
+    $jobClosed = $closure -is [bool] -and $closure
+    $firstFailure = Get-CloudGuestNativeResultFailure $Result
+    $status = if ($released -is [bool] -and !$released) { 'not-run' } elseif (!$jobClosed) { 'unavailable-closure-unknown' }
+        elseif ($released -is [bool] -and $released) { 'unavailable-client-or-oracle' } else { 'unavailable-release-unconfirmed' }
+    $evidence = @{ passed = $false; status = $status; owner = $null; receiver = $null;
+        client = $null; before = $Owner.before; after = $null; independentClosureConfirmed = $false; e3Qualified = $false; launchAllowed = $false }
+    $secondary = $null
+    try {
+        try { $Closed.Value = Stop-CloudHostRoutes $Owner $jobClosed }
+        finally {
+            $diagnostic = $null
+            try { $evidence.after = Get-CloudHostRouteSnapshot $Id $Name $VmRoot ([ref]$diagnostic) }
+            finally { $AfterDiagnostic.Value = $diagnostic }
+        }
+        $evidence.owner = $Closed.Value.owner; $evidence.receiver = $Closed.Value.receiver
+        $ownerClosed = $evidence.owner; $receiverClosed = $evidence.receiver
+        foreach ($field in @('exitObserved', 'closed', 'stopAfterJobClosure')) {
+            $value = Get-CloudGuestResultField $ownerClosed $field
+            if ($value -isnot [bool] -or !$value) { throw 'host-route-exit-unconfirmed' }
+        }
+        $forced = Get-CloudGuestResultField $ownerClosed 'forced'; $exit = Get-CloudGuestResultField $ownerClosed 'exitCode'
+        if ($forced -isnot [bool] -or $forced -or ($exit -isnot [int] -and $exit -isnot [long]) -or $exit -ne 0) { throw 'host-route-exit-unconfirmed' }
+        foreach ($field in @('socketsClosed', 'stoppedOnRequest', 'positivePassed')) {
+            $value = Get-CloudGuestResultField $receiverClosed $field
+            if ($value -isnot [bool] -or !$value) { throw 'host-route-exit-unconfirmed' }
+        }
+        $expired = Get-CloudGuestResultField $receiverClosed 'expired'
+        if ($expired -isnot [bool] -or $expired) { throw 'host-route-exit-unconfirmed' }
+        $evidence.independentClosureConfirmed = $true
+        if (!$jobClosed) { $evidence.status = 'unavailable-closure-unknown'; throw 'host-route-guest-job-closure-unconfirmed' }
+        if ($released -isnot [bool]) { throw 'guest-controls-unconfirmed' }
+        if (!$released) { $evidence.status = 'not-run'; if ($null -eq $firstFailure) { throw 'guest-controls-unconfirmed' } }
+        else {
+            $evidence.status = 'unavailable-client-or-oracle'
+            $routeText = Invoke-Command -Session $Session -ScriptBlock {
+                $file = Get-Item -LiteralPath C:/AegisLab/work/route-client-result.json -Force
+                if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -gt 8192) { throw 'host-route-client-result-refused' }
+                return [IO.File]::ReadAllText($file.FullName)
+            }
+            $client = $routeText | ConvertFrom-Json
+            $resultPassed = Get-CloudGuestResultField $Result 'passed'
+            $evidence = Test-CloudHostRoutes $Owner $Closed.Value $native $client ($resultPassed -is [bool] -and $resultPassed) $evidence.after
+            $evidence.independentClosureConfirmed = $true
+        }
+    } catch { $secondary = Get-CloudGuestFailureDetails $_.Exception }
+    if ($null -ne $firstFailure) { $evidence.passed = $false }
+    return @{ evidence = $evidence; failure = $(if ($null -ne $firstFailure) { $firstFailure } else { $secondary }); downstreamFailure = $secondary }
+}
+
 # The fixed, re-hashed source is invoked in this session without changing policy.
 # Only bounded metadata crosses the boundary if entry or execution fails.
 function Get-CloudGuestBootstrapInvocation {
@@ -247,24 +325,17 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             $bootstrapHash = (Get-FileHash -LiteralPath (Join-Path $TransferRoot 'cloud-guest-bootstrap.ps1') -Algorithm SHA256).Hash.ToLowerInvariant()
             $result = Invoke-Command -Session $session -ArgumentList $TaskPassword, $Id, $bootstrapHash -ScriptBlock (Get-CloudGuestBootstrapInvocation)
             $progress.phase = 'independent-host-route-closure'
-            $jobClosed = $null -ne $result -and $null -ne $result.identity -and $result.identity.jobClosureConfirmed -eq $true
-            $routeClosed = Stop-CloudHostRoutes $routeOwner $jobClosed
             $afterDiagnostic = $null
-            try { $after = Get-CloudHostRouteSnapshot $Id $Name $VmRoot ([ref]$afterDiagnostic) }
-            finally { $progress.hostRouteSnapshotAfter = $afterDiagnostic }
-            if (!$jobClosed) { throw 'host-route-guest-job-closure-unconfirmed' }
-            $routeText = Invoke-Command -Session $session -ScriptBlock {
-                $file = Get-Item -LiteralPath C:/AegisLab/work/route-client-result.json -Force
-                if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -gt 8192) { throw 'host-route-client-result-refused' }
-                return [IO.File]::ReadAllText($file.FullName)
-            }
-            $routeClient = $routeText | ConvertFrom-Json
-            $routeEvidence = Test-CloudHostRoutes $routeOwner $routeClosed $result.identity $routeClient ($result.passed -eq $true) $after
+            $completion = Complete-CloudGuestHostRouteObservation $result $routeOwner $Id $Name $VmRoot $session ([ref]$routeClosed) ([ref]$afterDiagnostic)
+            $progress.hostRouteSnapshotAfter = $afterDiagnostic; $progress.routeResultStatus = $completion.evidence.status
+            $routeEvidence = $completion.evidence
             $progress.phase = 'completed'
-            return @{ guestResult = $result; hostRoutes = $routeEvidence; progress = $progress; failure = $null; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
+            return @{ guestResult = $result; hostRoutes = $routeEvidence; progress = $progress; failure = $completion.failure; routeFailure = $completion.downstreamFailure; mediaMutationUnknown = $mediaMutationUnknown; answerDvdEjectedBeforeTask = $true; setupWaitMilliseconds = $watch.ElapsedMilliseconds; setupDiskSamples = @($diskSamples) }
         }
         catch {
             $failure = Get-CloudGuestFailureDetails $_.Exception
+            $nativeFailure = Get-CloudGuestNativeResultFailure $result
+            if ($null -ne $nativeFailure) { $failure = $nativeFailure }
             if ($null -ne $routeOwner -and $null -eq $routeClosed) {
                 try { $routeClosed = Stop-CloudHostRoutes $routeOwner $false } catch { }
             }
