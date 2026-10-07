@@ -123,22 +123,38 @@ while ($null -ne $parent) { if ($parent.Attributes -band [IO.FileAttributes]::Re
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $outputs = @()
 try {
-    foreach ($mode in @('zero', 'seven', 'head')) {
-        $stdout = Join-Path $testRoot ($mode + '.txt'); $stderr = $stdout + '.error'; $outputs += @($stdout, $stderr)
-        $executable = if ($mode -eq 'head') { 'git.exe' } else { Join-Path $env:WINDIR 'System32\cmd.exe' }
-        $arguments = if ($mode -eq 'head') { @('-C', ('"' + [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')) + '"'), 'rev-parse', 'HEAD') } elseif ($mode -eq 'zero') { @('/d', '/c', 'exit 0') } else { @('/d', '/c', 'exit 7') }
-        $process = Start-Process -FilePath $executable -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-        try {
-            $exitCode = Wait-CloudGuestNativeProcess $process 5000
-            Require ($exitCode -eq $(if ($mode -eq 'seven') { 7 } else { 0 }))
+    $sequence = 0
+    foreach ($mode in @('zero', 'seven', 'zero', 'seven', 'zero', 'seven', 'head', 'node', 'delayed-zero', 'delayed-seven')) {
+        $sequence++; $stdout = Join-Path $testRoot ($sequence.ToString() + '.txt'); $stderr = $stdout + '.error'; $outputs += @($stdout, $stderr)
+        $executable = if ($mode -eq 'head') { 'git.exe' } elseif ($mode -eq 'node') { (Get-Command node.exe).Source } elseif ($mode.StartsWith('delayed')) { Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe' } else { Join-Path $env:WINDIR 'System32\cmd.exe' }
+        $expectedExit = if ($mode.EndsWith('seven')) { 7 } else { 0 }
+        $arguments = if ($mode -eq 'head') { @('-C', ('"' + [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')) + '"'), 'rev-parse', 'HEAD') } elseif ($mode -eq 'node') { @('--version') } elseif ($mode.StartsWith('delayed')) { @('-NoProfile', '-Command', ('"Start-Sleep -Milliseconds 80; exit ' + $expectedExit + '"')) } else { @('/d', '/c', ('exit ' + $expectedExit)) }
+            $exitCode = Invoke-CloudGuestNativeProcess $executable $arguments $stdout $stderr 5000
+            Require ($exitCode -eq $expectedExit)
             Require ((Get-Item -LiteralPath $stdout).Length -le 128 -and (Get-Item -LiteralPath $stderr).Length -eq 0)
             if ($mode -eq 'head') {
                 $head = [IO.File]::ReadAllText($stdout).Trim(); Require ($head -cmatch '^[a-f0-9]{40}$')
                 if ($env:EXPECTED_SOURCE_SHA) { Require ($head -ceq $env:EXPECTED_SOURCE_SHA) }
             }
             $passed++
+    }
+    foreach ($expectedExit in @(0, 7)) {
+        $process = Start-CloudGuestNativeProcess (Join-Path $env:WINDIR 'System32\cmd.exe') @('/d', '/c', ('exit ' + $expectedExit))
+        try {
+            Require ($process.WaitForExit(5000) -and $process.HasExited)
+            Require ((Wait-CloudGuestNativeProcess $process 1) -eq $expectedExit); $passed++
         }
         finally { $process.Dispose() }
+    }
+    foreach ($mode in @('stdout-budget', 'stderr-budget', 'deadline')) {
+        $stdout = Join-Path $testRoot ($mode + '.txt'); $stderr = $stdout + '.error'; $outputs += @($stdout, $stderr)
+        $body = if ($mode -eq 'deadline') { 'Start-Sleep -Seconds 5' } elseif ($mode -eq 'stdout-budget') { "[Console]::Out.Write(('x' * 70000))" } else { "[Console]::Error.Write(('y' * 70000))" }
+        $expectedFailure = if ($mode -eq 'deadline') { 'native-process-deadline' } else { 'native-output-budget-failed' }
+        $failure = $null
+        try { Invoke-CloudGuestNativeProcess (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile', '-Command', ('"' + $body + '"')) $stdout $stderr $(if ($mode -eq 'deadline') { 1000 } else { 5000 }) | Out-Null }
+        catch { $failure = Get-CloudGuestFailureDetails $_.Exception }
+        Require ($null -ne $failure -and $failure.code -ceq $expectedFailure)
+        Require ((Get-Item -LiteralPath $stdout).Length -le 65536 -and (Get-Item -LiteralPath $stderr).Length -le 65536); $passed++
     }
 }
 finally {
@@ -155,4 +171,4 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntheticCases = 30; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 30; nativeProcessCases = 15; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress

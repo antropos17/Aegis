@@ -1,7 +1,62 @@
 Set-StrictMode -Version Latest
 
-# Windows PowerShell5.1 Start-Process can otherwise lose ExitCode after exit.
-# Retain the native handle before waiting, then require an observed numeric code.
+# Direct Process.Start retains the creation handle even if the child has already
+# exited before this function returns; Start-Process's PID wrapper does not.
+function Start-CloudGuestNativeProcess([string]$FilePath, [string[]]$Arguments) {
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = [Diagnostics.ProcessStartInfo]::new()
+    $process.StartInfo.FileName = $FilePath
+    $process.StartInfo.Arguments = $Arguments -join ' '
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    try { if (!$process.Start()) { throw 'native-process-start-failed' }; return $process }
+    catch { $process.Dispose(); throw }
+}
+
+# Drain both pipes concurrently without an unbounded ReadToEnd allocation.
+function Invoke-CloudGuestNativeProcess([string]$FilePath, [string[]]$Arguments, [string]$Stdout, [string]$Stderr, [int]$Milliseconds) {
+    if ($Milliseconds -lt 1 -or $Milliseconds -gt 30000) { throw 'native-wait-input-invalid' }
+    $process = $null; $files = @(); $watch = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        foreach ($path in @($Stdout, $Stderr)) { $files += [IO.File]::Open($path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None) }
+        $process = Start-CloudGuestNativeProcess $FilePath $Arguments
+        $pipes = @($process.StandardOutput.BaseStream, $process.StandardError.BaseStream)
+        $reads = @()
+        foreach ($pipe in $pipes) {
+            $buffer = New-Object byte[] 4096
+            $reads += @{ buffer = $buffer; pending = $pipe.ReadAsync($buffer, 0, $buffer.Length); total = 0; ended = $false }
+        }
+        while (!$process.HasExited -or !$reads[0].ended -or !$reads[1].ended) {
+            if ($watch.ElapsedMilliseconds -ge $Milliseconds) { throw 'native-process-deadline' }
+            for ($index = 0; $index -lt 2; $index++) {
+                $read = $reads[$index]
+                if (!$read.ended -and $read.pending.IsCompleted) {
+                    $count = $read.pending.GetAwaiter().GetResult()
+                    if ($count -eq 0) { $read.ended = $true; continue }
+                    $read.total += $count
+                    if ($read.total -gt 65536) { throw 'native-output-budget-failed' }
+                    $files[$index].Write($read.buffer, 0, $count)
+                    $read.pending = $pipes[$index].ReadAsync($read.buffer, 0, $read.buffer.Length)
+                }
+            }
+            Start-Sleep -Milliseconds 1
+        }
+        return (Wait-CloudGuestNativeProcess $process 1)
+    }
+    finally {
+        try {
+            if ($null -ne $process) {
+                try { if (!$process.HasExited) { $process.Kill(); [void]$process.WaitForExit(1000) } }
+                finally { $process.Dispose() }
+            }
+        }
+        finally { foreach ($file in $files) { $file.Dispose() }; $watch.Stop() }
+    }
+}
+
 function Wait-CloudGuestNativeProcess([Diagnostics.Process]$Process, [int]$Milliseconds) {
     if ($null -eq $Process -or $Milliseconds -lt 1 -or $Milliseconds -gt 30000) { throw 'native-wait-input-invalid' }
     [void]$Process.Handle
@@ -27,7 +82,7 @@ function Get-CloudGuestFailureDetails([Exception]$Exception) {
     # messages (including strings resembling codes) are never published.
     $allowed = @('keyboard-query-id-invalid', 'keyboard-owned-vm-not-running', 'exact-vm-keyboard-unavailable', 'keyboard-owner-mismatch',
         'setup-key-result-missing', 'setup-key-return-unconfirmed', 'vm-provider-field-invalid', 'vm-provider-path-invalid',
-        'native-wait-input-invalid', 'native-process-deadline', 'native-exit-observation-unavailable', 'native-source-budget-failed', 'native-compile-failed',
+        'native-wait-input-invalid', 'native-process-start-failed', 'native-process-deadline', 'native-output-budget-failed', 'native-exit-observation-unavailable', 'native-source-budget-failed', 'native-compile-failed',
         'source-head-unavailable', 'source-head-mismatch', 'expected-source-required', 'cloud-disk-headroom-unavailable', 'cloud-hyperv-admin-memory-unavailable', 'script-source-budget-failed',
         'wim-read-open-failed', 'wim-metadata-read-failed', 'wim-metadata-budget-failed', 'wim-image-count-failed', 'wim-exact-edition-unavailable', 'wim-pinned-version-mismatch',
         'media-http-length-failed', 'media-byte-budget-failed', 'media-disk-headroom-failed', 'media-download-incomplete', 'published-media-hash-mismatch', 'pinned-media-volume-unavailable',
