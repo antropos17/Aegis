@@ -97,5 +97,23 @@
     "sha256": "01c2f78983c9ffc41d3034d47fb93a4036f2227aa173ce1d5cc1a7c9509760c2",
     "scope": "cloud-windows11-fixed-standard-user-lab",
     "failureStage": "held-token-admin"
+  },
+  {
+    "runId": "37687929852",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37687929852",
+    "source": "e5093a3edf01e9b708c5d2b601ccd125cd9c67c3",
+    "file": "37687929852.json",
+    "sha256": "04ab2cde243ad0735b29982594b5b07130ac1c08cc27d86725fd418b6ceb3879",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "task-exit"
+  },
+  {
+    "runId": "37688899156",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37688899156",
+    "source": "35da8749bd86a3f9f1d3b96ae1dd745a7870e99d",
+    "file": "37688899156.json",
+    "sha256": "82a4545beca2cbd287adeac2f023205cb70c9b6d589c6555c17618061af18d91",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "pinned-media-download-and-hash"
   }
 ]

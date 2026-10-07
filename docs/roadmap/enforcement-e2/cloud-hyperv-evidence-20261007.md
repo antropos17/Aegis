@@ -168,6 +168,18 @@ the corrected membership observation and refuse invalid or closed process handle
 The combined maintained entrypoint passes the preceding 151 controls and these
 four controls. Actual standard-user task completion requires the cloud retry.
 
+The [run at e5093a3e](https://github.com/antropos17/Aegis/actions/runs/37687929852)
+confirmed the token repair on the dedicated guest account: its held SID matched
+the expected account, enabled administrator membership and elevation were false,
+and image, birth and the one-member initial Job passed before release. Independent
+review matched all fourteen immutable source hashes and accepted the narrow E1.3
+provisioning item. The useful task did not run successfully: Node exited with
+`0xC0000142` and produced no result. The receipt confirms actual Job closure,
+native stop, independent VM Off/removal and unchanged host canaries both after
+the task attempt and removal. CI passed all five contexts on that revision.
+The loader failure's cause requires separate investigation; this result does not
+qualify initialized runtime, useful task or the complete guest boundary.
+
 The combined runtime revision resumes only a fixed trusted Node bootstrap. An
 OS-authenticated pipe client reports readiness after core-module and event-loop
 initialization; the owner rechecks the retained PID, birth time, image and original
@@ -184,6 +196,13 @@ force failure. These positives do not qualify direct-egress denial, foreign host
 integration routes or full E3. Independent review passed 148 focused controls;
 integration additionally passed the maintained entrypoint, twelve task-source
 controls and lint. Actual combined guest observations require a separate run.
+
+The first [combined run at 35da8749](https://github.com/antropos17/Aegis/actions/runs/37688899156)
+stopped at the pinned image-download stage with `TaskCanceledException` after the
+ten-minute budget. No VM was created and no guest task or network check ran;
+operation settlement remained `not-submitted`. This receipt does not diagnose
+the network's cause or validate the combined guest path. CI passed all five
+required contexts on the same source revision.
 
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
