@@ -10,9 +10,11 @@
   import RadarResourceExplorer from './RadarResourceExplorer.svelte';
   import { leadingRiskReason } from '../runtime/risk-context';
   import { reveal } from '../runtime/motion';
+  import { radarSweep } from '../runtime/radar-motion';
   let {
     telemetry,
     liveTelemetry,
+    paused = false,
     selected = $bindable(null),
     inspect,
     openStatistics,
@@ -20,15 +22,18 @@
   }: {
     telemetry: Telemetry;
     liveTelemetry?: Telemetry;
+    paused?: boolean;
     openStatistics?: (_agent: string) => void;
     openAgent?: (_agent: string) => void;
     selected: string | null;
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
   let agents = $derived(instances(telemetry));
+  let held = $derived(paused || (!!liveTelemetry && liveTelemetry !== telemetry));
   let groups = $derived(radarGroups(agents));
   let page = $state(0);
   let layer = $state('radar');
+  let sweepActive = $derived(!held && telemetry.ready && !telemetry.stale && layer === 'radar');
   let visited = $state<string[]>([]);
   let resourceAgent = $state('');
   let focusedGroup = $state('');
@@ -107,12 +112,18 @@
               onclick={clearSelection}
             ></button>
             <div class="radar-coordinate">
-              {telemetry.stale ? $t('Last reliable snapshot') : $t('Live observation')}
+              {!telemetry.ready
+                ? $t('Waiting for a reliable scan')
+                : telemetry.stale
+                  ? $t('Last reliable snapshot')
+                  : held
+                    ? $t('Paused snapshot')
+                    : $t('Live observation')}
             </div>
             <div class="radar-dial">
               <div class="dial-grid"></div>
               <div class="dial-ticks"></div>
-              <div class="dial-sweep"></div>
+              <div class="dial-sweep" use:radarSweep={sweepActive} aria-hidden="true"></div>
               <div class="radar-center"><Icon name="shield" /></div>
               {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
                   class={`radar-blip ${riskBand(group.risk)}`}
@@ -235,6 +246,43 @@
 </div>
 
 <style>
+  .radar-clarity .dial-sweep {
+    animation: none;
+    transform: rotate(0deg);
+    will-change: auto;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg 332deg,
+      rgba(var(--sweep-rgb), 0.015) 336deg,
+      rgba(var(--sweep-rgb), 0.07) 350deg,
+      rgba(var(--sweep-rgb), 0.15) 359deg,
+      transparent 360deg
+    );
+  }
+  .radar-clarity .dial-sweep:global([data-sweep-state='running']) {
+    will-change: transform;
+  }
+  .radar-clarity .dial-sweep::after {
+    width: 1px;
+    background: linear-gradient(transparent 12%, rgba(var(--sweep-rgb), 0.45));
+  }
+  .radar-clarity .radar-blip {
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      border-color var(--motion-fast) var(--ease-standard);
+  }
+  .radar-clarity .radar-blip:hover {
+    background: var(--hover);
+    border-color: var(--marker-color, var(--strong-border));
+  }
+  .radar-clarity .radar-blip[aria-pressed='true'],
+  .radar-clarity .radar-blip[aria-pressed='true']:hover {
+    background: var(--selection);
+    border-color: var(--ink);
+  }
+  .radar-clarity .radar-blip:focus-visible {
+    transition: none;
+  }
   .radar-clarity .radar-stage {
     min-height: 360px;
   }

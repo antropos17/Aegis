@@ -39,9 +39,15 @@
 <style>
   button.radar-agent-card {
     padding-inline: var(--space-4);
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      border-color var(--motion-fast) var(--ease-standard);
   }
   button.radar-agent-card[aria-pressed='true'] {
     box-shadow: none;
     border-color: var(--ink);
+  }
+  button.radar-agent-card:focus-visible {
+    transition: none;
   }
 </style>

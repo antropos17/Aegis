@@ -28,6 +28,7 @@ import { checkReviewContext } from './review-context-check.mjs';
 import { checkCatalogRecovery } from './catalog-recovery-check.mjs';
 import { advancedFixture } from './interface-fixture.mjs';
 import { checkSimpleExperience } from './simple-experience-check.mjs';
+import { checkInteractionDesign } from './interaction-design-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -101,6 +102,7 @@ const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkInteractionDesign(browser, base + '/preview/', out);
   await checkSimpleExperience(realBrowser, base + '/desktop/', out);
   await checkTaskGuide(browser, base + '/preview/', out);
   await checkConfigurationClarity(browser, base + '/preview/', out);

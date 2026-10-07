@@ -62,7 +62,15 @@
     {inspect}
     {navigate}
   />
-  <Radar {telemetry} {liveTelemetry} bind:selected {inspect} {openStatistics} {openAgent} />
+  <Radar
+    {telemetry}
+    {liveTelemetry}
+    {paused}
+    bind:selected
+    {inspect}
+    {openStatistics}
+    {openAgent}
+  />
   <div class="monitoring-activity">
     <ActivityChart
       events={telemetry.events}

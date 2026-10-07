@@ -1,4 +1,101 @@
 /* Current workspace hierarchy: distinct evidence and context surfaces at 100%. */
+:root {
+  /* Carbon productive motion: immediate feedback, short content entrances. */
+  --motion-fast: 110ms;
+  --motion-data: 240ms;
+  --motion-enter: 150ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-enter: cubic-bezier(0, 0, 0.38, 0.9);
+  --control-border: #78828d;
+  --interaction-hover: #343b43;
+  --interaction-pressed: #404b57;
+}
+:root:not([data-theme$='-hc']) {
+  --ink: #f2f4f6;
+  --muted: #bac2cb;
+  --faint: #a5afba;
+  --focus: #b3d4ff;
+}
+:root[data-theme^='light'] {
+  --control-border: #7b858f;
+  --interaction-hover: #e1e6eb;
+  --interaction-pressed: #d0d9e2;
+}
+:root[data-theme='light'] {
+  --ink: #18212b;
+  --muted: #4d5761;
+  --faint: #59636e;
+  --focus: #194fb7;
+}
+:root[data-theme$='-hc'] {
+  --control-border: var(--strong-border);
+}
+
+.observatory-app :is(h1, h2, h3, .summary-stat strong, .metric strong, dt) {
+  color: var(--ink);
+}
+.observatory-app :is(.panel-head p, .workspace-caption, .entity-note) {
+  color: var(--muted);
+}
+/* Preserve the existing Tabler vocabulary with its documented 24px/2px stroke. */
+:is(.observatory-app, .editor-dialog, .detail-shell, .command-panel) .icon {
+  stroke-width: 2;
+}
+:is(.observatory-app, .editor-dialog, .detail-shell, .command-panel)
+  :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+  border-color: var(--control-border);
+}
+:is(.observatory-app, .editor-dialog, .detail-shell, .command-panel)
+  :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(.observatory-app, .editor-dialog, .detail-shell, .command-panel)
+    :is(.button, .icon-button, .nav, .text-button, .text-link, .section-navigation button) {
+    transition:
+      background-color var(--motion-fast) var(--ease-standard),
+      border-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(.observatory-app, .editor-dialog, .detail-shell, .command-panel)
+    :is(.button:not(.primary):not(.danger), .icon-button, .section-navigation button):hover:not(
+      :disabled
+    ):not([aria-disabled='true']) {
+    background-color: var(--interaction-hover);
+    border-color: var(--control-border);
+    color: var(--ink);
+  }
+  .observatory-app .nav:hover:not(:disabled):not([aria-disabled='true']) {
+    background-color: var(--interaction-hover);
+    color: var(--ink);
+  }
+  .observatory-app :is(.text-button, .text-link):hover:not(:disabled) {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
+}
+:is(.observatory-app, .editor-dialog, .detail-shell, .command-panel)
+  :is(
+    .button:not(.primary):not(.danger),
+    .icon-button,
+    .nav,
+    .section-navigation button
+  ):active:not(:disabled):not([aria-disabled='true']) {
+  background-color: var(--interaction-pressed);
+  color: var(--ink);
+  transition-duration: 0ms;
+}
+@media (forced-colors: active) {
+  :is(.observatory-app, .editor-dialog, .detail-shell, .command-panel)
+    :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
+}
+
 .observatory-app #main:has(.analysis-workspace) {
   display: block;
   overflow: auto;
