@@ -60,6 +60,21 @@ afterEach(async () => {
 });
 
 describe('persistent one-shot MCP grants', () => {
+  it('retains request-specific private reservations without changing standalone consumption', async () => {
+    const owner = await captureGatewayGrantStore(dir);
+    const foreign = await captureGatewayGrantStore(dir);
+    const first = await owner.consume(grant());
+    const next = grant();
+    const second = await owner.consume(next);
+    await expect(owner.recheck(first)).resolves.toBeUndefined();
+    await expect(owner.recheck(second)).resolves.toBeUndefined();
+    await expect(owner.recheck({})).rejects.toThrow();
+    await expect(foreign.recheck(first)).rejects.toThrow();
+    await fs.unlink(path.join(dir, marker(next)));
+    await expect(owner.recheck(first)).resolves.toBeUndefined();
+    await expect(owner.recheck(second)).rejects.toThrow();
+    await expect(consumeGatewayGrant(dir, grant())).resolves.toBe(true);
+  });
   it('pins every ancestor even when the selected child directory identity is retained', async () => {
     const parent = path.join(dir, 'parent');
     const storePath = path.join(parent, 'store');

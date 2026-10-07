@@ -1,10 +1,12 @@
 'use strict';
 const fs = require('node:fs/promises');
+const { constants } = require('node:fs');
 const path = require('node:path');
 const { createHash, randomBytes, timingSafeEqual } = require('node:crypto');
 const LOCK = '.consume-lock';
 const CREDENTIAL_KEY = '.credential-key';
 const MAX_ENTRIES = 1024;
+const CONSUMED = Buffer.from('{"consumed":true}\n');
 const validId = (value) =>
   typeof value === 'string' &&
   value.length >= 32 &&
@@ -200,8 +202,8 @@ async function consumeGatewayGrant(storePath, grant) {
   return consumeGrant(await inspectStore(storePath), grant);
 }
 
-async function consumeGrant(store, grant) {
-  let lock, lockStat, receipt;
+async function consumeGrant(store, grant, retain = false) {
+  let lock, lockStat, receipt, retained;
   let failed = false;
   try {
     if (!validTime(grant)) throw Error('grant-unavailable');
@@ -220,8 +222,13 @@ async function consumeGrant(store, grant) {
     // Hash only the global grant ID: changing tasks never renews an already consumed grant.
     const name = createHash('sha256').update(grant.id).digest('hex') + '.used';
     receipt = await fs.open(path.join(store.path, name), 'wx', 0o600);
-    await receipt.writeFile('{"consumed":true}\n', 'utf8');
+    await receipt.writeFile(CONSUMED);
     await receipt.sync();
+    if (retain)
+      retained = {
+        filename: path.join(store.path, name),
+        stat: await receipt.stat({ bigint: true }),
+      };
     await receipt.close();
     receipt = undefined;
     await verifyStore(store);
@@ -237,21 +244,75 @@ async function consumeGrant(store, grant) {
     }
   }
   if (failed) throw Error('gateway-grant-unavailable');
-  return true;
+  return retain ? retained : true;
+}
+
+const unchangedReceipt = (a, b) =>
+  same(a, b) && a.size === b.size && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+const validReceipt = (stat) =>
+  stat.isFile() &&
+  !stat.isSymbolicLink() &&
+  stat.nlink === 1n &&
+  stat.size === BigInt(CONSUMED.length);
+
+async function verifyConsumedReceipt(store, retained) {
+  let handle;
+  await verifyStore(store);
+  try {
+    const before = await fs.lstat(retained.filename, { bigint: true });
+    if (!validReceipt(before) || !unchangedReceipt(before, retained.stat))
+      throw Error('grant-store-changed');
+    handle = await fs.open(retained.filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    const opened = await handle.stat({ bigint: true });
+    if (!validReceipt(opened) || !unchangedReceipt(opened, before))
+      throw Error('grant-store-changed');
+    const bytes = Buffer.alloc(CONSUMED.length + 1);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!bytesRead) break;
+      offset += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    if (
+      offset !== CONSUMED.length ||
+      !bytes.subarray(0, offset).equals(CONSUMED) ||
+      !validReceipt(after) ||
+      !unchangedReceipt(after, opened)
+    )
+      throw Error('grant-store-changed');
+  } finally {
+    await handle?.close();
+  }
+  const afterClose = await fs.lstat(retained.filename, { bigint: true });
+  if (!validReceipt(afterClose) || !unchangedReceipt(afterClose, retained.stat))
+    throw Error('grant-store-changed');
+  await verifyStore(store);
 }
 
 /** Pin one gateway's store and ancestor identities for its connection lifetime.
  * Replacing the selected directory never renews an open owner's grants. This
  * does not establish protected ownership or resist rollback across restarts.
  * @param {string} storePath Existing canonical absolute store directory.
- * @returns {Promise<object>} Private consume, key-read and final identity check.
+ * @returns {Promise<object>} Private consume reservation, key-read and final identity check.
  * @since v0.19.2 */
 async function captureGatewayGrantStore(storePath) {
   const store = await inspectStore(storePath);
+  const reservations = new WeakMap();
   return Object.freeze({
-    consume: (grant) => consumeGrant(store, grant),
+    async consume(grant) {
+      const retained = await consumeGrant(store, grant, true);
+      const reservation = Object.freeze({});
+      reservations.set(reservation, retained);
+      return reservation;
+    },
     readCredentialKey: (signal) => readCredentialKey(store, signal),
-    recheck: () => verifyStore(store),
+    async recheck(reservation) {
+      if (reservation === undefined) return verifyStore(store);
+      const retained = reservations.get(reservation);
+      if (!retained) throw Error('grant-reservation-unavailable');
+      return verifyConsumedReceipt(store, retained);
+    },
   });
 }
 
