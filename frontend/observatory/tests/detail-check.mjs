@@ -302,11 +302,14 @@ export async function checkDetails(browser, url, out) {
       await page.screenshot({ path: resolve(out, 'detail-editor-' + name.toLowerCase() + '.png') });
     }
     await tab('General').click();
+    // Compact controls fit at 100%; larger text keeps this scroll-restoration case meaningful.
+    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1.5'));
+    await checkLayout();
     const editorScroll = await page.locator('.editor-body').evaluate((node) => {
       node.scrollTop = node.scrollHeight;
       return node.scrollTop;
     });
-    assert(editorScroll > 0, 'editor fixture must scroll at the minimum window and 100%');
+    assert(editorScroll > 0, 'editor fixture must scroll at the minimum window and 150%');
     await tab('Recognition').click();
     await tab('General').click();
     assert.equal(
@@ -316,6 +319,7 @@ export async function checkDetails(browser, url, out) {
     );
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
     await page.locator('.catalog-identity').first().click();
     await tab('Recognition').click();
     await checkLayout();
