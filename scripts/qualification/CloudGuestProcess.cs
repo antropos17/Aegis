@@ -74,6 +74,12 @@ public static class CloudGuestProcess
     private static Dictionary<string, object> CompleteReceipt(Dictionary<string, object> receipt,
         uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
     {
+        if (failureStage == null)
+            foreach (string field in new string[] { "runtimeResumed", "runtimeCallerAuthenticated", "runtimeInitializedBeforeProject", "taskReleased", "networkReceiverStartedAfterRuntimeReady" })
+            {
+                object value;
+                if (!receipt.TryGetValue(field, out value) || !(value is bool) || !(bool)value) { failureStage = "runtime-release-unconfirmed"; break; }
+            }
         if (failureStage == null && (!exitObserved || exit != 0)) failureStage = "task-exit";
         if (failureStage == null && !closure) failureStage = "guest-job-closure";
         receipt["exitCode"] = exit; receipt["exitCodeObserved"] = exitObserved;
@@ -92,10 +98,11 @@ public static class CloudGuestProcess
             throw new InvalidOperationException("trusted-guest-bootstrap-required");
         const string trusted = @"C:\ProgramData\AegisCloudLab\trusted";
         const string root = @"C:\AegisLab";
-        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, "cloud-guest-task.cjs");
+        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, "cloud-guest-runtime.cjs");
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
-        ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null;
-        bool assigned = false, resumed = false, closure = false, exitObserved = false; uint exit = 259;
+        ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
+        CloudGuestNetwork receiver = null;
+        bool assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false; uint exit = 259;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
         try
@@ -104,7 +111,9 @@ public static class CloudGuestProcess
             stage = "job-limits";
             var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8; limits.Basic.Active = 16;
             Require(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))), "job-limits");
-            string values = "AEGIS_CLOUD_GUEST_TASK=1\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
+            stage = "runtime-endpoint-create";
+            runtime = new CloudGuestRuntimeGate(expectedSid);
+            string values = "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             var command = new StringBuilder("\"" + image + "\" \"" + task + "\"");
@@ -134,8 +143,26 @@ public static class CloudGuestProcess
             inventory = new GuestJobInventory(job, child.Process, new string[] { image, @"C:\Windows\System32\conhost.exe" });
             inventory.ValidateInitial(); receipt["initialJobMembers"] = inventory.InitialCount;
             receipt["heldIdentityBeforeRelease"] = true; receipt["atomicJobAtCreation"] = false;
-            stage = "task-resume";
+            stage = "runtime-registration";
+            runtime.Attach(child.Process);
+            stage = "runtime-resume";
             Require(ResumeThread(child.Thread) == 1, "task-resume"); resumed = true;
+            receipt["runtimeResumed"] = true;
+            stage = "runtime-authenticated-ready";
+            runtime.ObserveInitialized();
+            receipt["runtimeCallerAuthenticated"] = true;
+            stage = "runtime-held-job-recheck";
+            inventory.ValidateInitial();
+            Require(String.Equals(GuestJobNative.Image(child.Process), image, StringComparison.OrdinalIgnoreCase), "runtime-held-image");
+            Require(GuestJobNative.Birth(child.Process, job, child.Pid) == (long)receipt["birthFileTime"], "runtime-held-birth");
+            receipt["runtimeInitializedBeforeProject"] = true;
+            receipt["clientServerAttestationQualified"] = false;
+            stage = "network-receiver-start";
+            receiver = new CloudGuestNetwork(job, receipt);
+            receipt["networkReceiverStartedAfterRuntimeReady"] = true;
+            receiver.BeforeRelease();
+            stage = "project-release-ack";
+            runtime.ReleaseFixedTask(inventory); taskReleased = true;
             stage = "task-deadline";
             Require(GuestJobNative.WaitForSingleObject(child.Process, 60000) == 0, "task-deadline");
             stage = "task-exit-observation";
@@ -158,7 +185,15 @@ public static class CloudGuestProcess
                 }
             }
             else if (child.Process != IntPtr.Zero) TerminateProcess(child.Process, 137);
-            receipt["taskReleased"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
+            if (receiver != null)
+            {
+                try { receiver.Finish(closure); }
+                catch (Exception error) { if (failureStage == null) { failureStage = "network-receiver-cleanup"; failureHResult = error.HResult; } }
+                finally { receiver.Dispose(); }
+                if (receipt["networkReceiverDisposalUnknown"].Equals(true) && failureStage == null) failureStage = "network-receiver-cleanup";
+            }
+            receipt["taskReleased"] = taskReleased; receipt["runtimeResumed"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
+            if (runtime != null) runtime.Dispose();
             if (inventory != null) inventory.Dispose();
             if (token != IntPtr.Zero) GuestJobNative.CloseHandle(token);
             if (child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);

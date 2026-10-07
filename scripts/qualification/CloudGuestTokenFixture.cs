@@ -13,11 +13,14 @@ public static class CloudGuestTokenFixture
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     private static readonly MethodInfo Open = typeof(CloudGuestProcess).GetMethod("OpenHeldToken", BindingFlags.NonPublic | BindingFlags.Static);
 
-    public static Dictionary<string, object> Observe(bool queryOnly)
+    private static readonly MethodInfo ReceiverOpen = typeof(CloudGuestNetwork).GetMethod("OpenHeldToken", BindingFlags.NonPublic | BindingFlags.Static);
+    public static Dictionary<string, object> Observe(bool queryOnly) { return ObserveToken(queryOnly, Open, "actual-launcher-open"); }
+    public static Dictionary<string, object> ObserveReceiver() { return ObserveToken(false, ReceiverOpen, "actual-receiver-open"); }
+    private static Dictionary<string, object> ObserveToken(bool queryOnly, MethodInfo opener, string path)
     {
         IntPtr token = IntPtr.Zero;
         var result = new Dictionary<string, object>();
-        result["path"] = queryOnly ? "query-only" : "actual-launcher-open";
+        result["path"] = queryOnly ? "query-only" : path;
         result["membershipObserved"] = false; result["administratorEnabled"] = null;
         try
         {
@@ -25,7 +28,7 @@ public static class CloudGuestTokenFixture
             {
                 if (!OpenProcessToken(GetCurrentProcess(), 8, out token)) throw new InvalidOperationException("fixture-token-open-refused");
             }
-            else token = (IntPtr)Open.Invoke(null, new object[] { GetCurrentProcess() });
+            else token = (IntPtr)opener.Invoke(null, new object[] { GetCurrentProcess() });
             using (var identity = new WindowsIdentity(token))
             using (var current = WindowsIdentity.GetCurrent())
             {
@@ -44,7 +47,9 @@ public static class CloudGuestTokenFixture
         finally { if (token != IntPtr.Zero && !CloseHandle(token)) throw new InvalidOperationException("fixture-token-close-refused"); }
         return result;
     }
-    public static bool RefusesInvalid(bool closed)
+    public static bool RefusesInvalid(bool closed) { return RefusesInvalidToken(closed, Open); }
+    public static bool RefusesInvalidReceiver(bool closed) { return RefusesInvalidToken(closed, ReceiverOpen); }
+    private static bool RefusesInvalidToken(bool closed, MethodInfo opener)
     {
         IntPtr held = IntPtr.Zero;
         if (closed)
@@ -54,7 +59,7 @@ public static class CloudGuestTokenFixture
         }
         try
         {
-            IntPtr token = (IntPtr)Open.Invoke(null, new object[] { held });
+            IntPtr token = (IntPtr)opener.Invoke(null, new object[] { held });
             if (!CloseHandle(token)) throw new InvalidOperationException("fixture-unexpected-token-close-refused");
             return false;
         }

@@ -148,3 +148,5 @@ aegis_landing.html
 !tests/main/fixtures/mcp-tls/untrusted.key
 !tests/main/fixtures/mcp-tls/untrusted.pem
 !tests/main/fixtures/mcp-tls/wrong-name.pem
+!/scripts/qualification/test-cloud-guest-network.ps1
+!/scripts/qualification/test-cloud-guest-runtime.ps1

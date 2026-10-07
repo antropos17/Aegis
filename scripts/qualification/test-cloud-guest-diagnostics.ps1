@@ -13,8 +13,12 @@ $env:TEMP = $fixture; $env:TMP = $fixture
 try {
 $dll = Join-Path $fixture 'diagnostics-controls.dll'
 $compileArgs = @('/nologo', '/target:library', '/platform:x64', '/warnaserror+', ('/out:"' + $dll + '"'),
-    ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'),
+    ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestNetwork.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'),
     ('"' + (Join-Path $project 'sidecar/session/GuestJobInventory.cs') + '"'))
+$compileArgs += @('"' + (Join-Path $PSScriptRoot 'CloudGuestRuntimeGate.cs') + '"')
+foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative')) {
+    $compileArgs += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"')
+}
 $compileExit = Invoke-CloudGuestNativeProcess $compiler $compileArgs (Join-Path $fixture 'compile.stdout') (Join-Path $fixture 'compile.stderr') 10000
 if ($compileExit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 1MB) { throw 'focused-native-compile-failed' }
 [void][Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
@@ -44,6 +48,8 @@ function NativeReceipt([uint32]$Exit, [bool]$Observed, [bool]$Closure, [string]$
     $receipt['pid'] = $pidValue; $receipt['birthFileTime'] = $birth
     $receipt['sid'] = 'S-1-5-21-1-2-3-1001'; $receipt['initialJobMembers'] = 1
     $receipt['heldIdentityBeforeRelease'] = $true; $receipt['atomicJobAtCreation'] = $false
+    $receipt['runtimeResumed'] = $true; $receipt['runtimeCallerAuthenticated'] = $true;
+    $receipt['runtimeInitializedBeforeProject'] = $true; $receipt['networkReceiverStartedAfterRuntimeReady'] = $true;
     $receipt['taskReleased'] = $true; $receipt['elevated'] = $false; $receipt['administratorEnabled'] = $false
     $failureValue = if ($Failure -eq '') { $null } else { $Failure }
     $hResultValue = if ($null -eq $HResult) { $null } else { [int]$HResult }
@@ -78,12 +84,27 @@ foreach ($canary in 1..2) {
     $hostProbes += @{ route = 'descendant'; action = 'read-write-delete'; exitCode = 0; processFailed = $false }
 }
 $claimedSuccess = @{ schemaVersion = 1; task = 'fixed-read-edit-test'; passed = $true; stage = 'completed'; failure = $null;
-    readEditTestPassed = $true; shellAndDescendantPositive = $true; protectedProbes = @($protected); hostPathProbes = @($hostProbes) }
+    networkControlsComplete = $true; readEditTestPassed = $true; shellAndDescendantPositive = $true; protectedProbes = @($protected); hostPathProbes = @($hostProbes) }
 $resultPath = Join-Path $fixture 'claimed-success.json'
 [IO.File]::WriteAllText($resultPath, ($claimedSuccess | ConvertTo-Json -Depth 8))
 $parsed = Read-CloudGuestTaskDiagnostics $resultPath
 Check ($parsed.status -eq 'verified' -and $parsed.task.passed) 'valid-result-parser-refused'
 Check ((Merge-CloudGuestTaskDiagnostics $successful $parsed $true).task.passed) 'valid-success-model-refused'
+foreach ($name in @('runtimeResumed','runtimeCallerAuthenticated','runtimeInitializedBeforeProject','networkReceiverStartedAfterRuntimeReady','taskReleased')) {
+    $changed = [Collections.Generic.Dictionary[string,object]]::new($successful)
+    $changed.Remove($name) | Out-Null
+    $captured = $null
+    try { $complete.Invoke($null, @($changed, [uint32]0, $true, $true, $null, $null)) | Out-Null } catch { $captured = [CloudGuestProcess]::FailureReceipt($_.Exception) }
+    Check ($null -ne $captured -and !$captured.passed -and $captured.failureStage -ceq 'runtime-release-unconfirmed' -and $captured.jobClosureConfirmed) ('missing-runtime-native-observation-accepted-' + $name)
+}
+foreach ($name in @('runtimeResumed','runtimeCallerAuthenticated','runtimeInitializedBeforeProject','networkReceiverStartedAfterRuntimeReady')) {
+    foreach ($mode in @('missing','false','wrong-type')) {
+        $changed = [Collections.Generic.Dictionary[string,object]]::new($successful)
+        if($mode -eq 'missing'){ $changed.Remove($name) | Out-Null } elseif($mode -eq 'false'){ $changed[$name]=$false } else { $changed[$name]='true' }
+        $refused = Merge-CloudGuestTaskDiagnostics $changed (Read-CloudGuestTaskDiagnostics $resultPath) $true
+        Check (!$refused.passed -and !$refused.task.passed) ('runtime-task-refusal-overridden-' + $name + '-' + $mode)
+    }
+}
 Check (!(Merge-CloudGuestTaskDiagnostics $successful (Read-CloudGuestTaskDiagnostics $resultPath) $false).task.passed) 'changed-canary-accepted'
 foreach ($corpusMode in @('duplicate-labels', 'omitted-label', 'duplicate-host-cases', 'omitted-host-case', 'inconsistent-denial')) {
     $changed = $claimedSuccess | ConvertTo-Json -Depth 8 | ConvertFrom-Json
@@ -112,7 +133,7 @@ Check (!(($malformed | ConvertTo-Json -Depth 8).Contains('SECRET_SENTINEL'))) 'c
 Check ((Read-CloudGuestTaskDiagnostics $resultPath).status -eq 'guest-task-result-malformed') 'malformed-json-accepted'
 [IO.File]::WriteAllText($resultPath, (' ' * 16385))
 Check ((Read-CloudGuestTaskDiagnostics $resultPath).status -eq 'guest-task-result-malformed') 'oversized-result-accepted'
-$failureFixture = @{schemaVersion=1;task='fixed-read-edit-test';passed=$false;stage='unit-test';failure=@{stage='unit-test';childExitCode=7};readEditTestPassed=$false;shellAndDescendantPositive=$false;hostPathProbes=@();protectedProbes=@()}
+$failureFixture = @{schemaVersion=1;task='fixed-read-edit-test';passed=$false;stage='unit-test';failure=@{stage='unit-test';childExitCode=7};networkControlsComplete=$false;readEditTestPassed=$false;shellAndDescendantPositive=$false;hostPathProbes=@();protectedProbes=@()}
 [IO.File]::WriteAllText((Join-Path $fixture 'unit-test-result.json'), ($failureFixture | ConvertTo-Json -Depth 5))
 $taskFailure = Read-CloudGuestTaskDiagnostics (Join-Path $fixture 'unit-test-result.json')
 Check ($taskFailure.status -eq 'verified' -and $taskFailure.task.stage -eq 'unit-test' -and $taskFailure.task.failure.childExitCode -eq 7) 'task-failure-stage-lost'
@@ -133,3 +154,5 @@ $summary | ConvertTo-Json -Depth 5
 }
 
 & (Join-Path $PSScriptRoot 'test-cloud-guest-bootstrap.ps1')
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-network.ps1')

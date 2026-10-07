@@ -168,6 +168,23 @@ the corrected membership observation and refuse invalid or closed process handle
 The combined maintained entrypoint passes the preceding 151 controls and these
 four controls. Actual standard-user task completion requires the cloud retry.
 
+The combined runtime revision resumes only a fixed trusted Node bootstrap. An
+OS-authenticated pipe client reports readiness after core-module and event-loop
+initialization; the owner rechecks the retained PID, birth time, image and original
+Job inventory before writing the fixed release acknowledgement. A separately
+owned administrator receiver starts after runtime admission and before project
+release. Its held identity, outside-task-Job membership, bounded output and final
+exit are checked independently of the task-written result.
+
+Ten guest-local loopback calibrations cover IPv4/IPv6 TCP, UDP, private DNS,
+OS localhost lookup and persistent TCP exchanges. The receiver must report exact
+counts and clean stream endings and must close after task Job closure within its
+deadline. Missing readiness, native identity, receiver or cleanup observations
+force failure. These positives do not qualify direct-egress denial, foreign host
+integration routes or full E3. Independent review passed 148 focused controls;
+integration additionally passed the maintained entrypoint, twelve task-source
+controls and lint. Actual combined guest observations require a separate run.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

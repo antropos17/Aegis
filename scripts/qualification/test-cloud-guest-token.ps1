@@ -13,6 +13,8 @@ try {
     $arguments = @('/nologo', '/target:library', '/platform:x64', '/warnaserror+', ('/out:"' + $dll + '"'),
         ('"' + (Join-Path $PSScriptRoot 'CloudGuestProcess.cs') + '"'), ('"' + (Join-Path $PSScriptRoot 'CloudGuestTokenFixture.cs') + '"'),
         ('"' + (Join-Path $project 'sidecar/session/GuestJobNative.cs') + '"'), ('"' + (Join-Path $project 'sidecar/session/GuestJobInventory.cs') + '"'))
+    foreach ($leaf in @('CloudGuestRuntimeGate.cs','CloudGuestNetwork.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
+    foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $exit = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000
     if ($exit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 1MB) { throw 'token-native-compile-failed' }
     $assembly = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
@@ -26,7 +28,13 @@ try {
     foreach ($closed in @($false, $true)) {
         if (!$type.GetMethod('RefusesInvalid').Invoke($null, @($closed))) { throw 'invalid-held-process-accepted' }
     }
-    @{passed=$true;cases=4;queryOnly=$old;actualLauncher=$current;invalidAndClosedHandlesRefused=$true;
+    $receiver = $type.GetMethod('ObserveReceiver').Invoke($null, @())
+    if (!$receiver.membershipObserved -or !$receiver.sidMatches -or $receiver.administratorEnabled -isnot [bool] -or
+        $receiver.administratorEnabled -ne $receiver.baselineAdministratorEnabled) { throw 'actual-receiver-token-membership-failed' }
+    foreach ($closed in @($false,$true)) {
+        if (!$type.GetMethod('RefusesInvalidReceiver').Invoke($null, @($closed))) { throw 'invalid-receiver-held-process-accepted' }
+    }
+    @{passed=$true;cases=7;actualReceiverOpener=$receiver;queryOnly=$old;actualLauncher=$current;invalidAndClosedHandlesRefused=$true;
         powerShell=$PSVersionTable.PSVersion.ToString();nativeCompiledWarningsAsErrors=$true;currentProcessOnly=$true;
         childLaunchAccountAclOrVmEffects=$false;launchAllowed=$false} | ConvertTo-Json -Depth 5
 } finally {

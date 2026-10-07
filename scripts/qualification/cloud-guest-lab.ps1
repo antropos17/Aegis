@@ -81,7 +81,7 @@ try {
         $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5; $computer = Get-CimInstance Win32_ComputerSystem -OperationTimeoutSec 5
         $report.host = @{ caption = $os.Caption; build = $os.BuildNumber; admin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); hypervisorPresent = $computer.HypervisorPresent; memoryBytes = [long]$computer.TotalPhysicalMemory; vmms = (Get-Service vmms).Status.ToString() }
         if (!$report.host.admin -or $report.host.vmms -ne 'Running' -or [long]$os.FreePhysicalMemory * 1024 -lt 6GB) { throw 'cloud-hyperv-admin-memory-unavailable' }
-        foreach ($relative in @('scripts/qualification/cloud-guest-lab.ps1', 'scripts/qualification/cloud-guest-vm.ps1', 'scripts/qualification/cloud-guest-media.ps1', 'scripts/qualification/cloud-guest-bootstrap.ps1', 'scripts/qualification/cloud-guest-task.cjs', 'scripts/qualification/cloud-hyperv-operations.ps1')) {
+        foreach ($relative in @('scripts/qualification/cloud-guest-lab.ps1', 'scripts/qualification/cloud-guest-vm.ps1', 'scripts/qualification/cloud-guest-media.ps1', 'scripts/qualification/cloud-guest-bootstrap.ps1', 'scripts/qualification/cloud-guest-task.cjs', 'scripts/qualification/cloud-hyperv-operations.ps1', 'scripts/qualification/protocol.cjs', 'scripts/qualification/receiver.cjs', 'scripts/qualification/client.cjs', 'scripts/qualification/cloud-guest-runtime.cjs')) {
             $file = Get-Item -LiteralPath (Join-Path $project $relative) -Force
             if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'script-source-budget-failed' }
             $report.sourceHashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -91,7 +91,7 @@ try {
     Stage 'compile-fixed-native-helpers' {
         Add-Type -Path (Compile 'metadata.dll' @('scripts/qualification/CloudGuestMetadata.cs') @('System.Net.Http.dll'))
         Add-Type -Path (Compile 'vm-owner.dll' @('scripts/qualification/CloudGuestVm.cs', 'scripts/qualification/CloudGuestBootDiagnostics.cs', 'sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs') @('System.Management.dll'))
-        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
+        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
         Copy-Item -LiteralPath $guestDll -Destination (Join-Path $OutputRoot 'transfer\guest-process.dll')
     } | Out-Null
     $report.media = Stage 'pinned-media-download-and-hash' {
@@ -126,7 +126,7 @@ try {
         $exitCode = Invoke-CloudGuestNativeProcess $node.FullName @('--version') $versionFile $errorFile 5000
         if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
         $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
-        foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
         $canaryEntries = @()
         foreach ($index in 1..2) {
             $selected = Join-Path $OutputRoot ('canaries\' + [guid]::NewGuid().ToString('N') + '.txt')
