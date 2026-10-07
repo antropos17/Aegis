@@ -3,7 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const { runFixed } = require('./cloud-guest-git.cjs');
-const root = path.resolve(__dirname, '..');
 if (process.argv.length !== 4) throw new Error('owned-runtime-and-temp-paths-required');
 const runtime = path.resolve(process.argv[2]);
 const temp = path.resolve(process.argv[3]);
