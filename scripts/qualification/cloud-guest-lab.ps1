@@ -19,7 +19,7 @@ $id = $null; $owner = $null; $unknown = $false; $createAttempted = $false; $abse
 $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaRoot 'answer.iso'
 $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard-user-lab'; startedAt = [DateTime]::UtcNow.ToString('o'); sourceSha = $env:EXPECTED_SOURCE_SHA;
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
-    media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null;
+    media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
 function RecordDisk([string]$Phase) {
@@ -33,9 +33,9 @@ function Stage([string]$StageName, [scriptblock]$Operation) {
     try { $value = & $Operation; $report.stages.Add(@{ stage = $StageName; passed = $true; milliseconds = $watch.ElapsedMilliseconds }); return $value }
     catch {
         # Never publish dynamic guest error text: remote errors can carry credentials.
-        $code = if ($_.Exception.Message -cmatch '^[a-z][a-z0-9-]{2,80}(:[0-9]{1,10})?$') { $_.Exception.Message } else { 'bounded-stage-failed' }
-        $report.stages.Add(@{ stage = $StageName; passed = $false; code = $code; milliseconds = $watch.ElapsedMilliseconds; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() })
-        $report.failure = @{ stage = $StageName; code = $code; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() }; throw
+        $detail = Get-CloudGuestFailureDetails $_.Exception
+        $report.stages.Add(@{ stage = $StageName; passed = $false; code = $detail.code; milliseconds = $watch.ElapsedMilliseconds; hResult = $detail.hResult; exceptionType = $detail.exceptionType; innerDepth = $detail.innerDepth; category = $_.CategoryInfo.Category.ToString() })
+        $report.failure = @{ stage = $StageName; code = $detail.code; hResult = $detail.hResult; exceptionType = $detail.exceptionType; innerDepth = $detail.innerDepth; category = $_.CategoryInfo.Category.ToString() }; throw
     }
     finally { $watch.Stop(); Write-Host ('stage-end ' + $StageName + ' ' + [DateTime]::UtcNow.ToString('o')) }
 }
@@ -167,7 +167,20 @@ try {
         $running = $owner.Start(); $report.startOperation = $owner.Operation(); $script:unknown = $owner.PendingUnknown
         if (!$running -or $unknown) { throw 'native-start-unconfirmed' }
         $report.operationSettlement = 'actual-native-start-settled'
-        for ($key = 0; $key -lt 6; $key++) { Start-Sleep -Seconds 2; $owner.SetupSpaceKey() }
+    } | Out-Null
+    Stage 'optional-fixed-setup-key-window' {
+        $report.keyboardWindow = @{ attempts = 0; completed = 0; optional = $true; failure = $null }
+        for ($key = 0; $key -lt 6; $key++) {
+            Start-Sleep -Seconds 2; $report.keyboardWindow.attempts++
+            try { if ($owner.SetupSpaceKey()) { $report.keyboardWindow.completed++ } }
+            catch {
+                $report.keyboardWindow.failure = Get-CloudGuestFailureDetails $_.Exception
+                # VM identity/current Running gates remain mandatory. A missing,
+                # ambiguous, rejected or uncertain keyboard dispatches no more keys.
+                if ($owner.PendingUnknown -or $owner.KeyboardObservation.phase -eq 'vm-observe') { throw }
+                break
+            }
+        }
     } | Out-Null
     RecordDisk 'before-guest-setup' | Out-Null
     $report.guest = Stage 'actual-guest-setup-and-standard-task' { Invoke-CloudGuestBootstrap $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') }
@@ -179,6 +192,7 @@ finally {
     $adminPassword = $null; $taskPassword = $null; $adminCredential = $null
     try {
         if ($null -ne $owner) {
+            $report.keyboard = $owner.KeyboardObservation
             if ($owner.PendingUnknown) { $unknown = $true }
             if (!$unknown) { $stopped = $owner.Stop(); $report.stopOperation = $owner.Operation(); $report.offObserved = $stopped -and $owner.ObserveOff(); $unknown = $owner.PendingUnknown }
         }

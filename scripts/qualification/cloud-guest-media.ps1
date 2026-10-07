@@ -20,6 +20,29 @@ function Assert-CloudGuestRunner {
         $env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'cloud-guest-runner-scope-refused' }
 }
 
+function Get-CloudGuestFailureDetails([Exception]$Exception) {
+    $current = $Exception; $depth = 0
+    while ($null -ne $current.InnerException -and $depth -lt 8) { $current = $current.InnerException; $depth++ }
+    # Only source-constant codes may cross the receipt boundary. Arbitrary inner
+    # messages (including strings resembling codes) are never published.
+    $allowed = @('keyboard-query-id-invalid', 'keyboard-owned-vm-not-running', 'exact-vm-keyboard-unavailable', 'keyboard-owner-mismatch',
+        'setup-key-result-missing', 'setup-key-return-unconfirmed', 'vm-provider-field-invalid', 'vm-provider-path-invalid',
+        'native-wait-input-invalid', 'native-process-deadline', 'native-exit-observation-unavailable', 'native-source-budget-failed', 'native-compile-failed',
+        'source-head-unavailable', 'source-head-mismatch', 'expected-source-required', 'cloud-disk-headroom-unavailable', 'cloud-hyperv-admin-memory-unavailable', 'script-source-budget-failed',
+        'wim-read-open-failed', 'wim-metadata-read-failed', 'wim-metadata-budget-failed', 'wim-image-count-failed', 'wim-exact-edition-unavailable', 'wim-pinned-version-mismatch',
+        'media-http-length-failed', 'media-byte-budget-failed', 'media-disk-headroom-failed', 'media-download-incomplete', 'published-media-hash-mismatch', 'pinned-media-volume-unavailable',
+        'answer-input-invalid', 'fresh-answer-output-required', 'answer-iso-budget-failed', 'answer-iso-stream-failed', 'fixed-media-source-required',
+        'trusted-node-input-invalid', 'node-version-observation-failed', 'host-read-write-control-failed', 'host-delete-control-failed', 'owned-name-preexisting', 'created-identity-unknown', 'native-start-unconfirmed',
+        'guest-configure-provider-unknown', 'guest-setup-disk-headroom-failed', 'guest-setup-psdirect-not-ready', 'guest-setup-or-task-deadline', 'guest-bootstrap-failed',
+        'guest-edition-version-mismatch', 'guest-readiness-observation-failed', 'guest-transfer-manifest-invalid', 'guest-transfer-hash-mismatch', 'answer-dvd-ejection-unconfirmed',
+        'setup-secret-cleanup-unconfirmed', 'guest-result-budget-failed', 'guest-controls-unconfirmed', 'guest-job-inventory-unavailable', 'trusted-guest-bootstrap-required',
+        'job-create', 'job-limits', 'standard-user-create', 'job-assign', 'held-token-open', 'held-token-sid', 'held-token-admin', 'held-token-elevation', 'held-image', 'task-resume', 'task-deadline', 'task-exit', 'guest-job-closure')
+    $parts = $current.Message.Split(':')
+    $fixed = $parts.Count -le 2 -and $allowed -ccontains $parts[0] -and ($parts.Count -eq 1 -or $parts[1] -cmatch '^[0-9]{1,10}$')
+    $code = if ($fixed) { $current.Message } else { 'bounded-stage-failed' }
+    return @{ code = $code; hResult = $current.HResult; exceptionType = $current.GetType().FullName; innerDepth = $depth }
+}
+
 function Get-CloudGuestImageMetadata([string]$Text) {
     if ([Text.Encoding]::Unicode.GetByteCount($Text) -gt 1MB) { throw 'wim-metadata-budget-failed' }
     $settings = [Xml.XmlReaderSettings]::new()

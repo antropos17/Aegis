@@ -10,6 +10,8 @@ public sealed class CloudGuestVm : IDisposable
     private readonly OwnedVmLifecycle owner;
     public bool PendingUnknown { get { return owner.PendingUnknown; } }
     public string VmId { get { return owner.VmId.ToString("D"); } }
+    public Dictionary<string, object> KeyboardObservation { get; private set; }
+    private int keyboardCalls;
     public CloudGuestVm(string id)
     {
         Guard(); Guid parsed;
@@ -38,28 +40,83 @@ public sealed class CloudGuestVm : IDisposable
             { "failureReason", owner.FailureReason }, { "failureHResult", owner.FailureHResult }
         };
     }
-    public void SetupSpaceKey()
+    internal static string KeyboardQuery(string id)
+    {
+        Guid parsed;
+        if (!Guid.TryParseExact(id, "D", out parsed) || parsed == Guid.Empty) throw new InvalidOperationException("keyboard-query-id-invalid");
+        return "SELECT * FROM Msvm_Keyboard WHERE SystemName='" + parsed.ToString("D") + "'";
+    }
+    internal static bool KeyboardIdentity(string id, string creationClass, string systemClass, string systemName)
+    {
+        return String.Equals(creationClass, "Msvm_Keyboard", StringComparison.Ordinal) &&
+            String.Equals(systemClass, "Msvm_ComputerSystem", StringComparison.Ordinal) &&
+            String.Equals(systemName, id, StringComparison.OrdinalIgnoreCase);
+    }
+    internal static bool KeyCompleted(object code)
+    {
+        uint value = VmManagementNative.UInt32Value(code);
+        if (value == 0) return true;
+        if (value == 32775) return false; // Documented terminal InvalidState, retry only in fixed window.
+        throw new InvalidOperationException("setup-key-return-unconfirmed");
+    }
+    public bool SetupSpaceKey()
     {
         Guard();
+        KeyboardObservation = new Dictionary<string, object> {
+            { "call", ++keyboardCalls }, { "phase", "vm-observe" }, { "count", null }, { "class", "Msvm_Keyboard" },
+            { "systemNameMatch", false }, { "vmRunningObserved", false }, { "keyCode", 32U },
+            { "returnCode", null }, { "completed", false }, { "hResult", null }, { "managementStatus", null }
+        };
         // Fixed key through the exact VM's associated virtual keyboard; no host UI.
         var scope = new ManagementScope(@"\\.\root\virtualization\v2", new ConnectionOptions { Timeout = TimeSpan.FromSeconds(5) });
-        string query = "ASSOCIATORS OF {Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\",Name=\"" + VmId + "\"} WHERE ResultClass=Msvm_Keyboard";
-        using (var search = new ManagementObjectSearcher(scope, new ObjectQuery(query), new EnumerationOptions { Timeout = TimeSpan.FromSeconds(5), ReturnImmediately = false }))
+        try
+        {
+        // Verify this exact VM remains Running before every fixed key/retry.
+        using (var vm = new ManagementObject(scope, new ManagementPath("Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\",Name=\"" + VmId + "\""), new ObjectGetOptions { Timeout = TimeSpan.FromSeconds(5) }))
+        {
+            vm.Get(); VmManagementNative.ValidatePath(vm.Path.Path, "Msvm_ComputerSystem");
+            if (!String.Equals(vm["Name"] as string, VmId, StringComparison.OrdinalIgnoreCase) || VmManagementNative.UInt16Value(vm["EnabledState"]) != 2) throw new InvalidOperationException("keyboard-owned-vm-not-running");
+            KeyboardObservation["vmRunningObserved"] = true;
+        }
+        KeyboardObservation["phase"] = "query";
+        using (var search = new ManagementObjectSearcher(scope, new ObjectQuery(KeyboardQuery(VmId)), new EnumerationOptions { Timeout = TimeSpan.FromSeconds(5), ReturnImmediately = true }))
         using (var objects = search.Get())
         {
+            KeyboardObservation["count"] = objects.Count;
             if (objects.Count != 1) throw new InvalidOperationException("exact-vm-keyboard-unavailable");
             foreach (ManagementObject keyboard in objects)
             using (keyboard)
             {
-                if (!String.Equals(Convert.ToString(keyboard["SystemName"]), VmId, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("keyboard-owner-mismatch");
+                KeyboardObservation["phase"] = "identity";
+                VmManagementNative.ValidatePath(keyboard.Path.Path, "Msvm_Keyboard");
+                bool matched = KeyboardIdentity(VmId, keyboard["CreationClassName"] as string, keyboard["SystemCreationClassName"] as string, keyboard["SystemName"] as string);
+                KeyboardObservation["systemNameMatch"] = matched;
+                if (!matched) throw new InvalidOperationException("keyboard-owner-mismatch");
                 using (var input = keyboard.GetMethodParameters("TypeKey"))
                 {
                     input["keyCode"] = 32U;
+                    KeyboardObservation["phase"] = "invoke";
                     using (var result = keyboard.InvokeMethod("TypeKey", input, new InvokeMethodOptions { Timeout = TimeSpan.FromSeconds(5) }))
-                        if (result == null || VmManagementNative.UInt32Value(result["ReturnValue"]) != 0) throw new InvalidOperationException("setup-key-not-synchronously-confirmed");
+                    {
+                        if (result == null) throw new InvalidOperationException("setup-key-result-missing");
+                        uint code = VmManagementNative.UInt32Value(result["ReturnValue"]);
+                        KeyboardObservation["returnCode"] = code;
+                        bool completed = KeyCompleted(code); KeyboardObservation["completed"] = completed;
+                        KeyboardObservation["phase"] = completed ? "completed" : "terminal-invalid-state";
+                        return completed;
+                    }
                 }
             }
         }
+        }
+        catch (Exception error)
+        {
+            KeyboardObservation["hResult"] = error.HResult;
+            var management = error as ManagementException;
+            if (management != null) KeyboardObservation["managementStatus"] = (int)management.ErrorCode;
+            throw;
+        }
+        throw new InvalidOperationException("exact-vm-keyboard-unavailable");
     }
     public void Dispose() { owner.Dispose(); }
 }

@@ -32,6 +32,13 @@ $report = @{ stages = [Collections.Generic.List[object]]::new(); failure = $null
 $name = 'aegis-cloud-123-1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 $observedName = Stage 'create-exact-owned-vm' { return $name }
 Require ($observedName -ceq $name -and $report.stages[0].stage -ceq 'create-exact-owned-vm'); $passed++
+$inner = [InvalidOperationException]::new('keyboard-owner-mismatch')
+$wrapped = [Exception]::new('arbitrary wrapper text must stay private', $inner)
+$details = Get-CloudGuestFailureDetails $wrapped
+Require ($details.code -ceq 'keyboard-owner-mismatch' -and $details.innerDepth -eq 1 -and $details.hResult -eq $inner.HResult); $passed++
+foreach ($text in @('lowercase-secret-shaped-string', 'private Credential Aa1!example', 'keyboard-owner-mismatch:secret')) {
+    Require ((Get-CloudGuestFailureDetails ([Exception]::new($text))).code -ceq 'bounded-stage-failed'); $passed++
+}
 # Actual bounded PS5.1 native process controls; no media, guest or VM operation.
 $temporary = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
 $testRoot = Join-Path $temporary ('aegis-guest-wait-' + [guid]::NewGuid().ToString('N'))
@@ -72,4 +79,4 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntheticCases = 12; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 16; nativeProcessCases = 3; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
