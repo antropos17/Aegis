@@ -2,56 +2,22 @@
 
 AEGIS is an Electron desktop app that monitors local AI agents, with a Svelte renderer and Vitest tests.
 
-Explicit user instructions take precedence over anything in AGENTS.md or a skill file; if a repository file causes you to pause or leave work unfinished, name the file and quote the line.
+Explicit user instructions take precedence over repository guidance. If a repository instruction blocks requested work, name its file and quote the rule.
 
-## Frontend transition
+## Read for the task
 
-The desktop and preview share `frontend/observatory/`. Read its `AGENTS.md` and `DESIGN.md` before visual work. `npm start` builds the production entry in `dist/renderer`; `npm run dev` is an explicitly simulated preview. Legacy renderer computations and regression fixtures remain under `src/renderer/lib/`; the old shell, components, fonts and styles have been removed.
+- Code or documentation changes and reviews: read [CODING_STANDARDS.md](CODING_STANDARDS.md).
+- Checkout isolation, source navigation, dependency setup, verification or the PR cycle: read the relevant sections of [Development workflow](docs/development/workflow.md).
+- Observatory frontend work: also read [its instructions](frontend/observatory/AGENTS.md); they identify the visual authority and host-integration rules.
+- Identity stamping, snapshot-session or sequence-rule changes: read the runtime invariants in [CODING_STANDARDS.md](CODING_STANDARDS.md#runtime-invariants).
+- Identity stamping, audit-chain or Windows worktree work: read the relevant history in [memory-bank/ai-mistakes.md](memory-bank/ai-mistakes.md).
 
-## Project facts
+## Permissions and boundaries
 
-For a current, compact checkout inventory run `npm run dev:context` and read `out/development/context.md`. It records the commit, dirty state and source digest; regenerate after changes. Search history by the affected module instead of loading all of `memory-bank/progress.md`. `docs/development/workflow.md` explains optional dependency/IPC maps, check selection and local security tooling. These reports describe static scope and never substitute for executed checks.
-
-`src/main/` contains 209 main modules: 185 top-level + platform/ 22 + token-adapters/ 2. Platform-specific operations live in `src/main/platform/`. `src/main/preload.js` exposes 49 invoke + 11 push = 60 IPC channels through contextBridge. `src/shared/types/` contains 9 TS files. These counts are derived by `npm run counts:check`.
-
-A birth time is observed on the pass that stamps it or is `null`; no cache stores one. A snapshot outage freezes sessions and never splits them. For changes touching identity stamping, the audit chain, or the Windows git worktree flow, `memory-bank/ai-mistakes.md` holds the relevant failure history.
-
-Sequence rules are consumed through five scan taps in `src/main/main.js` and `src/main/scan-loop.js`, hot-reloaded through `setupSequenceRulesWatcher` in `src/main/file-watcher.js`, and verified by `npm run verify:seq-gate`.
-
-## Code conventions
-
-- Main uses CommonJS (`require`/`module.exports`); renderer uses ES modules (`import`/`export`). Main stays JavaScript with JSDoc; new renderer files use TypeScript without `any`.
-- Use Svelte runes (`$state`, `$derived`, `$effect`, `$props`). Preserve the approved template hierarchy and shared styles imported by `frontend/observatory/styles.ts`; use scoped CSS for additional behavior. The visual source is `frontend/observatory/reference/`, not historical UI plans.
-- Exported functions have JSDoc (`@param`, `@returns`, `@since`). Dependency injection uses `init(deps)`; test seams use `_setDepsForTest()` / `_resetForTest()`.
-- Split paths with `/[/\\]/` and use the platform abstraction for OS-specific operations.
-- Aim for 300 lines in new files. Do not split an existing file solely to meet the target; extract when adding to an oversized file.
-
-## Verification
-
-Install dependencies with `npm ci`. The root `tsconfig.json` is a solution file with an empty file list: bare `npx tsc --noEmit` checks nothing and exits 0. Use `npm run typecheck` for main, retained renderer code and Observatory; `npm run typecheck:svelte` checks Svelte templates.
-
-The five required contexts in `.github/workflows/ci.yml` run these 10 verification commands after dependency installation:
-
-| Context | Checks |
-| --- | --- |
-| build | `npm run build:renderer` |
-| lint | `npm run format:check`, `npm run lint` |
-| svelte-check | `npm run typecheck`, `npm run typecheck:svelte` |
-| test | `npm run test:coverage`, `npm run verify:gate`, `npm run verify:seq-gate`, `npm run counts:check` |
-| audit | `npm audit --audit-level=high --omit=dev` |
-
-## Permission grant
-
-The local test suite uses disposable fixtures and has no production access. Run it, fix failures caused by the requested change, and rerun affected tests without asking. Do not write tests for reversible low-impact changes that mirror the implementation. Run the checks the change warrants and stop there once required checks pass.
-
-The full git cycle is authorised in advance: branch from `origin/master`, commit, push, open the PR, wait for the five required contexts above, and run `gh pr merge <n> --merge --delete-branch`. Keep the PR up to date with master. Use conventional commits and feature branches; keep each PR to one logical task. `.codex/hooks/branch-guard.js` blocks edits on master. No Co-Authored-By or "Generated with" attribution in commits or PRs.
-
-## Stopping rules
+Local fixture tests and the full git cycle (branch from `origin/master`, commit, push, open a PR and merge) are authorised in advance. Follow the development workflow and wait for all required CI contexts before merging.
 
 Human authorisation is required for cutting a release tag, force pushing, regenerating the lockfile, deleting a remote branch other than the one just merged, or changing anything under `.github/workflows/` or `.codex/config.toml`. An explicit user request for that action supplies the authorisation.
 
-## Writing style
+## Writing
 
-Prefer prose over lists unless the items are genuinely parallel.
-Use no superlatives and make no claim that is not measured.
-Avoid contrastive "X, not Y" framing.
+Prefer prose unless items are genuinely parallel. Use measured claims, avoid superlatives and contrastive "X, not Y" framing.
