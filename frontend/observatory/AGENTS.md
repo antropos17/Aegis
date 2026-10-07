@@ -1,6 +1,6 @@
 # Observatory
 
-This is the Svelte integration of the approved Observatory template. Follow DESIGN.md and reference/README.md. The preserved template remains the visual authority; an implementation difference is not a new approval. New files use TypeScript without any. Use the complete original stylesheet order in styles.ts and preserve the template's markup hierarchy and local artwork. Additional host behavior uses scoped CSS.
+This is the Svelte integration of the approved Observatory template. Read ../../CODING_STANDARDS.md before code changes or reviews. Follow DESIGN.md and reference/README.md. The preserved template remains the visual authority; an implementation difference is not a new approval. Use the complete original stylesheet order in styles.ts and preserve the template's markup hierarchy and local artwork.
 
 Desktop and preview mount the same App.svelte. entry.ts uses the build-time preview constant; production must never import simulated telemetry. runtime/host.ts owns telemetry subscriptions, seed revision guards, freshness and disposal. Bind commands to the actual preload methods and require their documented success result.
 
