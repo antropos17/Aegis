@@ -134,7 +134,7 @@ function run(mode) {
     if (args[0] === "/d" && args[2].includes("positive.txt"))
       return {
         status: mode === "shell-control-fails" ? 1 : 0,
-        stdout: Buffer.from("guest-scratch-control"),
+        stdout: Buffer.from(mode === "shell-marker-mismatch" ? "unapproved-marker" : "guest-scratch-control"),
       };
     return { status: args[0] === "-e" ? 0 : 1 };
   };
@@ -196,6 +196,7 @@ for (const mode of [
   "wrong-work",
   "protection-open",
   "shell-control-fails",
+  "shell-marker-mismatch",
   "unit-test-nonzero",
   "input-private-error",
   "network-nonzero",
@@ -207,6 +208,11 @@ for (const mode of [
   const refused = run(mode);
   assert.equal(refused.result.passed, false, mode);
   assert.equal(refused.process.exitCode, 1, mode);
+  if (mode === "shell-control-fails" || mode === "shell-marker-mismatch") {
+    assert.equal(refused.result.stage, "shell-descendant");
+    assert.equal(refused.result.failure.childExitCode, mode === "shell-control-fails" ? 1 : 0);
+    assert.equal(refused.files.has(path.join(root, "scratch", "positive-child.txt")), false);
+  }
   if (mode.startsWith("git-")) {
       assert.equal(refused.result.stage, "git");
       assert.equal(refused.result.readEditTestPassed, true);
@@ -255,8 +261,8 @@ for (const mode of ["route-partial", "route-nonzero", "route-deadline", "route-m
 
 console.log(
   JSON.stringify({
-    cases: 24,
-    passed: 24,
+    cases: 25,
+    passed: 25,
     scope: "synthetic-task-source-behavior-no-guest-or-VM-effects",
   }),
 );

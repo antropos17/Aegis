@@ -37,6 +37,9 @@ function fixedCode(error) {
 function child(exe, args) {
   const value = spawnSync(exe, args, {
     windowsHide: true,
+    // CMD consumes a fixed command string; libuv argv escaping inserts literal
+    // backslashes before its embedded quotes. Direct Node argv keeps escaping.
+    windowsVerbatimArguments: exe === "C:\\Windows\\System32\\cmd.exe",
     timeout: 10000,
     maxBuffer: 8192,
     cwd: path.join(root, "scratch"),
@@ -188,13 +191,14 @@ try {
     "/c",
     'type "' + scratch + '"',
   ]);
+  if (ownShell.failed || ownShell.exitCode !== 0 || !ownShell.stdout.includes("guest-scratch-control"))
+    throw new Error("shell-positive-control");
   const ownChild = child(process.execPath, [
     "-e",
     'require("fs").writeFileSync("positive-child.txt","descendant-control")',
   ]);
   if (
-    ownShell.exitCode !== 0 ||
-    !ownShell.stdout.includes("guest-scratch-control") ||
+    ownChild.failed ||
     ownChild.exitCode !== 0 ||
     fs.readFileSync(
       path.join(root, "scratch", "positive-child.txt"),

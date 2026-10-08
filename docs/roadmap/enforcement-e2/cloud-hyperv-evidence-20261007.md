@@ -591,3 +591,59 @@ output. It executed the final 21 receiver controls together with the native
 startup, loader, token, cleanup, network, Git, Claude and witness fixture checks.
 Changed receiver JavaScript files also passed ESLint. This combined local check
 does not replace the next actual VM observation.
+
+## Actual initialized runtime and useful task progress
+
+Run [37719625461](https://github.com/antropos17/Aegis/actions/runs/37719625461)
+at `c13159e6` passed hosted preflight and all five CI contexts. Independent Astra
+review matched all 51 repository-source hashes and the declared Git archive pin.
+The 112,205-byte receipt, SHA-256
+`88de5fc81742f2d000bfcbb6885ba938dceb1bd5e3aac1d8b4a97df8f138abc2`,
+is retained in the twenty-three-entry index. The overall cloud run failed later
+in the fixed task; that result is preserved.
+
+Actual runtime authentication and startup sealing succeeded. The initial held
+Job contained one process; both later censuses and total/active/retained counts
+were two. The one late system console host passed exact native image, principal,
+session, elevation and all-attributes administrator checks. Its held PID was
+2564 and birth was 134359019121272120. The owner recorded sealed/complete,
+initialized runtime before project code, and successful project release.
+
+The task then read and edited the admitted project and passed its Node test.
+Ten loopback calibration cases matched receiver observations. Its shell/descendant
+positive control failed, producing native exit1. The task's single childExitCode0
+field belongs to the last Node child and does not prove the preceding CMD
+command succeeded. Subsequent protected-resource, host-path, Git and Claude
+phases were not completed.
+
+The raw host-route projection retains client=null and an unavailable client/oracle
+result. Reaching the later task stage implies from the fixed execution order
+that route-client.cjs had passed its local gate, but its result was not retained
+or admitted by the independent host oracle after aggregate task failure.
+No completed route-corpus or E3 acceptance follows from that inference.
+
+Retained root exit, empty Job, private desktop closure, loopback receiver closure
+and independent host receiver STOP were confirmed. VM operations settled; exact
+Off/removal and unchanged post-removal canaries were observed without cleanup
+failure. The after-task canary check was unreached.
+
+Independent Astra accepted only the exact E2.1 observational milestone for this
+authorized disposable lab: owned VM configuration and initialized guest Job/runtime
+were observed before releasing project code. E2 overall, E1/A1, persistent
+protected production ownership, complete host integration-route mediation, the
+full useful-task corpus and launch remain unaccepted.
+
+A subsequent local reproduction identified CMD argument quoting: the original
+Node spawn marshaling changed embedded command quotes. The fixed CMD producer
+passed actual read/write/delete positive controls on disposable paths where the
+baseline commands failed without effects. The next repair also checks the first
+shell result before launching the next child, preserving causal exit reporting.
+
+The five-file shell repair received independent Astra approval against freeze
+`474aed3aaf0a80b27f7075b6bf55b7d063d648fca2d49c01aa175d749830dcb4`
+and patch `e29d0d86bafb84b4af5e21a28d78bd9e2be4e166d38d5023697d568971ca1aaf`.
+The integrated checkout passed its explicit Windows PowerShell 5.1 runner:
+three actual native controls and all 25 task-source controls. Changed JavaScript
+passed ESLint. The maintained cloud preflight now includes that runner. This
+local verification establishes the quoting correction and causal failure
+reporting; the next actual guest run must establish subsequent task completion.

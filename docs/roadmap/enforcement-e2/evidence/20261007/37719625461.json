@@ -1,0 +1,1418 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-08T02:48:34.1388533Z",
+    "sourceSha":  "c13159e615b744db773905e54408bf07cf7627a9",
+    "actualHead":  "c13159e615b744db773905e54408bf07cf7627a9",
+    "sourceObservation":  {
+                              "exitCode":  0,
+                              "stderrBytes":  0,
+                              "headBytes":  41
+                          },
+    "sourceHashes":  {
+                         "scripts/qualification/cloud-guest-lab.ps1":  "21d76dd83ae54c047bf97e4287a4745d3b438c6d5acb6b0ff5f6b77f40411527",
+                         "scripts/qualification/cloud-guest-vm.ps1":  "7f3869e99484cb505a1c3201f0f49300d6101e80f12f739aa0a5f43fd9251483",
+                         "scripts/qualification/cloud-guest-media.ps1":  "64233331f34c4661ad4a2ffec01a96bdecc8d8816ed63fa81a2f0579306459cd",
+                         "scripts/qualification/cloud-guest-bootstrap.ps1":  "fd4b72bb12425d2ba50ed2de05748032804d3a9ea5b9ac0901a877f18a5842f0",
+                         "scripts/qualification/cloud-guest-task.cjs":  "4f59da272ac8a05572611b1b18f63f5cfdcec2e47ef190375fc0646839218b62",
+                         "scripts/qualification/cloud-hyperv-operations.ps1":  "d579cc11c571d64e0e18082a365df88c82e889569095ba76b6bb703cfbf15851",
+                         "scripts/qualification/protocol.cjs":  "24efc8cee42db7b52c827edf8f6ec3b722096f0ecbbc983a8d2eeda38cc96bdc",
+                         "scripts/qualification/receiver.cjs":  "f8d8b0dde11c9b9dcabb26b731c03ed151656bad7c06d1103ddb4d95be3588dd",
+                         "scripts/qualification/client.cjs":  "1cfebff9d35e1366f1e9f6657ed22b5ff1eb7f45034c7ffa8e63554384bef123",
+                         "scripts/qualification/cloud-guest-runtime.cjs":  "ddd3e94a732d1c21b5f0d74581bd71b6d8180d4358c5fbed3ec2f827804700bc",
+                         "scripts/qualification/cloud-host-routes.ps1":  "63da92925ebaf4f36b6f710241cd2f53551a125739eeb3afa74fbd9b9510151a",
+                         "scripts/qualification/route-protocol.cjs":  "06a3489be7ed6a2e2bb2e525b994c99947fe52254c9e7c4b53bf772a1fa973b6",
+                         "scripts/qualification/route-client.cjs":  "a2e0730f02f1dba7748bcd7856197896d55cc8d8e020398b1138d0e6188008e1",
+                         "scripts/qualification/route-receiver.cjs":  "6dcb13e2a0d5adfaafc3198f0ebfce0a4b240bd35aa1e42d428a00eaf6674cf0",
+                         "scripts/qualification/route-oracle.cjs":  "0d03ff442b83fe58ea599ee0c5267b3ad6b07668d976cb5c5c4e422f303ccb96",
+                         "scripts/qualification/cloud-guest-git.cjs":  "2d9669001b29236851ad0370813441f5d13cdda16190d212f3f1e233bde88f68",
+                         "scripts/qualification/cloud-guest-git.ps1":  "caffc5c42541f7a0918722fce324663244652b16b22302bac795075739b0243a",
+                         "scripts/qualification/git-runtime-manifest.json":  "6ed3934c5749d726a45c488e8e31f1b97b64522a1dc1d56d7640a87129821042",
+                         "scripts/qualification/cloud-guest-claude-public.ps1":  "2d8b42ce1bee3e7bc420fa0b8bcca9faaf449482cc4ce1f6af0501d93d4bb3db",
+                         "scripts/qualification/cloud-guest-claude-phase.ps1":  "030747484e7d7514c49f987181e954bbb54e1423b014cd9ec2eba3c7feacb6b4",
+                         "scripts/qualification/cloud-guest-claude-bootstrap.ps1":  "2bdb743ddd91ef564adb745fcd83f092e2261739729f829464f93874aafa7edc",
+                         "scripts/qualification/claude-protocol.cjs":  "03a2ac1376d28378d97a775f5a7d0f95993516551ee9369b07857c9f49072327",
+                         "scripts/qualification/claude-receiver.cjs":  "e463be950650e15bc4a48d75d62add39965a53b13186d3d78ba0127972ee8d6f",
+                         "scripts/qualification/claude-task.cjs":  "035e637d0d63e8386e6ca6e0086329166ee7b9e27b7f7792fc7b64db575510a5",
+                         "scripts/qualification/claude-runtime.cjs":  "dec48f37214b11e1a8cda79d1d6d25927056c9d42c143e49dbf0613aa2564786",
+                         "scripts/qualification/claude-sum.test.cjs":  "cab654fbcdf04e6925d1f215eae8cbb9a2f1cb9adb94cc2004ff95f088a66229",
+                         "scripts/qualification/claude-test-witness-runtime.cjs":  "f5accb6203171a7863dee220b2856a0522e2e8a539073106f83cd49e9a9d6ec9",
+                         "scripts/qualification/claude-test-witness.cjs":  "88f566d984813ba5413c54000bbead738e33abf44e7835ddc16666cabc60cbe7",
+                         "scripts/qualification/claude-public/provenance.ps1":  "04b56dd4c32bee544da646d692bcfc1f3c21baf428227bf145fb0301c9a349db",
+                         "scripts/qualification/claude-public/official-manifest.json":  "64f5abe05a43151810acf8c25169872e41293c96d3ae73d6508733a8b336e2b1",
+                         "scripts/qualification/claude-public/official-manifest.json.sig":  "537e1a8bcca1646fd5e52d3dc8d16509395a88f6f18b13765b2c085d057567ea",
+                         "scripts/qualification/claude-public/official-release-key.asc":  "bd70a5e4a268002704024ceba7f8446024114e94f3f0bdd11c23a9e592be81c6",
+                         "scripts/qualification/CloudGuestMetadata.cs":  "af0bac0dd7c36d5c26c2d1d0f4d7ff2a205f1955c4c9f843ae8e0de03a2b4ec8",
+                         "scripts/qualification/CloudGuestVm.cs":  "f4ee6379fb11ae3d7e3fb1f57542ff798d56af0126420f2b4a9d0780c91f766c",
+                         "scripts/qualification/CloudGuestBootDiagnostics.cs":  "111fd772d8d8de10a22acf3d71707fef3bc1b4f990e9c0ff94d7a70fcb306154",
+                         "sidecar/session/OwnedVmLifecycle.cs":  "db2617156227744c90b6395d0d45ba1d0c96defe48bcd4791a10b54800635bbd",
+                         "sidecar/session/VmManagementNative.cs":  "8c63085dbdb55e64b2a71a6c70ffd1a0d1203503fc583ff341d32fed3cdff6de",
+                         "scripts/qualification/CloudGuestClaudeDownload.cs":  "02897ff088e7d50161ae5867a8d78aa8c4d8e0dc43062f37cc7346cdc877daa8",
+                         "scripts/qualification/CloudGuestProcess.cs":  "fac7b55633026b55d0175d3df6e4ab0b9b7bcb0f9be1bf9f28716bd8d4826b6a",
+                         "scripts/qualification/CloudGuestLoaderProbe.cs":  "32bb7999fa55584d5f25dc3933fb88ee45f4d6f141b4332d0afd429980929066",
+                         "scripts/qualification/CloudGuestTestWitness.cs":  "0cd0be7d17f2065ad03add2fce3924d92cadc71e8b1b6b626ca3ab7c5189a2e1",
+                         "scripts/qualification/CloudGuestDesktop.cs":  "dd209397a0a9cd53f03fd93484682d50ff6cf97019d0efc88123a73dc1bfccc7",
+                         "scripts/qualification/CloudGuestNetwork.cs":  "aef7817240dfc1804411a153fed4def61871980efb26a6f07577ae7f7cb4534a",
+                         "scripts/qualification/CloudGuestClaudeReceiver.cs":  "20405a7fc6570a49a5f4f8daa1dd11fd898f511cdfa37e6e622c25e4275ea7c7",
+                         "scripts/qualification/CloudGuestRuntimeGate.cs":  "fe0ce05fcf07d97f763103a448051da9c2ca0b7d85817c448e38da6492700be6",
+                         "sidecar/session/CallerAdmission.cs":  "7218dab5f41c1b330b49d65c0ad6d8531216abc2202e01ec39a6cfd22b3cb4be",
+                         "sidecar/session/CallerRegistration.cs":  "dc8ac9c01abe59c34e61da4ba0b6c998a28d76d9b7573670042d5431416e4b9f",
+                         "sidecar/session/CallerIdentity.cs":  "6310eadc5eba886315be91e95c4473d1697ac58254e9fbb7bcba50c1bc5d3684",
+                         "sidecar/session/CallerNative.cs":  "bf0cb2701e8df1cb9b9a731bb44de600097df22f46c397f94ea791fa1ebab925",
+                         "sidecar/session/GuestJobNative.cs":  "e77ffe912740bddddba449a5a5232db2ff1d9a136665ca54e8d4ba200ff524cf",
+                         "sidecar/session/GuestJobInventory.cs":  "9b3e6a358234aafe69742fa6db28dd798f302e2980b8d71eb15f15f194a3e131",
+                         "git-runtime.zip":  "da35e72aa21c005a5a0d298cfbae110bc1609a815730ea0dde84b01a1b3cd3be"
+                     },
+    "compilerSha256":  "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "stages":  [
+                   {
+                       "milliseconds":  1668,
+                       "stage":  "host-preflight",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  547,
+                       "stage":  "compile-fixed-native-helpers",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  60420,
+                       "stage":  "pinned-media-download-and-hash",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  4354,
+                       "stage":  "read-only-exact-wim-metadata",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  128,
+                       "stage":  "tiny-answer-iso",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  6597,
+                       "stage":  "stage-fixed-runtime-and-host-controls",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  4529,
+                       "stage":  "create-exact-owned-vm",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  4305,
+                       "stage":  "configure-supported-windows11-guest",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  1648,
+                       "stage":  "native-start-and-firmware-key",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  403,
+                       "stage":  "early-owned-host-route-snapshot",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  60581,
+                       "stage":  "optional-fixed-setup-key-window",
+                       "passed":  true
+                   },
+                   {
+                       "stage":  "actual-guest-setup-and-standard-task",
+                       "category":  "OperationStopped",
+                       "passed":  false,
+                       "code":  "guest-task-process-refused",
+                       "innerDepth":  0,
+                       "milliseconds":  455963,
+                       "exceptionType":  "System.Management.Automation.RuntimeException",
+                       "hResult":  -2146233087
+                   }
+               ],
+    "host":  {
+                 "build":  "26100",
+                 "caption":  "Microsoft Windows Server 2025 Datacenter",
+                 "vmms":  "Running",
+                 "memoryBytes":  17174360064,
+                 "hypervisorPresent":  true,
+                 "admin":  true
+             },
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128947404800,
+                                         "freeBytes":  31520354304
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  158130176,
+                                         "freeBytes":  236047241216
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-08T02:48:34.3453833Z"
+                  },
+                  {
+                      "phase":  "before-guest-setup",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128925941760,
+                                         "freeBytes":  31541817344
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  13270884352,
+                                         "freeBytes":  222934487040
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-08T02:50:59.4638128Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  128972304384,
+                                         "freeBytes":  31495454720
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  540499968,
+                                         "freeBytes":  235664871424
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-08T02:58:37.1597329Z"
+                  }
+              ],
+    "media":  {
+                  "answerIsoBytes":  55296,
+                  "license":  "Microsoft 90-day evaluation; disposable testing",
+                  "hashSource":  "https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file",
+                  "url":  "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso",
+                  "verifiedBeforeMount":  true,
+                  "bytes":  8225329152,
+                  "image":  {
+                                "version":  "10.0.26300.9457",
+                                "name":  "Windows 11 Enterprise Evaluation",
+                                "architecture":  "amd64",
+                                "metadataSource":  "read-only-WIMGAPI-file-information",
+                                "edition":  "EnterpriseEval",
+                                "imageCount":  1,
+                                "index":  1
+                            },
+                  "sha256":  "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38"
+              },
+    "runtime":  {
+                    "path":  "C:\\Program Files\\nodejs\\node.exe",
+                    "sha256":  "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e",
+                    "bytes":  86973768,
+                    "version":  "v22.23.3"
+                },
+    "hardware":  {
+                     "generation":  2,
+                     "hostGuestVhdMounted":  false,
+                     "secureBoot":  "On",
+                     "memoryBytes":  4294967296,
+                     "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                     "processors":  2,
+                     "diskVirtualBytes":  68719476736,
+                     "nics":  0,
+                     "tpmEnabled":  true,
+                     "PSComputerName":  "localhost",
+                     "RunspaceId":  "fa2a5069-6a52-4735-be17-db535e0918c2",
+                     "PSShowComputerName":  false
+                 },
+    "vmName":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+    "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+    "startOperation":  {
+                           "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                           "pendingUnknown":  false,
+                           "operationId":  "c0a0ab05-644f-4bbc-bbdb-57460e24a84a",
+                           "requestedState":  2,
+                           "returnCode":  4096,
+                           "jobPath":  "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"9A3104C5-E39E-484E-8E37-74C909543179\"",
+                           "unresolved":  false,
+                           "failureReason":  null,
+                           "failureHResult":  null
+                       },
+    "stopOperation":  {
+                          "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                          "pendingUnknown":  false,
+                          "operationId":  "3754cf0a-b418-4619-b49b-1979e1562096",
+                          "requestedState":  3,
+                          "returnCode":  4096,
+                          "jobPath":  "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"386B466F-8F46-4708-84F3-8889B1B0E01D\"",
+                          "unresolved":  false,
+                          "failureReason":  null,
+                          "failureHResult":  null
+                      },
+    "guest":  {
+                  "guestResult":  {
+                                      "schemaVersion":  1,
+                                      "guest":  {
+                                                    "caption":  "Microsoft Windows 11 Enterprise Evaluation",
+                                                    "build":  "26300",
+                                                    "version":  "10.0.26300"
+                                                },
+                                      "autoLogonDisabled":  true,
+                                      "passwordRegistryAbsent":  true,
+                                      "networkControls":  {
+                                                              "receiver":  {
+                                                                               "schemaVersion":  1,
+                                                                               "scope":  "loopback-calibration",
+                                                                               "nonceDigest":  "edfe0fbd2131c0bcf72a6fc61909fa781bfc0a2725177b22d2544cb13bf3690d",
+                                                                               "cases":  [
+                                                                                             {
+                                                                                                 "id":  "tcp4",
+                                                                                                 "received":  1,
+                                                                                                 "eof":  1
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "tcp6",
+                                                                                                 "received":  1,
+                                                                                                 "eof":  1
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "udp4",
+                                                                                                 "received":  1,
+                                                                                                 "eof":  0
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "udp6",
+                                                                                                 "received":  1,
+                                                                                                 "eof":  0
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "dns4",
+                                                                                                 "received":  1,
+                                                                                                 "eof":  0
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "dns6",
+                                                                                                 "received":  1,
+                                                                                                 "eof":  0
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "lookup4",
+                                                                                                 "received":  0,
+                                                                                                 "eof":  0
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "lookup6",
+                                                                                                 "received":  0,
+                                                                                                 "eof":  0
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "held-tcp4",
+                                                                                                 "received":  2,
+                                                                                                 "eof":  1
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "held-tcp6",
+                                                                                                 "received":  2,
+                                                                                                 "eof":  1
+                                                                                             }
+                                                                                         ],
+                                                                               "bytes":  402,
+                                                                               "packets":  10,
+                                                                               "accepted":  4,
+                                                                               "rejected":  0,
+                                                                               "receiverError":  false,
+                                                                               "closed":  true,
+                                                                               "openConnections":  0
+                                                                           },
+                                                              "passed":  true,
+                                                              "client":  {
+                                                                             "schemaVersion":  1,
+                                                                             "scope":  "loopback-calibration",
+                                                                             "nonceDigest":  "edfe0fbd2131c0bcf72a6fc61909fa781bfc0a2725177b22d2544cb13bf3690d",
+                                                                             "loopbackControlsComplete":  true,
+                                                                             "labCorpusComplete":  false,
+                                                                             "e3Qualified":  false,
+                                                                             "launchAllowed":  false,
+                                                                             "omitted":  [
+                                                                                             "direct-tcp4",
+                                                                                             "direct-tcp6",
+                                                                                             "direct-udp4",
+                                                                                             "direct-udp6",
+                                                                                             "no-route-dns4",
+                                                                                             "no-route-dns6"
+                                                                                         ],
+                                                                             "elapsedMs":  77,
+                                                                             "cases":  [
+                                                                                           {
+                                                                                               "id":  "tcp4",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "exact-echo",
+                                                                                               "closed":  true,
+                                                                                               "exchanges":  1,
+                                                                                               "elapsedMs":  5
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "tcp6",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "exact-echo",
+                                                                                               "closed":  true,
+                                                                                               "exchanges":  1,
+                                                                                               "elapsedMs":  5
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "udp4",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "exact-echo",
+                                                                                               "closed":  true,
+                                                                                               "submitted":  true,
+                                                                                               "elapsedMs":  2
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "udp6",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "exact-echo",
+                                                                                               "closed":  true,
+                                                                                               "submitted":  true,
+                                                                                               "elapsedMs":  1
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "dns4",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "owned-answer",
+                                                                                               "closed":  true,
+                                                                                               "elapsedMs":  2
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "dns6",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "owned-answer",
+                                                                                               "closed":  true,
+                                                                                               "elapsedMs":  2
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "lookup4",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "os-loopback-answer",
+                                                                                               "closed":  true,
+                                                                                               "elapsedMs":  3
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "lookup6",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "os-loopback-answer",
+                                                                                               "closed":  true,
+                                                                                               "elapsedMs":  0
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "held-tcp4",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "exact-echo",
+                                                                                               "closed":  true,
+                                                                                               "exchanges":  2,
+                                                                                               "elapsedMs":  25
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "held-tcp6",
+                                                                                               "passed":  true,
+                                                                                               "observed":  "exact-echo",
+                                                                                               "closed":  true,
+                                                                                               "exchanges":  2,
+                                                                                               "elapsedMs":  31
+                                                                                           }
+                                                                                       ]
+                                                                         },
+                                                              "labCorpusComplete":  false,
+                                                              "status":  "verified-loopback-controls",
+                                                              "launchAllowed":  false,
+                                                              "e3Qualified":  false
+                                                          },
+                                      "bootstrapInvocation":  {
+                                                                  "invocationAttempted":  true,
+                                                                  "category":  null,
+                                                                  "line":  null,
+                                                                  "phase":  "fixed-source-returned",
+                                                                  "fullLanguage":  true,
+                                                                  "executionPolicy":  "Restricted",
+                                                                  "hResult":  null,
+                                                                  "exceptionKind":  null
+                                                              },
+                                      "setupAnswerCachesAbsent":  true,
+                                      "taskResultStatus":  "verified",
+                                      "failureCode":  "guest-task-process-refused",
+                                      "gitControls":  {
+                                                          "scope":  "fixed-disposable-git",
+                                                          "launchAllowed":  false,
+                                                          "e2Qualified":  false,
+                                                          "e6Qualified":  false,
+                                                          "passed":  false
+                                                      },
+                                      "downstreamChecks":  {
+                                                               "git":  "git-controls-unavailable-or-refused",
+                                                               "task":  "verified",
+                                                               "network":  "verified-loopback-controls",
+                                                               "state":  "released-closed"
+                                                           },
+                                      "identity":  {
+                                                       "ownerNodeVersionTimedOut":  false,
+                                                       "cleanupRootExitCode":  1,
+                                                       "ownerNodeVersionTerminationAttempted":  false,
+                                                       "createdThreadId":  7284,
+                                                       "networkReceiverStopSubmittedMilliseconds":  731,
+                                                       "pid":  7768,
+                                                       "clientServerAttestationQualified":  false,
+                                                       "heldProcessHandlePresent":  true,
+                                                       "networkReceiverExitMilliseconds":  771,
+                                                       "cleanupRootExitObserved":  true,
+                                                       "ownerNodeVersionPassed":  true,
+                                                       "cleanupRootWaitWin32Error":  null,
+                                                       "privateDesktopCreated":  true,
+                                                       "networkReceiverDisposalUnknown":  false,
+                                                       "networkReceiverStartedAfterHeldAdmission":  true,
+                                                       "ownerNodeVersionCleanupExitCode":  0,
+                                                       "ownerNodeVersionStderrBytes":  0,
+                                                       "atomicJobAtCreation":  false,
+                                                       "ownerNodeVersionCleanupConfirmed":  true,
+                                                       "tokenRequestedAccess":  8,
+                                                       "ownerNodeVersionCleanupExitObserved":  true,
+                                                       "networkReceiverForced":  false,
+                                                       "networkReceiverExpiredBeforeStop":  false,
+                                                       "processCreated":  true,
+                                                       "desktopAclProfile":  "documented-noninteractive-user",
+                                                       "failureHResult":  null,
+                                                       "cleanupWin32Error":  null,
+                                                       "sid":  "S-1-5-21-1039691079-1396903546-2665289618-1001",
+                                                       "networkReceiverBirthFileTime":  134359019122312635,
+                                                       "jobAssignedBeforeAdmission":  true,
+                                                       "networkReceiverReleaseMilliseconds":  124,
+                                                       "elevated":  false,
+                                                       "jobClosureConfirmed":  true,
+                                                       "networkReceiverReadyMilliseconds":  124,
+                                                       "cleanupRootExitWin32Error":  null,
+                                                       "exitCode":  1,
+                                                       "networkReceiverStoppedAfterJobClosure":  true,
+                                                       "networkReceiverStopMilliseconds":  729,
+                                                       "networkReceiverExitObserved":  true,
+                                                       "birthFileTime":  134359019121139670,
+                                                       "heldThreadHandlePresent":  true,
+                                                       "taskReleased":  true,
+                                                       "ownerImpersonationLevel":  "None",
+                                                       "failureStage":  "task-exit",
+                                                       "runtimeStartupInventory":  {
+                                                                                       "startupMemberBirthFileTime":  134359019121272120,
+                                                                                       "startupMemberPid":  2564,
+                                                                                       "afterMembers":  2,
+                                                                                       "retainedMembers":  2,
+                                                                                       "check":  "complete",
+                                                                                       "afterTotal":  2,
+                                                                                       "beforeActive":  2,
+                                                                                       "standardStartupTokenVerified":  true,
+                                                                                       "beforeTotal":  2,
+                                                                                       "afterActive":  2,
+                                                                                       "status":  "sealed",
+                                                                                       "beforeMembers":  2,
+                                                                                       "startupObservedMembers":  1,
+                                                                                       "startupImageMatched":  true
+                                                                                   },
+                                                       "administratorEnabled":  false,
+                                                       "runtimeInitializedBeforeProject":  true,
+                                                       "networkReceiverPid":  10108,
+                                                       "privateDesktopTaskRequestedAccessMask":  983247,
+                                                       "runtimeResumed":  true,
+                                                       "tokenOpened":  true,
+                                                       "heldIdentityBeforeRelease":  true,
+                                                       "creationFlags":  134218756,
+                                                       "networkReceiverAdministratorEnabled":  true,
+                                                       "ownerNodeVersionStdoutBytes":  10,
+                                                       "cleanupRootWaitCode":  0,
+                                                       "ownerNodeVersionElapsedMilliseconds":  90,
+                                                       "ownerNodeVersionStarted":  true,
+                                                       "networkReceiverExitCode":  0,
+                                                       "ownerNodeVersionExitCode":  0,
+                                                       "taskWaitMilliseconds":  60000,
+                                                       "privateDesktopHandlesClosedAfterUnassignedRootExit":  false,
+                                                       "networkReceiverStartedAfterRuntimeReady":  true,
+                                                       "networkReceiverResultWritten":  true,
+                                                       "networkReceiverOutsideTaskJob":  true,
+                                                       "privateStationTaskRequestedAccessMask":  983150,
+                                                       "exitCodeObserved":  true,
+                                                       "passed":  false,
+                                                       "documentedLoaderQualifiedBeforeRuntime":  true,
+                                                       "privateDesktopParentRestored":  true,
+                                                       "ownerNodeVersion":  "v22.23.3",
+                                                       "createdProcessId":  7768,
+                                                       "initialJobMembers":  1,
+                                                       "ownerThreadImpersonating":  false,
+                                                       "privateDesktopHandlesClosedAfterJobClosure":  true,
+                                                       "ownerNodeVersionDeadlineMilliseconds":  15000,
+                                                       "privateDesktopParentThreadPreserved":  true,
+                                                       "loaderControls":  {
+                                                                              "originalProbeRequested":  true,
+                                                                              "documentedClosedBeforeRuntime":  true,
+                                                                              "failure":  null,
+                                                                              "acceptancePassed":  false,
+                                                                              "passed":  true,
+                                                                              "original":  {
+                                                                                               "heldTokenSessionId":  0,
+                                                                                               "failureStage":  null,
+                                                                                               "privateDesktopParentRestored":  true,
+                                                                                               "initialJobMembers":  1,
+                                                                                               "pid":  8652,
+                                                                                               "tokenRequestedAccess":  8,
+                                                                                               "failureWin32Error":  null,
+                                                                                               "ownerThreadImpersonating":  false,
+                                                                                               "cleanupRootExitCode":  3221225794,
+                                                                                               "privateDesktopParentThreadPreserved":  true,
+                                                                                               "processCreated":  true,
+                                                                                               "naturalExitObservedBeforeJobTermination":  true,
+                                                                                               "runtimeResumed":  false,
+                                                                                               "passed":  false,
+                                                                                               "acceptancePassed":  false,
+                                                                                               "exitCode":  3221225794,
+                                                                                               "createdProcessId":  8652,
+                                                                                               "privateStationTaskRequestedAccessMask":  34,
+                                                                                               "cleanupRootExitWin32Error":  null,
+                                                                                               "administratorGroupPresent":  false,
+                                                                                               "privateDesktopTaskRequestedAccessMask":  131,
+                                                                                               "cleanupRootWaitCode":  0,
+                                                                                               "taskReleased":  false,
+                                                                                               "cleanupWin32Error":  null,
+                                                                                               "heldIdentityBeforeRelease":  true,
+                                                                                               "heldProcessHandlePresent":  true,
+                                                                                               "elevated":  false,
+                                                                                               "exitCodeObserved":  true,
+                                                                                               "birthFileTime":  134359019118402543,
+                                                                                               "creationFlags":  134218756,
+                                                                                               "privateDesktopHandlesClosedAfterUnassignedRootExit":  false,
+                                                                                               "failureHResult":  null,
+                                                                                               "taskWaitMilliseconds":  5000,
+                                                                                               "loaderProbeResumed":  true,
+                                                                                               "administratorEnabled":  false,
+                                                                                               "jobAssignedBeforeAdmission":  true,
+                                                                                               "cleanupRootExitObserved":  true,
+                                                                                               "launchAllowed":  false,
+                                                                                               "jobClosureConfirmed":  true,
+                                                                                               "cleanupRootWaitWin32Error":  null,
+                                                                                               "ownerProcessSessionId":  0,
+                                                                                               "tokenOpened":  true,
+                                                                                               "desktopAclProfile":  "minimal-task",
+                                                                                               "ownerImpersonationLevel":  "None",
+                                                                                               "sid":  "S-1-5-21-1039691079-1396903546-2665289618-1001",
+                                                                                               "createdThreadId":  7484,
+                                                                                               "heldThreadHandlePresent":  true,
+                                                                                               "privateDesktopHandlesClosedWithoutCreatedProcess":  false,
+                                                                                               "loaderProbe":  "minimal-private-user",
+                                                                                               "atomicJobAtCreation":  false,
+                                                                                               "cleanupJobTerminationAccepted":  true,
+                                                                                               "administratorGroupScan":  "all-attributes",
+                                                                                               "privateDesktopHandlesClosedAfterJobClosure":  true,
+                                                                                               "privateDesktopCreated":  true
+                                                                                           },
+                                                                              "elapsedMilliseconds":  3071,
+                                                                              "originalProbeClosedBeforeDocumented":  true,
+                                                                              "launchAllowed":  false,
+                                                                              "documented":  {
+                                                                                                 "heldTokenSessionId":  0,
+                                                                                                 "failureStage":  null,
+                                                                                                 "privateDesktopParentRestored":  true,
+                                                                                                 "initialJobMembers":  1,
+                                                                                                 "pid":  7828,
+                                                                                                 "tokenRequestedAccess":  8,
+                                                                                                 "failureWin32Error":  null,
+                                                                                                 "ownerThreadImpersonating":  false,
+                                                                                                 "cleanupRootExitCode":  0,
+                                                                                                 "privateDesktopParentThreadPreserved":  true,
+                                                                                                 "processCreated":  true,
+                                                                                                 "naturalExitObservedBeforeJobTermination":  true,
+                                                                                                 "runtimeResumed":  false,
+                                                                                                 "passed":  false,
+                                                                                                 "acceptancePassed":  false,
+                                                                                                 "exitCode":  0,
+                                                                                                 "createdProcessId":  7828,
+                                                                                                 "privateStationTaskRequestedAccessMask":  983150,
+                                                                                                 "cleanupRootExitWin32Error":  null,
+                                                                                                 "administratorGroupPresent":  false,
+                                                                                                 "privateDesktopTaskRequestedAccessMask":  983247,
+                                                                                                 "cleanupRootWaitCode":  0,
+                                                                                                 "taskReleased":  false,
+                                                                                                 "cleanupWin32Error":  null,
+                                                                                                 "heldIdentityBeforeRelease":  true,
+                                                                                                 "heldProcessHandlePresent":  true,
+                                                                                                 "elevated":  false,
+                                                                                                 "exitCodeObserved":  true,
+                                                                                                 "birthFileTime":  134359019119280552,
+                                                                                                 "creationFlags":  134218756,
+                                                                                                 "privateDesktopHandlesClosedAfterUnassignedRootExit":  false,
+                                                                                                 "failureHResult":  null,
+                                                                                                 "taskWaitMilliseconds":  5000,
+                                                                                                 "loaderProbeResumed":  true,
+                                                                                                 "administratorEnabled":  false,
+                                                                                                 "jobAssignedBeforeAdmission":  true,
+                                                                                                 "cleanupRootExitObserved":  true,
+                                                                                                 "launchAllowed":  false,
+                                                                                                 "jobClosureConfirmed":  true,
+                                                                                                 "cleanupRootWaitWin32Error":  null,
+                                                                                                 "ownerProcessSessionId":  0,
+                                                                                                 "tokenOpened":  true,
+                                                                                                 "desktopAclProfile":  "documented-noninteractive-user",
+                                                                                                 "ownerImpersonationLevel":  "None",
+                                                                                                 "sid":  "S-1-5-21-1039691079-1396903546-2665289618-1001",
+                                                                                                 "createdThreadId":  3816,
+                                                                                                 "heldThreadHandlePresent":  true,
+                                                                                                 "privateDesktopHandlesClosedWithoutCreatedProcess":  false,
+                                                                                                 "loaderProbe":  "documented",
+                                                                                                 "atomicJobAtCreation":  false,
+                                                                                                 "cleanupJobTerminationAccepted":  true,
+                                                                                                 "administratorGroupScan":  "all-attributes",
+                                                                                                 "privateDesktopHandlesClosedAfterJobClosure":  true,
+                                                                                                 "privateDesktopCreated":  true
+                                                                                             }
+                                                                          },
+                                                       "ownerNodeVersionStage":  "verified",
+                                                       "administratorGroupScan":  "all-attributes",
+                                                       "administratorGroupPresent":  false,
+                                                       "privateDesktopHandlesClosedWithoutCreatedProcess":  false,
+                                                       "networkReceiverSameOwnerSid":  true,
+                                                       "heldTokenSessionId":  0,
+                                                       "ownerProcessSessionId":  0,
+                                                       "ownerNodeVersionFailureHResult":  null,
+                                                       "cleanupJobTerminationAccepted":  true,
+                                                       "failureWin32Error":  null,
+                                                       "runtimeCallerAuthenticated":  true,
+                                                       "ownerNodeVersionExitObserved":  true
+                                                   },
+                                      "labOnlyPowerShellDirect":  true,
+                                      "task":  {
+                                                   "schemaVersion":  1,
+                                                   "task":  "fixed-read-edit-test",
+                                                   "passed":  false,
+                                                   "stage":  "shell-descendant",
+                                                   "failure":  {
+                                                                   "stage":  "shell-descendant",
+                                                                   "childExitCode":  0
+                                                               },
+                                                   "networkControlsComplete":  true,
+                                                   "readEditTestPassed":  true,
+                                                   "shellAndDescendantPositive":  false,
+                                                   "hostPathProbes":  [
+
+                                                                      ],
+                                                   "protectedProbes":  [
+
+                                                                       ]
+                                               },
+                                      "launchAllowed":  false,
+                                      "passed":  false,
+                                      "atomicJobAtCreation":  false,
+                                      "PSComputerName":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                      "RunspaceId":  "fde4a552-b4c6-4f1a-87fa-fe618d0715d0",
+                                      "PSShowComputerName":  true
+                                  },
+                  "mediaMutationUnknown":  false,
+                  "setupWaitMilliseconds":  453862,
+                  "failure":  {
+                                  "exceptionType":  "native-result",
+                                  "code":  "guest-task-process-refused",
+                                  "hResult":  null,
+                                  "innerDepth":  0,
+                                  "nativeStage":  "task-exit"
+                              },
+                  "progress":  {
+                                   "standardTaskSubmitted":  true,
+                                   "installedOs":  {
+                                                       "ubr":  9457,
+                                                       "edition":  "EnterpriseEval",
+                                                       "build":  26300,
+                                                       "guestDiskCount":  1,
+                                                       "setupProfileObserved":  true,
+                                                       "PSComputerName":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                                       "RunspaceId":  "fde4a552-b4c6-4f1a-87fa-fe618d0715d0",
+                                                       "PSShowComputerName":  true
+                                                   },
+                                   "transferHashesVerified":  true,
+                                   "profileReady":  true,
+                                   "hostRouteSnapshotAfter":  {
+                                                                  "nameMatched":  true,
+                                                                  "observedName":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                                                  "phase":  "complete",
+                                                                  "configContained":  true,
+                                                                  "vmCount":  1,
+                                                                  "idMatched":  true,
+                                                                  "reparseFree":  true,
+                                                                  "vmType":  "hyperv-vm",
+                                                                  "reason":  "confirmed",
+                                                                  "observedId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                                  "state":  "Running",
+                                                                  "configType":  "string",
+                                                                  "nameType":  "string",
+                                                                  "observedConfig":  "D:\\aegis-cloud-guest-37719625461-1\\vm\\aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                                                  "nics":  0
+                                                              },
+                                   "phase":  "completed",
+                                   "sessionEstablished":  true,
+                                   "mediaDetached":  {
+                                                         "drivesBefore":  2,
+                                                         "drivesAfter":  0,
+                                                         "freshExactVmObserved":  true
+                                                     },
+                                   "hostRouteSnapshot":  {
+                                                             "nameMatched":  true,
+                                                             "observedName":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                                             "phase":  "complete",
+                                                             "configContained":  true,
+                                                             "vmCount":  1,
+                                                             "idMatched":  true,
+                                                             "reparseFree":  true,
+                                                             "vmType":  "hyperv-vm",
+                                                             "reason":  "confirmed",
+                                                             "observedId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                             "state":  "Running",
+                                                             "configType":  "string",
+                                                             "nameType":  "string",
+                                                             "observedConfig":  "D:\\aegis-cloud-guest-37719625461-1\\vm\\aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                                             "nics":  0
+                                                         },
+                                   "routeResultStatus":  "unavailable-client-or-oracle"
+                               },
+                  "setupDiskSamples":  [
+                                           {
+                                               "seconds":  0,
+                                               "freeBytes":  222833823744,
+                                               "ownedVhdFileBytes":  4601151488
+                                           },
+                                           {
+                                               "seconds":  80,
+                                               "freeBytes":  214948532224,
+                                               "ownedVhdFileBytes":  12486443008
+                                           },
+                                           {
+                                               "seconds":  161,
+                                               "freeBytes":  210653564928,
+                                               "ownedVhdFileBytes":  16781410304
+                                           },
+                                           {
+                                               "seconds":  251,
+                                               "freeBytes":  209613373440,
+                                               "ownedVhdFileBytes":  17821597696
+                                           },
+                                           {
+                                               "seconds":  311,
+                                               "freeBytes":  209344937984,
+                                               "ownedVhdFileBytes":  18090033152
+                                           }
+                                       ],
+                  "hostRoutes":  {
+                                     "after":  {
+                                                   "runId":  "37719625461",
+                                                   "nics":  0,
+                                                   "runAttempt":  "1",
+                                                   "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                   "vmRoot":  "D:\\aegis-cloud-guest-37719625461-1\\vm",
+                                                   "state":  "Running",
+                                                   "name":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e"
+                                               },
+                                     "receiver":  {
+                                                      "schemaVersion":  1,
+                                                      "scope":  "independent-host-route-receiver",
+                                                      "nonce":  "cbf311b8be9ba85fd034fefbd80b1dae",
+                                                      "sourceSha":  "c13159e615b744db773905e54408bf07cf7627a9",
+                                                      "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                      "addresses":  {
+                                                                        "ipv4":  "10.1.1.109",
+                                                                        "ipv6":  null
+                                                                    },
+                                                      "ports":  {
+                                                                    "tcp4":  56722,
+                                                                    "udp4":  62543,
+                                                                    "dns4":  62544,
+                                                                    "tcp6":  null,
+                                                                    "udp6":  null,
+                                                                    "dns6":  null
+                                                                },
+                                                      "positivePassed":  true,
+                                                      "cases":  [
+                                                                    {
+                                                                        "id":  "tcp4",
+                                                                        "available":  true,
+                                                                        "positive":  1,
+                                                                        "guest":  0
+                                                                    },
+                                                                    {
+                                                                        "id":  "udp4",
+                                                                        "available":  true,
+                                                                        "positive":  1,
+                                                                        "guest":  0
+                                                                    },
+                                                                    {
+                                                                        "id":  "dns4",
+                                                                        "available":  true,
+                                                                        "positive":  1,
+                                                                        "guest":  0
+                                                                    },
+                                                                    {
+                                                                        "id":  "tcp6",
+                                                                        "available":  false,
+                                                                        "positive":  0,
+                                                                        "guest":  0
+                                                                    },
+                                                                    {
+                                                                        "id":  "udp6",
+                                                                        "available":  false,
+                                                                        "positive":  0,
+                                                                        "guest":  0
+                                                                    },
+                                                                    {
+                                                                        "id":  "dns6",
+                                                                        "available":  false,
+                                                                        "positive":  0,
+                                                                        "guest":  0
+                                                                    }
+                                                                ],
+                                                      "rejected":  0,
+                                                      "bytes":  204,
+                                                      "packets":  3,
+                                                      "accepted":  1,
+                                                      "openConnections":  0,
+                                                      "socketsClosed":  true,
+                                                      "stoppedOnRequest":  true,
+                                                      "expired":  false,
+                                                      "shutdownReason":  "stop",
+                                                      "stopMilliseconds":  26224,
+                                                      "closedMilliseconds":  26425,
+                                                      "e3Qualified":  false,
+                                                      "launchAllowed":  false,
+                                                      "deliberateGuestExposureControl":  false
+                                                  },
+                                     "e3Qualified":  false,
+                                     "client":  null,
+                                     "owner":  {
+                                                   "birthObserved":  true,
+                                                   "stopAfterJobClosure":  true,
+                                                   "stopMilliseconds":  26329,
+                                                   "pid":  8204,
+                                                   "forced":  false,
+                                                   "heldProcess":  true,
+                                                   "closed":  true,
+                                                   "exitMilliseconds":  26548,
+                                                   "imagePinned":  true,
+                                                   "imageSha256":  "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e",
+                                                   "birthTicks":  "639270250869843133",
+                                                   "exitCode":  0,
+                                                   "exitObserved":  true
+                                               },
+                                     "passed":  false,
+                                     "before":  {
+                                                    "runId":  "37719625461",
+                                                    "nics":  0,
+                                                    "runAttempt":  "1",
+                                                    "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                    "vmRoot":  "D:\\aegis-cloud-guest-37719625461-1\\vm",
+                                                    "state":  "Running",
+                                                    "name":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e"
+                                                },
+                                     "status":  "unavailable-client-or-oracle",
+                                     "launchAllowed":  false,
+                                     "independentClosureConfirmed":  true
+                                 },
+                  "answerDvdEjectedBeforeTask":  true,
+                  "routeFailure":  {
+                                       "exceptionType":  "System.Management.Automation.RuntimeException",
+                                       "code":  "host-route-oracle-refused",
+                                       "hResult":  -2146233087,
+                                       "innerDepth":  0
+                                   },
+                  "PSComputerName":  "localhost",
+                  "RunspaceId":  "5bbd4b4a-364d-4c98-8825-97a62961f89b",
+                  "PSShowComputerName":  false
+              },
+    "keyboard":  {
+                     "call":  59,
+                     "phase":  "completed",
+                     "count":  1,
+                     "class":  "Msvm_Keyboard",
+                     "systemNameMatch":  true,
+                     "vmRunningObserved":  true,
+                     "keyCode":  32,
+                     "returnCode":  0,
+                     "completed":  true,
+                     "hResult":  null,
+                     "managementStatus":  null,
+                     "vmIdentityMatched":  true,
+                     "observedVmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                     "enabledState":  2
+                 },
+    "keyboardWindow":  {
+                           "stoppedOnOwnedNonrunning":  false,
+                           "outcomes":  [
+                                            {
+                                                "attempt":  1,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  34
+                                            },
+                                            {
+                                                "attempt":  2,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  1129
+                                            },
+                                            {
+                                                "attempt":  3,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  2150
+                                            },
+                                            {
+                                                "attempt":  4,
+                                                "returnCode":  32775,
+                                                "providerCompleted":  false,
+                                                "elapsedMilliseconds":  3172
+                                            },
+                                            {
+                                                "attempt":  5,
+                                                "returnCode":  32775,
+                                                "providerCompleted":  false,
+                                                "elapsedMilliseconds":  4195
+                                            },
+                                            {
+                                                "attempt":  6,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  5218
+                                            },
+                                            {
+                                                "attempt":  7,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  6244
+                                            },
+                                            {
+                                                "attempt":  8,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  7268
+                                            },
+                                            {
+                                                "attempt":  9,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  8337
+                                            },
+                                            {
+                                                "attempt":  10,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  9366
+                                            },
+                                            {
+                                                "attempt":  11,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  10387
+                                            },
+                                            {
+                                                "attempt":  12,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  11411
+                                            },
+                                            {
+                                                "attempt":  13,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  12435
+                                            },
+                                            {
+                                                "attempt":  14,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  13459
+                                            },
+                                            {
+                                                "attempt":  15,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  14484
+                                            },
+                                            {
+                                                "attempt":  16,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  15505
+                                            },
+                                            {
+                                                "attempt":  17,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  16541
+                                            },
+                                            {
+                                                "attempt":  18,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  17583
+                                            },
+                                            {
+                                                "attempt":  19,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  18605
+                                            },
+                                            {
+                                                "attempt":  20,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  19637
+                                            },
+                                            {
+                                                "attempt":  21,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  20660
+                                            },
+                                            {
+                                                "attempt":  22,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  21682
+                                            },
+                                            {
+                                                "attempt":  23,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  22707
+                                            },
+                                            {
+                                                "attempt":  24,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  23728
+                                            },
+                                            {
+                                                "attempt":  25,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  24754
+                                            },
+                                            {
+                                                "attempt":  26,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  25778
+                                            },
+                                            {
+                                                "attempt":  27,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  26801
+                                            },
+                                            {
+                                                "attempt":  28,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  27827
+                                            },
+                                            {
+                                                "attempt":  29,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  28855
+                                            },
+                                            {
+                                                "attempt":  30,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  29885
+                                            },
+                                            {
+                                                "attempt":  31,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  30912
+                                            },
+                                            {
+                                                "attempt":  32,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  31939
+                                            },
+                                            {
+                                                "attempt":  33,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  32965
+                                            },
+                                            {
+                                                "attempt":  34,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  33988
+                                            },
+                                            {
+                                                "attempt":  35,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  35012
+                                            },
+                                            {
+                                                "attempt":  36,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  36033
+                                            },
+                                            {
+                                                "attempt":  37,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  37061
+                                            },
+                                            {
+                                                "attempt":  38,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  38088
+                                            },
+                                            {
+                                                "attempt":  39,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  39108
+                                            },
+                                            {
+                                                "attempt":  40,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  40129
+                                            },
+                                            {
+                                                "attempt":  41,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  41154
+                                            },
+                                            {
+                                                "attempt":  42,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  42174
+                                            },
+                                            {
+                                                "attempt":  43,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  43207
+                                            },
+                                            {
+                                                "attempt":  44,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  44239
+                                            },
+                                            {
+                                                "attempt":  45,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  45262
+                                            },
+                                            {
+                                                "attempt":  46,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  46283
+                                            },
+                                            {
+                                                "attempt":  47,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  47306
+                                            },
+                                            {
+                                                "attempt":  48,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  48327
+                                            },
+                                            {
+                                                "attempt":  49,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  49355
+                                            },
+                                            {
+                                                "attempt":  50,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  50374
+                                            },
+                                            {
+                                                "attempt":  51,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  51393
+                                            },
+                                            {
+                                                "attempt":  52,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  52416
+                                            },
+                                            {
+                                                "attempt":  53,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  53438
+                                            },
+                                            {
+                                                "attempt":  54,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  54459
+                                            },
+                                            {
+                                                "attempt":  55,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  55480
+                                            },
+                                            {
+                                                "attempt":  56,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  56509
+                                            },
+                                            {
+                                                "attempt":  57,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  57534
+                                            },
+                                            {
+                                                "attempt":  58,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  58553
+                                            },
+                                            {
+                                                "attempt":  59,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  59573
+                                            }
+                                        ],
+                           "dispatchWindowMilliseconds":  60000,
+                           "elapsedMilliseconds":  60574,
+                           "failure":  null,
+                           "attempts":  59,
+                           "optional":  true,
+                           "snapshots":  [
+                                             {
+                                                 "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                 "phase":  "thumbnail-invoke",
+                                                 "enabledState":  2,
+                                                 "heartbeatStatus":  [
+                                                                         12
+                                                                     ],
+                                                 "width":  320,
+                                                 "height":  240,
+                                                 "format":  "RGB565",
+                                                 "imageBase64":  null,
+                                                 "returnCode":  0,
+                                                 "failureCode":  "boot-thumbnail-size-invalid",
+                                                 "hResult":  -2146233079,
+                                                 "captureBeforeCredentialSession":  true,
+                                                 "vmIdentityMatched":  true,
+                                                 "observedVmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                 "imageDataType":  "byte-array",
+                                                 "imageDataLength":  153604,
+                                                 "imageArrayRank":  1,
+                                                 "expectedImageBytes":  153600,
+                                                 "elapsedMilliseconds":  516
+                                             },
+                                             {
+                                                 "vmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                 "phase":  "thumbnail-invoke",
+                                                 "enabledState":  2,
+                                                 "heartbeatStatus":  [
+                                                                         12
+                                                                     ],
+                                                 "width":  320,
+                                                 "height":  240,
+                                                 "format":  "RGB565",
+                                                 "imageBase64":  null,
+                                                 "returnCode":  0,
+                                                 "failureCode":  "boot-thumbnail-size-invalid",
+                                                 "hResult":  -2146233079,
+                                                 "captureBeforeCredentialSession":  true,
+                                                 "vmIdentityMatched":  true,
+                                                 "observedVmId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                                 "imageDataType":  "byte-array",
+                                                 "imageDataLength":  153604,
+                                                 "imageArrayRank":  1,
+                                                 "expectedImageBytes":  153600,
+                                                 "elapsedMilliseconds":  7729
+                                             }
+                                         ],
+                           "providerOperationTimeoutSeconds":  5,
+                           "closedBeforeCredentialSession":  true,
+                           "completed":  57,
+                           "mandatoryFailure":  false
+                       },
+    "claudeProvenance":  {
+                             "schemaVersion":  1,
+                             "version":  "2.1.292",
+                             "platform":  "win32-x64",
+                             "bytes":  254858400,
+                             "sha256":  "eb95bb65955f8b1702e800815f9a2c0388a5de0f196c354c7ee1dd5cb9a2ba23",
+                             "maximumBinaryBytes":  402653184,
+                             "manifestSignatureVerified":  true,
+                             "manifestSigner":  "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+                             "authenticodeValid":  true,
+                             "publisher":  "Anthropic, PBC",
+                             "supplierUrl":  "https://downloads.claude.ai/claude-code-releases/2.1.292/win32-x64/claude.exe",
+                             "manifestUrl":  "https://downloads.claude.ai/claude-code-releases/2.1.292/manifest.json",
+                             "passed":  true,
+                             "scope":  "fixed-public-artifact-provenance-no-provider-launch"
+                         },
+    "claudePhase":  null,
+    "claudeCorpusComplete":  false,
+    "claudeAcceptancePassed":  false,
+    "E6Qualified":  false,
+    "hostCanariesUnchangedAfterTask":  false,
+    "hostCanariesUnchangedAfterRemoval":  true,
+    "offObserved":  true,
+    "removedObserved":  true,
+    "operationSettlement":  "settled-and-exact-vm-absent",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "hResult":  -2146233087,
+                    "code":  "guest-task-process-refused",
+                    "stage":  "actual-guest-setup-and-standard-task",
+                    "exceptionType":  "System.Management.Automation.RuntimeException",
+                    "innerDepth":  0,
+                    "category":  "OperationStopped"
+                },
+    "hostRouteEarlySnapshot":  {
+                                   "configContained":  true,
+                                   "vmType":  "hyperv-vm",
+                                   "observedConfig":  "D:\\aegis-cloud-guest-37719625461-1\\vm\\aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                   "vmCount":  1,
+                                   "state":  "Running",
+                                   "observedId":  "a9233b22-e932-4d4f-999d-8a720a99280f",
+                                   "observedName":  "aegis-cloud-37719625461-1-c0a0f18a42ae4b208184e28fda2e0a4e",
+                                   "nameMatched":  true,
+                                   "nics":  0,
+                                   "reason":  "confirmed",
+                                   "configType":  "string",
+                                   "reparseFree":  true,
+                                   "phase":  "complete",
+                                   "idMatched":  true,
+                                   "nameType":  "string"
+                               },
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "completedAt":  "2026-10-08T02:58:37.1597329Z"
+}
