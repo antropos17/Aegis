@@ -57,6 +57,8 @@ describe.skipIf(process.platform !== 'win32')('native inactive Protected Session
         `/out:${helper}`,
         path.join(project, 'sidecar/session/Program.cs'),
         path.join(project, 'sidecar/session/Protocol.cs'),
+        path.join(project, 'sidecar/session/EnrollmentNative.cs'),
+        path.join(project, 'sidecar/session/EnrollmentInspection.cs'),
       ],
       { timeout: 30000, stdio: 'pipe', windowsHide: true },
     );

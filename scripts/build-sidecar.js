@@ -149,7 +149,7 @@ function main() {
   );
   console.log(`built  ${mcpJobExe}`);
 
-  // The separate session helper only probes/refuses; it cannot launch an agent.
+  // The separate session helper probes/refuses and inspects enrollment read-only.
   const sessionExe = path.join(OUT_DIR, 'aegis-session.exe');
   execFileSync(
     csc,
@@ -163,6 +163,8 @@ function main() {
       '/reference:System.Management.dll',
       path.join(ROOT, 'sidecar', 'session', 'Program.cs'),
       path.join(ROOT, 'sidecar', 'session', 'Protocol.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'EnrollmentNative.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'EnrollmentInspection.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerIdentity.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerRegistration.cs'),

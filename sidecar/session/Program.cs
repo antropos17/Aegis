@@ -11,6 +11,14 @@ namespace Aegis.ProtectedSession
 
         private static int Main(string[] arguments)
         {
+            if (arguments.Length == 1 && arguments[0] == "--inspect-enrollment") {
+                try {
+                    EnrollmentInspection result = EnrollmentInspection.InspectInstalled();
+                    Console.WriteLine(result.Json());
+                    return result.Observed ? 0 : 3;
+                }
+                catch { return 2; }
+            }
             if (arguments.Length != 0) return 2;
             try
             {
