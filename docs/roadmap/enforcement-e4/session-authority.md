@@ -47,6 +47,14 @@ consumption refuses before creating replacement intent and inspection reports
 The original evidence remains for owner recovery. This covers partial history
 loss; it cannot detect rollback or deletion of every record across a fresh owner.
 
+A live ledger also retains the hashed operation IDs of its fully confirmed
+successful consumptions in private bounded memory. Losing all records for one
+of those IDs does not renew its consumption through that ledger, and inspection
+reports `unavailable`. Failed consumptions add no successful-history entry.
+Entries are never evicted; reaching the existing 256-entry ceiling refuses new
+consumptions through that ledger even if deleted files expose disk capacity.
+This memory grants no capability and survives only for that ledger's lifetime.
+
 Consumption returns an opaque reservation held in a private per-ledger WeakMap.
 After the exclusive lock has been released, the broker rechecks the original
 consumed record's identity, timestamps and exact canonical bytes before dispatch.
