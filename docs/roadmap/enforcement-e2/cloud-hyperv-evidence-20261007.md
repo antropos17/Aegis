@@ -307,7 +307,26 @@ or full-boundary acceptance.
 
 ## Fixed Claude second phase
 
-The next token revision requests only `TOKEN_QUERY` and reads native
+The [first integrated Claude revision run](https://github.com/antropos17/Aegis/actions/runs/37704784399)
+at `a7aa59f4` passed the full hosted preflight and all five CI contexts. The
+pinned Windows image download, hash and WIM metadata passed. Runtime staging
+then failed with a PowerShell `PropertyNotFoundException` before VM creation.
+No cross-account token, guest task, Git or Claude result was observed in this run.
+The original receipt is retained; failure does not establish successful cleanup
+of a VM that was never created.
+
+The verifier's ancestor traversal was then reproduced through the actual captured
+ScriptBlock call under Windows PowerShell 5.1 with inherited StrictMode. A raw
+`DirectoryInfo` returned by `Parent` or `Directory` lacks the provider-added
+`PSIsContainer` property. Typed `FileInfo`/`DirectoryInfo` traversal preserves
+the ancestor checks. Five focused controls passed, including the original
+failure and refusal of reparse points and a changed source pin. The repaired
+verifier also checked the actual installed pinned Claude binary, public signed
+metadata and Authenticode under the same strict shell without downloading or
+launching Claude. The cloud receipt itself does not identify an exception line;
+the next actual run must establish whether staging now completes.
+
+This revision requests only `TOKEN_QUERY` and reads native
 `TOKEN_GROUPS` through a bounded parser. Any Administrators SID, including a
 disabled or deny-only entry, causes refusal. It retains the exact SID, elevation,
 held process, Job, desktop and initialized-runtime checks. Twenty local token
@@ -320,7 +339,7 @@ a typed positive project-release observation. Fifty-six pure PowerShell controls
 cover the bootstrap and connected host-controller path; actual guest observations
 remain source-bound to the next cloud run.
 
-The next lab revision includes a separate Claude corpus after the first task and
+The lab includes a separate Claude corpus after the first task and
 both of its receivers have exited with verified native observations. It pins
 Claude Code 2.1.292 for Windows x64 to 254,858,400 bytes and SHA-256
 `eb95bb65955f8b1702e800815f9a2c0388a5de0f196c354c7ee1dd5cb9a2ba23`.

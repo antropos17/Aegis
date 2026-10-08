@@ -64,7 +64,7 @@ function Test-CloudClaudeProvenance {
         ![IO.Path]::IsPathRooted($MetadataRoot) -or !(Test-Path -LiteralPath $MetadataRoot -PathType Container)) { throw 'provenance-input-refused' }
     foreach ($selected in @($BinaryPath, $GpgPath, $OwnedScratch, $MetadataRoot)) {
         $entry = Get-Item -LiteralPath $selected -Force
-        while ($entry) { if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'provenance-reparse-refused' }; $entry = if ($entry.PSIsContainer) { $entry.Parent } else { $entry.Directory } }
+        while ($entry) { if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'provenance-reparse-refused' }; $entry = if ($entry -is [IO.DirectoryInfo]) { $entry.Parent } elseif ($entry -is [IO.FileInfo]) { $entry.Directory } else { throw 'provenance-input-refused' } }
     }
     $manifestBytes = Read-CloudClaudePinnedMetadata 'official-manifest.json' 32768 '64f5abe05a43151810acf8c25169872e41293c96d3ae73d6508733a8b336e2b1'
     $sig = Read-CloudClaudePinnedMetadata 'official-manifest.json.sig' 8192 '537e1a8bcca1646fd5e52d3dc8d16509395a88f6f18b13765b2c085d057567ea'

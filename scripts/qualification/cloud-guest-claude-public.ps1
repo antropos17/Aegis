@@ -9,7 +9,7 @@ function Save-CloudGuestClaudeBinary([string]$TransferRoot, [string]$ScratchRoot
     $bytes = [IO.File]::ReadAllBytes($sourceFile.FullName)
     $hash = [Security.Cryptography.SHA256]::Create()
     try { $digest = [BitConverter]::ToString($hash.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
-    if ($digest -cne 'c0d0ff835af23fe4f67862887b610f193809f479666c6a7166c3711a6ea8f7fe') { throw 'claude-provenance-source-refused' }
+    if ($digest -cne '04b56dd4c32bee544da646d692bcfc1f3c21baf428227bf145fb0301c9a349db') { throw 'claude-provenance-source-refused' }
     $source = [Text.UTF8Encoding]::new($false, $true).GetString($bytes)
     # The verifier uses the already installed Git-for-Windows/MSYS gpg path.
     $gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'

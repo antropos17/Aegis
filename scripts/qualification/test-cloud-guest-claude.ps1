@@ -58,3 +58,5 @@ try {
     # Preserve exact closed fixture files until review; finite <1MiB, no automatic deletion retry.
     Write-Host ('claude-controls-owned-fixture ' + $fixture)
 }
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-claude-public.ps1') -ProjectRoot $ProjectRoot

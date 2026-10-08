@@ -173,3 +173,5 @@ aegis_landing.html
 !/scripts/qualification/test-cloud-guest-claude-first-phase.ps1
 
 !/scripts/qualification/claude-public/provenance.ps1
+
+!/scripts/qualification/test-cloud-guest-claude-public.ps1
