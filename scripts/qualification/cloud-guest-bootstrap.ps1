@@ -224,7 +224,8 @@ $bootstrapStage = 'git-runtime'
 $gitSourceFile = Get-Item -LiteralPath (Join-Path $trusted 'cloud-guest-git.ps1') -Force
 $gitSourceManifestFile = Get-Item -LiteralPath (Join-Path $trusted 'manifest.json') -Force
 $gitSourceData = @{}
-foreach ($selected in @($gitSourceFile, $gitSourceManifestFile)) {
+$sealedSourceFile = Get-Item -LiteralPath (Join-Path $trusted 'cloud-sealed-copy-verify.ps1') -Force
+foreach ($selected in @($gitSourceFile, $gitSourceManifestFile, $sealedSourceFile)) {
     if ($selected.PSIsContainer -or $selected.Attributes -band [IO.FileAttributes]::ReparsePoint -or $selected.Length -lt 2 -or $selected.Length -gt 64KB) { throw 'git-support-input-refused' }
     $gitSourceStream = [IO.File]::Open($selected.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
     try {
@@ -249,6 +250,13 @@ finally { $gitSourceHasher.Dispose() }
 if ($gitSourceHash -cne $gitSourceEntries[0].sha256) { throw 'git-support-hash-refused' }
 $gitSourceText = $gitSourceEncoding.GetString($gitSourceBytes)
 . ([scriptblock]::Create($gitSourceText))
+$sealedEntries = @($gitSourceManifest.files | Where-Object name -CEQ 'cloud-sealed-copy-verify.ps1')
+$sealedBytes = $gitSourceData['cloud-sealed-copy-verify.ps1']
+$sealedHasher = [Security.Cryptography.SHA256]::Create()
+try { $sealedHash = [BitConverter]::ToString($sealedHasher.ComputeHash($sealedBytes)).Replace('-', '').ToLowerInvariant() }
+finally { $sealedHasher.Dispose() }
+if ($sealedEntries.Count -ne 1 -or $sealedEntries[0].sha256 -cnotmatch '^[a-f0-9]{64}$' -or $sealedHash -cne $sealedEntries[0].sha256) { throw 'fixed-sealed-copy-guest-refused' }
+. ([scriptblock]::Create($gitSourceEncoding.GetString($sealedBytes)))
 $gitManifestFile = Get-Item -LiteralPath "$trusted\git-runtime-manifest.json" -Force
 if ($gitManifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or $gitManifestFile.Length -gt 96KB) { throw 'git-manifest-refused' }
 $gitExpected = [IO.File]::ReadAllText($gitManifestFile.FullName) | ConvertFrom-Json
@@ -308,12 +316,17 @@ if ($downstreamState -ceq 'released-closed') {
 }
 $diagnostics = Merge-CloudGuestNetworkControls $diagnostics $network
 $diagnostics = Merge-CloudGuestGitControls $diagnostics $gitControls
+$sealedCopyControls = Read-CloudSealedCopyResult $identity
+if (!$sealedCopyControls.passed) {
+    $diagnostics.passed = $false; $diagnostics.task.passed = $false
+    if ($null -eq $diagnostics.failureCode) { $diagnostics.failureCode = 'fixed-sealed-copy-guest-refused' }
+}
 $diagnostics.downstreamChecks = @{ task = $parsed.status; network = $network.status; git = $gitStatus; state = $downstreamState }
 $bootstrapStage = 'os-receipt'
 $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5
 return @{ schemaVersion = 1; passed = $diagnostics.passed; failureCode = $diagnostics.failureCode; taskResultStatus = $diagnostics.taskResultStatus;
     guest = @{ version = $os.Version; build = $os.BuildNumber; caption = $os.Caption }; identity = $identity; task = $diagnostics.task; networkControls = $network; gitControls = $gitControls;
-    downstreamChecks = $diagnostics.downstreamChecks;
+    downstreamChecks = $diagnostics.downstreamChecks; sealedCopyControls = $sealedCopyControls;
     setupAnswerCachesAbsent = $true; autoLogonDisabled = $true; passwordRegistryAbsent = $true; labOnlyPowerShellDirect = $true; atomicJobAtCreation = $false; launchAllowed = $false }
 } catch {
     $failure = Get-CloudGuestBootstrapFailure $bootstrapStage $_
