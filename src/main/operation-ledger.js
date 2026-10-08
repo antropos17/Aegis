@@ -207,6 +207,11 @@ async function createOperationLedger(directory) {
     async consume(binding) {
       const key = identity(binding);
       const retained = await exclusive(async () => {
+        // Surviving publication evidence cannot authorize a renewed attempt
+        // after its spent record has been lost. Preserve it for owner recovery.
+        for (const suffix of ['outcome', 'pending', 'pending-unknown'])
+          if (await read(path.join(root, key.name + '.' + suffix), true))
+            throw Error('operation-ledger-unavailable');
         await write(
           path.join(root, key.name + '.spent'),
           recordBytes(key.bindingSha256, 'consumed'),
@@ -280,7 +285,11 @@ async function createOperationLedger(directory) {
           throw Error('invalid');
         const name = digest(operationId);
         const spent = await read(path.join(root, name + '.spent'), true);
-        if (!spent) return Object.freeze({ state: 'unrecorded' });
+        if (!spent) {
+          for (const suffix of ['outcome', 'pending', 'pending-unknown'])
+            if (await read(path.join(root, name + '.' + suffix), true)) throw Error('invalid');
+          return Object.freeze({ state: 'unrecorded' });
+        }
         if (spent.state !== 'consumed') throw Error('invalid');
         const outcome = await read(path.join(root, name + '.outcome'), true);
         if (

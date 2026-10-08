@@ -41,6 +41,12 @@ lock release must succeed before dispatch. An owner must retain an operation ID
 across reconnection/recovery; choosing a new ID is a new explicit operation, never
 automatic retry. Session, epoch or nonce changes do not renew a spent operation ID.
 
+If `.spent` disappears while `.outcome`, `.pending` or `.pending-unknown` survives,
+consumption refuses before creating replacement intent and inspection reports
+`unavailable`. Malformed, oversized or unreadable surviving records also refuse.
+The original evidence remains for owner recovery. This covers partial history
+loss; it cannot detect rollback or deletion of every record across a fresh owner.
+
 Consumption returns an opaque reservation held in a private per-ledger WeakMap.
 After the exclusive lock has been released, the broker rechecks the original
 consumed record's identity, timestamps and exact canonical bytes before dispatch.

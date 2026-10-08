@@ -175,3 +175,34 @@ describe('bounded redacted operation ledger', () => {
     expect(await fs.readdir(directory)).toHaveLength(storage.LIMITS.entries);
   });
 });
+
+// A surviving terminal/staging record proves that missing spent bytes are not
+// evidence of a fresh operation. No reconstruction or deletion is authorized.
+describe('operation ledger partial-history recovery', () => {
+  it.each(
+    ['outcome', 'pending', 'pending-unknown'].flatMap((suffix) =>
+      ['canonical', 'malformed', 'oversized'].map((content) => [suffix, content]),
+    ),
+  )('refuses missing-spent recovery with preserved %s/%s evidence', async (suffix, content) => {
+    const value = binding();
+    const ledger = await storage.createOperationLedger(directory);
+    await ledger.consume(value);
+    await ledger.settle(value, 'completed');
+    const name = createHash('sha256').update(value.operationId).digest('hex');
+    const outcome = path.join(directory, name + '.outcome');
+    const survivor = path.join(directory, name + '.' + suffix);
+    if (suffix !== 'outcome') await fs.rename(outcome, survivor);
+    if (content === 'malformed') await fs.writeFile(survivor, '{torn');
+    if (content === 'oversized')
+      await fs.writeFile(survivor, 'x'.repeat(storage.LIMITS.recordBytes + 1));
+    const before = await fs.readFile(survivor);
+    await fs.unlink(path.join(directory, name + '.spent'));
+    const reopened = await storage.createOperationLedger(directory);
+    expect(await reopened.inspect(value.operationId)).toEqual({
+      state: 'unavailable',
+    });
+    await expect(reopened.consume(value)).rejects.toThrow('operation-ledger-unavailable');
+    expect(await fs.readdir(directory)).toEqual([name + '.' + suffix]);
+    expect(await fs.readFile(survivor)).toEqual(before);
+  });
+});
