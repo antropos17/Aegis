@@ -1,0 +1,218 @@
+[
+  {
+    "runId": "37656883851",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37656883851",
+    "source": "212b6636d047cdf2d1e62cc179691754f6b04bb9",
+    "file": "37656883851.json",
+    "sha256": "da4e26f400e8697e2fa07f4762a3118c31d8d717704aa8d2ce82bdfda975ff2b",
+    "scope": "cloud-hyperv-empty-firmware-lifecycle",
+    "failureStage": null
+  },
+  {
+    "runId": "37660475538",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37660475538",
+    "source": "70389b5287b3527ee1bdc24bd36f45392cc45637",
+    "file": "37660475538.json",
+    "sha256": "0a1d8f21d2753047adec17a30dbae5fd8a50b6d587754e0c24061ff8fef544fc",
+    "scope": "cloud-hyperv-empty-firmware-lifecycle",
+    "failureStage": null
+  },
+  {
+    "runId": "37662441786",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37662441786",
+    "source": "7dbd688e37fadfc367e691ca6308ba69b2e02c30",
+    "file": "37662441786.json",
+    "sha256": "c9b097551429211fe6f8199961ef2b37c1e47a60bacd0fce2eac3709a137a5fe",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "host-preflight"
+  },
+  {
+    "runId": "37663627029",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37663627029",
+    "source": "5f848ee87badc8f520b8c85608e630e5363ea901",
+    "file": "37663627029.json",
+    "sha256": "1d806b1bf0724583bf42380de5550b896d83a51ce0a00a1f426717a57936aad3",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "create-exact-owned-vm"
+  },
+  {
+    "runId": "37664454992",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37664454992",
+    "source": "46031fa0bd19baaf68e892f4c1ae0ea0a9f8f3c4",
+    "file": "37664454992.json",
+    "sha256": "730b0aff795dc80bcd073ed68fb4b07fb40bdf88a2faf7ac2b30373a0e73974f",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "native-start-and-firmware-key"
+  },
+  {
+    "runId": "37666683151",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37666683151",
+    "source": "91226373793c9ca48c3f26c95f44d7708e7a1908",
+    "file": "37666683151.json",
+    "sha256": "818edac1066351eb1c4e92a70c7745acd948e305cbf9ebc7d1328d7e89798a7e",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "actual-guest-setup-and-standard-task"
+  },
+  {
+    "runId": "37669955669",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37669955669",
+    "source": "73bdaa2563109a8fc29ade99ed6f3e85368478cc",
+    "file": "37669955669.json",
+    "sha256": "ad79c1b4e2863611437c1a392c2f06a53f182cbc7ae7e6b119c847742558f48a",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "host-preflight"
+  },
+  {
+    "runId": "37672123338",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37672123338",
+    "source": "e8342e2b0057c953ede2fb6eee50b11ebb3df510",
+    "file": "37672123338.json",
+    "sha256": "25f3f292a7ca31d16a9571c1abedb2420c7be96155d19adc3fecfbe6d31c0339",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "actual-guest-setup-and-standard-task"
+  },
+  {
+    "runId": "37679061829",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37679061829",
+    "source": "55cf6b59eb495a7f85c3c3d42231712aef6e2006",
+    "file": "37679061829.json",
+    "sha256": "0513b2d219c7c19dfc272e84520f1878b5561cbd9edf2c4723cbfb4d6948ffce",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "optional-fixed-setup-key-window"
+  },
+  {
+    "runId": "37681388752",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37681388752",
+    "source": "2b4eb3873d1c77081dfb7eab87e320133076bf09",
+    "file": "37681388752.json",
+    "sha256": "85a57fa88d3ae723509343286bd95c20487a735f68a7fd58a0bfe989a293f20b",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "actual-guest-setup-and-standard-task"
+  },
+  {
+    "runId": "37684569298",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37684569298",
+    "source": "430b9d299bff969fab5d579ff6f1e6faeca4f39c",
+    "file": "37684569298.json",
+    "sha256": "01c2f78983c9ffc41d3034d47fb93a4036f2227aa173ce1d5cc1a7c9509760c2",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "held-token-admin"
+  },
+  {
+    "runId": "37687929852",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37687929852",
+    "source": "e5093a3edf01e9b708c5d2b601ccd125cd9c67c3",
+    "file": "37687929852.json",
+    "sha256": "04ab2cde243ad0735b29982594b5b07130ac1c08cc27d86725fd418b6ceb3879",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "task-exit"
+  },
+  {
+    "runId": "37688899156",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37688899156",
+    "source": "35da8749bd86a3f9f1d3b96ae1dd745a7870e99d",
+    "file": "37688899156.json",
+    "sha256": "82a4545beca2cbd287adeac2f023205cb70c9b6d589c6555c17618061af18d91",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "pinned-media-download-and-hash"
+  },
+  {
+    "runId": "37692352150",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37692352150",
+    "source": "571c88435f45b7d4adfe54dc0da9c393cd358440",
+    "file": "37692352150.json",
+    "sha256": "9368be1630c0a9e65970a4f333c90338edb70ebdccc4174b61b26929367eb9e6",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "owner-node-version-positive"
+  },
+  {
+    "runId": "37695888853",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37695888853",
+    "source": "73d19f0a8978aeac89a519d1ca1893fd3231532a",
+    "file": "37695888853.json",
+    "sha256": "c92a732014f4d5dc84f458a212250b1d7a4e3ff5137b8001622f4d97f4f7c33a",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "host-route-owned-vm-refused"
+  },
+  {
+    "runId": "37698380607",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37698380607",
+    "source": "979dc3e0d5db054be2e78d400dc2bdc538951a17",
+    "file": "37698380607.json",
+    "sha256": "9bd0cb6fe3a75caf41d76d7ec92ce797e8b8116ad048ada8b0367eec9d34fc12",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "host-route-guest-job-closure-unconfirmed"
+  },
+  {
+    "runId": "37702024365",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37702024365",
+    "source": "577cc43120168ae45fbbcab678baf9711a594554",
+    "file": "37702024365.json",
+    "sha256": "81eb81fb48cecb2a43a4b0b47856a83409df477fe5367191a7cbdcecce068ec4",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "held-token-open-access-denied"
+  },
+  {
+    "runId": "37704784399",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37704784399",
+    "source": "a7aa59f4c26382968fb0b7bd6fad2406c1eec67c",
+    "file": "37704784399.json",
+    "sha256": "e44aedefe036eda79a6a11d7d29f828e0f48afb01e7349a49e9063b3298e66e9",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "stage-fixed-runtime-and-host-controls"
+  },
+  {
+    "runId": "37706481144",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37706481144",
+    "source": "c83ca8e509bb97195224c9d8a6095922ef80ed50",
+    "file": "37706481144.json",
+    "sha256": "7891ea2b2d2f63b79a85641eae7958e9ae97638943f95ccc9e7548f4b7990af5",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-transfer-manifest-invalid"
+  },
+  {
+    "runId": "37708585872",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37708585872",
+    "source": "e8048a44a868957c05a25bfaf3e71b8023d5db92",
+    "file": "37708585872.json",
+    "sha256": "13ae46bb1848151642569155f42960939c771eb391dd48f68c1267b10b636a61",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-task-process-refused/runtime-authenticated-ready"
+  },
+  {
+    "runId": "37712277094",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37712277094",
+    "source": "637e9cd5ccb595647d6eb3e28a0b590263849d2b",
+    "file": "37712277094.json",
+    "sha256": "21b91474efbe2e074163b592b66bb9654a9317106e57be3ac53d88143cced683",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-task-process-refused"
+  },
+  {
+    "runId": "37716443944",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37716443944",
+    "source": "9e6d6be89fd7746c8737609f044aa8962790260b",
+    "file": "37716443944.json",
+    "sha256": "4aa9764190336a1b0ec3c34c38d5d780a27fc90219dc9cf9ab72a583eae20388",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-task-process-refused"
+  },
+  {
+    "runId": "37719625461",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37719625461",
+    "source": "c13159e615b744db773905e54408bf07cf7627a9",
+    "file": "37719625461.json",
+    "sha256": "88de5fc81742f2d000bfcbb6885ba938dceb1bd5e3aac1d8b4a97df8f138abc2",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-task-process-refused"
+  },
+  {
+    "runId": "37721808584",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37721808584",
+    "source": "713b492a3007d4308dcaab5a98eb9cecc75f0781",
+    "file": "37721808584.json",
+    "sha256": "bed68baf8a9a019e7472673af0a0226998ca6fb21e0c4ed3482180b7e1079c2e",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": ""
+  }
+]

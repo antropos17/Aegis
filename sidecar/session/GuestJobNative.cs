@@ -100,17 +100,75 @@ namespace Aegis.ProtectedSession
         }
         internal static string Principal(IntPtr process)
         {
-            IntPtr token = IntPtr.Zero, data = IntPtr.Zero;
+            IntPtr token = IntPtr.Zero;
             try
             {
-                Require(OpenProcessToken(process, 8, out token)); int length;
+                Require(OpenProcessToken(process, 8, out token)); return TokenPrincipal(token);
+            }
+            finally { if (token != IntPtr.Zero) CloseHandle(token); }
+        }
+        private static string TokenPrincipal(IntPtr token)
+        {
+            IntPtr data = IntPtr.Zero;
+            try
+            {
+                int length;
                 bool sized = GetTokenInformation(token, 1, IntPtr.Zero, 0, out length);
                 Require(!sized && Marshal.GetLastWin32Error() == 122 && length >= IntPtr.Size && length <= 65536);
                 data = Marshal.AllocHGlobal(length); int returned;
                 Require(GetTokenInformation(token, 1, data, length, out returned) && returned >= IntPtr.Size && returned <= length);
                 return new SecurityIdentifier(Marshal.ReadIntPtr(data)).Value;
             }
+            finally { if (data != IntPtr.Zero) Marshal.FreeHGlobal(data); }
+        }
+        internal static int Session(IntPtr process)
+        {
+            IntPtr token = IntPtr.Zero;
+            try { Require(OpenProcessToken(process, 8, out token)); return TokenInteger(token, 12); }
+            finally { if (token != IntPtr.Zero) CloseHandle(token); }
+        }
+        private static int TokenInteger(IntPtr token, int kind)
+        {
+            IntPtr data = Marshal.AllocHGlobal(4);
+            try { int returned; Require(GetTokenInformation(token, kind, data, 4, out returned) && returned == 4); return Marshal.ReadInt32(data); }
+            finally { Marshal.FreeHGlobal(data); }
+        }
+        [StructLayout(LayoutKind.Sequential)] private struct SidAttributes { internal IntPtr Sid; internal uint Attributes; }
+        [StructLayout(LayoutKind.Sequential)] private struct TokenGroups { internal uint Count; internal SidAttributes First; }
+        // The late console host must retain the Task's standard token, including
+        // absence of disabled/deny-only administrator groups. QUERY only.
+        internal static void RequireStandardPrincipal(IntPtr process, string expectedPrincipal, int expectedSession)
+        {
+            IntPtr token = IntPtr.Zero, data = IntPtr.Zero;
+            try
+            {
+                Require(OpenProcessToken(process, 8, out token));
+                Require(TokenPrincipal(token) == expectedPrincipal);
+                Require(TokenInteger(token, 20) == 0 && TokenInteger(token, 12) == expectedSession);
+                int length;
+                bool sized = GetTokenInformation(token, 2, IntPtr.Zero, 0, out length);
+                Require(!sized && Marshal.GetLastWin32Error() == 122 && length >= 4 && length <= 65536);
+                data = Marshal.AllocHGlobal(length); int returned;
+                Require(GetTokenInformation(token, 2, data, length, out returned) && returned >= 4 && returned <= length);
+                RequireNoAdministratorGroups(data, returned);
+            }
             finally { if (data != IntPtr.Zero) Marshal.FreeHGlobal(data); if (token != IntPtr.Zero) CloseHandle(token); }
+        }
+        internal static void RequireNoAdministratorGroups(IntPtr data, int length)
+        {
+            Require(data != IntPtr.Zero && length >= 4 && length <= 65536);
+            uint count = unchecked((uint)Marshal.ReadInt32(data));
+            int offset = Marshal.OffsetOf(typeof(TokenGroups), "First").ToInt32(), stride = Marshal.SizeOf(typeof(SidAttributes));
+            Require(count <= 256 && (count == 0 || offset + (long)count * stride <= length));
+            long start = data.ToInt64(), tableEnd = start + offset + (long)count * stride, end = checked(start + length);
+            for (int index = 0; index < count; index++)
+            {
+                IntPtr sid = Marshal.ReadIntPtr(data, offset + index * stride); long address = sid.ToInt64();
+                Require(address >= tableEnd && address <= end - 8);
+                int subAuthorities = Marshal.ReadByte(sid, 1), bytes = 8 + subAuthorities * 4;
+                Require(Marshal.ReadByte(sid) == 1 && subAuthorities <= 15 && bytes <= end - address);
+                Require(!new SecurityIdentifier(sid).IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid));
+            }
         }
     }
 }

@@ -1,0 +1,774 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-07T21:14:33.9926512Z",
+    "sourceSha":  "e5093a3edf01e9b708c5d2b601ccd125cd9c67c3",
+    "actualHead":  "e5093a3edf01e9b708c5d2b601ccd125cd9c67c3",
+    "sourceObservation":  {
+                              "exitCode":  0,
+                              "stderrBytes":  0,
+                              "headBytes":  41
+                          },
+    "sourceHashes":  {
+                         "scripts/qualification/cloud-guest-lab.ps1":  "727bcbe9a430ac58f71aec9b066afe341575b35bb7c3135f209d2c1e0cebc1f4",
+                         "scripts/qualification/cloud-guest-vm.ps1":  "029dfed0da140491294d1acc12d2cd85f5ce2757c87642baaccd79933df97354",
+                         "scripts/qualification/cloud-guest-media.ps1":  "1707084600e7573faf18e2d28dfb1cc566311c55c3a7aff3c80c2bf7c850d2f6",
+                         "scripts/qualification/cloud-guest-bootstrap.ps1":  "6e5759a752d6de5733b3a64a28e96513e7c85f393093906710997f9ac3947458",
+                         "scripts/qualification/cloud-guest-task.cjs":  "7fa56431d899493c28662a0e7ae9b560451c0a2cf84bc8e20dcb3499d1a9f5e9",
+                         "scripts/qualification/cloud-hyperv-operations.ps1":  "d579cc11c571d64e0e18082a365df88c82e889569095ba76b6bb703cfbf15851",
+                         "scripts/qualification/CloudGuestMetadata.cs":  "af0bac0dd7c36d5c26c2d1d0f4d7ff2a205f1955c4c9f843ae8e0de03a2b4ec8",
+                         "scripts/qualification/CloudGuestVm.cs":  "f4ee6379fb11ae3d7e3fb1f57542ff798d56af0126420f2b4a9d0780c91f766c",
+                         "scripts/qualification/CloudGuestBootDiagnostics.cs":  "111fd772d8d8de10a22acf3d71707fef3bc1b4f990e9c0ff94d7a70fcb306154",
+                         "sidecar/session/OwnedVmLifecycle.cs":  "db2617156227744c90b6395d0d45ba1d0c96defe48bcd4791a10b54800635bbd",
+                         "sidecar/session/VmManagementNative.cs":  "8c63085dbdb55e64b2a71a6c70ffd1a0d1203503fc583ff341d32fed3cdff6de",
+                         "scripts/qualification/CloudGuestProcess.cs":  "f09a081570bca439b97cb578a64f959eb3187faed226011345d0b387e18fb7a2",
+                         "sidecar/session/GuestJobNative.cs":  "525da15edd5c390de395ca707987c8b1fddb3fec8a07128de73b3986621dbe70",
+                         "sidecar/session/GuestJobInventory.cs":  "f2d3e93272a3dc6b9a13cc1248ca4d64db141a0c166563eca3b0330510e4cad8"
+                     },
+    "compilerSha256":  "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "stages":  [
+                   {
+                       "milliseconds":  7422,
+                       "stage":  "host-preflight",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  578,
+                       "stage":  "compile-fixed-native-helpers",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  235885,
+                       "stage":  "pinned-media-download-and-hash",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  4155,
+                       "stage":  "read-only-exact-wim-metadata",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  159,
+                       "stage":  "tiny-answer-iso",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  796,
+                       "stage":  "stage-fixed-runtime-and-host-controls",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  5401,
+                       "stage":  "create-exact-owned-vm",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  5565,
+                       "stage":  "configure-supported-windows11-guest",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  1959,
+                       "stage":  "native-start-and-firmware-key",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  60258,
+                       "stage":  "optional-fixed-setup-key-window",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  500038,
+                       "stage":  "actual-guest-setup-and-standard-task",
+                       "passed":  true
+                   }
+               ],
+    "host":  {
+                 "build":  "26100",
+                 "caption":  "Microsoft Windows Server 2025 Datacenter",
+                 "vmms":  "Running",
+                 "memoryBytes":  17174360064,
+                 "hypervisorPresent":  true,
+                 "admin":  true
+             },
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125861339136,
+                                         "freeBytes":  34606419968
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  3242528768,
+                                         "freeBytes":  157816643584
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T21:14:35.0155463Z"
+                  },
+                  {
+                      "phase":  "before-guest-setup",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125884686336,
+                                         "freeBytes":  34583072768
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  15254614016,
+                                         "freeBytes":  145804558336
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T21:19:56.3948787Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125888393216,
+                                         "freeBytes":  34579365888
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  3329613824,
+                                         "freeBytes":  157729558528
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-07T21:28:18.7992895Z"
+                  }
+              ],
+    "media":  {
+                  "answerIsoBytes":  55296,
+                  "license":  "Microsoft 90-day evaluation; disposable testing",
+                  "hashSource":  "https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file",
+                  "url":  "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso",
+                  "verifiedBeforeMount":  true,
+                  "bytes":  8225329152,
+                  "image":  {
+                                "version":  "10.0.26300.9457",
+                                "name":  "Windows 11 Enterprise Evaluation",
+                                "architecture":  "amd64",
+                                "metadataSource":  "read-only-WIMGAPI-file-information",
+                                "edition":  "EnterpriseEval",
+                                "imageCount":  1,
+                                "index":  1
+                            },
+                  "sha256":  "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38"
+              },
+    "runtime":  {
+                    "path":  "C:\\Program Files\\nodejs\\node.exe",
+                    "sha256":  "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e",
+                    "bytes":  86973768,
+                    "version":  "v22.23.3"
+                },
+    "hardware":  {
+                     "generation":  2,
+                     "hostGuestVhdMounted":  false,
+                     "secureBoot":  "On",
+                     "memoryBytes":  4294967296,
+                     "vmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                     "processors":  2,
+                     "diskVirtualBytes":  68719476736,
+                     "nics":  0,
+                     "tpmEnabled":  true,
+                     "PSComputerName":  "localhost",
+                     "RunspaceId":  "d72f9faa-3538-495a-9050-8b6831083155",
+                     "PSShowComputerName":  false
+                 },
+    "vmName":  "aegis-cloud-37687929852-1-93d7bea6309b4a5a912d4d3ca37ae4ce",
+    "vmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+    "startOperation":  {
+                           "vmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                           "pendingUnknown":  false,
+                           "operationId":  "5a1a7adf-22d0-4ad1-ad74-0dd71bf270bb",
+                           "requestedState":  2,
+                           "returnCode":  4096,
+                           "jobPath":  "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"E46486A6-BEF2-4DBB-8ECC-D942AA4BF51A\"",
+                           "unresolved":  false,
+                           "failureReason":  null,
+                           "failureHResult":  null
+                       },
+    "stopOperation":  {
+                          "vmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                          "pendingUnknown":  false,
+                          "operationId":  "35d1d0bf-fc74-44f0-88ee-5e68b9d14d95",
+                          "requestedState":  3,
+                          "returnCode":  4096,
+                          "jobPath":  "\\\\runnervmfi6oq\\root\\virtualization\\v2:Msvm_ConcreteJob.InstanceID=\"EAFF8EEC-314E-447E-9ACE-93F2E3A3C18B\"",
+                          "unresolved":  false,
+                          "failureReason":  null,
+                          "failureHResult":  null
+                      },
+    "guest":  {
+                  "guestResult":  {
+                                      "schemaVersion":  1,
+                                      "guest":  {
+                                                    "caption":  "Microsoft Windows 11 Enterprise Evaluation",
+                                                    "build":  "26300",
+                                                    "version":  "10.0.26300"
+                                                },
+                                      "autoLogonDisabled":  true,
+                                      "labOnlyPowerShellDirect":  true,
+                                      "passwordRegistryAbsent":  true,
+                                      "bootstrapInvocation":  {
+                                                                  "invocationAttempted":  true,
+                                                                  "category":  null,
+                                                                  "line":  null,
+                                                                  "phase":  "fixed-source-returned",
+                                                                  "fullLanguage":  true,
+                                                                  "executionPolicy":  "Restricted",
+                                                                  "hResult":  null,
+                                                                  "exceptionKind":  null
+                                                              },
+                                      "setupAnswerCachesAbsent":  true,
+                                      "failureCode":  "guest-task-process-refused",
+                                      "task":  {
+                                                   "failure":  null,
+                                                   "readEditTestPassed":  false,
+                                                   "passed":  false,
+                                                   "shellAndDescendantPositive":  false,
+                                                   "stage":  "result-unavailable",
+                                                   "task":  "fixed-read-edit-test",
+                                                   "hostPathProbes":  [
+
+                                                                      ],
+                                                   "schemaVersion":  1,
+                                                   "protectedProbes":  [
+
+                                                                       ]
+                                               },
+                                      "taskResultStatus":  "guest-task-result-missing",
+                                      "identity":  {
+                                                       "jobClosureConfirmed":  true,
+                                                       "pid":  2840,
+                                                       "exitCodeObserved":  true,
+                                                       "heldIdentityBeforeRelease":  true,
+                                                       "taskReleased":  true,
+                                                       "failureStage":  "task-exit",
+                                                       "failureHResult":  null,
+                                                       "atomicJobAtCreation":  false,
+                                                       "initialJobMembers":  1,
+                                                       "administratorEnabled":  false,
+                                                       "passed":  false,
+                                                       "birthFileTime":  134358820954357357,
+                                                       "exitCode":  3221225794,
+                                                       "sid":  "S-1-5-21-3356470446-2324485850-1453030215-1001",
+                                                       "elevated":  false
+                                                   },
+                                      "atomicJobAtCreation":  false,
+                                      "launchAllowed":  false,
+                                      "passed":  false,
+                                      "PSComputerName":  "aegis-cloud-37687929852-1-93d7bea6309b4a5a912d4d3ca37ae4ce",
+                                      "RunspaceId":  "b9c651e5-34a5-49db-b071-a63b67f89f60",
+                                      "PSShowComputerName":  true
+                                  },
+                  "mediaMutationUnknown":  false,
+                  "setupWaitMilliseconds":  498693,
+                  "failure":  null,
+                  "setupDiskSamples":  [
+                                           {
+                                               "seconds":  0,
+                                               "freeBytes":  145771003904,
+                                               "ownedVhdFileBytes":  3728736256
+                                           },
+                                           {
+                                               "seconds":  81,
+                                               "freeBytes":  138489692160,
+                                               "ownedVhdFileBytes":  11010048000
+                                           },
+                                           {
+                                               "seconds":  161,
+                                               "freeBytes":  132886102016,
+                                               "ownedVhdFileBytes":  16613638144
+                                           },
+                                           {
+                                               "seconds":  241,
+                                               "freeBytes":  132114350080,
+                                               "ownedVhdFileBytes":  17385390080
+                                           },
+                                           {
+                                               "seconds":  305,
+                                               "freeBytes":  131845914624,
+                                               "ownedVhdFileBytes":  17653825536
+                                           },
+                                           {
+                                               "seconds":  368,
+                                               "freeBytes":  131611033600,
+                                               "ownedVhdFileBytes":  17888706560
+                                           }
+                                       ],
+                  "progress":  {
+                                   "standardTaskSubmitted":  true,
+                                   "installedOs":  {
+                                                       "ubr":  9457,
+                                                       "edition":  "EnterpriseEval",
+                                                       "build":  26300,
+                                                       "guestDiskCount":  1,
+                                                       "setupProfileObserved":  true,
+                                                       "PSComputerName":  "aegis-cloud-37687929852-1-93d7bea6309b4a5a912d4d3ca37ae4ce",
+                                                       "RunspaceId":  "b9c651e5-34a5-49db-b071-a63b67f89f60",
+                                                       "PSShowComputerName":  true
+                                                   },
+                                   "transferHashesVerified":  true,
+                                   "profileReady":  true,
+                                   "phase":  "completed",
+                                   "sessionEstablished":  true,
+                                   "mediaDetached":  {
+                                                         "drivesBefore":  2,
+                                                         "drivesAfter":  0,
+                                                         "freshExactVmObserved":  true
+                                                     }
+                               },
+                  "answerDvdEjectedBeforeTask":  true,
+                  "PSComputerName":  "localhost",
+                  "RunspaceId":  "cc3d48bf-292c-43b4-baf9-64cca1c70792",
+                  "PSShowComputerName":  false
+              },
+    "keyboard":  {
+                     "call":  58,
+                     "phase":  "completed",
+                     "count":  1,
+                     "class":  "Msvm_Keyboard",
+                     "systemNameMatch":  true,
+                     "vmRunningObserved":  true,
+                     "keyCode":  32,
+                     "returnCode":  0,
+                     "completed":  true,
+                     "hResult":  null,
+                     "managementStatus":  null,
+                     "vmIdentityMatched":  true,
+                     "observedVmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                     "enabledState":  2
+                 },
+    "keyboardWindow":  {
+                           "stoppedOnOwnedNonrunning":  false,
+                           "outcomes":  [
+                                            {
+                                                "attempt":  1,
+                                                "returnCode":  32775,
+                                                "providerCompleted":  false,
+                                                "elapsedMilliseconds":  61
+                                            },
+                                            {
+                                                "attempt":  2,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  1242
+                                            },
+                                            {
+                                                "attempt":  3,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  2271
+                                            },
+                                            {
+                                                "attempt":  4,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  3314
+                                            },
+                                            {
+                                                "attempt":  5,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  4358
+                                            },
+                                            {
+                                                "attempt":  6,
+                                                "returnCode":  32775,
+                                                "providerCompleted":  false,
+                                                "elapsedMilliseconds":  5396
+                                            },
+                                            {
+                                                "attempt":  7,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  6432
+                                            },
+                                            {
+                                                "attempt":  8,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  7467
+                                            },
+                                            {
+                                                "attempt":  9,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  8572
+                                            },
+                                            {
+                                                "attempt":  10,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  9602
+                                            },
+                                            {
+                                                "attempt":  11,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  10632
+                                            },
+                                            {
+                                                "attempt":  12,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  11661
+                                            },
+                                            {
+                                                "attempt":  13,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  12698
+                                            },
+                                            {
+                                                "attempt":  14,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  13736
+                                            },
+                                            {
+                                                "attempt":  15,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  14775
+                                            },
+                                            {
+                                                "attempt":  16,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  15807
+                                            },
+                                            {
+                                                "attempt":  17,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  16848
+                                            },
+                                            {
+                                                "attempt":  18,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  17871
+                                            },
+                                            {
+                                                "attempt":  19,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  18908
+                                            },
+                                            {
+                                                "attempt":  20,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  19947
+                                            },
+                                            {
+                                                "attempt":  21,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  20977
+                                            },
+                                            {
+                                                "attempt":  22,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  22010
+                                            },
+                                            {
+                                                "attempt":  23,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  23038
+                                            },
+                                            {
+                                                "attempt":  24,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  24067
+                                            },
+                                            {
+                                                "attempt":  25,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  25111
+                                            },
+                                            {
+                                                "attempt":  26,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  26138
+                                            },
+                                            {
+                                                "attempt":  27,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  27172
+                                            },
+                                            {
+                                                "attempt":  28,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  28204
+                                            },
+                                            {
+                                                "attempt":  29,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  29246
+                                            },
+                                            {
+                                                "attempt":  30,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  30282
+                                            },
+                                            {
+                                                "attempt":  31,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  31324
+                                            },
+                                            {
+                                                "attempt":  32,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  32359
+                                            },
+                                            {
+                                                "attempt":  33,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  33394
+                                            },
+                                            {
+                                                "attempt":  34,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  34426
+                                            },
+                                            {
+                                                "attempt":  35,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  35459
+                                            },
+                                            {
+                                                "attempt":  36,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  36490
+                                            },
+                                            {
+                                                "attempt":  37,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  37524
+                                            },
+                                            {
+                                                "attempt":  38,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  38567
+                                            },
+                                            {
+                                                "attempt":  39,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  39600
+                                            },
+                                            {
+                                                "attempt":  40,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  40633
+                                            },
+                                            {
+                                                "attempt":  41,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  41672
+                                            },
+                                            {
+                                                "attempt":  42,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  42704
+                                            },
+                                            {
+                                                "attempt":  43,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  43740
+                                            },
+                                            {
+                                                "attempt":  44,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  44777
+                                            },
+                                            {
+                                                "attempt":  45,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  45809
+                                            },
+                                            {
+                                                "attempt":  46,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  46839
+                                            },
+                                            {
+                                                "attempt":  47,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  47869
+                                            },
+                                            {
+                                                "attempt":  48,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  48904
+                                            },
+                                            {
+                                                "attempt":  49,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  49934
+                                            },
+                                            {
+                                                "attempt":  50,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  50964
+                                            },
+                                            {
+                                                "attempt":  51,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  51994
+                                            },
+                                            {
+                                                "attempt":  52,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  53030
+                                            },
+                                            {
+                                                "attempt":  53,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  54061
+                                            },
+                                            {
+                                                "attempt":  54,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  55121
+                                            },
+                                            {
+                                                "attempt":  55,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  56151
+                                            },
+                                            {
+                                                "attempt":  56,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  57185
+                                            },
+                                            {
+                                                "attempt":  57,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  58220
+                                            },
+                                            {
+                                                "attempt":  58,
+                                                "returnCode":  0,
+                                                "providerCompleted":  true,
+                                                "elapsedMilliseconds":  59246
+                                            }
+                                        ],
+                           "dispatchWindowMilliseconds":  60000,
+                           "elapsedMilliseconds":  60249,
+                           "failure":  null,
+                           "attempts":  58,
+                           "optional":  true,
+                           "snapshots":  [
+                                             {
+                                                 "vmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                                                 "phase":  "thumbnail-invoke",
+                                                 "enabledState":  2,
+                                                 "heartbeatStatus":  [
+                                                                         12
+                                                                     ],
+                                                 "width":  320,
+                                                 "height":  240,
+                                                 "format":  "RGB565",
+                                                 "imageBase64":  null,
+                                                 "returnCode":  0,
+                                                 "failureCode":  "boot-thumbnail-size-invalid",
+                                                 "hResult":  -2146233079,
+                                                 "captureBeforeCredentialSession":  true,
+                                                 "vmIdentityMatched":  true,
+                                                 "observedVmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                                                 "imageDataType":  "byte-array",
+                                                 "imageDataLength":  153604,
+                                                 "imageArrayRank":  1,
+                                                 "expectedImageBytes":  153600,
+                                                 "elapsedMilliseconds":  214
+                                             },
+                                             {
+                                                 "vmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                                                 "phase":  "thumbnail-invoke",
+                                                 "enabledState":  2,
+                                                 "heartbeatStatus":  [
+                                                                         12
+                                                                     ],
+                                                 "width":  320,
+                                                 "height":  240,
+                                                 "format":  "RGB565",
+                                                 "imageBase64":  null,
+                                                 "returnCode":  0,
+                                                 "failureCode":  "boot-thumbnail-size-invalid",
+                                                 "hResult":  -2146233079,
+                                                 "captureBeforeCredentialSession":  true,
+                                                 "vmIdentityMatched":  true,
+                                                 "observedVmId":  "9ad2eff2-3655-4c15-8e50-4341686ef062",
+                                                 "imageDataType":  "byte-array",
+                                                 "imageDataLength":  153604,
+                                                 "imageArrayRank":  1,
+                                                 "expectedImageBytes":  153600,
+                                                 "elapsedMilliseconds":  7553
+                                             }
+                                         ],
+                           "providerOperationTimeoutSeconds":  5,
+                           "closedBeforeCredentialSession":  true,
+                           "completed":  56,
+                           "mandatoryFailure":  false
+                       },
+    "hostCanariesUnchangedAfterTask":  true,
+    "hostCanariesUnchangedAfterRemoval":  true,
+    "offObserved":  true,
+    "removedObserved":  true,
+    "operationSettlement":  "settled-and-exact-vm-absent",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "category":  "OperationStopped",
+                    "hResult":  -2146233087,
+                    "stage":  "driver"
+                },
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "completedAt":  "2026-10-07T21:28:18.7992895Z"
+}

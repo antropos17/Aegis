@@ -1,27 +1,30 @@
 # One disposable Windows VM: preparation contract
 
-Status: **prepared design only; no selected authorized host/image or VM effects**.
-This makes the remaining choices and first native implementation reviewable.
-It does not authorize installing features/services, creating a VM, registering
-an endpoint, editing global integration settings or using existing images/data.
-The [current process fixture](guest-channel-fixture.md) remains same-principal.
+Status: **cloud lab implemented and Windows 11 boot observed; production boundary
+qualification remains incomplete**. The operator authorized disposable cloud
+Hyper-V testing on 2026-10-07. The [source-bound cloud evidence](cloud-hyperv-evidence-20261007.md)
+records the selected hosted runner, pinned public evaluation image and actual VM
+effects. The requirements below still govern unqualified production capabilities;
+they do not authorize changes to unrelated hosts or resources. The earlier
+[process fixture](guest-channel-fixture.md) remains same-principal.
 
 ## Exact inputs required before provisioning
 
 | Input | Required recorded value | Current state |
 | --- | --- | --- |
-| Disposable host | Explicit operator authorization for its exact host identity and allowed effects; independent identity/build/capability observations | Unselected. Historical local probe: build 26200, hypervisor present, management provider unavailable; this is not readiness acceptance |
-| Guest image | Legally usable clean Windows 11 x64 edition/build, source/license, exact file identity/hash/size and offline first-boot readiness | Unselected. No download, purchase, activation or personal-account setup authorized |
-| Owned volume/root | Exact new private local directory and volume identity; available storage/RAM; baseline/backup location; no reparse/UNC/shared resource | Unselected. Existing task data directory is not VM ownership authority |
+| Disposable host | Explicit operator authorization for its exact host identity and allowed effects; independent identity/build/capability observations | Fresh GitHub Actions windows-2025 runner selected for the authorized lab. Actual PowerShell and native C# lifecycle observations are retained per run; this does not establish local-host support |
+| Guest image | Legally usable clean Windows 11 x64 edition/build, source/license, exact file identity/hash/size and offline first-boot readiness | Pinned public Microsoft Windows 11 EnterpriseEval 26300.9457 image, exact SHA256/size and WIM checks; actual offline boot/profile readiness observed. No personal account, key purchase or production activation used |
+| Owned volume/root | Exact new private local directory and volume identity; available storage/RAM; baseline/backup location; no reparse/UNC/shared resource | Fresh per-run D: root, disk/RAM preflight, exact VM ID and bounded receipts implemented in the lab. Protected persistent production registration remains unqualified |
 | Native owner | Separate trusted host principal, protected registration/inventory and exact allowed VM ID/epoch; OS-authenticated caller contract | Not implemented; renderer, names, GUIDs and HMAC labels cannot issue ownership |
-| Guest bootstrap | Pinned trusted bootstrap/runtime manifest, separate agent identity and private Job; protected image/state and initialized observations | Not implemented. Host Node/Git file hashes do not pin a guest image/runtime closure |
+| Guest bootstrap | Pinned trusted bootstrap/runtime manifest, separate agent identity and private Job; protected image/state and initialized observations | Hashed fixed bootstrap and guest Node transferred; separate AegisTask identity and held-process/Job guards implemented. Current actual run evidence and initialization limits are recorded separately; a complete guest runtime closure is not qualified |
 | Endpoint | One explicit service GUID, exact non-wildcard VM binding, narrowly scoped registration backup/restore and independently observed peer | Not implemented; current endpoint code only tests address serialization |
 
 Microsoft requires generation 2, at least two virtual processors, at least 4 GB
 RAM and 64 GB disk, with Secure Boot and TPM enabled for this Hyper-V guest.
-The candidate allocates two vCPUs, 6 GiB fixed RAM and one fresh 64 GiB fixed VHDX.
-These are proposed fixture values; host capacity and edition must be checked
-before selecting them. No existing VM is upgraded or repurposed. See
+The original design proposed two vCPUs, 6 GiB fixed RAM and one fresh 64 GiB fixed
+VHDX. The executed cloud lab uses two vCPUs, 4 GiB RAM and a fresh 64 GiB dynamic
+VHDX with explicit host free-space checks. Its receipts record the realized
+configuration. No existing VM is upgraded or repurposed. See
 [Windows 11 VM requirements](https://learn.microsoft.com/en-us/windows/whats-new/windows-11-requirements).
 
 Use an already permitted, offline-ready image and dummy local guest accounts.
@@ -108,6 +111,6 @@ No registration or socket connection has occurred in the current batch.
    owned guest lifetime closed. Retain unknown cleanup and stop further launches.
    Remove only exact confirmed disposable resources after the required review.
 
-This plan leaves the selected-host/image answer pending while ordinary tooling
-work proceeds. Full A1 needs actual native matrix evidence and independent review;
+The cloud lab resolves the host/image selection for these authorized disposable
+runs. Full A1 needs actual native matrix evidence and independent review;
 A2 owns real credentials and online agents, A3 owns any original-host export.

@@ -2,12 +2,23 @@ name: Qualify native enforcement fixtures
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Qualification scope
+        type: choice
+        default: native-fixtures
+        options:
+          - native-fixtures
+          - cloud-hyperv
+          - cloud-hyperv-native
+          - cloud-windows11
 
 permissions:
   contents: read
 
 jobs:
   native-fixtures:
+    if: inputs.mode == 'native-fixtures' || inputs.mode == ''
     runs-on: windows-2025
     timeout-minutes: 10
     defaults:
@@ -178,5 +189,90 @@ jobs:
         with:
           name: enforcement-native-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.AEGIS_QUALIFICATION_ROOT }}/evidence/
+          retention-days: 7
+          if-no-files-found: error
+
+  cloud-windows11:
+    if: inputs.mode == 'cloud-windows11'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: powershell
+    env:
+      EXPECTED_SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check bounded Windows Setup and task source controls
+        run: |
+          ./scripts/qualification/test-cloud-guest.ps1
+          node ./scripts/qualification/test-cloud-guest-task.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Boot pinned Windows 11 and run one fixed standard-user task
+        run: |
+          $taskRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
+          ('AEGIS_GUEST_ROOT=' + $taskRoot) | Add-Content -LiteralPath $env:GITHUB_ENV
+          ./scripts/qualification/cloud-guest-lab.ps1 -OutputRoot $taskRoot
+      - name: Validate fixed bounded credential-free evidence
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!$env:AEGIS_GUEST_ROOT) { throw 'Owned guest root unavailable' }
+          $evidence = Get-Item -LiteralPath (Join-Path $env:AEGIS_GUEST_ROOT 'evidence') -Force
+          if ($evidence.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse evidence refused' }
+          $files = @(Get-ChildItem -LiteralPath $evidence.FullName -Force)
+          if ($files.Count -ne 1 -or $files[0].Name -cne 'cloud-windows11.json' -or $files[0].PSIsContainer -or ($files[0].Attributes -band [IO.FileAttributes]::ReparsePoint) -or $files[0].Length -gt 1MB) { throw 'Guest receipt budget failed' }
+          'AEGIS_GUEST_BOUNDED=true' | Add-Content -LiteralPath $env:GITHUB_ENV
+      - name: Preserve Windows 11 guest observation
+        if: always() && env.AEGIS_GUEST_BOUNDED == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: enforcement-windows11-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_GUEST_ROOT }}/evidence/cloud-windows11.json
+          retention-days: 7
+          if-no-files-found: error
+
+  cloud-hyperv:
+    if: inputs.mode == 'cloud-hyperv' || inputs.mode == 'cloud-hyperv-native'
+    runs-on: windows-2025
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      EXPECTED_SOURCE_SHA: ${{ github.sha }}
+      AEGIS_NATIVE_LIFECYCLE: ${{ inputs.mode == 'cloud-hyperv-native' }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check lifecycle behavior with synthetic operations
+        run: ./scripts/qualification/test-cloud-hyperv.ps1
+      - name: Create start stop and remove one owned empty Hyper-V VM
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $taskRoot = Join-Path $env:RUNNER_TEMP ('aegis-cloud-hyperv-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          ('AEGIS_HYPERV_ROOT=' + $taskRoot) | Add-Content -LiteralPath $env:GITHUB_ENV
+          ./scripts/qualification/qualify-cloud-hyperv.ps1 -OutputRoot $taskRoot -NativeLifecycle:($env:AEGIS_NATIVE_LIFECYCLE -eq 'true')
+      - name: Validate the fixed bounded receipt before upload
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!$env:AEGIS_HYPERV_ROOT) { throw 'Owned root unavailable' }
+          $evidence = Get-Item -LiteralPath (Join-Path $env:AEGIS_HYPERV_ROOT 'evidence') -Force
+          if ($evidence.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse evidence refused' }
+          $files = @(Get-ChildItem -LiteralPath $evidence.FullName -Force)
+          if ($files.Count -ne 1 -or $files[0].Name -cne 'cloud-hyperv.json' -or $files[0].PSIsContainer -or ($files[0].Attributes -band [IO.FileAttributes]::ReparsePoint) -or $files[0].Length -gt 256KB) { throw 'Receipt file budget failed' }
+          'AEGIS_HYPERV_BOUNDED=true' | Add-Content -LiteralPath $env:GITHUB_ENV
+      - name: Preserve cloud Hyper-V lifecycle observation
+        if: always() && env.AEGIS_HYPERV_BOUNDED == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: enforcement-hyperv-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_HYPERV_ROOT }}/evidence/cloud-hyperv.json
           retention-days: 7
           if-no-files-found: error

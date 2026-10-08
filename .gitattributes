@@ -14,3 +14,9 @@ tests/fixtures/bench/** -text
 # above would hand a Windows checkout - including the windows-latest release runner -
 # a CRLF PEM, so this file is excluded from conversion in both directions.
 keys/** -text
+
+# Source-bound cloud qualification receipts keep their downloaded byte hashes.
+docs/roadmap/enforcement-e2/evidence/20261007/*.json -text whitespace=cr-at-eol
+
+# Signed public Claude metadata and retained provenance source are byte-exact.
+scripts/qualification/claude-public/** -text
