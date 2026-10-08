@@ -76,7 +76,7 @@ Write-Output ('pure-cancellation-result-controls:' + $resultCount)
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-lab.ps1'), [ref]$null, [ref]$null)
 $assignments = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$report.passed' }, $true))
 if ($assignments.Count -ne 1) { throw 'cancellation-controller-seam-refused' }
-$report = @{ cancellationControlsComplete = $true; hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null;
+$report = @{ stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true; hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null;
     offObserved = $true; removedObserved = $true; hostCanariesUnchangedAfterTask = $true; hostCanariesUnchangedAfterRemoval = $true }
 if (!(Invoke-Command -ScriptBlock ([scriptblock]::Create($assignments[0].Right.Extent.Text)))) { throw 'cancellation-controller-positive-refused' }
 foreach ($key in @('cancellationControlsComplete', 'hostCanariesUnchangedAfterCancellation')) {
@@ -112,6 +112,13 @@ foreach ($rule in $rules) {
         $rule.PropagationFlags -ne [Security.AccessControl.PropagationFlags]::None) { throw 'cancellation-acl-rights-refused' }
 }
 Write-Output 'pure-cancellation-native-acl-controls:4'
+function Test-CloudCancellationObservation([string]$Line) {
+    $stages = 'Initialize|BeforeCounts|Members|Candidate|Image|Snapshot|Retained|Complete|Deadline'
+    $pattern = '\Acancellation-descendant:stage=(?:' + $stages + ');attempt=([0-9]{1,10});beforeTotal=([0-9]{1,10});beforeActive=([0-9]{1,10});members=([0-9]{1,10});afterTotal=([0-9]{1,10});afterActive=([0-9]{1,10});beforeObserved=(?:True|False);afterObserved=(?:True|False);node=([0-9]{1,10});conhost=([0-9]{1,10});stable=(?:True|False)\z'
+    if ($Line.Length -gt 512 -or $Line -cnotmatch $pattern) { return $false }
+    foreach ($index in 1..8) { $value = [uint32]0; if (![uint32]::TryParse($Matches[$index], [ref]$value)) { return $false } }
+    return $true
+}
 function Read-CloudCancellationFixtureDiagnostics([string]$Path) {
     if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { return }
     $entry = Get-Item -LiteralPath $Path -Force
@@ -119,7 +126,7 @@ function Read-CloudCancellationFixtureDiagnostics([string]$Path) {
     $phases = 'Initialize|Pure|ForcedFailure|JobCreate|JobConfigure|ProcessCreate|JobAssign|StartupSignal|InventoryCapture|RuntimeAttach|RuntimeReady|RuntimeSeal|InventoryValidate|BeforeAckCheck|ReleaseAck|DescendantObserve|PayloadCheck|Cancellation|RootExit|DescendantExit|JobClosure|StderrCheck|Success'
     $pattern = '^(?:pure-cancellation-controls:[0-9]{1,2}|native-(?:before-ack-no-payload|after-ack-live-held-descendant):passed|native-observation:after=(?:True|False);release=(?:True|False);payload=(?:True|False)|cancellation-fixture-phase:(?:pure|control|before-ack|after-ack):(?:' + $phases + '))$'
     foreach ($line in [IO.File]::ReadAllLines($Path)) {
-        if ($line.Length -le 128 -and $line -cmatch $pattern) { Write-Output $line }
+        if (($line.Length -le 128 -and $line -cmatch $pattern) -or (Test-CloudCancellationObservation $line)) { Write-Output $line }
     }
 }
 if ($PureOnly) { return }
@@ -139,7 +146,7 @@ try {
     $task = $task.Replace('C:\\AegisLab\\work\\cancellation\\released.txt', (Join-Path $fixture 'released.txt').Replace('\', '\\'))
     $task = $task.Replace('C:\\ProgramData\\AegisCloudLab\\trusted\\cloud-cancellation-child.cjs', (Join-Path $fixture 'cloud-cancellation-child.cjs').Replace('\', '\\'))
     [IO.File]::WriteAllText((Join-Path $fixture 'cloud-cancellation-task.cjs'), $task, [Text.UTF8Encoding]::new($false))
-    $arguments = @('/nologo', '/warnaserror+', '/target:exe', ('/out:"' + $exe + '"'))
+    $arguments = @('/nologo', '/warnaserror+', '/define:CLOUD_CANCELLATION_DIAGNOSTICS', '/target:exe', ('/out:"' + $exe + '"'))
     foreach ($leaf in @('CloudGuestProcess', 'CloudGuestDesktop', 'CloudGuestNetwork', 'CloudGuestClaudeReceiver', 'CloudGuestRuntimeGate')) { $arguments += ('"' + (Join-Path $sources ($leaf + '.cs')) + '"') }
     foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative', 'GuestJobNative', 'GuestJobInventory')) { $arguments += ('"' + (Join-Path $ProjectRoot ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $arguments += ('"' + (Join-Path $fixtureSources 'CancellationFixture.cs') + '"')
@@ -173,6 +180,18 @@ cancellation-fixture-phase:control:Unknown
 ")
         if (@(Read-CloudCancellationFixtureDiagnostics $forcedPath).Count -ne 1) { throw 'cancellation-fixture-diagnostic-filter-refused' }
         Write-Output 'cancellation-fixture-diagnostic-controls:2'
+        $descendantPath = Join-Path $fixture 'descendant-forced.txt'
+        $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $node + '"'), ('"' + $fixture + '"'), '--force-descendant-diagnostic-failure') $descendantPath (Join-Path $fixture 'descendant-forced.error') 2000
+        $descendantDiagnostics = @(Read-CloudCancellationFixtureDiagnostics $descendantPath)
+        $expectedObservation = 'cancellation-descendant:stage=Snapshot;attempt=1;beforeTotal=1;beforeActive=1;members=1;afterTotal=2;afterActive=2;beforeObserved=True;afterObserved=True;node=0;conhost=0;stable=False'
+        if ($code -ne 1 -or $descendantDiagnostics.Count -ne 2 -or $descendantDiagnostics[0] -cne $expectedObservation -or
+            $descendantDiagnostics[1] -cne 'cancellation-fixture-phase:after-ack:DescendantObserve' -or
+            [IO.File]::ReadAllText((Join-Path $fixture 'descendant-forced.error')).Trim() -cne 'cancellation-native-controls-refused') { throw 'cancellation-descendant-diagnostic-control-refused' }
+        foreach ($invalid in @($expectedObservation.Replace('Snapshot','Unknown'), $expectedObservation.Replace('attempt=1','attempt=4294967296'),
+            $expectedObservation.Replace('stable=False','stable=false'), ($expectedObservation + ' unpublished-text'))) {
+            if (Test-CloudCancellationObservation $invalid) { throw 'cancellation-descendant-diagnostic-negative-admitted' }
+        }
+        Write-Output 'cancellation-descendant-diagnostic-controls:5'
     } finally {
         Read-CloudCancellationFixtureDiagnostics $forcedPath
     }

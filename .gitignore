@@ -191,3 +191,8 @@ aegis_landing.html
 !/scripts/qualification/cloud-guest-cancellation-bootstrap.ps1
 !/scripts/qualification/test-cloud-guest-cancellation.ps1
 !/scripts/qualification/test-cloud-guest-shell-diagnostics.ps1
+
+!/scripts/qualification/test-cloud-guest-stdio.ps1
+!/scripts/qualification/cloud-guest-stdio.ps1
+!/scripts/qualification/cloud-guest-stdio-bootstrap.ps1
+!/scripts/qualification/test-cloud-guest-stdio-cloud.ps1

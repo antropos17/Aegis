@@ -14,6 +14,15 @@ internal static class CancellationFixture
         DescendantExit, JobClosure, StderrCheck, Success }
     private static Phase phase = Phase.Initialize;
     private static string diagnosticCase = "pure";
+    private static CloudGuestCancellation.Observation observation;
+    private static void WriteObservation()
+    {
+        if (observation == null) return;
+        Console.WriteLine("cancellation-descendant:stage=" + observation.Stage + ";attempt=" + observation.Attempt +
+            ";beforeTotal=" + observation.BeforeTotal + ";beforeActive=" + observation.BeforeActive + ";members=" + observation.Members +
+            ";afterTotal=" + observation.AfterTotal + ";afterActive=" + observation.AfterActive + ";beforeObserved=" + observation.BeforeObserved +
+            ";afterObserved=" + observation.AfterObserved + ";node=" + observation.NodeCandidates + ";conhost=" + observation.ConhostCandidates + ";stable=" + observation.Stable);
+    }
     [StructLayout(LayoutKind.Sequential)] private struct Basic
     { internal long User, Job; internal uint Flags; internal IntPtr Min, Max; internal uint Active; internal IntPtr Affinity; internal uint Priority, Scheduling; }
     [StructLayout(LayoutKind.Sequential)] private struct Io
@@ -94,7 +103,8 @@ internal static class CancellationFixture
                 {
                     phase = Phase.ReleaseAck; gate.ReleaseFixedTask(inventory);
                     released = true;
-                    phase = Phase.DescendantObserve; descendant = CloudGuestCancellation.Observe(job, (uint)child.Id, node, WindowsIdentity.GetCurrent().User.Value);
+                    phase = Phase.DescendantObserve; observation = new CloudGuestCancellation.Observation();
+                    descendant = CloudGuestCancellation.Observe(job, (uint)child.Id, node, WindowsIdentity.GetCurrent().User.Value, observation);
                     phase = Phase.PayloadCheck; descendant.Validate(); Need(!descendant.Exited && System.IO.File.ReadAllText(marker) == "fixed-cancellation-payload");
                     // This actual same-principal fixture does not assert a standard-user token.
                 }
@@ -111,6 +121,7 @@ internal static class CancellationFixture
             {
                 TerminateJobObject(job, 137);
                 Console.WriteLine("native-observation:after=" + after + ";release=" + released + ";payload=" + System.IO.File.Exists(marker));
+                if (after) WriteObservation();
                 if (child != null) { Need(child.WaitForExit(2000)); child.Dispose(); }
                 if (descendant != null) descendant.Dispose();
                 if (inventory != null) inventory.Dispose(); GuestJobNative.CloseHandle(job);
@@ -123,6 +134,14 @@ internal static class CancellationFixture
         {
             if (args.Length == 3 && args[2] == "--force-diagnostic-failure")
             { diagnosticCase = "control"; phase = Phase.ForcedFailure; throw new InvalidOperationException("unpublished-fixture-error-text"); }
+            if (args.Length == 3 && args[2] == "--force-descendant-diagnostic-failure")
+            {
+                diagnosticCase = "after-ack"; phase = Phase.DescendantObserve;
+                observation = new CloudGuestCancellation.Observation { Stage = CloudGuestCancellation.ObservationStage.Snapshot,
+                    Attempt = 1, BeforeTotal = 1, BeforeActive = 1, Members = 1, AfterTotal = 2, AfterActive = 2,
+                    BeforeObserved = true, AfterObserved = true, Stable = false };
+                WriteObservation(); throw new InvalidOperationException("unpublished-fixture-error-text");
+            }
             phase = Phase.Pure; Console.WriteLine("pure-cancellation-controls:" + Pure());
             Native(args[0], args[1], false); Native(args[0], args[1], true);
             return 0;
