@@ -70,6 +70,100 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
     });
 
+    it('rejects a registered child after an independently observed privilege change', () => {
+      const result = invoke('privilege-before-admission');
+      expect(result).toMatchObject({
+        mutated: true,
+        pidSame: true,
+        birthSame: true,
+        sidSame: true,
+        logonSame: true,
+        tokenIdSame: true,
+        modifiedChanged: true,
+      });
+      expect(result.privilegeBefore & 2).toBe(2);
+      expect(result.privilegeAfter).toBe(result.privilegeBefore & ~2);
+      expect(result.accepted).toBe(false);
+      expect(result.reverted).toBe(true);
+      expect(result.registrationRejected).toBe(true);
+    });
+
+    it('revokes an issued context after the retained child privilege changes', () => {
+      const result = invoke('privilege-after-admission');
+      expect(result).toMatchObject({
+        accepted: true,
+        reverted: true,
+        contextRevoked: true,
+        mutated: true,
+        pidSame: true,
+        birthSame: true,
+        sidSame: true,
+        logonSame: true,
+        tokenIdSame: true,
+        modifiedChanged: true,
+        registrationRejected: true,
+      });
+      expect(result.privilegeBefore & 2).toBe(2);
+      expect(result.privilegeAfter).toBe(result.privilegeBefore & ~2);
+    });
+
+    it('rejects change-and-restore without rebaselining the retained token', () => {
+      const result = invoke('privilege-restored');
+      expect(result).toMatchObject({
+        accepted: false,
+        reverted: true,
+        mutated: true,
+        restored: true,
+        modifiedChanged: true,
+        finalModifiedChanged: true,
+        registrationRejected: true,
+      });
+      expect(result.restoredAttributes).toBe(result.privilegeBefore);
+      expect(result.pidSame && result.birthSame && result.sidSame && result.logonSame).toBe(true);
+    });
+
+    it('separates primary object stability from impersonation peer equivalence', () => {
+      expect(invoke('token-equivalence')).toMatchObject({
+        primaryCopyRejected: true,
+        peerTokenIdDifferent: true,
+        peerEquivalent: true,
+        peerPrivilegeChanged: true,
+        changedPeerEquivalent: false,
+        primaryUnchanged: true,
+      });
+    });
+
+    it.each(['groups', 'privileges'])(
+      'canonicalizes %s without discarding attributes (buffer model)',
+      (kind) => {
+        expect(invoke(`buffer-${kind}-order`)).toMatchObject({
+          syntheticBuffers: true,
+          orderIndependent: true,
+          attributeChangeObserved: true,
+        });
+      },
+    );
+
+    it.each([
+      'groups-null',
+      'groups-short',
+      'groups-count',
+      'groups-table',
+      'groups-pointer-before',
+      'groups-pointer-table',
+      'groups-pointer-end',
+      'groups-sid-truncated',
+      'groups-sid-count',
+      'groups-sid-revision',
+      'groups-duplicate',
+      'privileges-short',
+      'privileges-count',
+      'privileges-truncated',
+      'privileges-duplicate',
+    ])('rejects malformed %s before dereferencing or comparing (buffer model)', (kind) => {
+      expect(invoke(`buffer-${kind}`)).toMatchObject({ syntheticBuffers: true, rejected: true });
+    });
+
     it.each([
       'sibling',
       'exited',
