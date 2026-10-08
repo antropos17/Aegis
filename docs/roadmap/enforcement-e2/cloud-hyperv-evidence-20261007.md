@@ -485,3 +485,55 @@ uses AnyCPU and actually produced 66,048 bytes; its exact executable now has a
 matching 80 KiB admission and cleanup bound as well. Source and log limits stay
 at 64 KiB. These output-size accommodations do not qualify guest execution or
 change receiver/input limits.
+
+## Actual documented-profile runtime result
+
+The [documented-profile run](https://github.com/antropos17/Aegis/actions/runs/37716443944)
+at `9e6d6be8` passed hosted preflight and all five CI contexts. Independent Astra
+review matched all 51 repository source hashes and the separately pinned Git
+archive. Its 90,969-byte raw receipt is retained in the twenty-two-entry index
+with SHA-256 `4aa9764190336a1b0ec3c34c38d5d780a27fc90219dc9cf9ab72a583eae20388`.
+
+The original minimal private-object profile naturally exited `node --version`
+with `0xC0000142`. The documented noninteractive profile naturally exited zero.
+Both used the same account, API, original flags, owner/token session zero,
+QUERY-only token admission and single-member initial Job. Both confirmed root
+exit, empty Job and private-object handle closure before the next launch.
+
+The normal runtime then resumed under the dedicated nonadministrator account
+and completed caller authentication. Its next `runtime-held-job-recheck` failed
+with HResult `-2146233087` while the held root was still alive. This stage groups
+inventory, image and birth checks; the receipt does not identify the failing
+predicate. `runtimeInitializedBeforeProject` was absent and project release
+remained false. Successful caller authentication is narrower evidence than full
+runtime admission.
+
+Cleanup confirmed retained-root exit 137, empty Job and private-object closure.
+The host receiver recorded `shutdownReason: stop`, no expiry, exit zero and
+independent closure after Job closure. Its guest network client was not run.
+Native VM stop, independent Off, exact removal and post-removal host canaries
+passed. After-task canaries, the fixed project, Git, Claude and the separate test
+witness were not reached. No full enforcement acceptance or production launch
+permission follows from this run.
+
+## Actual pinned CLI chronology repair
+
+A separate local disposable corpus used the exact pinned Claude 2.1.292 binary,
+an owned project and a dummy-credential loopback receiver. The baseline refused
+request three because the CLI groups completed Read/Edit calls into one assistant
+message and their results into one user message. The protocol now validates
+paired ordered batches while retaining exact tool IDs, names, inputs, global
+sequence, role checks, result validation and sticky failure. Independent Astra
+review passed the frozen three-file change and independently ran 58 pure
+controls. The maintained Windows PowerShell 5.1 caller also passed on the
+integrated files.
+
+The actual candidate CLI exited zero, completed four responses and three tool
+results, produced the expected edit and passed its task-observed Node test.
+The unchanged receiver still refused closure with `http-invalid` and no FIN
+event. A separate observation-only repeat recorded `ECONNRESET` 24 milliseconds
+after response four finished: all four requests and responses had completed,
+the socket byte count did not advance, and actual close was observed. The
+receiver still exited one. This establishes the next repair target without
+accepting the complete local corpus or claiming guest containment. A reset after
+a partial additional HTTP request must remain refused.

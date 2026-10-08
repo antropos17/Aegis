@@ -51,27 +51,39 @@ function session() {
             (input.stream !== undefined && typeof input.stream !== 'boolean')) refuse('request-invalid');
         registry(input.tools);
         if (!Array.isArray(input.messages) || input.messages.length > 16) refuse('messages-invalid');
-        const calls = [], results = [], events = [];
+        const calls = [], results = [];
+        let pendingCalls = null, latestBatchSize = 0;
         for (const message of input.messages) {
           if (!['user', 'assistant'].includes(message?.role)) refuse('messages-invalid');
           if (!Array.isArray(message.content)) {
             if (typeof message.content !== 'string' || message.role !== 'user') refuse('messages-invalid');
             continue;
           }
+          const batchCalls = [], batchResults = [];
           for (const block of message.content) {
             if (block?.type === 'tool_use') {
               if (message.role !== 'assistant') refuse('tool-sequence-invalid');
-              calls.push(block); events.push({ kind: 'call', block });
+              calls.push(block); batchCalls.push(block);
             } else if (block?.type === 'tool_result') {
               if (message.role !== 'user') refuse('tool-sequence-invalid');
-              results.push(block); events.push({ kind: 'result', block });
+              results.push(block); batchResults.push(block);
             } else if (block?.type !== 'text' || typeof block.text !== 'string') refuse('messages-invalid');
           }
+          // The CLI may coalesce prior completed tools into one assistant/user pair.
+          // Each batch must still finish before another call batch can begin.
+          if (batchCalls.length) {
+            if (pendingCalls !== null) refuse('tool-sequence-invalid');
+            pendingCalls = batchCalls;
+          }
+          if (batchResults.length) {
+            if (pendingCalls === null || batchResults.length !== pendingCalls.length ||
+                batchResults.some((result, i) => result.tool_use_id !== pendingCalls[i].id))
+              refuse('tool-sequence-invalid');
+            latestBatchSize = batchResults.length; pendingCalls = null;
+          }
         }
-        if (calls.length !== count || results.length !== count) refuse('tool-sequence-invalid');
+        if (pendingCalls !== null || calls.length !== count || results.length !== count) refuse('tool-sequence-invalid');
         for (let i = 0; i < count; i++) {
-          if (events[2 * i]?.kind !== 'call' || events[2 * i + 1]?.kind !== 'result' ||
-              events[2 * i].block !== calls[i] || events[2 * i + 1].block !== results[i]) refuse('tool-sequence-invalid');
           if (calls[i].id !== `toolu_aegisguest${i + 1}` || calls[i].name !== STEPS[i].name ||
               !isDeepStrictEqual(calls[i].input, STEPS[i].input) ||
               results[i].tool_use_id !== calls[i].id ||
@@ -84,8 +96,8 @@ function session() {
         if (count > 0) {
           const last = input.messages.at(-1);
           if (last.role !== 'user' || !Array.isArray(last.content) ||
-              last.content.filter(block => block.type === 'tool_result').length !== 1 ||
-              last.content.find(block => block.type === 'tool_result').tool_use_id !== `toolu_aegisguest${count}`)
+              last.content.filter(block => block.type === 'tool_result').length !== latestBatchSize ||
+              last.content.filter(block => block.type === 'tool_result').at(-1)?.tool_use_id !== `toolu_aegisguest${count}`)
             refuse('tool-sequence-invalid');
           observations[count - 1] = true;
         }

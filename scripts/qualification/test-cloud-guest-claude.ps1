@@ -9,6 +9,15 @@ while ($null -ne $parent) { if ($parent.Attributes -band [IO.FileAttributes]::Re
 $fixture = Join-Path $base ('aegis-claude-controls-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
+    . (Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-media.ps1')
+    $protocolOutput = Join-Path $fixture 'protocol.txt'; $protocolError = Join-Path $fixture 'protocol.error'
+    $node = (Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    $protocolExit = Invoke-CloudGuestNativeProcess $node @(('"' + (Join-Path $PSScriptRoot 'test-cloud-guest-claude-protocol.cjs') + '"')) $protocolOutput $protocolError 5000
+    if ($protocolExit -ne 0 -or (Get-Item -LiteralPath $protocolError).Length -ne 0 -or (Get-Item -LiteralPath $protocolOutput).Length -gt 8192) { throw 'claude-protocol-controls-refused' }
+    $protocol = [IO.File]::ReadAllText($protocolOutput) | ConvertFrom-Json
+    if ($protocol.passed -isnot [bool] -or !$protocol.passed -or $protocol.schemaVersion -ne 1 -or $protocol.cases -ne 58 -or
+        $protocol.mode -cne 'pure-fixed-protocol-controls' -or $protocol.providerStarted -isnot [bool] -or $protocol.providerStarted -or
+        $protocol.socketsOpened -isnot [bool] -or $protocol.socketsOpened) { throw 'claude-protocol-controls-refused' }
     # Extract the actual parser only; fixed-path replacements are test-only AST fixtures.
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'cloud-guest-claude-bootstrap.ps1'), [ref]$null, [ref]$null)
     $rightsFn = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Test-CloudGuestClaudeTaskReadRights' }, $true)
