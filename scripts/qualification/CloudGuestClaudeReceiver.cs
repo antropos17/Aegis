@@ -47,12 +47,12 @@ internal sealed class CloudGuestClaudeReceiver : IDisposable
     internal static void FinalFrame(string text)
     {
         // Canonical fixed producer format rejects extra/duplicate fields as well as JSON coercion.
-        const string pattern = "\\A\\{\"schemaVersion\":1,\"kind\":\"claude-receiver\",\"passed\":true,\"closed\":true,\"stopObserved\":true,\"expired\":false,\"requests\":4,\"completedResponses\":4,\"toolResults\":\\[true,true,true\\],\"steps\":\\[\"read\",\"edit\",\"test\",\"finish\"\\],\"connectionCount\":([0-9]{1,2}),\"connectionClosed\":([0-9]{1,2}),\"clientEofCount\":([0-9]{1,2}),\"forcedClosed\":0,\"elapsedMilliseconds\":([0-9]{1,5}),\"failure\":null\\}\\z";
+        const string pattern = "\\A\\{\"schemaVersion\":1,\"kind\":\"claude-receiver\",\"passed\":true,\"closed\":true,\"stopObserved\":true,\"expired\":false,\"requests\":4,\"completedResponses\":4,\"toolResults\":\\[true,true,true\\],\"steps\":\\[\"read\",\"edit\",\"test\",\"finish\"\\],\"connectionCount\":([0-9]{1,2}),\"connectionClosed\":([0-9]{1,2}),\"clientEofCount\":([0-9]{1,2}),\"completedResetCount\":([0-9]{1,2}),\"forcedClosed\":0,\"elapsedMilliseconds\":([0-9]{1,5}),\"failure\":null\\}\\z";
         Match match = FixedMatch(text, pattern);
         Require(match.Success, "claude-final-shape");
         long connections = CanonicalNumber(match.Groups[1].Value, 8);
         Require(connections > 0 && CanonicalNumber(match.Groups[2].Value, 8) == connections &&
-            CanonicalNumber(match.Groups[3].Value, 8) == connections && CanonicalNumber(match.Groups[4].Value, 44999) < 45000,
+            CanonicalNumber(match.Groups[3].Value, 8) + CanonicalNumber(match.Groups[4].Value, 8) == connections && CanonicalNumber(match.Groups[5].Value, 44999) < 45000,
             "claude-final-closure");
     }
     internal static void StopFence(long before, long submitted, long exited)

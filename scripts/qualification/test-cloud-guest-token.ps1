@@ -17,7 +17,7 @@ try {
     foreach ($leaf in @('CloudGuestRuntimeGate.cs','CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
     foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $exit = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000
-    if ($exit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 1MB) { throw 'token-native-compile-failed' }
+    if ($exit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 80KB) { throw 'token-native-compile-failed' }
     $assembly = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
     $type = $assembly.GetType('CloudGuestTokenFixture')
     $old = $type.GetMethod('Observe').Invoke($null, @($true))
@@ -42,7 +42,8 @@ try {
         childLaunchAccountAclOrVmEffects=$false;launchAllowed=$false} | ConvertTo-Json -Depth 5
 } finally {
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
-        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'token-fixture-cleanup-refused' }
+        $fileBound = if ([string]::Equals($file.FullName, $dll, [StringComparison]::OrdinalIgnoreCase)) { 80KB } else { 64KB }
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt $fileBound -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'token-fixture-cleanup-refused' }
         Remove-Item -LiteralPath $file.FullName -Force
     }
     Remove-Item -LiteralPath $fixture

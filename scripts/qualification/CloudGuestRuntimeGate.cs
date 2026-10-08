@@ -32,6 +32,7 @@ internal sealed class CloudGuestRuntimeGate : IDisposable
     private CallerRegistration registration;
     private CallerAdmission.Context admitted;
     private bool released;
+    private bool startupSealed;
     internal CloudGuestRuntimeGate(string expectedSid)
     {
         // Only the new disposable endpoint receives this descriptor. No existing ACL is edited.
@@ -76,9 +77,16 @@ internal sealed class CloudGuestRuntimeGate : IDisposable
         Need(admitted.RequestId == Request);
         admitted.CheckCurrent();
     }
+    internal void SealInitializedRuntime(GuestJobInventory inventory)
+    {
+        Need(inventory != null && admitted != null && !released && !startupSealed && !CallerNative.HasThreadToken());
+        registration.CheckCurrent(); admitted.CheckCurrent();
+        inventory.SealInitializedRuntime();
+        registration.CheckCurrent(); admitted.CheckCurrent(); startupSealed = true;
+    }
     internal void ReleaseFixedTask(GuestJobInventory inventory)
     {
-        Need(inventory != null && admitted != null && !released);
+        Need(inventory != null && admitted != null && !released && startupSealed);
         // Fixed integration point: a separate lab network receiver may be constructed
         // immediately before this method, after initialized-runtime observation.
         // No arbitrary callback runs inside the gate.

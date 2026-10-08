@@ -15,7 +15,7 @@ function Get-CloudGuestNativeResultFailure($Result) {
     $known = @('owner-node-version-positive', 'private-desktop-create', 'job-create', 'job-limits', 'runtime-endpoint-create',
         'standard-user-create', 'job-assign', 'held-token-open', 'held-token-identity', 'held-token-sid', 'held-token-admin',
         'held-token-session', 'loader-probe-resume', 'loader-probe-deadline', 'held-token-elevation', 'held-image', 'held-birth', 'held-job-inventory', 'runtime-registration', 'runtime-resume',
-        'runtime-authenticated-ready', 'runtime-held-job-recheck', 'network-receiver-start', 'project-release-ack',
+        'runtime-authenticated-ready', 'runtime-startup-inventory-seal', 'runtime-held-job-recheck', 'runtime-held-image-recheck', 'runtime-held-birth-recheck', 'network-receiver-start', 'project-release-ack',
         'task-deadline', 'task-exit-observation', 'network-receiver-cleanup', 'private-desktop-close', 'guest-job-closure', 'task-exit', 'runtime-release-unconfirmed')
     $hResult = Get-CloudGuestResultField $native 'failureHResult'
     if (($hResult -isnot [int] -and $hResult -isnot [long]) -or $hResult -lt [int]::MinValue -or $hResult -gt [int]::MaxValue) { $hResult = $null }

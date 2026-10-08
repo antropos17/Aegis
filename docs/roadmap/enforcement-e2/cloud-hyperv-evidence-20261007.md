@@ -537,3 +537,57 @@ the socket byte count did not advance, and actual close was observed. The
 receiver still exited one. This establishes the next repair target without
 accepting the complete local corpus or claiming guest containment. A reset after
 a partial additional HTTP request must remain refused.
+
+## Reviewed startup inventory and receiver closure repairs
+
+The post-authentication inventory failure was reproduced locally: the suspended
+Node process began alone in its Job, and Windows added the exact system
+`conhost.exe` before runtime authentication completed. The original strict
+inventory rejected that change with the same HResult. This local reproduction
+is a hypothesis for the hosted failure until the next guest receipt records the
+new bounded census.
+
+The trusted runtime owner now seals startup inventory once after authentication.
+It preserves every original held identity and permits at most one late console
+host at the exact system-directory path, with matching SID/session, no elevation
+and no Administrators group under any attributes. Complete Job accounting must
+show no exited or missed process; a second stable census and retained birth
+checks precede commitment. The later release ACK still requires strict inventory
+validation. Separate failure stages identify startup sealing, Job, image and
+birth checks. Failed observations never release project code.
+
+Independent Astra review passed the frozen ten-target repair. Local evidence
+includes 14 native runtime cases, the actual console census, a native wrong-SID
+refusal, 13 synthetic token-group cases, two receipt cases, ten JavaScript runtime
+cases and five actual-parser stage projections. The local owner's deny-only
+Administrators membership causes the added console host to be refused as
+required; positive late-console admission under the guest's standard account
+still requires the hosted run. Token, cleanup and diagnostics callers also passed.
+
+The actual runtime fixture is 76,800 bytes and retains its 80 KiB bound. Measured
+x64 diagnostics/token/cleanup/Claude/witness compositions are respectively
+66,048/70,656/71,680/71,168/73,728 bytes. Diagnostics and token admission/cleanup
+now agree on an 80 KiB bound for their exact fixed DLL only; source/log limits
+remain 64 KiB. The final runtime source list adds only its new startup fixture.
+
+The separate receiver repair requires actual closure and complete per-socket
+request/response accounting before accepting the observed ECONNRESET. Bounded
+raw framing rejects partial or additional requests even when coalesced with the
+last valid request. Native and PowerShell consumers require disjoint EOF/reset
+counts summing to observed closed connections. Job-before-STOP, expiry and
+zero-forced-close requirements remain enforced. Independent Astra review passed
+the six-target repair and reran 21 framing/socket controls with zero skips.
+
+One pinned local Claude repeat completed the fixed read/edit/test corpus with
+four completed responses, one observed reset/close, no forced closure and
+receiver exit zero after STOP. This used local Node 24.11.1 and owned scratch
+paths with dummy credentials. It is separate from hosted Node 22.23.3, guest
+containment and independently observed process execution. Production launch and
+full enforcement gates remain unchanged.
+
+The combined maintained Windows PowerShell 5.1 preflight subsequently passed
+on both integrated repairs in 37.4 seconds with 13,444 bytes of untruncated
+output. It executed the final 21 receiver controls together with the native
+startup, loader, token, cleanup, network, Git, Claude and witness fixture checks.
+Changed receiver JavaScript files also passed ESLint. This combined local check
+does not replace the next actual VM observation.

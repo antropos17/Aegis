@@ -245,7 +245,7 @@ public static class CloudGuestProcess
             stage = "held-birth";
             receipt["pid"] = child.Pid; receipt["birthFileTime"] = GuestJobNative.Birth(child.Process, job, child.Pid);
             stage = "held-job-inventory";
-            inventory = new GuestJobInventory(job, child.Process, new string[] { image, @"C:\Windows\System32\conhost.exe" });
+            inventory = new GuestJobInventory(job, child.Process, new string[] { image, Path.Combine(Environment.SystemDirectory, "conhost.exe") });
             inventory.ValidateInitial(); receipt["initialJobMembers"] = inventory.InitialCount;
             receipt["heldIdentityBeforeRelease"] = true; receipt["atomicJobAtCreation"] = false;
             if (loader != 0)
@@ -266,9 +266,14 @@ public static class CloudGuestProcess
             stage = "runtime-authenticated-ready";
             runtime.ObserveInitialized();
             receipt["runtimeCallerAuthenticated"] = true;
+            stage = "runtime-startup-inventory-seal";
+            runtime.SealInitializedRuntime(inventory);
+            receipt["runtimeStartupInventory"] = inventory.RuntimeStartupObservation;
             stage = "runtime-held-job-recheck";
             inventory.ValidateInitial();
+            stage = "runtime-held-image-recheck";
             Require(String.Equals(GuestJobNative.Image(child.Process), image, StringComparison.OrdinalIgnoreCase), "runtime-held-image");
+            stage = "runtime-held-birth-recheck";
             Require(GuestJobNative.Birth(child.Process, job, child.Pid) == (long)receipt["birthFileTime"], "runtime-held-birth");
             receipt["runtimeInitializedBeforeProject"] = true;
             receipt["clientServerAttestationQualified"] = false;
@@ -302,6 +307,7 @@ public static class CloudGuestProcess
         catch (Exception error)
         {
             failureStage = stage; failureHResult = error.HResult;
+            if (inventory != null && resumed) receipt["runtimeStartupInventory"] = inventory.RuntimeStartupObservation;
             var native = error as NativeFailure;
             receipt["failureWin32Error"] = native == null ? (object)null : native.Win32Error;
             if (created && child.Process != IntPtr.Zero)

@@ -20,7 +20,7 @@ foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', '
     $compileArgs += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"')
 }
 $compileExit = Invoke-CloudGuestNativeProcess $compiler $compileArgs (Join-Path $fixture 'compile.stdout') (Join-Path $fixture 'compile.stderr') 10000
-if ($compileExit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 1MB) { throw 'focused-native-compile-failed' }
+if ($compileExit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 80KB) { throw 'focused-native-compile-failed' }
 [void][Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
 $tokens = $null; $parseErrors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'cloud-guest-bootstrap.ps1'), [ref]$tokens, [ref]$parseErrors)
@@ -162,7 +162,8 @@ $summary | ConvertTo-Json -Depth 5
 } finally {
     $env:TEMP = $savedTemp; $env:TMP = $savedTmp
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
-        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'diagnostics-fixture-cleanup-refused' }
+        $fileBound = if ([string]::Equals($file.FullName, $dll, [StringComparison]::OrdinalIgnoreCase)) { 80KB } else { 64KB }
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt $fileBound -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'diagnostics-fixture-cleanup-refused' }
         Remove-Item -LiteralPath $file.FullName -Force
     }
     Remove-Item -LiteralPath $fixture

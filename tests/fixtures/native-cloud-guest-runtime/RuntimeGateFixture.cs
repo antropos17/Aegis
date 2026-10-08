@@ -59,7 +59,17 @@ internal static class RuntimeGateFixture
                 if (mode == "disposed") gate.Dispose();
                 try
                 {
+                    if (mode == "seal-before-auth") gate.SealInitializedRuntime(inventory);
                     gate.ObserveInitialized();
+                    if (mode == "startup-node" || mode == "startup-exited")
+                    {
+                        sibling = Start(node, mode == "startup-node" ? "-e \"setTimeout(()=>{},8000)\"" : "-e \"process.exit(0)\"", gate, mode);
+                        Require(AssignProcessToJobObject(job, sibling.Handle));
+                        if (mode == "startup-exited") Require(sibling.WaitForExit(2000));
+                    }
+                    if (mode == "root-exited") { child.Kill(); Require(child.WaitForExit(2000)); }
+                    if (mode != "unsealed") gate.SealInitializedRuntime(inventory);
+                    if (mode == "reseal") gate.SealInitializedRuntime(inventory);
                     if (mode == "member")
                     {
                         sibling = Start(node, "-e \"setTimeout(()=>{},8000)\"", gate, mode);
@@ -97,7 +107,7 @@ internal static class RuntimeGateFixture
     {
         try
         {
-            foreach (string mode in new string[] { "valid", "session", "request", "sibling", "oversize", "extra", "member", "disposed" })
+            foreach (string mode in new string[] { "valid", "session", "request", "sibling", "oversize", "extra", "member", "disposed", "seal-before-auth", "startup-node", "startup-exited", "root-exited", "unsealed", "reseal" })
                 Case(args[0], args[1], mode);
             var complete = typeof(CloudGuestProcess).GetMethod("CompleteReceipt", BindingFlags.Static | BindingFlags.NonPublic);
             foreach (bool closure in new bool[] { false, true })
@@ -114,6 +124,7 @@ internal static class RuntimeGateFixture
                 }
             }
             Console.WriteLine("pure-failure-receipt-controls:2");
+            RuntimeStartupFixture.TokenControls(); RuntimeStartupFixture.Run(args[0], args[1]);
             Console.WriteLine("native-controls:" + passed); return 0;
         }
         catch (Exception error) { Console.WriteLine("fixture-failed:" + error.GetType().Name + ":" + error.HResult + ":" + error.StackTrace); return 1; }

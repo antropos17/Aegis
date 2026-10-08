@@ -51,13 +51,14 @@ function Read-CloudGuestClaudeResult($Identity) {
             (Number $Identity.claudeReceiverExitMilliseconds 44999) -and $Identity.claudeReceiverStopSubmittedMilliseconds -ge $Identity.claudeReceiverStopMilliseconds -and
             $Identity.claudeReceiverExitMilliseconds -ge $Identity.claudeReceiverStopSubmittedMilliseconds)
         $receiver = ReadFixed 'C:\ProgramData\AegisCloudLab\admin\claude-receiver-result.json'
-        Need (Fields $receiver 'clientEofCount,closed,completedResponses,connectionClosed,connectionCount,elapsedMilliseconds,expired,failure,forcedClosed,kind,passed,requests,schemaVersion,steps,stopObserved,toolResults')
+        Need (Fields $receiver 'clientEofCount,closed,completedResetCount,completedResponses,connectionClosed,connectionCount,elapsedMilliseconds,expired,failure,forcedClosed,kind,passed,requests,schemaVersion,steps,stopObserved,toolResults')
         Need ($receiver.kind -ceq 'claude-receiver' -and (Number $receiver.schemaVersion 1) -and $receiver.schemaVersion -eq 1)
         foreach ($name in @('passed', 'closed', 'stopObserved')) { Need (Boolean $receiver.$name $true) }
         Need ((Boolean $receiver.expired $false) -and $null -eq $receiver.failure -and (Number $receiver.requests 4) -and $receiver.requests -eq 4 -and
             (Number $receiver.completedResponses 4) -and $receiver.completedResponses -eq 4 -and (Number $receiver.forcedClosed 0) -and
             (Number $receiver.connectionCount 8) -and $receiver.connectionCount -gt 0 -and (Number $receiver.connectionClosed 8) -and
-            (Number $receiver.clientEofCount 8) -and $receiver.connectionClosed -eq $receiver.connectionCount -and $receiver.clientEofCount -eq $receiver.connectionCount -and
+            (Number $receiver.clientEofCount 8) -and (Number $receiver.completedResetCount 8) -and $receiver.connectionClosed -eq $receiver.connectionCount -and
+            ($receiver.clientEofCount + $receiver.completedResetCount) -eq $receiver.connectionCount -and
             (Number $receiver.elapsedMilliseconds 44999))
         Need ($receiver.steps -is [array] -and ($receiver.steps -join ',') -ceq 'read,edit,test,finish' -and $receiver.toolResults -is [array] -and $receiver.toolResults.Count -eq 3)
         foreach ($value in $receiver.toolResults) { Need (Boolean $value $true) }
