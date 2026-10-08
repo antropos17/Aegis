@@ -326,6 +326,21 @@ metadata and Authenticode under the same strict shell without downloading or
 launching Claude. The cloud receipt itself does not identify an exception line;
 the next actual run must establish whether staging now completes.
 
+The [strict-provenance revision run](https://github.com/antropos17/Aegis/actions/runs/37706481144)
+at `c83ca8e5` passed hosted preflight and all five CI contexts. It downloaded
+the pinned Claude binary and verified its signed manifest, exact hash and
+Authenticode on the hosted runner. Actual Windows installation, profile readiness
+and PowerShell Direct then passed. Guest transfer validation refused the manifest
+before task submission; no new token or project execution occurred. Independent
+review matched all 47 source hashes. Native Off, exact VM removal and post-removal
+host canaries passed. The receipt does not identify the rejected filename.
+
+Independent review accepted the narrow E6.5 version/scope bookkeeping item:
+the exact installed Claude baseline and public artifact provenance are recorded,
+local dummy-credential API tests are identified, and real-provider authentication
+and online execution remain explicitly unrun. This does not accept guest CLI
+execution, useful-task completion or full E6.
+
 This revision requests only `TOKEN_QUERY` and reads native
 `TOKEN_GROUPS` through a bounded parser. Any Administrators SID, including a
 disabled or deny-only entry, causes refusal. It retains the exact SID, elevation,

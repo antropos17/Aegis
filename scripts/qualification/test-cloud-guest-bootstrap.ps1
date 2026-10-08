@@ -173,3 +173,97 @@ NeedRoute (!$value.evidence.passed -and $value.failure.code -ceq 'guest-controls
 $native.passed = $false; $native.failureStage = 'PASSWORD_SENTINEL'; $value = InvokeRouteModel $native
 NeedRoute ($value.failure.nativeStage -ceq 'unknown' -and ($value | ConvertTo-Json -Depth 8) -cnotmatch 'PASSWORD_SENTINEL')
 @{ scope = 'actual-host-route-completion-pure-models'; passed = $routeChecks; cases = $routeChecks; nativeEffects = $false } | ConvertTo-Json -Compress
+
+# Connected regression: actual host staging AST -> actual guest validator AST.
+function Test-CloudGuestTransferManifest([string]$SourceRoot, [string]$VmSourcePath) {
+    $labPath = Join-Path $SourceRoot 'cloud-guest-lab.ps1'
+    $tokens = $null; $errors = $null
+    $labAst = [Management.Automation.Language.Parser]::ParseFile($labPath, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'transfer-lab-source-unavailable' }
+    function FindStage([string]$Name) {
+        $matches = @($labAst.FindAll({ param($node) $node -is [Management.Automation.Language.CommandAst] -and
+            $node.CommandElements.Count -eq 3 -and $node.CommandElements[0].Extent.Text -ceq 'Stage' -and
+            $node.CommandElements[1] -is [Management.Automation.Language.StringConstantExpressionAst] -and
+            $node.CommandElements[1].Value -ceq $Name }, $true))
+        if ($matches.Count -ne 1) { throw 'transfer-producer-stage-unavailable' }
+        return $matches[0].CommandElements[2].ScriptBlock
+    }
+    $producer = FindStage 'stage-fixed-runtime-and-host-controls'
+    $compile = FindStage 'compile-fixed-native-helpers'
+    $compileStatements = @($compile.EndBlock.Statements | Where-Object { $_.Extent.Text -match '^\$guestDll = Compile|^Copy-Item -LiteralPath \$guestDll' })
+    if ($compileStatements.Count -ne 2) { throw 'transfer-compiled-output-unavailable' }
+    $owned = Join-Path ([IO.Path]::GetFullPath($env:TEMP)) ('aegis-transfer-' + [guid]::NewGuid().ToString('N'))
+    foreach ($leaf in @('', 'transfer', 'temp', 'canaries', 'native')) { New-Item -ItemType Directory -Path (Join-Path $owned $leaf) | Out-Null }
+    $OutputRoot = $owned; $report = @{ runtime = $null; claudeProvenance = $null; sourceHashes = @{} }
+    $fakeNode = Join-Path $owned 'source-node.exe'; [IO.File]::WriteAllBytes($fakeNode, [byte[]]@(1))
+    $compiledSources = @()
+    function Compile([string]$Leaf, [string[]]$Sources, [string[]]$References) {
+        foreach ($relative in $Sources) { if (!(Test-Path -LiteralPath (Join-Path ([IO.Path]::GetFullPath((Join-Path $SourceRoot '../..'))) $relative))) { throw 'transfer-compiler-input-unavailable' } }
+        $script:transferCompilerSources = @($Sources)
+        $path = Join-Path $owned ('native\' + $Leaf); [IO.File]::WriteAllBytes($path, [byte[]]@(2)); return $path
+    }
+    function Get-Command { param($Name, $CommandType) if ($Name -cne 'node.exe') { throw 'transfer-unexpected-command' }; return [pscustomobject]@{ Source = $fakeNode } }
+    function Invoke-CloudGuestNativeProcess($Binary, $Arguments, $Out, $Err, $Timeout) {
+        if ($Binary -cne $fakeNode -or ($Arguments -join ',') -cne '--version') { throw 'transfer-unexpected-process' }
+        [IO.File]::WriteAllText($Out, 'v22.23.3'); [IO.File]::WriteAllText($Err, ''); return 0
+    }
+    function Save-CloudGuestClaudeBinary($Transfer, $Scratch) { [IO.File]::WriteAllBytes((Join-Path $Transfer 'claude.exe'), [byte[]]@(3)); return @{ passed = $true } }
+    function Save-CloudGuestGitArchive($Path) { [IO.File]::WriteAllBytes($Path, [byte[]]@(4)) }
+    foreach ($statement in $compileStatements) { . ([scriptblock]::Create($statement.Extent.Text)) }
+    # The copied source lists and manifest generator remain the actual maintained
+    # statements. Only upstream process/download/Git qualification effects are stubs.
+    $producerText = ($producer.EndBlock.Statements | ForEach-Object {
+        if ($_.Extent.Text -match "^& \(Join-Path \`$PSScriptRoot 'test-cloud-guest-git") { ' $null = $null ' }
+        else { $_.Extent.Text }
+    }) -join "`n"
+    $producerText = $producerText.Replace('$PSScriptRoot', ("'" + $SourceRoot.Replace("'", "''") + "'"))
+    . ([scriptblock]::Create($producerText))
+    $manifestPath = Join-Path $owned 'transfer\manifest.json'
+    $generated = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $names = @($generated.files | ForEach-Object name)
+    foreach ($name in @('guest-process.dll', 'node.exe', 'claude.exe', 'git-runtime.zip', 'git-runtime-manifest.json',
+        'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) {
+        if ($names -cnotcontains $name) { throw 'transfer-current-producer-leaf-missing' }
+    }
+    $vmAst = [Management.Automation.Language.Parser]::ParseFile($VmSourcePath, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'transfer-validator-source-unavailable' }
+    $validators = @($vmAst.FindAll({ param($node) $node -is [Management.Automation.Language.ScriptBlockExpressionAst] -and
+        $node.ScriptBlock.EndBlock.Statements.Count -gt 0 -and $node.ScriptBlock.EndBlock.Statements[0].Extent.Text -match '^\$trusted =' -and
+        $node.Extent.Text.Contains('guest-transfer-manifest-invalid') }, $true))
+    if ($validators.Count -ne 1) { throw 'transfer-validator-source-unavailable' }
+    $validation = ($validators[0].ScriptBlock.EndBlock.Statements | ForEach-Object { $_.Extent.Text }) -join "`n"
+    $validation = $validation.Replace("'C:\ProgramData\AegisCloudLab\trusted'", ("'" + (Join-Path $owned 'transfer').Replace("'", "''") + "'"))
+    $original = $validation.Replace(", 'claude-sum.test.cjs'", '')
+    function Validate([string]$Text) {
+        $expected = $null
+        try { . ([scriptblock]::Create($Text)); return @{ passed = $true; code = $null; leaf = $null } }
+        catch { return @{ passed = $false; code = $_.Exception.Message; leaf = $(if ($null -ne $expected) { $expected.name } else { $null }) } }
+    }
+    $before = Validate $original
+    if ($before.passed -or $before.code -cne 'guest-transfer-manifest-invalid' -or $before.leaf -cne 'claude-sum.test.cjs') { throw 'transfer-original-contract-defect-not-reproduced' }
+    if (!(Validate $validation).passed) { throw 'transfer-current-generated-manifest-refused' }
+    $checks = 2
+    foreach ($name in @('../claude-sum.test.cjs', '..\claude-sum.test.cjs', 'other.test.cjs', 'CLAUDE-sum.test.cjs', 'claude-sum.test.cjs.extra', 'claude-sum.test.cjs/child')) {
+        $generated.files[0].name = $name
+        [IO.File]::WriteAllText($manifestPath, ($generated | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+        $denied = Validate $validation
+        if ($denied.passed -or $denied.code -cne 'guest-transfer-manifest-invalid') { throw 'transfer-arbitrary-or-escape-name-accepted' }; $checks++
+    }
+    $generated.files[0].name = $names[0]; $originalHash = $generated.files[0].sha256
+    $generated.files[0].sha256 = '0' * 64
+    [IO.File]::WriteAllText($manifestPath, ($generated | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+    if ((Validate $validation).code -cne 'guest-transfer-hash-mismatch') { throw 'transfer-hash-control-lost' }; $checks++
+    $generated.files[0].sha256 = 'invalid'
+    [IO.File]::WriteAllText($manifestPath, ($generated | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+    if ((Validate $validation).code -cne 'guest-transfer-manifest-invalid') { throw 'transfer-hash-shape-control-lost' }; $checks++
+    $generated.files[0].sha256 = $originalHash
+    [IO.File]::WriteAllText($manifestPath, ($generated | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+    $result = @{ scope = 'actual-current-producer-to-guest-validator-pure-contract'; cases = $checks; passed = $checks;
+        shellVersion = $PSVersionTable.PSVersion.ToString(); files = $names; plannedGuestDllSources = @($script:transferCompilerSources);
+        originalRefusedLeaf = $before.leaf; nativeCompiled = $false; nativeProcessExecuted = $false; downloads = 0; vmEffects = $false;
+        ownedFixtureRoot = $owned; producerSha256 = (Get-FileHash -LiteralPath $labPath -Algorithm SHA256).Hash.ToLowerInvariant();
+        validatorSha256 = (Get-FileHash -LiteralPath $VmSourcePath -Algorithm SHA256).Hash.ToLowerInvariant() }
+    [IO.File]::WriteAllText((Join-Path $owned 'result.json'), ($result | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+    return $result
+}
+Test-CloudGuestTransferManifest $PSScriptRoot (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1') | ConvertTo-Json -Compress -Depth 4
