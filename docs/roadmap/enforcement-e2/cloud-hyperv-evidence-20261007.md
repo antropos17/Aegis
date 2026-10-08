@@ -1,19 +1,23 @@
 # Cloud Hyper-V execution evidence — 2026-10-07
 
-Latest completed useful-task result: [run 37721808584](https://github.com/antropos17/Aegis/actions/runs/37721808584)
-at `713b492a3007d4308dcaab5a98eb9cecc75f0781` passed the complete fixed Windows 11
+Latest completed useful-task result: [run 37733668154](https://github.com/antropos17/Aegis/actions/runs/37733668154)
+at `6af571947a5af0e3c099951077a61de223e3f91b` passed the complete fixed Windows 11
 lab corpus: admitted Node read/edit/test, shell and descendant controls, local
 Git, measured host routes, dummy-API Claude read/edit/test, a separate native
-test witness, receiver closure and exact VM cleanup. The successful corpus is
+test witness, receiver closure, both owner-requested cancellation cases and exact
+VM/media cleanup. The successful corpus is
 lab evidence; production launch and full enforcement qualification remain disabled.
-The final section records the actual observations and their limits.
+The final section records the earlier successful corpus; the
+[cancellation evidence](cloud-cancellation-evidence-20261008.md) records this
+extended run, its source-bound raw receipt and limits.
 
-The subsequent [cancellation attempts](cloud-cancellation-evidence-20261008.md)
+Earlier [cancellation attempts](cloud-cancellation-evidence-20261008.md)
 preserve setup and preparation failures. Run 37730935469 at
 `6edb480147062e25ccdc21f51f9fca90f36be6bb` passed the prerequisite useful-task
 corpus, then refused cancellation preparation before either case ran. A concrete
 ACL constructor defect was reproduced and corrected. Exact VM cleanup and host
-canaries passed; the raw failed receipt is preserved.
+canaries passed; the raw failed receipt is preserved. A later fixed signature
+deadline and its successful same-source retry are recorded separately.
 
 The disposable GitHub-hosted Windows Server 2025 runner performed actual VM
 operations. The earlier read-only provider observation is now complemented by

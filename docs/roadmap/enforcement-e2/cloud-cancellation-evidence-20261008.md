@@ -1,8 +1,8 @@
 # Fixed Windows guest cancellation controls
 
-Status: independently reviewed implementation; the latest actual attempt passed
-the prerequisite corpus, then refused cancellation preparation before either
-case executed. A reproduced ACL construction defect is corrected below. The
+Status: actual Windows 11 run 37733668154 passed both owner-requested cancellation
+cases, the prerequisite useful-task corpus, independent host canaries and exact
+VM/media cleanup at `6af571947a5af0e3c099951077a61de223e3f91b`. The
 [verified useful-task corpus](cloud-hyperv-evidence-20261007.md)
 is the prerequisite for these additional qualification cases.
 
@@ -245,7 +245,57 @@ double; actual provider execution awaits the next cloud receipt. Synchronous
 provider queries retain the existing hosted-job bound, and hostile concurrent
 host namespace replacement is not atomically excluded by this lab cleanup.
 
+[Run 37732879462](https://github.com/antropos17/Aegis/actions/runs/37732879462)
+at `6af571947a5af0e3c099951077a61de223e3f91b` actually exercised the
+never-created cleanup path. Matching detached-image Storage observations,
+exclusive deletion and subsequent absence were required for the three removed
+media leaves: answer ISO, answer XML and the 8,225,329,152-byte Windows ISO.
+Eligibility and completion were true, with no cleanup failure. The guest VHD
+path was not exercised. The [raw receipt](evidence/20261007/37732879462.json)
+has SHA-256 `fad5a2410168bc76e7a851058d73d7cb0ff509c964017c9869323f3cba384629`.
+
+This attempt stopped before VM creation at `ClaudeProvenance`, with the fixed
+`signature-process-deadline` code. The unchanged pinned verifier's 5,000-ms loop
+waits for the GPG process and both redirected streams. The receipt distinguishes
+neither import from verification nor process exit from stream closure; a more
+specific cause is unknown. Independent review verified all source hashes and
+five successful CI contexts, and permitted one fresh attempt with unchanged
+source, pins and limits. Recurrence requires fixed phase/process/stream diagnostics
+before another retry. No cancellation or guest execution is inferred.
+
+## Actual standard-user guest cancellation passed
+
+[Run 37733668154](https://github.com/antropos17/Aegis/actions/runs/37733668154)
+used the same `6af571947a5af0e3c099951077a61de223e3f91b` source and unchanged
+pins and limits. Its [raw receipt](evidence/20261007/37733668154.json), SHA-256
+`0182f189efa8b6f06641af987b8d7e963b86adc6e3b64e412d526cf804990b18`,
+records overall success with no task or cleanup failure. This success does not
+explain the preceding GPG process/stream deadline.
+
+Both cases authenticated and initialized a runtime under the same dedicated
+standard guest SID, verified the held process and sealed startup inventory,
+observed a live root and accepted owned Job termination. Neither reports natural
+completion. Both observed root exit 137, independently empty Job and closed
+private-desktop handles.
+
+| Case | Actual observation |
+| --- | --- |
+| Before project release | ACK withheld, task not released, payload marker absent |
+| After release with live descendant | Payload marker present; a distinct live Node descendant was retained with PID/birth/image/principal/Job checks and its exit was observed after termination |
+
+The prior Node, shell, Git, measured host-route and dummy-API Claude task corpus
+passed. Its Jobs, receivers and separate witness closed before cancellation;
+the cancellation phase started no new receiver. Host canaries were unchanged
+after useful work, cancellation and removal.
+
+Exact VM `338090e0-b8bf-48d5-965c-da54c08b044a` had settled stop/removal,
+independent Off and absence observations. The actual post-removal cleanup used
+matching detached-image observations and exclusive deletion handles for all
+four fixed leaves. It recorded removal of the 19,096,666,112-byte guest VHD,
+answer ISO, answer XML and Windows ISO, with eligibility/completion true and no
+cleanup failure. These file lengths are not an exact reclaimed-space measure.
+
 These cases cover fixed owner-requested cancellation only. Full terminal I/O,
 crash/reboot recovery, all host routes and production cancellation interfaces
 remain outside this evidence. E2.2, E3.3, E2/E3 overall, A1 and launch are not
-accepted by these local controls; qualification flags remain false.
+accepted by these fixed guest controls; qualification flags remain false.

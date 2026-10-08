@@ -241,5 +241,23 @@
     "sha256": "e946060fcde97732867296d39711f5175b5eee905225fe742c0a05e89f81ff39",
     "scope": "cloud-windows11-fixed-standard-user-lab",
     "failureStage": "fixed-cloud-cancellation"
+  },
+  {
+    "runId": "37732879462",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37732879462",
+    "source": "6af571947a5af0e3c099951077a61de223e3f91b",
+    "file": "37732879462.json",
+    "sha256": "fad5a2410168bc76e7a851058d73d7cb0ff509c964017c9869323f3cba384629",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "stage-fixed-runtime-and-host-controls"
+  },
+  {
+    "runId": "37733668154",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37733668154",
+    "source": "6af571947a5af0e3c099951077a61de223e3f91b",
+    "file": "37733668154.json",
+    "sha256": "0182f189efa8b6f06641af987b8d7e963b86adc6e3b64e412d526cf804990b18",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": ""
   }
 ]
