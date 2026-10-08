@@ -527,6 +527,16 @@ public static class CloudGuestProcess
 // Fixed cancellation observations. This class exposes no production launcher.
 public static class CloudGuestCancellation
 {
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+    internal enum ObservationStage { Initialize, BeforeCounts, Members, Candidate, Image, Snapshot, Retained, Complete, Deadline }
+    // Closed lab observations only; no handle, path, principal or exception text.
+    internal sealed class Observation
+    {
+        internal ObservationStage Stage;
+        internal uint Attempt, BeforeTotal, BeforeActive, Members, AfterTotal, AfterActive, NodeCandidates, ConhostCandidates;
+        internal bool BeforeObserved, AfterObserved, Stable;
+    }
+#endif
     public static Dictionary<string, object> BeforeRelease(string password, string sid)
     { return CloudGuestProcess.RunCancellation(password, sid, false); }
     public static Dictionary<string, object> AfterRelease(string password, string sid)
@@ -556,32 +566,89 @@ public static class CloudGuestCancellation
         public void Dispose() { GuestJobNative.CloseHandle(Handle); }
     }
     internal static Descendant Observe(IntPtr job, uint rootPid, string image, string sid)
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+    { return Observe(job, rootPid, image, sid, new Observation()); }
+    internal static Descendant Observe(IntPtr job, uint rootPid, string image, string sid, Observation observation)
+#endif
     {
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+        GuestJobNative.Require(observation != null);
+#endif
         var clock = System.Diagnostics.Stopwatch.StartNew();
         do
         {
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+            observation.Attempt++; observation.Stage = ObservationStage.BeforeCounts;
+            observation.BeforeObserved = observation.AfterObserved = observation.Stable = false;
+            observation.BeforeTotal = observation.BeforeActive = observation.Members = observation.AfterTotal = observation.AfterActive = 0;
+            observation.NodeCandidates = observation.ConhostCandidates = 0;
+#endif
             var before = GuestJobNative.Counts(job);
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+            observation.BeforeTotal = before.Total; observation.BeforeActive = before.Active; observation.BeforeObserved = true;
+            observation.Stage = ObservationStage.Members;
+#endif
             uint[] members = GuestJobNative.Members(job); Descendant retained = null;
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+            observation.Members = (uint)members.Length;
+#endif
             try
             {
                 foreach (uint pid in members)
                 {
                     if (pid == rootPid) continue;
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+                    observation.Stage = ObservationStage.Candidate;
+#endif
                     using (var candidate = new Descendant(job, pid, GuestJobNativeImage(job, pid), sid))
                     {
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+                        observation.Stage = ObservationStage.Image;
+#endif
                         string observed = GuestJobNative.Image(candidate.Handle);
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+                        if (String.Equals(observed, image, StringComparison.OrdinalIgnoreCase))
+                        {
+                            observation.NodeCandidates++;
+                            GuestJobNative.Require(retained == null); retained = new Descendant(job, pid, image, sid);
+                        }
+                        else {
+                            GuestJobNative.Require(String.Equals(observed, Path.Combine(Environment.SystemDirectory, "conhost.exe"), StringComparison.OrdinalIgnoreCase));
+                            observation.ConhostCandidates++;
+                        }
+#else
                         if (String.Equals(observed, image, StringComparison.OrdinalIgnoreCase))
                         { GuestJobNative.Require(retained == null); retained = new Descendant(job, pid, image, sid); }
                         else GuestJobNative.Require(String.Equals(observed, Path.Combine(Environment.SystemDirectory, "conhost.exe"), StringComparison.OrdinalIgnoreCase));
+#endif
                     }
                 }
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+                observation.Stage = ObservationStage.Snapshot;
+#endif
                 var after = GuestJobNative.Counts(job);
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+                observation.AfterTotal = after.Total; observation.AfterActive = after.Active; observation.AfterObserved = true;
+                observation.Stable = before.Total == after.Total && before.Active == after.Active && members.Length == after.Active;
+#endif
                 GuestJobNative.Require(before.Total == after.Total && before.Active == after.Active && members.Length == after.Active);
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+                if (retained != null) {
+                    observation.Stage = ObservationStage.Retained;
+                    retained.Validate();
+                    observation.Stage = ObservationStage.Complete;
+                    return retained;
+                }
+#else
                 if (retained != null) { retained.Validate(); return retained; }
+#endif
             }
             catch { if (retained != null) retained.Dispose(); throw; }
             System.Threading.Thread.Sleep(10);
         } while (clock.ElapsedMilliseconds < 2000);
+#if CLOUD_CANCELLATION_DIAGNOSTICS
+        observation.Stage = ObservationStage.Deadline;
+#endif
         throw new InvalidDataException("cancellation-descendant-unavailable");
     }
     private static string GuestJobNativeImage(IntPtr job, uint pid)

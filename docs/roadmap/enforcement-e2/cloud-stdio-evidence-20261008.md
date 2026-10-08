@@ -90,6 +90,44 @@ including both existing cancellation cases, native stdio cases, retained-exit an
 inner-wait controls, compiler/transfer/pinning and receipt models. These remain
 local controls pending actual hosted standard-user observation.
 
+## Hosted preflight refusal
+
+Hosted run `37764392840` used committed source
+`cf331fba8b2ac012500ca0a35d4e56656b7d3e4e`. It stopped before VM creation in the
+existing cancellation fixture at `after-ack:DescendantObserve`. Before-ACK
+cancellation passed; the after-ACK release and payload observations were true.
+Guest standard-stream execution did not run. No guest root, raw guest receipt
+or guest artifact was produced. This run is a source-check failure and is not
+included in the actual guest-attempt index.
+
+The exact focused cancellation composition subsequently passed locally. The
+original hosted failure remains unexplained. A diagnostic-only candidate records
+the current predicate's before/after Job counts, member and image-category
+counts, stage and Boolean result. It does not change admission or deadlines.
+`CLOUD_CANCELLATION_DIAGNOSTICS` gates the instrumentation, and only the maintained
+cancellation fixture compiler enables it. Ordinary runtime compilation retains
+the original four-argument observation method and its identical IL hash.
+
+The candidate manifest SHA-256 is
+`ec6d899f4f7b85b9c0a185e7bc51f14097c4888ea1adca63624e05b387615945`;
+patch SHA-256 is
+`01f384b040eceb0da49f97e0c9b8686b13442f0bb784bf05821a12db404a5685`.
+The instrumented cancellation fixture is 79,872 bytes. Paired uninstrumented
+runtime fixtures remain 81,920 bytes under the existing inclusive cap. Local
+controls record both native cancellation cases and a deliberately inconsistent
+snapshot that refuses while retaining the typed diagnostic. That control does
+not establish an inconsistent snapshot in the original hosted run.
+
+Independent Astra review passed that frozen diagnostic revision, including all
+155 inputs, 345 retained files, conditional-source equivalence, retained binary
+reflection and eight diagnostic filter controls. After integration on master
+`bec975c495d79fc3d2df061271d4867df77138d4` plus the stdio branch, the complete
+maintained Windows PowerShell 5 preflight passed in 54 seconds. It observed both
+native cancellation cases, the new diagnostic controls, eight native stdio
+cases, eight retained-exit/wait schedules and the maintained compiler controls.
+The original hosted cause is still unknown, and a fresh hosted observation is
+required. No guest acceptance is inferred from this local pass.
+
 ## Acceptance scope
 
 This fixed transport has no arbitrary command surface or production admission
