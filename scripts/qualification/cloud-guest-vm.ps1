@@ -14,7 +14,7 @@ function Get-CloudGuestNativeResultFailure($Result) {
     $stage = Get-CloudGuestResultField $native 'failureStage'
     $known = @('owner-node-version-positive', 'private-desktop-create', 'job-create', 'job-limits', 'runtime-endpoint-create',
         'standard-user-create', 'job-assign', 'held-token-open', 'held-token-identity', 'held-token-sid', 'held-token-admin',
-        'held-token-elevation', 'held-image', 'held-birth', 'held-job-inventory', 'runtime-registration', 'runtime-resume',
+        'held-token-session', 'loader-probe-resume', 'loader-probe-deadline', 'held-token-elevation', 'held-image', 'held-birth', 'held-job-inventory', 'runtime-registration', 'runtime-resume',
         'runtime-authenticated-ready', 'runtime-held-job-recheck', 'network-receiver-start', 'project-release-ack',
         'task-deadline', 'task-exit-observation', 'network-receiver-cleanup', 'private-desktop-close', 'guest-job-closure', 'task-exit', 'runtime-release-unconfirmed')
     $hResult = Get-CloudGuestResultField $native 'failureHResult'

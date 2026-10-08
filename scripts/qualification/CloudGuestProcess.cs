@@ -147,9 +147,15 @@ public static class CloudGuestProcess
     { return RunPhase(password, expectedSid, false, true); }
     private static Dictionary<string, object> RunFixed(string password, string expectedSid, bool claude)
     { return RunPhase(password, expectedSid, claude, false); }
-    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness)
+    private static string detachedQualifiedSid;
+    internal static void ClearLoaderQualification() { detachedQualifiedSid = null; }
+    internal static void QualifyDetachedLoader(string sid) { detachedQualifiedSid = sid; }
+    internal static Dictionary<string, object> RunLoaderProbe(string password, string sid, bool detached)
+    { return RunPhase(password, sid, false, false, detached ? 2 : 1); }
+    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0)
     {
-        Require(!(claude && witness), "fixed-phase-invalid");
+        Require(!(claude && witness) && loader >= 0 && loader <= 2, "fixed-phase-invalid");
+        if (loader == 0) Require(expectedSid != null && detachedQualifiedSid == expectedSid, "detached-loader-unqualified");
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
             Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted" ||
@@ -178,7 +184,9 @@ public static class CloudGuestProcess
                 using (var thread = WindowsIdentity.GetCurrent(true)) receipt["ownerThreadImpersonating"] = thread != null;
             }
             catch { receipt["ownerImpersonationLevel"] = "unknown"; receipt["ownerThreadImpersonating"] = null; }
-            if (!witness) CloudGuestDesktop.ProbeOwnerNode(receipt);
+            receipt["ownerProcessSessionId"] = System.Diagnostics.Process.GetCurrentProcess().SessionId;
+            receipt["creationFlags"] = loader == 1 ? 0x08000404u : 0x0000040Cu;
+            if (!witness && loader == 0) CloudGuestDesktop.ProbeOwnerNode(receipt);
             stage = "private-desktop-create";
             desktopOwner = new CloudGuestDesktop(expectedSid);
             receipt["privateDesktopCreated"] = true;
@@ -194,9 +202,9 @@ public static class CloudGuestProcess
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             startup.Desktop = desktopOwner.Path;
-            var command = new StringBuilder("\"" + image + "\" \"" + task + "\"");
+            var command = new StringBuilder("\"" + image + "\" " + (loader != 0 ? "--version" : "\"" + task + "\""));
             stage = "standard-user-create";
-            RequireNative(CreateProcessWithLogonW("AegisTask", ".", password, 1, image, command, 0x08000404,
+            RequireNative(CreateProcessWithLogonW("AegisTask", ".", password, 1, image, command, (uint)receipt["creationFlags"],
                 environment, root + @"\work", ref startup, out child));
             created = true;
             receipt["processCreated"] = true; receipt["createdProcessId"] = child.Pid; receipt["createdThreadId"] = child.Tid;
@@ -220,6 +228,10 @@ public static class CloudGuestProcess
                 receipt["administratorGroupPresent"] = false;
                 receipt["administratorGroupScan"] = "all-attributes";
             }
+            stage = "held-token-session"; int taskSession, sessionBytes;
+            RequireNative(GetTokenInformation(token, 12, out taskSession, 4, out sessionBytes));
+            receipt["heldTokenSessionId"] = taskSession;
+            Require(sessionBytes == 4 && taskSession >= 0 && taskSession == (int)receipt["ownerProcessSessionId"], "held-token-session-mismatch");
             stage = "held-token-elevation"; int elevation, returned;
             RequireNative(GetTokenInformation(token, 20, out elevation, 4, out returned));
             Require(returned == 4 && elevation == 0, "held-token-elevation");
@@ -232,6 +244,15 @@ public static class CloudGuestProcess
             inventory = new GuestJobInventory(job, child.Process, new string[] { image, @"C:\Windows\System32\conhost.exe" });
             inventory.ValidateInitial(); receipt["initialJobMembers"] = inventory.InitialCount;
             receipt["heldIdentityBeforeRelease"] = true; receipt["atomicJobAtCreation"] = false;
+            if (loader != 0)
+            {
+                stage = "loader-probe-resume";
+                uint probeSuspendCount = ResumeThread(child.Thread); RequireNative(probeSuspendCount != uint.MaxValue);
+                Require(probeSuspendCount == 1, "loader-probe-resume");
+                receipt["loaderProbeResumed"] = true;
+                goto WaitForRoot;
+            }
+            receipt["detachedLoaderQualifiedBeforeRuntime"] = true;
             stage = "runtime-registration";
             runtime.Attach(child.Process);
             stage = "runtime-resume";
@@ -266,8 +287,9 @@ public static class CloudGuestProcess
             }
             stage = "project-release-ack";
             runtime.ReleaseFixedTask(inventory); taskReleased = true;
-            stage = "task-deadline";
-            uint waitBudget = witness ? 5000 : (claude ? claudeReceiver.RemainingTaskWait() : 60000);
+        WaitForRoot:
+            stage = loader != 0 ? "loader-probe-deadline" : "task-deadline";
+            uint waitBudget = loader != 0 || witness ? 5000 : (claude ? claudeReceiver.RemainingTaskWait() : 60000);
             receipt["taskWaitMilliseconds"] = waitBudget;
             Require(GuestJobNative.WaitForSingleObject(child.Process, waitBudget) == 0, "task-deadline");
             stage = "task-exit-observation";
@@ -344,6 +366,14 @@ public static class CloudGuestProcess
             if (created && child.Process != IntPtr.Zero) GuestJobNative.CloseHandle(child.Process);
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
+        }
+        if (loader != 0)
+        {
+            receipt["loaderProbe"] = loader == 1 ? "original-no-window" : "detached";
+            receipt["exitCodeObserved"] = exitObserved; receipt["naturalExitObservedBeforeJobTermination"] = exitObserved;
+            receipt["failureStage"] = failureStage; receipt["failureHResult"] = failureHResult;
+            receipt["passed"] = false; receipt["acceptancePassed"] = false; receipt["launchAllowed"] = false;
+            return receipt;
         }
         if (witness) return CompleteWitnessReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
         return claude ? CompleteClaudeReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult) :

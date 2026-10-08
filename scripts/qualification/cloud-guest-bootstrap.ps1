@@ -277,11 +277,20 @@ if ([IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ne '
 $bootstrapStage = 'native-load'
 Add-Type -Path "$trusted\guest-process.dll"
 $bootstrapStage = 'native-run'
+$loader = [CloudGuestLoaderProbe]::CompareOriginalThenDetached($TaskPassword, $task.SID.Value)
+if ($loader.passed -isnot [bool] -or !$loader.passed) {
+    $probe = $(if ($null -ne $loader.detached) { $loader.detached } else { $loader.original })
+    $identity = $null
+    if ($null -ne $probe) { $identity = @{}; foreach ($entry in $probe.GetEnumerator()) { $identity[$entry.Key] = $entry.Value } }
+    if ($null -ne $identity) { $identity['loaderControls'] = $loader; $identity['passed'] = $false }
+    throw 'fixed-detached-loader-unqualified'
+}
 try { $identity = [CloudGuestProcess]::Run($TaskPassword, $task.SID.Value) }
 catch {
     $identity = [CloudGuestProcess]::FailureReceipt($_.Exception)
     if ($null -eq $identity) { throw 'guest-task-process-refused' }
 }
+$identity['loaderControls'] = $loader
 $bootstrapStage = 'result-diagnostics'
 $downstreamState = Get-CloudGuestDownstreamState $identity
 $parsed = @{ status = ('guest-task-' + $downstreamState); task = $null }

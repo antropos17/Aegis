@@ -391,3 +391,44 @@ artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.
 Actual guest results belong to their own source-bound run and must not be inferred
 from the preceding firmware-only VM runs or synthetic task controls.
+
+## Actual QUERY-only admission and runtime failure
+
+The [transfer-repair revision run](https://github.com/antropos17/Aegis/actions/runs/37708585872)
+at `e8048a44` passed hosted preflight and all five CI contexts. Independent
+review matched all 50 source hashes. Public Claude provenance, installed Windows
+26300.9457 EnterpriseEval, profile readiness, all transferred hashes and removal
+of both DVDs passed. The original receipt and its SHA-256 are retained in the
+twenty-entry evidence index.
+
+The held process token opened successfully with requested access 8 (`QUERY`).
+The observed SID matched the dedicated guest account; the all-attributes group
+scan found no Administrators SID, elevation was false and the initial Job
+contained exactly one member. These are actual cross-account observations of
+the token repair. The owner Node version probe exited zero in 2,920 milliseconds.
+
+The private desktop was created and the parent's station restored. After resume,
+the task process exited with `0xC0000142` before authenticated runtime readiness.
+Project release remained false. The receipt does not identify the failing DLL
+or establish a console, desktop-permission, session or environment cause.
+The ordinary task exit field was unobserved; the actual failure exit code comes
+from the retained process handle during cleanup.
+
+Retained-root exit, empty Job and private-desktop handle closure were confirmed.
+The host receiver stopped after Job closure and exited zero without force or
+expiry. Native VM stop, independent Off, exact removal and post-removal host
+canaries passed. The after-task canary was not reached. Task, network, Git,
+Claude and the separate test witness were not executed. No further task or full
+enforcement gate is accepted from this run.
+
+The next revision compares fixed `node --version` launches through the actual
+secondary-logon API, first with the original flags and then with `DETACHED_PROCESS`.
+Each uses a fresh private desktop and held Job, exact account and image checks,
+and matching owner/token session IDs. Confirmed cleanup is required between
+attempts; detached natural exit zero and cleanup are required before selecting
+that mode for the existing authenticated runtime. The separate Claude owner
+repeats its own detached positive. These loader controls do not establish full
+runtime initialization or authorize project release. Object permissions and
+existing receiver deadlines are unchanged. Independent static review passed;
+compilation, existing binary-size bounds and actual guest behavior require the
+next hosted run.

@@ -125,8 +125,18 @@ try {
     # Transfer leaves already received the first bootstrap's explicit admin-owned RO ACL.
     $stage = 'native-load'; Add-Type -Path "$trusted\guest-process.dll"
     $stage = 'native-run'
+    # The prior source-bound first phase is already closed. This owner repeats only its detached positive.
+    $loader = [CloudGuestLoaderProbe]::QualifyDetachedForNewOwner($TaskPassword, $ExpectedSid)
+    if ($loader.passed -isnot [bool] -or !$loader.passed) {
+        $probe = $loader.detached
+        $identity = $null
+        if ($null -ne $probe) { $identity = @{}; foreach ($entry in $probe.GetEnumerator()) { $identity[$entry.Key] = $entry.Value } }
+        if ($null -ne $identity) { $identity['loaderControls'] = $loader; $identity['passed'] = $false }
+        throw 'fixed-detached-loader-unqualified'
+    }
     try { $identity = [CloudGuestProcess]::RunClaude($TaskPassword, $ExpectedSid) }
     catch { $identity = [CloudGuestProcess]::FailureReceipt($_.Exception); if ($null -eq $identity) { throw 'claude-native-refused' } }
+    $identity['loaderControls'] = $loader
     $stage = 'closed-result-observation'; $controls = Read-CloudGuestClaudeResult $identity
     $witness = $null; $witnessPassed = $false; $witnessObservation = 'unknown'
     if ($controls.passed -eq $true) {
