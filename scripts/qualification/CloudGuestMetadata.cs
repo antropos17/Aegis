@@ -88,7 +88,7 @@ public static class CloudGuestMetadata
         observation.ExpectedBytes = expectedBytes; observation.DeclaredBytes = -1;
         ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        using (var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(10)))
+        using (var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(20)))
         {
             try
             {
