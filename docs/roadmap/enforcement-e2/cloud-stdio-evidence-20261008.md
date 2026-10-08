@@ -143,17 +143,28 @@ partial ISO of 5,562,712,064 bytes. This demonstrates admitted response headers
 and file writes; it does not identify the cause of the incomplete transfer.
 Guest streams and containment were not observed in this run.
 
-The reviewed diagnostic increment retains a closed, 12-field observation even
-when download fails: phase, status, expected/declared/read/written byte counts,
-read attempts, elapsed/progress timing and deadline state. It includes no URL,
+The reviewed diagnostic increment retained a closed, 12-field observation even
+when download failed: phase, status, expected/declared/read/written byte counts,
+read attempts, elapsed/progress timing and deadline state. It included no URL,
 headers, paths or exception messages. The pinned admission, ten-minute CTS,
-buffer/output bounds and existing cleanup remain unchanged. Independent Astra
+buffer/output bounds and existing cleanup were unchanged. Independent Astra
 review passed frozen packet
 `83f6f8fe65994414f80cf5fe95124d5a7ff5b6585524120ed08af7f85a69676f`.
 After exact integration, production admission refusals, five actual local HTTP
 controls, the written-counter mutant and the actual failed-download caller
 projection passed under PowerShell5.1 in seven seconds. Those fixture observations
 do not reproduce the public CDN transfer or establish its failure cause.
+
+The pinned public Windows ISO download has a separately bounded 20-minute
+cancellation source. This reliability follow-up changes the download's total
+CTS from ten minutes; it preserves the pinned URL/hash, expected byte count,
+closed progress observations, buffers, disk floor and all native/guest deadlines.
+It adds no retry or resume. Cloud33's partial file proves admitted writes before
+the former deadline; it does not establish a steady transfer rate or a cause.
+The existing cloud job has a 45-minute wall budget, so a full 20-minute download
+leaves at most 25 minutes for all other work. Simultaneous maximum stage budgets
+and uncancellable local I/O can still exceed that shared job budget; completion
+and final receipt preservation are not guaranteed by this change.
 
 This fixed transport has no arbitrary command surface or production admission
 path. General terminal operation, full E2.2, the complete containment matrix and

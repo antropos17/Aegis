@@ -47,7 +47,7 @@ if ($code -ne 0 -or (Get-Item -LiteralPath $admissionError).Length -ne 0 -or [IO
 Write-Output 'media-fixture-production-admission:refused'
 $text = [IO.File]::ReadAllText($original)
 $pin = 'expectedBytes == 8225329152L && url == "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"'
-$deadline = 'TimeSpan.FromMinutes(10)'
+$deadline = 'TimeSpan.FromMinutes(20)'
 if (($text.Split(@($pin), [StringSplitOptions]::None)).Count -ne 2 -or ($text.Split(@($deadline), [StringSplitOptions]::None)).Count -ne 2) { throw 'media-fixture-fixed-input-refused' }
 # These two substitutions affect only generated disposable compilation inputs.
 # No fixture source, alternate URL or shorter deadline enters the lab assembly.
