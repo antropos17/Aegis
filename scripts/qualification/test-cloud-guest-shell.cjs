@@ -10,10 +10,14 @@ const begin = source.indexOf('function child('), end = source.indexOf('function 
 assert.ok(begin > 0 && end > begin);
 const helper = source.slice(begin, end);
 const shellBegin = source.indexOf('  const ownShell = child(');
-const shell = source.slice(shellBegin, source.indexOf('\n  ]);', shellBegin) + '\n  ]);'.length);
+const shellEnd = source.indexOf('\n  if (', shellBegin);
+assert.ok(shellBegin > 0 && shellEnd > shellBegin);
+assert.equal(source.indexOf('  const ownShell = child(', shellBegin + 1), -1);
+const shell = source.slice(shellBegin, shellEnd);
 const descendantBegin = source.indexOf('  const ownChild = child(');
 const descendantEnd = source.indexOf('\n  if (', descendantBegin);
 assert.ok(descendantBegin > 0 && descendantEnd > descendantBegin);
+assert.equal(source.indexOf('  const ownChild = child(', descendantBegin + 1), -1);
 const descendant = source.slice(descendantBegin, descendantEnd);
 const base = fs.mkdtempSync(path.join(process.env.TEMP, 'aegis-fixed-shell-'));
 const root = path.join(base, 'path with spaces & ampersand');
