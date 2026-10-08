@@ -28,7 +28,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $fixtureSources 'client-control.cjs') -Destination $fixture
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'cloud-guest-runtime.cjs') -Destination $fixture
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-    $arguments = @('/nologo', '/warnaserror+', '/target:exe', ('/out:"' + $exe + '"'))
+    $arguments = @('/nologo', '/warnaserror+', '/target:exe', '/optimize+', ('/out:"' + $exe + '"'))
     foreach ($leaf in @('CloudGuestProcess.cs','CloudGuestDesktop.cs','CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs','CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
     foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative','GuestJobNative','GuestJobInventory')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $arguments += ('"' + (Join-Path $fixtureSources 'RuntimeGateFixture.cs') + '"')
