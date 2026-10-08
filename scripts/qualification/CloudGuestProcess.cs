@@ -145,6 +145,8 @@ public static class CloudGuestProcess
     { return RunFixed(password, expectedSid, true); }
     internal static Dictionary<string, object> RunTestWitness(string password, string expectedSid)
     { return RunPhase(password, expectedSid, false, true); }
+    public static Dictionary<string, object> RunStdio(string password, string sid, int kind)
+    { Require(kind >= 1 && kind <= 5, "fixed-stdio-invalid"); return RunPhase(password, sid, false, false, 0, 0, kind); }
     private static Dictionary<string, object> RunFixed(string password, string expectedSid, bool claude)
     { return RunPhase(password, expectedSid, claude, false); }
     private static string documentedQualifiedSid;
@@ -154,9 +156,9 @@ public static class CloudGuestProcess
     { return RunPhase(password, sid, false, false, documented ? 2 : 1); }
     internal static Dictionary<string, object> RunCancellation(string password, string sid, bool after)
     { return RunPhase(password, sid, false, false, 0, after ? 2 : 1); }
-    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0, int cancellation = 0)
+    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0, int cancellation = 0, int stdio = 0)
     {
-        Require(!(claude && witness) && loader >= 0 && loader <= 2 && cancellation >= 0 && cancellation <= 2 &&
+        Require(stdio >= 0 && stdio <= 5 && (stdio == 0 || (!claude && !witness && loader == 0 && cancellation == 0)) && !(claude && witness) && loader >= 0 && loader <= 2 && cancellation >= 0 && cancellation <= 2 &&
             (cancellation == 0 || (!claude && !witness && loader == 0)), "fixed-phase-invalid");
         if (loader == 0) Require(expectedSid != null && documentedQualifiedSid == expectedSid, "documented-loader-unqualified");
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
@@ -167,12 +169,12 @@ public static class CloudGuestProcess
             throw new InvalidOperationException("trusted-guest-bootstrap-required");
         const string trusted = @"C:\ProgramData\AegisCloudLab\trusted";
         const string root = @"C:\AegisLab";
-        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, cancellation != 0 ? "cloud-cancellation-runtime.cjs" : (witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs")));
+        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, stdio != 0 ? "cloud-stdio-runtime.cjs" : cancellation != 0 ? "cloud-cancellation-runtime.cjs" : (witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs")));
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
         CloudGuestClaudeReceiver claudeReceiver = null;
-        CloudGuestDesktop desktopOwner = null; CloudGuestCancellation.Descendant cancelChild = null;
+        CloudGuestDesktop desktopOwner = null; CloudGuestCancellation.Descendant cancelChild = null; ICloudGuestStdioPhase stdioPhase = null;
         bool created = false, assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false, unassignedRootExitObserved = false; uint exit = 259;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
@@ -205,7 +207,8 @@ public static class CloudGuestProcess
             RequireNative(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
             stage = "runtime-endpoint-create";
             runtime = new CloudGuestRuntimeGate(expectedSid);
-            string values = (witness ? "AEGIS_CLOUD_GUEST_TEST_WITNESS=1\0" : (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "")) + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
+            if (stdio != 0) stdioPhase = (ICloudGuestStdioPhase)Activator.CreateInstance(System.Reflection.Assembly.LoadFrom(Path.Combine(trusted, "guest-stdio-host.dll")).GetType("CloudGuestStdioPhase", true), new object[] { expectedSid, stdio });
+            string values = (stdioPhase == null ? "" : stdioPhase.EnvironmentBlock) + (witness ? "AEGIS_CLOUD_GUEST_TEST_WITNESS=1\0" : (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "")) + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             startup.Desktop = desktopOwner.Path;
@@ -290,15 +293,17 @@ public static class CloudGuestProcess
                 receipt["trustedTestProcessObservation"] = "unknown";
                 receipt["acceptancePassed"] = false;
             }
-            else if (!witness && cancellation == 0)
+            else if (!witness && cancellation == 0 && stdio == 0)
             {
                 stage = "network-receiver-start";
                 receiver = new CloudGuestNetwork(job, receipt);
                 receipt["networkReceiverStartedAfterRuntimeReady"] = true;
                 receiver.BeforeRelease();
             }
+            if (stdioPhase != null) { stage = "stdio-original-inventory"; stdioPhase.Capture(child.Process, job, child.Pid, image, taskSession); }
             if (cancellation != 1)
             { stage = "project-release-ack"; runtime.ReleaseFixedTask(inventory); taskReleased = true; }
+            if (stdioPhase != null) { stage = "stdio-exchange"; stdioPhase.Execute(receipt); goto CancelReady; }
             if (cancellation != 0)
             {
                 receipt["cancellationReceiverStarted"] = false;
@@ -370,7 +375,7 @@ public static class CloudGuestProcess
                 receipt["cleanupWin32Error"] = terminationError;
                 unassignedRootExitObserved = ObserveRootExit(child.Process, receipt); // No Job closure claim for an unassigned process.
             }
-            if (cancellation != 0 && closure)
+            if ((cancellation != 0 || stdio != 0) && closure)
             {
                 exitObserved = GetExitCodeProcess(child.Process, out exit);
                 receipt["descendantExitObserved"] = cancelChild != null && cancelChild.Exited;
@@ -390,6 +395,7 @@ public static class CloudGuestProcess
                 if (receipt["claudeReceiverDisposalUnknown"].Equals(true) && failureStage == null) failureStage = "claude-receiver-cleanup";
             }
             receipt["taskReleased"] = taskReleased; receipt["runtimeResumed"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
+            if (stdioPhase != null) { try { stdioPhase.ObserveClosure(closure, receipt); } catch (Exception error) { if (failureStage == null) { failureStage = "stdio-closure"; failureHResult = error.HResult; } } finally { stdioPhase.Dispose(); } }
             if (runtime != null) runtime.Dispose();
             receipt["privateDesktopHandlesClosedAfterJobClosure"] = false;
             receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = false;
@@ -411,6 +417,13 @@ public static class CloudGuestProcess
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
         }
+        if (stdio != 0)
+        {
+            receipt["exitCodeObserved"] = exitObserved; receipt["exitCode"] = exit;
+            receipt["failureStage"] = failureStage; receipt["failureHResult"] = failureHResult;
+            receipt["passed"] = failureStage == null && exitObserved && exit == (stdio <= 2 ? 0u : 137u) && closure && taskReleased && resumed && receipt.ContainsKey("stdioPassed") && receipt["stdioPassed"].Equals(true) && receipt["privateDesktopHandlesClosedAfterJobClosure"].Equals(true);
+            receipt["e2Qualified"] = false; receipt["launchAllowed"] = false; return receipt;
+        }
         if (cancellation != 0)
         {
             bool descendantExited = receipt.ContainsKey("descendantExitObserved") && receipt["descendantExitObserved"].Equals(true);
@@ -421,6 +434,7 @@ public static class CloudGuestProcess
         {
             receipt["loaderProbe"] = loader == 1 ? "minimal-private-user" : "documented";
             receipt["exitCodeObserved"] = exitObserved; receipt["naturalExitObservedBeforeJobTermination"] = exitObserved;
+            receipt["exitCodeObserved"] = exitObserved; receipt["exitCode"] = exit;
             receipt["failureStage"] = failureStage; receipt["failureHResult"] = failureHResult;
             receipt["passed"] = false; receipt["acceptancePassed"] = false; receipt["launchAllowed"] = false;
             return receipt;
@@ -598,4 +612,13 @@ public static class CloudGuestCancellation
     }
     private static bool Bool(Dictionary<string, object> value, string key, bool expected)
     { object entry; return value.TryGetValue(key, out entry) && entry is bool && (bool)entry == expected; }
+}
+
+// Separate reviewed lab assembly; no generic launch callbacks or pipe payload dispatch.
+public interface ICloudGuestStdioPhase : IDisposable
+{
+    string EnvironmentBlock { get; }
+    void Capture(IntPtr root, IntPtr job, uint pid, string image, int session);
+    void Execute(Dictionary<string, object> receipt);
+    void ObserveClosure(bool confirmed, Dictionary<string, object> receipt);
 }

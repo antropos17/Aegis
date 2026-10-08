@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-claude-public.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-claude-phase.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-cancellation.ps1')
+. (Join-Path $PSScriptRoot 'cloud-guest-stdio.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -25,7 +26,7 @@ $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaR
 $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard-user-lab'; startedAt = [DateTime]::UtcNow.ToString('o'); sourceSha = $env:EXPECTED_SOURCE_SHA;
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
-    cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
+    stdioPhase = $null; stdioControlsComplete = $false; hostCanariesUnchangedAfterStdio = $false; cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
 # Deletes only fixed disposable leaves after settled VM absence or no VM request.
@@ -130,6 +131,20 @@ function Compile([string]$Leaf, [string[]]$Sources, [string[]]$References) {
     if ($exitCode -ne 0 -or (Get-Item -LiteralPath $output).Length -gt 1MB -or (Get-Item -LiteralPath $stdout).Length -gt 64KB -or (Get-Item -LiteralPath $stderr).Length -gt 64KB) { throw 'native-compile-failed' }
     return $output
 }
+function CompileStdioGuest {
+    $output = Join-Path $OutputRoot 'native\guest-stdio.exe'
+    $arguments = @('/nologo', '/target:exe', '/main:CloudGuestStdioTask', '/platform:x64', '/optimize+', '/warnaserror+', ('/out:"' + $output + '"'))
+    foreach ($relative in @('scripts/qualification/CloudGuestStdioLauncher.cs', 'scripts/qualification/CloudGuestStdioTask.cs', 'sidecar/session/GuestJobNative.cs')) {
+        $file = Get-Item -LiteralPath (Join-Path $project $relative) -Force
+        if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'native-source-budget-failed' }
+        $report.sourceHashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        $arguments += '"' + $file.FullName + '"'
+    }
+    $out = Join-Path $OutputRoot 'native\guest-stdio.txt'; $err = $out + '.error'
+    $code = Invoke-CloudGuestNativeProcess $compiler $arguments $out $err 10000
+    if ($code -ne 0 -or (Get-Item -LiteralPath $output).Length -gt 64KB -or (Get-Item -LiteralPath $out).Length -gt 64KB -or (Get-Item -LiteralPath $err).Length -gt 64KB) { throw 'stdio-native-output-refused' }
+    return $output
+}
 function CanariesUnchanged {
     foreach ($entry in $canaries) {
         if (!(Test-Path -LiteralPath $entry.path)) { return $false }
@@ -164,7 +179,7 @@ try {
         }
         $report.compilerSha256 = (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant()
         foreach ($relative in @('cloud-guest-claude-public.ps1', 'cloud-guest-claude-phase.ps1', 'cloud-guest-claude-bootstrap.ps1',
-            'cloud-guest-cancellation.ps1', 'cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs',
+            'cloud-guest-stdio.ps1', 'cloud-guest-stdio-bootstrap.ps1', 'cloud-stdio-runtime.cjs', 'cloud-stdio-task.cjs', 'stdio-fixed-task.cjs', 'cloud-guest-cancellation.ps1', 'cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs',
             'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs',
             'claude-public/provenance.ps1', 'claude-public/official-manifest.json', 'claude-public/official-manifest.json.sig', 'claude-public/official-release-key.asc')) {
             $file = Get-Item -LiteralPath (Join-Path $PSScriptRoot $relative) -Force
@@ -178,6 +193,12 @@ try {
         Add-Type -Path (Compile 'claude-download.dll' @('scripts/qualification/CloudGuestClaudeDownload.cs') @('System.Net.Http.dll'))
         $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestLoaderProbe.cs', 'scripts/qualification/CloudGuestTestWitness.cs', 'scripts/qualification/CloudGuestDesktop.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestClaudeReceiver.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
         Copy-Item -LiteralPath $guestDll -Destination (Join-Path $OutputRoot 'transfer\guest-process.dll')
+        $stdioHost = Compile 'guest-stdio-host.dll' @('scripts/qualification/CloudGuestStdio.cs', 'scripts/qualification/CloudGuestStdioPhase.cs', 'sidecar/session/GuestJobNative.cs') @(('"' + $guestDll + '"'))
+        if ((Get-Item -LiteralPath $stdioHost).Length -gt 64KB) { throw 'stdio-native-output-refused' }
+        Copy-Item -LiteralPath $stdioHost -Destination (Join-Path $OutputRoot 'transfer\guest-stdio-host.dll')
+        # Compile defaults to library; rebuild the separate fixed executable with its exact entry point.
+        $stdioExe = CompileStdioGuest
+        Copy-Item -LiteralPath $stdioExe -Destination (Join-Path $OutputRoot 'transfer\guest-stdio.exe')
     } | Out-Null
     $report.media = Stage 'pinned-media-download-and-hash' {
         $url = 'https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
@@ -216,7 +237,7 @@ try {
         $report['runtimeStagingPhase'] = 'FixedRuntimeCopies'
         foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs', 'route-protocol.cjs', 'route-client.cjs', 'cloud-guest-git.cjs', 'cloud-guest-git.ps1', 'git-runtime-manifest.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
         $report['runtimeStagingPhase'] = 'FixedClaudeCopies'
-        foreach ($leaf in @('cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs', 'cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        foreach ($leaf in @('cloud-guest-stdio-bootstrap.ps1', 'cloud-stdio-runtime.cjs', 'cloud-stdio-task.cjs', 'stdio-fixed-task.cjs', 'cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs', 'cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
         $report['runtimeStagingPhase'] = 'ClaudeProvenance'
         $report.claudeProvenance = Save-CloudGuestClaudeBinary $transfer (Join-Path $OutputRoot 'temp')
         $report['runtimeStagingPhase'] = 'GitArchive'
@@ -299,6 +320,14 @@ try {
     $report.cancellationControlsComplete = $report.cancellationPhase.passed -eq $true
     $report.hostCanariesUnchangedAfterCancellation = CanariesUnchanged
     if (!$report.cancellationControlsComplete -or !$report.hostCanariesUnchangedAfterCancellation) { throw 'cloud-cancellation-controls-refused' }
+    $report.stdioPhase = Stage 'fixed-cloud-stdio' {
+        $value = Invoke-CloudGuestStdioPhase $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') $report.guest $report.claudePhase $report.cancellationPhase
+        $script:report.stdioPhase = $value
+        $script:report.stdioControlsComplete = $value.passed -is [bool] -and $value.passed
+        $script:report.hostCanariesUnchangedAfterStdio = CanariesUnchanged
+        if (!$report.stdioControlsComplete -or !$report.hostCanariesUnchangedAfterStdio) { throw 'cloud-stdio-controls-refused' }
+        return $value
+    }
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {
@@ -330,7 +359,7 @@ finally {
     }
     RecordDisk 'after' | Out-Null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
-    $report.passed = $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
+    $report.passed = $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
     $json = $report | ConvertTo-Json -Depth 16
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 1MB) { throw 'guest-receipt-budget-failed' }
     [IO.File]::WriteAllText((Join-Path $OutputRoot 'evidence\cloud-windows11.json'), $json)
