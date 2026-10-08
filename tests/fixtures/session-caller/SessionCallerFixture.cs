@@ -15,6 +15,8 @@ internal static class SessionCallerFixture
         uint instances, uint output, uint input, uint timeout, IntPtr security);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool ConnectNamedPipe(SafeFileHandle pipe, IntPtr overlapped);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool WriteFile(SafeFileHandle pipe, byte[] bytes, uint length, out uint written, IntPtr overlapped);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool LookupPrivilegeValue(string system, string name, out Luid luid);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool AdjustTokenPrivileges(SafeFileHandle token, bool disableAll, ref PrivilegeChange change, uint size, IntPtr previous, IntPtr returned);
@@ -75,6 +77,20 @@ internal static class SessionCallerFixture
                 if (SameLuid(observed, luid)) return unchecked((uint)Marshal.ReadInt32(buffer, offset + 8));
             }
             throw new InvalidOperationException("fixture-privilege-unavailable");
+        });
+    }
+    private static PrivilegeChange DisabledPrivilege(SafeFileHandle token)
+    {
+        return Query(token, 3, (buffer, length) => {
+            uint count = unchecked((uint)Marshal.ReadInt32(buffer));
+            CallerNative.Require(count > 0 && count <= 256 && 4L + count * 12L == length);
+            for (int index = 0; index < count; index++) {
+                int offset = 4 + index * 12; uint attributes = unchecked((uint)Marshal.ReadInt32(buffer, offset + 8));
+                if ((attributes & 2) == 0) return new PrivilegeChange { Count = 1,
+                    Luid = new Luid { Low = unchecked((uint)Marshal.ReadInt32(buffer, offset)), High = Marshal.ReadInt32(buffer, offset + 4) },
+                    Attributes = attributes | 2U };
+            }
+            throw new InvalidOperationException("fixture-disabled-privilege-unavailable");
         });
     }
     // Changes only an already-present enabled privilege in this disposable child.
@@ -138,10 +154,21 @@ internal static class SessionCallerFixture
                     CallerNative.Require(AdjustTokenPrivileges(peer, false, ref change, 0, IntPtr.Zero, IntPtr.Zero) && Marshal.GetLastWin32Error() == 0);
                     bool peerChanged = Privilege(peer, luid) == change.Attributes && !SameLuid(peerStats.Modified, Statistics(peer).Modified);
                     bool changedEquivalent = original.MatchesImpersonation(CallerIdentity.Observe(peer));
+                    change.Attributes = before;
+                    CallerNative.Require(AdjustTokenPrivileges(peer, false, ref change, 0, IntPtr.Zero, IntPtr.Zero) && Marshal.GetLastWin32Error() == 0);
+                    bool restoredPeerEquivalent = original.MatchesImpersonation(CallerIdentity.Observe(peer));
+                    var introduced = DisabledPrivilege(token);
+                    uint disabled = Privilege(peer, introduced.Luid);
+                    CallerNative.Require((disabled & 2) == 0 &&
+                        AdjustTokenPrivileges(peer, false, ref introduced, 0, IntPtr.Zero, IntPtr.Zero) && Marshal.GetLastWin32Error() == 0);
+                    bool introducedObserved = Privilege(peer, introduced.Luid) == (disabled | 2U);
+                    bool introducedRejected = !original.MatchesImpersonation(CallerIdentity.Observe(peer));
                     bool primaryUnchanged = original.SamePrimaryToken(CallerIdentity.Observe(token));
                     Console.WriteLine("{\"primaryCopyRejected\":true,\"peerTokenIdDifferent\":" + Flag(peerIdDifferent) +
                         ",\"peerEquivalent\":" + Flag(equivalent) + ",\"peerPrivilegeChanged\":" + Flag(peerChanged) +
-                        ",\"changedPeerEquivalent\":" + Flag(changedEquivalent) + ",\"primaryUnchanged\":" + Flag(primaryUnchanged) + "}");
+                        ",\"changedPeerEquivalent\":" + Flag(changedEquivalent) + ",\"restoredPeerEquivalent\":" + Flag(restoredPeerEquivalent) +
+                        ",\"introducedEnabledObserved\":" + Flag(introducedObserved) + ",\"introducedEnabledRejected\":" + Flag(introducedRejected) +
+                        ",\"primaryUnchanged\":" + Flag(primaryUnchanged) + "}");
                 }
             }
         }
@@ -171,6 +198,11 @@ internal static class SessionCallerFixture
                 Marshal.WriteInt32(buffer, 16, 20); Marshal.WriteInt32(buffer, 24, 0);
             }
             string[] before = group ? CallerIdentity.ReadGroups(buffer, length) : CallerIdentity.ReadPrivileges(buffer, length);
+            if (mode == "buffer-privileges-empty") {
+                Marshal.WriteInt32(buffer, 0);
+                Console.WriteLine("{\"syntheticBuffers\":true,\"emptyParsed\":" + Flag(CallerIdentity.ReadPrivileges(buffer, 16).Length == 0) + "}");
+                return 0;
+            }
             if (mode.EndsWith("-order", StringComparison.Ordinal)) {
                 int offset = group ? 8 : 4, stride = group ? 16 : 12;
                 byte[] entries = new byte[stride * 2]; Marshal.Copy(IntPtr.Add(buffer, offset), entries, 0, entries.Length);
@@ -197,6 +229,7 @@ internal static class SessionCallerFixture
                 case "buffer-groups-sid-revision": Marshal.WriteByte(buffer, 40, 2); break;
                 case "buffer-groups-duplicate": Marshal.WriteIntPtr(buffer, 24, Marshal.ReadIntPtr(buffer, 8)); break;
                 case "buffer-privileges-truncated": length = 27; break;
+                case "buffer-privileges-empty-truncated": Marshal.WriteInt32(buffer, 0); length = 15; break;
                 case "buffer-privileges-duplicate": Marshal.WriteInt32(buffer, 16, 23); break;
                 default: throw new InvalidOperationException("fixture-mode-invalid");
             }
@@ -214,6 +247,7 @@ internal static class SessionCallerFixture
     {
         private readonly string mode;
         internal bool ImpersonationAttempted, TokenQueried, ReversionAttempted, FatalObserved;
+        internal uint PeerPrivileges;
         internal FailureNative(string selected) { mode = selected; }
         internal override bool Impersonate(SafeHandle pipe)
         { ImpersonationAttempted = true; return mode != "impersonation-failure" && base.Impersonate(pipe); }
@@ -221,7 +255,9 @@ internal static class SessionCallerFixture
         {
             TokenQueried = true;
             if (mode == "query-failure") throw new InvalidOperationException();
-            return base.ThreadToken();
+            SafeFileHandle token = base.ThreadToken();
+            try { PeerPrivileges = PrivilegeCount(token); return token; }
+            catch { token.Dispose(); throw; }
         }
         internal override bool Revert()
         {
@@ -251,6 +287,27 @@ internal static class SessionCallerFixture
         return frame;
     }
 
+    private static uint PrivilegeCount(SafeFileHandle token)
+    {
+        return Query(token, 3, (buffer, length) => {
+            uint count = unchecked((uint)Marshal.ReadInt32(buffer));
+            CallerNative.Require(count <= 256 && (count == 0 ? length == 16 : 4L + count * 12L == length)); return count;
+        });
+    }
+    private static Stream ConnectClient(string name, string mode)
+    {
+        if (mode == "effective-only") {
+            // Explicit SQOS: impersonation with disabled privileges filtered by the OS.
+            SafeFileHandle pipe = CreateFile("\\\\.\\pipe\\" + name, 0xC0000000, 0,
+                IntPtr.Zero, 3, 0x001A0000, IntPtr.Zero);
+            try { CallerNative.Require(!pipe.IsInvalid); return new FileStream(pipe, FileAccess.ReadWrite, 4096, false); }
+            catch { pipe.Dispose(); throw; }
+        }
+        var managed = new NamedPipeClientStream(".", name, PipeDirection.InOut,
+            PipeOptions.None, System.Security.Principal.TokenImpersonationLevel.Impersonation);
+        try { managed.Connect(3000); return managed; } catch { managed.Dispose(); throw; }
+    }
+
     private static void Supply(Process child, string pipe, CallerRegistration registration, string mode)
     {
         child.StandardInput.WriteLine(pipe);
@@ -270,10 +327,8 @@ internal static class SessionCallerFixture
     private static int Client()
     {
         string name = Console.ReadLine(), generation = Console.ReadLine(), session = Console.ReadLine(), mode = Console.ReadLine();
-        using (var pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut,
-            PipeOptions.None, System.Security.Principal.TokenImpersonationLevel.Impersonation))
+        using (Stream pipe = ConnectClient(name, mode))
         {
-            pipe.Connect(3000);
             string json = "{\"protocol\":\"aegis-supervisor-caller\",\"version\":1,\"operation\":\"inspect-owned\"," +
                 "\"requestId\":\"" + new string('a', 32) + "\",\"sessionId\":\"" + session +
                 "\",\"generation\":\"" + generation + "\",\"sequence\":1}";
@@ -313,7 +368,14 @@ internal static class SessionCallerFixture
             {
                 CallerNative.Require(!pipe.IsInvalid);
                 registeredChild = StartChild();
+                // Controlled initial token setup precedes the sole registration,
+                // ensuring at least one disabled privilege for a portable SQOS case.
+                Mutation setup = mode == "effective-only" ? DisableChildPrivilege(registeredChild, false) : null;
                 registration = new CallerRegistration(registeredChild.Handle, new string('b', 32));
+                uint primaryPrivileges;
+                using (var held = CallerNative.Duplicate(registeredChild.Handle))
+                using (var token = CallerNative.ProcessToken(held))
+                    primaryPrivileges = PrivilegeCount(token);
                 if (mode == "server-positive" || mode == "server-mismatch")
                 {
                     using (var self = Process.GetCurrentProcess())
@@ -391,6 +453,8 @@ internal static class SessionCallerFixture
                     ",\"reversionAttempted\":" + observations.ReversionAttempted.ToString().ToLowerInvariant() +
                     ",\"fatalReversionObserved\":" + observations.FatalObserved.ToString().ToLowerInvariant() +
                     ",\"registrationRejected\":" + Flag(registrationRejected) +
+                    (mode == "effective-only" ? ",\"initialPrivilegeDisabled\":" + Flag(setup != null) +
+                        ",\"primaryPrivilegeCount\":" + primaryPrivileges + ",\"peerPrivilegeCount\":" + observations.PeerPrivileges : "") +
                     (mutation == null ? "" : mutation.Json()) + "}");
                 return 0;
             }

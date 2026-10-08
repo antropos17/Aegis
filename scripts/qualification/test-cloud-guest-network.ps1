@@ -44,7 +44,7 @@ try {
         Check (!$accepted) 'native-late-or-backwards-stop-accepted'
     }
     $observations = Join-Path $fixture 'loopback.json'
-    $exit = Invoke-CloudGuestNativeProcess (Get-Command node.exe).Source @(('"' + (Join-Path $PSScriptRoot 'test-cloud-guest-network.cjs') + '"')) $observations (Join-Path $fixture 'loopback.error') 18000
+    $exit = Invoke-CloudGuestNativeProcess (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source @(('"' + (Join-Path $PSScriptRoot 'test-cloud-guest-network.cjs') + '"')) $observations (Join-Path $fixture 'loopback.error') 18000
     Check ($exit -eq 0 -and (Get-Item -LiteralPath $observations).Length -le 8192 -and (Get-Item -LiteralPath (Join-Path $fixture 'loopback.error')).Length -eq 0) 'actual-local-loopback-refused'
     $actual = [IO.File]::ReadAllText($observations) | ConvertFrom-Json
     $ready = '{"type":"ready","endpoint":{"schemaVersion":1,"nonce":"' + $actual.endpoint.nonce + '","ports":{"tcp4":' + $actual.endpoint.ports.tcp4 + ',"udp4":' + $actual.endpoint.ports.udp4 + ',"tcp6":' + $actual.endpoint.ports.tcp6 + ',"udp6":' + $actual.endpoint.ports.udp6 + '}}}'

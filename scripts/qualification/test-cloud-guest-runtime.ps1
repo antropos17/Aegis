@@ -36,7 +36,7 @@ try {
     $compile = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000
     if ($compile -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 80KB) { throw 'runtime-controls-compile-failed' }
     Write-Output ('runtime-composite-bytes:' + (Get-Item -LiteralPath $exe).Length)
-    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $node + '"'), ('"' + $fixture + '"')) (Join-Path $fixture 'native.txt') (Join-Path $fixture 'native.error') 15000
     $native = [IO.File]::ReadAllText((Join-Path $fixture 'native.txt'))
     if ($code -ne 0 -or (Get-Item -LiteralPath (Join-Path $fixture 'native.error')).Length -ne 0 -or

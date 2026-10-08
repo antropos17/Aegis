@@ -67,7 +67,7 @@ try {
     }
     $modelPath = Join-Path $modelRoot 'test-cloud-guest-task.cjs'; $taskPath = Join-Path $modelRoot 'cloud-guest-task.cjs'
     $originalModel = [IO.File]::ReadAllText($modelPath); $originalTask = [IO.File]::ReadAllText($taskPath)
-    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     foreach ($mode in @('script-timeout', 'assertion', 'late-assertion', 'other')) {
         $modelText = $originalModel; $taskText = $originalTask
         $pattern = if ($mode -ceq 'script-timeout') { 'const\s+taskBegin\s*=\s*performance\.now\(\)\s*;' }

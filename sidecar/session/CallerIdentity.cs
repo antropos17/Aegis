@@ -71,25 +71,38 @@ namespace Aegis.ProtectedSession
                 if (!String.Equals(first[index], second[index], StringComparison.Ordinal)) return false;
             return true;
         }
-        private bool SameContext(CallerIdentity other)
+        private static bool SamePeerPrivileges(string[] primary, string[] peer)
+        {
+            var expected = new HashSet<string>(primary, StringComparer.Ordinal);
+            var observed = new HashSet<string>(peer, StringComparer.Ordinal);
+            // Effective-only pipe tokens may omit disabled privileges. Every
+            // supplied entry must match, and every enabled entry must remain.
+            foreach (string entry in peer) if (!expected.Contains(entry)) return false;
+            foreach (string entry in primary)
+                if ((Convert.ToUInt32(entry.Substring(17), 16) & 2) != 0 && !observed.Contains(entry)) return false;
+            return true;
+        }
+        private bool SameContext(CallerIdentity other, bool pipePeer)
         {
             return other != null && sid == other.sid && integrity == other.integrity &&
                 SameLuid(authentication, other.authentication) &&
                 session == other.session && restrictions == other.restrictions && restrictedSids == other.restrictedSids && appContainer == other.appContainer &&
                 elevation == other.elevation && uiAccess == other.uiAccess && mandatoryPolicy == other.mandatoryPolicy &&
-                SameEntries(groups, other.groups) && SameEntries(privileges, other.privileges) && SameEntries(restricting, other.restricting);
+                SameEntries(groups, other.groups) &&
+                (pipePeer ? SamePeerPrivileges(privileges, other.privileges) : SameEntries(privileges, other.privileges)) &&
+                SameEntries(restricting, other.restricting);
         }
 
         internal bool SamePrimaryToken(CallerIdentity other)
         {
             return other != null && Type == 1 && other.Type == 1 && SameLuid(tokenId, other.tokenId) &&
-                SameLuid(modified, other.modified) && SameContext(other);
+                SameLuid(modified, other.modified) && SameContext(other, false);
         }
         internal bool MatchesImpersonation(CallerIdentity other)
         {
             // The pipe impersonation token is a distinct native object. Its own
             // snapshot is stable, but its TokenId/ModifiedId need not equal ours.
-            return other != null && Type == 1 && other.Type == 2 && other.Level == 2 && SameContext(other);
+            return other != null && Type == 1 && other.Type == 2 && other.Level == 2 && SameContext(other, true);
         }
 
         internal bool PermittedBroker()
@@ -167,7 +180,9 @@ namespace Aegis.ProtectedSession
         {
             CallerNative.Require(buffer != IntPtr.Zero && length >= 4 && length <= 65536);
             uint count = unchecked((uint)Marshal.ReadInt32(buffer));
-            CallerNative.Require(count <= 256 && 4L + count * 12L == length);
+            // Windows returns the fixed one-slot TOKEN_PRIVILEGES header even
+            // when an effective-only token has no privileges.
+            CallerNative.Require(count <= 256 && (count == 0 ? length == 16 : 4L + count * 12L == length));
             var entries = new string[count]; var unique = new HashSet<string>(StringComparer.Ordinal);
             for (int index = 0; index < count; index++) {
                 int offset = 4 + index * 12;
