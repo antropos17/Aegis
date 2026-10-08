@@ -40,9 +40,10 @@ function recordBytes(bindingSha256, state, schemaVersion = 1) {
  * File sync precedes dispatch; directory power-loss durability and hostile same-principal
  * mutation are unqualified. Crashed exclusive locks require explicit owner recovery.
  * @param {string} directory Existing canonical absolute local directory.
- * @returns {Promise<object>} consume, settle and inspect interface. @since v0.17.0 */
+ * @returns {Promise<object>} Private consumption/recheck, settle and inspect interface. @since v0.17.0 */
 async function createOperationLedger(directory) {
   const io = testDeps?.fs || fs;
+  const consumptions = new WeakMap();
   let unavailable = false;
   if (typeof directory !== 'string' || !path.isAbsolute(directory) || directory.startsWith('\\\\'))
     throw Error('operation-ledger-unavailable');
@@ -85,7 +86,7 @@ async function createOperationLedger(directory) {
         throw Error('operation-ledger-unavailable');
     }
   };
-  const read = async (filename, optional = false) => {
+  const read = async (filename, optional = false, retain = false) => {
     let handle;
     try {
       await verify();
@@ -131,8 +132,21 @@ async function createOperationLedger(directory) {
         )
       )
         throw Error('operation-ledger-unavailable');
+      await handle.close();
+      handle = undefined;
+      const named = await io.lstat(filename, { bigint: true });
+      if (
+        !named.isFile() ||
+        named.isSymbolicLink() ||
+        named.nlink !== 1n ||
+        !same(named, after) ||
+        named.size !== after.size ||
+        named.mtimeNs !== after.mtimeNs ||
+        named.ctimeNs !== after.ctimeNs
+      )
+        throw Error('operation-ledger-unavailable');
       await verify();
-      return value;
+      return retain ? { value, stat: named } : value;
     } finally {
       await handle?.close();
     }
@@ -190,17 +204,44 @@ async function createOperationLedger(directory) {
     return result;
   };
   return Object.freeze({
-    consume(binding) {
+    async consume(binding) {
       const key = identity(binding);
-      return exclusive(async () => {
+      const retained = await exclusive(async () => {
         await write(
           path.join(root, key.name + '.spent'),
           recordBytes(key.bindingSha256, 'consumed'),
         );
-        const actual = await read(path.join(root, key.name + '.spent'));
-        if (actual.bindingSha256 !== key.bindingSha256 || actual.state !== 'consumed')
+        const filename = path.join(root, key.name + '.spent');
+        const actual = await read(filename, false, true);
+        if (actual.value.bindingSha256 !== key.bindingSha256 || actual.value.state !== 'consumed')
           throw Error('invalid');
+        return { filename, ...actual };
       });
+      const reservation = Object.freeze({});
+      consumptions.set(reservation, retained);
+      return reservation;
+    },
+    async recheckConsumption(reservation, binding) {
+      const retained = consumptions.get(reservation);
+      if (
+        unavailable ||
+        !retained ||
+        identity(binding).bindingSha256 !== retained.value.bindingSha256
+      )
+        throw Error('operation-ledger-unavailable');
+      // Terminal publication cannot renew a prior private consumption reservation.
+      if (await read(retained.filename.replace(/\.spent$/, '.outcome'), true))
+        throw Error('operation-ledger-unavailable');
+      const actual = await read(retained.filename, false, true);
+      if (
+        !same(actual.stat, retained.stat) ||
+        actual.stat.size !== retained.stat.size ||
+        actual.stat.mtimeNs !== retained.stat.mtimeNs ||
+        actual.stat.ctimeNs !== retained.stat.ctimeNs ||
+        actual.value.bindingSha256 !== retained.value.bindingSha256 ||
+        actual.value.state !== 'consumed'
+      )
+        throw Error('operation-ledger-unavailable');
     },
     settle(binding, state, { signal } = {}) {
       const key = identity(binding);

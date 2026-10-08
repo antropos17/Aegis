@@ -52,7 +52,12 @@ function createSessionOperationBroker({ authority, ledger, dispatchers }) {
         abort = () => authority.cancel(capability);
         signal?.addEventListener('abort', abort, { once: true });
         if (signal?.aborted) abort();
-        await ledger.consume(binding);
+        const consumption = await ledger.consume(binding);
+        if (!authority.reserved(capability)) {
+          await ledger.settle(binding, 'not-dispatched');
+          return receipt('refused');
+        }
+        await ledger.recheckConsumption(consumption, binding);
         if (!authority.reserved(capability)) {
           await ledger.settle(binding, 'not-dispatched');
           return receipt('refused');
