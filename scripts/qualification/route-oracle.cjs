@@ -7,7 +7,7 @@ function evaluate(value, localControl = false) {
   try {
     assert.equal(Object.keys(value).sort().join(","), "after,before,client,endpoint,identity,owner,receiver,taskPassed");
     const endpoint = protocol.endpoints(value.endpoint, localControl), { receiver, client, identity, owner } = value;
-    assert.equal(Object.keys(receiver).sort().join(","), "accepted,addresses,bytes,cases,closedMilliseconds,deliberateGuestExposureControl,e3Qualified,expired,launchAllowed,nonce,openConnections,packets,ports,positivePassed,rejected,schemaVersion,scope,socketsClosed,sourceSha,stopMilliseconds,stoppedOnRequest,vmId");
+    assert.equal(Object.keys(receiver).sort().join(","), "accepted,addresses,bytes,cases,closedMilliseconds,deliberateGuestExposureControl,e3Qualified,expired,launchAllowed,nonce,openConnections,packets,ports,positivePassed,rejected,schemaVersion,scope,shutdownReason,socketsClosed,sourceSha,stopMilliseconds,stoppedOnRequest,vmId");
     assert.equal(Object.keys(client).sort().join(","), "attemptsComplete,cases,e3Qualified,launchAllowed,nonce,schemaVersion,scope,sourceSha,vmId");
     for (const evidence of [receiver, client]) {
       assert.equal(evidence.schemaVersion, 1); assert.equal(evidence.nonce, endpoint.nonce);
@@ -18,6 +18,7 @@ function evaluate(value, localControl = false) {
     assert.deepEqual(receiver.addresses, endpoint.addresses); assert.deepEqual(receiver.ports, endpoint.ports);
     for (const field of ["positivePassed", "socketsClosed", "stoppedOnRequest"]) assert.equal(receiver[field], true);
     for (const field of ["expired", "deliberateGuestExposureControl"]) assert.equal(receiver[field], false);
+    assert.equal(receiver.shutdownReason, "stop");
     for (const field of ["rejected", "openConnections"]) assert.equal(receiver[field], 0);
     for (const field of ["bytes", "packets", "accepted", "stopMilliseconds", "closedMilliseconds"]) assert.ok(Number.isSafeInteger(receiver[field]) && receiver[field] >= 0);
     assert.ok(receiver.bytes <= 4096 && receiver.packets <= 24 && receiver.accepted <= 8);

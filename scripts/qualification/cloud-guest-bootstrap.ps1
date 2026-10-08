@@ -277,13 +277,13 @@ if ([IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt') -ne '
 $bootstrapStage = 'native-load'
 Add-Type -Path "$trusted\guest-process.dll"
 $bootstrapStage = 'native-run'
-$loader = [CloudGuestLoaderProbe]::CompareOriginalThenDetached($TaskPassword, $task.SID.Value)
+$loader = [CloudGuestLoaderProbe]::CompareOriginalThenDocumented($TaskPassword, $task.SID.Value)
 if ($loader.passed -isnot [bool] -or !$loader.passed) {
-    $probe = $(if ($null -ne $loader.detached) { $loader.detached } else { $loader.original })
+    $probe = $(if ($null -ne $loader.documented) { $loader.documented } else { $loader.original })
     $identity = $null
     if ($null -ne $probe) { $identity = @{}; foreach ($entry in $probe.GetEnumerator()) { $identity[$entry.Key] = $entry.Value } }
     if ($null -ne $identity) { $identity['loaderControls'] = $loader; $identity['passed'] = $false }
-    throw 'fixed-detached-loader-unqualified'
+    throw 'fixed-documented-loader-unqualified'
 }
 try { $identity = [CloudGuestProcess]::Run($TaskPassword, $task.SID.Value) }
 catch {

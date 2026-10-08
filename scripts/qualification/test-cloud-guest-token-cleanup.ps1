@@ -19,7 +19,7 @@ try {
     }
     # Known fixed fixture output only; no full suite, accounts or VM setup.
     $compile = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.stderr') 10000
-    if ($compile -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 64KB) { throw 'cleanup-fixture-compile-refused' }
+    if ($compile -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 80KB) { throw 'cleanup-fixture-compile-refused' }
     $native = Invoke-CloudGuestNativeProcess $exe @() (Join-Path $fixture 'native.txt') (Join-Path $fixture 'native.stderr') 10000
     $text = [IO.File]::ReadAllText((Join-Path $fixture 'native.txt')).Trim()
     if ($native -ne 0 -or (Get-Item -LiteralPath (Join-Path $fixture 'native.stderr')).Length -ne 0 -or $text -cne 'native-cleanup-controls:11') {
@@ -31,7 +31,9 @@ try {
         accountAclVmOrPrivilegeChanges = $false; powershell = $PSVersionTable.PSVersion.ToString() } | ConvertTo-Json
 } finally {
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
-        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB -or
+        # Only the exact compiler-produced fixed executable gets the measured80KiB cap.
+        $fileBound = if ([string]::Equals($file.FullName, $exe, [StringComparison]::OrdinalIgnoreCase)) { 80KB } else { 64KB }
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt $fileBound -or
             !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'cleanup-fixture-cleanup-refused' }
         Remove-Item -LiteralPath $file.FullName
     }

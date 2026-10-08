@@ -27,15 +27,15 @@ New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'; $exe = Join-Path $fixture 'loader.exe'
     $arguments = @('/nologo', '/warnaserror+', '/target:exe', '/platform:x64', ('/out:"' + $exe + '"'))
-    foreach ($leaf in @('CloudGuestProcess.cs', 'CloudGuestLoaderProbe.cs', 'CloudGuestLoaderProbeFixture.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
-    foreach ($leaf in @('CloudGuestDesktop.cs', 'CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs', 'CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $ProjectRoot ('scripts/qualification/' + $leaf)) + '"') }
+    foreach ($leaf in @('CloudGuestProcess.cs', 'CloudGuestLoaderProbe.cs', 'CloudGuestLoaderProbeFixture.cs', 'CloudGuestDesktop.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
+    foreach ($leaf in @('CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs', 'CloudGuestRuntimeGate.cs')) { $arguments += ('"' + (Join-Path $ProjectRoot ('scripts/qualification/' + $leaf)) + '"') }
     foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative', 'GuestJobNative', 'GuestJobInventory')) { $arguments += ('"' + (Join-Path $ProjectRoot ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $compiled = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.stderr') 10000
     if ($compiled -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 1MB) { throw 'loader-fixture-compile-refused' }
     $code = Invoke-CloudGuestNativeProcess $exe @() (Join-Path $fixture 'output.json') (Join-Path $fixture 'output.stderr') 5000
     $text = [IO.File]::ReadAllText((Join-Path $fixture 'output.json')).Trim()
-    if ($code -ne 0 -or $text -cne 'loader-pure-controls:20' -or (Get-Item -LiteralPath (Join-Path $fixture 'output.stderr')).Length -ne 0) { throw 'loader-fixture-refused' }
-    @{passed=$true;modelCases=20;projectionCases=4;warningsAsErrors=$true;secondaryLogonOrGuestExecuted=$false;scope='pure-loader-receipt-predicates';launchAllowed=$false} | ConvertTo-Json
+    if ($code -ne 0 -or $text -cne 'loader-pure-controls:29' -or (Get-Item -LiteralPath (Join-Path $fixture 'output.stderr')).Length -ne 0) { throw 'loader-fixture-refused' }
+    @{passed=$true;modelCases=25;nativeDescriptorCases=4;projectionCases=4;warningsAsErrors=$true;secondaryLogonOrGuestExecuted=$false;scope='pure-loader-receipt-predicates';launchAllowed=$false} | ConvertTo-Json
 } finally {
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
         if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 1MB -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'loader-fixture-cleanup-refused' }

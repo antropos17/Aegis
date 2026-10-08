@@ -178,5 +178,14 @@
     "sha256": "13ae46bb1848151642569155f42960939c771eb391dd48f68c1267b10b636a61",
     "scope": "cloud-windows11-fixed-standard-user-lab",
     "failureStage": "guest-task-process-refused/runtime-authenticated-ready"
+  },
+  {
+    "runId": "37712277094",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37712277094",
+    "source": "637e9cd5ccb595647d6eb3e28a0b590263849d2b",
+    "file": "37712277094.json",
+    "sha256": "21b91474efbe2e074163b592b66bb9654a9317106e57be3ac53d88143cced683",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-task-process-refused"
   }
 ]

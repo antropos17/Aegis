@@ -432,3 +432,56 @@ runtime initialization or authorize project release. Object permissions and
 existing receiver deadlines are unchanged. Independent static review passed;
 compilation, existing binary-size bounds and actual guest behavior require the
 next hosted run.
+
+## Actual fixed loader comparison
+
+The [loader comparison run](https://github.com/antropos17/Aegis/actions/runs/37712277094)
+at `637e9cd5` passed hosted preflight and all five CI contexts. Independent
+review matched 51 repository source hashes and the separately pinned Git archive.
+Its 81,440-byte raw receipt is retained in the twenty-one-entry index.
+
+The original fixed `node --version` process passed the held identity, QUERY-only
+token, nonadministrator, image, birth and initial Job checks. Owner and task
+token session IDs both equalled zero. After resume it naturally exited with
+`0xC0000142`; retained-root exit, empty Job and private desktop closure were
+confirmed. This narrows the failure to startup before project or runtime
+admission without identifying the failed DLL or proving an access-rights cause.
+
+The `DETACHED_PROCESS` candidate was rejected by `CreateProcessWithLogonW` with
+Win32 error 87 before a child was created. No candidate token, resume or exit
+was observed. Its sentinel exit value is not a process result. No original
+task, network probes, Git, Claude or separate test witness executed.
+
+Host STOP after Job closure was unconfirmed. The receiver closed at about 38
+seconds after the owner closed stdin without a positive STOP assertion. The
+current receiver labels that EOF path `expired`; this does not establish that
+its 120-second timer elapsed. The secondary route failure remains retained.
+Independent VM Off, exact removal and post-removal canaries passed; after-task
+canaries were unreached. No task acceptance or full enforcement gate changed.
+
+The next controlled comparison keeps the supported API and original flags,
+account, image, environment and Job checks. It compares fresh task-specific
+private objects with the original access profile and Microsoft's documented
+noninteractive user-object profile. This changes only those disposable objects,
+including their task-specific DACL/ownership rights; inherited and default
+objects stay outside the experiment. A successful version probe must still be
+followed by authenticated runtime admission before project release.
+
+Independent review approved the frozen comparison and receiver-reason changes
+within that scope. Local Windows PowerShell 5.1 checks passed 25 loader predicate
+models, four native descriptor controls, four result projections, four
+current-principal desktop loader controls and eleven retained-process cleanup
+cases. The documented private desktop exited zero; the denied desktop returned
+`0xC0000142`. Full named private-station creation was unavailable locally with
+Win32 error 5, so these observations do not establish the guest account path.
+The receiver change passed 48 PowerShell controls and eight Node tests,
+including actual child-process STOP, EOF, malformed-control and timer outcomes.
+
+The fixed cleanup fixture compiled to 67,072 bytes. Its executable admission and
+cleanup bound is now 80 KiB for that exact compiler-owned output; other files
+retain their 64 KiB bound. The five measured x64 compiler compositions were
+60,928, 65,536, 67,072, 65,536 and 66,560 bytes. The maintained runtime fixture
+uses AnyCPU and actually produced 66,048 bytes; its exact executable now has a
+matching 80 KiB admission and cleanup bound as well. Source and log limits stay
+at 64 KiB. These output-size accommodations do not qualify guest execution or
+change receiver/input limits.

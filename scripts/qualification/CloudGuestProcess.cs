@@ -147,15 +147,15 @@ public static class CloudGuestProcess
     { return RunPhase(password, expectedSid, false, true); }
     private static Dictionary<string, object> RunFixed(string password, string expectedSid, bool claude)
     { return RunPhase(password, expectedSid, claude, false); }
-    private static string detachedQualifiedSid;
-    internal static void ClearLoaderQualification() { detachedQualifiedSid = null; }
-    internal static void QualifyDetachedLoader(string sid) { detachedQualifiedSid = sid; }
-    internal static Dictionary<string, object> RunLoaderProbe(string password, string sid, bool detached)
-    { return RunPhase(password, sid, false, false, detached ? 2 : 1); }
+    private static string documentedQualifiedSid;
+    internal static void ClearLoaderQualification() { documentedQualifiedSid = null; }
+    internal static void QualifyDocumentedLoader(string sid) { documentedQualifiedSid = sid; }
+    internal static Dictionary<string, object> RunLoaderProbe(string password, string sid, bool documented)
+    { return RunPhase(password, sid, false, false, documented ? 2 : 1); }
     private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0)
     {
         Require(!(claude && witness) && loader >= 0 && loader <= 2, "fixed-phase-invalid");
-        if (loader == 0) Require(expectedSid != null && detachedQualifiedSid == expectedSid, "detached-loader-unqualified");
+        if (loader == 0) Require(expectedSid != null && documentedQualifiedSid == expectedSid, "documented-loader-unqualified");
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
             Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted" ||
@@ -185,12 +185,16 @@ public static class CloudGuestProcess
             }
             catch { receipt["ownerImpersonationLevel"] = "unknown"; receipt["ownerThreadImpersonating"] = null; }
             receipt["ownerProcessSessionId"] = System.Diagnostics.Process.GetCurrentProcess().SessionId;
-            receipt["creationFlags"] = loader == 1 ? 0x08000404u : 0x0000040Cu;
+            receipt["creationFlags"] = 0x08000404u;
+            receipt["desktopAclProfile"] = loader == 1 ? "minimal-task" : "documented-noninteractive-user";
+            receipt["privateStationTaskRequestedAccessMask"] = loader == 1 ? 0x22u : 0xf006eu;
+            receipt["privateDesktopTaskRequestedAccessMask"] = loader == 1 ? 0x83u : 0xf00cfu;
             if (!witness && loader == 0) CloudGuestDesktop.ProbeOwnerNode(receipt);
             stage = "private-desktop-create";
-            desktopOwner = new CloudGuestDesktop(expectedSid);
+            desktopOwner = new CloudGuestDesktop(expectedSid, loader != 1);
             receipt["privateDesktopCreated"] = true;
             receipt["privateDesktopParentRestored"] = desktopOwner.Restored;
+            receipt["privateDesktopParentThreadPreserved"] = desktopOwner.ThreadDesktopPreserved;
             stage = "job-create";
             job = CreateJobObject(IntPtr.Zero, null); RequireNative(job != IntPtr.Zero);
             stage = "job-limits";
@@ -252,7 +256,7 @@ public static class CloudGuestProcess
                 receipt["loaderProbeResumed"] = true;
                 goto WaitForRoot;
             }
-            receipt["detachedLoaderQualifiedBeforeRuntime"] = true;
+            receipt["documentedLoaderQualifiedBeforeRuntime"] = true;
             stage = "runtime-registration";
             runtime.Attach(child.Process);
             stage = "runtime-resume";
@@ -353,10 +357,13 @@ public static class CloudGuestProcess
             if (runtime != null) runtime.Dispose();
             receipt["privateDesktopHandlesClosedAfterJobClosure"] = false;
             receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = false;
+            receipt["privateDesktopHandlesClosedWithoutCreatedProcess"] = false;
             if (desktopOwner != null && CanReleaseDesktop(assigned, closure, created, child.Process, unassignedRootExitObserved))
             {
                 desktopOwner.Dispose();
                 receipt["privateDesktopHandlesClosedAfterJobClosure"] = closure && desktopOwner.Closed;
+                receipt["privateDesktopHandlesClosedWithoutCreatedProcess"] = !created && !assigned &&
+                    child.Process == IntPtr.Zero && child.Thread == IntPtr.Zero && desktopOwner.Closed;
                 receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = !assigned && created && unassignedRootExitObserved && desktopOwner.Closed;
                 if (!desktopOwner.Closed && failureStage == null) failureStage = "private-desktop-close";
             }
@@ -369,7 +376,7 @@ public static class CloudGuestProcess
         }
         if (loader != 0)
         {
-            receipt["loaderProbe"] = loader == 1 ? "original-no-window" : "detached";
+            receipt["loaderProbe"] = loader == 1 ? "minimal-private-user" : "documented";
             receipt["exitCodeObserved"] = exitObserved; receipt["naturalExitObservedBeforeJobTermination"] = exitObserved;
             receipt["failureStage"] = failureStage; receipt["failureHResult"] = failureHResult;
             receipt["passed"] = false; receipt["acceptancePassed"] = false; receipt["launchAllowed"] = false;

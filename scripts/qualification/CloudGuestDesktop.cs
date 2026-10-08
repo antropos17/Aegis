@@ -17,6 +17,8 @@ internal sealed class CloudGuestDesktop : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateDesktopW(string name, IntPtr device, IntPtr mode, uint flags, uint access, ref Attributes attributes);
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr GetProcessWindowStation();
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr GetThreadDesktop(uint thread);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetProcessWindowStation(IntPtr station);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool CloseWindowStation(IntPtr station);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool CloseDesktop(IntPtr desktop);
@@ -26,30 +28,36 @@ internal sealed class CloudGuestDesktop : IDisposable
     private IntPtr station, desktop;
     internal readonly string Path;
     internal bool Restored { get; private set; }
+    internal bool ThreadDesktopPreserved { get; private set; }
     internal bool Closed { get; private set; }
     private static void Require(bool value, string code)
     { if (!value) throw new InvalidOperationException(code + ":" + Marshal.GetLastWin32Error()); }
     internal static string Descriptor(string expectedSid, bool windowStation)
+    { return Descriptor(expectedSid, windowStation, false); }
+    internal static string Descriptor(string expectedSid, bool windowStation, bool documented)
     {
         var sid = new SecurityIdentifier(expectedSid);
         if (sid.Value != expectedSid || sid.AccountDomainSid == null) throw new InvalidOperationException("desktop-sid-invalid");
-        // Parent admin and SYSTEM own the new objects. The task gets only
-        // attributes/atoms on its private station; read/create/write objects on
-        // its private desktop. No WRITE_DAC, WRITE_OWNER, clipboard or switching.
+        // Fixed lab profiles apply only to fresh task-exclusive noninteractive objects.
+        // The documented profile includes STANDARD_RIGHTS_REQUIRED (including
+        // WRITE_DAC/WRITE_OWNER). No inherited/default object receives this ACE.
         return "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;" +
-            (windowStation ? "0x22" : "0x83") + ";;;" + sid.Value + ")";
+            (documented ? (windowStation ? "0xf006e" : "0xf00cf") : (windowStation ? "0x22" : "0x83")) + ";;;" + sid.Value + ")";
     }
-    internal CloudGuestDesktop(string expectedSid)
+    internal CloudGuestDesktop(string expectedSid) : this(expectedSid, false) { }
+    internal CloudGuestDesktop(string expectedSid, bool documented)
     {
         Path = "AegisLab" + Guid.NewGuid().ToString("N") + "\\Default";
         IntPtr original = GetProcessWindowStation(), stationDescriptor = IntPtr.Zero, desktopDescriptor = IntPtr.Zero;
+        IntPtr originalThreadDesktop = GetThreadDesktop(GetCurrentThreadId());
+        Require(originalThreadDesktop != IntPtr.Zero, "desktop-parent-thread");
         bool changed = false, created = false;
         Require(original != IntPtr.Zero, "desktop-parent-station");
         try
         {
             uint bytes;
-            Require(ConvertStringSecurityDescriptorToSecurityDescriptorW(Descriptor(expectedSid, true), 1, out stationDescriptor, out bytes), "desktop-station-descriptor");
-            Require(ConvertStringSecurityDescriptorToSecurityDescriptorW(Descriptor(expectedSid, false), 1, out desktopDescriptor, out bytes), "desktop-object-descriptor");
+            Require(ConvertStringSecurityDescriptorToSecurityDescriptorW(Descriptor(expectedSid, true, documented), 1, out stationDescriptor, out bytes), "desktop-station-descriptor");
+            Require(ConvertStringSecurityDescriptorToSecurityDescriptorW(Descriptor(expectedSid, false, documented), 1, out desktopDescriptor, out bytes), "desktop-object-descriptor");
             var attributes = new Attributes(); attributes.Size = Marshal.SizeOf(typeof(Attributes)); attributes.Descriptor = stationDescriptor;
             // CWF_CREATE_ONLY refuses an existing named station. Never adopt it.
             station = CreateWindowStationW(Path.Split('\\')[0], 1, 0x000F037F, ref attributes);
@@ -63,7 +71,8 @@ internal sealed class CloudGuestDesktop : IDisposable
         finally
         {
             bool restored = !changed || SetProcessWindowStation(original);
-            Restored = restored && GetProcessWindowStation() == original;
+            ThreadDesktopPreserved = GetThreadDesktop(GetCurrentThreadId()) == originalThreadDesktop;
+            Restored = restored && GetProcessWindowStation() == original && ThreadDesktopPreserved;
             if (stationDescriptor != IntPtr.Zero) LocalFree(stationDescriptor);
             if (desktopDescriptor != IntPtr.Zero) LocalFree(desktopDescriptor);
             if (!created) Dispose();

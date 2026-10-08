@@ -20,11 +20,11 @@ try {
     if ($code -ne 0 -or (Get-Item -LiteralPath $output).Length -gt 2048 -or (Get-Item -LiteralPath $errorFile).Length -ne 0) { throw 'desktop-native-control-failed' }
     $rows = @([IO.File]::ReadAllLines($output) | ForEach-Object { $_ | ConvertFrom-Json })
     if ($rows.Count -ne 2 -or $rows[0].baselineExit -ne 0 -or $rows[0].privateDesktopExit -ne 0 -or
-        $rows[0].negativeDesktopExitOrAccess -notin @(3221225794, 5) -or !$rows[1].parentRestored) { throw 'desktop-loader-negative-missing' }
+        $rows[0].documentedPrivateDesktopExit -ne 0 -or $rows[0].negativeDesktopExitOrAccess -notin @(3221225794, 5) -or !$rows[1].parentRestored) { throw 'desktop-loader-negative-missing' }
     $names = @($rows[1].PSObject.Properties.Name)
     $qualified = if ($names -ccontains 'privateStationExit') { $rows[1].privateStationExit -eq 0 -and $rows[1].handlesClosed } else { $false }
     if (!$qualified -and ($names -cnotcontains 'privateStationAvailable' -or $rows[1].privateStationAvailable -ne $false -or $rows[1].win32Error -ne 5)) { throw 'desktop-station-unavailable-unclassified' }
-    @{ scope = 'new-private-user-objects-only'; nativeLoaderControls = 3; negativeDesktopExitOrAccess = $rows[0].negativeDesktopExitOrAccess; privateStationQualified = [bool]$qualified; parentRestored = $true; crossPrincipalQualified = $false; launchAllowed = $false } | ConvertTo-Json -Compress
+    @{ scope = 'new-private-user-objects-only'; nativeLoaderControls = 4; documentedPrivateDesktopExit = $rows[0].documentedPrivateDesktopExit; negativeDesktopExitOrAccess = $rows[0].negativeDesktopExitOrAccess; privateStationQualified = [bool]$qualified; parentRestored = $true; crossPrincipalQualified = $false; launchAllowed = $false } | ConvertTo-Json -Compress
 } finally {
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
         if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'desktop-fixture-cleanup-refused' }

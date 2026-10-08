@@ -30,7 +30,10 @@ async function start(configuration, localControl = false) {
     if (origin === null || value[origin] !== 0) { rejected = Math.min(25, rejected + 1); return false; }
     value[origin]++; return true;
   }
-  async function close(requested = true) {
+  async function close(requested = true, shutdownReason = requested ? "stop" : "receiver-refused") {
+    if (!["stop", "receiver-refused", "owner-eof", "invalid-control", "deadline"].includes(shutdownReason) ||
+        requested !== (shutdownReason === "stop") || expired !== (shutdownReason === "deadline"))
+      throw new Error("host-route-reason-refused");
     if (closed) throw new Error("host-route-already-closed"); closed = true;
     const stopMilliseconds = milliseconds();
     // Continue receiving briefly after the actual guest Job closure supplied by
@@ -43,7 +46,7 @@ async function start(configuration, localControl = false) {
     return { schemaVersion: 1, scope: "independent-host-route-receiver", nonce: endpoint.nonce, sourceSha: endpoint.sourceSha,
       vmId: endpoint.vmId, addresses: endpoint.addresses, ports: endpoint.ports, positivePassed,
       cases: metrics, rejected, bytes, packets, accepted, openConnections: connections.size,
-      socketsClosed: true, stoppedOnRequest: requested, expired, stopMilliseconds, closedMilliseconds: milliseconds(),
+      socketsClosed: true, stoppedOnRequest: requested, expired, shutdownReason, stopMilliseconds, closedMilliseconds: milliseconds(),
       e3Qualified: false, launchAllowed: false, deliberateGuestExposureControl: false };
   }
   try {
@@ -80,7 +83,12 @@ async function start(configuration, localControl = false) {
     await new Promise(resolve => setTimeout(resolve, 100));
     positivePassed = positives.cases.every(item => !item.available || metrics.find(value => value.id === item.id).positive === 1) && rejected === 0;
     if (!positivePassed) throw new Error("host-route-positive-unconfirmed");
-    return { endpoint, close, expire: async () => { expired = true; return close(false); } };
+    return { endpoint, close,
+      expire: async () => { expired = true; return close(false, "deadline"); },
+      refuse: async reason => {
+        if (reason !== "owner-eof" && reason !== "invalid-control") throw new Error("host-route-reason-refused");
+        return close(false, reason);
+      } };
   } catch (error) { try { await close(false); } catch { /* The existing bounded refusal/cleanup path owns this failure. */ } throw error; }
 }
 async function main() {
@@ -102,14 +110,15 @@ async function main() {
   const receiver = await start(configuration);
   process.stdout.write(JSON.stringify(receiver.endpoint) + "\n");
   let finished = false;
-  const finish = async valid => {
+  const finish = async (valid, reason) => {
     if (finished) return; finished = true; clearTimeout(timer);
-    const receipt = valid ? await receiver.close(true) : await receiver.expire();
+    const receipt = valid ? await receiver.close(true) :
+      reason === "deadline" ? await receiver.expire() : await receiver.refuse(reason);
     process.stdout.write(JSON.stringify(receipt) + "\n"); process.stdin.destroy(); if (!valid) process.exitCode = 2;
   };
-  const timer = setTimeout(() => finish(false).catch(() => { process.exitCode = 2; }), 120000);
-  process.stdin.on("data", chunk => { text += chunk; if (text === "stop\n") finish(true).catch(() => { process.exitCode = 2; }); else if (text.length >= 5) finish(false).catch(() => { process.exitCode = 2; }); });
-  process.stdin.on("end", () => finish(false).catch(() => { process.exitCode = 2; }));
+  const timer = setTimeout(() => finish(false, "deadline").catch(() => { process.exitCode = 2; }), 120000);
+  process.stdin.on("data", chunk => { text += chunk; if (text === "stop\n") finish(true, "stop").catch(() => { process.exitCode = 2; }); else if (text.length >= 5) finish(false, "invalid-control").catch(() => { process.exitCode = 2; }); });
+  process.stdin.on("end", () => finish(false, "owner-eof").catch(() => { process.exitCode = 2; }));
 }
 if (require.main === module) main().catch(() => { process.exitCode = 2; });
 module.exports = { start };

@@ -41,6 +41,9 @@ test("actual IPv4/IPv6 host positives are received and closed; identity in this 
   const mutations = [
     value => { value.receiver.cases[0].positive = 0; }, value => { value.receiver.cases[0].guest = 1; },
     value => { value.receiver.expired = true; }, value => { value.receiver.stoppedOnRequest = false; },
+    value => { value.receiver.shutdownReason = "owner-eof"; },
+    value => { value.receiver.shutdownReason = "deadline"; },
+    value => { delete value.receiver.shutdownReason; },
     value => { value.owner.forced = true; }, value => { value.owner.stopAfterJobClosure = false; },
     value => { value.owner.exitObserved = false; }, value => { value.owner.exitMilliseconds = 115000; },
     value => { value.receiver.closedMilliseconds = 115000; }, value => { value.before.nics = 1; },
@@ -77,9 +80,19 @@ test("unknown raw packets do not become guest zero-count acceptance", async () =
 });
 test("nonrequested receiver closure is refused", async () => {
   const running = await receiver.start(configuration, true), receipt = await running.expire();
-  assert.equal(receipt.expired, true); assert.equal(oracle.evaluate(evidence(running.endpoint, receipt), true).passed, false);
+  assert.equal(receipt.expired, true); assert.equal(receipt.shutdownReason, "deadline");
+  assert.equal(oracle.evaluate(evidence(running.endpoint, receipt), true).passed, false);
 });
-test("actual receiver stdio LF stop settles; CRLF/noncanonical stop refuses (test-only loopback source switch)", async () => {
+test("shutdown reasons are fixed and cannot grant requested closure", async () => {
+  const running = await receiver.start(configuration, true);
+  await assert.rejects(running.refuse("secret-model"), /host-route-reason-refused/);
+  await assert.rejects(running.close(true, "owner-eof"), /host-route-reason-refused/);
+  const receipt = await running.refuse("owner-eof");
+  assert.equal(receipt.expired, false); assert.equal(receipt.stoppedOnRequest, false);
+  assert.equal(JSON.stringify(receipt).includes("secret-model"), false);
+  assert.equal(oracle.evaluate(evidence(running.endpoint, receipt), true).passed, false);
+});
+test("actual receiver distinguishes stop, EOF, malformed control and timer (test-only loopback/timer source switches)", async () => {
   const original = fs.readFileSync(path.join(__dirname, "route-receiver.cjs"), "utf8");
   const marker = "const receiver = await start(configuration);";
   assert.equal(original.split(marker).length, 2);
@@ -88,9 +101,12 @@ test("actual receiver stdio LF stop settles; CRLF/noncanonical stop refuses (tes
   const source = original.replace(marker, "const receiver = await start(configuration, true);")
     .replace('require("./route-protocol.cjs")', `require(${JSON.stringify(path.join(__dirname, "route-protocol.cjs"))})`)
     .replace('require("./route-client.cjs")', `require(${JSON.stringify(path.join(__dirname, "route-client.cjs"))})`);
+  const deadlineMarker = '), 120000);';
+  assert.equal(source.split(deadlineMarker).length, 2);
   fs.writeFileSync(fixture, source, { flag: "wx" });
   try {
-  for (const terminator of ["stop\n", "stop\r\n"]) {
+  for (const [reason, terminator] of [["stop", "stop\n"], ["invalid-control", "stop\r\n"], ["owner-eof", ""], ["deadline", null]]) {
+    fs.writeFileSync(fixture, reason === "deadline" ? source.replace(deadlineMarker, '), 100);') : source);
     const observation = await new Promise((resolve, reject) => {
       const child = spawn(process.execPath, [fixture], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
         env: { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP,
@@ -98,7 +114,7 @@ test("actual receiver stdio LF stop settles; CRLF/noncanonical stop refuses (tes
       let stdout = "", stderr = "", sent = false;
       const timer = setTimeout(() => { child.kill(); reject(new Error("stdio-control-deadline")); }, 3000);
       child.stdout.on("data", chunk => { stdout += chunk; if (Buffer.byteLength(stdout) > 4096) { child.kill(); reject(new Error("stdio-control-budget")); }
-        if (!sent && stdout.includes("\n")) { sent = true; child.stdin.end(terminator); } });
+        if (!sent && stdout.includes("\n")) { sent = true; if (terminator !== null) child.stdin.end(terminator); } });
       child.stderr.on("data", chunk => { stderr += chunk; if (Buffer.byteLength(stderr) > 128) child.kill(); });
       child.on("error", reject);
       child.on("close", exitCode => { clearTimeout(timer); resolve({ stdout, stderr, exitCode }); });
@@ -106,8 +122,12 @@ test("actual receiver stdio LF stop settles; CRLF/noncanonical stop refuses (tes
     });
     assert.equal(observation.stderr, ""); const frames = observation.stdout.trim().split("\n").map(JSON.parse);
     assert.equal(frames.length, 2); assert.equal(frames[1].socketsClosed, true);
-    assert.equal(observation.exitCode, terminator === "stop\n" ? 0 : 2);
-    assert.equal(frames[1].stoppedOnRequest, terminator === "stop\n");
+    assert.equal(observation.exitCode, reason === "stop" ? 0 : 2);
+    assert.equal(frames[1].stoppedOnRequest, reason === "stop");
+    assert.equal(frames[1].shutdownReason, reason);
+    assert.equal(frames[1].expired, reason === "deadline");
+    if (reason !== "deadline") assert.ok(frames[1].stopMilliseconds < 120000);
+    assert.equal(oracle.evaluate(evidence(frames[0], frames[1]), true).passed, reason === "stop");
   }
   } finally {
     assert.equal(fs.lstatSync(temporary).isSymbolicLink(), false);

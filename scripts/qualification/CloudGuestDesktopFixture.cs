@@ -33,17 +33,18 @@ internal static class CloudGuestDesktopFixture
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr pointer);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetUserObjectInformationW(IntPtr handle, int index, StringBuilder value, uint length, out uint needed);
-    private static uint PrivateDesktop(string sid, bool deny)
+    private static uint PrivateDesktop(string sid, bool deny, bool documented = false)
     {
         string name = "AegisFixture" + Guid.NewGuid().ToString("N");
         IntPtr descriptor = IntPtr.Zero, desktop = IntPtr.Zero;
         try
         {
             uint size;
-            string sddl = "D:P" + (deny ? "(D;;0x83;;;" + sid + ")" : "") + "(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x83;;;" + sid + ")";
+            string sddl = documented ? CloudGuestDesktop.Descriptor(sid, false, true) :
+                "D:P" + (deny ? "(D;;0x83;;;" + sid + ")" : "") + "(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x83;;;" + sid + ")";
             if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out descriptor, out size)) throw new InvalidOperationException("fixture-descriptor");
             var attributes = new Attributes(); attributes.Size = Marshal.SizeOf(typeof(Attributes)); attributes.Descriptor = descriptor;
-            desktop = CreateDesktopW(name, IntPtr.Zero, IntPtr.Zero, 0, 0x83, ref attributes);
+            desktop = CreateDesktopW(name, IntPtr.Zero, IntPtr.Zero, 0, documented ? 0xf00cfu : 0x83u, ref attributes);
             if (desktop == IntPtr.Zero) {
                 if (deny && Marshal.GetLastWin32Error() == 5) return 5;
                 throw new InvalidOperationException("fixture-desktop-create:" + Marshal.GetLastWin32Error());
@@ -92,9 +93,9 @@ internal static class CloudGuestDesktopFixture
             string sid = WindowsIdentity.GetCurrent().User.Value;
             uint baseline = Node(null);
             IntPtr original = GetProcessWindowStation();
-            uint privateDesktop = PrivateDesktop(sid, false), deniedDesktop = PrivateDesktop(sid, true);
-            Console.WriteLine("{\"baselineExit\":" + baseline + ",\"privateDesktopExit\":" + privateDesktop + ",\"negativeDesktopExitOrAccess\":" + deniedDesktop + "}");
-            if (baseline != 0 || privateDesktop != 0 || (deniedDesktop != 5 && deniedDesktop != 0xC0000142) || original != GetProcessWindowStation()) return 1;
+            uint privateDesktop = PrivateDesktop(sid, false), deniedDesktop = PrivateDesktop(sid, true), documentedDesktop = PrivateDesktop(sid, false, true);
+            Console.WriteLine("{\"baselineExit\":" + baseline + ",\"privateDesktopExit\":" + privateDesktop + ",\"negativeDesktopExitOrAccess\":" + deniedDesktop + ",\"documentedPrivateDesktopExit\":" + documentedDesktop + "}");
+            if (baseline != 0 || privateDesktop != 0 || documentedDesktop != 0 || (deniedDesktop != 5 && deniedDesktop != 0xC0000142) || original != GetProcessWindowStation()) return 1;
             try
             {
                 using (var owner = new CloudGuestDesktop(sid))
