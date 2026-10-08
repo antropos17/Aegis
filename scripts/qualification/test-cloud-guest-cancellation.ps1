@@ -85,6 +85,16 @@ foreach ($key in @('cancellationControlsComplete', 'hostCanariesUnchangedAfterCa
     $report[$key] = $true
 }
 Write-Output 'pure-cancellation-final-controller-controls:3'
+function Read-CloudCancellationFixtureDiagnostics([string]$Path) {
+    if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $entry = Get-Item -LiteralPath $Path -Force
+    if ($entry.Length -gt 4096 -or ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return }
+    $phases = 'Initialize|Pure|ForcedFailure|JobCreate|JobConfigure|ProcessCreate|JobAssign|StartupSignal|InventoryCapture|RuntimeAttach|RuntimeReady|RuntimeSeal|InventoryValidate|BeforeAckCheck|ReleaseAck|DescendantObserve|PayloadCheck|Cancellation|RootExit|DescendantExit|JobClosure|StderrCheck|Success'
+    $pattern = '^(?:pure-cancellation-controls:[0-9]{1,2}|native-(?:before-ack-no-payload|after-ack-live-held-descendant):passed|native-observation:after=(?:True|False);release=(?:True|False);payload=(?:True|False)|cancellation-fixture-phase:(?:pure|control|before-ack|after-ack):(?:' + $phases + '))$'
+    foreach ($line in [IO.File]::ReadAllLines($Path)) {
+        if ($line.Length -le 128 -and $line -cmatch $pattern) { Write-Output $line }
+    }
+}
 if ($PureOnly) { return }
 $base = [IO.Path]::GetFullPath($env:TEMP)
 $ancestor = Get-Item -LiteralPath $base -Force
@@ -111,17 +121,34 @@ try {
     if ($code -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 80KB) { throw 'cancellation-native-compile-refused' }
     Write-Output ('cancellation-composite-bytes:' + (Get-Item -LiteralPath $exe).Length)
     $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
-    $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $node + '"'), ('"' + $fixture + '"')) (Join-Path $fixture 'native.txt') (Join-Path $fixture 'native.error') 15000
-    $actual = [IO.File]::ReadAllText((Join-Path $fixture 'native.txt'))
-    if ($code -ne 0 -or (Get-Item -LiteralPath (Join-Path $fixture 'native.error')).Length -ne 0 -or
-        !$actual.Contains('pure-cancellation-controls:27') -or !$actual.Contains('native-before-ack-no-payload:passed') -or
-        !$actual.Contains('native-after-ack-live-held-descendant:passed')) {
-        Write-Output ('cancellation-fixture-exit:' + $code)
-        # The fixture emits only constant case labels and bounded numeric counts.
-        $actual.Trim()
-        throw 'cancellation-native-controls-refused'
+    $nativePath = Join-Path $fixture 'native.txt'
+    try {
+        $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $node + '"'), ('"' + $fixture + '"')) $nativePath (Join-Path $fixture 'native.error') 15000
+        $actual = [IO.File]::ReadAllText($nativePath)
+        if ($code -ne 0 -or (Get-Item -LiteralPath (Join-Path $fixture 'native.error')).Length -ne 0 -or
+            !$actual.Contains('pure-cancellation-controls:27') -or !$actual.Contains('native-before-ack-no-payload:passed') -or
+            !$actual.Contains('native-after-ack-live-held-descendant:passed')) { throw 'cancellation-native-controls-refused' }
+    } finally {
+        # Retain only fixed fixture observations, also when the bounded process helper throws.
+        Read-CloudCancellationFixtureDiagnostics $nativePath
     }
-    $actual.Trim()
+    $forcedPath = Join-Path $fixture 'forced.txt'
+    try {
+        $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $node + '"'), ('"' + $fixture + '"'), '--force-diagnostic-failure') $forcedPath (Join-Path $fixture 'forced.error') 2000
+        $diagnostics = @(Read-CloudCancellationFixtureDiagnostics $forcedPath)
+        if ($code -ne 1 -or $diagnostics.Count -ne 1 -or $diagnostics[0] -cne 'cancellation-fixture-phase:control:ForcedFailure' -or
+            [IO.File]::ReadAllText((Join-Path $fixture 'forced.error')).Trim() -cne 'cancellation-native-controls-refused') {
+            throw 'cancellation-fixture-diagnostic-control-refused'
+        }
+        # Unknown phase and error text must never enter the maintained log.
+        [IO.File]::AppendAllText($forcedPath, "unpublished-fixture-error-text
+cancellation-fixture-phase:control:Unknown
+")
+        if (@(Read-CloudCancellationFixtureDiagnostics $forcedPath).Count -ne 1) { throw 'cancellation-fixture-diagnostic-filter-refused' }
+        Write-Output 'cancellation-fixture-diagnostic-controls:2'
+    } finally {
+        Read-CloudCancellationFixtureDiagnostics $forcedPath
+    }
 } finally {
     # Fixed direct children only; no recursive deletion or traversal.
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {

@@ -8,6 +8,12 @@ using Aegis.ProtectedSession;
 
 internal static class CancellationFixture
 {
+    private enum Phase { Initialize, Pure, ForcedFailure, JobCreate, JobConfigure, ProcessCreate, JobAssign,
+        StartupSignal, InventoryCapture, RuntimeAttach, RuntimeReady, RuntimeSeal, InventoryValidate,
+        BeforeAckCheck, ReleaseAck, DescendantObserve, PayloadCheck, Cancellation, RootExit,
+        DescendantExit, JobClosure, StderrCheck, Success }
+    private static Phase phase = Phase.Initialize;
+    private static string diagnosticCase = "pure";
     [StructLayout(LayoutKind.Sequential)] private struct Basic
     { internal long User, Job; internal uint Flags; internal IntPtr Min, Max; internal uint Active; internal IntPtr Affinity; internal uint Priority, Scheduling; }
     [StructLayout(LayoutKind.Sequential)] private struct Io
@@ -55,6 +61,7 @@ internal static class CancellationFixture
     }
     private static void Native(string node, string root, bool after)
     {
+        diagnosticCase = after ? "after-ack" : "before-ack"; phase = Phase.JobCreate;
         IntPtr job = CreateJobObject(IntPtr.Zero, null); Process child = null; GuestJobInventory inventory = null;
         CloudGuestCancellation.Descendant descendant = null; bool released = false;
         string marker = root + "/released.txt";
@@ -64,7 +71,7 @@ internal static class CancellationFixture
             {
                 Need(job != IntPtr.Zero);
                 var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8; limits.Basic.Active = 8;
-                Need(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
+                phase = Phase.JobConfigure; Need(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
                 var start = new ProcessStartInfo(node, "\"" + root + "/cancellation-client.cjs\" \"" + root + "\"");
                 start.UseShellExecute = false; start.CreateNoWindow = true; start.RedirectStandardOutput = true; start.RedirectStandardError = true;
                 start.EnvironmentVariables.Clear(); start.EnvironmentVariables["SystemRoot"] = Environment.GetEnvironmentVariable("SystemRoot");
@@ -74,25 +81,31 @@ internal static class CancellationFixture
                 start.EnvironmentVariables["AEGIS_RUNTIME_PIPE"] = gate.PipeName;
                 start.EnvironmentVariables["AEGIS_RUNTIME_SESSION"] = gate.Session;
                 start.EnvironmentVariables["AEGIS_RUNTIME_REQUEST"] = gate.Request;
-                child = Process.Start(start); Need(AssignProcessToJobObject(job, child.Handle));
-                var signal = child.StandardOutput.ReadLineAsync(); Need(signal.Wait(2000) && signal.Result == "fixture-started");
-                inventory = new GuestJobInventory(job, child.Handle, new string[] { node, @"C:\Windows\System32\conhost.exe" });
-                gate.Attach(child.Handle); gate.ObserveInitialized(); gate.SealInitializedRuntime(inventory); inventory.ValidateInitial();
-                if (!after) gate.CheckBeforeCancellation(inventory);
+                phase = Phase.ProcessCreate; child = Process.Start(start);
+                phase = Phase.JobAssign; Need(AssignProcessToJobObject(job, child.Handle));
+                phase = Phase.StartupSignal; var signal = child.StandardOutput.ReadLineAsync(); Need(signal.Wait(2000) && signal.Result == "fixture-started");
+                phase = Phase.InventoryCapture; inventory = new GuestJobInventory(job, child.Handle, new string[] { node, @"C:\Windows\System32\conhost.exe" });
+                phase = Phase.RuntimeAttach; gate.Attach(child.Handle);
+                phase = Phase.RuntimeReady; gate.ObserveInitialized();
+                phase = Phase.RuntimeSeal; gate.SealInitializedRuntime(inventory);
+                phase = Phase.InventoryValidate; inventory.ValidateInitial();
+                if (!after) { phase = Phase.BeforeAckCheck; gate.CheckBeforeCancellation(inventory); }
                 if (after)
                 {
-                    gate.ReleaseFixedTask(inventory);
+                    phase = Phase.ReleaseAck; gate.ReleaseFixedTask(inventory);
                     released = true;
-                    descendant = CloudGuestCancellation.Observe(job, (uint)child.Id, node, WindowsIdentity.GetCurrent().User.Value);
-                    descendant.Validate(); Need(!descendant.Exited && System.IO.File.ReadAllText(marker) == "fixed-cancellation-payload");
+                    phase = Phase.DescendantObserve; descendant = CloudGuestCancellation.Observe(job, (uint)child.Id, node, WindowsIdentity.GetCurrent().User.Value);
+                    phase = Phase.PayloadCheck; descendant.Validate(); Need(!descendant.Exited && System.IO.File.ReadAllText(marker) == "fixed-cancellation-payload");
                     // This actual same-principal fixture does not assert a standard-user token.
                 }
-                else Need(!System.IO.File.Exists(marker));
-                Need(!child.HasExited && TerminateJobObject(job, 137)); Need(child.WaitForExit(2000) && child.ExitCode == 137);
-                Need(descendant == null || descendant.Exited); Need(inventory.ConfirmClosure(2000));
-                Need(child.StandardError.ReadToEnd().Length == 0);
+                else { phase = Phase.PayloadCheck; Need(!System.IO.File.Exists(marker)); }
+                phase = Phase.Cancellation; Need(!child.HasExited && TerminateJobObject(job, 137));
+                phase = Phase.RootExit; Need(child.WaitForExit(2000) && child.ExitCode == 137);
+                phase = Phase.DescendantExit; Need(descendant == null || descendant.Exited);
+                phase = Phase.JobClosure; Need(inventory.ConfirmClosure(2000));
+                phase = Phase.StderrCheck; Need(child.StandardError.ReadToEnd().Length == 0);
                 if (!after) Need(!System.IO.File.Exists(marker));
-                Console.WriteLine(after ? "native-after-ack-live-held-descendant:passed" : "native-before-ack-no-payload:passed");
+                phase = Phase.Success; Console.WriteLine(after ? "native-after-ack-live-held-descendant:passed" : "native-before-ack-no-payload:passed");
             }
             finally
             {
@@ -108,10 +121,16 @@ internal static class CancellationFixture
     {
         try
         {
-            Console.WriteLine("pure-cancellation-controls:" + Pure());
+            if (args.Length == 3 && args[2] == "--force-diagnostic-failure")
+            { diagnosticCase = "control"; phase = Phase.ForcedFailure; throw new InvalidOperationException("unpublished-fixture-error-text"); }
+            phase = Phase.Pure; Console.WriteLine("pure-cancellation-controls:" + Pure());
             Native(args[0], args[1], false); Native(args[0], args[1], true);
             return 0;
         }
-        catch { Console.Error.WriteLine("cancellation-native-controls-refused"); return 1; }
+        catch
+        {
+            Console.WriteLine("cancellation-fixture-phase:" + diagnosticCase + ":" + phase);
+            Console.Error.WriteLine("cancellation-native-controls-refused"); return 1;
+        }
     }
 }

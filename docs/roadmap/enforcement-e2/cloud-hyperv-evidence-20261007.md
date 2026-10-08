@@ -1,12 +1,17 @@
 # Cloud Hyper-V execution evidence — 2026-10-07
 
-Latest actual result: [run 37721808584](https://github.com/antropos17/Aegis/actions/runs/37721808584)
+Latest completed useful-task result: [run 37721808584](https://github.com/antropos17/Aegis/actions/runs/37721808584)
 at `713b492a3007d4308dcaab5a98eb9cecc75f0781` passed the complete fixed Windows 11
 lab corpus: admitted Node read/edit/test, shell and descendant controls, local
 Git, measured host routes, dummy-API Claude read/edit/test, a separate native
 test witness, receiver closure and exact VM cleanup. The successful corpus is
 lab evidence; production launch and full enforcement qualification remain disabled.
 The final section records the actual observations and their limits.
+
+The subsequent [cancellation attempt](cloud-cancellation-evidence-20261008.md)
+at `88fccf508535eba0055bf035484f90431e3b6ce1`, run 37725510372, stopped at
+Windows Setup readiness before any useful task or cancellation executed. Exact
+VM cleanup and post-removal canaries passed; its raw failed receipt is preserved.
 
 The disposable GitHub-hosted Windows Server 2025 runner performed actual VM
 operations. The earlier read-only provider observation is now complemented by

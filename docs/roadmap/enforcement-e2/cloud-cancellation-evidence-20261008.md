@@ -1,7 +1,8 @@
 # Fixed Windows guest cancellation controls
 
-Status: independently reviewed implementation; actual nonadmin guest execution
-pending. The [verified useful-task corpus](cloud-hyperv-evidence-20261007.md)
+Status: independently reviewed implementation; the first actual attempt stopped
+at Windows Setup before runtime or cancellation execution. The
+[verified useful-task corpus](cloud-hyperv-evidence-20261007.md)
 is the prerequisite for these additional qualification cases.
 
 The first case authenticates and seals the initialized runtime, rechecks its
@@ -49,6 +50,51 @@ observations, with controls-log SHA-256
 Later success does not explain the earlier refusal. Independent review permits
 one bounded actual lab run; recurrence requires diagnosis before another retry.
 No stability claim follows.
+
+The subsequent test-only diagnostic revision preserves fixed case/phase lines
+even when the fixture wrapper throws. It accepts only an allowlisted diagnostic
+format, rejects reparse points and output above 4,096 bytes, and retains the
+15-second native deadline and 80-KiB fixture cap. The corrected frozen evidence
+manifest has SHA-256
+`9bd981396c381ca1842c3e0384684ec2d2e8b128e3824e34efeeb666e58233b9`.
+Independent Astra review approved exactly the PowerShell test wrapper and C#
+fixture. Integrated Windows PowerShell 5.1 validation passed the 68 existing pure
+controls, both actual same-principal cancellation cases and two diagnostic
+controls; the compiled fixture was 76,288 bytes.
+
+The first diagnostic comparison stopped at compilation and could not establish
+native failure reporting. That evidence is preserved and explicitly superseded
+by two controls that both compile and reach the intended native refusal. Only
+the candidate retains the fixed phase before refusal; neither emits raw error
+text or leaves disposable directories. This correction does not identify the
+cause of the earlier historical refusal.
+
+The actual guest run uses runtime revision
+`88fccf508535eba0055bf035484f90431e3b6ce1`. The later two-file diagnostic delta
+changes local fixture source hashes, while the executed guest runtime and
+cancellation acceptance predicates remain byte-identical to that revision.
+
+## First actual attempt
+
+[Run 37725510372](https://github.com/antropos17/Aegis/actions/runs/37725510372)
+at that revision failed with `guest-setup-psdirect-not-ready`. The readiness
+wait lasted 1,082,224 ms; no successful PowerShell Direct session, standard task,
+Claude task or cancellation phase was observed. The owned VHD grew to
+16,647,192,576 bytes and then stopped changing in retained samples. This does
+not identify the Windows Setup failure's cause. Attempt-level remoting errors
+were not retained. Both early thumbnails had a size mismatch also present in
+the successful preceding run, so no useful boot image was retained.
+
+Independent review matched all 59 repository source hashes to the run revision.
+Boot, media, VM and readiness code were unchanged from the successful preceding
+run. Start and stop operations settled, the exact VM was observed Off and
+removed, and host canaries remained unchanged after removal. Cleanup reported
+no failure. The [raw receipt](evidence/20261007/37725510372.json), SHA-256
+`61ae1b5247134be5c5c1bcdfedf93a4b411866dc826fde27fb8fbfdbbc8fe5c1`,
+is retained as a failed setup attempt. This is separate from the earlier local
+native refusal. One bounded fresh attempt is justified with unchanged runtime
+predicates and setup deadline; repeated setup failure requires bounded readiness
+diagnostics before another retry.
 
 These cases cover fixed owner-requested cancellation only. Full terminal I/O,
 crash/reboot recovery, all host routes and production cancellation interfaces

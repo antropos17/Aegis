@@ -214,5 +214,14 @@
     "sha256": "bed68baf8a9a019e7472673af0a0226998ca6fb21e0c4ed3482180b7e1079c2e",
     "scope": "cloud-windows11-fixed-standard-user-lab",
     "failureStage": ""
+  },
+  {
+    "runId": "37725510372",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37725510372",
+    "source": "88fccf508535eba0055bf035484f90431e3b6ce1",
+    "file": "37725510372.json",
+    "sha256": "61ae1b5247134be5c5c1bcdfedf93a4b411866dc826fde27fb8fbfdbbc8fe5c1",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "guest-setup-psdirect-not-ready"
   }
 ]
