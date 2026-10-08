@@ -85,6 +85,33 @@ foreach ($key in @('cancellationControlsComplete', 'hostCanariesUnchangedAfterCa
     $report[$key] = $true
 }
 Write-Output 'pure-cancellation-final-controller-controls:3'
+# Exercise the actual guest ACL construction in memory; applying an ACL is not
+# needed to detect string SIDs being interpreted as account names on Windows.
+$bootstrap = [IO.File]::ReadAllText((Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-cancellation-bootstrap.ps1'))
+$aclStart = '$acl = [Security.AccessControl.DirectorySecurity]::new()'
+$aclEnd = '$stage = ''loader'';'
+if ($bootstrap.Split(@($aclStart), [StringSplitOptions]::None).Count -ne 2 -or
+    $bootstrap.Split(@($aclEnd), [StringSplitOptions]::None).Count -ne 2) { throw 'cancellation-acl-seam-refused' }
+$aclSource = $bootstrap.Substring($bootstrap.IndexOf($aclStart), $bootstrap.IndexOf($aclEnd) - $bootstrap.IndexOf($aclStart))
+$aclAst = [Management.Automation.Language.Parser]::ParseInput($aclSource, [ref]$null, [ref]$null)
+$applyAcl = @($aclAst.FindAll({ param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Set-Acl' }, $true))
+if ($applyAcl.Count -ne 1) { throw 'cancellation-acl-application-seam-refused' }
+$aclSource = $aclSource.Remove($applyAcl[0].Extent.StartOffset, $applyAcl[0].Extent.EndOffset - $applyAcl[0].Extent.StartOffset)
+$account = @{ SID = [Security.Principal.SecurityIdentifier]::new('S-1-5-21-1-2-3-1001') }
+$actualAcl = & ([scriptblock]::Create($aclSource + '; $acl'))
+$rules = @($actualAcl.GetAccessRules($true, $false, [Security.Principal.SecurityIdentifier]))
+if (!$actualAcl.AreAccessRulesProtected -or !$actualAcl.AreAccessRulesCanonical -or $rules.Count -ne 3 -or
+    $actualAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne 'S-1-5-32-544' -or
+    (@($rules | ForEach-Object { $_.IdentityReference.Value } | Sort-Object) -join ',') -cne 'S-1-5-18,S-1-5-21-1-2-3-1001,S-1-5-32-544') { throw 'cancellation-acl-boundary-refused' }
+foreach ($rule in $rules) {
+    $rights = if ($rule.IdentityReference.Value -ceq $account.SID.Value) {
+        [Security.AccessControl.FileSystemRights]::Modify -bor [Security.AccessControl.FileSystemRights]::Synchronize
+    } else { [Security.AccessControl.FileSystemRights]::FullControl }
+    if ($rule.FileSystemRights -ne $rights -or $rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow -or
+        $rule.IsInherited -or $rule.InheritanceFlags -ne [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit' -or
+        $rule.PropagationFlags -ne [Security.AccessControl.PropagationFlags]::None) { throw 'cancellation-acl-rights-refused' }
+}
+Write-Output 'pure-cancellation-native-acl-controls:4'
 function Read-CloudCancellationFixtureDiagnostics([string]$Path) {
     if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { return }
     $entry = Get-Item -LiteralPath $Path -Force

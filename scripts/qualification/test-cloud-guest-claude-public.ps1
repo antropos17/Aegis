@@ -150,3 +150,101 @@ function Test-CloudGuestStagingDiagnostics([string]$SupportRoot, [string]$Source
     return @{ scope = 'pure-source-extracted-Stage-and-fixed-refusal-projection'; checks = $checks; passed = $true; shellVersion = $PSVersionTable.PSVersion.ToString(); baseline = $baseline; candidate = @{ code = $fixed.report.failure.code; checkpoint = $fixed.report.runtimeStagingPhase; originalFailureRetained = $true }; nativeExecuted = $false; downloads = 0; vmEffects = $false }
 }
 Test-CloudGuestStagingDiagnostics $PSScriptRoot $ProjectRoot | ConvertTo-Json -Depth 5 -Compress
+
+# Actual closed-file helper/caller controls over small disposable files only.
+function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$BaselineLab = '') {
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $SupportRoot 'cloud-guest-lab.ps1'), [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'closed-cleanup-control-parse-refused' }
+    $helper = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Remove-CloudGuestClosedFiles' }, $true))
+    if ($helper.Count -ne 1) { throw 'closed-cleanup-control-source-refused' }
+    $owned = Join-Path ([IO.Path]::GetFullPath($env:TEMP)) ('aegis-closed-controls-' + [guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($owned) | Out-Null
+    $prefix = Join-Path $owned 'aegis-cloud-guest-'
+    $source = $helper[0].Extent.Text
+    if ($source.Split(@("'D:\aegis-cloud-guest-'"), [StringSplitOptions]::None).Count -ne 2) { throw 'closed-cleanup-control-root-seam' }
+    # Only the fixed production drive prefix is translated to the exact test root.
+    . ([scriptblock]::Create($source.Replace("'D:\aegis-cloud-guest-'", "'$($prefix.Replace("'", "''"))'")))
+    $imageMode = 'closed'; $imageQueries = 0
+    function Get-DiskImage([string]$ImagePath, [string]$ErrorAction) {
+        $script:closedImageQueries++
+        if ($imageMode -ceq 'throw') { throw 'dummy-credential-do-not-publish' }
+        return [pscustomobject]@{ ImagePath = $(if ($imageMode -ceq 'foreign') { Join-Path $owned 'foreign.iso' } else { $ImagePath }); Attached = $(if ($imageMode -ceq 'malformed') { 'false' } else { $imageMode -ceq 'attached' }) }
+    }
+    $checks = 0; $run = '12345'; $attempt = 0; $baseline = $null
+    foreach ($mode in @('pre-vm', 'post-vm', 'unknown', 'create-uncertain', 'mounted', 'foreign-root', 'attached', 'malformed', 'foreign', 'throw', 'locked', 'reparse-parent', 'reparse-root', 'absent')) {
+        $attempt++; $Root = $prefix + $run + '-' + $attempt
+        foreach ($leaf in @('media/answer', 'vm', 'evidence', 'transfer')) { [IO.Directory]::CreateDirectory((Join-Path $Root $leaf)) | Out-Null }
+        $mediaRoot = Join-Path $Root 'media'; $vmRoot = Join-Path $Root 'vm'; $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaRoot 'answer.iso'
+        $answer = Join-Path $mediaRoot 'answer/Autounattend.xml'; $vhd = Join-Path $vmRoot 'guest.vhdx'; $receipt = Join-Path $Root 'evidence/receipt.json'; $extra = Join-Path $Root 'transfer/runtime.exe'
+        foreach ($file in @($windowsIso, $answerIso, $answer, $vhd, $receipt, $extra)) { [IO.File]::WriteAllText($file, 'dummy-closed-control') }
+        if ($mode -ceq 'pre-vm' -and $BaselineLab) {
+            $old = [Management.Automation.Language.Parser]::ParseFile($BaselineLab, [ref]$tokens, [ref]$errors)
+            $branch = @($old.FindAll({ param($node) $node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text.StartsWith('if ($report.removedObserved -and !$mounted)', [StringComparison]::Ordinal) }, $true))
+            if ($branch.Count -ne 1) { throw 'closed-cleanup-control-baseline-refused' }
+            $report = @{ removedObserved = $false; cleanupFailure = $null }; $mounted = $false
+            & ([scriptblock]::Create($branch[0].Extent.Text))
+            if (![IO.File]::Exists($windowsIso)) { throw 'closed-cleanup-control-baseline-not-reproduced' }
+            $baseline = @{ neverCreatedIsoRetained = $true }; $checks++
+        }
+        $created = $mode -in @('post-vm', 'create-uncertain'); $hasId = $mode -ceq 'post-vm'; $hasOwner = $hasId; $unknown = $mode -in @('unknown', 'create-uncertain'); $removed = $mode -ceq 'post-vm'; $mounted = $mode -ceq 'mounted'
+        $imageMode = if ($mode -in @('attached', 'malformed', 'foreign', 'throw')) { $mode } else { 'closed' }
+        $script:closedImageQueries = 0; $lock = $null
+        if ($mode -ceq 'locked') { $lock = [IO.File]::Open($windowsIso, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None) }
+        if ($mode -ceq 'absent') { foreach ($file in @($windowsIso, $answerIso, $answer)) { [IO.File]::Delete($file) } }
+        $foreign = Join-Path $owned ('foreign-' + $attempt); [IO.Directory]::CreateDirectory($foreign) | Out-Null
+        $foreignCanary = Join-Path $foreign 'preserved.txt'; [IO.File]::WriteAllText($foreignCanary, 'foreign-control')
+        if ($mode -ceq 'reparse-parent') {
+            [IO.File]::Delete($answer); [IO.Directory]::Delete((Join-Path $mediaRoot 'answer'))
+            New-Item -ItemType Junction -Path (Join-Path $mediaRoot 'answer') -Target $foreign | Out-Null
+        }
+        if ($mode -ceq 'reparse-root') {
+            $link = Join-Path $owned 'linked-cloud-root'; New-Item -ItemType Junction -Path $link -Target $Root | Out-Null
+            # Name mismatch rejects first; the matching child through a linked parent
+            # must independently reject its ancestor before examining media.
+            $linkPrefix = Join-Path $link 'aegis-cloud-guest-'
+            $linkedRoot = $linkPrefix + $run + '-' + $attempt
+            [IO.Directory]::CreateDirectory($linkedRoot) | Out-Null
+            . ([scriptblock]::Create($source.Replace("'D:\aegis-cloud-guest-'", "'$($linkPrefix.Replace("'", "''"))'")))
+            $Root = $linkedRoot
+        }
+        try {
+            $inputRoot = if ($mode -ceq 'foreign-root') { $Root + '-sibling' } else { $Root }
+            $value = Remove-CloudGuestClosedFiles $inputRoot $run ([string]$attempt) $created $hasId $hasOwner $unknown $removed $mounted
+        }
+        finally { if ($null -ne $lock) { $lock.Dispose() } }
+        if ($mode -in @('pre-vm', 'post-vm', 'absent')) {
+            if (!$value.completed -or !$value.eligible -or [IO.File]::Exists($windowsIso) -or [IO.File]::Exists($answerIso) -or [IO.File]::Exists($answer)) { throw 'closed-cleanup-control-closed-files-retained' }
+            if (($mode -ceq 'post-vm') -eq [IO.File]::Exists($vhd)) { throw 'closed-cleanup-control-vhd-state-wrong' }
+        } elseif ($mode -ceq 'locked') {
+            if ($value.completed -or $value.failure -cne 'closed-file-cleanup-failed' -or ![IO.File]::Exists($windowsIso)) { throw 'closed-cleanup-control-locked-file-not-preserved' }
+        } else {
+            if ($value.completed -or ![IO.File]::Exists($windowsIso)) { throw 'closed-cleanup-control-refusal-deleted' }
+        }
+        if (![IO.File]::Exists($receipt) -or ![IO.File]::Exists($extra) -or [IO.File]::ReadAllText($foreignCanary) -cne 'foreign-control' -or ($value | ConvertTo-Json -Depth 5) -match 'dummy-credential|preserved.txt') { throw 'closed-cleanup-control-retained-files-invalid' }
+        if ($mode -in @('unknown', 'create-uncertain', 'mounted', 'foreign-root', 'reparse-parent', 'reparse-root') -and $script:closedImageQueries -ne 0) { throw 'closed-cleanup-control-refusal-query-reached' }
+        $checks++
+        . ([scriptblock]::Create($source.Replace("'D:\aegis-cloud-guest-'", "'$($prefix.Replace("'", "''"))'")))
+    }
+    # Typed unknown observation is not accepted as a no-create witness.
+    $invalid = Remove-CloudGuestClosedFiles ($prefix + $run + '-1') $run '1' $null $false $false $false $false $false
+    if ($invalid.failure -cne 'state-invalid' -or $invalid.completed) { throw 'closed-cleanup-control-untyped-admitted' }; $checks++
+    # The actual final caller preserves the primary staging failure, does not
+    # invent VM removal, and records exact closed-file cleanup independently.
+    $assignment = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq "`$report['closedOwnedFilesCleanup']" }, $true))
+    if ($assignment.Count -ne 1) { throw 'closed-cleanup-control-caller-refused' }
+    $attempt++; $OutputRoot = $prefix + $run + '-' + $attempt
+    [IO.Directory]::CreateDirectory((Join-Path $OutputRoot 'media')) | Out-Null
+    $callerIso = Join-Path $OutputRoot 'media/windows.iso'; [IO.File]::WriteAllText($callerIso, 'dummy-caller-control')
+    $createAttempted=$false; $id=$null; $owner=$null; $unknown=$false; $mounted=$false; $imageMode='closed'
+    $report=@{ removedObserved=$false; failure=@{ code='original-primary-refusal' }; cleanupFailure=$null }
+    $oldRun=$env:GITHUB_RUN_ID; $oldAttempt=$env:GITHUB_RUN_ATTEMPT
+    try {
+        $env:GITHUB_RUN_ID=$run; $env:GITHUB_RUN_ATTEMPT=[string]$attempt
+        & ([scriptblock]::Create($assignment[0].Extent.Text))
+    }
+    finally { $env:GITHUB_RUN_ID=$oldRun; $env:GITHUB_RUN_ATTEMPT=$oldAttempt }
+    if (!$report.closedOwnedFilesCleanup.completed -or $report.removedObserved -or $report.failure.code -cne 'original-primary-refusal' -or [IO.File]::Exists($callerIso)) { throw 'closed-cleanup-control-caller-failed' }; $checks++
+    return @{ scope = 'actual-source-helper-small-file-cleanup-controls'; passed = $true; checks = $checks; shellVersion = $PSVersionTable.PSVersion.ToString(); baseline = $baseline; fixtureRoot = $owned; diskImageQuery = 'test-double'; vmEffects = $false; recursiveDeletion = $false }
+}
+Test-CloudGuestClosedFileCleanup $PSScriptRoot | ConvertTo-Json -Depth 5 -Compress

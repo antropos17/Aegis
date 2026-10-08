@@ -8,10 +8,12 @@ test witness, receiver closure and exact VM cleanup. The successful corpus is
 lab evidence; production launch and full enforcement qualification remain disabled.
 The final section records the actual observations and their limits.
 
-The subsequent [cancellation attempt](cloud-cancellation-evidence-20261008.md)
-at `88fccf508535eba0055bf035484f90431e3b6ce1`, run 37725510372, stopped at
-Windows Setup readiness before any useful task or cancellation executed. Exact
-VM cleanup and post-removal canaries passed; its raw failed receipt is preserved.
+The subsequent [cancellation attempts](cloud-cancellation-evidence-20261008.md)
+preserve setup and preparation failures. Run 37730935469 at
+`6edb480147062e25ccdc21f51f9fca90f36be6bb` passed the prerequisite useful-task
+corpus, then refused cancellation preparation before either case ran. A concrete
+ACL constructor defect was reproduced and corrected. Exact VM cleanup and host
+canaries passed; the raw failed receipt is preserved.
 
 The disposable GitHub-hosted Windows Server 2025 runner performed actual VM
 operations. The earlier read-only provider observation is now complemented by

@@ -1,7 +1,8 @@
 # Fixed Windows guest cancellation controls
 
-Status: independently reviewed implementation; the first actual attempt stopped
-at Windows Setup before runtime or cancellation execution. The
+Status: independently reviewed implementation; the latest actual attempt passed
+the prerequisite corpus, then refused cancellation preparation before either
+case executed. A reproduced ACL construction defect is corrected below. The
 [verified useful-task corpus](cloud-hyperv-evidence-20261007.md)
 is the prerequisite for these additional qualification cases.
 
@@ -185,6 +186,64 @@ Source-extracted controls reproduce the old evidence loss through the actual
 `Stage` catch and verify the new fixed code/checkpoint plus redaction. The
 integrated maintained public test passes. No causal download or provenance
 repair is inferred from this diagnostic change.
+
+## Actual guest preparation refusal and ACL repair
+
+[Run 37730935469](https://github.com/antropos17/Aegis/actions/runs/37730935469)
+at `6edb480147062e25ccdc21f51f9fca90f36be6bb` completed staging and the useful
+Node, shell, Git, measured host-route and dummy-API Claude corpus. Independent
+Astra review matched all repository source hashes and verified five successful
+CI contexts. Executing the actual prerequisite validator against the receipt
+accepted prior Job, receiver and separate witness closure.
+
+Cancellation preparation returned `failureStage=fixed-inputs`; `before` and
+`after` were null. No cancellation case or loader stage executed. The
+[raw receipt](evidence/20261007/37730935469.json), SHA-256
+`e946060fcde97732867296d39711f5175b5eee905225fe742c0a05e89f81ff39`,
+preserves the refusal. Exact VM stop and removal settled, Off and absence were
+observed independently, host canaries remained unchanged after useful work,
+failed cancellation and removal, and no cleanup failure was recorded.
+
+Both root and independent review reproduced a concrete preparation defect:
+literal SID strings selected the account-name `FileSystemAccessRule` constructor.
+Adding these rules to an in-memory `DirectorySecurity` threw
+`IdentityNotMappedException`. The corrected call constructs a typed
+`SecurityIdentifier`, matching the existing first-phase implementation. This
+defect is consistent with the recorded stage; the receipt does not identify the
+first failing statement. The marker's existing 26-byte check remains correct.
+
+A maintained regression executes the actual bootstrap's ACL construction in
+memory, omitting only the disk application command. It checks the protected
+DACL, administrator owner, exact three trustees, rights and inheritance. The
+baseline fails at `AddAccessRule`; the corrected full cancellation test passes
+the regression, both existing native cases and diagnostic controls in 2.17
+seconds. The native fixture remains 76,288 bytes with unchanged budgets and
+acceptance predicates. No host filesystem ACL was changed by this regression.
+
+Independent Astra review approved the exact ACL repair manifest
+`4e71207cb292e86b37ab18595ff14e7a141c86c448c804881f2d3cc74fee9711`.
+
+## Closed staging cleanup
+
+The pre-VM failure exposed a separate cleanup gap: deletion previously required
+an observed removed VM, so media prepared before any creation attempt was left
+behind. The reviewed repair accepts only a typed never-created state or settled
+exact VM absence. It validates the fixed run root and ordinary ancestors/leaves,
+checks present images are detached through the Storage provider, then deletes
+only fixed closed files through exclusive handles. A guest VHD is considered
+only after confirmed VM removal. Receipts, transfer files, locked files and
+uncertain or mounted VM media remain protected.
+
+The fixed receipt distinguishes eligibility, completion and per-file absence,
+removal or failure. It does not claim whole-root deletion or exact reclaimed
+disk space. Independent Astra approved manifest
+`b321ca233f35d85a5fdf241d9cdddc94133e3160b562e5bae7376ec0140ca234`.
+Focused controls reproduce pre-VM retention and exercise the actual repaired
+caller, tiny closed files, locks, junctions and foreign-file preservation. The
+integrated maintained public test passes. Local controls use a Storage-provider
+double; actual provider execution awaits the next cloud receipt. Synchronous
+provider queries retain the existing hosted-job bound, and hostile concurrent
+host namespace replacement is not atomically excluded by this lab cleanup.
 
 These cases cover fixed owner-requested cancellation only. Full terminal I/O,
 crash/reboot recovery, all host routes and production cancellation interfaces

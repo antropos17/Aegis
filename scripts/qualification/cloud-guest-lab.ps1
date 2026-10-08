@@ -28,6 +28,76 @@ $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard
     cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
+# Deletes only fixed disposable leaves after settled VM absence or no VM request.
+function Remove-CloudGuestClosedFiles([string]$Root, [string]$RunId, [string]$Attempt, $CreateAttempted, $HasVmId, $HasOwner, $Unknown, $RemovedObserved, $Mounted) {
+    $result = @{ eligible = $false; completed = $false; mode = 'refused'; failure = $null; files = [Collections.Generic.List[object]]::new() }
+    foreach ($flag in @($CreateAttempted, $HasVmId, $HasOwner, $Unknown, $RemovedObserved, $Mounted)) {
+        if ($flag -isnot [bool]) { $result.failure = 'state-invalid'; return $result }
+    }
+    if ($Unknown -or $Mounted) { $result.mode = 'not-eligible'; return $result }
+    $neverCreated = !$CreateAttempted -and !$HasVmId -and !$HasOwner -and !$RemovedObserved
+    if (!$neverCreated -and !($CreateAttempted -and $HasVmId -and $RemovedObserved)) { $result.mode = 'not-eligible'; return $result }
+    try {
+        if ($RunId -cnotmatch '^[0-9]{1,20}$' -or $Attempt -cnotmatch '^[0-9]{1,20}$') { throw 'closed-root-invalid' }
+        $expected = 'D:\aegis-cloud-guest-' + $RunId + '-' + $Attempt
+        if (![StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($Root), $expected)) { throw 'closed-root-invalid' }
+        $rootItem = Get-Item -LiteralPath $Root -Force -ErrorAction Stop
+        if ($rootItem -isnot [IO.DirectoryInfo]) { throw 'closed-root-invalid' }
+        $cursor = $rootItem
+        while ($null -ne $cursor) {
+            if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
+            $cursor = $cursor.Parent
+        }
+        $leaves = @(@{ id = 'answerIso'; path = 'media\answer.iso' }, @{ id = 'answerXml'; path = 'media\answer\Autounattend.xml' }, @{ id = 'windowsIso'; path = 'media\windows.iso' })
+        if (!$neverCreated) { $leaves = @(@{ id = 'guestVhd'; path = 'vm\guest.vhdx' }) + $leaves }
+        # Validate the entire finite set before any deletion, including ancestors.
+        function Read-ClosedItem([string]$Path) {
+            try { return Get-Item -LiteralPath $Path -Force -ErrorAction Stop }
+            catch [Management.Automation.ItemNotFoundException] { return $null }
+        }
+        $present = [Collections.Generic.List[object]]::new()
+        foreach ($leaf in $leaves) {
+            $path = Join-Path $Root $leaf.path
+            $parent = [IO.DirectoryInfo]::new([IO.Path]::GetDirectoryName($path))
+            while ($null -ne $parent -and $parent.FullName.Length -ge $expected.Length) {
+                $item = Read-ClosedItem $parent.FullName
+                if ($null -ne $item) {
+                    if ($item -isnot [IO.DirectoryInfo] -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
+                }
+                $parent = $parent.Parent
+            }
+            $file = Read-ClosedItem $path
+            if ($null -eq $file) { $result.files.Add(@{ file = $leaf.id; state = 'absent' }); continue }
+            if ($file -isnot [IO.FileInfo] -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
+            $present.Add(@{ file = $leaf.id; path = $path })
+        }
+        foreach ($item in $present) {
+            if ($item.file -in @('windowsIso', 'answerIso', 'guestVhd')) {
+                $images = @(Get-DiskImage -ImagePath $item.path -ErrorAction Stop)
+                if ($images.Count -ne 1 -or $images[0].Attached -isnot [bool] -or $images[0].Attached -or
+                    ![StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($images[0].ImagePath), $item.path)) { throw 'closed-image-unconfirmed' }
+            }
+        }
+        $result.eligible = $true; $result.mode = if ($neverCreated) { 'never-created' } else { 'exact-vm-absent' }
+        foreach ($item in $present) {
+            $stream = $null
+            try {
+                # Exclusive read/write open refuses locked/in-use files. Delete on
+                # close avoids a later pathname-based delete after releasing it.
+                $stream = [IO.FileStream]::new($item.path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
+                $bytes = $stream.Length; $stream.Dispose(); $stream = $null
+                if (Test-Path -LiteralPath $item.path -ErrorAction Stop) { throw 'closed-delete-unconfirmed' }
+                $result.files.Add(@{ file = $item.file; state = 'removed'; bytes = $bytes })
+            }
+            catch { $result.failure = 'closed-file-cleanup-failed'; $result.files.Add(@{ file = $item.file; state = 'failed'; hResult = $_.Exception.HResult }) }
+            finally { if ($null -ne $stream) { $stream.Dispose() } }
+        }
+        $result.completed = $null -eq $result.failure
+    }
+    catch { $result.failure = 'closed-file-validation-failed' }
+    return $result
+}
+
 function RecordDisk([string]$Phase) {
     $values = @('C', 'D') | ForEach-Object { $drive = Get-PSDrive -Name $_; @{ drive = $_; freeBytes = [long]$drive.Free; usedBytes = [long]$drive.Used } }
     $report.disks.Add(@{ phase = $Phase; capturedAt = [DateTime]::UtcNow.ToString('o'); drives = @($values) })
@@ -253,12 +323,10 @@ finally {
     elseif ($report.removedObserved) { $report.operationSettlement = 'settled-and-exact-vm-absent' }
     try { if ($mounted) { Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false } } catch { $report.cleanupFailure = @{ stage = 'trusted-iso-dismount'; hResult = $_.Exception.HResult } }
     $report.hostCanariesUnchangedAfterRemoval = $canaries.Count -eq 2 -and (CanariesUnchanged)
-    # Only exact closed disposable files are removed. Never mount the guest disk.
-    if ($report.removedObserved -and !$mounted) {
-        foreach ($closed in @((Join-Path $vmRoot 'guest.vhdx'), $answerIso, (Join-Path $mediaRoot 'answer\Autounattend.xml'), $windowsIso)) {
-            try { if (Test-Path -LiteralPath $closed) { $file = Get-Item -LiteralPath $closed -Force; if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-owned-file-invalid' }; Remove-Item -LiteralPath $closed -Force } }
-            catch { $report.cleanupFailure = @{ stage = 'closed-owned-file-cleanup'; hResult = $_.Exception.HResult } }
-        }
+    # Preserves all receipts, transfer files and unknown/in-use VM media.
+    $report['closedOwnedFilesCleanup'] = Remove-CloudGuestClosedFiles $OutputRoot $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT $createAttempted ([bool]$id) ($null -ne $owner) $unknown $report.removedObserved $mounted
+    if ($null -ne $report.closedOwnedFilesCleanup.failure -and $null -eq $report.cleanupFailure) {
+        $report.cleanupFailure = @{ stage = 'closed-owned-file-cleanup'; code = $report.closedOwnedFilesCleanup.failure }
     }
     RecordDisk 'after' | Out-Null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
