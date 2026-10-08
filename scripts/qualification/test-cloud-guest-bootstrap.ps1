@@ -288,7 +288,7 @@ function Test-CloudGuestReadinessDiagnostics([string]$VmSourcePath) {
         $watch = @{ Elapsed = @{ TotalSeconds = $Start } }; $lastDisk = -60
         $diskSamples = [Collections.Generic.List[object]]::new()
         $progress = @{ sessionEstablished = $false; profileReady = $false; psDirectReadiness = (New-CloudGuestReadinessObservation) }
-        $session = $null; $Admin = $null; $Id = '11111111-2222-3333-4444-555555555555'; $VmRoot = 'X:\fixed-test-only'
+        $session = $null; $Admin = $null; $Id = '11111111-2222-3333-4444-555555555555'; $VmRoot = Join-Path ([IO.Path]::GetTempPath()) 'aegis-fixed-readiness-model'
         function Get-PSDrive { param($Name) return @{ Free = 32GB } }
         function Get-Item { param($LiteralPath, [switch]$Force) return @{ PSIsContainer = $false; Attributes = 0; Length = 4096L } }
         function New-PSSession {

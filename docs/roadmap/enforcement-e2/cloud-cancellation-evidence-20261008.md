@@ -144,6 +144,16 @@ boundary times and redaction. The integrated maintained bootstrap test also
 passed. These command-double tests do not establish an actual PS Direct failure
 cause or a completed guest cancellation observation.
 
+The first hosted check of that test,
+[run 37728835860](https://github.com/antropos17/Aegis/actions/runs/37728835860),
+found a test portability defect before VM execution: a hardcoded model path
+required a drive absent on the runner. The model now derives that inert path
+from the current process's temporary directory. Independent Astra review
+approved the one-line change; the maintained PS5 bootstrap controls passed
+again. Runtime behavior, assertions and deadlines are unchanged. The failed
+preflight log is retained with SHA-256
+`10a7766baaa456b31a0b952db2e3d455a59105ee3d3f9d77625a09a9b746d674`.
+
 These cases cover fixed owner-requested cancellation only. Full terminal I/O,
 crash/reboot recovery, all host routes and production cancellation interfaces
 remain outside this evidence. E2.2, E3.3, E2/E3 overall, A1 and launch are not
