@@ -186,3 +186,7 @@ aegis_landing.html
 !/scripts/qualification/CloudGuestLoaderProbe.cs
 !/scripts/qualification/CloudGuestLoaderProbeFixture.cs
 !/scripts/qualification/test-cloud-guest-loader.ps1
+
+!/scripts/qualification/cloud-guest-cancellation.ps1
+!/scripts/qualification/cloud-guest-cancellation-bootstrap.ps1
+!/scripts/qualification/test-cloud-guest-cancellation.ps1

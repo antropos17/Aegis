@@ -84,6 +84,11 @@ internal sealed class CloudGuestRuntimeGate : IDisposable
         inventory.SealInitializedRuntime();
         registration.CheckCurrent(); admitted.CheckCurrent(); startupSealed = true;
     }
+    internal void CheckBeforeCancellation(GuestJobInventory inventory)
+    {
+        Need(inventory != null && admitted != null && !released && startupSealed);
+        inventory.ValidateInitial(); registration.CheckCurrent(); admitted.CheckCurrent();
+    }
     internal void ReleaseFixedTask(GuestJobInventory inventory)
     {
         Need(inventory != null && admitted != null && !released && startupSealed);
