@@ -1,0 +1,301 @@
+# Fixed Windows guest cancellation controls
+
+Status: actual Windows 11 run 37733668154 passed both owner-requested cancellation
+cases, the prerequisite useful-task corpus, independent host canaries and exact
+VM/media cleanup at `6af571947a5af0e3c099951077a61de223e3f91b`. The
+[verified useful-task corpus](cloud-hyperv-evidence-20261007.md)
+is the prerequisite for these additional qualification cases.
+
+The first case authenticates and seals the initialized runtime, rechecks its
+caller and retained Job inventory, withholds project ACK and requests Job
+termination. The administrator checks that the fixed payload marker is absent.
+The second case releases a fixed payload and retains a live Node descendant's
+native handle, birth identity, image, principal and standard token before
+requesting termination. The controller constructs no new calibration receiver.
+
+Both require an observed live root, accepted Job termination, root exit 137,
+independently empty Job and private desktop closure. The second additionally
+requires the retained descendant's exit. Natural completion, a prior admission
+failure or an unknown observation cannot count as successful cancellation.
+The host requires the previous useful-task Jobs, receivers and separate witness
+to have closed, then checks host canaries again after the new cases.
+
+The frozen 13-file donor has SHA-256
+`8199c5a7bf78f34d4239486219e0f5f1cb123d5e53a0025306aafffd516e491f`;
+its patch has SHA-256
+`12ff80e8d1136f25351dbcad86b50bf861d700f50310ef23a8e3841e7a50c962`.
+Independent Astra review verified source and evidence hashes, caller/transfer
+wiring and both requirements and engineering behavior. Its two draft findings
+were corrected: truthful natural/unknown exit reporting and strict descendant
+identity validation in the host consumer.
+
+Recorded explicit Windows PowerShell 5.1 checks passed 68 pure controls and two
+actual same-principal native cancellation cases. Three altered-source controls
+detected premature payload execution, missing descendant identity validation
+and incorrect natural-completion reporting. The existing runtime fixture passed
+14 native controls. Seven affected compiler compositions remained within their
+existing size limits; no cap was increased. These local observations do not
+establish the guest's standard-principal or private-desktop behavior.
+
+The integrated maintained Windows PowerShell 5.1 preflight passed in 40.1 seconds
+with 14,277 bytes of untruncated output, including the two new native cancellation
+cases and all existing runtime, shell, receiver and witness controls. All four
+new JavaScript files passed ESLint. These checks used the final reviewed bytes.
+
+One earlier local native fixture refusal remains unexplained. Its diagnostic
+log is retained with SHA-256
+`baf19ed6035eaea8322ceb29e7d9f59a08833f0d441e0969f0fcb889eabcb49e`.
+The final fixture records both passing cases and additional release/payload
+observations, with controls-log SHA-256
+`f4bef354f8d37bcc6af56086614684a451b957a9b327a6b687e4163836876481`.
+Later success does not explain the earlier refusal. Independent review permits
+one bounded actual lab run; recurrence requires diagnosis before another retry.
+No stability claim follows.
+
+The subsequent test-only diagnostic revision preserves fixed case/phase lines
+even when the fixture wrapper throws. It accepts only an allowlisted diagnostic
+format, rejects reparse points and output above 4,096 bytes, and retains the
+15-second native deadline and 80-KiB fixture cap. The corrected frozen evidence
+manifest has SHA-256
+`9bd981396c381ca1842c3e0384684ec2d2e8b128e3824e34efeeb666e58233b9`.
+Independent Astra review approved exactly the PowerShell test wrapper and C#
+fixture. Integrated Windows PowerShell 5.1 validation passed all existing pure
+controls, both actual same-principal cancellation cases and two diagnostic
+controls; the compiled fixture was 76,288 bytes.
+
+The first diagnostic comparison stopped at compilation and could not establish
+native failure reporting. That evidence is preserved and explicitly superseded
+by two controls that both compile and reach the intended native refusal. Only
+the candidate retains the fixed phase before refusal; neither emits raw error
+text or leaves disposable directories. This correction does not identify the
+cause of the earlier historical refusal.
+
+The initial actual attempt used runtime revision
+`88fccf508535eba0055bf035484f90431e3b6ce1`. The later two-file diagnostic delta
+changed local fixture source hashes while preserving the guest runtime and
+cancellation acceptance predicates. Subsequent host readiness repairs are
+recorded below; each run remains bound to its own revision.
+
+## First actual attempt
+
+[Run 37725510372](https://github.com/antropos17/Aegis/actions/runs/37725510372)
+at that revision failed with `guest-setup-psdirect-not-ready`. The readiness
+wait lasted 1,082,224 ms; no successful PowerShell Direct session, standard task,
+Claude task or cancellation phase was observed. The owned VHD grew to
+16,647,192,576 bytes and then stopped changing in retained samples. This does
+not identify the Windows Setup failure's cause. Attempt-level remoting errors
+were not retained. Both early thumbnails had a size mismatch also present in
+the successful preceding run, so no useful boot image was retained.
+
+Independent review matched all 59 repository source hashes to the run revision.
+Boot, media, VM and readiness code were unchanged from the successful preceding
+run. Start and stop operations settled, the exact VM was observed Off and
+removed, and host canaries remained unchanged after removal. Cleanup reported
+no failure. The [raw receipt](evidence/20261007/37725510372.json), SHA-256
+`61ae1b5247134be5c5c1bcdfedf93a4b411866dc826fde27fb8fbfdbbc8fe5c1`,
+is retained as a failed setup attempt. This is separate from the earlier local
+native refusal. One bounded fresh attempt is justified with unchanged runtime
+predicates and setup deadline; repeated setup failure requires bounded readiness
+diagnostics before another retry.
+
+## Hosted preflight refusal
+
+[Run 37727519745](https://github.com/antropos17/Aegis/actions/runs/37727519745)
+at `f7bc5790a64767952e9b4c07af3c990cdf0d65ce` stopped in hosted preflight.
+Three actual same-principal shell cases passed, then the shell model wrapper
+reported `shell-controls-refused`. Its original wrapper removed stdout/stderr
+without retaining fixed failure details, so the failing model and cause are
+unknown. The VM execution step was skipped, and no VM receipt was produced.
+This run therefore supplies no second Windows Setup or cancellation observation.
+The preserved preflight log has SHA-256
+`ae13002805de880539185bb65dd80397ea9b55fc39e741355ad4275e55ad08f8`.
+
+The reviewed shell-test repair retains fixed case/phase/error categories, child
+exit status and stream byte counts before cleanup, with strict schema and label
+validation. All original assertions, the model's 1,000-ms VM timeout, 5,000-ms
+model process budget and 15,000-ms native budget are unchanged. The frozen donor
+manifest is `22dd252b99b7fe5a6a7a115b4d786ba382c9a7e71b04a56714480d16a12a3f00`.
+Independent Astra review approved its three test files and exact ignore-rule
+exception. Integrated PS5 execution passed eight wrapper controls, four actual
+Node executions of altered test copies, the native shell cases and all original
+model cases. The baseline missing-diagnostic regression fails at the expected
+assertion. These results repair evidence loss without identifying cloud26's
+historical refusal cause.
+
+## Readiness deadline and diagnostics
+
+Source review found a separate readiness defect: the original loop checked its
+1,080-second limit before blocking remoting calls, so a true response arriving
+at 1,081 seconds could still admit downstream work. The repaired caller checks
+the same limit after session acquisition and after the profile response, then
+closes and clears expired sessions. It preserves the observed establishment
+history and records rejected late profile readiness separately.
+
+Readiness evidence now retains capped attempt/failure counts and fixed first/
+last failure metadata: phase, exception category and numeric HRESULT. It excludes
+raw messages, credentials, paths, usernames and remote payloads. All six guest
+command bodies, the ten-second polling interval and outer worker deadline remain
+unchanged. A blocked provider call is still governed by that outer worker fence.
+
+Independent Astra review approved the frozen two-file donor with manifest
+SHA-256 `4be38ec55fc6f87d7e3b7cfc5f0549dba5152a892d2c62cae56e8d721cd9841d`.
+The baseline/candidate regression demonstrates the late-admission defect and
+its rejection after repair. Explicit Windows PowerShell 5.1 passed all 25
+source-extracted readiness controls, including cleanup, recovery, sticky history,
+boundary times and redaction. The integrated maintained bootstrap test also
+passed. These command-double tests do not establish an actual PS Direct failure
+cause or a completed guest cancellation observation.
+
+The first hosted check of that test,
+[run 37728835860](https://github.com/antropos17/Aegis/actions/runs/37728835860),
+found a test portability defect before VM execution: a hardcoded model path
+required a drive absent on the runner. The model now derives that inert path
+from the current process's temporary directory. Independent Astra review
+approved the one-line change; the maintained PS5 bootstrap controls passed
+again. Runtime behavior, assertions and deadlines are unchanged. The failed
+preflight log is retained with SHA-256
+`10a7766baaa456b31a0b952db2e3d455a59105ee3d3f9d77625a09a9b746d674`.
+
+## Host runtime staging refusal
+
+[Run 37729140820](https://github.com/antropos17/Aegis/actions/runs/37729140820)
+at `2d06630d0a993ffa1f6a413b4fcd4396f37861ab` passed hosted preflight and all
+five ordinary CI contexts, then failed during host-side runtime preparation.
+The [raw receipt](evidence/20261007/37729140820.json), SHA-256
+`189023ad712506dcdce7c61c52929f5e6b9d492a54c779f91ba45cb6bb20366d`,
+records `bounded-stage-failed` after Node metadata was observed, before the
+Claude binary staging wrapper returned. Independent review matched all recorded
+repository hashes. Fixed copies or that wrapper could have failed; the mapped
+error does not identify a particular download, signature, tool or timeout cause.
+
+Git controls and VM creation were not reached. No guest disk, guest execution or
+cancellation observation exists for this attempt. `cleanupFailure=null` records
+the absence of a cleanup exception; it does not establish deletion of staging
+files. The cleanup branch requiring a removed VM was unreached. Approximately
+8.57 GB of host disk usage was added by preparation; eventual hosted-runner
+disposal is outside the receipt. The diagnostic repair must preserve all source,
+binary and signature pins and all existing deadlines.
+
+The subsequent diagnostic revision adds fixed staging checkpoints and preserves
+the existing source-defined Claude/provenance refusal codes. Matching requires
+the complete, case-sensitive message; arbitrary text and suffixes remain generic.
+The public wrapper, pinned verifier and native downloader are unchanged.
+Independent Astra review approved manifest
+`ef31ccf31ecb5710ee29bf22567091ee0c4c6f83939a333b6dcba0052c9d3068`.
+Source-extracted controls reproduce the old evidence loss through the actual
+`Stage` catch and verify the new fixed code/checkpoint plus redaction. The
+integrated maintained public test passes. No causal download or provenance
+repair is inferred from this diagnostic change.
+
+## Actual guest preparation refusal and ACL repair
+
+[Run 37730935469](https://github.com/antropos17/Aegis/actions/runs/37730935469)
+at `6edb480147062e25ccdc21f51f9fca90f36be6bb` completed staging and the useful
+Node, shell, Git, measured host-route and dummy-API Claude corpus. Independent
+Astra review matched all repository source hashes and verified five successful
+CI contexts. Executing the actual prerequisite validator against the receipt
+accepted prior Job, receiver and separate witness closure.
+
+Cancellation preparation returned `failureStage=fixed-inputs`; `before` and
+`after` were null. No cancellation case or loader stage executed. The
+[raw receipt](evidence/20261007/37730935469.json), SHA-256
+`e946060fcde97732867296d39711f5175b5eee905225fe742c0a05e89f81ff39`,
+preserves the refusal. Exact VM stop and removal settled, Off and absence were
+observed independently, host canaries remained unchanged after useful work,
+failed cancellation and removal, and no cleanup failure was recorded.
+
+Both root and independent review reproduced a concrete preparation defect:
+literal SID strings selected the account-name `FileSystemAccessRule` constructor.
+Adding these rules to an in-memory `DirectorySecurity` threw
+`IdentityNotMappedException`. The corrected call constructs a typed
+`SecurityIdentifier`, matching the existing first-phase implementation. This
+defect is consistent with the recorded stage; the receipt does not identify the
+first failing statement. The marker's existing 26-byte check remains correct.
+
+A maintained regression executes the actual bootstrap's ACL construction in
+memory, omitting only the disk application command. It checks the protected
+DACL, administrator owner, exact three trustees, rights and inheritance. The
+baseline fails at `AddAccessRule`; the corrected full cancellation test passes
+the regression, both existing native cases and diagnostic controls in 2.17
+seconds. The native fixture remains 76,288 bytes with unchanged budgets and
+acceptance predicates. No host filesystem ACL was changed by this regression.
+
+Independent Astra review approved the exact ACL repair manifest
+`4e71207cb292e86b37ab18595ff14e7a141c86c448c804881f2d3cc74fee9711`.
+
+## Closed staging cleanup
+
+The pre-VM failure exposed a separate cleanup gap: deletion previously required
+an observed removed VM, so media prepared before any creation attempt was left
+behind. The reviewed repair accepts only a typed never-created state or settled
+exact VM absence. It validates the fixed run root and ordinary ancestors/leaves,
+checks present images are detached through the Storage provider, then deletes
+only fixed closed files through exclusive handles. A guest VHD is considered
+only after confirmed VM removal. Receipts, transfer files, locked files and
+uncertain or mounted VM media remain protected.
+
+The fixed receipt distinguishes eligibility, completion and per-file absence,
+removal or failure. It does not claim whole-root deletion or exact reclaimed
+disk space. Independent Astra approved manifest
+`b321ca233f35d85a5fdf241d9cdddc94133e3160b562e5bae7376ec0140ca234`.
+Focused controls reproduce pre-VM retention and exercise the actual repaired
+caller, tiny closed files, locks, junctions and foreign-file preservation. The
+integrated maintained public test passes. Local controls use a Storage-provider
+double; actual provider execution awaits the next cloud receipt. Synchronous
+provider queries retain the existing hosted-job bound, and hostile concurrent
+host namespace replacement is not atomically excluded by this lab cleanup.
+
+[Run 37732879462](https://github.com/antropos17/Aegis/actions/runs/37732879462)
+at `6af571947a5af0e3c099951077a61de223e3f91b` actually exercised the
+never-created cleanup path. Matching detached-image Storage observations,
+exclusive deletion and subsequent absence were required for the three removed
+media leaves: answer ISO, answer XML and the 8,225,329,152-byte Windows ISO.
+Eligibility and completion were true, with no cleanup failure. The guest VHD
+path was not exercised. The [raw receipt](evidence/20261007/37732879462.json)
+has SHA-256 `fad5a2410168bc76e7a851058d73d7cb0ff509c964017c9869323f3cba384629`.
+
+This attempt stopped before VM creation at `ClaudeProvenance`, with the fixed
+`signature-process-deadline` code. The unchanged pinned verifier's 5,000-ms loop
+waits for the GPG process and both redirected streams. The receipt distinguishes
+neither import from verification nor process exit from stream closure; a more
+specific cause is unknown. Independent review verified all source hashes and
+five successful CI contexts, and permitted one fresh attempt with unchanged
+source, pins and limits. Recurrence requires fixed phase/process/stream diagnostics
+before another retry. No cancellation or guest execution is inferred.
+
+## Actual standard-user guest cancellation passed
+
+[Run 37733668154](https://github.com/antropos17/Aegis/actions/runs/37733668154)
+used the same `6af571947a5af0e3c099951077a61de223e3f91b` source and unchanged
+pins and limits. Its [raw receipt](evidence/20261007/37733668154.json), SHA-256
+`0182f189efa8b6f06641af987b8d7e963b86adc6e3b64e412d526cf804990b18`,
+records overall success with no task or cleanup failure. This success does not
+explain the preceding GPG process/stream deadline.
+
+Both cases authenticated and initialized a runtime under the same dedicated
+standard guest SID, verified the held process and sealed startup inventory,
+observed a live root and accepted owned Job termination. Neither reports natural
+completion. Both observed root exit 137, independently empty Job and closed
+private-desktop handles.
+
+| Case | Actual observation |
+| --- | --- |
+| Before project release | ACK withheld, task not released, payload marker absent |
+| After release with live descendant | Payload marker present; a distinct live Node descendant was retained with PID/birth/image/principal/Job checks and its exit was observed after termination |
+
+The prior Node, shell, Git, measured host-route and dummy-API Claude task corpus
+passed. Its Jobs, receivers and separate witness closed before cancellation;
+the cancellation phase started no new receiver. Host canaries were unchanged
+after useful work, cancellation and removal.
+
+Exact VM `338090e0-b8bf-48d5-965c-da54c08b044a` had settled stop/removal,
+independent Off and absence observations. The actual post-removal cleanup used
+matching detached-image observations and exclusive deletion handles for all
+four fixed leaves. It recorded removal of the 19,096,666,112-byte guest VHD,
+answer ISO, answer XML and Windows ISO, with eligibility/completion true and no
+cleanup failure. These file lengths are not an exact reclaimed-space measure.
+
+These cases cover fixed owner-requested cancellation only. Full terminal I/O,
+crash/reboot recovery, all host routes and production cancellation interfaces
+remain outside this evidence. E2.2, E3.3, E2/E3 overall, A1 and launch are not
+accepted by these fixed guest controls; qualification flags remain false.

@@ -1,0 +1,238 @@
+{
+    "schemaVersion":  1,
+    "scope":  "cloud-windows11-fixed-standard-user-lab",
+    "startedAt":  "2026-10-08T05:33:13.6487782Z",
+    "sourceSha":  "6af571947a5af0e3c099951077a61de223e3f91b",
+    "actualHead":  "6af571947a5af0e3c099951077a61de223e3f91b",
+    "sourceObservation":  {
+                              "exitCode":  0,
+                              "stderrBytes":  0,
+                              "headBytes":  41
+                          },
+    "sourceHashes":  {
+                         "scripts/qualification/cloud-guest-lab.ps1":  "3cfcdd68ae5b9f04629a7b80688301a1a1abeaf03850d4ccb9135475459c2e2d",
+                         "scripts/qualification/cloud-guest-vm.ps1":  "98796b492e89c49b4967a0b5ea638d7a86035e3460aacd16c52a2bbbaba83164",
+                         "scripts/qualification/cloud-guest-media.ps1":  "e1a9032191f704549ef7ebd9ee090b46162f1842cba9dac5209e9d3f2aafc9cd",
+                         "scripts/qualification/cloud-guest-bootstrap.ps1":  "fd4b72bb12425d2ba50ed2de05748032804d3a9ea5b9ac0901a877f18a5842f0",
+                         "scripts/qualification/cloud-guest-task.cjs":  "9848db3c39291abd9b32c5a3e4954050fe95d5a28b7c980eb8725dd9f90b09d3",
+                         "scripts/qualification/cloud-hyperv-operations.ps1":  "d579cc11c571d64e0e18082a365df88c82e889569095ba76b6bb703cfbf15851",
+                         "scripts/qualification/protocol.cjs":  "24efc8cee42db7b52c827edf8f6ec3b722096f0ecbbc983a8d2eeda38cc96bdc",
+                         "scripts/qualification/receiver.cjs":  "f8d8b0dde11c9b9dcabb26b731c03ed151656bad7c06d1103ddb4d95be3588dd",
+                         "scripts/qualification/client.cjs":  "1cfebff9d35e1366f1e9f6657ed22b5ff1eb7f45034c7ffa8e63554384bef123",
+                         "scripts/qualification/cloud-guest-runtime.cjs":  "ddd3e94a732d1c21b5f0d74581bd71b6d8180d4358c5fbed3ec2f827804700bc",
+                         "scripts/qualification/test-cloud-guest-cancellation.ps1":  "05551eee284191c85b0246167e871ad1943a1a146c6cc74c2b94778b532ad24f",
+                         "tests/fixtures/native-cloud-guest-cancellation/CancellationFixture.cs":  "0fb4015bf19259835bef295c869d08aadeba13372fe1c451354ba1444779c031",
+                         "tests/fixtures/native-cloud-guest-cancellation/cancellation-client.cjs":  "92cc450da5811beff6d8fb289cecc46edaeae2f2f7a1c56e2c569b1ede4fb375",
+                         "scripts/qualification/cloud-host-routes.ps1":  "63da92925ebaf4f36b6f710241cd2f53551a125739eeb3afa74fbd9b9510151a",
+                         "scripts/qualification/route-protocol.cjs":  "06a3489be7ed6a2e2bb2e525b994c99947fe52254c9e7c4b53bf772a1fa973b6",
+                         "scripts/qualification/route-client.cjs":  "a2e0730f02f1dba7748bcd7856197896d55cc8d8e020398b1138d0e6188008e1",
+                         "scripts/qualification/route-receiver.cjs":  "6dcb13e2a0d5adfaafc3198f0ebfce0a4b240bd35aa1e42d428a00eaf6674cf0",
+                         "scripts/qualification/route-oracle.cjs":  "0d03ff442b83fe58ea599ee0c5267b3ad6b07668d976cb5c5c4e422f303ccb96",
+                         "scripts/qualification/cloud-guest-git.cjs":  "2d9669001b29236851ad0370813441f5d13cdda16190d212f3f1e233bde88f68",
+                         "scripts/qualification/cloud-guest-git.ps1":  "caffc5c42541f7a0918722fce324663244652b16b22302bac795075739b0243a",
+                         "scripts/qualification/git-runtime-manifest.json":  "6ed3934c5749d726a45c488e8e31f1b97b64522a1dc1d56d7640a87129821042",
+                         "scripts/qualification/cloud-guest-claude-public.ps1":  "2d8b42ce1bee3e7bc420fa0b8bcca9faaf449482cc4ce1f6af0501d93d4bb3db",
+                         "scripts/qualification/cloud-guest-claude-phase.ps1":  "030747484e7d7514c49f987181e954bbb54e1423b014cd9ec2eba3c7feacb6b4",
+                         "scripts/qualification/cloud-guest-claude-bootstrap.ps1":  "2bdb743ddd91ef564adb745fcd83f092e2261739729f829464f93874aafa7edc",
+                         "scripts/qualification/cloud-guest-cancellation.ps1":  "29abbabd11c44c2832665e550b1b81bc56be90ee3e963c58973d01b99508c965",
+                         "scripts/qualification/cloud-guest-cancellation-bootstrap.ps1":  "585e71b1ed71431e6fc1590f80055a2a69433e3161e208f8abafaf07e47c1f04",
+                         "scripts/qualification/cloud-cancellation-runtime.cjs":  "cb435529a1ef386aaca786ef45bfa026e496dbac552f763bec81262dc248c2ec",
+                         "scripts/qualification/cloud-cancellation-task.cjs":  "3a348f8a4058b29edc17ca10a2f18813f68a6b3a74543e0d2418171314029666",
+                         "scripts/qualification/cloud-cancellation-child.cjs":  "42ad1c4e5dce653df468b6232b3f7340bae4bee1a1220d97c66597adc8b14c02",
+                         "scripts/qualification/claude-protocol.cjs":  "03a2ac1376d28378d97a775f5a7d0f95993516551ee9369b07857c9f49072327",
+                         "scripts/qualification/claude-receiver.cjs":  "e463be950650e15bc4a48d75d62add39965a53b13186d3d78ba0127972ee8d6f",
+                         "scripts/qualification/claude-task.cjs":  "035e637d0d63e8386e6ca6e0086329166ee7b9e27b7f7792fc7b64db575510a5",
+                         "scripts/qualification/claude-runtime.cjs":  "dec48f37214b11e1a8cda79d1d6d25927056c9d42c143e49dbf0613aa2564786",
+                         "scripts/qualification/claude-sum.test.cjs":  "cab654fbcdf04e6925d1f215eae8cbb9a2f1cb9adb94cc2004ff95f088a66229",
+                         "scripts/qualification/claude-test-witness-runtime.cjs":  "f5accb6203171a7863dee220b2856a0522e2e8a539073106f83cd49e9a9d6ec9",
+                         "scripts/qualification/claude-test-witness.cjs":  "88f566d984813ba5413c54000bbead738e33abf44e7835ddc16666cabc60cbe7",
+                         "scripts/qualification/claude-public/provenance.ps1":  "04b56dd4c32bee544da646d692bcfc1f3c21baf428227bf145fb0301c9a349db",
+                         "scripts/qualification/claude-public/official-manifest.json":  "64f5abe05a43151810acf8c25169872e41293c96d3ae73d6508733a8b336e2b1",
+                         "scripts/qualification/claude-public/official-manifest.json.sig":  "537e1a8bcca1646fd5e52d3dc8d16509395a88f6f18b13765b2c085d057567ea",
+                         "scripts/qualification/claude-public/official-release-key.asc":  "bd70a5e4a268002704024ceba7f8446024114e94f3f0bdd11c23a9e592be81c6",
+                         "scripts/qualification/CloudGuestMetadata.cs":  "af0bac0dd7c36d5c26c2d1d0f4d7ff2a205f1955c4c9f843ae8e0de03a2b4ec8",
+                         "scripts/qualification/CloudGuestVm.cs":  "f4ee6379fb11ae3d7e3fb1f57542ff798d56af0126420f2b4a9d0780c91f766c",
+                         "scripts/qualification/CloudGuestBootDiagnostics.cs":  "111fd772d8d8de10a22acf3d71707fef3bc1b4f990e9c0ff94d7a70fcb306154",
+                         "sidecar/session/OwnedVmLifecycle.cs":  "db2617156227744c90b6395d0d45ba1d0c96defe48bcd4791a10b54800635bbd",
+                         "sidecar/session/VmManagementNative.cs":  "8c63085dbdb55e64b2a71a6c70ffd1a0d1203503fc583ff341d32fed3cdff6de",
+                         "scripts/qualification/CloudGuestClaudeDownload.cs":  "02897ff088e7d50161ae5867a8d78aa8c4d8e0dc43062f37cc7346cdc877daa8",
+                         "scripts/qualification/CloudGuestProcess.cs":  "58367b03e31334e14381e9696f3fbe1e2bb6a8ba2adc0a445cdb659f09491b18",
+                         "scripts/qualification/CloudGuestLoaderProbe.cs":  "32bb7999fa55584d5f25dc3933fb88ee45f4d6f141b4332d0afd429980929066",
+                         "scripts/qualification/CloudGuestTestWitness.cs":  "0cd0be7d17f2065ad03add2fce3924d92cadc71e8b1b6b626ca3ab7c5189a2e1",
+                         "scripts/qualification/CloudGuestDesktop.cs":  "dd209397a0a9cd53f03fd93484682d50ff6cf97019d0efc88123a73dc1bfccc7",
+                         "scripts/qualification/CloudGuestNetwork.cs":  "aef7817240dfc1804411a153fed4def61871980efb26a6f07577ae7f7cb4534a",
+                         "scripts/qualification/CloudGuestClaudeReceiver.cs":  "20405a7fc6570a49a5f4f8daa1dd11fd898f511cdfa37e6e622c25e4275ea7c7",
+                         "scripts/qualification/CloudGuestRuntimeGate.cs":  "189f01233b534fc52be85797e4ac34a1491eacdee5eb28114cf3a14ff9c70934",
+                         "sidecar/session/CallerAdmission.cs":  "7218dab5f41c1b330b49d65c0ad6d8531216abc2202e01ec39a6cfd22b3cb4be",
+                         "sidecar/session/CallerRegistration.cs":  "dc8ac9c01abe59c34e61da4ba0b6c998a28d76d9b7573670042d5431416e4b9f",
+                         "sidecar/session/CallerIdentity.cs":  "6310eadc5eba886315be91e95c4473d1697ac58254e9fbb7bcba50c1bc5d3684",
+                         "sidecar/session/CallerNative.cs":  "bf0cb2701e8df1cb9b9a731bb44de600097df22f46c397f94ea791fa1ebab925",
+                         "sidecar/session/GuestJobNative.cs":  "e77ffe912740bddddba449a5a5232db2ff1d9a136665ca54e8d4ba200ff524cf",
+                         "sidecar/session/GuestJobInventory.cs":  "9b3e6a358234aafe69742fa6db28dd798f302e2980b8d71eb15f15f194a3e131"
+                     },
+    "compilerSha256":  "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00",
+    "stages":  [
+                   {
+                       "milliseconds":  1313,
+                       "stage":  "host-preflight",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  802,
+                       "stage":  "compile-fixed-native-helpers",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  290665,
+                       "stage":  "pinned-media-download-and-hash",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  3625,
+                       "stage":  "read-only-exact-wim-metadata",
+                       "passed":  true
+                   },
+                   {
+                       "milliseconds":  283,
+                       "stage":  "tiny-answer-iso",
+                       "passed":  true
+                   },
+                   {
+                       "stage":  "stage-fixed-runtime-and-host-controls",
+                       "category":  "OperationStopped",
+                       "passed":  false,
+                       "code":  "signature-process-deadline",
+                       "innerDepth":  0,
+                       "milliseconds":  9358,
+                       "exceptionType":  "System.Management.Automation.RuntimeException",
+                       "hResult":  -2146233087
+                   }
+               ],
+    "host":  {
+                 "build":  "26100",
+                 "caption":  "Microsoft Windows Server 2025 Datacenter",
+                 "vmms":  "Running",
+                 "memoryBytes":  17174360064,
+                 "hypervisorPresent":  true,
+                 "admin":  true
+             },
+    "disks":  [
+                  {
+                      "phase":  "before",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125830094848,
+                                         "freeBytes":  34637664256
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  3244879872,
+                                         "freeBytes":  157814292480
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-08T05:33:13.9318715Z"
+                  },
+                  {
+                      "phase":  "after",
+                      "drives":  [
+                                     {
+                                         "drive":  "C",
+                                         "usedBytes":  125873172480,
+                                         "freeBytes":  34594586624
+                                     },
+                                     {
+                                         "drive":  "D",
+                                         "usedBytes":  3587424256,
+                                         "freeBytes":  157471748096
+                                     }
+                                 ],
+                      "capturedAt":  "2026-10-08T05:38:19.9634815Z"
+                  }
+              ],
+    "media":  {
+                  "answerIsoBytes":  55296,
+                  "license":  "Microsoft 90-day evaluation; disposable testing",
+                  "hashSource":  "https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file",
+                  "url":  "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso",
+                  "verifiedBeforeMount":  true,
+                  "bytes":  8225329152,
+                  "image":  {
+                                "version":  "10.0.26300.9457",
+                                "name":  "Windows 11 Enterprise Evaluation",
+                                "architecture":  "amd64",
+                                "metadataSource":  "read-only-WIMGAPI-file-information",
+                                "edition":  "EnterpriseEval",
+                                "imageCount":  1,
+                                "index":  1
+                            },
+                  "sha256":  "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38"
+              },
+    "runtime":  {
+                    "path":  "C:\\Program Files\\nodejs\\node.exe",
+                    "sha256":  "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e",
+                    "bytes":  86973768,
+                    "version":  "v22.23.3"
+                },
+    "hardware":  null,
+    "vmName":  "aegis-cloud-37732879462-1-0da075f078a54f38b941c5e9abd5e9d7",
+    "vmId":  null,
+    "startOperation":  null,
+    "stopOperation":  null,
+    "guest":  null,
+    "keyboard":  null,
+    "keyboardWindow":  null,
+    "cancellationPhase":  null,
+    "cancellationControlsComplete":  false,
+    "hostCanariesUnchangedAfterCancellation":  false,
+    "claudeProvenance":  null,
+    "claudePhase":  null,
+    "claudeCorpusComplete":  false,
+    "claudeAcceptancePassed":  false,
+    "E6Qualified":  false,
+    "hostCanariesUnchangedAfterTask":  false,
+    "hostCanariesUnchangedAfterRemoval":  false,
+    "offObserved":  false,
+    "removedObserved":  false,
+    "operationSettlement":  "not-submitted",
+    "cleanupFailure":  null,
+    "failure":  {
+                    "hResult":  -2146233087,
+                    "code":  "signature-process-deadline",
+                    "stage":  "stage-fixed-runtime-and-host-controls",
+                    "exceptionType":  "System.Management.Automation.RuntimeException",
+                    "innerDepth":  0,
+                    "category":  "OperationStopped"
+                },
+    "hostRouteEarlySnapshot":  null,
+    "passed":  false,
+    "launchAllowed":  false,
+    "A1Qualified":  false,
+    "sharedHostRoutesTested":  false,
+    "hostGuestVhdMounted":  false,
+    "runtimeStagingPhase":  "ClaudeProvenance",
+    "closedOwnedFilesCleanup":  {
+                                    "mode":  "never-created",
+                                    "failure":  null,
+                                    "completed":  true,
+                                    "files":  [
+                                                  {
+                                                      "file":  "answerIso",
+                                                      "bytes":  55296,
+                                                      "state":  "removed"
+                                                  },
+                                                  {
+                                                      "file":  "answerXml",
+                                                      "bytes":  3938,
+                                                      "state":  "removed"
+                                                  },
+                                                  {
+                                                      "file":  "windowsIso",
+                                                      "bytes":  8225329152,
+                                                      "state":  "removed"
+                                                  }
+                                              ],
+                                    "eligible":  true
+                                },
+    "completedAt":  "2026-10-08T05:38:19.9634815Z"
+}

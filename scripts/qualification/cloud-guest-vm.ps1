@@ -204,6 +204,36 @@ function Remove-CloudGuestInstallationMedia([string]$Id, [string]$Name, [string]
     }
 }
 
+# Fixed diagnostic metadata only; never retain remote payload or error text.
+function New-CloudGuestReadinessObservation {
+    return @{ attempts = 0; attemptsCapped = $false; failures = 0; failuresCapped = $false; firstFailure = $null; lastFailure = $null; deadlineExpired = $false; profileReadyObservedAfterDeadline = $false }
+}
+function Step-CloudGuestReadinessAttempt([hashtable]$Observation) {
+    if ($Observation.attempts -ge 4095) { $Observation.attemptsCapped = $true }
+    else { $Observation.attempts++ }
+}
+function Add-CloudGuestReadinessFailure([hashtable]$Observation, [string]$Phase, [Management.Automation.ErrorRecord]$Record) {
+    # Both phases are fixed source literals, not guest-controlled input.
+    if ($Phase -cnotin @('SessionCreate', 'ProfileCheck')) { return }
+    $kind = 'None'; $category = 'ProfileNotReady'; $hresult = $null
+    if ($null -ne $Record) {
+        $kind = $Record.Exception.GetType().Name
+        if ($kind -cnotin @('PSRemotingTransportException', 'PSRemotingDataStructureException', 'PSRemotingException',
+            'RuntimeException', 'MethodInvocationException', 'InvalidOperationException', 'PSInvalidOperationException',
+            'TimeoutException', 'UnauthorizedAccessException', 'AuthenticationException', 'PSArgumentException')) { $kind = 'Other' }
+        $category = $Record.CategoryInfo.Category.ToString()
+        if ($category -cnotin @('NotSpecified', 'OpenError', 'ResourceUnavailable', 'PermissionDenied', 'AuthenticationError',
+            'InvalidOperation', 'OperationTimeout', 'ConnectionError', 'ProtocolError', 'SecurityError',
+            'ObjectNotFound', 'InvalidData', 'InvalidArgument', 'ReadError', 'WriteError')) { $category = 'Other' }
+        $hresult = [int]$Record.Exception.HResult
+    }
+    $failure = @{ attempt = $Observation.attempts; phase = $Phase; exceptionKind = $kind; category = $category; hresult = $hresult }
+    if ($Observation.failures -ge 4095) { $Observation.failuresCapped = $true }
+    else { $Observation.failures++ }
+    if ($null -eq $Observation.firstFailure) { $Observation.firstFailure = $failure }
+    $Observation.lastFailure = $failure
+}
+
 # All inputs originate in the guarded fresh lab driver; no guest request is routed here.
 function Invoke-CloudGuestConfiguration([string]$Id, [string]$Name, [string]$VmRoot, [string]$WindowsIso, [string]$AnswerIso) {
     Assert-CloudGuestRunner
@@ -258,9 +288,10 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
         $routeOwner = $null; $routeClosed = $null; $routeEvidence = $null; $result = $null; $routeSnapshotDiagnostic = $null
         $diskSamples = [Collections.Generic.List[object]]::new()
         $mediaMutationUnknown = $false
-        $progress = @{ phase = 'psdirect-profile-readiness'; sessionEstablished = $false; profileReady = $false; installedOs = $null; transferHashesVerified = $false; mediaDetached = $null; standardTaskSubmitted = $false }
+        $progress = @{ psDirectReadiness = (New-CloudGuestReadinessObservation); phase = 'psdirect-profile-readiness'; sessionEstablished = $false; profileReady = $false; installedOs = $null; transferHashesVerified = $false; mediaDetached = $null; standardTaskSubmitted = $false }
         try {
             while ($watch.Elapsed.TotalSeconds -lt 1080) {
+                Step-CloudGuestReadinessAttempt $progress.psDirectReadiness
                 if ($watch.Elapsed.TotalSeconds - $lastDisk -ge 60) {
                     $free = [long](Get-PSDrive -Name D).Free
                     $ownedDisk = Get-Item -LiteralPath (Join-Path $VmRoot 'guest.vhdx') -Force
@@ -269,19 +300,34 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                     if ($free -lt 10GB) { throw 'guest-setup-disk-headroom-failed' }
                 }
                 try {
+                    $readinessPhase = 'SessionCreate'
                     $session = New-PSSession -VMId ([guid]$Id) -Credential $Admin -ErrorAction Stop
                     $progress.sessionEstablished = $true
+                    if ($watch.Elapsed.TotalSeconds -ge 1080) {
+                        $progress.psDirectReadiness.deadlineExpired = $true
+                        Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null; break
+                    }
+                    $readinessPhase = 'ProfileCheck'
                     $profileReady = Invoke-Command -Session $session -ScriptBlock {
                         return $env:USERNAME -eq 'AegisSetup' -and (Test-Path -LiteralPath C:/Users/AegisSetup) -and
                             (Get-ItemProperty 'HKLM:\SYSTEM\Setup').SystemSetupInProgress -eq 0
                     }
+                    if ($profileReady -ne $true) { Add-CloudGuestReadinessFailure $progress.psDirectReadiness $readinessPhase $null }
+                    if ($watch.Elapsed.TotalSeconds -ge 1080) {
+                        $progress.psDirectReadiness.deadlineExpired = $true
+                        if ($profileReady -eq $true) { $progress.psDirectReadiness.profileReadyObservedAfterDeadline = $true }
+                        Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null; break
+                    }
                     if ($profileReady -eq $true) { $progress.profileReady = $true; break }
                     Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null
                 }
-                catch { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null } }
+                catch {
+                    Add-CloudGuestReadinessFailure $progress.psDirectReadiness $readinessPhase $_
+                    if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue; $session = $null }
+                }
                 Start-Sleep -Seconds 10
             }
-            if ($null -eq $session) { throw 'guest-setup-psdirect-not-ready' }
+            if ($null -eq $session) { $progress.psDirectReadiness.deadlineExpired = $watch.Elapsed.TotalSeconds -ge 1080; throw 'guest-setup-psdirect-not-ready' }
             $progress.phase = 'exact-installed-os'
             $ready = Invoke-Command -Session $session -ScriptBlock {
                 $os = Get-CimInstance Win32_OperatingSystem

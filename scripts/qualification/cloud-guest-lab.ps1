@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-git.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-claude-public.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-claude-phase.ps1')
+. (Join-Path $PSScriptRoot 'cloud-guest-cancellation.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -24,9 +25,79 @@ $windowsIso = Join-Path $mediaRoot 'windows.iso'; $answerIso = Join-Path $mediaR
 $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard-user-lab'; startedAt = [DateTime]::UtcNow.ToString('o'); sourceSha = $env:EXPECTED_SOURCE_SHA;
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
-    claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
+    cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
+# Deletes only fixed disposable leaves after settled VM absence or no VM request.
+function Remove-CloudGuestClosedFiles([string]$Root, [string]$RunId, [string]$Attempt, $CreateAttempted, $HasVmId, $HasOwner, $Unknown, $RemovedObserved, $Mounted) {
+    $result = @{ eligible = $false; completed = $false; mode = 'refused'; failure = $null; files = [Collections.Generic.List[object]]::new() }
+    foreach ($flag in @($CreateAttempted, $HasVmId, $HasOwner, $Unknown, $RemovedObserved, $Mounted)) {
+        if ($flag -isnot [bool]) { $result.failure = 'state-invalid'; return $result }
+    }
+    if ($Unknown -or $Mounted) { $result.mode = 'not-eligible'; return $result }
+    $neverCreated = !$CreateAttempted -and !$HasVmId -and !$HasOwner -and !$RemovedObserved
+    if (!$neverCreated -and !($CreateAttempted -and $HasVmId -and $RemovedObserved)) { $result.mode = 'not-eligible'; return $result }
+    try {
+        if ($RunId -cnotmatch '^[0-9]{1,20}$' -or $Attempt -cnotmatch '^[0-9]{1,20}$') { throw 'closed-root-invalid' }
+        $expected = 'D:\aegis-cloud-guest-' + $RunId + '-' + $Attempt
+        if (![StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($Root), $expected)) { throw 'closed-root-invalid' }
+        $rootItem = Get-Item -LiteralPath $Root -Force -ErrorAction Stop
+        if ($rootItem -isnot [IO.DirectoryInfo]) { throw 'closed-root-invalid' }
+        $cursor = $rootItem
+        while ($null -ne $cursor) {
+            if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
+            $cursor = $cursor.Parent
+        }
+        $leaves = @(@{ id = 'answerIso'; path = 'media\answer.iso' }, @{ id = 'answerXml'; path = 'media\answer\Autounattend.xml' }, @{ id = 'windowsIso'; path = 'media\windows.iso' })
+        if (!$neverCreated) { $leaves = @(@{ id = 'guestVhd'; path = 'vm\guest.vhdx' }) + $leaves }
+        # Validate the entire finite set before any deletion, including ancestors.
+        function Read-ClosedItem([string]$Path) {
+            try { return Get-Item -LiteralPath $Path -Force -ErrorAction Stop }
+            catch [Management.Automation.ItemNotFoundException] { return $null }
+        }
+        $present = [Collections.Generic.List[object]]::new()
+        foreach ($leaf in $leaves) {
+            $path = Join-Path $Root $leaf.path
+            $parent = [IO.DirectoryInfo]::new([IO.Path]::GetDirectoryName($path))
+            while ($null -ne $parent -and $parent.FullName.Length -ge $expected.Length) {
+                $item = Read-ClosedItem $parent.FullName
+                if ($null -ne $item) {
+                    if ($item -isnot [IO.DirectoryInfo] -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
+                }
+                $parent = $parent.Parent
+            }
+            $file = Read-ClosedItem $path
+            if ($null -eq $file) { $result.files.Add(@{ file = $leaf.id; state = 'absent' }); continue }
+            if ($file -isnot [IO.FileInfo] -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-path-invalid' }
+            $present.Add(@{ file = $leaf.id; path = $path })
+        }
+        foreach ($item in $present) {
+            if ($item.file -in @('windowsIso', 'answerIso', 'guestVhd')) {
+                $images = @(Get-DiskImage -ImagePath $item.path -ErrorAction Stop)
+                if ($images.Count -ne 1 -or $images[0].Attached -isnot [bool] -or $images[0].Attached -or
+                    ![StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($images[0].ImagePath), $item.path)) { throw 'closed-image-unconfirmed' }
+            }
+        }
+        $result.eligible = $true; $result.mode = if ($neverCreated) { 'never-created' } else { 'exact-vm-absent' }
+        foreach ($item in $present) {
+            $stream = $null
+            try {
+                # Exclusive read/write open refuses locked/in-use files. Delete on
+                # close avoids a later pathname-based delete after releasing it.
+                $stream = [IO.FileStream]::new($item.path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
+                $bytes = $stream.Length; $stream.Dispose(); $stream = $null
+                if (Test-Path -LiteralPath $item.path -ErrorAction Stop) { throw 'closed-delete-unconfirmed' }
+                $result.files.Add(@{ file = $item.file; state = 'removed'; bytes = $bytes })
+            }
+            catch { $result.failure = 'closed-file-cleanup-failed'; $result.files.Add(@{ file = $item.file; state = 'failed'; hResult = $_.Exception.HResult }) }
+            finally { if ($null -ne $stream) { $stream.Dispose() } }
+        }
+        $result.completed = $null -eq $result.failure
+    }
+    catch { $result.failure = 'closed-file-validation-failed' }
+    return $result
+}
+
 function RecordDisk([string]$Phase) {
     $values = @('C', 'D') | ForEach-Object { $drive = Get-PSDrive -Name $_; @{ drive = $_; freeBytes = [long]$drive.Free; usedBytes = [long]$drive.Used } }
     $report.disks.Add(@{ phase = $Phase; capturedAt = [DateTime]::UtcNow.ToString('o'); drives = @($values) })
@@ -86,13 +157,14 @@ try {
         $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5; $computer = Get-CimInstance Win32_ComputerSystem -OperationTimeoutSec 5
         $report.host = @{ caption = $os.Caption; build = $os.BuildNumber; admin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); hypervisorPresent = $computer.HypervisorPresent; memoryBytes = [long]$computer.TotalPhysicalMemory; vmms = (Get-Service vmms).Status.ToString() }
         if (!$report.host.admin -or $report.host.vmms -ne 'Running' -or [long]$os.FreePhysicalMemory * 1024 -lt 6GB) { throw 'cloud-hyperv-admin-memory-unavailable' }
-        foreach ($relative in @('scripts/qualification/cloud-guest-lab.ps1', 'scripts/qualification/cloud-guest-vm.ps1', 'scripts/qualification/cloud-guest-media.ps1', 'scripts/qualification/cloud-guest-bootstrap.ps1', 'scripts/qualification/cloud-guest-task.cjs', 'scripts/qualification/cloud-hyperv-operations.ps1', 'scripts/qualification/protocol.cjs', 'scripts/qualification/receiver.cjs', 'scripts/qualification/client.cjs', 'scripts/qualification/cloud-guest-runtime.cjs', 'scripts/qualification/cloud-host-routes.ps1', 'scripts/qualification/route-protocol.cjs', 'scripts/qualification/route-client.cjs', 'scripts/qualification/route-receiver.cjs', 'scripts/qualification/route-oracle.cjs', 'scripts/qualification/cloud-guest-git.cjs', 'scripts/qualification/cloud-guest-git.ps1', 'scripts/qualification/git-runtime-manifest.json')) {
+        foreach ($relative in @('scripts/qualification/cloud-guest-lab.ps1', 'scripts/qualification/cloud-guest-vm.ps1', 'scripts/qualification/cloud-guest-media.ps1', 'scripts/qualification/cloud-guest-bootstrap.ps1', 'scripts/qualification/cloud-guest-task.cjs', 'scripts/qualification/cloud-hyperv-operations.ps1', 'scripts/qualification/protocol.cjs', 'scripts/qualification/receiver.cjs', 'scripts/qualification/client.cjs', 'scripts/qualification/cloud-guest-runtime.cjs', 'scripts/qualification/test-cloud-guest-cancellation.ps1', 'tests/fixtures/native-cloud-guest-cancellation/CancellationFixture.cs', 'tests/fixtures/native-cloud-guest-cancellation/cancellation-client.cjs', 'scripts/qualification/cloud-host-routes.ps1', 'scripts/qualification/route-protocol.cjs', 'scripts/qualification/route-client.cjs', 'scripts/qualification/route-receiver.cjs', 'scripts/qualification/route-oracle.cjs', 'scripts/qualification/cloud-guest-git.cjs', 'scripts/qualification/cloud-guest-git.ps1', 'scripts/qualification/git-runtime-manifest.json')) {
             $file = Get-Item -LiteralPath (Join-Path $project $relative) -Force
             if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'script-source-budget-failed' }
             $report.sourceHashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         }
         $report.compilerSha256 = (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant()
         foreach ($relative in @('cloud-guest-claude-public.ps1', 'cloud-guest-claude-phase.ps1', 'cloud-guest-claude-bootstrap.ps1',
+            'cloud-guest-cancellation.ps1', 'cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs',
             'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs',
             'claude-public/provenance.ps1', 'claude-public/official-manifest.json', 'claude-public/official-manifest.json.sig', 'claude-public/official-release-key.asc')) {
             $file = Get-Item -LiteralPath (Join-Path $PSScriptRoot $relative) -Force
@@ -131,22 +203,31 @@ try {
         $report.media.answerIsoBytes = $length; $answer = $null
     } | Out-Null
     Stage 'stage-fixed-runtime-and-host-controls' {
+        $report['runtimeStagingPhase'] = 'NodeSelect'
         $transfer = Join-Path $OutputRoot 'transfer'
         $node = Get-Item -LiteralPath (Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
         if ($node.Attributes -band [IO.FileAttributes]::ReparsePoint -or $node.Length -gt 256MB) { throw 'trusted-node-input-invalid' }
         Copy-Item -LiteralPath $node.FullName -Destination (Join-Path $transfer 'node.exe')
+        $report['runtimeStagingPhase'] = 'NodeVersion'
         $versionFile = Join-Path $OutputRoot 'temp\node-version.txt'; $errorFile = $versionFile + '.error'
         $exitCode = Invoke-CloudGuestNativeProcess $node.FullName @('--version') $versionFile $errorFile 5000
         if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
         $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
+        $report['runtimeStagingPhase'] = 'FixedRuntimeCopies'
         foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs', 'route-protocol.cjs', 'route-client.cjs', 'cloud-guest-git.cjs', 'cloud-guest-git.ps1', 'git-runtime-manifest.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
-        foreach ($leaf in @('cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        $report['runtimeStagingPhase'] = 'FixedClaudeCopies'
+        foreach ($leaf in @('cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs', 'cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        $report['runtimeStagingPhase'] = 'ClaudeProvenance'
         $report.claudeProvenance = Save-CloudGuestClaudeBinary $transfer (Join-Path $OutputRoot 'temp')
+        $report['runtimeStagingPhase'] = 'GitArchive'
         $gitArchive = Join-Path $transfer 'git-runtime.zip'
         Save-CloudGuestGitArchive $gitArchive
         $report.sourceHashes['git-runtime.zip'] = (Get-FileHash -LiteralPath $gitArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+        $report['runtimeStagingPhase'] = 'GitArchiveControls'
         & (Join-Path $PSScriptRoot 'test-cloud-guest-git.ps1') -OwnedFixtureRoot (Join-Path $OutputRoot 'temp') -PinnedArchivePath $gitArchive | Out-Null
+        $report['runtimeStagingPhase'] = 'GitInvocationControls'
         & (Join-Path $PSScriptRoot 'test-cloud-guest-git-invocation.ps1') | Out-Null
+        $report['runtimeStagingPhase'] = 'HostCanaries'
         $canaryEntries = @()
         foreach ($index in 1..2) {
             $selected = Join-Path $OutputRoot ('canaries\' + [guid]::NewGuid().ToString('N') + '.txt')
@@ -156,9 +237,11 @@ try {
             $canaryEntries += @{ path = $selected; sha256 = (Get-FileHash -LiteralPath $selected -Algorithm SHA256).Hash.ToLowerInvariant() }
         }
         $script:canaries = $canaryEntries
+        $report['runtimeStagingPhase'] = 'TransferManifest'
         $files = @(Get-ChildItem -LiteralPath $transfer -File | ForEach-Object { @{ name = $_.Name; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
         $manifestText = @{ schemaVersion = 1; scope = 'fixed-cloud-guest-task'; files = $files; hostCanaries = @($canaryEntries | ForEach-Object path) } | ConvertTo-Json -Depth 5
         [IO.File]::WriteAllText((Join-Path $transfer 'manifest.json'), $manifestText, [Text.UTF8Encoding]::new($false))
+        $report['runtimeStagingPhase'] = 'Complete'
     } | Out-Null
     Stage 'create-exact-owned-vm' {
         $initial = Invoke-CloudHyperVCommand recover $name $vmRoot $null
@@ -205,6 +288,17 @@ try {
     $report.claudeCorpusComplete = $report.claudePhase.passed -eq $true
     $report.hostCanariesUnchangedAfterTask = CanariesUnchanged
     if (!$report.claudeCorpusComplete -or !$report.hostCanariesUnchangedAfterTask) { throw 'claude-fixed-corpus-incomplete' }
+    $report.cancellationPhase = Stage 'fixed-cloud-cancellation' {
+        $value = Invoke-CloudGuestCancellationPhase $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') $report.guest $report.claudePhase
+        $script:report.cancellationPhase = $value
+        $script:report.cancellationControlsComplete = $value.passed -is [bool] -and $value.passed
+        $script:report.hostCanariesUnchangedAfterCancellation = CanariesUnchanged
+        if (!$report.cancellationControlsComplete -or !$report.hostCanariesUnchangedAfterCancellation) { throw 'cloud-cancellation-controls-refused' }
+        return $value
+    }
+    $report.cancellationControlsComplete = $report.cancellationPhase.passed -eq $true
+    $report.hostCanariesUnchangedAfterCancellation = CanariesUnchanged
+    if (!$report.cancellationControlsComplete -or !$report.hostCanariesUnchangedAfterCancellation) { throw 'cloud-cancellation-controls-refused' }
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {
@@ -229,16 +323,14 @@ finally {
     elseif ($report.removedObserved) { $report.operationSettlement = 'settled-and-exact-vm-absent' }
     try { if ($mounted) { Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false } } catch { $report.cleanupFailure = @{ stage = 'trusted-iso-dismount'; hResult = $_.Exception.HResult } }
     $report.hostCanariesUnchangedAfterRemoval = $canaries.Count -eq 2 -and (CanariesUnchanged)
-    # Only exact closed disposable files are removed. Never mount the guest disk.
-    if ($report.removedObserved -and !$mounted) {
-        foreach ($closed in @((Join-Path $vmRoot 'guest.vhdx'), $answerIso, (Join-Path $mediaRoot 'answer\Autounattend.xml'), $windowsIso)) {
-            try { if (Test-Path -LiteralPath $closed) { $file = Get-Item -LiteralPath $closed -Force; if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'closed-owned-file-invalid' }; Remove-Item -LiteralPath $closed -Force } }
-            catch { $report.cleanupFailure = @{ stage = 'closed-owned-file-cleanup'; hResult = $_.Exception.HResult } }
-        }
+    # Preserves all receipts, transfer files and unknown/in-use VM media.
+    $report['closedOwnedFilesCleanup'] = Remove-CloudGuestClosedFiles $OutputRoot $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT $createAttempted ([bool]$id) ($null -ne $owner) $unknown $report.removedObserved $mounted
+    if ($null -ne $report.closedOwnedFilesCleanup.failure -and $null -eq $report.cleanupFailure) {
+        $report.cleanupFailure = @{ stage = 'closed-owned-file-cleanup'; code = $report.closedOwnedFilesCleanup.failure }
     }
     RecordDisk 'after' | Out-Null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
-    $report.passed = $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
+    $report.passed = $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
     $json = $report | ConvertTo-Json -Depth 16
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 1MB) { throw 'guest-receipt-budget-failed' }
     [IO.File]::WriteAllText((Join-Path $OutputRoot 'evidence\cloud-windows11.json'), $json)

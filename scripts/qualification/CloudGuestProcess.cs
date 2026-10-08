@@ -152,9 +152,12 @@ public static class CloudGuestProcess
     internal static void QualifyDocumentedLoader(string sid) { documentedQualifiedSid = sid; }
     internal static Dictionary<string, object> RunLoaderProbe(string password, string sid, bool documented)
     { return RunPhase(password, sid, false, false, documented ? 2 : 1); }
-    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0)
+    internal static Dictionary<string, object> RunCancellation(string password, string sid, bool after)
+    { return RunPhase(password, sid, false, false, 0, after ? 2 : 1); }
+    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0, int cancellation = 0)
     {
-        Require(!(claude && witness) && loader >= 0 && loader <= 2, "fixed-phase-invalid");
+        Require(!(claude && witness) && loader >= 0 && loader <= 2 && cancellation >= 0 && cancellation <= 2 &&
+            (cancellation == 0 || (!claude && !witness && loader == 0)), "fixed-phase-invalid");
         if (loader == 0) Require(expectedSid != null && documentedQualifiedSid == expectedSid, "documented-loader-unqualified");
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
@@ -164,12 +167,12 @@ public static class CloudGuestProcess
             throw new InvalidOperationException("trusted-guest-bootstrap-required");
         const string trusted = @"C:\ProgramData\AegisCloudLab\trusted";
         const string root = @"C:\AegisLab";
-        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs"));
+        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, cancellation != 0 ? "cloud-cancellation-runtime.cjs" : (witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs")));
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
         CloudGuestClaudeReceiver claudeReceiver = null;
-        CloudGuestDesktop desktopOwner = null;
+        CloudGuestDesktop desktopOwner = null; CloudGuestCancellation.Descendant cancelChild = null;
         bool created = false, assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false, unassignedRootExitObserved = false; uint exit = 259;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
@@ -287,15 +290,36 @@ public static class CloudGuestProcess
                 receipt["trustedTestProcessObservation"] = "unknown";
                 receipt["acceptancePassed"] = false;
             }
-            else if (!witness)
+            else if (!witness && cancellation == 0)
             {
                 stage = "network-receiver-start";
                 receiver = new CloudGuestNetwork(job, receipt);
                 receipt["networkReceiverStartedAfterRuntimeReady"] = true;
                 receiver.BeforeRelease();
             }
-            stage = "project-release-ack";
-            runtime.ReleaseFixedTask(inventory); taskReleased = true;
+            if (cancellation != 1)
+            { stage = "project-release-ack"; runtime.ReleaseFixedTask(inventory); taskReleased = true; }
+            if (cancellation != 0)
+            {
+                receipt["cancellationReceiverStarted"] = false;
+                if (cancellation == 1) runtime.CheckBeforeCancellation(inventory);
+                if (cancellation == 2)
+                {
+                    stage = "cancellation-live-descendant";
+                    cancelChild = CloudGuestCancellation.Observe(job, child.Pid, image, expectedSid);
+                    cancelChild.Validate();
+                    GuestJobNative.RequireStandardPrincipal(cancelChild.Handle, expectedSid, taskSession);
+                    receipt["descendantPid"] = cancelChild.Pid; receipt["descendantBirthFileTime"] = cancelChild.Birth;
+                    receipt["descendantIdentityVerified"] = true;
+                }
+                stage = "cancellation-held-root";
+                Require(GuestJobNative.Birth(child.Process, job, child.Pid) == (long)receipt["birthFileTime"], "cancellation-held-root");
+                if (cancelChild != null) cancelChild.Validate();
+                GuestJobNative.RequireStandardPrincipal(child.Process, expectedSid, taskSession);
+                Require(String.Equals(GuestJobNative.Image(child.Process), image, StringComparison.OrdinalIgnoreCase), "cancellation-held-root");
+                receipt["cancellationHeldRootAlive"] = true; receipt["cancellationRequested"] = true;
+                goto CancelReady;
+            }
         WaitForRoot:
             stage = loader != 0 ? "loader-probe-deadline" : "task-deadline";
             uint waitBudget = loader != 0 || witness ? 5000 : (claude ? claudeReceiver.RemainingTaskWait() : 60000);
@@ -303,6 +327,7 @@ public static class CloudGuestProcess
             Require(GuestJobNative.WaitForSingleObject(child.Process, waitBudget) == 0, "task-deadline");
             stage = "task-exit-observation";
             RequireNative(GetExitCodeProcess(child.Process, out exit)); exitObserved = true;
+        CancelReady: ;
         }
         catch (Exception error)
         {
@@ -345,6 +370,11 @@ public static class CloudGuestProcess
                 receipt["cleanupWin32Error"] = terminationError;
                 unassignedRootExitObserved = ObserveRootExit(child.Process, receipt); // No Job closure claim for an unassigned process.
             }
+            if (cancellation != 0 && closure)
+            {
+                exitObserved = GetExitCodeProcess(child.Process, out exit);
+                receipt["descendantExitObserved"] = cancelChild != null && cancelChild.Exited;
+            }
             if (receiver != null)
             {
                 try { receiver.Finish(closure); }
@@ -373,12 +403,19 @@ public static class CloudGuestProcess
                 receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = !assigned && created && unassignedRootExitObserved && desktopOwner.Closed;
                 if (!desktopOwner.Closed && failureStage == null) failureStage = "private-desktop-close";
             }
+            if (cancelChild != null) cancelChild.Dispose();
             if (inventory != null) inventory.Dispose();
             if (token != IntPtr.Zero) GuestJobNative.CloseHandle(token);
             if (created && child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);
             if (created && child.Process != IntPtr.Zero) GuestJobNative.CloseHandle(child.Process);
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
+        }
+        if (cancellation != 0)
+        {
+            bool descendantExited = receipt.ContainsKey("descendantExitObserved") && receipt["descendantExitObserved"].Equals(true);
+            CloudGuestCancellation.Complete(receipt, cancellation == 2, failureStage, exitObserved, exit, closure, descendantExited);
+            return receipt;
         }
         if (loader != 0)
         {
@@ -471,4 +508,94 @@ public static class CloudGuestProcess
         } while (true);
         return false;
     }
+}
+
+// Fixed cancellation observations. This class exposes no production launcher.
+public static class CloudGuestCancellation
+{
+    public static Dictionary<string, object> BeforeRelease(string password, string sid)
+    { return CloudGuestProcess.RunCancellation(password, sid, false); }
+    public static Dictionary<string, object> AfterRelease(string password, string sid)
+    { return CloudGuestProcess.RunCancellation(password, sid, true); }
+
+    internal sealed class Descendant : IDisposable
+    {
+        internal readonly IntPtr Handle;
+        internal readonly uint Pid;
+        internal readonly long Birth;
+        private readonly IntPtr job;
+        private readonly string image, sid;
+        internal Descendant(IntPtr ownedJob, uint pid, string expectedImage, string expectedSid)
+        {
+            job = ownedJob; Pid = pid; image = expectedImage; sid = expectedSid;
+            Handle = GuestJobNative.OpenMember(pid);
+            try { Birth = GuestJobNative.Birth(Handle, job, Pid); Validate(); }
+            catch { GuestJobNative.CloseHandle(Handle); throw; }
+        }
+        internal void Validate()
+        {
+            GuestJobNative.Require(GuestJobNative.Birth(Handle, job, Pid) == Birth &&
+                String.Equals(GuestJobNative.Image(Handle), image, StringComparison.OrdinalIgnoreCase) &&
+                GuestJobNative.Principal(Handle) == sid);
+        }
+        internal bool Exited { get { return GuestJobNative.WaitForSingleObject(Handle, 0) == 0; } }
+        public void Dispose() { GuestJobNative.CloseHandle(Handle); }
+    }
+    internal static Descendant Observe(IntPtr job, uint rootPid, string image, string sid)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        do
+        {
+            var before = GuestJobNative.Counts(job);
+            uint[] members = GuestJobNative.Members(job); Descendant retained = null;
+            try
+            {
+                foreach (uint pid in members)
+                {
+                    if (pid == rootPid) continue;
+                    using (var candidate = new Descendant(job, pid, GuestJobNativeImage(job, pid), sid))
+                    {
+                        string observed = GuestJobNative.Image(candidate.Handle);
+                        if (String.Equals(observed, image, StringComparison.OrdinalIgnoreCase))
+                        { GuestJobNative.Require(retained == null); retained = new Descendant(job, pid, image, sid); }
+                        else GuestJobNative.Require(String.Equals(observed, Path.Combine(Environment.SystemDirectory, "conhost.exe"), StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+                var after = GuestJobNative.Counts(job);
+                GuestJobNative.Require(before.Total == after.Total && before.Active == after.Active && members.Length == after.Active);
+                if (retained != null) { retained.Validate(); return retained; }
+            }
+            catch { if (retained != null) retained.Dispose(); throw; }
+            System.Threading.Thread.Sleep(10);
+        } while (clock.ElapsedMilliseconds < 2000);
+        throw new InvalidDataException("cancellation-descendant-unavailable");
+    }
+    private static string GuestJobNativeImage(IntPtr job, uint pid)
+    {
+        IntPtr handle = GuestJobNative.OpenMember(pid);
+        try { GuestJobNative.Birth(handle, job, pid); return GuestJobNative.Image(handle); }
+        finally { GuestJobNative.CloseHandle(handle); }
+    }
+    internal static bool Complete(Dictionary<string, object> value, bool after, string failure,
+        bool rootExit, uint rootCode, bool closure, bool descendantExit)
+    {
+        value["case"] = after ? "after-release-live-descendant" : "before-project-release";
+        // The owner sets cancellationRequested only after held live observations.
+        bool cancelled = Bool(value, "cancellationRequested", true) && Bool(value, "cancellationHeldRootAlive", true) &&
+            Bool(value, "cleanupJobTerminationAccepted", true) && rootExit && rootCode == 137;
+        value["naturalCompletion"] = rootExit && rootCode != 137 ? (object)true : (cancelled ? (object)false : null);
+        value["descendantExitObserved"] = descendantExit;
+        value["exitCodeObserved"] = rootExit; value["exitCode"] = rootCode;
+        value["failureStage"] = failure; value["jobClosureConfirmed"] = closure;
+        bool pass = failure == null && Bool(value, "runtimeCallerAuthenticated", true) &&
+            Bool(value, "runtimeInitializedBeforeProject", true) && Bool(value, "heldIdentityBeforeRelease", true) &&
+            Bool(value, "taskReleased", after) && Bool(value, "cancellationRequested", true) && Bool(value, "cancellationHeldRootAlive", true) &&
+            Bool(value, "cleanupJobTerminationAccepted", true) && Bool(value, "privateDesktopHandlesClosedAfterJobClosure", true) &&
+            Bool(value, "cancellationReceiverStarted", false) && rootExit && rootCode == 137 && closure &&
+            (!after || (Bool(value, "descendantIdentityVerified", true) && descendantExit));
+        value["passed"] = pass; value["launchAllowed"] = false; value["e2Qualified"] = false; value["e3Qualified"] = false;
+        return pass;
+    }
+    private static bool Bool(Dictionary<string, object> value, string key, bool expected)
+    { object entry; return value.TryGetValue(key, out entry) && entry is bool && (bool)entry == expected; }
 }

@@ -80,6 +80,7 @@ function Get-CloudGuestFailureDetails([Exception]$Exception) {
     while ($null -ne $current.InnerException -and $depth -lt 8) { $current = $current.InnerException; $depth++ }
     # Only source-constant codes may cross the receipt boundary. Arbitrary inner
     # messages (including strings resembling codes) are never published.
+    $provenanceAllowed = @('binary-authenticode-refused', 'binary-hash-refused', 'binary-size-refused', 'claude-cloud-download-required', 'claude-download-budget-refused', 'claude-download-path-refused', 'claude-download-pin-refused', 'claude-download-size-refused', 'claude-provenance-refused', 'claude-provenance-scratch-not-fresh', 'claude-provenance-source-refused', 'manifest-pin-refused', 'manifest-signature-refused', 'metadata-hash-refused', 'metadata-refused', 'provenance-input-refused', 'provenance-reparse-refused', 'signature-output-limit', 'signature-process-deadline', 'signature-process-failed', 'signature-process-refused', 'signature-scratch-not-fresh')
     $allowed = @('boot-diagnostic-window-closed', 'boot-key-window-closed', 'boot-owned-vm-mismatch', 'boot-owned-vm-not-running', 'keyboard-query-id-invalid', 'keyboard-owned-vm-not-running', 'exact-vm-keyboard-unavailable', 'keyboard-owner-mismatch',
         'setup-key-result-missing', 'setup-key-return-unconfirmed', 'vm-provider-field-invalid', 'vm-provider-path-invalid',
         'native-wait-input-invalid', 'native-process-start-failed', 'native-process-deadline', 'native-output-budget-failed', 'native-exit-observation-unavailable', 'native-source-budget-failed', 'native-compile-failed',
@@ -93,7 +94,7 @@ function Get-CloudGuestFailureDetails([Exception]$Exception) {
         'setup-secret-cleanup-unconfirmed', 'guest-result-budget-failed', 'guest-controls-unconfirmed', 'guest-task-process-refused', 'guest-job-inventory-unavailable', 'trusted-guest-bootstrap-required',
         'host-route-owned-vm-refused', 'host-route-owned-vm-not-running', 'host-route-zero-nic-unconfirmed', 'host-route-private-ipv4-unavailable', 'host-route-source-required', 'host-route-start-refused', 'host-route-guest-job-closure-unconfirmed', 'host-route-client-result-refused', 'host-route-oracle-refused', 'host-route-oracle-output', 'host-route-oracle-deadline', 'host-route-frame-refused', 'host-route-frame-deadline', 'host-route-output-refused', 'host-route-exit-unconfirmed', 'job-create', 'job-limits', 'standard-user-create', 'job-assign', 'held-token-open', 'held-token-sid', 'held-token-admin', 'held-token-elevation', 'held-image', 'task-resume', 'task-deadline', 'task-exit', 'task-exit-observation', 'guest-job-closure')
     $parts = $current.Message.Split(':')
-    $fixed = $parts.Count -le 2 -and $allowed -ccontains $parts[0] -and ($parts.Count -eq 1 -or $parts[1] -cmatch '^[0-9]{1,10}$')
+    $fixed = ($provenanceAllowed -ccontains $current.Message) -or ($parts.Count -le 2 -and $allowed -ccontains $parts[0] -and ($parts.Count -eq 1 -or $parts[1] -cmatch '^[0-9]{1,10}$'))
     $code = if ($fixed) { $current.Message } else { 'bounded-stage-failed' }
     return @{ code = $code; hResult = $current.HResult; exceptionType = $current.GetType().FullName; innerDepth = $depth }
 }
