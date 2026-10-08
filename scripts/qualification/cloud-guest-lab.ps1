@@ -227,6 +227,17 @@ try {
         & (Join-Path $PSScriptRoot 'test-cloud-guest-git.ps1') -OwnedFixtureRoot (Join-Path $OutputRoot 'temp') -PinnedArchivePath $gitArchive | Out-Null
         $report['runtimeStagingPhase'] = 'GitInvocationControls'
         & (Join-Path $PSScriptRoot 'test-cloud-guest-git-invocation.ps1') | Out-Null
+        $report['runtimeStagingPhase'] = 'FixedSealedCopy'
+        $sealedOut = Join-Path $OutputRoot 'temp\sealed-copy-stage.json'; $sealedErr = $sealedOut + '.error'
+        $sealedCode = Invoke-CloudGuestNativeProcess $node.FullName @((Join-Path $PSScriptRoot 'cloud-sealed-copy-host.mjs'), $OutputRoot) $sealedOut $sealedErr 30000
+        if ($sealedCode -ne 0 -or (Get-Item -LiteralPath $sealedOut).Length -gt 16KB -or (Get-Item -LiteralPath $sealedErr).Length -ne 0) { throw 'fixed-sealed-copy-host-refused' }
+        $report['sealedCopyHost'] = [IO.File]::ReadAllText($sealedOut) | ConvertFrom-Json
+        if ($report.sealedCopyHost.passed -isnot [bool] -or !$report.sealedCopyHost.passed) { throw 'fixed-sealed-copy-host-refused' }
+        foreach ($leaf in @('cloud-sealed-copy.cjs', 'cloud-sealed-copy-verify.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        foreach ($leaf in @('cloud-sealed-copy.cjs', 'cloud-sealed-copy-host.mjs', 'cloud-sealed-copy-verify.ps1', 'sealed-import-build.mjs', 'sealed-import-oracle.mjs')) {
+            $report.sourceHashes['scripts/qualification/' + $leaf] = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $leaf)).Hash.ToLowerInvariant()
+        }
+        foreach ($row in $report.sealedCopyHost.fixture.sources) { $report.sourceHashes['tests/fixtures/sealed-import/' + $row.name] = $row.sha256 }
         $report['runtimeStagingPhase'] = 'HostCanaries'
         $canaryEntries = @()
         foreach ($index in 1..2) {
@@ -282,6 +293,15 @@ try {
     }
     $report.hostCanariesUnchangedAfterTask = CanariesUnchanged
     if (!$report.hostCanariesUnchangedAfterTask -or !$report.guest.guestResult.task.passed -or !$report.guest.hostRoutes.passed) { throw 'host-or-guest-task-control-failed' }
+    $sealedOut = Join-Path $OutputRoot 'temp\sealed-copy-recheck.json'; $sealedErr = $sealedOut + '.error'
+    $sealedNode = Join-Path $OutputRoot 'transfer\node.exe'
+    if ((Get-FileHash -LiteralPath $sealedNode).Hash.ToLowerInvariant() -cne $report.runtime.sha256) { throw 'fixed-sealed-copy-host-refused' }
+    $sealedCode = Invoke-CloudGuestNativeProcess $sealedNode @((Join-Path $PSScriptRoot 'cloud-sealed-copy-host.mjs'), $OutputRoot, 'recheck', $report.sealedCopyHost.bundleSha256) $sealedOut $sealedErr 10000
+    if ($sealedCode -ne 0 -or (Get-Item -LiteralPath $sealedOut).Length -gt 16KB -or (Get-Item -LiteralPath $sealedErr).Length -ne 0) { throw 'fixed-sealed-copy-host-refused' }
+    $report['sealedCopyHostRecheck'] = [IO.File]::ReadAllText($sealedOut) | ConvertFrom-Json
+    if ($report.sealedCopyHostRecheck.passed -isnot [bool] -or !$report.sealedCopyHostRecheck.passed -or
+        !$report.guest.guestResult.ContainsKey('sealedCopyControls') -or $report.guest.guestResult.sealedCopyControls.passed -isnot [bool] -or
+        !$report.guest.guestResult.sealedCopyControls.passed) { throw 'fixed-sealed-copy-guest-refused' }
     $report.claudePhase = Stage 'second-fixed-claude-guest-phase' {
         Invoke-CloudGuestClaudePhase $id $name $vmRoot $adminCredential $taskPassword (Join-Path $OutputRoot 'transfer') $report.guest
     }

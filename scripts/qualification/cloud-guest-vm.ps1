@@ -347,7 +347,7 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                 $trusted = 'C:\ProgramData\AegisCloudLab\trusted'
                 $manifest = Get-Content -LiteralPath "$trusted\manifest.json" -Raw | ConvertFrom-Json
                 foreach ($expected in $manifest.files) {
-                    if (($expected.name -notmatch '^[a-zA-Z0-9-]+\.(dll|exe|ps1|cjs)$' -and $expected.name -cnotin @('git-runtime.zip', 'git-runtime-manifest.json', 'claude-sum.test.cjs')) -or $expected.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'guest-transfer-manifest-invalid' }
+                    if (($expected.name -notmatch '^[a-zA-Z0-9-]+\.(dll|exe|ps1|cjs)$' -and $expected.name -cnotin @('git-runtime.zip', 'git-runtime-manifest.json', 'claude-sum.test.cjs', 'sealed-copy.aegis')) -or $expected.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'guest-transfer-manifest-invalid' }
                     $file = Get-Item -LiteralPath (Join-Path $trusted $expected.name) -Force
                     if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or
                         (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected.sha256) { throw 'guest-transfer-hash-mismatch' }

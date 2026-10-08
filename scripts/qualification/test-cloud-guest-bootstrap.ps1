@@ -75,12 +75,16 @@ $begin = $source.IndexOf('$downstreamState = Get-CloudGuestDownstreamState')
 $end = $source.IndexOf("`$bootstrapStage = 'os-receipt'", $begin)
 if ($begin -lt 0 -or $end -lt 0) { throw 'downstream-operation-unavailable' }
 $operation = [scriptblock]::Create($source.Substring($begin, $end - $begin))
-function RunDownstreamModel($ModelIdentity, [bool]$NetworkPass, [bool]$GitPass) {
+function RunDownstreamModel($ModelIdentity, [bool]$NetworkPass, [bool]$GitPass, [bool]$SealedPass = $true) {
     $identity = $ModelIdentity; $root = 'C:\fixed-model'; $trusted = 'C:\fixed-trusted-model'
     $script:downstreamReads = 0
     function Read-CloudGuestTaskDiagnostics { $script:downstreamReads++; return @{ status = 'verified'; task = @{ passed = $true; stage = 'completed' } } }
     function Read-CloudGuestNetworkControls { $script:downstreamReads++; return @{ passed = $NetworkPass; status = 'network-model' } }
     function Read-CloudGuestGitControls { $script:downstreamReads++; return @{ passed = $GitPass } }
+    function Read-CloudSealedCopyResult($NativeIdentity) {
+        if ((Get-CloudGuestDownstreamState $NativeIdentity) -cne 'released-closed') { return @{ passed = $false } }
+        $script:downstreamReads++; return @{ passed = $SealedPass }
+    }
     function Read-AdminControl { return 'guest-admin-dummy-control' }
     # Only the dummy admin canary read is substituted in this test model.
     $text = $operation.ToString().Replace("[IO.File]::ReadAllText('C:\ProgramData\AegisCloudLab\admin\dummy.txt')", '(Read-AdminControl)')
@@ -107,9 +111,14 @@ $ready = @{ passed = $true; taskReleased = $true; jobClosureConfirmed = $true; r
 foreach ($pair in @(@($true, $true), @($false, $true), @($true, $false), @($false, $false))) {
     $merged = RunDownstreamModel $ready $pair[0] $pair[1]
     $expected = if (!$pair[0]) { 'guest-network-controls-refused' } elseif (!$pair[1]) { 'guest-git-controls-refused' } else { $null }
-    CheckBootstrap ($merged.reads -eq 3 -and $merged.diagnostics.failureCode -ceq $expected -and
+    CheckBootstrap ($merged.reads -eq 4 -and $merged.diagnostics.failureCode -ceq $expected -and
         $merged.diagnostics.passed -eq ($pair[0] -and $pair[1]) -and $merged.diagnostics.task.passed -eq ($pair[0] -and $pair[1])) 'downstream-failure-order-or-positive-control-lost'
 }
+$sealedRefused = RunDownstreamModel $ready $true $true $false
+CheckBootstrap ($sealedRefused.reads -eq 4 -and !$sealedRefused.diagnostics.passed -and
+    !$sealedRefused.diagnostics.task.passed -and $sealedRefused.diagnostics.failureCode -ceq 'fixed-sealed-copy-guest-refused') 'sealed-copy-refusal-became-success'
+$priorRefused = RunDownstreamModel $ready $false $true $false
+CheckBootstrap ($priorRefused.diagnostics.failureCode -ceq 'guest-network-controls-refused') 'sealed-copy-masked-prior-native-cause'
 $result = InvokeBootstrapModel 'os-receipt' 'RefuseBootstrap' $earlyIdentity $earlyResult.diagnostics
 CheckBootstrap ($result.failureCode -ceq 'guest-task-process-refused' -and $result.identity.failureStage -ceq 'held-token-open' -and
     $result.bootstrapFailure.stage -ceq 'os-receipt' -and $result.downstreamChecks.state -ceq 'not-run') 'later-bootstrap-failure-overwrote-native-cause'
@@ -175,6 +184,11 @@ NeedRoute ($value.failure.nativeStage -ceq 'unknown' -and ($value | ConvertTo-Js
 @{ scope = 'actual-host-route-completion-pure-models'; passed = $routeChecks; cases = $routeChecks; nativeEffects = $false } | ConvertTo-Json -Compress
 
 # Connected regression: actual host staging AST -> actual guest validator AST.
+$helperBudgetRefused = $false
+try { Invoke-CloudGuestNativeProcess 'must-not-run.exe' @() '' '' 30001 | Out-Null }
+catch { $helperBudgetRefused = $_.Exception.Message -ceq 'native-wait-input-invalid' }
+if (!$helperBudgetRefused) { throw 'sealed-copy-helper-budget-boundary-lost' }
+Write-Host 'sealed-copy-helper-timeout-control:passed'
 function Test-CloudGuestTransferManifest([string]$SourceRoot, [string]$VmSourcePath) {
     $labPath = Join-Path $SourceRoot 'cloud-guest-lab.ps1'
     $tokens = $null; $errors = $null
@@ -204,6 +218,13 @@ function Test-CloudGuestTransferManifest([string]$SourceRoot, [string]$VmSourceP
     }
     function Get-Command { param($Name, $CommandType) if ($Name -cne 'node.exe') { throw 'transfer-unexpected-command' }; return [pscustomobject]@{ Source = $fakeNode } }
     function Invoke-CloudGuestNativeProcess($Binary, $Arguments, $Out, $Err, $Timeout) {
+        if ($Binary -ceq $fakeNode -and $Arguments.Count -eq 2 -and
+            [IO.Path]::GetFileName($Arguments[0]) -ceq 'cloud-sealed-copy-host.mjs') {
+            if ($Timeout -ne 30000 -or $Arguments[1] -cne $owned) { throw 'transfer-sealed-copy-scope-invalid' }
+            [IO.File]::WriteAllBytes((Join-Path $owned 'transfer\sealed-copy.aegis'), [byte[]]@(5))
+            [IO.File]::WriteAllText($Out, '{"passed":true,"fixture":{"sources":[]}}')
+            [IO.File]::WriteAllText($Err, ''); return 0
+        }
         if ($Binary -cne $fakeNode -or ($Arguments -join ',') -cne '--version') { throw 'transfer-unexpected-process' }
         [IO.File]::WriteAllText($Out, 'v22.23.3'); [IO.File]::WriteAllText($Err, ''); return 0
     }
@@ -222,7 +243,8 @@ function Test-CloudGuestTransferManifest([string]$SourceRoot, [string]$VmSourceP
     $generated = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $names = @($generated.files | ForEach-Object name)
     foreach ($name in @('guest-process.dll', 'node.exe', 'claude.exe', 'git-runtime.zip', 'git-runtime-manifest.json',
-        'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) {
+        'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs',
+        'sealed-copy.aegis', 'cloud-sealed-copy.cjs', 'cloud-sealed-copy-verify.ps1')) {
         if ($names -cnotcontains $name) { throw 'transfer-current-producer-leaf-missing' }
     }
     $vmAst = [Management.Automation.Language.Parser]::ParseFile($VmSourcePath, [ref]$tokens, [ref]$errors)
@@ -243,7 +265,8 @@ function Test-CloudGuestTransferManifest([string]$SourceRoot, [string]$VmSourceP
     if ($before.passed -or $before.code -cne 'guest-transfer-manifest-invalid' -or $before.leaf -cne 'claude-sum.test.cjs') { throw 'transfer-original-contract-defect-not-reproduced' }
     if (!(Validate $validation).passed) { throw 'transfer-current-generated-manifest-refused' }
     $checks = 2
-    foreach ($name in @('../claude-sum.test.cjs', '..\claude-sum.test.cjs', 'other.test.cjs', 'CLAUDE-sum.test.cjs', 'claude-sum.test.cjs.extra', 'claude-sum.test.cjs/child')) {
+    foreach ($name in @('../claude-sum.test.cjs', '..\claude-sum.test.cjs', 'other.test.cjs', 'CLAUDE-sum.test.cjs', 'claude-sum.test.cjs.extra', 'claude-sum.test.cjs/child',
+        '../sealed-copy.aegis', 'other.aegis', 'SEALED-copy.aegis')) {
         $generated.files[0].name = $name
         [IO.File]::WriteAllText($manifestPath, ($generated | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
         $denied = Validate $validation
