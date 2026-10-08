@@ -73,6 +73,42 @@ async function setup(callback, ledgerOverride, scope = context) {
 
 describe('session-operation lifetime races', () => {
   it.each(['revoke', 'cancel', 'expire'])(
+    'rechecks %s after the final consumed-record observation',
+    async (mode) => {
+      let effects = 0;
+      let time = Date.now();
+      session._setDepsForTest({ now: () => time });
+      const entered = deferred();
+      const release = deferred();
+      const owner = await setup(
+        () => {
+          effects++;
+        },
+        (ledger) => ({
+          ...ledger,
+          recheckConsumption: async (...args) => {
+            await ledger.recheckConsumption(...args);
+            entered.resolve();
+            await release.promise;
+          },
+        }),
+      );
+      const request = operation();
+      const capability = owner.issue(request);
+      const controller = new AbortController();
+      const pending = owner.broker.dispatch(capability, request, { signal: controller.signal });
+      await entered.promise;
+      if (mode === 'revoke') owner.authority.revoke();
+      if (mode === 'cancel') controller.abort();
+      if (mode === 'expire') time += 60000;
+      release.resolve();
+      expect((await pending).state).toBe('refused');
+      expect(effects).toBe(0);
+      expect(await owner.ledger.inspect(request.operationId)).toEqual({ state: 'not-dispatched' });
+    },
+  );
+
+  it.each(['revoke', 'cancel', 'expire'])(
     'rechecks %s while persistence is pending and dispatches zero effects',
     async (mode) => {
       let effects = 0;
@@ -87,9 +123,10 @@ describe('session-operation lifetime races', () => {
         (ledger) => ({
           ...ledger,
           consume: async (binding) => {
-            await ledger.consume(binding);
+            const reservation = await ledger.consume(binding);
             entered.resolve();
             await release.promise;
+            return reservation;
           },
         }),
       );
@@ -122,7 +159,7 @@ describe('session-operation lifetime races', () => {
         consume: async (binding) => {
           entered.resolve();
           await release.promise;
-          await ledger.consume(binding);
+          return ledger.consume(binding);
         },
       }),
     );

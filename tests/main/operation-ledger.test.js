@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -60,6 +60,31 @@ function consume(value) {
 }
 
 describe('bounded redacted operation ledger', () => {
+  it('binds private consumption reservations to their exact ledger and operation', async () => {
+    const ledger = await storage.createOperationLedger(directory);
+    const other = await storage.createOperationLedger(directory);
+    const first = binding();
+    const second = binding();
+    const reservation = await ledger.consume(first);
+    const next = await ledger.consume(second);
+    expect(Object.isFrozen(reservation)).toBe(true);
+    expect(Reflect.ownKeys(reservation)).toEqual([]);
+    await expect(ledger.recheckConsumption(reservation, first)).resolves.toBeUndefined();
+    await expect(ledger.recheckConsumption(next, second)).resolves.toBeUndefined();
+    await expect(ledger.recheckConsumption({}, first)).rejects.toThrow();
+    await expect(other.recheckConsumption(reservation, first)).rejects.toThrow();
+    await expect(ledger.recheckConsumption(reservation, second)).rejects.toThrow();
+    const spent = path.join(
+      directory,
+      createHash('sha256').update(first.operationId).digest('hex') + '.spent',
+    );
+    await fs.unlink(spent);
+    await expect(ledger.recheckConsumption(reservation, first)).rejects.toThrow();
+    await expect(ledger.recheckConsumption(next, second)).resolves.toBeUndefined();
+    await ledger.settle(second, 'completed');
+    await expect(ledger.recheckConsumption(next, second)).rejects.toThrow();
+  });
+
   it('spends exactly once across competing actual processes and keeps post-exit intent unknown', async () => {
     const value = binding();
     const work = [consume(value), consume(value)];

@@ -72,6 +72,92 @@ async function setup(callback, ledgerOverride, scope = context) {
 }
 
 describe('durable bound session-operation dispatch', () => {
+  it.each(['read', 'close'])(
+    'refuses the actual final consumed-record %s uncertainty',
+    async (mode) => {
+      let spentReads = 0;
+      storage._setDepsForTest({
+        fs: {
+          ...fs,
+          open: async (...args) => {
+            const handle = await fs.open(...args);
+            if (!String(args[0]).endsWith('.spent') || args[1] === 'wx' || ++spentReads !== 2)
+              return handle;
+            const read = handle.read.bind(handle);
+            const close = handle.close.bind(handle);
+            handle.read = (...params) =>
+              mode === 'read'
+                ? Promise.reject(Error('private final-read failure'))
+                : read(...params);
+            handle.close = async () => {
+              await close();
+              if (mode === 'close') throw Error('private final-close failure');
+            };
+            return handle;
+          },
+        },
+      });
+      let effects = 0;
+      const owner = await setup(() => {
+        effects++;
+      });
+      const request = operation();
+      const capability = owner.issue(request);
+      expect((await owner.broker.dispatch(capability, request)).state).toBe('refused');
+      expect(spentReads).toBe(2);
+      expect(effects).toBe(0);
+      expect((await owner.broker.dispatch(capability, request)).state).toBe('refused');
+      expect(effects).toBe(0);
+    },
+  );
+
+  it.each(['intact', 'missing', 'replaced', 'truncated', 'restored-bytes'])(
+    'rechecks actual consumed bytes after real lock release: %s',
+    async (mode) => {
+      let intercepted = false;
+      storage._setDepsForTest({
+        fs: {
+          ...fs,
+          unlink: async (filename) => {
+            await fs.unlink(filename);
+            if (intercepted || path.basename(filename) !== '.operation-lock') return;
+            intercepted = true;
+            const name = (await fs.readdir(directory)).find((entry) => entry.endsWith('.spent'));
+            const spent = path.join(directory, name);
+            const original = await fs.readFile(spent);
+            expect(JSON.parse(original).state).toBe('consumed');
+            if (mode === 'missing') await fs.unlink(spent);
+            if (mode === 'replaced') {
+              await fs.rename(spent, spent + '.retired');
+              await fs.writeFile(spent, original);
+            }
+            if (mode === 'truncated') await fs.writeFile(spent, '');
+            if (mode === 'restored-bytes') {
+              const stat = await fs.stat(spent);
+              await fs.writeFile(spent, 'damaged');
+              await fs.writeFile(spent, original);
+              await fs.utimes(spent, stat.atime, new Date(stat.mtimeMs + 1000));
+            }
+          },
+        },
+      });
+      let effects = 0;
+      const owner = await setup(() => {
+        effects++;
+        return { status: 'completed' };
+      });
+      const request = operation();
+      const capability = owner.issue(request);
+      expect((await owner.broker.dispatch(capability, request)).state).toBe(
+        mode === 'intact' ? 'completed' : 'refused',
+      );
+      expect(intercepted).toBe(true);
+      expect(effects).toBe(mode === 'intact' ? 1 : 0);
+      expect((await owner.broker.dispatch(capability, request)).state).toBe('refused');
+      expect(effects).toBe(mode === 'intact' ? 1 : 0);
+    },
+  );
+
   it('persists the irreversible attempt before invoking the effect callback', async () => {
     let persistedBeforeEffect = false;
     let effects = 0;
