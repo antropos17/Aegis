@@ -3,6 +3,16 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 const path = require("node:path").win32;
 const assert = require("node:assert/strict");
+let currentCase = "initialization", currentPhase = "source-load", completedCases = 0;
+// Fixed test metadata only: never publish assertion text, stacks or task bytes.
+process.on("uncaughtException", (error) => {
+  const errorKind = error.code === "ERR_SCRIPT_EXECUTION_TIMEOUT" ? "script-timeout" :
+    error.code === "ERR_ASSERTION" ? "assertion" : "other";
+  console.log(JSON.stringify({ cases: 25, passed: completedCases,
+    scope: "synthetic-task-source-behavior-no-guest-or-VM-effects",
+    diagnostic: { case: currentCase, phase: currentPhase, errorKind } }));
+  process.exitCode = 1;
+});
 const source = fs.readFileSync(
   path.join(__dirname, "cloud-guest-task.cjs"),
   "utf8",
@@ -10,6 +20,7 @@ const source = fs.readFileSync(
 const trusted = "C:\\ProgramData\\AegisCloudLab\\trusted";
 const root = "C:\\AegisLab";
 function run(mode) {
+  currentCase = mode; currentPhase = "source-execution";
   const host = [
     "D:\\aegis-cloud-guest-123-1\\canaries\\" + "a".repeat(32) + ".txt",
     "D:\\aegis-cloud-guest-123-1\\canaries\\" + "b".repeat(32) + ".txt",
@@ -167,6 +178,7 @@ function run(mode) {
     { timeout: 1000 },
   );
   const result = JSON.parse(files.get(path.join(root, "work", "result.json")));
+  currentPhase = "assertions";
   return { result, process, files };
 }
 const positive = run("positive");
@@ -185,6 +197,7 @@ assert.equal(
     ),
   10,
 );
+completedCases++;
 for (const mode of [
   "git-partial",
   "git-nonzero",
@@ -249,6 +262,7 @@ for (const mode of [
       false,
     );
   }
+  completedCases++;
 }
 for (const mode of ["route-partial", "route-nonzero", "route-deadline", "route-malformed", "route-stderr", "route-permission"]) {
   const refused = run(mode);
@@ -257,6 +271,7 @@ for (const mode of ["route-partial", "route-nonzero", "route-deadline", "route-m
   assert.equal(refused.result.networkControlsComplete, true);
   assert.equal(refused.files.has(path.join(root, "work", "git-result.json")), false);
   assert.equal(JSON.stringify(refused.result).includes("PRIVATE_SENTINEL"), false);
+  completedCases++;
 }
 
 console.log(

@@ -58,7 +58,7 @@ format, rejects reparse points and output above 4,096 bytes, and retains the
 manifest has SHA-256
 `9bd981396c381ca1842c3e0384684ec2d2e8b128e3824e34efeeb666e58233b9`.
 Independent Astra review approved exactly the PowerShell test wrapper and C#
-fixture. Integrated Windows PowerShell 5.1 validation passed the 68 existing pure
+fixture. Integrated Windows PowerShell 5.1 validation passed all existing pure
 controls, both actual same-principal cancellation cases and two diagnostic
 controls; the compiled fixture was 76,288 bytes.
 
@@ -95,6 +95,54 @@ is retained as a failed setup attempt. This is separate from the earlier local
 native refusal. One bounded fresh attempt is justified with unchanged runtime
 predicates and setup deadline; repeated setup failure requires bounded readiness
 diagnostics before another retry.
+
+## Hosted preflight refusal
+
+[Run 37727519745](https://github.com/antropos17/Aegis/actions/runs/37727519745)
+at `f7bc5790a64767952e9b4c07af3c990cdf0d65ce` stopped in hosted preflight.
+Three actual same-principal shell cases passed, then the shell model wrapper
+reported `shell-controls-refused`. Its original wrapper removed stdout/stderr
+without retaining fixed failure details, so the failing model and cause are
+unknown. The VM execution step was skipped, and no VM receipt was produced.
+This run therefore supplies no second Windows Setup or cancellation observation.
+The preserved preflight log has SHA-256
+`ae13002805de880539185bb65dd80397ea9b55fc39e741355ad4275e55ad08f8`.
+
+The reviewed shell-test repair retains fixed case/phase/error categories, child
+exit status and stream byte counts before cleanup, with strict schema and label
+validation. All original assertions, the model's 1,000-ms VM timeout, 5,000-ms
+model process budget and 15,000-ms native budget are unchanged. The frozen donor
+manifest is `22dd252b99b7fe5a6a7a115b4d786ba382c9a7e71b04a56714480d16a12a3f00`.
+Independent Astra review approved its three test files and exact ignore-rule
+exception. Integrated PS5 execution passed eight wrapper controls, four actual
+Node executions of altered test copies, the native shell cases and all original
+model cases. The baseline missing-diagnostic regression fails at the expected
+assertion. These results repair evidence loss without identifying cloud26's
+historical refusal cause.
+
+## Readiness deadline and diagnostics
+
+Source review found a separate readiness defect: the original loop checked its
+1,080-second limit before blocking remoting calls, so a true response arriving
+at 1,081 seconds could still admit downstream work. The repaired caller checks
+the same limit after session acquisition and after the profile response, then
+closes and clears expired sessions. It preserves the observed establishment
+history and records rejected late profile readiness separately.
+
+Readiness evidence now retains capped attempt/failure counts and fixed first/
+last failure metadata: phase, exception category and numeric HRESULT. It excludes
+raw messages, credentials, paths, usernames and remote payloads. All six guest
+command bodies, the ten-second polling interval and outer worker deadline remain
+unchanged. A blocked provider call is still governed by that outer worker fence.
+
+Independent Astra review approved the frozen two-file donor with manifest
+SHA-256 `4be38ec55fc6f87d7e3b7cfc5f0549dba5152a892d2c62cae56e8d721cd9841d`.
+The baseline/candidate regression demonstrates the late-admission defect and
+its rejection after repair. Explicit Windows PowerShell 5.1 passed all 25
+source-extracted readiness controls, including cleanup, recovery, sticky history,
+boundary times and redaction. The integrated maintained bootstrap test also
+passed. These command-double tests do not establish an actual PS Direct failure
+cause or a completed guest cancellation observation.
 
 These cases cover fixed owner-requested cancellation only. Full terminal I/O,
 crash/reboot recovery, all host routes and production cancellation interfaces

@@ -267,3 +267,96 @@ function Test-CloudGuestTransferManifest([string]$SourceRoot, [string]$VmSourceP
     return $result
 }
 Test-CloudGuestTransferManifest $PSScriptRoot (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1') | ConvertTo-Json -Compress -Depth 4
+
+function Test-CloudGuestReadinessDiagnostics([string]$VmSourcePath) {
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile($VmSourcePath, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'readiness-source-parser-refused' }
+    foreach ($name in @('New-CloudGuestReadinessObservation', 'Step-CloudGuestReadinessAttempt', 'Add-CloudGuestReadinessFailure')) {
+        $definition = @($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]}, $true) | Where-Object Name -ceq $name)
+        if ($definition.Count -ne 1) { throw 'readiness-helper-seam-refused' }
+        . ([scriptblock]::Create($definition[0].Extent.Text))
+    }
+    $loops = @($ast.FindAll({param($node) $node -is [Management.Automation.Language.WhileStatementAst] -and $node.Extent.Text.StartsWith('while ($watch.Elapsed.TotalSeconds -lt 1080)')}, $true))
+    $guards = @($ast.FindAll({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text.Contains("throw 'guest-setup-psdirect-not-ready'")}, $true))
+    if ($loops.Count -ne 1 -or $guards.Count -ne 1) { throw 'readiness-loop-seam-refused' }
+    $loop = [scriptblock]::Create($loops[0].Extent.Text + "`n" + $guards[0].Extent.Text + "`nreturn `$session")
+    $checks = [Collections.Generic.List[bool]]::new()
+    function NeedReadiness([bool]$Value) { if (!$Value) { throw 'readiness-behavior-control-refused' }; $checks.Add($true) }
+    function RunReadinessModel([string]$Mode, [double]$Start = 0) {
+        $state = @{ sessionCalls = 0; profileCalls = 0; removed = 0; sleeps = 0; downstream = 0 }
+        $watch = @{ Elapsed = @{ TotalSeconds = $Start } }; $lastDisk = -60
+        $diskSamples = [Collections.Generic.List[object]]::new()
+        $progress = @{ sessionEstablished = $false; profileReady = $false; psDirectReadiness = (New-CloudGuestReadinessObservation) }
+        $session = $null; $Admin = $null; $Id = '11111111-2222-3333-4444-555555555555'; $VmRoot = 'X:\fixed-test-only'
+        function Get-PSDrive { param($Name) return @{ Free = 32GB } }
+        function Get-Item { param($LiteralPath, [switch]$Force) return @{ PSIsContainer = $false; Attributes = 0; Length = 4096L } }
+        function New-PSSession {
+            param($VMId, $Credential, $ErrorAction)
+            $state.sessionCalls++
+            if ($Mode -in @('session-errors', 'unknown-error') -or ($Mode -eq 'recover' -and $state.sessionCalls -le 2) -or
+                ($Mode -eq 'sticky' -and $state.sessionCalls -gt 1)) {
+                $exception = if ($Mode -eq 'unknown-error') { [IO.IOException]::new('SECRET_MESSAGE C:\SECRET_PATH') } else { [UnauthorizedAccessException]::new('SECRET_MESSAGE C:\SECRET_PATH') }
+                throw [Management.Automation.ErrorRecord]::new($exception, 'SECRET_FQID', [Management.Automation.ErrorCategory]::OpenError, 'SECRET_USERNAME')
+            }
+            if ($Mode -eq 'session-late') { $watch.Elapsed.TotalSeconds = 1080 }
+            return @{ fixedTestSession = $true }
+        }
+        function Invoke-Command {
+            param($Session, $ScriptBlock)
+            $state.profileCalls++
+            if ($Mode -eq 'profile-errors') { throw [InvalidOperationException]::new('SECRET_MESSAGE C:\SECRET_PATH') }
+            if ($Mode -in @('profile-false', 'sticky')) { return $false }
+            if ($Mode -eq 'profile-late') { $watch.Elapsed.TotalSeconds = 1081 }
+            if ($Mode -eq 'profile-boundary') { $watch.Elapsed.TotalSeconds = 1080 }
+            if ($Mode -eq 'profile-before-boundary') { $watch.Elapsed.TotalSeconds = 1079.999 }
+            return $true
+        }
+        function Remove-PSSession { param($Session, $ErrorAction) $state.removed++ }
+        function Start-Sleep { param($Seconds) if ($Seconds -ne 10) { throw 'readiness-poll-changed' }; $state.sleeps++; $watch.Elapsed.TotalSeconds += 360 }
+        $refused = $false
+        try { $retained = & $loop; if ($null -ne $retained) { $state.downstream++ } }
+        catch { if ($_.Exception.Message -cne 'guest-setup-psdirect-not-ready') { throw }; $refused = $true }
+        return @{ state = $state; progress = $progress; refused = $refused }
+    }
+    $never = RunReadinessModel 'session-errors'
+    NeedReadiness ($never.refused -and !$never.progress.sessionEstablished -and !$never.progress.profileReady -and $never.state.profileCalls -eq 0 -and $never.state.downstream -eq 0)
+    NeedReadiness ($never.progress.psDirectReadiness.attempts -eq 3 -and $never.progress.psDirectReadiness.failures -eq 3 -and $never.progress.psDirectReadiness.deadlineExpired)
+    NeedReadiness ($never.progress.psDirectReadiness.firstFailure.attempt -eq 1 -and $never.progress.psDirectReadiness.lastFailure.attempt -eq 3 -and $never.progress.psDirectReadiness.lastFailure.phase -ceq 'SessionCreate')
+    NeedReadiness ($never.progress.psDirectReadiness.firstFailure.hresult -is [int] -and $never.progress.psDirectReadiness.firstFailure.category -ceq 'OpenError')
+    $falseProfile = RunReadinessModel 'profile-false'
+    NeedReadiness ($falseProfile.refused -and $falseProfile.progress.sessionEstablished -and !$falseProfile.progress.profileReady -and $falseProfile.state.removed -eq 3 -and $falseProfile.state.downstream -eq 0)
+    NeedReadiness ($falseProfile.progress.psDirectReadiness.lastFailure.phase -ceq 'ProfileCheck' -and $falseProfile.progress.psDirectReadiness.lastFailure.category -ceq 'ProfileNotReady' -and $null -eq $falseProfile.progress.psDirectReadiness.lastFailure.hresult)
+    $profileError = RunReadinessModel 'profile-errors'
+    NeedReadiness ($profileError.refused -and $profileError.progress.sessionEstablished -and !$profileError.progress.profileReady -and $profileError.state.removed -eq 3)
+    NeedReadiness ($profileError.progress.psDirectReadiness.firstFailure.phase -ceq 'ProfileCheck' -and $profileError.progress.psDirectReadiness.firstFailure.exceptionKind -ceq 'InvalidOperationException')
+    $sticky = RunReadinessModel 'sticky'
+    NeedReadiness ($sticky.refused -and $sticky.progress.sessionEstablished -and !$sticky.progress.profileReady -and $sticky.state.removed -eq 1 -and $sticky.state.downstream -eq 0)
+    NeedReadiness ($sticky.progress.psDirectReadiness.firstFailure.phase -ceq 'ProfileCheck' -and $sticky.progress.psDirectReadiness.lastFailure.phase -ceq 'SessionCreate')
+    $recover = RunReadinessModel 'recover'
+    NeedReadiness (!$recover.refused -and $recover.progress.sessionEstablished -and $recover.progress.profileReady -and $recover.state.downstream -eq 1 -and $recover.state.removed -eq 0)
+    NeedReadiness ($recover.progress.psDirectReadiness.attempts -eq 3 -and $recover.progress.psDirectReadiness.failures -eq 2 -and !$recover.progress.psDirectReadiness.deadlineExpired)
+    $unknown = RunReadinessModel 'unknown-error'
+    NeedReadiness ($unknown.progress.psDirectReadiness.lastFailure.exceptionKind -ceq 'Other')
+    $serialized = @($never, $falseProfile, $profileError, $sticky, $recover, $unknown) | ForEach-Object { $_.progress.psDirectReadiness } | ConvertTo-Json -Depth 6
+    NeedReadiness ($serialized -notmatch 'SECRET_|Message|FQID|Username|TargetObject|C:\\SECRET')
+    foreach ($mode in @('session-late', 'profile-late', 'profile-boundary')) {
+        $late = RunReadinessModel $mode 1079
+        NeedReadiness ($late.refused -and $late.progress.sessionEstablished -and $late.state.removed -eq 1 -and $late.state.downstream -eq 0 -and $late.progress.psDirectReadiness.deadlineExpired)
+        NeedReadiness (!$late.progress.profileReady -and $late.progress.psDirectReadiness.profileReadyObservedAfterDeadline -eq ($mode -ne 'session-late'))
+    }
+    $before = RunReadinessModel 'profile-before-boundary' 1079
+    NeedReadiness (!$before.refused -and $before.progress.profileReady -and $before.state.downstream -eq 1 -and $before.state.removed -eq 0)
+    $expired = RunReadinessModel 'recover' 1080
+    NeedReadiness ($expired.refused -and $expired.state.sessionCalls -eq 0 -and $expired.state.downstream -eq 0)
+    $bounded = New-CloudGuestReadinessObservation; $bounded.attempts = 4094; $bounded.failures = 4094
+    Step-CloudGuestReadinessAttempt $bounded; Add-CloudGuestReadinessFailure $bounded 'ProfileCheck' $null
+    $first = $bounded.firstFailure
+    Step-CloudGuestReadinessAttempt $bounded; Add-CloudGuestReadinessFailure $bounded 'SessionCreate' ([Management.Automation.ErrorRecord]::new([TimeoutException]::new('SECRET'), 'SECRET', [Management.Automation.ErrorCategory]::OperationTimeout, $null))
+    NeedReadiness ($bounded.attempts -eq 4095 -and $bounded.failures -eq 4095 -and $bounded.attemptsCapped -and $bounded.failuresCapped)
+    NeedReadiness ([object]::ReferenceEquals($first, $bounded.firstFailure) -and $bounded.lastFailure.phase -ceq 'SessionCreate')
+    NeedReadiness ($bounded.lastFailure.Keys.Count -eq 5 -and $bounded.Keys.Count -eq 8 -and ($bounded | ConvertTo-Json -Depth 5).Length -lt 2048)
+    return @{ kind = 'source-extracted-psdirect-readiness-controls'; checks = $checks.Count; powerShell = $PSVersionTable.PSVersion.ToString();
+        vmEffects = $false; guestCommandsExecuted = $false; nativeExecuted = $false; sourceSha256 = (Get-FileHash -LiteralPath $VmSourcePath -Algorithm SHA256).Hash.ToLowerInvariant() }
+}
+Test-CloudGuestReadinessDiagnostics (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1') | ConvertTo-Json -Compress
