@@ -77,3 +77,76 @@ $report = @{ schemaVersion = 1; scope = 'pure-actual-Save-captured-verifier-Stri
 [IO.File]::WriteAllText((Join-Path $owned 'result.json'), ($report | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
 $report | ConvertTo-Json -Compress -Depth 4
 # Exact finite closed files retained for review; no deletion retry/global cleanup.
+
+# Source-backed projection and Stage catch controls; no staging effects execute.
+function Test-CloudGuestStagingDiagnostics([string]$SupportRoot, [string]$SourceRoot, [string]$BaselineRoot = '') {
+    function Read-StagingAst([string]$Path) {
+        $tokens = $null; $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$errors)
+        if ($errors.Count) { throw 'staging-control-parse-refused' }
+        return $ast
+    }
+    function Load-StagingFunction($Ast, [string]$Name) {
+        $found = @($Ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $Name }, $true))
+        if ($found.Count -ne 1) { throw 'staging-control-source-refused' }
+        return [scriptblock]::Create($found[0].Extent.Text)
+    }
+    $media = Read-StagingAst (Join-Path $SupportRoot 'cloud-guest-media.ps1')
+    . (Load-StagingFunction $media 'Get-CloudGuestFailureDetails')
+    $checks = 0; $codes = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($relative in @('scripts/qualification/cloud-guest-claude-public.ps1', 'scripts/qualification/claude-public/provenance.ps1', 'scripts/qualification/CloudGuestClaudeDownload.cs')) {
+        $source = [IO.File]::ReadAllText((Join-Path $SourceRoot $relative))
+        foreach ($match in [regex]::Matches($source, 'throw (?:new InvalidOperationException\()?[''"]([a-z][a-z0-9-]+)[''"]')) { [void]$codes.Add($match.Groups[1].Value) }
+    }
+    if ($codes.Count -ne 22) { throw 'staging-control-code-corpus-refused' }
+    foreach ($code in $codes) {
+        if ((Get-CloudGuestFailureDetails ([InvalidOperationException]::new($code))).code -cne $code) { throw 'staging-control-code-lost' }; $checks++
+        foreach ($altered in @($code.ToUpperInvariant(), ($code + ':5'), ($code + ':dummy-secret'))) {
+            if ((Get-CloudGuestFailureDetails ([InvalidOperationException]::new($altered))).code -cne 'bounded-stage-failed') { throw 'staging-control-message-leaked' }; $checks++
+        }
+    }
+    foreach ($message in @('unknown-refusal', 'dummy-password=user-path', 'manifest-signature-refused dummy-password', 'manifest-signature-refused:5:dummy-secret')) {
+        if ((Get-CloudGuestFailureDetails ([InvalidOperationException]::new($message))).code -cne 'bounded-stage-failed') { throw 'staging-control-message-leaked' }; $checks++
+    }
+    # Existing numeric native diagnostics remain compatible.
+    if ((Get-CloudGuestFailureDetails ([InvalidOperationException]::new('held-token-open:5'))).code -cne 'held-token-open:5') { throw 'staging-control-existing-code-lost' }; $checks++
+    function Invoke-StagingCaller([string]$Root, [string]$Message, [bool]$Successful) {
+        $lab = Read-StagingAst (Join-Path $Root 'cloud-guest-lab.ps1')
+        . (Load-StagingFunction $lab 'Stage')
+        $commands = @($lab.FindAll({ param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Stage' -and $node.CommandElements.Count -eq 3 -and $node.CommandElements[1].Extent.Text -ceq "'stage-fixed-runtime-and-host-controls'" }, $true))
+        if ($commands.Count -ne 1) { throw 'staging-control-caller-refused' }
+        $statements = @($commands[0].CommandElements[2].ScriptBlock.EndBlock.Statements)
+        $selected = @($statements | Where-Object { $_.Extent.Text -ceq "`$report['runtimeStagingPhase'] = 'ClaudeProvenance'" -or $_.Extent.Text.StartsWith('$report.claudeProvenance = Save-CloudGuestClaudeBinary ', [StringComparison]::Ordinal) })
+        $saveCount = @($selected | Where-Object { $_.Extent.Text.StartsWith('$report.claudeProvenance = ', [StringComparison]::Ordinal) }).Count
+        if ($saveCount -ne 1 -or $selected.Count -gt 2) { throw 'staging-control-caller-refused' }
+        $operation = [scriptblock]::Create(($selected | ForEach-Object { $_.Extent.Text }) -join "`n")
+        $report = @{ stages = [Collections.Generic.List[object]]::new(); failure = $null; claudeProvenance = $null }
+        $OutputRoot = [IO.Path]::GetTempPath(); $transfer = Join-Path $OutputRoot 'staging-control-no-files'
+        $called = 0
+        function Save-CloudGuestClaudeBinary([string]$Transfer, [string]$Scratch) {
+            $script:stagingControlCalled++
+            if ($Successful) { return @{ observation = 'fixed-control-only' } }
+            throw [InvalidOperationException]::new($Message)
+        }
+        $script:stagingControlCalled = 0; $caught = $false; $sameFailure = $false
+        try { Stage 'stage-fixed-runtime-and-host-controls' $operation | Out-Null }
+        catch { $caught = $true; $sameFailure = $_.Exception.Message -ceq $Message }
+        if ($script:stagingControlCalled -ne 1 -or $report.stages.Count -ne 1) { throw 'staging-control-caller-not-traversed' }
+        return @{ report = $report; caught = $caught; primaryFailureRetained = $sameFailure }
+    }
+    $fixed = Invoke-StagingCaller $SupportRoot 'manifest-signature-refused' $false
+    if (!$fixed.caught -or !$fixed.primaryFailureRetained -or $fixed.report.failure.code -cne 'manifest-signature-refused' -or $fixed.report.runtimeStagingPhase -cne 'ClaudeProvenance' -or $null -ne $fixed.report.claudeProvenance) { throw 'staging-control-connected-failure-lost' }; $checks++
+    $unknown = Invoke-StagingCaller $SupportRoot 'dummy-password=user-path' $false
+    if (!$unknown.caught -or !$unknown.primaryFailureRetained -or $unknown.report.failure.code -cne 'bounded-stage-failed' -or ($unknown.report | ConvertTo-Json -Depth 5) -match 'dummy-password|user-path') { throw 'staging-control-connected-message-leaked' }; $checks++
+    $success = Invoke-StagingCaller $SupportRoot '' $true
+    if ($success.caught -or $null -ne $success.report.failure -or !$success.report.stages[0].passed -or $success.report.runtimeStagingPhase -cne 'ClaudeProvenance') { throw 'staging-control-success-changed' }; $checks++
+    $baseline = $null
+    if ($BaselineRoot) {
+        . (Load-StagingFunction (Read-StagingAst (Join-Path $BaselineRoot 'cloud-guest-media.ps1')) 'Get-CloudGuestFailureDetails')
+        $before = Invoke-StagingCaller $BaselineRoot 'manifest-signature-refused' $false
+        if (!$before.caught -or !$before.primaryFailureRetained -or $before.report.failure.code -cne 'bounded-stage-failed' -or $before.report.ContainsKey('runtimeStagingPhase')) { throw 'staging-control-baseline-not-reproduced' }
+        $baseline = @{ code = $before.report.failure.code; checkpointAbsent = $true; originalFailureRetained = $true }; $checks++
+    }
+    return @{ scope = 'pure-source-extracted-Stage-and-fixed-refusal-projection'; checks = $checks; passed = $true; shellVersion = $PSVersionTable.PSVersion.ToString(); baseline = $baseline; candidate = @{ code = $fixed.report.failure.code; checkpoint = $fixed.report.runtimeStagingPhase; originalFailureRetained = $true }; nativeExecuted = $false; downloads = 0; vmEffects = $false }
+}
+Test-CloudGuestStagingDiagnostics $PSScriptRoot $ProjectRoot | ConvertTo-Json -Depth 5 -Compress

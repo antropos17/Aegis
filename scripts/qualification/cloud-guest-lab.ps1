@@ -133,22 +133,31 @@ try {
         $report.media.answerIsoBytes = $length; $answer = $null
     } | Out-Null
     Stage 'stage-fixed-runtime-and-host-controls' {
+        $report['runtimeStagingPhase'] = 'NodeSelect'
         $transfer = Join-Path $OutputRoot 'transfer'
         $node = Get-Item -LiteralPath (Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
         if ($node.Attributes -band [IO.FileAttributes]::ReparsePoint -or $node.Length -gt 256MB) { throw 'trusted-node-input-invalid' }
         Copy-Item -LiteralPath $node.FullName -Destination (Join-Path $transfer 'node.exe')
+        $report['runtimeStagingPhase'] = 'NodeVersion'
         $versionFile = Join-Path $OutputRoot 'temp\node-version.txt'; $errorFile = $versionFile + '.error'
         $exitCode = Invoke-CloudGuestNativeProcess $node.FullName @('--version') $versionFile $errorFile 5000
         if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
         $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
+        $report['runtimeStagingPhase'] = 'FixedRuntimeCopies'
         foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs', 'route-protocol.cjs', 'route-client.cjs', 'cloud-guest-git.cjs', 'cloud-guest-git.ps1', 'git-runtime-manifest.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        $report['runtimeStagingPhase'] = 'FixedClaudeCopies'
         foreach ($leaf in @('cloud-guest-cancellation-bootstrap.ps1', 'cloud-cancellation-runtime.cjs', 'cloud-cancellation-task.cjs', 'cloud-cancellation-child.cjs', 'cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        $report['runtimeStagingPhase'] = 'ClaudeProvenance'
         $report.claudeProvenance = Save-CloudGuestClaudeBinary $transfer (Join-Path $OutputRoot 'temp')
+        $report['runtimeStagingPhase'] = 'GitArchive'
         $gitArchive = Join-Path $transfer 'git-runtime.zip'
         Save-CloudGuestGitArchive $gitArchive
         $report.sourceHashes['git-runtime.zip'] = (Get-FileHash -LiteralPath $gitArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+        $report['runtimeStagingPhase'] = 'GitArchiveControls'
         & (Join-Path $PSScriptRoot 'test-cloud-guest-git.ps1') -OwnedFixtureRoot (Join-Path $OutputRoot 'temp') -PinnedArchivePath $gitArchive | Out-Null
+        $report['runtimeStagingPhase'] = 'GitInvocationControls'
         & (Join-Path $PSScriptRoot 'test-cloud-guest-git-invocation.ps1') | Out-Null
+        $report['runtimeStagingPhase'] = 'HostCanaries'
         $canaryEntries = @()
         foreach ($index in 1..2) {
             $selected = Join-Path $OutputRoot ('canaries\' + [guid]::NewGuid().ToString('N') + '.txt')
@@ -158,9 +167,11 @@ try {
             $canaryEntries += @{ path = $selected; sha256 = (Get-FileHash -LiteralPath $selected -Algorithm SHA256).Hash.ToLowerInvariant() }
         }
         $script:canaries = $canaryEntries
+        $report['runtimeStagingPhase'] = 'TransferManifest'
         $files = @(Get-ChildItem -LiteralPath $transfer -File | ForEach-Object { @{ name = $_.Name; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
         $manifestText = @{ schemaVersion = 1; scope = 'fixed-cloud-guest-task'; files = $files; hostCanaries = @($canaryEntries | ForEach-Object path) } | ConvertTo-Json -Depth 5
         [IO.File]::WriteAllText((Join-Path $transfer 'manifest.json'), $manifestText, [Text.UTF8Encoding]::new($false))
+        $report['runtimeStagingPhase'] = 'Complete'
     } | Out-Null
     Stage 'create-exact-owned-vm' {
         $initial = Invoke-CloudHyperVCommand recover $name $vmRoot $null

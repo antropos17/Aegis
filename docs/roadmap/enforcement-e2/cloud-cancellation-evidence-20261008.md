@@ -69,10 +69,11 @@ the candidate retains the fixed phase before refusal; neither emits raw error
 text or leaves disposable directories. This correction does not identify the
 cause of the earlier historical refusal.
 
-The actual guest run uses runtime revision
+The initial actual attempt used runtime revision
 `88fccf508535eba0055bf035484f90431e3b6ce1`. The later two-file diagnostic delta
-changes local fixture source hashes, while the executed guest runtime and
-cancellation acceptance predicates remain byte-identical to that revision.
+changed local fixture source hashes while preserving the guest runtime and
+cancellation acceptance predicates. Subsequent host readiness repairs are
+recorded below; each run remains bound to its own revision.
 
 ## First actual attempt
 
@@ -153,6 +154,37 @@ approved the one-line change; the maintained PS5 bootstrap controls passed
 again. Runtime behavior, assertions and deadlines are unchanged. The failed
 preflight log is retained with SHA-256
 `10a7766baaa456b31a0b952db2e3d455a59105ee3d3f9d77625a09a9b746d674`.
+
+## Host runtime staging refusal
+
+[Run 37729140820](https://github.com/antropos17/Aegis/actions/runs/37729140820)
+at `2d06630d0a993ffa1f6a413b4fcd4396f37861ab` passed hosted preflight and all
+five ordinary CI contexts, then failed during host-side runtime preparation.
+The [raw receipt](evidence/20261007/37729140820.json), SHA-256
+`189023ad712506dcdce7c61c52929f5e6b9d492a54c779f91ba45cb6bb20366d`,
+records `bounded-stage-failed` after Node metadata was observed, before the
+Claude binary staging wrapper returned. Independent review matched all recorded
+repository hashes. Fixed copies or that wrapper could have failed; the mapped
+error does not identify a particular download, signature, tool or timeout cause.
+
+Git controls and VM creation were not reached. No guest disk, guest execution or
+cancellation observation exists for this attempt. `cleanupFailure=null` records
+the absence of a cleanup exception; it does not establish deletion of staging
+files. The cleanup branch requiring a removed VM was unreached. Approximately
+8.57 GB of host disk usage was added by preparation; eventual hosted-runner
+disposal is outside the receipt. The diagnostic repair must preserve all source,
+binary and signature pins and all existing deadlines.
+
+The subsequent diagnostic revision adds fixed staging checkpoints and preserves
+the existing source-defined Claude/provenance refusal codes. Matching requires
+the complete, case-sensitive message; arbitrary text and suffixes remain generic.
+The public wrapper, pinned verifier and native downloader are unchanged.
+Independent Astra review approved manifest
+`ef31ccf31ecb5710ee29bf22567091ee0c4c6f83939a333b6dcba0052c9d3068`.
+Source-extracted controls reproduce the old evidence loss through the actual
+`Stage` catch and verify the new fixed code/checkpoint plus redaction. The
+integrated maintained public test passes. No causal download or provenance
+repair is inferred from this diagnostic change.
 
 These cases cover fixed owner-requested cancellation only. Full terminal I/O,
 crash/reboot recovery, all host routes and production cancellation interfaces
