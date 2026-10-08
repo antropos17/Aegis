@@ -361,3 +361,85 @@ describe('durable bound session-operation dispatch', () => {
     },
   );
 });
+
+describe('bound dispatch after partial durable history loss', () => {
+  it.each(['pending', 'pending-unknown'])(
+    'does not retry an effect when spent is lost but actual %s publication survives',
+    async (mode) => {
+      const controller = new AbortController();
+      let abortAfterSync = false;
+      storage._setDepsForTest({
+        fs: {
+          ...fs,
+          open: async (...args) => {
+            const handle = await fs.open(...args);
+            if (
+              mode === 'pending-unknown' &&
+              String(args[0]).endsWith('.pending') &&
+              args[1] === 'wx'
+            ) {
+              const sync = handle.sync.bind(handle);
+              handle.sync = async () => {
+                await sync();
+                abortAfterSync = true;
+                controller.abort();
+              };
+            }
+            return handle;
+          },
+          rename: async (from, to) => {
+            if (String(to).endsWith('.outcome')) throw Error('controlled publication refusal');
+            return fs.rename(from, to);
+          },
+        },
+      });
+      let effects = 0;
+      const first = await setup(() => {
+        effects++;
+        return { status: 'completed' };
+      });
+      const request = operation();
+      expect(
+        (
+          await first.broker.dispatch(first.issue(request), request, {
+            signal: controller.signal,
+          })
+        ).state,
+      ).toBe('outcome-unknown');
+      expect(effects).toBe(1);
+      if (mode === 'pending-unknown') expect(abortAfterSync).toBe(true);
+      const entries = await fs.readdir(directory);
+      expect(entries.some((name) => name.endsWith('.' + mode))).toBe(true);
+      const retained = new Map();
+      for (const name of entries)
+        if (!name.endsWith('.spent'))
+          retained.set(name, await fs.readFile(path.join(directory, name)));
+      await fs.unlink(
+        path.join(
+          directory,
+          entries.find((name) => name.endsWith('.spent')),
+        ),
+      );
+      storage._resetForTest();
+      first.authority.revoke();
+      const reopened = await setup(() => {
+        effects++;
+        return { status: 'completed' };
+      });
+      expect(await reopened.ledger.inspect(request.operationId)).toEqual({
+        state: 'unavailable',
+      });
+      expect((await reopened.broker.dispatch(reopened.issue(request), request)).state).toBe(
+        'refused',
+      );
+      expect(effects).toBe(1);
+      expect((await reopened.broker.dispatch(reopened.issue(request), request)).state).toBe(
+        'refused',
+      );
+      expect(effects).toBe(1);
+      expect((await fs.readdir(directory)).sort()).toEqual([...retained.keys()].sort());
+      for (const [name, bytes] of retained)
+        expect(await fs.readFile(path.join(directory, name))).toEqual(bytes);
+    },
+  );
+});
