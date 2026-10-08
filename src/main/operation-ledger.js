@@ -5,6 +5,7 @@ const { constants } = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { validOperationBinding } = require('./session-authority');
+const { createConsumptionHistory } = require('./operation-consumption-history');
 const LIMITS = Object.freeze({ entries: 256, recordBytes: 512 });
 const LOCK = '.operation-lock';
 const HASH = /^[a-f0-9]{64}$/;
@@ -44,6 +45,7 @@ function recordBytes(bindingSha256, state, schemaVersion = 1) {
 async function createOperationLedger(directory) {
   const io = testDeps?.fs || fs;
   const consumptions = new WeakMap();
+  const history = createConsumptionHistory(LIMITS.entries);
   let unavailable = false;
   if (typeof directory !== 'string' || !path.isAbsolute(directory) || directory.startsWith('\\\\'))
     throw Error('operation-ledger-unavailable');
@@ -206,6 +208,7 @@ async function createOperationLedger(directory) {
   return Object.freeze({
     async consume(binding) {
       const key = identity(binding);
+      history.check(key.name);
       const retained = await exclusive(async () => {
         // Surviving publication evidence cannot authorize a renewed attempt
         // after its spent record has been lost. Preserve it for owner recovery.
@@ -222,6 +225,8 @@ async function createOperationLedger(directory) {
           throw Error('invalid');
         return { filename, ...actual };
       });
+      // Only a fully confirmed consumption is retained; failed attempts never mint history.
+      history.remember(key.name);
       const reservation = Object.freeze({});
       consumptions.set(reservation, retained);
       return reservation;
@@ -286,6 +291,7 @@ async function createOperationLedger(directory) {
         const name = digest(operationId);
         const spent = await read(path.join(root, name + '.spent'), true);
         if (!spent) {
+          if (history.has(name)) throw Error('invalid');
           for (const suffix of ['outcome', 'pending', 'pending-unknown'])
             if (await read(path.join(root, name + '.' + suffix), true)) throw Error('invalid');
           return Object.freeze({ state: 'unrecorded' });

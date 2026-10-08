@@ -60,6 +60,41 @@ function consume(value) {
 }
 
 describe('bounded redacted operation ledger', () => {
+  it('retains only confirmed live-owner history and refuses loss without recreating records', async () => {
+    const ledger = await storage.createOperationLedger(directory);
+    const value = binding();
+    await fs.writeFile(path.join(directory, '.operation-lock'), 'preserved');
+    await expect(ledger.consume(value)).rejects.toThrow('operation-ledger-unavailable');
+    await fs.unlink(path.join(directory, '.operation-lock'));
+    await expect(ledger.consume(value)).resolves.toEqual({});
+    await fs.unlink(
+      path.join(directory, createHash('sha256').update(value.operationId).digest('hex') + '.spent'),
+    );
+    expect(await ledger.inspect(value.operationId)).toEqual({ state: 'unavailable' });
+    await expect(
+      ledger.consume({ ...value, nonce: randomBytes(16).toString('hex') }),
+    ).rejects.toThrow('operation-ledger-unavailable');
+    expect(await fs.readdir(directory)).toEqual([]);
+  });
+
+  it('never evicts live-owner consumption history when deleted records expose new disk capacity', async () => {
+    const ledger = await storage.createOperationLedger(directory);
+    const first = binding();
+    for (let index = 0; index < storage.LIMITS.entries; index++) {
+      const value = index === 0 ? first : binding();
+      await ledger.consume(value);
+      await fs.unlink(
+        path.join(
+          directory,
+          createHash('sha256').update(value.operationId).digest('hex') + '.spent',
+        ),
+      );
+    }
+    await expect(ledger.consume(binding())).rejects.toThrow('operation-ledger-unavailable');
+    await expect(ledger.consume(first)).rejects.toThrow('operation-ledger-unavailable');
+    expect(await fs.readdir(directory)).toEqual([]);
+  }, 15000);
+
   it('binds private consumption reservations to their exact ledger and operation', async () => {
     const ledger = await storage.createOperationLedger(directory);
     const other = await storage.createOperationLedger(directory);

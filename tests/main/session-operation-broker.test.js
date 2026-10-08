@@ -72,6 +72,25 @@ async function setup(callback, ledgerOverride, scope = context) {
 }
 
 describe('durable bound session-operation dispatch', () => {
+  it('does not repeat a known live-owner effect after every persisted record is lost', async () => {
+    let effects = 0;
+    const request = operation();
+    const spent = path.join(directory, hash(request.operationId) + '.spent');
+    const owner = await setup(async () => {
+      effects++;
+      if (effects === 1) await fs.unlink(spent);
+      return { status: 'completed' };
+    });
+    expect((await owner.broker.dispatch(owner.issue(request), request)).state).toBe(
+      'outcome-unknown',
+    );
+    expect(effects).toBe(1);
+    expect(await fs.readdir(directory)).toEqual([]);
+    expect((await owner.broker.dispatch(owner.issue(request), request)).state).toBe('refused');
+    expect(effects).toBe(1);
+    expect(await fs.readdir(directory)).toEqual([]);
+  });
+
   it.each(['read', 'close'])(
     'refuses the actual final consumed-record %s uncertainty',
     async (mode) => {
