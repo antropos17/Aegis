@@ -41,6 +41,14 @@ lock release must succeed before dispatch. An owner must retain an operation ID
 across reconnection/recovery; choosing a new ID is a new explicit operation, never
 automatic retry. Session, epoch or nonce changes do not renew a spent operation ID.
 
+Consumption returns an opaque reservation held in a private per-ledger WeakMap.
+After the exclusive lock has been released, the broker rechecks the original
+consumed record's identity, timestamps and exact canonical bytes before dispatch.
+Missing, replaced, truncated or observably rewritten records refuse; a foreign
+reservation, different operation or published outcome also refuses. Capability
+revocation, cancellation and expiry are checked again after that asynchronous
+observation, with no further await before callback invocation.
+
 Persistence failure dispatches nothing and does not restore the capability.
 Partial records and crash-left locks remain unavailable evidence; they are not
 automatically cleared. The broker rechecks revocation/cancellation/expiry after
@@ -86,6 +94,9 @@ command, endpoint, credential or output selector is accepted.
 These ordinary-account receipts do not resist hostile same-principal rewriting,
 rollback or preexisting memory-mapped writers. File sync is observed through the
 supported API, without a power-loss durability claim for directory publication.
+The final consumed-record check detects observed changes; filesystem state and
+callback effects are not an atomic transaction, so mutation after the check is
+outside this guarantee.
 There is no VM, protected host/guest identity, network enforcement, real provider
 credential, original-host export or release qualification. Full gates remain
 UNREVIEWED. Native launch must still require independently qualified ownership
