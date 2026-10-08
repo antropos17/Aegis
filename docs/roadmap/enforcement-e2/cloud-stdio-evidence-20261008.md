@@ -130,6 +130,31 @@ required. No guest acceptance is inferred from this local pass.
 
 ## Acceptance scope
 
+Hosted run `37766973092` used committed source
+`56e30fb2908321cfcfd386c0814d53885fdd5943`. Its maintained preflight passed,
+including cancellation and stream controls. The lab then timed out during
+`pinned-media-download-and-hash` after 600,080 ms, with the existing 600-second
+download cancellation source. Creation of a VM was never submitted. The raw
+receipt is retained in the attempt index with SHA-256
+`a208c32d890a47b730c290aa1a9b9e391dd53026d1dd297f3aa84354ee409926`.
+All 68 recorded source hashes match the exact committed content under Windows
+checkout line-ending representations. Closed owned-file cleanup removed the
+partial ISO of 5,562,712,064 bytes. This demonstrates admitted response headers
+and file writes; it does not identify the cause of the incomplete transfer.
+Guest streams and containment were not observed in this run.
+
+The reviewed diagnostic increment retains a closed, 12-field observation even
+when download fails: phase, status, expected/declared/read/written byte counts,
+read attempts, elapsed/progress timing and deadline state. It includes no URL,
+headers, paths or exception messages. The pinned admission, ten-minute CTS,
+buffer/output bounds and existing cleanup remain unchanged. Independent Astra
+review passed frozen packet
+`83f6f8fe65994414f80cf5fe95124d5a7ff5b6585524120ed08af7f85a69676f`.
+After exact integration, production admission refusals, five actual local HTTP
+controls, the written-counter mutant and the actual failed-download caller
+projection passed under PowerShell5.1 in seven seconds. Those fixture observations
+do not reproduce the public CDN transfer or establish its failure cause.
+
 This fixed transport has no arbitrary command surface or production admission
 path. General terminal operation, full E2.2, the complete containment matrix and
 production launch require their own evidence. This document does not enable
