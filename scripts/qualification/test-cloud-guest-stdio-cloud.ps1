@@ -42,7 +42,7 @@ $controllerSource = Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-la
 $controllerAst = [Management.Automation.Language.Parser]::ParseFile($controllerSource, [ref]$null, [ref]$null)
 $controller = @($controllerAst.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$report.passed' }, $true))
 if ($controller.Count -ne 1) { throw 'stdio-controller-source-refused' }
-$report = @{ stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true;
+$report = @{ ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true; stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true;
     hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null; offObserved = $true;
     removedObserved = $true; hostCanariesUnchangedAfterTask = $true; hostCanariesUnchangedAfterRemoval = $true }
 $expression = [scriptblock]::Create($controller[0].Right.Extent.Text)

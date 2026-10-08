@@ -156,11 +156,9 @@ public static class CloudGuestProcess
     { return RunPhase(password, sid, false, false, documented ? 2 : 1); }
     internal static Dictionary<string, object> RunCancellation(string password, string sid, bool after)
     { return RunPhase(password, sid, false, false, 0, after ? 2 : 1); }
-    public static Dictionary<string, object> RunOwnerLifetime(string password, string sid)
-    { return RunPhase(password, sid, false, false, 0, 0, 0, true); }
-    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0, int cancellation = 0, int stdio = 0, bool ownerLifetime = false)
+    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness, int loader = 0, int cancellation = 0, int stdio = 0)
     {
-        Require((!ownerLifetime || (!claude && !witness && loader == 0 && cancellation == 0 && stdio == 0)) && stdio >= 0 && stdio <= 5 && (stdio == 0 || (!claude && !witness && loader == 0 && cancellation == 0)) && !(claude && witness) && loader >= 0 && loader <= 2 && cancellation >= 0 && cancellation <= 2 &&
+        Require(stdio >= 0 && stdio <= 5 && (stdio == 0 || (!claude && !witness && loader == 0 && cancellation == 0)) && !(claude && witness) && loader >= 0 && loader <= 2 && cancellation >= 0 && cancellation <= 2 &&
             (cancellation == 0 || (!claude && !witness && loader == 0)), "fixed-phase-invalid");
         if (loader == 0) Require(expectedSid != null && documentedQualifiedSid == expectedSid, "documented-loader-unqualified");
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
@@ -171,7 +169,7 @@ public static class CloudGuestProcess
             throw new InvalidOperationException("trusted-guest-bootstrap-required");
         const string trusted = @"C:\ProgramData\AegisCloudLab\trusted";
         const string root = @"C:\AegisLab";
-        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, ownerLifetime ? "cloud-owner-lifetime-runtime.cjs" : stdio != 0 ? "cloud-stdio-runtime.cjs" : cancellation != 0 ? "cloud-cancellation-runtime.cjs" : (witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs")));
+        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, stdio != 0 ? "cloud-stdio-runtime.cjs" : cancellation != 0 ? "cloud-cancellation-runtime.cjs" : (witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs")));
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
@@ -210,7 +208,7 @@ public static class CloudGuestProcess
             stage = "runtime-endpoint-create";
             runtime = new CloudGuestRuntimeGate(expectedSid);
             if (stdio != 0) stdioPhase = (ICloudGuestStdioPhase)Activator.CreateInstance(System.Reflection.Assembly.LoadFrom(Path.Combine(trusted, "guest-stdio-host.dll")).GetType("CloudGuestStdioPhase", true), new object[] { expectedSid, stdio });
-            string values = (ownerLifetime ? "AEGIS_OWNER_LIFETIME_EXPECTED_SID=" + expectedSid + "\0" : "") + (stdioPhase == null ? "" : stdioPhase.EnvironmentBlock) + (witness ? "AEGIS_CLOUD_GUEST_TEST_WITNESS=1\0" : (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "")) + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
+            string values = (stdioPhase == null ? "" : stdioPhase.EnvironmentBlock) + (witness ? "AEGIS_CLOUD_GUEST_TEST_WITNESS=1\0" : (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "")) + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             startup.Desktop = desktopOwner.Path;
@@ -295,7 +293,7 @@ public static class CloudGuestProcess
                 receipt["trustedTestProcessObservation"] = "unknown";
                 receipt["acceptancePassed"] = false;
             }
-            else if (!witness && !ownerLifetime && cancellation == 0 && stdio == 0)
+            else if (!witness && cancellation == 0 && stdio == 0)
             {
                 stage = "network-receiver-start";
                 receiver = new CloudGuestNetwork(job, receipt);
@@ -329,7 +327,7 @@ public static class CloudGuestProcess
             }
         WaitForRoot:
             stage = loader != 0 ? "loader-probe-deadline" : "task-deadline";
-            uint waitBudget = ownerLifetime ? 20000 : (loader != 0 || witness ? 5000 : (claude ? claudeReceiver.RemainingTaskWait() : 60000));
+            uint waitBudget = loader != 0 || witness ? 5000 : (claude ? claudeReceiver.RemainingTaskWait() : 60000);
             receipt["taskWaitMilliseconds"] = waitBudget;
             Require(GuestJobNative.WaitForSingleObject(child.Process, waitBudget) == 0, "task-deadline");
             stage = "task-exit-observation";
@@ -441,15 +439,14 @@ public static class CloudGuestProcess
             receipt["passed"] = false; receipt["acceptancePassed"] = false; receipt["launchAllowed"] = false;
             return receipt;
         }
-        if (ownerLifetime) receipt["ownerLifetimePhase"] = true;
-        if (witness || ownerLifetime) return CompleteWitnessReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
+        if (witness) return CompleteWitnessReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
         return claude ? CompleteClaudeReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult) :
             CompleteReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
     }
     private static Dictionary<string, object> CompleteWitnessReceipt(Dictionary<string, object> receipt,
         uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
     {
-        receipt["verificationKind"] = receipt.ContainsKey("ownerLifetimePhase") && receipt["ownerLifetimePhase"].Equals(true) ? "fixed-owner-lifetime-runtime" : "separate-post-claude-fixed-standard-user-process";
+        receipt["verificationKind"] = "separate-post-claude-fixed-standard-user-process";
         receipt["originalClaudeToolProcessObserved"] = false;
         receipt["naturalExitObservedBeforeJobTermination"] = exitObserved;
         if (failureStage == null)
