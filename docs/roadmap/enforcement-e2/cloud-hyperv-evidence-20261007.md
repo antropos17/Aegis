@@ -357,6 +357,20 @@ Task-observed edits and test output remain explicitly distinct from a trusted
 test-process observation, which is still unknown. Full E6 acceptance and production
 launch permission remain false even if this fixed local corpus later succeeds.
 
+The subsequent revision adds a separate fixed verification process after the
+Claude Job and API receiver have closed. The native owner retains the Node
+process identity and read-only handles to the trusted test inputs and exact
+edited source. The same standard-user process runs three fixed assertions;
+success requires natural exit zero before Job termination, empty Job observation
+and confirmed input and desktop cleanup. This does not observe the earlier test
+process requested by Claude. Task-written observations cannot grant success.
+
+Independent source review found no blocker within this scope. Integrated controls
+passed 46 synthetic result assertions, five actual disposable file-pin controls
+and nine JavaScript models. Five legacy compiler compositions passed without
+warnings or larger output limits. Actual guest execution of this separate
+verifier is not yet established; no full enforcement gate changed.
+
 Cloud receipts have a fixed upload allowlist and size limit with seven-day
 artifact retention. Installation images, VHDs, temporary account passwords and
 answer files are excluded. Unknown or interrupted cleanup stays unconfirmed.

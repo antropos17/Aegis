@@ -175,3 +175,10 @@ aegis_landing.html
 !/scripts/qualification/claude-public/provenance.ps1
 
 !/scripts/qualification/test-cloud-guest-claude-public.ps1
+
+!scripts/qualification/CloudGuestTestWitness.cs
+!scripts/qualification/CloudGuestTestWitnessFixture.cs
+!scripts/qualification/claude-test-witness-runtime.cjs
+!scripts/qualification/claude-test-witness.cjs
+!scripts/qualification/test-cloud-guest-test-witness.cjs
+!scripts/qualification/test-cloud-guest-test-witness.ps1

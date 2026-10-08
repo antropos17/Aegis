@@ -93,7 +93,7 @@ try {
         }
         $report.compilerSha256 = (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant()
         foreach ($relative in @('cloud-guest-claude-public.ps1', 'cloud-guest-claude-phase.ps1', 'cloud-guest-claude-bootstrap.ps1',
-            'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs',
+            'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs',
             'claude-public/provenance.ps1', 'claude-public/official-manifest.json', 'claude-public/official-manifest.json.sig', 'claude-public/official-release-key.asc')) {
             $file = Get-Item -LiteralPath (Join-Path $PSScriptRoot $relative) -Force
             if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 64KB) { throw 'claude-fixed-source-refused' }
@@ -104,7 +104,7 @@ try {
         Add-Type -Path (Compile 'metadata.dll' @('scripts/qualification/CloudGuestMetadata.cs') @('System.Net.Http.dll'))
         Add-Type -Path (Compile 'vm-owner.dll' @('scripts/qualification/CloudGuestVm.cs', 'scripts/qualification/CloudGuestBootDiagnostics.cs', 'sidecar/session/OwnedVmLifecycle.cs', 'sidecar/session/VmManagementNative.cs') @('System.Management.dll'))
         Add-Type -Path (Compile 'claude-download.dll' @('scripts/qualification/CloudGuestClaudeDownload.cs') @('System.Net.Http.dll'))
-        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestDesktop.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestClaudeReceiver.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
+        $guestDll = Compile 'guest-process.dll' @('scripts/qualification/CloudGuestProcess.cs', 'scripts/qualification/CloudGuestTestWitness.cs', 'scripts/qualification/CloudGuestDesktop.cs', 'scripts/qualification/CloudGuestNetwork.cs', 'scripts/qualification/CloudGuestClaudeReceiver.cs', 'scripts/qualification/CloudGuestRuntimeGate.cs', 'sidecar/session/CallerAdmission.cs', 'sidecar/session/CallerRegistration.cs', 'sidecar/session/CallerIdentity.cs', 'sidecar/session/CallerNative.cs', 'sidecar/session/GuestJobNative.cs', 'sidecar/session/GuestJobInventory.cs') @()
         Copy-Item -LiteralPath $guestDll -Destination (Join-Path $OutputRoot 'transfer\guest-process.dll')
     } | Out-Null
     $report.media = Stage 'pinned-media-download-and-hash' {
@@ -140,7 +140,7 @@ try {
         if ($exitCode -ne 0 -or (Get-Item $versionFile).Length -gt 128 -or (Get-Item $errorFile).Length -ne 0) { throw 'node-version-observation-failed' }
         $report.runtime = @{ path = $node.FullName; bytes = $node.Length; version = [IO.File]::ReadAllText($versionFile).Trim(); sha256 = (Get-FileHash -LiteralPath (Join-Path $transfer 'node.exe') -Algorithm SHA256).Hash.ToLowerInvariant() }
         foreach ($leaf in @('cloud-guest-bootstrap.ps1', 'cloud-guest-task.cjs', 'protocol.cjs', 'receiver.cjs', 'client.cjs', 'cloud-guest-runtime.cjs', 'route-protocol.cjs', 'route-client.cjs', 'cloud-guest-git.cjs', 'cloud-guest-git.ps1', 'git-runtime-manifest.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
-        foreach ($leaf in @('cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
+        foreach ($leaf in @('cloud-guest-claude-bootstrap.ps1', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $leaf) -Destination $transfer }
         $report.claudeProvenance = Save-CloudGuestClaudeBinary $transfer (Join-Path $OutputRoot 'temp')
         $gitArchive = Join-Path $transfer 'git-runtime.zip'
         Save-CloudGuestGitArchive $gitArchive

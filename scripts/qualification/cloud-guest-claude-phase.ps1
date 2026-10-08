@@ -80,7 +80,8 @@ function Get-CloudGuestClaudeBootstrapInvocation {
             $env:GITHUB_ACTIONS = 'true'; $env:RUNNER_ENVIRONMENT = 'github-hosted'; $env:RUNNER_OS = 'Windows'
             $phase = 'fixed-source-invocation'; $value = & $entry -TaskPassword $Password -ExpectedSid $ExpectedSid
             if ($value -isnot [hashtable] -or $value.passed -isnot [bool] -or $value.acceptancePassed -isnot [bool] -or
-                $value.acceptancePassed -or $value.trustedTestProcessObservation -cne 'unknown') { throw 'claude-fixed-result-refused' }
+                $value.acceptancePassed -or $value.trustedTestProcessObservation -cnotin @('unknown', 'observed-separate-post-claude-fixed-test') -or
+                ($value.passed -and $value.trustedTestProcessObservation -cne 'observed-separate-post-claude-fixed-test')) { throw 'claude-fixed-result-refused' }
             return $value
         } catch {
             return @{ schemaVersion = 1; passed = $false; identity = $null; task = $null; receiver = $null;
@@ -90,6 +91,24 @@ function Get-CloudGuestClaudeBootstrapInvocation {
     }
 }
 
+function Test-CloudGuestClaudeWitnessReceipt($Receipt, [string]$ExpectedSid) {
+    function Bool($Name, [bool]$Expected) { return $Receipt.$Name -is [bool] -and $Receipt.$Name -eq $Expected }
+    function Num($Name, [long]$Min, [long]$Max) {
+        $value = $Receipt.$Name
+        return ($value -is [int] -or $value -is [long] -or $value -is [uint32]) -and $value -ge $Min -and $value -le $Max
+    }
+    try {
+        if ($Receipt.verificationKind -cne 'separate-post-claude-fixed-standard-user-process' -or $Receipt.sid -cne $ExpectedSid -or
+            $Receipt.trustedTestProcessObservation -cne 'observed-separate-post-claude-fixed-test' -or $null -ne $Receipt.failureStage) { return $false }
+        foreach ($name in @('passed', 'heldIdentityBeforeRelease', 'runtimeResumed', 'runtimeCallerAuthenticated', 'runtimeInitializedBeforeProject', 'taskReleased',
+            'privateDesktopCreated', 'privateDesktopParentRestored', 'privateDesktopHandlesClosedAfterJobClosure', 'exitCodeObserved', 'naturalExitObservedBeforeJobTermination', 'jobClosureConfirmed',
+            'witnessInputPinsVerified', 'witnessEditedBytesVerified', 'witnessInputsHeldThroughConfirmedClosure', 'witnessInputHandlesClosed')) { if (!(Bool $name $true)) { return $false } }
+        foreach ($name in @('originalClaudeToolProcessObserved', 'witnessInputDisposalUnknown', 'elevated', 'administratorEnabled', 'administratorGroupPresent', 'acceptancePassed', 'e6Qualified', 'launchAllowed')) {
+            if (!(Bool $name $false)) { return $false }
+        }
+        return (Num 'exitCode' 0 0) -and (Num 'pid' 1 4294967295) -and (Num 'birthFileTime' 1 ([long]::MaxValue)) -and (Num 'initialJobMembers' 1 64) -and (Num 'tokenRequestedAccess' 8 8)
+    } catch { return $false }
+}
 function Invoke-CloudGuestClaudePhase([string]$Id, [string]$Name, [string]$VmRoot, [pscredential]$Credential,
     [string]$TaskPassword, [string]$TransferRoot, $FirstPhase) {
     Assert-CloudGuestRunner
@@ -114,10 +133,11 @@ function Invoke-CloudGuestClaudePhase([string]$Id, [string]$Name, [string]$VmRoo
         if ($job.State -ne 'Completed' -or $values.Count -ne 1) { throw 'claude-second-phase-observation-unknown' }
         $result = $values[0]
         if ($result.passed -isnot [bool] -or $result.acceptancePassed -isnot [bool] -or $result.acceptancePassed -or
-            $result.trustedTestProcessObservation -cne 'unknown') { throw 'claude-second-phase-observation-unknown' }
+            $result.trustedTestProcessObservation -cnotin @('unknown', 'observed-separate-post-claude-fixed-test')) { throw 'claude-second-phase-observation-unknown' }
         # A refused native attempt can precede SID observation. Preserve that
         # authoritative failure rather than losing it to StrictMode property access.
         if ($result.passed -and ($null -eq $result.identity -or $result.identity.sid -cne $gate.sameSidForSecondPhase)) { throw 'claude-second-phase-identity-refused' }
+        if ($result.passed -and !(Test-CloudGuestClaudeWitnessReceipt $result.witness $gate.sameSidForSecondPhase)) { throw 'claude-fixed-test-witness-unconfirmed' }
         return @{ gate = $gate; guestResult = $result; passed = $result.passed; acceptancePassed = $false;
             e6Qualified = $false; launchAllowed = $false; secondPhaseObservationKnown = $true }
     } catch {

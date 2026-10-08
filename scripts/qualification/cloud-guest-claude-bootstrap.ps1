@@ -95,7 +95,7 @@ try {
     $manifestFile = Get-Item -LiteralPath "$trusted\manifest.json" -Force
     if ($manifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or $manifestFile.Length -gt 64KB) { throw 'claude-manifest-refused' }
     $manifest = [IO.File]::ReadAllText($manifestFile.FullName) | ConvertFrom-Json
-    foreach ($leaf in @('node.exe', 'guest-process.dll', 'claude.exe', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs')) {
+    foreach ($leaf in @('node.exe', 'guest-process.dll', 'claude.exe', 'claude-protocol.cjs', 'claude-receiver.cjs', 'claude-task.cjs', 'claude-runtime.cjs', 'claude-sum.test.cjs', 'claude-test-witness-runtime.cjs', 'claude-test-witness.cjs')) {
         $expected = @($manifest.files | Where-Object name -CEQ $leaf)
         if ($expected.Count -ne 1 -or $expected[0].sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'claude-manifest-refused' }
         $file = Get-Item -LiteralPath (Join-Path $trusted $leaf) -Force
@@ -128,9 +128,23 @@ try {
     try { $identity = [CloudGuestProcess]::RunClaude($TaskPassword, $ExpectedSid) }
     catch { $identity = [CloudGuestProcess]::FailureReceipt($_.Exception); if ($null -eq $identity) { throw 'claude-native-refused' } }
     $stage = 'closed-result-observation'; $controls = Read-CloudGuestClaudeResult $identity
-    return @{ schemaVersion = 1; identity = $identity; task = $controls.task; receiver = $controls.receiver; passed = $controls.passed;
+    $witness = $null; $witnessPassed = $false; $witnessObservation = 'unknown'
+    if ($controls.passed -eq $true) {
+        # This executes only AFTER actual Claude Job and independent receiver closure.
+        # The new verifier is a separate standard-user process, not Claude's tool process.
+        $stage = 'separate-fixed-test-witness'
+        $nodePin = @($manifest.files | Where-Object name -CEQ 'node.exe')[0].sha256
+        $runtimePin = @($manifest.files | Where-Object name -CEQ 'claude-test-witness-runtime.cjs')[0].sha256
+        $testPin = @($manifest.files | Where-Object name -CEQ 'claude-test-witness.cjs')[0].sha256
+        $witness = [CloudGuestTestWitness]::Run($TaskPassword, $ExpectedSid, $nodePin, $runtimePin, $testPin)
+        $witnessPassed = $witness.passed -is [bool] -and $witness.passed -and
+            $witness.trustedTestProcessObservation -ceq 'observed-separate-post-claude-fixed-test'
+        if ($witnessPassed) { $witnessObservation = 'observed-separate-post-claude-fixed-test' }
+    }
+    return @{ schemaVersion = 1; identity = $identity; task = $controls.task; receiver = $controls.receiver; witness = $witness; passed = ($controls.passed -and $witnessPassed);
         taskStatus = $controls.taskStatus; receiverStatus = $controls.receiverStatus; acceptancePassed = $false;
-        trustedTestProcessObservation = 'unknown'; e6Qualified = $false; launchAllowed = $false; labOnlyPowerShellDirect = $true }
+        trustedTestProcessObservation = $witnessObservation; originalClaudeToolProcessObserved = $false;
+        e6Qualified = $false; launchAllowed = $false; labOnlyPowerShellDirect = $true }
 } catch {
     return @{ schemaVersion = 1; passed = $false; identity = $identity; task = $null; receiver = $null; taskStatus = 'unavailable';
         receiverStatus = 'unavailable'; failureStage = $stage; failureHResult = [int]$_.Exception.HResult; acceptancePassed = $false;

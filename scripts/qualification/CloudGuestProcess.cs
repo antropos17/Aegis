@@ -143,8 +143,13 @@ public static class CloudGuestProcess
     { return RunFixed(password, expectedSid, false); }
     public static Dictionary<string, object> RunClaude(string password, string expectedSid)
     { return RunFixed(password, expectedSid, true); }
+    internal static Dictionary<string, object> RunTestWitness(string password, string expectedSid)
+    { return RunPhase(password, expectedSid, false, true); }
     private static Dictionary<string, object> RunFixed(string password, string expectedSid, bool claude)
+    { return RunPhase(password, expectedSid, claude, false); }
+    private static Dictionary<string, object> RunPhase(string password, string expectedSid, bool claude, bool witness)
     {
+        Require(!(claude && witness), "fixed-phase-invalid");
         if (Environment.GetEnvironmentVariable("AEGIS_CLOUD_GUEST_LAB") != "trusted-bootstrap-v1" ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
             Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted" ||
@@ -153,7 +158,7 @@ public static class CloudGuestProcess
             throw new InvalidOperationException("trusted-guest-bootstrap-required");
         const string trusted = @"C:\ProgramData\AegisCloudLab\trusted";
         const string root = @"C:\AegisLab";
-        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs");
+        string image = Path.Combine(trusted, "node.exe"), task = Path.Combine(trusted, witness ? "claude-test-witness-runtime.cjs" : (claude ? "claude-runtime.cjs" : "cloud-guest-runtime.cjs"));
         IntPtr job = IntPtr.Zero, token = IntPtr.Zero, environment = IntPtr.Zero;
         ProcessInfo child = new ProcessInfo(); GuestJobInventory inventory = null; CloudGuestRuntimeGate runtime = null;
         CloudGuestNetwork receiver = null;
@@ -173,7 +178,7 @@ public static class CloudGuestProcess
                 using (var thread = WindowsIdentity.GetCurrent(true)) receipt["ownerThreadImpersonating"] = thread != null;
             }
             catch { receipt["ownerImpersonationLevel"] = "unknown"; receipt["ownerThreadImpersonating"] = null; }
-            CloudGuestDesktop.ProbeOwnerNode(receipt);
+            if (!witness) CloudGuestDesktop.ProbeOwnerNode(receipt);
             stage = "private-desktop-create";
             desktopOwner = new CloudGuestDesktop(expectedSid);
             receipt["privateDesktopCreated"] = true;
@@ -185,7 +190,7 @@ public static class CloudGuestProcess
             RequireNative(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
             stage = "runtime-endpoint-create";
             runtime = new CloudGuestRuntimeGate(expectedSid);
-            string values = (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "") + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
+            string values = (witness ? "AEGIS_CLOUD_GUEST_TEST_WITNESS=1\0" : (claude ? "AEGIS_CLOUD_GUEST_CLAUDE=1\0" : "")) + "AEGIS_CLOUD_GUEST_TASK=1\0AEGIS_RUNTIME_PIPE=" + runtime.PipeName + "\0AEGIS_RUNTIME_REQUEST=" + runtime.Request + "\0AEGIS_RUNTIME_SESSION=" + runtime.Session + "\0Path=" + trusted + "\0SystemRoot=C:\\Windows\0TEMP=" + root + "\\scratch\0TMP=" + root + "\\scratch\0USERPROFILE=C:\\Users\\AegisTask\0\0";
             environment = Marshal.StringToHGlobalUni(values);
             var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup));
             startup.Desktop = desktopOwner.Path;
@@ -252,7 +257,7 @@ public static class CloudGuestProcess
                 receipt["trustedTestProcessObservation"] = "unknown";
                 receipt["acceptancePassed"] = false;
             }
-            else
+            else if (!witness)
             {
                 stage = "network-receiver-start";
                 receiver = new CloudGuestNetwork(job, receipt);
@@ -262,7 +267,7 @@ public static class CloudGuestProcess
             stage = "project-release-ack";
             runtime.ReleaseFixedTask(inventory); taskReleased = true;
             stage = "task-deadline";
-            uint waitBudget = claude ? claudeReceiver.RemainingTaskWait() : 60000;
+            uint waitBudget = witness ? 5000 : (claude ? claudeReceiver.RemainingTaskWait() : 60000);
             receipt["taskWaitMilliseconds"] = waitBudget;
             Require(GuestJobNative.WaitForSingleObject(child.Process, waitBudget) == 0, "task-deadline");
             stage = "task-exit-observation";
@@ -340,8 +345,29 @@ public static class CloudGuestProcess
             if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
         }
+        if (witness) return CompleteWitnessReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
         return claude ? CompleteClaudeReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult) :
             CompleteReceipt(receipt, exit, exitObserved, closure, failureStage, failureHResult);
+    }
+    private static Dictionary<string, object> CompleteWitnessReceipt(Dictionary<string, object> receipt,
+        uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
+    {
+        receipt["verificationKind"] = "separate-post-claude-fixed-standard-user-process";
+        receipt["originalClaudeToolProcessObserved"] = false;
+        receipt["naturalExitObservedBeforeJobTermination"] = exitObserved;
+        if (failureStage == null)
+            foreach (string field in new string[] { "heldIdentityBeforeRelease", "runtimeResumed", "runtimeCallerAuthenticated", "runtimeInitializedBeforeProject", "taskReleased", "privateDesktopCreated", "privateDesktopParentRestored", "privateDesktopHandlesClosedAfterJobClosure" })
+            {
+                object value;
+                if (!receipt.TryGetValue(field, out value) || !(value is bool) || !(bool)value) { failureStage = "witness-release-unconfirmed"; break; }
+            }
+        if (failureStage == null && (!exitObserved || exit != 0)) failureStage = "witness-test-exit";
+        if (failureStage == null && !closure) failureStage = "witness-job-closure";
+        receipt["exitCode"] = exit; receipt["exitCodeObserved"] = exitObserved; receipt["jobClosureConfirmed"] = closure;
+        receipt["failureStage"] = failureStage; receipt["failureHResult"] = failureHResult; receipt["passed"] = failureStage == null;
+        receipt["acceptancePassed"] = false; receipt["e6Qualified"] = false; receipt["launchAllowed"] = false;
+        if (failureStage != null) throw new TaskFailure(receipt);
+        return receipt;
     }
     private static Dictionary<string, object> CompleteClaudeReceipt(Dictionary<string, object> receipt,
         uint exit, bool exitObserved, bool closure, string failureStage, int? failureHResult)
