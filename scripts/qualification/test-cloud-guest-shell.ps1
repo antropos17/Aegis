@@ -5,13 +5,14 @@ function Get-CloudGuestShellModelDiagnostic([string]$Text) {
     try {
         $value = $Text | ConvertFrom-Json
         if ((@($value.PSObject.Properties.Name | Sort-Object) -join ',') -cne 'cases,diagnostic,passed,scope' -or
-            $value.cases -ne 25 -or $value.passed -isnot [int] -or $value.passed -lt 0 -or $value.passed -ge 25 -or
+            $value.cases -ne 27 -or $value.passed -isnot [int] -or $value.passed -lt 0 -or $value.passed -ge 27 -or
             $value.scope -cne 'synthetic-task-source-behavior-no-guest-or-VM-effects') { return $null }
         $detail = $value.diagnostic
         $cases = @('initialization', 'positive', 'git-partial', 'git-nonzero', 'git-deadline', 'git-malformed', 'git-stderr', 'git-admission-late',
             'wrong-path', 'wrong-work', 'protection-open', 'shell-control-fails', 'shell-marker-mismatch', 'unit-test-nonzero', 'input-private-error',
             'network-nonzero', 'network-deadline', 'network-malformed', 'network-partial', 'network-stderr',
-            'route-partial', 'route-nonzero', 'route-deadline', 'route-malformed', 'route-stderr', 'route-permission')
+            'route-partial', 'route-nonzero', 'route-deadline', 'route-malformed', 'route-stderr', 'route-permission',
+            'sealed-copy-error', 'sealed-copy-refused')
         if ((@($detail.PSObject.Properties.Name | Sort-Object) -join ',') -cne 'case,errorKind,phase' -or $detail.case -cnotin $cases -or
             $detail.phase -cnotin @('source-load', 'source-execution', 'assertions') -or $detail.errorKind -cnotin @('assertion', 'script-timeout', 'other')) { return $null }
         return @{ case = $detail.case; phase = $detail.phase; errorKind = $detail.errorKind; completedCases = $value.passed }
@@ -25,7 +26,7 @@ $fixture = Join-Path $base ('aegis-shell-control-' + [guid]::NewGuid().ToString(
 New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
     $node = (Get-Command node.exe -ErrorAction Stop).Source
-    foreach ($case in @(@('native', 'test-cloud-guest-shell.cjs', 15000, 3), @('model', 'test-cloud-guest-task.cjs', 5000, 25))) {
+    foreach ($case in @(@('native', 'test-cloud-guest-shell.cjs', 15000, 3), @('model', 'test-cloud-guest-task.cjs', 5000, 27))) {
         $stdout = Join-Path $fixture ($case[0] + '.json'); $stderr = Join-Path $fixture ($case[0] + '.stderr')
         $code = $null; $reason = 'invoke-refused'; $text = $null
         try {

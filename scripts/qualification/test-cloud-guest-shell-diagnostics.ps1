@@ -18,11 +18,11 @@ function Invoke-CloudGuestNativeProcess($Exe, $Args, $Out, $Err, $Budget) {
         if ($script:diagnosticMode -eq 'native') { return 9 }
         return 0
     }
-    $detail = @{ cases = 25; passed = 0; scope = 'synthetic-task-source-behavior-no-guest-or-VM-effects';
+    $detail = @{ cases = 27; passed = 0; scope = 'synthetic-task-source-behavior-no-guest-or-VM-effects';
         diagnostic = @{ case = 'positive'; phase = 'source-execution'; errorKind = 'script-timeout' } }
     if ($script:diagnosticMode -eq 'extra-field') { $detail.diagnostic.private = 'PRIVATE_SENTINEL' }
     if ($script:diagnosticMode -eq 'unknown-case') { $detail.diagnostic.case = 'PRIVATE_SENTINEL' }
-    if ($script:diagnosticMode -eq 'result-refused') { $detail = @{ cases = 25; passed = 24 } }
+    if ($script:diagnosticMode -eq 'result-refused') { $detail = @{ cases = 27; passed = 26 } }
     $text = if ($script:diagnosticMode -eq 'malformed') { 'PRIVATE_SENTINEL' } else { $detail | ConvertTo-Json -Compress -Depth 4 }
     [IO.File]::WriteAllText($Out, $text)
     [IO.File]::WriteAllText($Err, $(if ($script:diagnosticMode -eq 'stderr') { 'PRIVATE_SENTINEL' } else { '' }))
@@ -70,10 +70,19 @@ try {
     $node = (Get-Command node.exe -ErrorAction Stop).Source
     foreach ($mode in @('script-timeout', 'assertion', 'late-assertion', 'other')) {
         $modelText = $originalModel; $taskText = $originalTask
-        if ($mode -ceq 'script-timeout') { $taskText = $taskText.Replace('const taskBegin = performance.now();', 'const taskBegin = performance.now(); while (true) {}') }
-        elseif ($mode -ceq 'assertion') { $modelText = $modelText.Replace('assert.equal(positive.process.exitCode, 0);', 'assert.equal(positive.process.exitCode, "PRIVATE_SENTINEL");') }
-        elseif ($mode -ceq 'late-assertion') { $modelText = $modelText.Replace('assert.equal(refused.result.passed, false); assert.equal(refused.process.exitCode, 1);', 'assert.equal(refused.result.passed, "PRIVATE_SENTINEL"); assert.equal(refused.process.exitCode, 1);') }
-        else { $modelText = $modelText.Replace('const positive = run("positive");', 'throw new Error("PRIVATE_SENTINEL"); const positive = run("positive");') }
+        $pattern = if ($mode -ceq 'script-timeout') { 'const\s+taskBegin\s*=\s*performance\.now\(\)\s*;' }
+            elseif ($mode -ceq 'assertion') { 'assert\.equal\(positive\.process\.exitCode,\s*0\)\s*;' }
+            elseif ($mode -ceq 'late-assertion') { 'assert\.equal\(refused\.result\.passed,\s*false\)\s*;\s*assert\.equal\(refused\.process\.exitCode,\s*1\)\s*;\s*assert\.equal\(refused\.result\.stage,\s*["'']direct-routes["'']\)\s*;' }
+            else { 'const\s+positive\s*=\s*run\(["'']positive["'']\)\s*;' }
+        $mutationSource = if ($mode -ceq 'script-timeout') { $taskText } else { $modelText }
+        if ([regex]::Matches($mutationSource, $pattern).Count -ne 1) { throw 'shell-model-mutation-target-refused' }
+        $replacement = if ($mode -ceq 'script-timeout') { 'const taskBegin = performance.now(); while (true) {}' }
+            elseif ($mode -ceq 'assertion') { 'assert.equal(positive.process.exitCode, "PRIVATE_SENTINEL");' }
+            elseif ($mode -ceq 'late-assertion') { 'assert.equal(refused.result.passed, "PRIVATE_SENTINEL"); assert.equal(refused.process.exitCode, 1); assert.equal(refused.result.stage, "direct-routes");' }
+            else { 'throw new Error("PRIVATE_SENTINEL"); const positive = run("positive");' }
+        $mutated = [regex]::Replace($mutationSource, $pattern, $replacement)
+        if ($mutated -ceq $mutationSource) { throw 'shell-model-mutation-target-refused' }
+        if ($mode -ceq 'script-timeout') { $taskText = $mutated } else { $modelText = $mutated }
         [IO.File]::WriteAllText($modelPath, $modelText, [Text.UTF8Encoding]::new($false))
         [IO.File]::WriteAllText($taskPath, $taskText, [Text.UTF8Encoding]::new($false))
         $stdout = Join-Path $modelRoot ($mode + '.json'); $stderr = Join-Path $modelRoot ($mode + '.stderr')
@@ -83,7 +92,7 @@ try {
         $expectedPhase = if ($mode -ceq 'script-timeout') { 'source-execution' } elseif ($mode -ceq 'other') { 'source-load' } else { 'assertions' }
         $expectedKind = if ($mode -ceq 'late-assertion') { 'assertion' } else { $mode }
         if ($code -ne 1 -or (Get-Item -LiteralPath $stderr).Length -ne 0 -or $text.Contains('PRIVATE_SENTINEL') -or
-            $value.cases -ne 25 -or $value.passed -ne $(if ($mode -ceq 'late-assertion') { 19 } else { 0 }) -or
+            $value.cases -ne 27 -or $value.passed -ne $(if ($mode -ceq 'late-assertion') { 19 } else { 0 }) -or
             $value.diagnostic.case -cne $expectedCase -or $value.diagnostic.phase -cne $expectedPhase -or $value.diagnostic.errorKind -cne $expectedKind) { throw 'shell-model-diagnostic-control-refused' }
         Write-Host ('shell-model-diagnostic-' + $mode + ':passed')
     }
