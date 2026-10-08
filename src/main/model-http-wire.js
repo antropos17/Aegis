@@ -3,7 +3,7 @@ const http = require('node:http');
 const https = require('node:https');
 const net = require('node:net');
 const { createTlsAgent } = require('./mcp-gateway-tls');
-const { LIMITS } = require('./model-contract');
+const { LIMITS, validateModelResponseHeaders } = require('./model-contract');
 
 /** Exchange one fixed loopback text request with host-only credential injection.
  * @param {object} endpoint Privately pinned parsed route. @param {string} body Owned serialized request.
@@ -66,6 +66,16 @@ function exchangeModel(endpoint, body, signal) {
           response = incoming;
           incoming.on('error', abort);
           incoming.on('aborted', abort);
+          try {
+            validateModelResponseHeaders({
+              status: incoming.statusCode,
+              headers: incoming.headers,
+              rawHeaders: incoming.rawHeaders,
+            });
+          } catch {
+            abort();
+            return;
+          }
           incoming.on('data', (chunk) => {
             if (settled) return;
             if ((size += chunk.length) > LIMITS.bytes) {

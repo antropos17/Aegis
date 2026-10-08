@@ -41,17 +41,26 @@ function parseModelRequest(bytes) {
   return value;
 }
 
-/** Reconstruct a finite JSON or ordered SSE result, requiring explicit completion.
- * @param {object} response Bounded transport response. @param {string} model Fixed owner model.
- * @returns {string} Private reconstructed text, still requiring secret scanning. @since v0.17.0 */
-function parseModelResponse(response, model) {
+/** Validate the response profile before admitting any upstream body bytes.
+ * @param {object} response Status and raw headers from the bounded transport.
+ * @returns {string} Accepted content type. @since v0.19.2 */
+function validateModelResponseHeaders(response) {
   const type = singleHeader(response, 'content-type');
   if (
     response.status !== 200 ||
     singleHeader(response, 'content-encoding') !== undefined ||
-    !Buffer.isBuffer(response.body) ||
-    response.body.length > LIMITS.bytes
+    !/^(?:application\/json|text\/event-stream)(?:;\s*charset=utf-8)?$/i.test(type || '')
   )
+    throw Error('model-response-invalid');
+  return type;
+}
+
+/** Reconstruct a finite JSON or ordered SSE result, requiring explicit completion.
+ * @param {object} response Bounded transport response. @param {string} model Fixed owner model.
+ * @returns {string} Private reconstructed text, still requiring secret scanning. @since v0.17.0 */
+function parseModelResponse(response, model) {
+  const type = validateModelResponseHeaders(response);
+  if (!Buffer.isBuffer(response.body) || response.body.length > LIMITS.bytes)
     throw Error('model-response-invalid');
   if (/^application\/json(?:;\s*charset=utf-8)?$/i.test(type || '')) {
     const value = parseActionJson(response.body);
@@ -96,4 +105,4 @@ function parseModelResponse(response, model) {
   }
   return output;
 }
-module.exports = { LIMITS, parseModelRequest, parseModelResponse };
+module.exports = { LIMITS, parseModelRequest, parseModelResponse, validateModelResponseHeaders };
