@@ -1,9 +1,10 @@
 # Combined filesystem/Windows guest qualification
 
-Status: **cloud Hyper-V create/start/stop/removal executed through PowerShell and native WMI; full guest containment matrix remains unqualified**.
+Status: **actual cloud Windows 11 Node/Git and dummy-API Claude read/edit/test corpus, separate native test witness and VM cleanup passed; full guest containment matrix remains unqualified**.
 The [2026-10-07 cloud evidence](cloud-hyperv-evidence-20261007.md) records
 source-bound actual lifecycle runs, management-job settlement and the Windows 11
-evaluation guest lab. Read each run's scope before applying it to the matrix.
+evaluation guest lab, including successful run 37721808584. Read each run's scope
+before applying it to the matrix; its fixed corpus does not qualify entire rows.
 The [fixture foundation](vm-fixture-foundation.md) adds a read-only host subset
 and synthetic admission/stop/recovery tests. Its original scope predates the
 cloud native mutation adapter and guest lab; protected production inventory and

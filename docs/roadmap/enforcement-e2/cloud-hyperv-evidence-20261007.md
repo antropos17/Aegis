@@ -1,5 +1,13 @@
 # Cloud Hyper-V execution evidence — 2026-10-07
 
+Latest actual result: [run 37721808584](https://github.com/antropos17/Aegis/actions/runs/37721808584)
+at `713b492a3007d4308dcaab5a98eb9cecc75f0781` passed the complete fixed Windows 11
+lab corpus: admitted Node read/edit/test, shell and descendant controls, local
+Git, measured host routes, dummy-API Claude read/edit/test, a separate native
+test witness, receiver closure and exact VM cleanup. The successful corpus is
+lab evidence; production launch and full enforcement qualification remain disabled.
+The final section records the actual observations and their limits.
+
 The disposable GitHub-hosted Windows Server 2025 runner performed actual VM
 operations. The earlier read-only provider observation is now complemented by
 executed PowerShell and native C# lifecycle paths.
@@ -647,3 +655,67 @@ three actual native controls and all 25 task-source controls. Changed JavaScript
 passed ESLint. The maintained cloud preflight now includes that runner. This
 local verification establishes the quoting correction and causal failure
 reporting; the next actual guest run must establish subsequent task completion.
+
+## Complete fixed Windows 11 lab corpus
+
+Run [37721808584](https://github.com/antropos17/Aegis/actions/runs/37721808584)
+completed successfully at `713b492a3007d4308dcaab5a98eb9cecc75f0781`.
+All five required CI contexts passed in
+[37721812634](https://github.com/antropos17/Aegis/actions/runs/37721812634).
+The original 161,631-byte receipt has SHA-256
+`bed68baf8a9a019e7472673af0a0226998ca6fb21e0c4ed3482180b7e1079c2e`
+and is retained unchanged in the twenty-four-entry receipt index. An earlier
+incomplete packaging run, 37721777609, was cancelled before guest execution:
+the repository-wide `*.ps1` ignore had excluded the new shell wrapper. The
+subsequent explicit wrapper commit restored all five reviewed source files.
+
+The standard-user task completed admitted read/edit/Node test and working CMD
+and Node-descendant positive controls. All four protected dummy-resource probes
+were refused with EPERM. Direct probes of both host paths reported absence in
+the guest namespace; their shell read/write/delete commands exited one without
+process failure. Descendant commands exited zero after their individual caught
+attempts. These exit values alone do not prove prevention: independent host
+canaries remained unchanged after the tasks and after VM removal.
+The fixed Git 2.56.0.windows.2 corpus completed 13 commands in 1,651 milliseconds,
+including modification, diff, local commit and final clean state with no remotes.
+All ten loopback calibration controls passed in 90 milliseconds and closed.
+
+The independent host-route receiver observed its three IPv4 positive controls
+and no guest delivery on the measured TCP, UDP and DNS routes. Guest attempts
+completed with ENETUNREACH for TCP/UDP and ECONNREFUSED for DNS. The receiver
+closed all sockets, observed STOP, exited zero without forced termination and
+was stopped after confirmed guest Job closure. The exact VM had zero network
+adapters before and after the attempts. Host IPv6 routes were unavailable;
+deliberate guest-exposure controls and complete integration-route coverage were
+not performed. This result does not qualify E3.
+
+The actual pinned Claude Code 2.1.292 CLI completed the fixed read/edit/test
+task through the dummy local API in 13,545 milliseconds, with observed exit
+zero, no stderr, timeout or output limit, exact edited bytes and test exit zero.
+The independent receiver completed exactly four ordered responses and three
+successful tool results. Its one connection closed through the reviewed
+completed-reset path; STOP was observed, no socket was forcibly closed, and the
+receiver exited zero after task Job closure.
+
+A separate admitted standard-user native witness independently verified the
+edited result and pinned inputs, exited naturally with zero, retained its
+inputs through confirmed Job closure and closed its handles. It did not observe
+the earlier test process invoked by Claude; that distinction remains explicit.
+All three task runtimes authenticated and sealed their startup inventories
+before project release. Native Jobs and private desktops closed. Exact VM
+`4241969d-2218-458b-9755-519514ebd3c2` reached observed Off state and was removed,
+with settled absence, unchanged host canaries and no cleanup failure.
+
+The receipt retains `claudeAcceptancePassed=false`, `E6Qualified=false`,
+`A1Qualified=false` and `launchAllowed=false`. Actual provider authentication,
+protected production registration/dispatch and the complete containment,
+cancellation, crash, transport and installation matrices are separate from
+this fixed disposable corpus.
+
+Independent Astra review matched all 51 repository-source hashes to the exact
+commit (47 hosted CRLF transformations and four literal matches), checked the
+Git archive pin and independently executed the actual-source first-phase and
+witness validators against the receipt. It accepted E6.4 only: the fixed
+disposable read/edit/test task with independent canaries. Previously accepted
+E1.3, E2.1 and E6.5 were corroborated; other task and full gate verdicts were
+preserved. No additional native fixture, CLI or VM was run during that review.
