@@ -39,6 +39,7 @@ internal static class CallerLauncherFixture
         try
         {
             if (args[0] == "owner-death") return OwnerDeath(args);
+            if (args[0] == "pid-marker-race") return PidMarkerRace(args[3]);
             if (args[0].StartsWith("deferred-", StringComparison.Ordinal)) return DeferredRelease(args);
             Run(args); return 0;
         }
@@ -127,6 +128,41 @@ internal static class CallerLauncherFixture
         LauncherObservation.Require(new FileInfo(outside).Length == 0, "outside-sentinel-changed");
     }
     private static string Bool(bool value) { return value.ToString().ToLowerInvariant(); }
+    private static int PidMarkerRace(string root)
+    {
+        string marker = Path.Combine(root, "controlled.pid");
+        uint expected = (uint)Process.GetCurrentProcess().Id, observed = 0;
+        Exception readerError = null;
+        using (var started = new System.Threading.ManualResetEvent(false))
+        using (var finished = new System.Threading.ManualResetEvent(false))
+        {
+            var reader = new System.Threading.Thread(() => {
+                started.Set();
+                try { observed = LauncherObservation.ReadPid(marker); }
+                catch (Exception error) { readerError = error; }
+                finally { finished.Set(); }
+            });
+            reader.IsBackground = true;
+            bool completedBeforeClose;
+            // File.WriteAllText creates a visible write handle with FileShare.Read.
+            // A reader's read-only sharing cannot coexist with that writer.
+            using (var writer = new FileStream(marker, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+            {
+                LauncherObservation.Require(File.Exists(marker), "controlled-marker-not-visible");
+                reader.Start();
+                LauncherObservation.Require(started.WaitOne(2000), "controlled-reader-not-started");
+                completedBeforeClose = finished.WaitOne(200);
+                byte[] bytes = System.Text.Encoding.UTF8.GetBytes(expected.ToString());
+                writer.Write(bytes, 0, bytes.Length); writer.Flush();
+            }
+            LauncherObservation.Require(reader.Join(4000), "controlled-reader-not-settled");
+            Console.WriteLine("{\"completedBeforeClose\":" + Bool(completedBeforeClose) +
+                ",\"readerError\":" + (readerError == null ? "null" : "\"" + readerError.GetType().Name + "\"") +
+                ",\"readerErrorCode\":" + (readerError == null ? "null" : (readerError.HResult & 0xffff).ToString()) +
+                ",\"observedPidMatches\":" + Bool(observed == expected) + "}");
+        }
+        return 0;
+    }
     private static int DeferredRelease(string[] args)
     {
         string image = args[1], root = args[3];

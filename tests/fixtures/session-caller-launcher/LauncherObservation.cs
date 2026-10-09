@@ -113,7 +113,27 @@ internal static class LauncherObservation
         }
     }
     internal static uint ReadPid(string path)
-    { Until(() => File.Exists(path), "pid-marker-timeout"); return uint.Parse(File.ReadAllText(path)); }
+    {
+        uint pid = 0;
+        Until(() => {
+            if (!File.Exists(path)) return false;
+            string value;
+            try { value = File.ReadAllText(path); }
+            catch (IOException error)
+            {
+                // Creation is visible before File.WriteAllText closes its write handle.
+                // Keep read-only sharing so only a completed, closed write can be read.
+                int code = error.HResult & 0xffff;
+                if (code == 32 || code == 33) return false;
+                throw;
+            }
+            Require(uint.TryParse(value, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out pid) && pid > 0 &&
+                value == pid.ToString(System.Globalization.CultureInfo.InvariantCulture), "pid-marker-invalid");
+            return true;
+        }, "pid-marker-timeout");
+        return pid;
+    }
 
     // Uses independent OS queries to prove the release attempt runs with an actual thread token.
     internal static void WithThreadToken(Action attempt)

@@ -93,6 +93,15 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       return JSON.parse(result.stdout.toString());
     }
 
+    it('waits for the visible native PID marker writer to close before reading the complete actual PID', () => {
+      expect(success('pid-marker-race')).toEqual({
+        completedBeforeClose: false,
+        readerError: null,
+        readerErrorCode: null,
+        observedPidMatches: true,
+      });
+    });
+
     it('executes the actual selected image only after retained registration and closes root and descendant on disposal', () => {
       expect(success('positive')).toMatchObject({
         refused: false,
