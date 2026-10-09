@@ -26,6 +26,7 @@ describe('Grouped radar observations', () => {
     const g = radarGroups([instance('a', 11), instance('b', 12)])[0];
     const state = {
       ...emptyTelemetry(),
+      ready: true,
       stale: false,
       resources: [
         { instanceId: 'a', cpu: 0 },
@@ -36,6 +37,13 @@ describe('Grouped radar observations', () => {
     state.resources.push({ instanceId: 'b', cpu: 2 });
     expect(groupResource(g, state, 'cpu')).toBe(2);
     expect(groupResource(g, { ...state, stale: true }, 'cpu')).toBeNull();
+    expect(groupResource(g, { ...state, ready: false }, 'cpu')).toBeNull();
+    expect(
+      groupResource(radarGroups([instance('a', 11), instance(null, 12)])[0], state, 'cpu'),
+    ).toBeNull();
+    expect(
+      groupResource(radarGroups([instance('a', 11), instance('a', 11)])[0], state, 'cpu'),
+    ).toBeNull();
   });
   it('only includes exact stamped group identities in the shared half-open timeline', () => {
     const g = radarGroups([instance('a', 11), instance(null, 12)])[0];
