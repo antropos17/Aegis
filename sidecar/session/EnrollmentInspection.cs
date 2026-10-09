@@ -48,6 +48,25 @@ namespace Aegis.ProtectedSession
         }
         // Internal disposable-observation seam, never selected by Program inputs.
         internal static EnrollmentInspection Inspect(string root, string runningImage, IEnrollmentFiles files)
+        { return InspectCore(root, runningImage, files, null); }
+        // Transfers actual held objects only after the complete observation;
+        // the ordinary inspection still closes every object before returning.
+        internal sealed class RetainedFiles
+        {
+            internal readonly List<EnrollmentHeld> Objects = new List<EnrollmentHeld>();
+            internal byte[] RecordBytes;
+            internal int ImageSize;
+            internal string ImageHash;
+        }
+        internal static RetainedFiles RetainFiles(string root, string runningImage, IEnrollmentFiles files)
+        {
+            var retained = new RetainedFiles();
+            EnrollmentInspection result = InspectCore(root, runningImage, files, retained);
+            EnrollmentNative.Require(result.Observed && retained.Objects.Count >= 3 && retained.Objects.Count <= 34);
+            return retained;
+        }
+        private static EnrollmentInspection InspectCore(string root, string runningImage,
+            IEnrollmentFiles files, RetainedFiles retained)
         {
             var held = new List<EnrollmentHeld>(); string phase = "root";
             var watch = Stopwatch.StartNew(); EnrollmentInspection result;
@@ -93,11 +112,16 @@ namespace Aegis.ProtectedSession
                     EnrollmentNative.Require(digest == match.Groups[6].Value);
                     phase = "recheck";
                     foreach (EnrollmentHeld file in held) { file.Recheck(); Deadline(watch); }
+                    if (retained != null) {
+                        retained.RecordBytes = (byte[])bytes.Clone();
+                        retained.ImageSize = imageBytes.Length; retained.ImageHash = digest;
+                    }
                     result = new EnrollmentInspection(true, "complete", "protected-enrollment-observed");
                 }
             }
             catch { result = new EnrollmentInspection(false, phase, "enrollment-unavailable"); }
             finally { watch.Stop(); }
+            if (result.Observed && retained != null) { retained.Objects.AddRange(held); return result; }
             bool closed = true;
             for (int index = held.Count - 1; index >= 0; index--)
                 try { held[index].Dispose(); } catch { closed = false; }
