@@ -29,3 +29,4 @@ process.stdin.on('end', () => {
   process.stdout.write(bytes);
   if (kind === 1) process.stderr.write(bytes);
 });
+if (kind === 5) setImmediate(() => process.stdout.write(Buffer.from([82])));
