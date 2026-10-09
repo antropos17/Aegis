@@ -41,6 +41,11 @@ lock release must succeed before dispatch. An owner must retain an operation ID
 across reconnection/recovery; choosing a new ID is a new explicit operation, never
 automatic retry. Session, epoch or nonce changes do not renew a spent operation ID.
 
+Missing optional records are accepted only after rechecking the retained directory
+and ancestor identities following the filesystem lookup. Loss or replacement
+detected by this check makes recovery inspection `unavailable` and adds no recovery
+history entry.
+
 If `.spent` disappears while `.outcome`, `.pending` or `.pending-unknown` survives,
 consumption refuses before creating replacement intent and inspection reports
 `unavailable`. Malformed, oversized or unreadable surviving records also refuse.

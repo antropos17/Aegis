@@ -96,7 +96,10 @@ async function createOperationLedger(directory) {
       try {
         before = await io.lstat(filename, { bigint: true });
       } catch (error) {
-        if (optional && error.code === 'ENOENT') return null;
+        if (optional && error.code === 'ENOENT') {
+          await verify();
+          return null;
+        }
         throw error;
       }
       if (
