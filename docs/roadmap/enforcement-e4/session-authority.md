@@ -48,12 +48,17 @@ The original evidence remains for owner recovery. This covers partial history
 loss; it cannot detect rollback or deletion of every record across a fresh owner.
 
 A live ledger also retains the hashed operation IDs of its fully confirmed
-successful consumptions in private bounded memory. Losing all records for one
-of those IDs does not renew its consumption through that ledger, and inspection
-reports `unavailable`. Failed consumptions add no successful-history entry.
-Entries are never evicted; reaching the existing 256-entry ceiling refuses new
-consumptions through that ledger even if deleted files expose disk capacity.
-This memory grants no capability and survives only for that ledger's lifetime.
+successful consumptions and successful recovery inspections in private bounded
+memory. Recovery inspection retains an ID only after validating the consumed
+record and any published outcome under the existing filesystem checks. Losing
+all records for one of those IDs does not renew its consumption through that
+ledger, and inspection reports `unavailable`. Failed consumptions and unavailable
+inspections add no history entry. Entries are never evicted; reaching the existing
+256-entry ceiling refuses new consumptions and new recovery observations through
+that ledger even if deleted files expose disk capacity. Already retained IDs can
+still be inspected. This memory grants no capability and survives only for that
+ledger's lifetime. Complete history loss before a fresh ledger observes it remains
+outside this guarantee.
 
 Consumption returns an opaque reservation held in a private per-ledger WeakMap.
 After the exclusive lock has been released, the broker rechecks the original

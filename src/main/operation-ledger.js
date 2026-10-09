@@ -303,6 +303,8 @@ async function createOperationLedger(directory) {
           (outcome.bindingSha256 !== spent.bindingSha256 || outcome.state === 'consumed')
         )
           throw Error('invalid');
+        // Retain only a confirmed recovery observation; read failures mint no history.
+        if (!history.has(name)) history.remember(name);
         return Object.freeze({ state: outcome?.state || 'outcome-unknown' });
       } catch {
         return Object.freeze({ state: 'unavailable' });

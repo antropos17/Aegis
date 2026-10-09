@@ -91,6 +91,169 @@ describe('durable bound session-operation dispatch', () => {
     expect(await fs.readdir(directory)).toEqual([]);
   });
 
+  it.each([
+    ['outcome-unknown', 'all', 'published'],
+    ['completed', 'all', 'published'],
+    ['outcome-unknown', 'spent', 'published'],
+    ['completed', 'spent', 'published'],
+    ['outcome-unknown', 'all', 'spent-only'],
+  ])(
+    'retains a reopened %s observation after %s record loss (%s)',
+    async (state, loss, records) => {
+      let effects = 0;
+      const request = operation();
+      const callback = () => {
+        effects++;
+        return state === 'completed' ? { status: 'completed' } : undefined;
+      };
+      const first = await setup(callback);
+      expect((await first.broker.dispatch(first.issue(request), request)).state).toBe(state);
+      const name = hash(request.operationId);
+      if (records === 'spent-only') await fs.unlink(path.join(directory, name + '.outcome'));
+      const recovered = await setup(callback);
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({ state });
+      for (const file of await fs.readdir(directory))
+        if (loss === 'all' || file === name + '.spent') await fs.unlink(path.join(directory, file));
+      const remaining = await fs.readdir(directory);
+      const receipt = await recovered.broker.dispatch(recovered.issue(request), request);
+      expect(effects).toBe(1);
+      expect(receipt.state).toBe('refused');
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({ state: 'unavailable' });
+      expect(await fs.readdir(directory)).toEqual(remaining);
+    },
+  );
+
+  it('leaves complete history loss before a fresh owner observes it outside the guarantee', async () => {
+    let effects = 0;
+    const request = operation();
+    const callback = () => {
+      effects++;
+    };
+    const first = await setup(callback);
+    expect((await first.broker.dispatch(first.issue(request), request)).state).toBe(
+      'outcome-unknown',
+    );
+    for (const file of await fs.readdir(directory)) await fs.unlink(path.join(directory, file));
+    const fresh = await setup(callback);
+    expect(await fresh.ledger.inspect(request.operationId)).toEqual({ state: 'unrecorded' });
+    expect((await fresh.broker.dispatch(fresh.issue(request), request)).state).toBe(
+      'outcome-unknown',
+    );
+    expect(effects).toBe(2);
+  });
+
+  it.each(['malformed', 'foreign-binding'])(
+    'refuses %s recovery evidence without remembering an unconfirmed observation',
+    async (mode) => {
+      let effects = 0;
+      const request = operation();
+      const callback = () => {
+        effects++;
+      };
+      const first = await setup(callback);
+      expect((await first.broker.dispatch(first.issue(request), request)).state).toBe(
+        'outcome-unknown',
+      );
+      const filename = path.join(directory, hash(request.operationId) + '.outcome');
+      const record = JSON.parse(await fs.readFile(filename, 'utf8'));
+      record.bindingSha256 = '0'.repeat(64);
+      const invalid = mode === 'malformed' ? '{' : JSON.stringify(record) + '\n';
+      await fs.writeFile(filename, invalid);
+      const recovered = await setup(callback);
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({ state: 'unavailable' });
+      expect((await recovered.broker.dispatch(recovered.issue(request), request)).state).toBe(
+        'refused',
+      );
+      expect(effects).toBe(1);
+      expect(await fs.readFile(filename, 'utf8')).toBe(invalid);
+      for (const file of await fs.readdir(directory)) await fs.unlink(path.join(directory, file));
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({ state: 'unrecorded' });
+    },
+  );
+
+  it.each(['read', 'close'])(
+    'does not retain a recovery %s failure as known history',
+    async (mode) => {
+      let effects = 0;
+      const request = operation();
+      const callback = () => {
+        effects++;
+      };
+      const first = await setup(callback);
+      expect((await first.broker.dispatch(first.issue(request), request)).state).toBe(
+        'outcome-unknown',
+      );
+      storage._setDepsForTest({
+        fs: {
+          ...fs,
+          open: async (...args) => {
+            const handle = await fs.open(...args);
+            if (!String(args[0]).endsWith('.outcome')) return handle;
+            if (mode === 'read') handle.read = () => Promise.reject(Error('recovery read failure'));
+            else {
+              const close = handle.close.bind(handle);
+              handle.close = async () => {
+                await close();
+                throw Error('recovery close failure');
+              };
+            }
+            return handle;
+          },
+        },
+      });
+      const recovered = await setup(callback);
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({ state: 'unavailable' });
+      expect((await recovered.broker.dispatch(recovered.issue(request), request)).state).toBe(
+        'refused',
+      );
+      expect(effects).toBe(1);
+      for (const file of await fs.readdir(directory)) await fs.unlink(path.join(directory, file));
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({ state: 'unrecorded' });
+    },
+  );
+
+  it('never evicts recovered IDs or grants new effects after the observation ceiling', async () => {
+    const writer = await storage.createOperationLedger(directory);
+    let effects = 0;
+    const recovered = await setup(() => {
+      effects++;
+    });
+    const first = operation();
+    const consume = (ledger, request) =>
+      ledger.consume({
+        ...context,
+        operationId: request.operationId,
+        operation: request.operation,
+        requestDigest: hash(request.request),
+        snapshotDigest: hash(request.snapshot),
+        nonce: randomBytes(16).toString('hex'),
+        expiresAt: Date.now() + 30000,
+      });
+    for (let index = 0; index < storage.LIMITS.entries; index++) {
+      const request = index === 0 ? first : operation();
+      await consume(writer, request);
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({
+        state: 'outcome-unknown',
+      });
+      // Reinspection does not spend another memory slot.
+      expect(await recovered.ledger.inspect(request.operationId)).toEqual({
+        state: 'outcome-unknown',
+      });
+      await fs.unlink(path.join(directory, hash(request.operationId) + '.spent'));
+    }
+    const extra = operation();
+    await consume(await storage.createOperationLedger(directory), extra);
+    expect(await recovered.ledger.inspect(extra.operationId)).toEqual({ state: 'unavailable' });
+    await fs.unlink(path.join(directory, hash(extra.operationId) + '.spent'));
+    for (const request of [first, extra])
+      expect((await recovered.broker.dispatch(recovered.issue(request), request)).state).toBe(
+        'refused',
+      );
+    expect(effects).toBe(0);
+    expect(await recovered.ledger.inspect(first.operationId)).toEqual({ state: 'unavailable' });
+    expect(await fs.readdir(directory)).toEqual([]);
+  }, 15000);
+
   it.each(['read', 'close'])(
     'refuses the actual final consumed-record %s uncertainty',
     async (mode) => {
