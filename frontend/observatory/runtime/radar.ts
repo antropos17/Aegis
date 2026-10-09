@@ -1,5 +1,6 @@
 import { instances, measured, type Telemetry, type RecordData } from './host';
 import { activityBins } from './activity';
+import { completeStatisticsTotal } from './statistics-metrics';
 import { canonicalObservationPath } from '../../../src/shared/observation-display.js';
 export type ObservedInstance = ReturnType<typeof instances>[number];
 export interface RadarGroup {
@@ -27,14 +28,17 @@ export function radarGroups(agents: ObservedInstance[]): RadarGroup[] {
 }
 /** Sum measurements only if every grouped instance is measured. @param group Group @param state Telemetry @param key Resource field @returns Measurement or unknown @since 0.14.1 */
 export function groupResource(group: RadarGroup, state: Telemetry, key: string): number | null {
-  const values = group.members.map((a) =>
-    a.instanceId
-      ? measured(state.resources.find((r) => r.instanceId === a.instanceId)?.[key])
-      : null,
+  return completeStatisticsTotal(
+    {
+      ...state,
+      agents: group.members.map((member) => ({
+        ...member,
+        instanceId: member.instanceId ?? undefined,
+      })),
+    },
+    state.resources,
+    key,
   );
-  return state.stale || values.some((v) => v === null)
-    ? null
-    : values.reduce<number>((sum, v) => sum + (v ?? 0), 0);
 }
 /** Open a product overview without implying a process action target. @param group Product group @returns Detail request @since 0.14.1 */
 export function groupRecord(group: RadarGroup): RecordData {
