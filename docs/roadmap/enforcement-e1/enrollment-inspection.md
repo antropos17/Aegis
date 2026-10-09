@@ -14,6 +14,11 @@ security rights also permit TrustedInstaller; sibling creation and inheritance-
 only ACEs are evaluated separately from rights on the held object. Unknown ACEs,
 NULL DACLs and untrusted effective mutation grants refuse inspection.
 
+The [ancestor metadata follow-up](enrollment-ancestor-metadata-evidence-20261009.md)
+preserves this sibling allowance across native rechecks. The trusted ancestor
+role excludes incidental directory write/change timestamps; enrollment-root
+and file metadata remain strict, with identity and descriptor checks retained.
+
 The canonical UTF-8 enrollment record is limited to 1,024 bytes. It binds the
 held root identity and installed helper's SHA-256, includes installation,
 revision and epoch labels, and declares active or revoked status. The helper

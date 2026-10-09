@@ -69,13 +69,13 @@ internal static class EnrollmentLeaseFixture
             }
             return bytes;
         }
-        internal override void Recheck()
+        internal override void Recheck(bool ancestor)
         {
             if (files.Changed && files.Mode == "query-failure") throw new IOException("untrusted-diagnostic");
             if (files.Block && native.PathName == files.Root) {
                 files.Entered.Set(); Require(files.Release.WaitOne(4000));
             }
-            native.Recheck();
+            native.Recheck(ancestor);
         }
         public override void Dispose()
         { native.Dispose(); Closed = true; if (files.Mode == "close-failure") throw new IOException("untrusted-diagnostic"); }

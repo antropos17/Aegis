@@ -1,6 +1,9 @@
 # Retained enrollment observation: implementation and local evidence
 
 This inactive internal primitive retains an enrollment observation between calls.
+The later [ancestor metadata correction](enrollment-ancestor-metadata-evidence-20261009.md)
+adds explicit role-aware rechecking and native sibling/root controls. The original
+receipts below remain bound to their actual tested sources.
 The source base is `888d946e0dc880071dc04c08380aaf31e4eb416d`, branch
 `codex/retained-enrollment-lease-20261009`. Independent Sol 6.1 review passed the
 frozen source and evidence scope. These local results establish the listed controls only.

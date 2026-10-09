@@ -17,7 +17,7 @@ namespace Aegis.ProtectedSession
         internal abstract bool Reparse { get; }
         internal abstract bool Protected(bool ancestor);
         internal abstract byte[] Read(int maximum);
-        internal abstract void Recheck();
+        internal abstract void Recheck(bool ancestor);
         public abstract void Dispose();
     }
 
@@ -143,14 +143,21 @@ namespace Aegis.ProtectedSession
                 while (offset < bytes.Length) { int read = stream.Read(bytes, offset, bytes.Length - offset); Require(read > 0); offset += read; }
                 Require(stream.ReadByte() == -1); return bytes;
             }
-            internal override void Recheck()
+            internal override void Recheck(bool ancestor)
             {
+                Require(!ancestor || directory);
                 Require(!disposed && Hex(Query(file, 18, 24)) == Hex(identity) &&
                     String.Equals(Name(file), name, StringComparison.OrdinalIgnoreCase) &&
                     Hex(Security(file)) == Hex(security));
                 byte[] after = Query(file, 0, 40);
                 for (int index = 0; index < basic.Length; index++)
-                    if (index < 8 || index >= 16) Require(after[index] == basic[index]);
+                {
+                    // Access times are volatile. An ancestor directory also permits
+                    // sibling churn; the protected root and every leaf stay strict.
+                    bool volatileTime = (index >= 8 && index < 16) ||
+                        (ancestor && directory && index >= 16 && index < 32);
+                    if (!volatileTime) Require(after[index] == basic[index]);
+                }
             }
             public override void Dispose()
             {

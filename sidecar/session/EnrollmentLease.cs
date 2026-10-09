@@ -34,7 +34,7 @@ namespace Aegis.ProtectedSession
             {
                 EnrollmentNative.Require(value.PathName == Path && value.Volume == Volume && value.FileId == Id &&
                     value.Directory == Directory && !value.Reparse && value.Protected(Ancestor));
-                value.Recheck();
+                value.Recheck(Ancestor);
             }
         }
         private EnrollmentLease() { }
