@@ -33,7 +33,7 @@ foreach ($name in @('Read-CloudGuestTaskDiagnostics', 'Merge-CloudGuestTaskDiagn
 $script:checks = 0
 function Check([bool]$Value, [string]$Code) { if (!$Value) { throw $Code }; $script:checks++ }
 $process = [Diagnostics.Process]::new()
-$process.StartInfo.FileName = (Get-Command node.exe -ErrorAction Stop).Source; $process.StartInfo.Arguments = '-e "process.exit(7)"'
+$process.StartInfo.FileName = (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source; $process.StartInfo.Arguments = '-e "process.exit(7)"'
 $process.StartInfo.UseShellExecute = $false; $process.StartInfo.CreateNoWindow = $true; $process.StartInfo.WindowStyle = 'Hidden'
 try {
     Check ($process.Start()) 'actual-child-start-failed'

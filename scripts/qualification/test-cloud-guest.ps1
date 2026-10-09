@@ -218,7 +218,7 @@ try {
     $sequence = 0
     foreach ($mode in @('zero', 'seven', 'zero', 'seven', 'zero', 'seven', 'head', 'node', 'delayed-zero', 'delayed-seven')) {
         $sequence++; $stdout = Join-Path $testRoot ($sequence.ToString() + '.txt'); $stderr = $stdout + '.error'; $outputs += @($stdout, $stderr)
-        $executable = if ($mode -eq 'head') { 'git.exe' } elseif ($mode -eq 'node') { (Get-Command node.exe).Source } elseif ($mode.StartsWith('delayed')) { Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe' } else { Join-Path $env:WINDIR 'System32\cmd.exe' }
+        $executable = if ($mode -eq 'head') { 'git.exe' } elseif ($mode -eq 'node') { (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source } elseif ($mode.StartsWith('delayed')) { Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe' } else { Join-Path $env:WINDIR 'System32\cmd.exe' }
         $expectedExit = if ($mode.EndsWith('seven')) { 7 } else { 0 }
         $arguments = if ($mode -eq 'head') { @('-C', ('"' + [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')) + '"'), 'rev-parse', 'HEAD') } elseif ($mode -eq 'node') { @('--version') } elseif ($mode.StartsWith('delayed')) { @('-NoProfile', '-Command', ('"Start-Sleep -Milliseconds 80; exit ' + $expectedExit + '"')) } else { @('/d', '/c', ('exit ' + $expectedExit)) }
             $exitCode = Invoke-CloudGuestNativeProcess $executable $arguments $stdout $stderr 5000
