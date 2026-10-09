@@ -34,12 +34,16 @@ namespace Aegis.ProtectedSession
             {
                 lock (registration.Gate)
                 {
+                    // Admission reverts its own impersonation, but the invoking
+                    // thread may have acquired another token before this fence.
+                    CallerNative.Require(!CallerNative.HasThreadToken());
                     CallerNative.Require(!pipe.IsClosed && lease.ElapsedMilliseconds < 2000);
                     uint peer, available, left;
                     CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(pipe, out peer));
                     registration.CheckLive(peer);
                     CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero,
                         out available, out left) && available == 0);
+                    CallerNative.Require(!CallerNative.HasThreadToken());
                 }
             }
         }
