@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 
 namespace Aegis.ProtectedSession
@@ -97,17 +96,11 @@ namespace Aegis.ProtectedSession
             finally { if (current != null) Array.Clear(current, 0, current.Length); }
             Deadline(watch);
             byte[] bytes = held[held.Count - 1].Read(4 * 1024 * 1024);
-            try { EnrollmentNative.Require(Hash(bytes) == imageHash); }
+            try { EnrollmentNative.Require(EnrollmentInspection.ImageHash(bytes) == imageHash); }
             finally { if (bytes != null) Array.Clear(bytes, 0, bytes.Length); }
             Deadline(watch);
             EnrollmentNative.Require(image.IsPinned && image.MatchesProcessImage(process.DangerousGetHandle()));
             owner.CheckCurrent(); EnrollmentNative.Require(!CallerNative.HasThreadToken()); Deadline(watch);
-        }
-        private static string Hash(byte[] bytes)
-        {
-            EnrollmentNative.Require(bytes != null && bytes.Length > 0 && bytes.Length <= 4 * 1024 * 1024);
-            using (SHA256 hash = SHA256.Create())
-                return BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
         }
         private static bool Same(byte[] first, byte[] second)
         {
@@ -118,13 +111,16 @@ namespace Aegis.ProtectedSession
         // Post-call observation budget, not cancellation of synchronous native calls.
         private static void Deadline(Stopwatch watch) { EnrollmentNative.Require(watch.ElapsedMilliseconds < 2000); }
         private static InvalidDataException Unavailable() { return new InvalidDataException("enrollment-lease-unavailable"); }
+        private void CloseResource(IDisposable value)
+        {
+            if (value != null) try { value.Dispose(); } catch { cleanupUnknown = true; }
+        }
         private void Close()
         {
             if (revoked) return;
             revoked = true;
-            Action<IDisposable> close = value => { if (value != null) try { value.Dispose(); } catch { cleanupUnknown = true; } };
-            close(image); close(owner); close(job); close(process);
-            if (held != null) for (int index = held.Count - 1; index >= 0; index--) close(held[index]);
+            CloseResource(image); CloseResource(owner); CloseResource(job); CloseResource(process);
+            if (held != null) for (int index = held.Count - 1; index >= 0; index--) CloseResource(held[index]);
             if (record != null) Array.Clear(record, 0, record.Length);
         }
         internal void Revoke() { Dispose(); }

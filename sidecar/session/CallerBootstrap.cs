@@ -7,6 +7,9 @@ namespace Aegis.ProtectedSession
     {
         internal static CallerSession Prepare(string root, int size, string hash, string label, CallerRegistration server)
         { return CallerSession.PrepareBootstrap(root, size, hash, label, server, null, new CallerBootstrapInput()); }
+        internal static CallerSession PrepareForController(string root, int size, string hash, string label,
+            CallerRegistration server, CallerRegistration main)
+        { CallerNative.Require(main != null); return CallerSession.PrepareBootstrap(root, size, hash, label, server, null, new CallerBootstrapInput(), main); }
 #if ENROLLMENT_LEASE_TEST
         internal static CallerSession PrepareForTest(string root, int size, string hash, string label,
             CallerRegistration server, IEnrollmentFiles files, CallerBootstrapInput input)
@@ -14,31 +17,31 @@ namespace Aegis.ProtectedSession
             CallerNative.Require(files != null);
             return CallerSession.PrepareBootstrap(root, size, hash, label, server, files, input);
         }
+        internal static CallerSession PrepareForControllerTest(string root, int size, string hash, string label,
+            CallerRegistration server, CallerRegistration main, IEnrollmentFiles files, CallerBootstrapInput input)
+        {
+            CallerNative.Require(main != null && files != null);
+            return CallerSession.PrepareBootstrap(root, size, hash, label, server, files, input, main);
+        }
 #endif
     }
 
     internal sealed partial class CallerSession
     {
-        private CallerSession(CallerRegistration server, IDisposable transport, Action check)
+        private CallerSession(CallerRegistration server, ICallerSetup transport, CallerRegistration main)
         {
             // Immutable from construction: no published owner can change its gate.
-            gate = server.Gate; bootstrapServer = server; bootstrapInput = transport; bootstrapCheck = check;
+            gate = server.Gate; this.server = server; this.main = main; setup = transport;
         }
         internal static CallerSession PrepareBootstrap(string root, int size, string hash, string label,
-            CallerRegistration server, IEnrollmentFiles files, CallerBootstrapInput input)
+            CallerRegistration server, IEnrollmentFiles files, CallerBootstrapInput input, CallerRegistration main = null)
         {
             CallerNative.Require(server != null && input != null);
-            var result = new CallerSession(server, input, input.CheckCurrent);
+            var result = new CallerSession(server, input, main);
             lock (result.gate)
             {
-                try
-                {
-                    server.CheckCurrent();
-                    // Supply only re-enters this identical held gate; transport check takes no owner locks or callbacks.
-                    return PrepareCore(root, size, hash, label, files, input, result,
-                        owner => input.Supply(server, owner.Routing));
-                }
-                catch { result.Close(); throw; }
+                // PrepareCore owns initial authority checks, setup and every acquired cleanup path.
+                return PrepareCore(root, size, hash, label, files, input, result);
             }
         }
     }

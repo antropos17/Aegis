@@ -19,14 +19,10 @@ namespace Aegis.ProtectedSession
             internal uint Charged, Available, Groups, Privileges;
             internal Luid Modified;
         }
-        [StructLayout(LayoutKind.Sequential)]
-        private struct SidAttributes { internal IntPtr Sid; internal uint Attributes; }
-        [StructLayout(LayoutKind.Sequential)]
-        private struct Groups { internal uint Count; internal SidAttributes First; }
         private readonly string sid, integrity;
         private readonly Luid authentication, tokenId, modified;
         private readonly string[] groups, privileges, restricting;
-        private readonly int session, restrictions, restrictedSids, appContainer, elevation, uiAccess, mandatoryPolicy;
+        private readonly int session, restrictions, appContainer, elevation, uiAccess, mandatoryPolicy;
         internal readonly int Type, Level;
 
         private CallerIdentity(SafeFileHandle token)
@@ -45,7 +41,6 @@ namespace Aegis.ProtectedSession
             groups = WithBuffer(token, 2, ReadGroups);
             privileges = WithBuffer(token, 3, ReadPrivileges);
             restricting = WithBuffer(token, 11, ReadGroups);
-            restrictedSids = restricting.Length;
             appContainer = Value<int>(token, 29);
             elevation = Value<int>(token, 20);
             uiAccess = Value<int>(token, 26);
@@ -73,20 +68,20 @@ namespace Aegis.ProtectedSession
         }
         private static bool SamePeerPrivileges(string[] primary, string[] peer)
         {
-            var expected = new HashSet<string>(primary, StringComparer.Ordinal);
-            var observed = new HashSet<string>(peer, StringComparer.Ordinal);
             // Effective-only pipe tokens may omit disabled privileges. Every
             // supplied entry must match, and every enabled entry must remain.
-            foreach (string entry in peer) if (!expected.Contains(entry)) return false;
+            // ReadPrivileges already provides unique ordinally sorted snapshots.
+            foreach (string entry in peer)
+                if (Array.BinarySearch(primary, entry, StringComparer.Ordinal) < 0) return false;
             foreach (string entry in primary)
-                if ((Convert.ToUInt32(entry.Substring(17), 16) & 2) != 0 && !observed.Contains(entry)) return false;
+                if ((Convert.ToUInt32(entry.Substring(17), 16) & 2) != 0 &&
+                    Array.BinarySearch(peer, entry, StringComparer.Ordinal) < 0) return false;
             return true;
         }
         private bool SameContext(CallerIdentity other, bool pipePeer)
         {
-            return other != null && sid == other.sid && integrity == other.integrity &&
-                SameLuid(authentication, other.authentication) &&
-                session == other.session && restrictions == other.restrictions && restrictedSids == other.restrictedSids && appContainer == other.appContainer &&
+            return SameOperator(other) && integrity == other.integrity &&
+                restrictions == other.restrictions && appContainer == other.appContainer &&
                 elevation == other.elevation && uiAccess == other.uiAccess && mandatoryPolicy == other.mandatoryPolicy &&
                 SameEntries(groups, other.groups) &&
                 (pipePeer ? SamePeerPrivileges(privileges, other.privileges) : SameEntries(privileges, other.privileges)) &&
@@ -97,6 +92,12 @@ namespace Aegis.ProtectedSession
         {
             return other != null && Type == 1 && other.Type == 1 && SameLuid(tokenId, other.tokenId) &&
                 SameLuid(modified, other.modified) && SameContext(other, false);
+        }
+        internal bool SameOperator(CallerIdentity other)
+        {
+            // Operator tuple only; native registration and peer matching enforce token type separately.
+            return other != null && sid == other.sid &&
+                SameLuid(authentication, other.authentication) && session == other.session;
         }
         internal bool MatchesImpersonation(CallerIdentity other)
         {
@@ -109,7 +110,7 @@ namespace Aegis.ProtectedSession
         {
             // This increment supports a regular, non-AppContainer broker only. A
             // protected dedicated principal is still a separate provisioning gate.
-            return Type == 1 && restrictedSids == 0 && appContainer == 0 && uiAccess == 0 &&
+            return Type == 1 && restricting.Length == 0 && appContainer == 0 && uiAccess == 0 &&
                 (integrity == "S-1-16-8192" || integrity == "S-1-16-8448" ||
                  integrity == "S-1-16-12288" || integrity == "S-1-16-16384");
         }
@@ -144,7 +145,8 @@ namespace Aegis.ProtectedSession
         private static string Sid(SafeFileHandle token, int kind)
         {
             return WithBuffer(token, kind, (buffer, length) => {
-                int header = Marshal.SizeOf(typeof(SidAttributes));
+                // SID_AND_ATTRIBUTES: pointer, DWORD attributes, then native alignment padding.
+                int header = 2 * IntPtr.Size;
                 CallerNative.Require(length >= header);
                 return ReadSid(buffer, length, Marshal.ReadIntPtr(buffer), header);
             });
@@ -163,7 +165,8 @@ namespace Aegis.ProtectedSession
         {
             CallerNative.Require(buffer != IntPtr.Zero && length >= 4 && length <= 65536);
             uint count = unchecked((uint)Marshal.ReadInt32(buffer));
-            int offset = Marshal.OffsetOf(typeof(Groups), "First").ToInt32(), stride = Marshal.SizeOf(typeof(SidAttributes));
+            // TOKEN_GROUPS aligns its first SID_AND_ATTRIBUTES to pointer width.
+            int offset = IntPtr.Size, stride = 2 * IntPtr.Size;
             CallerNative.Require(count <= 256 && (count == 0 || offset + (long)count * stride <= length));
             int tableEnd = checked(offset + (int)count * stride);
             var entries = new string[count]; var unique = new HashSet<string>(StringComparer.Ordinal);

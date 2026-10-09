@@ -104,10 +104,7 @@ namespace Aegis.ProtectedSession
                     EnrollmentNative.Require(String.Equals(imagePath, Path.GetFullPath(runningImage), StringComparison.OrdinalIgnoreCase));
                     EnrollmentHeld image = files.Open(imagePath, false); held.Add(image);
                     Check(image, imagePath, false, false); byte[] imageBytes = image.Read(4 * 1024 * 1024);
-                    EnrollmentNative.Require(imageBytes != null && imageBytes.Length > 0 && imageBytes.Length <= 4 * 1024 * 1024);
-                    string digest;
-                    using (SHA256 hash = SHA256.Create())
-                        digest = BitConverter.ToString(hash.ComputeHash(imageBytes)).Replace("-", "").ToLowerInvariant();
+                    string digest = ImageHash(imageBytes);
                     Array.Clear(imageBytes, 0, imageBytes.Length);
                     EnrollmentNative.Require(digest == match.Groups[6].Value);
                     phase = "recheck";
@@ -132,5 +129,12 @@ namespace Aegis.ProtectedSession
         // Synchronous OS calls are not cancelled by this post-call budget check.
         // A caller requiring a hard wall-clock limit must supervise the process.
         private static void Deadline(Stopwatch watch) { EnrollmentNative.Require(watch.ElapsedMilliseconds < 2000); }
+        // Shared identical bounded digest for inspection and the retained lease recheck.
+        internal static string ImageHash(byte[] bytes)
+        {
+            EnrollmentNative.Require(bytes != null && bytes.Length > 0 && bytes.Length <= 4 * 1024 * 1024);
+            using (SHA256 hash = SHA256.Create())
+                return BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+        }
     }
 }
