@@ -165,6 +165,7 @@ function main() {
       path.join(ROOT, 'sidecar', 'session', 'Protocol.cs'),
       path.join(ROOT, 'sidecar', 'session', 'EnrollmentNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'EnrollmentInspection.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'EnrollmentLease.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerIdentity.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerRegistration.cs'),
