@@ -131,7 +131,9 @@ positives. Local controls retain their own native/model scope labels.
 
 Measured compositions were guest DLL 77,312 bytes, optimized runtime fixture
 80,384 bytes, cancellation 78,848 bytes and witness DLL 81,920 bytes, within their
-existing respective 81,920/81,920/81,920/81,920-byte caps. The runtime default
+existing respective 81,920/81,920/81,920/1,048,576-byte caps. The witness limit
+is the unchanged `1MB` test-fixture cap; its measured size is 81,920 bytes.
+The runtime default
 unoptimized composition was 84,992 bytes and explicitly reported over cap.
 Production compiler flags, production sources outside the owned token primitive,
 and every cap remain unchanged. Witness completion controls are synthetic.

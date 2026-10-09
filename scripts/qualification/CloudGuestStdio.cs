@@ -133,6 +133,8 @@ internal sealed class CloudGuestStdio : IDisposable
         return true;
     }
     internal Result Exchange(byte[] input, int outputLimit, int errorLimit, int milliseconds, CancellationToken cancellation)
+    { return Exchange(input, outputLimit, errorLimit, milliseconds, cancellation, null); }
+    internal Result Exchange(byte[] input, int outputLimit, int errorLimit, int milliseconds, CancellationToken cancellation, Action<byte[]> outputObservation)
     {
         Need(attached && !used && !closed && input != null && input.Length <= 65536 &&
             outputLimit >= 1 && outputLimit <= 65536 && errorLimit >= 1 && errorLimit <= 65536 && milliseconds >= 1 && milliseconds <= 10000);
@@ -177,6 +179,7 @@ internal sealed class CloudGuestStdio : IDisposable
                     }
                     if (!Drain(pipes[1], output, outputLimit, ref result.OutputEof) || !Drain(pipes[2], error, errorLimit, ref result.ErrorEof))
                     { result.Outcome = Outcome.OutputLimit; break; }
+                    if (outputObservation != null) outputObservation(output.ToArray());
                     if (!result.InputEof)
                     {
                         if (result.InputBytes == input.Length) { pipes[0].Dispose(); result.InputEof = true; }

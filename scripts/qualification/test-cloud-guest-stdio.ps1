@@ -140,6 +140,7 @@ if ($MutationControls) {
         $mutations++
     }
 }
+& (Join-Path $PSScriptRoot 'test-cloud-guest-stdio-readiness.ps1') -ProjectRoot $ProjectRoot
 # Retain a finite reviewed fixture set; no raw data or secret-bearing process output is logged.
 [ordered]@{ schemaVersion = 1; scope = 'actual-same-principal-Job-owned-standard-handles'; nativeCases = 8;
     closedDiagnosticControls = 5; localNodeCaseSelected = 1;

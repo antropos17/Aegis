@@ -117,21 +117,6 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
     { var result = new byte[8192]; for (int at = 0; at < result.Length; at++) result[at] = (byte)at; return result; }
     private static bool Equal(byte[] a, byte[] b)
     { if (a.Length != b.Length) return false; for (int at = 0; at < a.Length; at++) if (a[at] != b[at]) return false; return true; }
-    private Member RetainCancellationPayload(out int memberCount)
-    {
-        memberCount = 0;
-        OriginalLive(); var live = Census(); Member payload = null; int payloads = 0;
-        try
-        {
-            foreach (var held in live)
-            {
-                Need(Same(held.Image, rootImage) || Same(held.Image, helper) || Same(held.Image, Path.Combine(Environment.SystemDirectory, "conhost.exe")));
-                if (Same(held.Image, rootImage) && held.Pid != rootPid) { payload = held; payloads++; }
-            }
-            Need(payloads == 1); memberCount = live.Count; observed.AddRange(live); live.Clear(); return payload;
-        }
-        finally { foreach (var held in live) held.Dispose(); }
-    }
     public void Execute(Dictionary<string, object> receipt)
     {
         Need(captured && !executed); executed = true;
@@ -140,25 +125,8 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
         receipt["stdioOriginalMemberCount"] = original.Count; receipt["stdioObservedMemberCount"] = observed.Count;
         using (var cancellation = new CancellationTokenSource())
         {
-            bool cancellationArmed = false;
-            Action<byte[]> readiness = null;
-            if (kind == 5) readiness = delegate(byte[] bytes)
-            {
-                if (cancellationArmed || bytes.Length == 0) return;
-                // The fixed payload emits one byte only after installing its stdin handlers and an event-loop turn.
-                Need(bytes.Length == 1 && bytes[0] == 82); OriginalLive(); member.Check();
-                int memberCount; Member payload = RetainCancellationPayload(out memberCount); payload.Check();
-                receipt["stdioCancellationReadyPayloadPid"] = payload.Pid;
-                receipt["stdioCancellationReadyPayloadBirthFileTime"] = payload.Birth;
-                receipt["stdioCancellationReadyPayloadImage"] = payload.Image;
-                receipt["stdioCancellationReadyPayloadSid"] = GuestJobNative.Principal(payload.Handle);
-                receipt["stdioCancellationReadyPayloadSession"] = GuestJobNative.Session(payload.Handle);
-                receipt["stdioCancellationReadyMemberCount"] = memberCount;
-                receipt["stdioCancellationReadyPayloadIdentityVerified"] = true;
-                receipt["stdioCancellationPayloadReadyBeforeTimer"] = true;
-                cancellation.CancelAfter(250); cancellationArmed = true;
-            };
-            var result = transport.Exchange(Input(), kind == 3 ? 1024 : 65536, kind == 4 ? 1024 : 65536, 5000, cancellation.Token, readiness);
+            if (kind == 5) cancellation.CancelAfter(250);
+            var result = transport.Exchange(Input(), kind == 3 ? 1024 : 65536, kind == 4 ? 1024 : 65536, 5000, cancellation.Token);
             receipt["stdioCase"] = kind; receipt["stdioOutcome"] = result.Outcome.ToString();
             receipt["stdioInputBytes"] = result.InputBytes; receipt["stdioOutputBytes"] = result.Output.Length; receipt["stdioErrorBytes"] = result.Error.Length;
             receipt["stdioInputEof"] = result.InputEof; receipt["stdioOutputEof"] = result.OutputEof; receipt["stdioErrorEof"] = result.ErrorEof;
@@ -183,7 +151,7 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
                 }
                 finally { foreach (var held in live) held.Dispose(); }
                 receipt["stdioCancellationHeldPayloadAlive"] = true;
-                positive = cancellationArmed && result.Outcome == CloudGuestStdio.Outcome.Cancelled;
+                positive = result.Outcome == CloudGuestStdio.Outcome.Cancelled;
             }
             if (kind <= 2)
             {
