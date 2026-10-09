@@ -54,19 +54,26 @@ namespace Aegis.ProtectedSession
         }
     }
 
-    // Inactive retained composition. No operator registration or dispatcher.
+    // Shared by optional native setup, without a dependency on its implementation unit.
+    internal interface ICallerSetup : IDisposable
+    {
+        void Supply(CallerRegistration server, CallerSession.RoutingLabels routing);
+        void CheckCurrent();
+    }
+
+    // Inactive retained composition. No authenticated provisioning or dispatcher.
     internal sealed partial class CallerSession : IDisposable
     {
         private readonly object gate;
-        private readonly CallerRegistration bootstrapServer;
-        private readonly IDisposable bootstrapInput;
-        private readonly Action bootstrapCheck;
+        private readonly CallerRegistration server, main;
+        private readonly ICallerSetup setup;
         private CallerLauncher.Instance child;
         private EnrollmentLease enrollment;
         private CallerEndpoint endpoint;
         private bool closed, releaseAttempted, released, admissionAttempted;
         private Exception cleanupFailure;
-        internal RoutingLabels Routing { get; private set; }
+        private RoutingLabels routing;
+        internal RoutingLabels Routing { get { return routing; } }
 
         // Trusted-code routing labels only. No handle or protected delivery is conveyed.
         internal sealed class RoutingLabels
@@ -85,7 +92,7 @@ namespace Aegis.ProtectedSession
             internal void CheckCurrent() { owner.CheckContext(admitted); }
         }
         private CallerSession()
-        { gate = new object(); bootstrapServer = null; bootstrapInput = null; bootstrapCheck = null; }
+        { gate = new object(); server = null; main = null; setup = null; }
 
         internal static CallerSession Prepare(string root, int imageSize, string imageHash,
             string session, CallerLauncherNative native = null)
@@ -100,11 +107,12 @@ namespace Aegis.ProtectedSession
 #endif
         private static CallerSession PrepareCore(string root, int imageSize, string imageHash,
             string session, IEnrollmentFiles files, CallerLauncherNative native,
-            CallerSession result = null, Action<CallerSession> configure = null)
+            CallerSession result = null)
         {
             result = result ?? new CallerSession();
             try
             {
+                result.CheckAuthority();
                 result.child = CallerLauncher.Prepare(Path.Combine(root, "aegis-session.exe"), imageSize, imageHash, session, native);
 #if ENROLLMENT_LEASE_TEST
                 result.enrollment = files == null ? result.child.AcquireEnrollment(root)
@@ -114,21 +122,26 @@ namespace Aegis.ProtectedSession
                 result.enrollment = result.child.AcquireEnrollment(root);
 #endif
                 result.endpoint = result.child.CreateEndpoint();
-                result.Routing = new RoutingLabels(result.endpoint, result.child.Registration);
-                if (configure != null) configure(result);
+                result.routing = new RoutingLabels(result.endpoint, result.child.Registration);
+                if (result.setup != null) result.setup.Supply(result.server, result.Routing);
                 result.CheckOwnerCurrent();
                 return result;
             }
             catch { result.Close(); throw; }
         }
         // Lock order: composition (shared with server registration for bootstrap) -> each inner owner.
-        // The optional transport-check delegate takes no owner locks or callbacks.
+        // The optional transport check takes no owner locks or callbacks.
         // The two registration objects are independently retained from the same created process.
+        private void CheckAuthority()
+        {
+            if (server != null) server.CheckCurrent();
+            if (main != null) main.CheckMain(server, child == null ? null : child.Registration);
+        }
         private void CheckOwnerCurrent()
         {
             CallerNative.Require(!closed && !CallerNative.HasThreadToken());
-            if (bootstrapServer != null) bootstrapServer.CheckCurrent();
-            if (bootstrapCheck != null) bootstrapCheck();
+            CheckAuthority();
+            if (setup != null) setup.CheckCurrent();
             enrollment.CheckCurrent();
             child.CheckCurrent();
             endpoint.CheckCurrent();
@@ -178,17 +191,18 @@ namespace Aegis.ProtectedSession
                 catch { Close(); throw; }
             }
         }
+        private void CloseResource(IDisposable value)
+        {
+            if (value != null) try { value.Dispose(); }
+            catch (Exception error) { if (cleanupFailure == null) cleanupFailure = error; }
+        }
         private void Close()
         {
             if (!closed)
             {
                 closed = true;
-                Action<IDisposable> close = value => {
-                    if (value != null) try { value.Dispose(); }
-                    catch (Exception error) { if (cleanupFailure == null) cleanupFailure = error; }
-                };
                 // Always reach confirmed owned stop even if an earlier resource close fails.
-                close(endpoint); close(enrollment); close(child); close(bootstrapInput);
+                CloseResource(endpoint); CloseResource(enrollment); CloseResource(child); CloseResource(setup);
             }
             if (cleanupFailure != null)
                 throw new InvalidOperationException("caller-session-cleanup-unconfirmed", cleanupFailure);

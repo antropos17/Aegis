@@ -6,7 +6,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Aegis.ProtectedSession
 {
-    internal class CallerBootstrapInput : CallerLauncherNative, IDisposable
+    internal class CallerBootstrapInput : CallerLauncherNative, ICallerSetup
     {
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CreatePipe(out SafeFileHandle read, out SafeFileHandle write, IntPtr security, uint size);
@@ -37,7 +37,7 @@ namespace Aegis.ProtectedSession
             CallerNative.Require(DuplicateHandle(CallerEndpointNative.GetCurrentProcess(), server, child, out remote, 0x00101000, false, 0));
             return remote;
         }
-        internal void Supply(CallerRegistration server, CallerSession.RoutingLabels labels)
+        public void Supply(CallerRegistration server, CallerSession.RoutingLabels labels)
         {
             CallerNative.Require(!closed && !completed && child != null);
             CheckCreated(child); byte[] bytes = server.ExportBootstrap(child.Process, labels);
@@ -46,7 +46,7 @@ namespace Aegis.ProtectedSession
             CallerNative.Require(CallerEndpointNative.WriteFile(write, bytes, (uint)bytes.Length, out written, IntPtr.Zero) && written == bytes.Length);
             write.Dispose(); completed = true; CheckCurrent();
         }
-        internal void CheckCurrent()
+        public void CheckCurrent()
         { CallerNative.Require(!closed && completed && write.IsClosed); }
         internal static CallerBootstrapFrame Receive(int timeoutMilliseconds)
         {

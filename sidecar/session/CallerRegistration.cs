@@ -7,7 +7,8 @@ namespace Aegis.ProtectedSession
     // Construct only from a trusted launcher's retained process handle, never JSON.
     internal sealed partial class CallerRegistration : IDisposable
     {
-        internal readonly object Gate = new object();
+        internal readonly object Gate;
+        private readonly CallerRegistration authorityServer;
         private readonly SafeFileHandle process, token;
         private readonly uint pid;
         private readonly long birth;
@@ -20,7 +21,12 @@ namespace Aegis.ProtectedSession
 
         // Optional observed metadata validates the imported native reference; it never opens a process.
         internal CallerRegistration(IntPtr heldProcess, string session, uint expectedPid, long expectedBirth)
+            : this(heldProcess, session, expectedPid, expectedBirth, null) { }
+
+        private CallerRegistration(IntPtr heldProcess, string session, uint expectedPid, long expectedBirth,
+            CallerRegistration server)
         {
+            authorityServer = server; Gate = server == null ? new object() : server.Gate;
             CallerNative.Require(System.Text.RegularExpressions.Regex.IsMatch(session ?? "", "\\A[a-f0-9]{32}\\z"));
             process = CallerNative.Duplicate(heldProcess);
             try
@@ -37,6 +43,27 @@ namespace Aegis.ProtectedSession
                 CheckLive(pid);
             }
             catch { if (token != null) token.Dispose(); process.Dispose(); throw; }
+        }
+
+        // Trusted native construction only. Retain the exact server object as well as its gate.
+        internal static CallerRegistration RegisterMain(IntPtr heldProcess, CallerRegistration server)
+        {
+            CallerNative.Require(server != null && server.authorityServer == null);
+            lock (server.Gate)
+            {
+                server.CheckCurrent();
+                // Routing label belongs to this server group; every registration still gets its own fresh Generation.
+                var main = new CallerRegistration(heldProcess, server.Session, 0, 0, server);
+                try { server.CheckCurrent(); return main; }
+                catch { main.Dispose(); throw; }
+            }
+        }
+        internal void CheckMain(CallerRegistration server, CallerRegistration broker = null)
+        {
+            // Refuse mismatched pairs before taking any additional gate.
+            CallerNative.Require(server != null && ReferenceEquals(authorityServer, server) && ReferenceEquals(Gate, server.Gate));
+            CheckCurrent();
+            if (broker != null) CallerNative.Require(identity.SameOperator(broker.identity));
         }
 
         internal void CheckLive(uint observedPid)
