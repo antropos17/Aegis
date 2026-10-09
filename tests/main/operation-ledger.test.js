@@ -215,6 +215,83 @@ describe('bounded redacted operation ledger', () => {
 // evidence of a fresh operation. No reconstruction or deletion is authorized.
 describe('operation ledger partial-history recovery', () => {
   it.each(
+    ['outcome', 'pending-unknown'].flatMap((suffix) =>
+      ['root-loss', 'root-replacement', 'ancestor-replacement'].map((change) => [suffix, change]),
+    ),
+  )(
+    'refuses inspection when missing %s loses its retained store fence through %s',
+    async (suffix, change) => {
+      const owner = path.join(directory, 'owner');
+      const store = path.join(owner, 'store');
+      const retained = path.join(directory, 'retained');
+      await fs.mkdir(store, { recursive: true });
+      const value = binding();
+      const name = createHash('sha256').update(value.operationId).digest('hex');
+      const spent = path.join(store, name + '.spent');
+      if (suffix === 'outcome') {
+        const prior = await storage.createOperationLedger(store);
+        await prior.consume(value);
+      }
+      const original = await fs.lstat(store, { bigint: true });
+      let changed = false;
+      storage._setDepsForTest({
+        fs: {
+          ...fs,
+          lstat: async (filename, options) => {
+            if (filename === path.join(store, name + '.' + suffix) && !changed) {
+              changed = true;
+              if (change === 'ancestor-replacement') {
+                await fs.rename(owner, retained);
+                await fs.mkdir(owner);
+                // Keep the exact store directory, replacing only its retained ancestor.
+                await fs.rename(path.join(retained, 'store'), store);
+              } else {
+                await fs.rename(store, retained);
+                if (change === 'root-replacement') await fs.mkdir(store);
+              }
+            }
+            return fs.lstat(filename, options);
+          },
+        },
+      });
+      const recovered = await storage.createOperationLedger(store);
+      const observed = await recovered.inspect(value.operationId);
+      expect(changed).toBe(true);
+
+      if (change === 'ancestor-replacement') {
+        await fs.rename(store, path.join(retained, 'store'));
+        await fs.rmdir(owner);
+        await fs.rename(retained, owner);
+      } else {
+        if (change === 'root-replacement') await fs.rmdir(store);
+        await fs.rename(retained, store);
+      }
+      expect(await fs.lstat(store, { bigint: true })).toMatchObject({
+        dev: original.dev,
+        ino: original.ino,
+      });
+      if (suffix === 'outcome') await fs.unlink(spent);
+      const afterLoss = await recovered.inspect(value.operationId);
+      // An unavailable observation must not mint recovery history. Restoring the
+      // exact retained store then losing unobserved records remains unrecorded.
+      expect.soft(observed).toEqual({ state: 'unavailable' });
+      expect.soft(afterLoss).toEqual({ state: 'unrecorded' });
+      expect(await fs.readdir(store)).toEqual([]);
+    },
+  );
+
+  it('reports intact optional absence and present recovery records without refusing them', async () => {
+    const value = binding();
+    const ledger = await storage.createOperationLedger(directory);
+    expect(await ledger.inspect(value.operationId)).toEqual({ state: 'unrecorded' });
+    await ledger.consume(value);
+    const recovered = await storage.createOperationLedger(directory);
+    expect(await recovered.inspect(value.operationId)).toEqual({ state: 'outcome-unknown' });
+    await ledger.settle(value, 'completed');
+    expect(await recovered.inspect(value.operationId)).toEqual({ state: 'completed' });
+  });
+
+  it.each(
     ['outcome', 'pending', 'pending-unknown'].flatMap((suffix) =>
       ['canonical', 'malformed', 'oversized'].map((content) => [suffix, content]),
     ),
