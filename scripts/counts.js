@@ -854,11 +854,6 @@ const ARCHIVAL_FILES = new Set(ARCHIVAL.map((a) => a.file));
  */
 const SITE_EXEMPTIONS = [
   {
-    file: 'README.md',
-    contains: '| YAML rulesets, 68 rules, hot-reload, 568 tests |',
-    why: 'a release-history table row: it describes v0.7.0-alpha, not the tree',
-  },
-  {
     file: 'docs/current-state/CORRECTNESS-AUDIT.md',
     contains: 'At audit time these read',
     why: 'the sentence that explicitly reports the SUPERSEDED figures under a current table',

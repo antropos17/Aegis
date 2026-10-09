@@ -1,6 +1,12 @@
 'use strict';
 const { createHash, timingSafeEqual } = require('node:crypto');
-const { readActionFile, parseActionJson, equalActionValue: equal } = require('./action-policy');
+const { types } = require('node:util');
+const {
+  readActionFile,
+  parseActionJson,
+  equalActionValue: equal,
+  LIMITS,
+} = require('./action-policy');
 const { captureGatewayGrantStore } = require('./mcp-gateway-grants');
 const { captureSecretPolicy } = require('./mcp-gateway-secrets');
 const { captureGatewayRoute } = require('./mcp-gateway-route');
@@ -15,6 +21,60 @@ const idValid = (id) =>
   (typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(id));
 const result = (id, value) => ({ jsonrpc: '2.0', id, result: value });
 const error = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
+
+// Capture JSON data without invoking getters, toJSON, or proxy traps. The parser's
+// existing byte/node/depth limits also bound in-process callers before any await.
+function captureParams(message) {
+  const descriptor = Object.getOwnPropertyDescriptor(message, 'params');
+  if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw Error('invalid');
+  let nodes = 0,
+    bytes = 0;
+  const append = (text) => {
+    bytes += Buffer.byteLength(text);
+    if (bytes > LIMITS.bytes) throw Error('invalid');
+    return text;
+  };
+  const visit = (value, depth) => {
+    if (++nodes > LIMITS.nodes || depth > LIMITS.depth) throw Error('invalid');
+    if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+      if (typeof value === 'number' && !Number.isFinite(value)) throw Error('invalid');
+      return append(JSON.stringify(value));
+    }
+    if (typeof value === 'string') {
+      if (value.length > LIMITS.bytes) throw Error('invalid');
+      return append(JSON.stringify(value));
+    }
+    if (typeof value !== 'object' || types.isProxy(value)) throw Error('invalid');
+    const array = Array.isArray(value);
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== (array ? Array.prototype : Object.prototype) && prototype !== null)
+      throw Error('invalid');
+    const keys = Reflect.ownKeys(value);
+    if (keys.length > LIMITS.nodes || (array && keys.length !== value.length + 1))
+      throw Error('invalid');
+    const parts = [append(array ? '[' : '{')];
+    let count = 0;
+    for (const key of keys) {
+      if (array && key === 'length') continue;
+      if (typeof key !== 'string' || key.length > LIMITS.bytes) throw Error('invalid');
+      if (array && (!/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length))
+        throw Error('invalid');
+      const property = Object.getOwnPropertyDescriptor(value, key);
+      if (!property.enumerable || !Object.hasOwn(property, 'value')) throw Error('invalid');
+      if (count++) parts.push(append(','));
+      if (!array) parts.push(append(JSON.stringify(key) + ':'));
+      parts.push(visit(property.value, depth + 1));
+    }
+    parts.push(append(array ? ']' : '}'));
+    return parts.join('');
+  };
+  const buffer = Buffer.from(visit(descriptor.value, 0));
+  try {
+    return parseActionJson(buffer);
+  } finally {
+    buffer.fill(0);
+  }
+}
 
 /** Gate an explicitly selected upstream server; grants bind exact tool/arguments for one attempt.
  * @param {object} options Exclusive stdio pair or HTTP endpoint, accepted manifest and failure hook.
@@ -244,7 +304,12 @@ function createMcpGateway({
       }
     }
     if (message.method !== 'tools/call') return error(id, -32601, 'gateway-method-unsupported');
-    const params = message.params;
+    let params;
+    try {
+      params = captureParams(message);
+    } catch {
+      return error(id, -32602, 'gateway-arguments-invalid');
+    }
     if (!only(params, ['name', 'arguments'])) return error(id, -32602, 'gateway-arguments-invalid');
     const tool = manifest.tools.find((item) => item.name === params.name);
     if (!tool || !matchesSchema(tool.inputSchema, params.arguments))

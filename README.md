@@ -1,36 +1,23 @@
-<div align="center">
-  <h1>AEGIS</h1>
-  <p><b>Local monitoring and action review for AI agents</b></p>
-</div>
-
-AEGIS helps you see what local AI agents are doing, review agent files before use,
-and check policies for selected actions. Monitoring records processes, file
-activity, TCP endpoints and attribution evidence without requiring an agent plugin.
-
-Current source also includes opt-in policy-controlled execution and MCP tools for
-operator-selected actions. These routes require explicit setup; ordinary agent
-monitoring does not automatically intercept or block commands.
-
-**Open-source, monitor-first, no usage telemetry or cloud sync.** Monitoring data is stored locally. Endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update checks contact GitHub. See [privacy and key handling](SECURITY.md#privacy-architecture).
-
-<p align="center">
-  <a href="https://github.com/antropos17/Aegis/releases"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
-  <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <a href="#monitor-first"><img src="https://img.shields.io/badge/Mode-monitor--first-8a2be2?style=flat-square" alt="Monitor-first"></a>
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/Platform-Windows%20%C2%B7%20macOS%2FLinux%20experimental-lightgrey?style=flat-square" alt="Platform">
+<p>
+  <img src="docs/images/github-header.svg" width="720" alt="AEGIS — local AI agent monitoring">
 </p>
 
-[Download](#download) · [Start with a task](#start-with-a-task) · [Documentation](docs/README.md) · [Local demo](#try-without-ai-agents) · [Known limits](#known-limits) · [Report a bug](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
+AEGIS is a desktop app for monitoring local AI agents and reviewing their files
+and selected actions. Inspect processes, sensitive-file observations, TCP endpoints
+and attribution evidence in Observatory. Monitoring requires no agent plugin;
+policy-controlled execution and MCP action tools require explicit setup.
+
+[Download](#download) · [Get started](#start-with-a-task) · [Documentation](docs/README.md) · [Latest source](#latest-source) · [Try the demo](#try-without-ai-agents) · [Known limits](#known-limits)
+
+**Windows beta:** [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta),
+published 6 October 2026. [Verify the installer](docs/RELEASE-VERIFICATION.md)
+and read its [beta readiness record](docs/BETA-READINESS.md).
 
 **Current source version**: 0.19.2-beta <!-- x-release-please-version -->
 
-The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
-
-The latest published Windows beta is [**0.19.2-beta**](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta), for monitoring and
-operator-reviewed selected actions. [Beta readiness](docs/BETA-READINESS.md)
-records its release gates and remaining limits. The beta label does not qualify
-general agent containment or the experimental VM/provider routes.
+This README includes changes after that release tag. They require a new installer
+release; the beta label does not qualify general agent containment or experimental
+VM/provider routes. Default monitoring does not automatically intercept or block commands.
 
 <p align="center">
   <img src="docs/screenshots/01-monitoring.png" width="980" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar">
@@ -38,6 +25,10 @@ general agent containment or the experimental VM/provider routes.
 <p align="center"><sub>Observatory preview with simulated data, captured during beta preparation on 1 October 2026.</sub></p>
 
 ## Start with a task
+
+Current source opens the full **Advanced** navigation by default. An optional
+**Simple interface** in Settings brings investigation, file checks and settings
+together; an explicitly saved Simple choice is retained.
 
 | What you want to do | Where to start |
 | --- | --- |
@@ -48,10 +39,9 @@ general agent containment or the experimental VM/provider routes.
 | Connect selected actions to an agent | [MCP setup](docs/ACTION-MCP-CONFIG.md), explicitly configured from a terminal |
 | Explore settings, reports and the other tools | **Start here** in the sidebar, or **Commands** (`Ctrl K`) |
 
-The [guided interface](docs/OBSERVATORY-GUIDED-WORKFLOWS.md) keeps results above
-setup, uses distinct icons for each workspace and reveals technical details on
-request. File and action checks do not execute commands or establish safety.
-This describes current source; the published installer can contain an earlier UI.
+The [workspace guide](docs/OBSERVATORY-GUIDED-WORKFLOWS.md) explains tasks and
+captured results. Static file reviews and route/catalog checks do not execute
+commands or establish safety. The published installer can contain an earlier UI.
 
 <details>
 <summary>More Observatory views</summary>
@@ -65,6 +55,27 @@ This describes current source; the published installer can contain an earlier UI
 These views use simulated preview data. [More screenshots](docs/screenshots/README.md).
 
 </details>
+
+## Latest source
+
+These unreleased changes are scoped implementation and qualification work.
+The evidence linked below records exact revisions and distinguishes native
+observations from synthetic controls.
+
+| Area | Current-source change and evidence |
+| --- | --- |
+| Observatory | Compact panels, the current AEGIS mark, reduced-motion handling and optional Simple investigation navigation. See the [current design brief](frontend/observatory/DESIGN.md) and [investigation integration record](docs/development/edr-investigation-2026-10-07.md). |
+| Retained Windows caller identity | [#810](https://github.com/antropos17/Aegis/pull/810) retains primary `TokenId`, `ModifiedId` and full context checks while accepting the native effective-only pipe projection. [Token stability evidence](docs/roadmap/enforcement-e2/supervisor-caller-token-stability-evidence.md). |
+| Fixed guest stdio cancellation | [#811](https://github.com/antropos17/Aegis/pull/811) requires actual live payload identity and a stable Job census before arming cancellation. [Stdio readiness evidence](docs/roadmap/enforcement-e3/stdio-cancellation-readiness-evidence-20261008.md) records native and synthetic controls and remaining guest qualification limits. |
+| Internal suspended caller launcher | [#812](https://github.com/antropos17/Aegis/pull/812) pins the selected executable, creates a suspended child in a private Job, verifies retained registration before resume and disables handle inheritance. [Native launcher evidence](docs/roadmap/enforcement-e2/supervisor-caller-launcher-native-evidence-20261009.md). |
+
+**Experimental prerequisites:** the VM qualification fixtures require an explicitly
+provisioned disposable Windows lab and their pinned runtimes, trusted inputs and
+native helpers. These internal caller/VM increments are inactive in production;
+they do not provide a complete protected agent session. Standard-user guest and
+owner-lifetime qualification for the latest composition still require accepted
+native evidence. The [protection roadmap](docs/roadmap/ai-agent-protection.md)
+tracks the remaining boundaries and gates.
 
 ## What AEGIS observes
 
@@ -86,9 +97,10 @@ Default monitoring observes and logs; it does not automatically block or contain
 
 The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
 
-This README describes current source;
-installed builds contain the features available at their
-[release tag](https://github.com/antropos17/Aegis/releases).
+Monitoring data stays local, with no usage telemetry or cloud sync. Endpoint
+naming uses DNS queries; update checks contact GitHub. Optional AI analysis sends
+activity metadata to Anthropic on request using your own API key. See
+[privacy and key handling](SECURITY.md#privacy-architecture).
 
 ## Opt-in action control
 
@@ -108,10 +120,11 @@ environment, then route that action through AEGIS:
 | [Live route observation](docs/ACTION-LIVE-OBSERVATION.md) | Opt-in desktop observation of one running MCP owner; self-reported client metadata, bounded counters and coverage loss; blocking and provider identity remain unverified |
 
 These routes do not cover other agent tools, arbitrary MCP traffic or activity
-outside the selected actions. Allowed programs retain the caller's account
-privileges. Terminal previews can expose secrets in local scrollback; terminal
-automation does not establish human identity. Client settings are not changed
-automatically. The linked contracts explain configuration, limits and verification.
+outside the selected actions. Direct execution and the ordinary Windows Job route
+retain the caller's account privileges. The separate AppContainer route adds the
+access restrictions described above. Terminal previews can expose secrets in local
+scrollback; terminal automation does not establish human identity. Client settings
+are not changed automatically. The linked contracts explain configuration, limits and verification.
 
 After creating a catalog, generate a client configuration from the source checkout
 (PowerShell 7 example):
@@ -174,34 +187,8 @@ npm run dev
 
 The preview uses simulated data and an isolated host. It shares the desktop components, never calls the real preload, and disables native exports and provider requests. `npm run frontend:build:preview` creates a static preview; `npm run build:renderer` creates the desktop artifact without fixtures.
 
-<details>
-<summary>Selected release milestones</summary>
-
-For the complete history, see [GitHub Releases](https://github.com/antropos17/Aegis/releases).
-
-| Version | Date | Highlights |
-|---------|------|------------|
-| [v0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta) | 2026-10-06 | Recover lost file watchers, keep packaged renderer loading local, bind Linux signals to observed instances and update source-map parsing |
-| [v0.19.1-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.1-beta) | 2026-10-06 | Keyboard access, Settings focus, custom catalog confirmation and Electron 44.5.1 |
-| [v0.17.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.17.0-alpha) | 2026-09-27 | Selected-action review and MCP route binding, local security reviews, API-key boundary and private-report hardening |
-| [v0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha) | 2026-09-26 | Windows setup wizard, monitoring performance work, scoped local security inventory, direct selected-action and MCP routes |
-| [v0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha) | 2026-09-12 | Observatory desktop, signed Windows updates, Linux process-generation identity and bounded ETW diagnostics |
-| [v0.14.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.1-alpha) | 2026-09-07 | Evidence-file watchers moved off the main thread; dependency maintenance |
-| [v0.14.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.0-alpha) | 2026-09-07 | Sequence rules, observation-gap records, audit indexing and sensor-health work |
-| [v0.13.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.13.0-alpha) | 2026-08-23 | Signed release manifests for offline installer verification |
-| [v0.12.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.12.0-alpha) | 2026-08-22 | Monitoring and renderer updates; see release notes |
-| [v0.11.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.11.0-alpha) | 2026-08-11 | Windows installer, Event Schema v1 attribution, endpoint verdicts, sensor health records, WSL & IDE-extension detection |
-| [v0.10.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.10.0-alpha) | 2026-03-09 | Code cleanup, security hardening, command palette |
-| [v0.9.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.9.1-alpha) | 2026-03-09 | Dropdown dedup, skill paths, aegis-context optimized |
-| [v0.9.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.9.0-alpha) | 2026-03-08 | categoryIndex, prompt-craft skill, TS migration stores |
-| [v0.8.2-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.2-alpha) | 2026-03-08 | formatBytes TS extraction, meaningful tests, branch cleanup |
-| [v0.8.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.1-alpha) | 2026-03-08 | Patch release |
-| [v0.8.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.0-alpha) | 2026-03-05 | Launch readiness: CSP hardened, OpenClaw integration, README overhaul |
-| [v0.7.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.7.0-alpha) | 2026-03-04 | YAML rulesets, 68 rules, hot-reload, 568 tests |
-| [v0.5.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.5.0-alpha) | 2026-03-03 | Fancy UI redesign, VisTimeline, AgentGraph |
-| [v0.4.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.4.0-alpha) | 2026-03-03 | TypeScript infrastructure, perf, refactoring |
-
-</details>
+See [GitHub Releases](https://github.com/antropos17/Aegis/releases) for the full
+release history and each installer's changes.
 
 ## The evidence graph
 
@@ -276,6 +263,9 @@ Navigation icons use a curated [Tabler Icons](https://github.com/tabler/tabler-i
 subset under the [MIT notice](frontend/observatory/vendor/tabler-icons.LICENSE).
 Pinned source URLs and hashes are recorded in the [icon provenance](frontend/observatory/vendor/tabler-icons.provenance.json).
 
-## Star history
+<details>
+<summary>Star history</summary>
 
 [![Star History Chart](https://api.star-history.com/image?repos=antropos17/Aegis&type=timeline&legend=top-left)](https://www.star-history.com/?repos=antropos17%2FAegis&type=timeline&legend=top-left)
+
+</details>
