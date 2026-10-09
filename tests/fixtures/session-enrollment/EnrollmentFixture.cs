@@ -66,7 +66,7 @@ internal static class EnrollmentFixture
         }
         internal override byte[] Read(int maximum)
         { return path.EndsWith("enrollment.json", StringComparison.Ordinal) ? owner.Record() : owner.Image; }
-        internal override void Recheck() { if (owner.Mode == "changed") throw new IOException("dummy-secret"); }
+        internal override void Recheck(bool ancestor) { if (owner.Mode == "changed") throw new IOException("dummy-secret"); }
         public override void Dispose() { Closed = true; if (owner.Mode == "close") throw new IOException("dummy-secret"); }
     }
     private static int Main(string[] args)
@@ -100,7 +100,7 @@ internal static class EnrollmentFixture
                         try { using (FileStream other = new FileStream(name, FileMode.Open, FileAccess.Write, FileShare.Read)) { } }
                         catch (IOException) { writeRefused = true; }
                         try { File.Delete(name); } catch (IOException) { deleteRefused = true; }
-                        held.Recheck(); if (!writeRefused || !deleteRefused) return 1;
+                        held.Recheck(false); if (!writeRefused || !deleteRefused) return 1;
                     }
                     Console.WriteLine("{\"native\":true,\"heldBytesObserved\":true,\"writeRefused\":true,\"deleteRefused\":true,\"rechecked\":true}");
                     return 0;

@@ -111,7 +111,9 @@ namespace Aegis.ProtectedSession
                     Array.Clear(imageBytes, 0, imageBytes.Length);
                     EnrollmentNative.Require(digest == match.Groups[6].Value);
                     phase = "recheck";
-                    foreach (EnrollmentHeld file in held) { file.Recheck(); Deadline(watch); }
+                    for (int index = 0; index < held.Count; index++) {
+                        held[index].Recheck(index < held.Count - 3); Deadline(watch);
+                    }
                     if (retained != null) {
                         retained.RecordBytes = (byte[])bytes.Clone();
                         retained.ImageSize = imageBytes.Length; retained.ImageHash = digest;
