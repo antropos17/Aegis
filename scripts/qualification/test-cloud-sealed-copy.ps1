@@ -22,6 +22,23 @@ function Remove-SealedControlChildDirectory([string]$Path, [string]$OwnedRoot) {
         # A child can disappear between its attribute observation and non-recursive deletion.
     }
 }
+function Invoke-SealedControlVerifier([string]$NativeEvidence, [string]$OwnedRoot) {
+    Assert-SealedControlDirectory $OwnedRoot
+    if ([IO.Path]::GetFullPath($NativeEvidence) -cne (Join-Path ([IO.Path]::GetFullPath($OwnedRoot)) 'native')) { throw 'sealed-copy-owned-evidence-required' }
+    $verifierPath = Join-Path $PSScriptRoot 'test-cloud-sealed-copy-verifier.ps1'
+    $verifierFile = Get-Item -LiteralPath $verifierPath -Force -ErrorAction Stop
+    if ($verifierFile.PSIsContainer -or $verifierFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or $verifierFile.Length -gt 64KB) { throw 'sealed-copy-verifier-source-refused' }
+    $stdout = Join-Path $OwnedRoot 'verifier.json'; $stderr = Join-Path $OwnedRoot 'verifier.error.txt'
+    $powershell = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    # Retain and observe the child's actual exit before measuring. Add-Type/CodeDom
+    # diagnostic lifetimes stay in that process; its effective policy is inherited.
+    $arguments = @('-NoProfile', '-NonInteractive', '-File', ('"' + $verifierPath + '"'), '-NativeEvidence', ('"' + $NativeEvidence + '"'))
+    $code = Invoke-CloudGuestNativeProcess $powershell $arguments $stdout $stderr 30000
+    if ($code -ne 0 -or (Get-Item -LiteralPath $stdout).Length -gt 16KB -or (Get-Item -LiteralPath $stderr).Length -ne 0) { throw 'sealed-copy-verifier-controls-refused' }
+    $value = [IO.File]::ReadAllText($stdout) | ConvertFrom-Json
+    if ($value.passed -isnot [bool] -or !$value.passed -or $value.controls -ne 133) { throw 'sealed-copy-verifier-controls-refused' }
+    return $value
+}
 if ([string]::IsNullOrWhiteSpace($env:TEMP)) { throw 'sealed-copy-control-temp-required' }
 $parent = [IO.Path]::GetFullPath($env:TEMP); Assert-SealedControlDirectory $parent
 if ($parent -cnotmatch '^[A-Za-z]:\\[A-Za-z0-9_.\\-]+$') { throw 'sealed-copy-controls-native-path-profile-refused' }
@@ -60,8 +77,10 @@ try {
     if ($code -ne 0 -or (Get-Item -LiteralPath $stdout).Length -gt 16KB -or (Get-Item -LiteralPath $stderr).Length -ne 0) { throw 'sealed-copy-native-controls-refused' }
     $nativeResult = [IO.File]::ReadAllText((Join-Path $native 'control-summary.json')) | ConvertFrom-Json
     if ($nativeResult.tests -ne 2 -or !$nativeResult.artifactObserved -or $nativeResult.bytes -gt 16MB) { throw 'sealed-copy-native-controls-refused' }
-    $verifier = & (Join-Path $PSScriptRoot 'test-cloud-sealed-copy-verifier.ps1') -NativeEvidence $native | ConvertFrom-Json
-    if ($verifier.passed -isnot [bool] -or !$verifier.passed -or $verifier.controls -ne 133) { throw 'sealed-copy-verifier-controls-refused' }
+    $verifier = Invoke-SealedControlVerifier $native $owned
+    $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+    $measurement = & (Join-Path $project 'tests/fixtures/native-sealed-control-measurement/run.ps1') -ProjectRoot $project | ConvertFrom-Json
+    if ($measurement.passed -isnot [bool] -or !$measurement.passed -or $measurement.checks -ne 26) { throw 'sealed-copy-measurement-controls-refused' }
     # Collect only this exact fresh root, reject links and enforce a finite output budget before deletion.
     $budget = @{ entries = 0; bytes = 0 }
     function Measure-SealedControlDirectory([string]$Directory, [int]$Depth) {
@@ -81,7 +100,7 @@ try {
     $build = [IO.File]::ReadAllText((Join-Path $native 'build-provenance.json')) | ConvertFrom-Json
     $receipt = [IO.File]::ReadAllText((Join-Path $native 'local-consumption.json')) | ConvertFrom-Json
     $summary = [ordered]@{ schemaVersion = 1; kind = 'fixed-sealed-copy-maintained-controls'; passed = $true;
-        nativeTests = 2; verifierControls = 133; cleanupControls = $cleanupCases; nativeBuild = $build; localConsumption = $receipt;
+        nativeTests = 2; verifierControls = 133; cleanupControls = $cleanupCases; measurementControls = $measurement.checks; nativeBuild = $build; localConsumption = $receipt;
         membership = $verifier.membership; outputBytes = $budget.bytes; actualGuestRun = $false;
         commands = @('node test-cloud-sealed-copy.cjs <owned-temp>/native', 'test-cloud-sealed-copy-verifier.ps1 -NativeEvidence <owned-temp>/native');
         retention = 'delete-exact-closed-owned-root-after-success'; e2Qualified = $false; launchAllowed = $false }
