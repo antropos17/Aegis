@@ -178,6 +178,7 @@ public static class CloudGuestProcess
         CloudGuestClaudeReceiver claudeReceiver = null;
         CloudGuestDesktop desktopOwner = null; CloudGuestCancellation.Descendant cancelChild = null; ICloudGuestStdioPhase stdioPhase = null;
         bool created = false, assigned = false, resumed = false, taskReleased = false, closure = false, exitObserved = false, unassignedRootExitObserved = false; uint exit = 259;
+        System.Diagnostics.Stopwatch stdioClosureClock = null;
         string stage = "job-create", failureStage = null; int? failureHResult = null;
         var receipt = new Dictionary<string, object>();
         receipt["processCreated"] = false; receipt["jobAssignedBeforeAdmission"] = false; receipt["tokenOpened"] = false;
@@ -356,12 +357,18 @@ public static class CloudGuestProcess
             {
                 try
                 {
+                    if (stdioPhase != null) stdioClosureClock = System.Diagnostics.Stopwatch.StartNew();
                     bool terminated = TerminateJobObject(job, 137);
                     int? terminationError = terminated ? null : (int?)Marshal.GetLastWin32Error();
                     receipt["cleanupJobTerminationAccepted"] = terminated;
                     receipt["cleanupWin32Error"] = terminationError;
-                    closure = terminated && ObserveRootExit(child.Process, receipt) &&
-                        (inventory != null ? inventory.ConfirmClosure(2000) : ConfirmEarlyJobClosure(job, child.Process, receipt, 2000));
+                    if (stdioPhase == null)
+                        closure = terminated && ObserveRootExit(child.Process, receipt) &&
+                            (inventory != null ? inventory.ConfirmClosure(2000) : ConfirmEarlyJobClosure(job, child.Process, receipt, 2000));
+                    else
+                        closure = terminated && ObserveRootExitWithinBudget(child.Process, receipt, RemainingStdioClosure(stdioClosureClock)) &&
+                            (inventory != null ? inventory.ConfirmClosure(RemainingStdioClosure(stdioClosureClock)) :
+                                ConfirmEarlyJobClosure(job, child.Process, receipt, RemainingStdioClosure(stdioClosureClock)));
                 }
                 catch (Exception error)
                 {
@@ -397,7 +404,7 @@ public static class CloudGuestProcess
                 if (receipt["claudeReceiverDisposalUnknown"].Equals(true) && failureStage == null) failureStage = "claude-receiver-cleanup";
             }
             receipt["taskReleased"] = taskReleased; receipt["runtimeResumed"] = resumed; receipt["exitCode"] = exit; receipt["jobClosureConfirmed"] = closure;
-            if (stdioPhase != null) { try { stdioPhase.ObserveClosure(closure, receipt); } catch (Exception error) { if (failureStage == null) { failureStage = "stdio-closure"; failureHResult = error.HResult; } } finally { stdioPhase.Dispose(); } }
+            if (stdioPhase != null) { try { stdioPhase.ObserveClosure(closure, receipt, stdioClosureClock); } catch (Exception error) { if (failureStage == null) { failureStage = "stdio-closure"; failureHResult = error.HResult; } } finally { stdioPhase.Dispose(); } }
             if (runtime != null) runtime.Dispose();
             receipt["privateDesktopHandlesClosedAfterJobClosure"] = false;
             receipt["privateDesktopHandlesClosedAfterUnassignedRootExit"] = false;
@@ -485,9 +492,14 @@ public static class CloudGuestProcess
     }
     private static bool CanReleaseDesktop(bool assigned, bool closure, bool created, IntPtr heldRoot, bool rootExitObserved)
     { return heldRoot == IntPtr.Zero || (assigned && closure) || (!assigned && created && rootExitObserved); }
+    private static int RemainingStdioClosure(System.Diagnostics.Stopwatch clock)
+    { return clock == null ? 0 : (int)Math.Max(0, 2000 - clock.ElapsedMilliseconds); }
     private static bool ObserveRootExit(IntPtr heldRoot, Dictionary<string, object> receipt)
+    { return ObserveRootExitWithinBudget(heldRoot, receipt, 2000); }
+    private static bool ObserveRootExitWithinBudget(IntPtr heldRoot, Dictionary<string, object> receipt, int timeout)
     {
-        uint wait = GuestJobNative.WaitForSingleObject(heldRoot, 2000);
+        Require(timeout >= 0 && timeout <= 2000, "cleanup-budget-refused");
+        uint wait = GuestJobNative.WaitForSingleObject(heldRoot, (uint)timeout);
         int? waitError = wait == uint.MaxValue ? (int?)Marshal.GetLastWin32Error() : null;
         receipt["cleanupRootWaitCode"] = wait; receipt["cleanupRootWaitWin32Error"] = waitError;
         uint exit = 259; bool observed = wait == 0 && GetExitCodeProcess(heldRoot, out exit);
@@ -690,5 +702,5 @@ public interface ICloudGuestStdioPhase : IDisposable
     string EnvironmentBlock { get; }
     void Capture(IntPtr root, IntPtr job, uint pid, string image, int session);
     void Execute(Dictionary<string, object> receipt);
-    void ObserveClosure(bool confirmed, Dictionary<string, object> receipt);
+    void ObserveClosure(bool confirmed, Dictionary<string, object> receipt, System.Diagnostics.Stopwatch ownerClosureClock);
 }
