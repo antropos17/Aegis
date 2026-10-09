@@ -73,7 +73,12 @@ function handleActionPolicyHook(args, write) {
     function onEnd() {
       ended = true;
       if (settled) return;
-      const raw = Buffer.concat(chunks, bytes);
+      let raw;
+      try {
+        raw = Buffer.concat(chunks, bytes);
+      } catch (_) {
+        return finish();
+      }
       chunks.length = 0;
       Promise.resolve()
         .then(() => {
@@ -90,7 +95,8 @@ function handleActionPolicyHook(args, write) {
             return finish();
           finish(result.decision, 0);
         })
-        .catch(() => finish());
+        .catch(() => finish())
+        .finally(() => raw.fill(0));
     }
     timer = setTimeout(() => finish(), LIMITS.deadlineMs);
     input.on('error', onError);
