@@ -106,6 +106,76 @@ const effects = () =>
     ? fs.readFileSync(paths.effects, 'utf8').trim().split('\n').map(JSON.parse)
     : [];
 describe('explicit stdio gateway with real owned upstream', () => {
+  it.each(['nested recipient', 'tool name'])(
+    'owns admitted parameters before caller substitutes the %s',
+    async (field) => {
+      await ready();
+      const request = call();
+      const running = session.receive(request);
+      if (field === 'nested recipient') request.params.arguments.recipient = 'outside-scope';
+      else request.params.name = 'unapproved_tool';
+      expect((await running).result?.structuredContent).toEqual({ accepted: true });
+      expect(effects()).toEqual([{ name: 'record', arguments: { recipient: 'chosen' } }]);
+      expect((await session.receive(call(3))).error.message).toBe('gateway-grant-unavailable');
+      expect(failed).not.toHaveBeenCalled();
+    },
+  );
+  it('rejects accessors, proxies and serialization hooks without executing them or consuming a grant', async () => {
+    await ready();
+    const hook = vi.fn(() => 'chosen');
+    const withGetter = {};
+    Object.defineProperty(withGetter, 'recipient', { enumerable: true, get: hook });
+    const requests = [
+      call(2, withGetter),
+      call(3, { recipient: 'chosen', toJSON: hook }),
+      call(4, new Proxy({ recipient: 'chosen' }, { ownKeys: hook, get: hook })),
+      call(5, Object.assign(Object.create({ toJSON: hook }), { recipient: 'chosen' })),
+      rpc(6, 'tools/call'),
+    ];
+    Object.defineProperty(requests[4], 'params', { enumerable: true, get: hook });
+    for (const request of requests)
+      expect((await session.receive(request)).error?.message).toBe('gateway-arguments-invalid');
+    expect(hook).not.toHaveBeenCalled();
+    expect(effects()).toEqual([]);
+    expect((await session.receive(call(7))).result).toBeDefined();
+    expect(effects()).toEqual([{ name: 'record', arguments: { recipient: 'chosen' } }]);
+  });
+  it('rejects cyclic, deep, oversized and non-JSON parameters before consuming a grant', async () => {
+    await ready();
+    const cycle = { recipient: 'chosen' };
+    cycle.loop = cycle;
+    let deep = {};
+    for (let i = 0; i < 10; i++) deep = { child: deep };
+    const hidden = { recipient: 'chosen' };
+    Object.defineProperty(hidden, 'hidden', { value: true });
+    const invalid = [
+      cycle,
+      deep,
+      { recipient: 'x'.repeat(65537) },
+      Object.fromEntries(Array.from({ length: 2049 }, (_, i) => [String(i), true])),
+      { recipient: 'chosen', extra: new Array(1) },
+      { recipient: 'chosen', extra: undefined },
+      { recipient: 'chosen', extra: Infinity },
+      { recipient: 'chosen', [Symbol('hidden')]: true },
+      hidden,
+    ];
+    for (const [index, args] of invalid.entries())
+      expect((await session.receive(call(index + 2, args))).error?.message).toBe(
+        'gateway-arguments-invalid',
+      );
+    expect(effects()).toEqual([]);
+    expect((await session.receive(call(20))).result).toBeDefined();
+    expect(effects()).toHaveLength(1);
+  });
+  it('admits frozen JSON data and null-prototype dictionaries with the same exact grant', async () => {
+    await ready();
+    const args = Object.assign(Object.create(null), { recipient: 'chosen' });
+    const request = call(2, Object.freeze(args));
+    Object.freeze(request.params);
+    Object.freeze(request);
+    expect((await session.receive(request)).result?.structuredContent).toEqual({ accepted: true });
+    expect(effects()).toEqual([{ name: 'record', arguments: { recipient: 'chosen' } }]);
+  });
   it('retains a v2 grant consumption across owned stdio child restarts', async () => {
     paths.store = path.join(root, 'grants');
     fs.mkdirSync(paths.store);
