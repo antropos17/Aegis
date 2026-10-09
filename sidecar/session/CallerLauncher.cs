@@ -13,7 +13,7 @@ namespace Aegis.ProtectedSession
             private readonly CallerLauncherNative.Created created;
             private readonly AppContainerExecutable.PinnedFile image;
             internal readonly CallerRegistration Registration;
-            private bool disposed;
+            private bool disposed, releaseAttempted;
             internal SafeFileHandle Process { get { return created.Process; } }
             internal SafeFileHandle Thread { get { return created.Thread; } }
             internal uint Pid { get { return created.Pid; } }
@@ -26,10 +26,32 @@ namespace Aegis.ProtectedSession
             {
                 lock (gate)
                 lock (Registration.Gate)
+                    CheckCurrentLocked();
+            }
+
+            private void CheckCurrentLocked()
+            {
+                CallerNative.Require(!CallerNative.HasThreadToken() && !disposed && image.IsPinned);
+                Registration.CheckCurrent(); CallerLauncherNative.CheckCreated(created);
+                CallerNative.Require(image.MatchesProcessImage(created.Process.DangerousGetHandle()));
+                CallerNative.Require(!CallerNative.HasThreadToken());
+            }
+
+            // The first attempt is terminal on failure. A duplicate never resumes again.
+            internal void Release()
+            {
+                lock (gate)
+                lock (Registration.Gate)
                 {
-                    CallerNative.Require(!disposed && image.IsPinned);
-                    Registration.CheckCurrent(); CallerLauncherNative.CheckCreated(created);
-                    CallerNative.Require(image.MatchesProcessImage(created.Process.DangerousGetHandle()));
+                    CallerNative.Require(!disposed && !releaseAttempted);
+                    releaseAttempted = true;
+                    try
+                    {
+                        CheckCurrentLocked();
+                        // Exactly one initial suspension; zero means execution was already possible.
+                        CallerNative.Require(CallerLauncherNative.ResumeThread(created.Thread) == 1);
+                    }
+                    catch { Dispose(); throw; }
                 }
             }
 
@@ -50,6 +72,15 @@ namespace Aegis.ProtectedSession
         internal static Instance Start(string fixedImage, int expectedSize, string expectedHash,
             string session, CallerLauncherNative native = null)
         {
+            Instance result = Prepare(fixedImage, expectedSize, expectedHash, session, native);
+            try { result.Release(); return result; }
+            catch { result.Dispose(); throw; }
+        }
+
+        // Holds the exact created child suspended through a trusted controller's setup phase.
+        internal static Instance Prepare(string fixedImage, int expectedSize, string expectedHash,
+            string session, CallerLauncherNative native = null)
+        {
             CallerNative.Require(!CallerNative.HasThreadToken() && fixedImage != null && fixedImage.Length <= 2048 &&
                 fixedImage.Split('\\').Length <= 32 && expectedSize > 0 && expectedSize <= 4 * 1024 * 1024 &&
                 Regex.IsMatch(expectedHash ?? "", "\\A[a-f0-9]{64}\\z"));
@@ -67,8 +98,7 @@ namespace Aegis.ProtectedSession
                 {
                     registration.CheckCurrent(); CallerLauncherNative.CheckCreated(created);
                     CallerNative.Require(image.IsPinned && image.MatchesProcessImage(created.Process.DangerousGetHandle()));
-                    // Exactly one initial suspension. Zero would mean child execution was already possible.
-                    CallerNative.Require(CallerLauncherNative.ResumeThread(created.Thread) == 1);
+                    CallerNative.Require(!CallerNative.HasThreadToken());
                 }
                 var result = new Instance(created, image, registration); transferred = true; return result;
             }

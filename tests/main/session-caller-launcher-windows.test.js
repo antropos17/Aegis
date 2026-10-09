@@ -93,6 +93,15 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       return JSON.parse(result.stdout.toString());
     }
 
+    it('waits for the visible native PID marker writer to close before reading the complete actual PID', () => {
+      expect(success('pid-marker-race')).toEqual({
+        completedBeforeClose: false,
+        readerError: null,
+        readerErrorCode: null,
+        observedPidMatches: true,
+      });
+    });
+
     it('executes the actual selected image only after retained registration and closes root and descendant on disposal', () => {
       expect(success('positive')).toMatchObject({
         refused: false,
@@ -104,6 +113,38 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         pinned: true,
         imagePinsReleased: true,
         access: { matched: false, wrote: false },
+      });
+    });
+    it('holds the registered native child without a payload marker through an intervening setup phase and releases it afterward', () => {
+      expect(success('deferred-release')).toMatchObject({
+        markerAtSetup: false,
+        markerAfterRelease: true,
+        imagePinnedAtSetup: true,
+        rootExited: true,
+        descendantExited: true,
+      });
+    });
+    it.each(['deferred-cancel', 'deferred-revoke', 'deferred-impersonated', 'deferred-extra-suspend'])(
+      'terminates %s before any payload effect and makes later release terminal',
+      (mode) => {
+        expect(success(mode)).toMatchObject({
+          markerAtSetup: false,
+          markerAfterRelease: false,
+          rootExited: true,
+          releaseRejected: true,
+          laterReleaseRejected: true,
+          threadTokenObserved: mode === 'deferred-impersonated',
+          imagePinsReleased: true,
+        });
+      },
+    );
+    it('refuses a duplicate release while preserving the live owned child until disposal', () => {
+      expect(success('deferred-double')).toMatchObject({
+        markerAtSetup: false,
+        markerAfterRelease: true,
+        duplicateRejected: true,
+        rootExited: true,
+        descendantExited: true,
       });
     });
     it('refuses actual post-create registration failure with no marker and independent retained root exit', () => {

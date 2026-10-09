@@ -42,6 +42,8 @@ internal static class LauncherObservation
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern uint WaitForSingleObject(SafeFileHandle handle, uint milliseconds);
     [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern uint SuspendThread(SafeFileHandle thread);
+    [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern SafeFileHandle OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern bool WriteFile(SafeFileHandle file, byte[] bytes, uint length, out uint written, IntPtr overlap);
@@ -50,6 +52,20 @@ internal static class LauncherObservation
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool QueryInformationJobObject(SafeFileHandle job, int kind, out Limits limits,
         int size, IntPtr returned);
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentThread();
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool DuplicateTokenEx(SafeFileHandle token, uint access, IntPtr attributes,
+        int level, int type, out SafeFileHandle copy);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool SetThreadToken(IntPtr thread, SafeFileHandle token);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenThreadToken(IntPtr thread, uint access, bool openAsSelf, out SafeFileHandle token);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(SafeFileHandle token, int kind, out int value, int size, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool RevertToSelf();
 
     internal static void Require(bool value, string message)
     { if (!value) throw new InvalidOperationException(message); }
@@ -97,5 +113,53 @@ internal static class LauncherObservation
         }
     }
     internal static uint ReadPid(string path)
-    { Until(() => File.Exists(path), "pid-marker-timeout"); return uint.Parse(File.ReadAllText(path)); }
+    {
+        uint pid = 0;
+        Until(() => {
+            if (!File.Exists(path)) return false;
+            string value;
+            try { value = File.ReadAllText(path); }
+            catch (IOException error)
+            {
+                // Creation is visible before File.WriteAllText closes its write handle.
+                // Keep read-only sharing so only a completed, closed write can be read.
+                int code = error.HResult & 0xffff;
+                if (code == 32 || code == 33) return false;
+                throw;
+            }
+            Require(uint.TryParse(value, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out pid) && pid > 0 &&
+                value == pid.ToString(System.Globalization.CultureInfo.InvariantCulture), "pid-marker-invalid");
+            return true;
+        }, "pid-marker-timeout");
+        return pid;
+    }
+
+    // Uses independent OS queries to prove the release attempt runs with an actual thread token.
+    internal static void WithThreadToken(Action attempt)
+    {
+        SafeFileHandle primary, copy, observed;
+        Require(OpenProcessToken(GetCurrentProcess(), 0xA, out primary), "fixture-primary-token");
+        using (primary)
+        {
+            Require(DuplicateTokenEx(primary, 0xC, IntPtr.Zero, 2, 2, out copy), "fixture-token-copy");
+            using (copy)
+            {
+                Require(SetThreadToken(IntPtr.Zero, copy), "fixture-thread-token-set");
+                try
+                {
+                    Require(OpenThreadToken(GetCurrentThread(), 8, true, out observed), "fixture-thread-token-query");
+                    using (observed)
+                    {
+                        int type, level, returned;
+                        Require(GetTokenInformation(observed, 8, out type, 4, out returned) && returned == 4 && type == 2 &&
+                            GetTokenInformation(observed, 9, out level, 4, out returned) && returned == 4 && level == 2,
+                            "fixture-thread-token-profile");
+                    }
+                    attempt();
+                }
+                finally { if (!RevertToSelf()) Environment.FailFast("fixture-thread-reversion-failed"); }
+            }
+        }
+    }
 }
