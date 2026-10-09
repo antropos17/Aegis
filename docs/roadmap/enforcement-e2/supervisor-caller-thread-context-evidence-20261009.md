@@ -40,8 +40,9 @@ and the retained child is observed exited. No privileged operation is dispatched
 Against base `e1e90794bdae51654c97591efca87a9abc046778`, the positive case passed
 and the negative failed: `threadTokenObserved=true`, `rejected=false`,
 `impersonatedEffects=1`. Against corrected source, the focused Windows x64 suite
-passed 57 tests in three files without skips: two context controls, 42 existing
-caller controls and 13 endpoint controls. The existing suite includes explicitly
+passed 57 tests without skips. The context suite supplies two controls, the
+existing caller suite supplies 42, and the endpoint suite supplies 13. The
+existing suite includes explicitly
 modeled buffer and injected API cases; the new token transition is native.
 
 ```text
