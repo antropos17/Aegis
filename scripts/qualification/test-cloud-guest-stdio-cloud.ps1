@@ -11,6 +11,9 @@ foreach ($kind in 1..5) {
         stdioInputBytes = 8192; stdioOutputBytes = 0; stdioErrorBytes = 0;
         stdioInputEof = $true; stdioOutputEof = $true; stdioErrorEof = $true; stdioBytesMatched = $kind -le 2;
         stdioNaturalRootExitObserved = $true; stdioRootLiveBeforeTermination = $true; stdioCancellationHeldPayloadAlive = $true;
+        stdioCancellationPayloadReadyBeforeTimer = $true; stdioCancellationReadyPayloadPid = [uint32]15; stdioCancellationReadyPayloadBirthFileTime = 16L;
+        stdioCancellationReadyPayloadImage = 'C:\ProgramData\AegisCloudLab\trusted\node.exe'; stdioCancellationReadyPayloadSid = $sid;
+        stdioCancellationReadyPayloadSession = 0; heldTokenSessionId = 0; stdioCancellationReadyMemberCount = 4; stdioCancellationReadyPayloadIdentityVerified = $true;
         stdioOutcome = $(if ($kind -le 2) { 'Complete' } elseif ($kind -le 4) { 'OutputLimit' } else { 'Cancelled' }) }
     foreach ($field in @('passed', 'runtimeResumed', 'runtimeCallerAuthenticated', 'runtimeInitializedBeforeProject', 'taskReleased',
         'heldIdentityBeforeRelease', 'jobAssignedBeforeAdmission', 'privateDesktopCreated', 'privateDesktopParentRestored',
@@ -26,6 +29,10 @@ foreach ($mutation in @(@(0,'runtimeCallerAuthenticated',$false), @(0,'taskRelea
     @(0,'stdioHelperIdentityVerified',$false), @(0,'stdioRetainedMembersExitObserved',$false), @(0,'stdioBytesMatched',$false),
     @(0,'stdioInputEof',$false), @(0,'stdioOutputBytes',8191), @(1,'stdioErrorBytes',48001), @(1,'stdioOutcome','OutputLimit'),
     @(2,'stdioOutputBytes',1025), @(3,'stdioErrorBytes',1025), @(4,'stdioCancellationHeldPayloadAlive',$false), @(4,'stdioRootLiveBeforeTermination',$false),
+    @(4,'stdioCancellationPayloadReadyBeforeTimer',$false), @(4,'stdioCancellationReadyPayloadPid',0), @(4,'stdioCancellationReadyPayloadPid',11),
+    @(4,'stdioCancellationReadyPayloadPid',13), @(4,'stdioCancellationReadyPayloadPid','15'), @(4,'stdioCancellationReadyPayloadBirthFileTime',0L),
+    @(4,'stdioCancellationReadyPayloadImage','C:\wrong.exe'), @(4,'stdioCancellationReadyPayloadSid','S-1-5-18'), @(4,'stdioCancellationReadyPayloadSession',1),
+    @(4,'stdioCancellationReadyMemberCount',2), @(4,'stdioCancellationReadyMemberCount',17), @(4,'stdioCancellationReadyPayloadIdentityVerified',$false),
     @(4,'exitCode',0), @(0,'administratorGroupPresent',$true), @(0,'sid','S-1-5-18'), @(0,'pid','11'), @(0,'stdioHelperBirthFileTime',0),
     @(0,'stdioCase','1'), @(0,'launchAllowed',$true))) {
     $case = $value.cases[$mutation[0]]; $old = $case[$mutation[1]]; $case[$mutation[1]] = $mutation[2]

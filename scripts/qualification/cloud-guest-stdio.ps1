@@ -42,7 +42,16 @@ function Test-CloudGuestStdioResult($Value, [string]$ExpectedSid) {
                 if ($native.stdioRootLiveBeforeTermination -isnot [bool] -or !$native.stdioRootLiveBeforeTermination -or $native.exitCode -ne 137 -or $native.stdioBytesMatched) { return $false }
                 if ($kind -le 4 -and ($native.stdioOutcome -cne 'OutputLimit' -or $native.stdioOutputBytes -gt $(if ($kind -eq 3) { 1024 } else { 65536 }) -or
                     $native.stdioErrorBytes -gt $(if ($kind -eq 4) { 1024 } else { 65536 }))) { return $false }
-                if ($kind -eq 5 -and ($native.stdioOutcome -cne 'Cancelled' -or $native.stdioCancellationHeldPayloadAlive -isnot [bool] -or !$native.stdioCancellationHeldPayloadAlive)) { return $false }
+                if ($kind -eq 5 -and ($native.stdioOutcome -cne 'Cancelled' -or $native.stdioCancellationHeldPayloadAlive -isnot [bool] -or !$native.stdioCancellationHeldPayloadAlive -or
+                    $native.stdioCancellationPayloadReadyBeforeTimer -isnot [bool] -or !$native.stdioCancellationPayloadReadyBeforeTimer -or
+                    !($native.stdioCancellationReadyPayloadPid -is [uint32] -or $native.stdioCancellationReadyPayloadPid -is [int]) -or
+                    $native.stdioCancellationReadyPayloadPid -le 0 -or $native.stdioCancellationReadyPayloadPid -eq $native.pid -or $native.stdioCancellationReadyPayloadPid -eq $native.stdioHelperPid -or
+                    $native.stdioCancellationReadyPayloadBirthFileTime -isnot [long] -or $native.stdioCancellationReadyPayloadBirthFileTime -le 0 -or
+                    $native.stdioCancellationReadyPayloadImage -isnot [string] -or $native.stdioCancellationReadyPayloadImage -ine 'C:\ProgramData\AegisCloudLab\trusted\node.exe' -or
+                    $native.stdioCancellationReadyPayloadSid -isnot [string] -or $native.stdioCancellationReadyPayloadSid -cne $ExpectedSid -or
+                    $native.heldTokenSessionId -isnot [int] -or $native.stdioCancellationReadyPayloadSession -isnot [int] -or $native.stdioCancellationReadyPayloadSession -ne $native.heldTokenSessionId -or
+                    $native.stdioCancellationReadyMemberCount -isnot [int] -or $native.stdioCancellationReadyMemberCount -lt 3 -or $native.stdioCancellationReadyMemberCount -gt 16 -or
+                    $native.stdioCancellationReadyPayloadIdentityVerified -isnot [bool] -or !$native.stdioCancellationReadyPayloadIdentityVerified)) { return $false }
             }
         }
         return $true

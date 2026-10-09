@@ -268,5 +268,14 @@
     "sha256": "a208c32d890a47b730c290aa1a9b9e391dd53026d1dd297f3aa84354ee409926",
     "scope": "cloud-windows11-fixed-standard-user-lab",
     "failureStage": "pinned-media-download-and-hash"
+  },
+  {
+    "runId": "37778339045",
+    "url": "https://github.com/antropos17/Aegis/actions/runs/37778339045",
+    "source": "8d22aeafb5b48cfa2b9808f0c3c3602a805d4055",
+    "file": "37778339045.json",
+    "sha256": "026fee4d1728cf624fbbbbe592bf4fbb30c8774497987cd51d51a14e0622b893",
+    "scope": "cloud-windows11-fixed-standard-user-lab",
+    "failureStage": "fixed-cloud-stdio"
   }
 ]
