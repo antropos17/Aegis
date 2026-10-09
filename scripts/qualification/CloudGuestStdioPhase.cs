@@ -196,13 +196,48 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
             exchangePassed = positive; Need(positive);
         }
     }
-    public void ObserveClosure(bool confirmed, Dictionary<string, object> receipt)
+    public void ObserveClosure(bool confirmed, Dictionary<string, object> receipt, Stopwatch ownerClosureClock)
     {
-        bool exited = confirmed;
-        foreach (var member in original) exited &= GuestJobNative.WaitForSingleObject(member.Handle, 0) == 0;
-        foreach (var member in observed) exited &= GuestJobNative.WaitForSingleObject(member.Handle, 0) == 0;
+        var waits = new List<Dictionary<string, object>>();
+        receipt["stdioClosureMemberWaits"] = waits;
+        bool exited = confirmed && ObserveMemberClosure(ownerClosureClock, waits);
+        receipt["stdioClosureElapsedMilliseconds"] = ownerClosureClock == null ? (object)null : ownerClosureClock.ElapsedMilliseconds;
         receipt["stdioRetainedMembersExitObserved"] = exited;
         receipt["stdioPassed"] = executed && exchangePassed && exited;
+    }
+    private bool ObserveMemberClosure(Stopwatch ownerClock, List<Dictionary<string, object>> waits)
+    {
+        Need(ownerClock != null && ownerClock.IsRunning);
+        var held = new List<Member>(original); held.AddRange(observed);
+        for (int at = 0; at < held.Count; at++)
+        {
+            Member member = held[at];
+            waits.Add(new Dictionary<string, object> { { "source", at < original.Count ? "original" : "observed" },
+                { "pid", member.Pid }, { "birthFileTime", member.Birth }, { "liveImage", member.Image },
+                { "waitCode", null }, { "waitWin32Error", null } });
+        }
+        // The owner starts this same clock at Job termination. A Job-empty census
+        // can precede signaling of a later retained member; it never replaces exit proof.
+        while (ownerClock.ElapsedMilliseconds < 2000)
+        {
+            bool exited = true;
+            for (int at = 0; at < held.Count; at++)
+            {
+                Member member = held[at];
+                uint state = GuestJobNative.WaitForSingleObject(member.Handle, 0);
+                int? error = state == uint.MaxValue ? (int?)Marshal.GetLastWin32Error() : null;
+                waits[at]["waitCode"] = state; waits[at]["waitWin32Error"] = error;
+                // Retry only a genuine nonsignaled process. A failed/unknown wait
+                // permanently refuses this confirmation even if a later probe succeeds.
+                if (state != 0 && state != 0x102) return false;
+                exited &= state == 0;
+            }
+            if (exited) return ownerClock.ElapsedMilliseconds < 2000;
+            long remaining = 2000 - ownerClock.ElapsedMilliseconds;
+            if (remaining <= 0) break;
+            Thread.Sleep((int)Math.Min(2, remaining));
+        }
+        return false;
     }
     private static bool Same(string a, string b) { return String.Equals(a, b, StringComparison.OrdinalIgnoreCase); }
     private static void Need(bool value) { if (!value) throw new InvalidOperationException("guest-stdio-phase-refused"); }
