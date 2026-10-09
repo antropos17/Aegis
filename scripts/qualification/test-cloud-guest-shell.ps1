@@ -25,7 +25,7 @@ while ($null -ne $parent) { if ($parent.Attributes -band [IO.FileAttributes]::Re
 $fixture = Join-Path $base ('aegis-shell-control-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
-    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     foreach ($case in @(@('native', 'test-cloud-guest-shell.cjs', 15000, 3), @('model', 'test-cloud-guest-task.cjs', 5000, 27))) {
         $stdout = Join-Path $fixture ($case[0] + '.json'); $stderr = Join-Path $fixture ($case[0] + '.stderr')
         $code = $null; $reason = 'invoke-refused'; $text = $null

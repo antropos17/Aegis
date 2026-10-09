@@ -146,7 +146,7 @@ try {
     $task = $task.Replace('C:\\AegisLab\\work\\cancellation\\released.txt', (Join-Path $fixture 'released.txt').Replace('\', '\\'))
     $task = $task.Replace('C:\\ProgramData\\AegisCloudLab\\trusted\\cloud-cancellation-child.cjs', (Join-Path $fixture 'cloud-cancellation-child.cjs').Replace('\', '\\'))
     [IO.File]::WriteAllText((Join-Path $fixture 'cloud-cancellation-task.cjs'), $task, [Text.UTF8Encoding]::new($false))
-    $arguments = @('/nologo', '/warnaserror+', '/define:CLOUD_CANCELLATION_DIAGNOSTICS', '/target:exe', ('/out:"' + $exe + '"'))
+    $arguments = @('/nologo', '/warnaserror+', '/optimize+', '/define:CLOUD_CANCELLATION_DIAGNOSTICS', '/target:exe', ('/out:"' + $exe + '"'))
     foreach ($leaf in @('CloudGuestProcess', 'CloudGuestDesktop', 'CloudGuestNetwork', 'CloudGuestClaudeReceiver', 'CloudGuestRuntimeGate')) { $arguments += ('"' + (Join-Path $sources ($leaf + '.cs')) + '"') }
     foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative', 'GuestJobNative', 'GuestJobInventory')) { $arguments += ('"' + (Join-Path $ProjectRoot ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $arguments += ('"' + (Join-Path $fixtureSources 'CancellationFixture.cs') + '"')
