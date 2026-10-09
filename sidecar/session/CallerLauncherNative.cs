@@ -82,6 +82,13 @@ namespace Aegis.ProtectedSession
         }
 
         internal virtual Created Create(string image)
+        { return CreateCore(image, null); }
+
+        // Opt-in transport only; ordinary Create keeps inheritance disabled.
+        internal Created CreateWithInput(string image, SafeFileHandle input)
+        { return CreateCore(image, input); }
+
+        private Created CreateCore(string image, SafeFileHandle input)
         {
             SafeFileHandle job = CreateJobObject(IntPtr.Zero, null);
             IntPtr list = IntPtr.Zero, jobList = IntPtr.Zero;
@@ -94,21 +101,33 @@ namespace Aegis.ProtectedSession
                 limits.Basic.ActiveLimit = 64;
                 CallerNative.Require(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
                 IntPtr size = IntPtr.Zero;
-                bool queried = InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
+                int count = input == null ? 1 : 2;
+                bool queried = InitializeProcThreadAttributeList(IntPtr.Zero, count, 0, ref size);
                 CallerNative.Require(!queried && Marshal.GetLastWin32Error() == 122 && size.ToInt64() > 0 && size.ToInt64() <= 65536);
                 list = Marshal.AllocHGlobal(size);
-                CallerNative.Require(InitializeProcThreadAttributeList(list, 1, 0, ref size)); initialized = true;
-                jobList = Marshal.AllocHGlobal(IntPtr.Size); Marshal.WriteIntPtr(jobList, job.DangerousGetHandle());
+                CallerNative.Require(InitializeProcThreadAttributeList(list, count, 0, ref size)); initialized = true;
+                jobList = Marshal.AllocHGlobal(IntPtr.Size * count); Marshal.WriteIntPtr(jobList, job.DangerousGetHandle());
                 // PROC_THREAD_ATTRIBUTE_JOB_LIST binds containment atomically at creation.
                 CallerNative.Require(UpdateProcThreadAttribute(list, 0, new IntPtr(0x0002000D),
                     jobList, new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero));
                 var startup = new ExtendedStartup(); startup.Startup.Size = Marshal.SizeOf(typeof(ExtendedStartup));
                 startup.Attributes = list;
+                if (input != null)
+                {
+                    uint flags;
+                    CallerNative.Require(!input.IsClosed && !input.IsInvalid && GetHandleInformation(input, out flags) && (flags & 1) == 1);
+                    Marshal.WriteIntPtr(jobList, IntPtr.Size, input.DangerousGetHandle());
+                    CallerNative.Require(UpdateProcThreadAttribute(list, 0, new IntPtr(0x00020002),
+                        IntPtr.Add(jobList, IntPtr.Size), new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero));
+                    startup.Startup.Flags = 0x100; // STARTF_USESTDHANDLES; exactly one input, no output/error channel.
+                    startup.Startup.Input = input.DangerousGetHandle();
+                    startup.Startup.Output = startup.Startup.Error = new IntPtr(-1);
+                }
                 ProcessInformation result;
                 // CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT.
-                // bInheritHandles=false excludes unrelated inheritable owner handles.
+                // Ordinary creation disables inheritance; opt-in creation uses only its explicit handle allowlist.
                 CallerNative.Require(CreateProcess(image, new StringBuilder("\"" + image + "\""),
-                    IntPtr.Zero, IntPtr.Zero, false, 0x00000004 | 0x08000000 | 0x00080000,
+                    IntPtr.Zero, IntPtr.Zero, input != null, 0x00000004 | 0x08000000 | 0x00080000,
                     IntPtr.Zero, System.IO.Path.GetDirectoryName(image), ref startup, out result));
                 var created = new Created(result, job); transferred = true; return created;
             }

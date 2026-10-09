@@ -124,20 +124,22 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         descendantExited: true,
       });
     });
-    it.each(['deferred-cancel', 'deferred-revoke', 'deferred-impersonated', 'deferred-extra-suspend'])(
-      'terminates %s before any payload effect and makes later release terminal',
-      (mode) => {
-        expect(success(mode)).toMatchObject({
-          markerAtSetup: false,
-          markerAfterRelease: false,
-          rootExited: true,
-          releaseRejected: true,
-          laterReleaseRejected: true,
-          threadTokenObserved: mode === 'deferred-impersonated',
-          imagePinsReleased: true,
-        });
-      },
-    );
+    it.each([
+      'deferred-cancel',
+      'deferred-revoke',
+      'deferred-impersonated',
+      'deferred-extra-suspend',
+    ])('terminates %s before any payload effect and makes later release terminal', (mode) => {
+      expect(success(mode)).toMatchObject({
+        markerAtSetup: false,
+        markerAfterRelease: false,
+        rootExited: true,
+        releaseRejected: true,
+        laterReleaseRejected: true,
+        threadTokenObserved: mode === 'deferred-impersonated',
+        imagePinsReleased: true,
+      });
+    });
     it('refuses a duplicate release while preserving the live owned child until disposal', () => {
       expect(success('deferred-double')).toMatchObject({
         markerAtSetup: false,
@@ -189,7 +191,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         path.join(project, 'sidecar/session/CallerLauncherNative.cs'),
         'utf8',
       );
-      const selected = 'IntPtr.Zero, IntPtr.Zero, false, 0x00000004';
+      const selected = 'IntPtr.Zero, IntPtr.Zero, input != null, 0x00000004';
       expect(native.split(selected)).toHaveLength(2);
       const mutated = path.join(root, 'inherit-mutant.cs');
       const target = path.join(root, 'inherit-mutant.exe');
@@ -212,11 +214,11 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         path.join(project, 'sidecar/session/CallerLauncherNative.cs'),
         'utf8',
       );
-      const selected = 'false, 0x00000004 |';
+      const selected = 'input != null, 0x00000004 |';
       expect(native.split(selected)).toHaveLength(2);
       const mutated = path.join(root, 'early-execution-mutant.cs');
       const target = path.join(root, 'early-execution-mutant.exe');
-      fs.writeFileSync(mutated, native.replace(selected, 'false, 0x00000000 |'));
+      fs.writeFileSync(mutated, native.replace(selected, 'input != null, 0x00000000 |'));
       compileParent(target, mutated);
       const result = invoke('registration-refusal', target);
       expect(result.error).toBeUndefined();
