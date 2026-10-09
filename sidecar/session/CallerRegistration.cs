@@ -42,15 +42,15 @@ namespace Aegis.ProtectedSession
             CallerNative.Require(CallerNative.GetProcessTimes(process, out observedBirth, out exit, out kernel, out user) &&
                 observedBirth == birth && birth > 0 && CallerNative.GetProcessId(process) == pid);
             // Re-query the current process token too: replacing a primary token
-            // cannot preserve registration by leaving the original token held.
+            // or changing its attributes cannot preserve the original registration.
             using (SafeFileHandle current = CallerNative.ProcessToken(process))
-                CallerNative.Require(identity.SameContext(CallerIdentity.Observe(current)));
+                CallerNative.Require(identity.SamePrimaryToken(CallerIdentity.Observe(current)));
         }
 
         internal void CheckCaller(uint observedPid, CallerIdentity caller)
         {
             CheckLive(observedPid);
-            CallerNative.Require(caller.Type == 2 && caller.Level == 2 && identity.SameContext(caller));
+            CallerNative.Require(identity.MatchesImpersonation(caller));
         }
 
         internal void VerifyServer(SafeHandle pipe)
