@@ -174,6 +174,7 @@ function main() {
       path.join(ROOT, 'sidecar', 'session', 'CallerEndpoint.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerLauncher.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerLauncherNative.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'CallerSession.cs'),
       path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerExecutable.cs'),
       path.join(ROOT, 'sidecar', 'session', 'GuestJobNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'GuestJobInventory.cs'),

@@ -5,9 +5,9 @@ using Microsoft.Win32.SafeHandles;
 namespace Aegis.ProtectedSession
 {
     // Inactive internal primitive. Trusted-code image descriptors are not installation authority.
-    internal static class CallerLauncher
+    internal static partial class CallerLauncher
     {
-        internal sealed class Instance : IDisposable
+        internal sealed partial class Instance : IDisposable
         {
             private readonly object gate = new object();
             private readonly CallerLauncherNative.Created created;

@@ -64,6 +64,20 @@ namespace Aegis.ProtectedSession
             }
         }
 
+        // A composition fence, without consuming a connection or supplying authority.
+        internal void CheckCurrent()
+        {
+            lock (gate)
+            lock (peer.Gate)
+            {
+                CallerNative.Require(!CallerNative.HasThreadToken() && !disposed &&
+                    !pipe.IsClosed && !pipe.IsInvalid);
+                CallerEndpointNative.RequireNonInherited(pipe);
+                peer.CheckCurrent();
+                CallerNative.Require(!CallerNative.HasThreadToken());
+            }
+        }
+
         internal static SafeFileHandle ConnectLocal(string locator, CallerRegistration expectedServer, int timeoutMilliseconds)
         {
             RequireDeadline(timeoutMilliseconds);
