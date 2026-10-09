@@ -7,6 +7,10 @@ and `CallerAdmission.cs`. The sidecar build includes them. The production
 unavailable. This is implementation progress for the caller part of E1–E3, with
 no complete enforcement-gate verdict.
 
+The [2026-10-09 retained thread-context regression](supervisor-caller-thread-context-evidence-20261009.md)
+adds a later native impersonation-transition control and current-context fence.
+Its scope and acceptance limits are separate from the historical run below.
+
 ## Contract and lifetime
 
 Trusted native code supplies an already-held process handle. Registration
