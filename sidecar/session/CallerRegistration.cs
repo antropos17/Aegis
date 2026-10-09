@@ -5,7 +5,7 @@ using Microsoft.Win32.SafeHandles;
 namespace Aegis.ProtectedSession
 {
     // Construct only from a trusted launcher's retained process handle, never JSON.
-    internal sealed class CallerRegistration : IDisposable
+    internal sealed partial class CallerRegistration : IDisposable
     {
         internal readonly object Gate = new object();
         private readonly SafeFileHandle process, token;
@@ -16,6 +16,10 @@ namespace Aegis.ProtectedSession
         private bool revoked;
 
         internal CallerRegistration(IntPtr heldProcess, string session)
+            : this(heldProcess, session, 0, 0) { }
+
+        // Optional observed metadata validates the imported native reference; it never opens a process.
+        internal CallerRegistration(IntPtr heldProcess, string session, uint expectedPid, long expectedBirth)
         {
             CallerNative.Require(System.Text.RegularExpressions.Regex.IsMatch(session ?? "", "\\A[a-f0-9]{32}\\z"));
             process = CallerNative.Duplicate(heldProcess);
@@ -24,6 +28,7 @@ namespace Aegis.ProtectedSession
                 pid = CallerNative.GetProcessId(process);
                 long exit, kernel, user;
                 CallerNative.Require(pid != 0 && CallerNative.GetProcessTimes(process, out birth, out exit, out kernel, out user));
+                CallerNative.Require((expectedPid == 0 && expectedBirth == 0) || (expectedPid == pid && expectedBirth == birth));
                 token = CallerNative.ProcessToken(process);
                 identity = CallerIdentity.Observe(token);
                 CallerNative.Require(identity.PermittedBroker());
