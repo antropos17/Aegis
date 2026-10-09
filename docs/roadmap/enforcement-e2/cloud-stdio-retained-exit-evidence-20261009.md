@@ -1,6 +1,6 @@
 # Cloud stdio retained-member exit observation
 
-This local change addresses a reproduced exit-observation race in the qualification-only stdio phase. It preserves independent retained-process exit confirmation and refuses failed waits. A new cloud run has not been executed. Production, standard-user, E2, E3 and launch qualification remain false.
+This local change addresses a reproduced exit-observation race in the qualification-only stdio phase. It preserves independent retained-process exit confirmation and refuses failed waits. At worker verification, no new cloud run had been executed. Production, standard-user, E2, E3 and launch qualification remain false.
 
 ## Sources and original cloud failure
 
@@ -34,7 +34,7 @@ The change does not modify launch/release authority, live identity checks, readi
 
 The new fixture uses actual Job-owned processes, standard handles and independent retained-process waits. Its closure-visibility schedule is explicitly synthetic. It removes the old pre-observation member waits that masked the race. A transient 80 ms timeout must settle within the owner's remaining deadline; an actual invalid native handle produces `WAIT_FAILED` and error 6 and must remain refused even though later native process waits succeed. Persistent timeout and an already exhausted clock must remain refused. Every control independently confirms actual retained-process exit.
 
-The first regression failed against the original instant-wait source with `transient-retained-exit-timeout-must-settle-within-owner-budget`; receipts `2026-10-09T01-47-49-363Z-stdio-retained-exit-red.json` and `2026-10-09T01-50-13-585Z-stdio-retained-exit-shared-clock-red.json` remain preserved. After the minimal change all four controls passed. A subsequent compatibility check exposed the changed private root-wait signature through the existing reflection fixture; its red receipt is preserved. Restoring the original two-argument method and using a separate budget helper passed all 11 existing native cleanup controls.
+The first regression failed against the original instant-wait source with `transient-retained-exit-timeout-must-settle-within-owner-budget`; receipts `2026-10-09T01-47-49-363Z-stdio-retained-exit-red.json` and `2026-10-09T01-50-13-585Z-stdio-retained-exit-shared-clock-red.json` remain preserved. After the minimal change all four controls passed. A subsequent compatibility check exposed the changed private root-wait signature through the existing reflection fixture; its red receipt is preserved. Restoring the original two-argument method and using a separate budget helper passed all 11 native cleanup controls.
 
 | Bounded verification | Result |
 | --- | --- |
