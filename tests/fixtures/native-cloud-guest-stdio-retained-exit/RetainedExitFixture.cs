@@ -9,12 +9,31 @@ using System.Text;
 using System.Threading;
 using Aegis.ProtectedSession;
 
-public interface ICloudGuestStdioPhase : IDisposable
+public interface ICloudGuestStdioPhase : IDisposable { }
+// Explicit synthetic observation schedule over retained actual native processes.
+// Independent native exit waits below remain unmodified and cannot be supplied by this seam.
+internal static class ClosureSchedule
 {
-    string EnvironmentBlock { get; }
-    void Capture(IntPtr root, IntPtr job, uint pid, string image, int session);
-    void Execute(Dictionary<string, object> receipt);
-    void ObserveClosure(bool confirmed, Dictionary<string, object> receipt, Stopwatch ownerClosureClock);
+    internal static string Mode;
+    internal static uint TargetPid;
+    internal static Stopwatch Clock;
+    internal static int Timeouts, Failures, NativeError;
+    internal static uint Wait(IntPtr handle, uint milliseconds)
+    {
+        if (GuestJobNative.GetProcessId(handle) == TargetPid)
+        {
+            if (Mode == "closure-invalid-once" && Failures == 0)
+            {
+                uint result = GuestJobNative.WaitForSingleObject(new IntPtr(-123456), 0);
+                NativeError = Marshal.GetLastWin32Error(); Failures++;
+                return result;
+            }
+            if (Mode == "closure-timeout" || Mode == "zero-budget" ||
+                (Mode == "closure-transient" && Clock.ElapsedMilliseconds < 80))
+            { Timeouts++; return 0x102; }
+        }
+        return GuestJobNative.WaitForSingleObject(handle, milliseconds);
+    }
 }
 internal static class StdioReadinessDiagnostic
 {
@@ -23,7 +42,7 @@ internal static class StdioReadinessDiagnostic
     internal static void Discovered()
     { using(var found=EventWaitHandle.OpenExisting(Environment.GetEnvironmentVariable("STDIO_FIXTURE_GATE")+"-discovered"))found.Set(); }
 }
-internal static class StdioReadinessFixture
+internal static class RetainedExitFixture
 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct Startup
     { internal int Size; internal string Reserved, Desktop, Title; internal uint X,Y,XS,YS,XC,YC,Fill,Flags; internal ushort Show,Length; internal IntPtr ReservedData,Input,Output,Error; }
@@ -73,7 +92,7 @@ internal static class StdioReadinessFixture
         Environment.SetEnvironmentVariable("STDIO_FIXTURE_NODE",args[0]);
         Environment.SetEnvironmentVariable("STDIO_FIXTURE_TASK",args[2]);
         Environment.SetEnvironmentVariable("STDIO_FIXTURE_ROOT",Path.GetDirectoryName(args[1]));
-        Environment.SetEnvironmentVariable("STDIO_FIXTURE_HELPER",typeof(StdioReadinessFixture).Assembly.Location);
+        Environment.SetEnvironmentVariable("STDIO_FIXTURE_HELPER",typeof(RetainedExitFixture).Assembly.Location);
         using(var reached=new EventWaitHandle(false,EventResetMode.ManualReset,gate+"-reached"))
         using(var release=new EventWaitHandle(false,EventResetMode.ManualReset,gate+"-release"))
         using(var discovered=new EventWaitHandle(false,EventResetMode.ManualReset,gate+"-discovered"))
@@ -88,23 +107,46 @@ internal static class StdioReadinessFixture
                 Need(SetInformationJobObject(job,9,ref limits,Marshal.SizeOf(typeof(Limits))));
                 var startup=new Startup{Size=Marshal.SizeOf(typeof(Startup))};
                 Need(CreateProcess(args[0],new StringBuilder("\""+args[0]+"\" \""+args[1]+"\""),IntPtr.Zero,IntPtr.Zero,false,0x08000004,IntPtr.Zero,Path.GetDirectoryName(args[1]),ref startup,out root));
-                Need(AssignProcessToJobObject(job,root.Process)); inventory=new GuestJobInventory(job,root.Process,new string[]{args[0],typeof(StdioReadinessFixture).Assembly.Location});
+                Need(AssignProcessToJobObject(job,root.Process)); inventory=new GuestJobInventory(job,root.Process,new string[]{args[0],typeof(RetainedExitFixture).Assembly.Location});
                 phase.Capture(root.Process,job,root.Pid,args[0],Process.GetCurrentProcess().SessionId);
-                controller=new Thread(delegate(){ gateObserved=reached.WaitOne(3000)&&discovered.WaitOne(3000); if(!gateObserved)return; if(kind!=5||mode=="immediate"||mode=="helper-marker")release.Set();
+                controller=new Thread(delegate(){ gateObserved=reached.WaitOne(3000)&&discovered.WaitOne(3000); if(!gateObserved)return; if(kind!=5||mode=="immediate"||mode=="helper-marker"||mode.StartsWith("closure-")||mode=="zero-budget")release.Set();
                     else if(mode=="delayed") { using(var delay=new ManualResetEvent(false))Need(!delay.WaitOne(600)); release.Set(); } }); controller.Start();
                 Need(ResumeThread(root.Thread)==1);
                 Need(reached.WaitOne(3000));
                 try { phase.Execute(receipt); } catch(InvalidOperationException){refused=true;}
                 var closureClock=Stopwatch.StartNew(); Need(TerminateJobObject(job,137)); closed=inventory.ConfirmClosure(2000); Need(closed);
+                ClosureSchedule.Mode=mode; ClosureSchedule.TargetPid=(uint)receipt["stdioCancellationReadyPayloadPid"]; ClosureSchedule.Clock=Stopwatch.StartNew();
+                if(mode=="zero-budget")Thread.Sleep(2000);
+                var observationClock=Stopwatch.StartNew();
+                var observe=typeof(CloudGuestStdioPhase).GetMethod("ObserveClosure");
+                if(observe.GetParameters().Length==2)observe.Invoke(phase,new object[]{closed,receipt});
+                else observe.Invoke(phase,new object[]{closed,receipt,closureClock});
+                long closureElapsed=closureClock.ElapsedMilliseconds;
+                int diagnosticCount=0, diagnosticTimeouts=0, diagnosticUnobserved=0, diagnosticFailures=0;
+                int? diagnosticError=null; bool failedIdentityRecorded=false;
+                if(receipt.ContainsKey("stdioClosureMemberWaits"))
+                foreach(var wait in (List<Dictionary<string,object>>)receipt["stdioClosureMemberWaits"]) {
+                    diagnosticCount++; object state=wait["waitCode"];
+                    if(state==null)diagnosticUnobserved++;
+                    else if((uint)state==0x102)diagnosticTimeouts++;
+                    else if((uint)state==uint.MaxValue) {
+                        diagnosticFailures++; diagnosticError=(int?)wait["waitWin32Error"];
+                        failedIdentityRecorded=(uint)wait["pid"]==ClosureSchedule.TargetPid && (long)wait["birthFileTime"]>0 && ((string)wait["liveImage"]).Length>0;
+                    }
+                }
+                string diagnostics="\"diagnosticCount\":"+diagnosticCount+",\"diagnosticTimeouts\":"+diagnosticTimeouts+",\"diagnosticUnobserved\":"+diagnosticUnobserved+",\"diagnosticFailures\":"+diagnosticFailures+",\"diagnosticError\":"+(diagnosticError.HasValue?diagnosticError.Value.ToString():"null")+",\"failedIdentityRecorded\":"+failedIdentityRecorded.ToString().ToLowerInvariant()+",";
+                var observations=new StringBuilder(); bool eventuallyExited=true;
                 foreach(string listName in new string[]{"original","observed"})
                 foreach(object retained in (System.Collections.IEnumerable)typeof(CloudGuestStdioPhase).GetField(listName,BindingFlags.NonPublic|BindingFlags.Instance).GetValue(phase)) {
                     IntPtr held=(IntPtr)retained.GetType().GetField("Handle",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(retained);
-                    Need(GuestJobNative.WaitForSingleObject(held,2000)==0);
+                    uint first=GuestJobNative.WaitForSingleObject(held,0); uint waited=GuestJobNative.WaitForSingleObject(held,2000); eventuallyExited &= waited==0;
+                    long birth=(long)retained.GetType().GetField("Birth",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(retained);
+                    string image=(string)retained.GetType().GetField("Image",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(retained);
+                    if(observations.Length>0)observations.Append(",");observations.Append("{\"pid\":"+GuestJobNative.GetProcessId(held)+",\"birth\":"+birth+",\"liveImage\":\""+image.Replace("\\","\\\\")+"\",\"first\":"+first+",\"eventual\":"+waited+"}");
                 }
-                phase.ObserveClosure(closed,receipt,closureClock);
                 Need(controller.Join(3500) && gateObserved);
                 var transport=(CloudGuestStdio)typeof(CloudGuestStdioPhase).GetField("transport",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(phase);
-                Console.WriteLine("{\"refused\":"+refused.ToString().ToLowerInvariant()+",\"payloadPredicate\":"+StdioReadinessDiagnostic.PayloadCount+
+                Console.WriteLine("{"+diagnostics+"\"observationElapsed\":"+observationClock.ElapsedMilliseconds+",\"scheduledTimeouts\":"+ClosureSchedule.Timeouts+",\"scheduledWaitFailures\":"+ClosureSchedule.Failures+",\"nativeWaitError\":"+ClosureSchedule.NativeError+",\"closureElapsed\":"+closureElapsed+",\"memberWaits\":["+observations+"],\"eventuallyExited\":"+eventuallyExited.ToString().ToLowerInvariant()+",\"refused\":"+refused.ToString().ToLowerInvariant()+",\"payloadPredicate\":"+StdioReadinessDiagnostic.PayloadCount+
                     ",\"outcome\":\""+(receipt.ContainsKey("stdioOutcome")?receipt["stdioOutcome"]:"absent")+"\",\"input\":"+(receipt.ContainsKey("stdioInputBytes")?receipt["stdioInputBytes"]:0)+
                     ",\"connectedMask\":"+transport.ConnectedMask+",\"elapsed\":"+transport.ExchangeElapsedMilliseconds+",\"gateReached\":"+reached.WaitOne(0).ToString().ToLowerInvariant()+
                     ",\"jobClosed\":"+closed.ToString().ToLowerInvariant()+",\"retainedExited\":"+receipt["stdioRetainedMembersExitObserved"].ToString().ToLowerInvariant()+

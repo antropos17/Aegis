@@ -38,6 +38,14 @@ function replaceOnce(text, before, after) {
 
 function compile(label, relative) {
   let text = fs.readFileSync(path.join(project, relative), 'utf8');
+  if (label === 'baseline') {
+    // Adapt only the historical method's interface shape; preserve its original zero-time behavior.
+    text = replaceOnce(
+      text,
+      'public void ObserveClosure(bool confirmed, Dictionary<string, object> receipt)',
+      'public void ObserveClosure(bool confirmed, Dictionary<string, object> receipt, Stopwatch ownerClosureClock)',
+    );
+  }
   text = replaceOnce(
     text,
     'private const string helper = @"C:\\ProgramData\\AegisCloudLab\\trusted\\guest-stdio.exe";',
