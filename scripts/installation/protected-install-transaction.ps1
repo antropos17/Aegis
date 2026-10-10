@@ -76,14 +76,21 @@ Set-StrictMode -Version Latest
 
 # Diagnostics are finite identifiers, never exception text, command text or data.
 function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
-    $operations = @('administrator', 'native-initialize', 'input', 'ancestor', 'fresh-association', 'validate', 'account-create', 'account-membership', 'parent-create', 'receipts-create', 'credential-protect', 'stage-create', 'publish', 'service-create', 'verify', 'service-remove', 'stage-remove', 'ancillary-remove', 'absence-confirm', 'qualification',
+    $operations = @('administrator', 'native-initialize', 'input', 'ancestor', 'fresh-association', 'validate', 'account-create', 'account-membership', 'account-users-query', 'account-users-add', 'account-verify', 'account-administrators-query', 'account-users-verify', 'parent-create', 'receipts-create', 'credential-protect', 'stage-create', 'publish', 'service-create', 'verify', 'service-remove', 'stage-remove', 'ancillary-remove', 'absence-confirm', 'qualification',
         'protected-file-create-directory', 'protected-file-open-directory', 'protected-file-open-leaf', 'protected-file-query-attributes', 'protected-file-query-identity', 'protected-file-final-path', 'protected-file-query-security', 'protected-file-rename-directory', 'protected-file-delete',
         'service-manager-open', 'service-open', 'service-security-set', 'service-config-query', 'service-security-query', 'service-status-query', 'service-start', 'service-process-open', 'service-process-image', 'service-process-times', 'service-token-open', 'service-token-query', 'service-stop', 'service-delete', 'service-handle-close', 'service-process-wait')
     $codes = @('protected-operation-output-refused', 'protected-upgrade-stage-cleanup-unknown', 'protected-qualified-partial-fault', 'protected-installer-elevated-windows51-x64-required', 'protected-install-input-refused', 'protected-input-manifest-refused', 'protected-input-digest-refused', 'protected-ancestor-acl-refused', 'protected-install-parent-preexisting', 'protected-install-service-preexisting', 'protected-install-account-preexisting', 'protected-owned-account-association-refused', 'protected-operator-administrator-refused', 'protected-operator-users-membership-required', 'protected-file-native-refused', 'protected-file-refused', 'protected-directory-creation-cleanup-unknown', 'protected-file-handoff-cleanup-unknown', 'protected-file-repin-cleanup-unknown', 'protected-service-native-refused', 'protected-service-refused', 'protected-service-create-refused', 'protected-service-creation-cleanup-unknown', 'protected-partial-install-cleanup-unknown', 'protected-installation-cleanup-unknown', 'protected-owned-cleanup-unknown', 'protected-account-removal-unconfirmed', 'protected-uninstall-absence-unconfirmed')
     $failure = @{ operation = $(if ($Operation -cin $operations) { $Operation } else { 'qualification' }); diagnosticCode = 'protected-operation-refused'; nativeWin32 = $null; hResult = $ErrorRecord.Exception.HResult }
-    $cause = $ErrorRecord.Exception
+    $cause = $ErrorRecord.Exception; $semanticCode = $null
     for ($depth = 0; $depth -lt 8 -and $null -ne $cause; $depth++) {
         if ($cause.Message -cin $codes) { $failure.diagnosticCode = $cause.Message }
+        # Classify only known exception types. Never project command names,
+        # parameter text, FQIDs or an opaque Win32Exception's ambient last error.
+        if ($null -eq $semanticCode) {
+            if ($cause -is [Management.Automation.CommandNotFoundException]) { $semanticCode = 'protected-command-not-found' }
+            elseif ($cause -is [Management.Automation.ParameterBindingException]) { $semanticCode = 'protected-parameter-binding-refused' }
+            elseif ($cause -is [ComponentModel.Win32Exception]) { $semanticCode = 'protected-win32-refused' }
+        }
         # Only native helpers set these fields immediately after a failed P/Invoke.
         if ($cause.Data.Contains('protectedOperation') -and $cause.Data['protectedOperation'] -is [string] -and $cause.Data['protectedOperation'] -cin $operations) {
             $failure.operation = $cause.Data['protectedOperation']; $failure.nativeWin32 = $null
@@ -91,6 +98,7 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         }
         $cause = $cause.InnerException
     }
+    if ($failure.diagnosticCode -ceq 'protected-operation-refused' -and $null -ne $semanticCode) { $failure.diagnosticCode = $semanticCode }
     return $failure
 }
 function Set-ProtectedInstallFailure([hashtable]$Journal, $ErrorRecord) {

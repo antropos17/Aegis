@@ -153,6 +153,83 @@ describe.skipIf(process.platform !== 'win32')(
       expect(value.stdout.toString('utf8')).not.toContain('fixture-credential');
       return JSON.parse(value.stdout.toString('utf8'));
     }
+    it('identifies each refused membership boundary and cleans only the exact created account', () => {
+      for (const [mode, operation] of [
+        ['membership-users-query', 'account-users-query'],
+        ['membership-users-add', 'account-users-add'],
+        ['membership-account-verify', 'account-verify'],
+        ['membership-administrators-query', 'account-administrators-query'],
+        ['membership-users-verify', 'account-users-verify'],
+      ]) {
+        const value = orchestration(mode);
+        expect(value).toMatchObject({
+          refused: true,
+          createdSid: 'S-1-5-21-100-200-300-1001',
+          createdRoots: [],
+          ancillaryRemoved: true,
+          cleanup: {
+            state: 'confirmed',
+            serviceAbsent: true,
+            protectedParentAbsent: true,
+            exactAccountSidAbsent: true,
+          },
+          failure: { operation, diagnosticCode: 'protected-operation-refused', nativeWin32: null },
+          service: { creationAttempted: false, created: false },
+          membership: { verified: false, removedSidExact: true, exactAccountAbsent: true },
+        });
+      }
+    }, 30000);
+    it('projects finite membership exception classes without arbitrary command or parameter text', () => {
+      for (const [mode, diagnosticCode] of [
+        ['membership-command-missing', 'protected-command-not-found'],
+        ['membership-binding', 'protected-parameter-binding-refused'],
+        ['membership-win32', 'protected-win32-refused'],
+      ]) {
+        expect(orchestration(mode)).toMatchObject({
+          failure: { operation: 'account-users-query', diagnosticCode, nativeWin32: null },
+          cleanup: { state: 'confirmed', exactAccountSidAbsent: true },
+          membership: { removedSidExact: true, exactAccountAbsent: true },
+        });
+      }
+    }, 30000);
+    it('marks account verification before callback-local helper lookup can fail', () => {
+      expect(orchestration('membership-helper-lookup')).toMatchObject({
+        refused: true,
+        helperCommandMissing: true,
+        memberAdditionComplete: true,
+        addedReferenceExact: true,
+        removedSidExact: true,
+        exactAccountAbsent: true,
+        createdRoots: [],
+        service: { creationAttempted: false, created: false },
+        cleanup: { state: 'confirmed', exactAccountSidAbsent: true },
+        failure: {
+          operation: 'account-verify',
+          diagnosticCode: 'protected-command-not-found',
+          nativeWin32: null,
+        },
+      });
+    });
+    it('verifies existing Users membership and adds only the exact returned account when needed', () => {
+      for (const [mode, addCalls] of [
+        ['membership-existing', 0],
+        ['membership-add', 1],
+      ]) {
+        expect(orchestration(mode)).toMatchObject({
+          failure: { operation: 'parent-create' },
+          createdRoots: [],
+          service: { creationAttempted: false, created: false },
+          cleanup: { state: 'confirmed', exactAccountSidAbsent: true },
+          membership: {
+            verified: true,
+            addCalls,
+            addedReferenceExact: addCalls === 1,
+            removedSidExact: true,
+            exactAccountAbsent: true,
+          },
+        });
+      }
+    }, 30000);
     it('journals exact held resources and confirmed cleanup through nested maintained orchestration', () => {
       expect(orchestration('clean-partial')).toMatchObject({
         refused: true,

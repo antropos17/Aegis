@@ -7,11 +7,14 @@ function Assert-ProtectedInstallAdministrator {
     $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
     if (!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or $PSVersionTable.PSEdition -ne 'Desktop' -or ![Environment]::Is64BitProcess) { throw 'protected-installer-elevated-windows51-x64-required' }
 }
-function Assert-ProtectedInstallAccount($Context, [bool]$RequireUsers = $true) {
+function Assert-ProtectedInstallAccount($Context, [bool]$RequireUsers = $true, [hashtable]$Journal = $null) {
+    if ($null -ne $Journal) { $Journal.operation = 'account-verify' }
     $accounts = @(Get-LocalUser -Name $Context.operatorAccount -ErrorAction Stop)
     if ($accounts.Count -ne 1 -or $accounts[0].SID.Value -cne $Context.operatorSid) { throw 'protected-owned-account-association-refused' }
+    if ($null -ne $Journal) { $Journal.operation = 'account-administrators-query' }
     $administrators = @(Get-LocalGroupMember -SID 'S-1-5-32-544')
     if (@($administrators | Where-Object { $_.SID.Value -ceq $Context.operatorSid }).Count) { throw 'protected-operator-administrator-refused' }
+    if ($null -ne $Journal) { $Journal.operation = 'account-users-verify' }
     $users = @(Get-LocalGroupMember -SID 'S-1-5-32-545')
     if ($RequireUsers -and @($users | Where-Object { $_.SID.Value -ceq $Context.operatorSid }).Count -ne 1) { throw 'protected-operator-users-membership-required' }
 }
@@ -68,11 +71,13 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
                 $account = New-LocalUser -Name $context.operatorAccount -Password (ConvertTo-SecureString $context.password -AsPlainText -Force) -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword
                 $context.operatorSid = $account.SID.Value
                 $Journal.operatorSid = $context.operatorSid; $Journal.createdSid = $context.operatorSid; $Journal.association = $context
-                $Journal.operation = 'account-membership'
+                $Journal.operation = 'account-users-query'
                 if (@(Get-LocalGroupMember -SID 'S-1-5-32-545' | Where-Object { $_.SID.Value -ceq $context.operatorSid }).Count -eq 0) {
+                    $Journal.operation = 'account-users-add'
                     Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $account
                 }
-                Assert-ProtectedInstallAccount $context
+                $Journal.operation = 'account-verify'
+                Assert-ProtectedInstallAccount $context $true $Journal
                 $Journal.usersGroupSid = 'S-1-5-32-545'; $Journal.usersMembershipConfirmed = $true
                 $Journal.operation = 'parent-create'; $context.parent = New-ProtectedInstallDirectory $installParent $context.operatorSid
                 $Journal.createdRoots += @{ role = 'parent'; volume = $context.parent.Volume; fileId = $context.parent.FileId }
@@ -98,7 +103,7 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
             }.GetNewClosure()
             verify = { param($stage, $service)
                 $Journal.operation = 'verify'
-                try { Assert-ProtectedInstallStage $stage; $service.Recheck(); Assert-ProtectedInstallAccount $context }
+                try { Assert-ProtectedInstallStage $stage; $service.Recheck(); $Journal.operation = 'account-verify'; Assert-ProtectedInstallAccount $context $true $Journal }
                 catch { Set-ProtectedInstallFailure $Journal $_; throw }
             }.GetNewClosure()
             unregister = { param($service) $Journal.operation = 'service-remove'; $service.Stop(); $service.Delete(); $context.service = $null }.GetNewClosure()

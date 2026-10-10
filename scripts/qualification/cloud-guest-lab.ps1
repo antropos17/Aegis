@@ -222,38 +222,6 @@ try {
         $stdioExe = CompileStdioGuest
         Copy-Item -LiteralPath $stdioExe -Destination (Join-Path $OutputRoot 'transfer\guest-stdio.exe')
     } | Out-Null
-    $mediaObservation = [CloudGuestMetadata+DownloadObservation]::new()
-    try {
-        $report.media = Stage 'pinned-media-download-and-hash' {
-            $url = 'https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
-            $digest = [CloudGuestMetadata]::Download($url, $windowsIso, 8225329152, $mediaObservation)
-            if ($digest -cne 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38') { throw 'published-media-hash-mismatch' }
-            return @{ url = $url; bytes = 8225329152; sha256 = $digest; hashSource = 'https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file'; license = 'Microsoft 90-day evaluation; disposable testing'; verifiedBeforeMount = $true }
-        }
-    }
-    finally {
-        $report['mediaDownload'] = @{ schemaVersion = 1; phase = $mediaObservation.Phase.ToString(); responseStatusCode = $mediaObservation.ResponseStatusCode;
-            expectedBytes = $mediaObservation.ExpectedBytes; declaredBytes = $mediaObservation.DeclaredBytes; bytesRead = $mediaObservation.BytesRead; bytesWritten = $mediaObservation.BytesWritten;
-            readCalls = $mediaObservation.ReadCalls; elapsedMilliseconds = $mediaObservation.ElapsedMilliseconds; lastReadMilliseconds = $mediaObservation.LastReadMilliseconds;
-            lastWriteMilliseconds = $mediaObservation.LastWriteMilliseconds; deadlineExpired = $mediaObservation.DeadlineExpired }
-    }
-    $metadata = Stage 'read-only-exact-wim-metadata' {
-        Mount-DiskImage -ImagePath $windowsIso -Access ReadOnly -PassThru | Out-Null; $script:mounted = $true
-        $volumes = @(Get-DiskImage -ImagePath $windowsIso | Get-Volume | Where-Object DriveLetter)
-        if ($volumes.Count -ne 1) { throw 'pinned-media-volume-unavailable' }
-        return (Get-CloudGuestImageMetadata ([CloudGuestMetadata]::ImageXml(($volumes[0].DriveLetter + ':\sources\install.wim'))))
-    }
-    $report.media.image = $metadata
-    Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false
-    $generator = [Security.Cryptography.RandomNumberGenerator]::Create(); $bytes = New-Object byte[] 24
-    $generator.GetBytes($bytes); $adminPassword = 'Aa1!' + [Convert]::ToBase64String($bytes)
-    $generator.GetBytes($bytes); $taskPassword = 'Bb2!' + [Convert]::ToBase64String($bytes); $generator.Dispose(); [Array]::Clear($bytes, 0, $bytes.Length)
-    $adminCredential = [pscredential]::new('AegisSetup', (ConvertTo-SecureString $adminPassword -AsPlainText -Force))
-    Stage 'tiny-answer-iso' {
-        $answer = New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword
-        $length = New-CloudGuestAnswerIso (Join-Path $mediaRoot 'answer') $answerIso $answer
-        $report.media.answerIsoBytes = $length; $answer = $null
-    } | Out-Null
     Stage 'stage-fixed-runtime-and-host-controls' {
         $report['runtimeStagingPhase'] = 'NodeSelect'
         $transfer = Join-Path $OutputRoot 'transfer'
@@ -320,6 +288,38 @@ try {
         if (!(Test-InstalledOwnerQualificationReceipt $value $report.actualHead 'fresh-host') -or !(CanariesUnchanged)) { throw 'installed-owner-host-corpus-refused' }
         return $value
     }
+    $mediaObservation = [CloudGuestMetadata+DownloadObservation]::new()
+    try {
+        $report.media = Stage 'pinned-media-download-and-hash' {
+            $url = 'https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
+            $digest = [CloudGuestMetadata]::Download($url, $windowsIso, 8225329152, $mediaObservation)
+            if ($digest -cne 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38') { throw 'published-media-hash-mismatch' }
+            return @{ url = $url; bytes = 8225329152; sha256 = $digest; hashSource = 'https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file'; license = 'Microsoft 90-day evaluation; disposable testing'; verifiedBeforeMount = $true }
+        }
+    }
+    finally {
+        $report['mediaDownload'] = @{ schemaVersion = 1; phase = $mediaObservation.Phase.ToString(); responseStatusCode = $mediaObservation.ResponseStatusCode;
+            expectedBytes = $mediaObservation.ExpectedBytes; declaredBytes = $mediaObservation.DeclaredBytes; bytesRead = $mediaObservation.BytesRead; bytesWritten = $mediaObservation.BytesWritten;
+            readCalls = $mediaObservation.ReadCalls; elapsedMilliseconds = $mediaObservation.ElapsedMilliseconds; lastReadMilliseconds = $mediaObservation.LastReadMilliseconds;
+            lastWriteMilliseconds = $mediaObservation.LastWriteMilliseconds; deadlineExpired = $mediaObservation.DeadlineExpired }
+    }
+    $metadata = Stage 'read-only-exact-wim-metadata' {
+        Mount-DiskImage -ImagePath $windowsIso -Access ReadOnly -PassThru | Out-Null; $script:mounted = $true
+        $volumes = @(Get-DiskImage -ImagePath $windowsIso | Get-Volume | Where-Object DriveLetter)
+        if ($volumes.Count -ne 1) { throw 'pinned-media-volume-unavailable' }
+        return (Get-CloudGuestImageMetadata ([CloudGuestMetadata]::ImageXml(($volumes[0].DriveLetter + ':\sources\install.wim'))))
+    }
+    $report.media.image = $metadata
+    Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create(); $bytes = New-Object byte[] 24
+    $generator.GetBytes($bytes); $adminPassword = 'Aa1!' + [Convert]::ToBase64String($bytes)
+    $generator.GetBytes($bytes); $taskPassword = 'Bb2!' + [Convert]::ToBase64String($bytes); $generator.Dispose(); [Array]::Clear($bytes, 0, $bytes.Length)
+    $adminCredential = [pscredential]::new('AegisSetup', (ConvertTo-SecureString $adminPassword -AsPlainText -Force))
+    Stage 'tiny-answer-iso' {
+        $answer = New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword
+        $length = New-CloudGuestAnswerIso (Join-Path $mediaRoot 'answer') $answerIso $answer
+        $report.media.answerIsoBytes = $length; $answer = $null
+    } | Out-Null
     Stage 'create-exact-owned-vm' {
         $initial = Invoke-CloudHyperVCommand recover $name $vmRoot $null
         if ($initial.exists) { throw 'owned-name-preexisting' }; $script:absence = $true; $script:createAttempted = $true; $script:unknown = $true
