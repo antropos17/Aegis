@@ -200,197 +200,51 @@ describe('ide-extension sensor health (B-S12)', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('wsl sensor health (B-S12)', () => {
-  const LIST_KEY = '-l -q';
-  const PS_KEY = '-e ps -eo pid=,args=';
-
-  /**
-   * execFile mock keyed by joined args, recording every spawn it is asked for.
-   *
-   * A response is one of: `{stdout}` (exit 0), `{code}` (a string errno = the spawn
-   * never ran, or a number = the binary ran and exited non-zero), `{timeout: true}`
-   * (killed by the timeout, no `code` at all).
-   * @param {Record<string, object>} responses
-   * @param {string[]} [calls]
-   * @returns {Function}
-   */
-  function mockExec(responses, calls) {
-    return (_cmd, args, _opts, cb) => {
-      const key = args.join(' ');
-      if (calls) calls.push(key);
-      const r = responses[key];
-      if (!r) {
-        cb(new Error(`unexpected spawn: ${key}`), '');
-        return;
-      }
-      if (r.code !== undefined) {
-        cb(failWith(r.code), '');
-        return;
-      }
-      if (r.timeout) {
-        const e = new Error('timed out');
-        // @ts-ignore — execFile marks a timeout kill this way, with no `code`
-        e.killed = true;
-        cb(e, '');
-        return;
-      }
-      cb(null, r.stdout || '');
-    };
-  }
-
   afterEach(() => {
     wsl._resetForTest();
   });
 
-  it('is UNSUPPORTED off win32 and spawns nothing', async () => {
-    const calls = [];
-    wsl._setDepsForTest({ platform: 'linux', execFile: mockExec({}, calls) });
+  it.each(['linux', 'darwin'])('is UNSUPPORTED on %s and spawns nothing', async (platform) => {
+    const execFile = vi.fn();
+    wsl._setDepsForTest({ platform, execFile });
     expect(await wsl.detectWslAgents()).toEqual([]);
-    expect(calls).toEqual([]);
-    const h = wsl.getWslSensorHealth();
-    expect(h.sensorId).toBe('wsl');
-    expect(h.state).toBe(S.UNSUPPORTED);
-    expect(h.detail).toBe('platform-no-wsl');
-  });
-
-  it('no wsl.exe at all (ENOENT) is UNSUPPORTED, and is cached', async () => {
-    const calls = [];
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({ [LIST_KEY]: { code: 'ENOENT' } }, calls),
+    expect(wsl.getCachedWslAgents()).toEqual([]);
+    expect(execFile).not.toHaveBeenCalled();
+    expect(wsl.getWslSensorHealth()).toMatchObject({
+      sensorId: 'wsl',
+      state: S.UNSUPPORTED,
+      detail: 'platform-no-wsl',
+      lastAttemptAt: null,
+      lastSuccessAt: null,
     });
-    expect(await wsl.detectWslAgents()).toEqual([]);
-    expect(await wsl.detectWslAgents()).toEqual([]);
-    // Repeated calls within the availability TTL reuse the definite answer.
-    expect(calls.filter((k) => k === LIST_KEY)).toHaveLength(1);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.UNSUPPORTED);
-    expect(h.detail).toBe('wsl-not-installed');
-    expect(h.consecutiveFailures).toBe(0);
   });
 
-  it.each([1, 4294967295])(
-    'a numeric exit %s is an inconclusive probe and can recover',
-    async (code) => {
-      const responses = { [LIST_KEY]: { code }, [PS_KEY]: { stdout: '42 opencode' } };
-      wsl._setDepsForTest({
-        platform: 'win32',
-        execFile: mockExec(responses),
-      });
-      expect(await wsl.detectWslAgents()).toEqual([]);
-      const h = wsl.getWslSensorHealth();
-      expect(h.state).toBe(S.DEGRADED);
-      expect(h.lastError).toBe(`wsl-probe-failed:exit${code}`);
-      responses[LIST_KEY] = { stdout: 'Ubuntu\n' };
-      expect(await wsl.detectWslAgents()).toMatchObject([{ agent: 'opencode', pid: 0 }]);
-      expect(wsl.getWslSensorHealth().state).toBe(S.HEALTHY);
-    },
-  );
-
-  it('an empty distro list is UNSUPPORTED (no distro)', async () => {
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({ [LIST_KEY]: { stdout: ' \n' } }),
-    });
-    expect(await wsl.isWslAvailable()).toBe(false);
-    expect(wsl.getWslSensorHealth().detail).toBe('wsl-no-distro');
-  });
-
-  it('a probe that produced NO verdict is DEGRADED and is not cached', async () => {
-    const calls = [];
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({ [LIST_KEY]: { timeout: true } }, calls),
+  it('keeps unavailable Windows process coverage explicit without claiming agent absence', async () => {
+    const execFile = vi.fn();
+    wsl._setDepsForTest({ platform: 'win32', execFile });
+    const initial = wsl.getWslSensorHealth();
+    expect(initial).toMatchObject({
+      sensorId: 'wsl',
+      state: S.UNSUPPORTED,
+      detail: 'wsl-process-coverage-unavailable',
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      lastError: null,
+      consecutiveFailures: 0,
     });
     expect(await wsl.detectWslAgents()).toEqual([]);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.DEGRADED);
-    expect(h.detail).toBe('wsl-probe-failed');
-    expect(h.lastError).toBe('wsl-probe-failed:timeout');
-    // The approved behaviour change: a transient probe failure must not be cached as
-    // "no WSL here" for the rest of the process life, so the next cycle asks again.
-    await wsl.detectWslAgents();
-    expect(calls.filter((k) => k === LIST_KEY)).toHaveLength(2);
-  });
-
-  it('WSL present but its process list unreadable is DEGRADED, not an empty distro', async () => {
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({
-        [LIST_KEY]: { stdout: 'Ubuntu\n' },
-        [PS_KEY]: { code: 'ENOENT' },
-      }),
-    });
     expect(await wsl.detectWslAgents()).toEqual([]);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.DEGRADED);
-    expect(h.detail).toBe('wsl-enumeration-unavailable');
-    expect(h.lastError).toBe('wsl-enumeration-unavailable:ENOENT');
-    expect(h.lastSuccessAt).toBeNull();
+    expect(wsl.getCachedWslAgents()).toEqual([]);
+    expect(execFile).not.toHaveBeenCalled();
+    expect(wsl.getWslSensorHealth()).toEqual(initial);
   });
 
-  it('a ps that exits 0 and prints nothing is an unread list, not an empty one', async () => {
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({
-        [LIST_KEY]: { stdout: 'Ubuntu\n' },
-        [PS_KEY]: { stdout: '   \n' },
-      }),
-    });
-    expect(await wsl.detectWslAgents()).toEqual([]);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.DEGRADED);
-    expect(h.detail).toBe('wsl-enumeration-empty');
-  });
-
-  it('a list that WAS read is HEALTHY even when it holds no agent', async () => {
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({
-        [LIST_KEY]: { stdout: 'Ubuntu\n' },
-        [PS_KEY]: { stdout: '  1 /sbin/init\n  2 /usr/bin/bash' },
-      }),
-    });
-    expect(await wsl.detectWslAgents()).toEqual([]);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.HEALTHY);
-    expect(h.lastSuccessAt).toBeTypeOf('number');
-  });
-
-  it('recovery: an unreadable enumeration then a readable one → HEALTHY', async () => {
-    let broken = true;
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: (_cmd, args, _opts, cb) => {
-        const key = args.join(' ');
-        if (key === LIST_KEY) return cb(null, 'Ubuntu\n');
-        if (broken) return cb(failWith('ENOENT'), '');
-        return cb(null, '  42 /usr/bin/opencode serve');
-      },
-    });
-    await wsl.detectWslAgents();
-    expect(wsl.getWslSensorHealth().state).toBe(S.DEGRADED);
-    broken = false;
-    const agents = await wsl.detectWslAgents();
-    expect(agents.map((a) => a.agent)).toEqual(['opencode']);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.HEALTHY);
-    expect(h.lastError).toBeNull();
-  });
-
-  it('the snapshot is plain JSON data', async () => {
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({
-        [LIST_KEY]: { stdout: 'Ubuntu\n' },
-        [PS_KEY]: { stdout: '  42 /usr/bin/opencode serve' },
-      }),
-    });
-    await wsl.detectWslAgents();
-    const h = wsl.getWslSensorHealth();
-    expect(JSON.parse(JSON.stringify(h))).toEqual(h);
+  it('the snapshot is plain JSON data', () => {
+    wsl._setDepsForTest({ platform: 'win32', execFile: vi.fn() });
+    const health = wsl.getWslSensorHealth();
+    expect(JSON.parse(JSON.stringify(health))).toEqual(health);
   });
 });
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // llm-ollama / llm-lmstudio
 // ═══════════════════════════════════════════════════════════════════════════════

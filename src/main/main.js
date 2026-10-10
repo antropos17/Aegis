@@ -175,7 +175,8 @@ let baselines,
   wslDetector,
   llmDetector,
   dockerDiscovery,
-  podmanDiscovery;
+  podmanDiscovery,
+  wslInventory;
 
 // How many sequence rules the engine holds — written by loadSequenceRules, read by the
 // `rules:reloaded` push of BOTH rule watchers (file-watcher.js) as `sequenceCount`.
@@ -199,6 +200,18 @@ function setLatestAgents(agents) {
 }
 let isQuitting = false,
   monitoringPaused = false;
+
+/**
+ * Apply the operator pause to optional background sensors.
+ * @param {boolean} paused Whether monitoring is paused.
+ * @returns {void}
+ * @since v0.19.2-beta
+ */
+function setMonitoringPaused(paused) {
+  monitoringPaused = paused;
+  etwFile?.setPaused(paused);
+  if (paused) wslInventory?.cancelRefresh();
+}
 let oomIntervalId = null;
 let latestNetConnections = [],
   otherPanelExpanded = false;
@@ -283,6 +296,14 @@ function loadDeferredModules() {
     podmanDiscovery = createPodmanDiscovery({
       onUpdate: () => {
         if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+      },
+    });
+  }
+  if (!wslInventory) {
+    const { createWslInventory } = require('./wsl-inventory');
+    wslInventory = createWslInventory({
+      onUpdate: () => {
+        if (!monitoringPaused && !isQuitting) statsUpdateBatcher.pushLazy(getStats);
       },
     });
   }
@@ -483,6 +504,24 @@ function getPodmanDiscoveryStats() {
 }
 
 /**
+ * Read cached running-distribution names without launching WSL during stats reads.
+ * @returns {import('../shared/types/process').WslInventorySnapshot} Last observation or an unobserved startup snapshot.
+ * @since v0.19.2-beta
+ */
+function getWslInventoryStats() {
+  return wslInventory
+    ? wslInventory.snapshot()
+    : {
+        status: 'pending',
+        reason: null,
+        observedAt: null,
+        attemptedAt: null,
+        stale: true,
+        distributions: [],
+      };
+}
+
+/**
  * Monitoring statistics.
  *
  * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
@@ -512,6 +551,7 @@ function getStats() {
       appHealth: getAppHealth(),
       dockerDiscovery: getDockerDiscoveryStats(),
       podmanDiscovery: getPodmanDiscoveryStats(),
+      wslInventory: getWslInventoryStats(),
       // Same expression as the loaded branch, not a zeroed lookalike: the batcher is a
       // module-scope const, so it has been counting since before this branch was
       // reachable and its numbers are real here too.
@@ -545,6 +585,7 @@ function getStats() {
     appHealth: getAppHealth(),
     dockerDiscovery: getDockerDiscoveryStats(),
     podmanDiscovery: getPodmanDiscoveryStats(),
+    wslInventory: getWslInventoryStats(),
     ipc: getIpcStats(),
     sequences: getSequenceStats(),
     monitoringPaused,
@@ -992,6 +1033,10 @@ function initDeferredSubsystems(userData) {
     refreshPodmanDiscovery: () => {
       if (!monitoringPaused && !isQuitting) return podmanDiscovery?.refresh();
     },
+    refreshWslInventory: () => {
+      if (!monitoringPaused && !isQuitting) return wslInventory?.refresh();
+    },
+    cancelWslInventory: () => wslInventory?.cancelRefresh(),
     getResourceUsage,
     getLatestAgents: () => latestAgents,
     setAgents: setLatestAgents,
@@ -1118,10 +1163,7 @@ app.whenReady().then(() => {
     getSensitiveCount: () => totalSensitive,
     getSettings: config.getSettings,
     isMonitoringPaused: () => monitoringPaused,
-    setMonitoringPaused: (v) => {
-      monitoringPaused = v;
-      etwFile?.setPaused(v);
-    },
+    setMonitoringPaused,
     stopScanIntervals: () => {
       if (scanLoop) scanLoop.stopScanIntervals();
     },
@@ -1204,6 +1246,7 @@ let alertQuitDrainFinished = false;
 app.on('before-quit', (event) => {
   dockerDiscovery?.stop();
   podmanDiscovery?.stop();
+  wslInventory?.stop();
   if (alertQuitDrainStarted && !alertQuitDrainFinished) {
     event.preventDefault();
     return;
@@ -1266,6 +1309,7 @@ app.on('window-all-closed', () => {});
 app.on('quit', () => {
   dockerDiscovery?.stop();
   podmanDiscovery?.stop();
+  wslInventory?.stop();
   fileAccessBatcher.destroy();
   statsUpdateBatcher.destroy();
   if (scanLoop) scanLoop.stopScanIntervals();
@@ -1401,6 +1445,7 @@ module.exports = {
   getAppHealth,
   _setWatcherForTest,
   _setEtwFileForTest,
+  _setMonitoringPausedForTest: setMonitoringPaused,
   _setScannerForTest,
   _setLatestAgentsForTest: setLatestAgents,
   _setScanLoopForTest,

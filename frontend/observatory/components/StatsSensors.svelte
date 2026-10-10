@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { t } from '../runtime/i18n';
 
   import { measured, record, records, type Telemetry, type RecordData } from '../runtime/host';
@@ -37,8 +38,8 @@
       icon: 'fileCode',
     },
     wsl: {
-      title: 'WSL agents',
-      description: 'Finds agents inside Windows Subsystem for Linux.',
+      title: 'WSL guest processes',
+      description: 'Guest-process detection is unavailable during passive WSL observation.',
       icon: 'terminal',
     },
     'llm-lmstudio': {
@@ -69,6 +70,8 @@
     'cim-fallback': 'Using a fallback process snapshot provider.',
     'windows-only': 'Available on Windows only.',
     'deployment-gates-pending': 'Diagnostic capture is unavailable in this build.',
+    'wsl-process-coverage-unavailable':
+      'Automatic guest-process checks are off to avoid starting stopped WSL distributions.',
   };
   function stateLabel(value: unknown, detail?: unknown): string {
     switch (value) {
@@ -81,7 +84,8 @@
       case 'DISABLED':
         return 'Off';
       case 'UNSUPPORTED':
-        return detail === 'rm-owns-observation' ? 'Covered elsewhere' : 'Unsupported';
+        if (detail === 'rm-owns-observation') return 'Covered elsewhere';
+        return detail === 'wsl-process-coverage-unavailable' ? 'Not inspected' : 'Unsupported';
       case 'STARTING':
         return 'Starting';
       case 'SENSORS_STARTING':
@@ -135,6 +139,48 @@
       ? new Date(value).toLocaleTimeString()
       : 'Not observed';
   }
+  function displayableDistroName(name: string): boolean {
+    return [...name].every((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code >= 32 && code !== 127 && !(code >= 0x202a && code <= 0x202e);
+    });
+  }
+  function runningDistroNames(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    const names: unknown[] = value;
+    return [
+      ...new Set(
+        names.filter(
+          (name): name is string =>
+            typeof name === 'string' &&
+            name.length > 0 &&
+            name.length <= 256 &&
+            displayableDistroName(name),
+        ),
+      ),
+    ].slice(0, 128);
+  }
+  let now = $state(Date.now());
+  onMount(() => {
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => clearInterval(timer);
+  });
+  function wslInventoryState(status: unknown, stale: boolean, observedAt: unknown): string {
+    if (stale && typeof observedAt === 'number' && Number.isFinite(observedAt)) return 'Retained';
+    if (status === 'ready' && !stale) return 'Observed';
+    if (status === 'pending') return 'Pending';
+    return 'Unavailable';
+  }
+  let wslInventory = $derived(record(telemetry.stats.wslInventory));
+  let runningDistros = $derived(runningDistroNames(wslInventory.distributions));
+  let wslInventoryStale = $derived.by(() => {
+    const observedAt = wslInventory.observedAt;
+    if (wslInventory.stale === true || typeof observedAt !== 'number') return true;
+    const age = Math.max(now, Date.now()) - observedAt;
+    return !Number.isFinite(age) || age < 0 || age >= 90000;
+  });
 </script>
 
 <section class="panel sensor-panel">
@@ -159,6 +205,33 @@
       </ul>
     </section>
   {/if}
+  <section class="wsl-inventory" aria-labelledby="running-wsl-distributions">
+    <div class="wsl-heading">
+      <div>
+        <h4 id="running-wsl-distributions">{$t('Running WSL distributions')}</h4>
+        <p>{$t('Host-side inventory only. Agent processes inside WSL are not inspected.')}</p>
+      </div>
+      <span class="sensor-state"
+        >{$t(
+          wslInventoryState(wslInventory.status, wslInventoryStale, wslInventory.observedAt),
+        )}</span
+      >
+    </div>
+    {#if runningDistros.length > 0}
+      <ul>
+        {#each runningDistros as distro (distro)}<li>{distro}</li>{/each}
+      </ul>
+      {#if typeof wslInventory.observedAt === 'number'}
+        <p>{$t('Last observed')}: {time(wslInventory.observedAt)}</p>
+      {/if}
+    {:else if wslInventory.status === 'ready' && !wslInventoryStale && Array.isArray(wslInventory.distributions) && wslInventory.distributions.length === 0}
+      <p>{$t('No running WSL distributions observed.')}</p>
+    {:else if wslInventory.status === 'pending'}
+      <p>{$t('Waiting for WSL inventory.')}</p>
+    {:else}
+      <p>{$t('Running WSL state is unknown.')}</p>
+    {/if}
+  </section>
   <div class="sensor-grid">
     {#each sensors as sensor (sensor.id)}
       {@const presentation = sensorPresentation[sensor.id] ?? {
@@ -279,6 +352,39 @@
   }
   .watch-state {
     color: var(--amber);
+  }
+  .wsl-inventory {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .wsl-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    align-items: start;
+  }
+  .wsl-inventory p {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+    margin: var(--space-1) 0 0;
+  }
+  .wsl-inventory ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    list-style: none;
+    padding: 0;
+    margin: var(--space-3) 0 0;
+  }
+  .wsl-inventory li {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: var(--space-1) var(--space-2);
+    font-size: 11px;
+    overflow-wrap: anywhere;
   }
   article {
     border: 1px solid var(--border);

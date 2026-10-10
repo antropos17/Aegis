@@ -21,6 +21,7 @@
  * five places the platforms would otherwise diverge.
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { createRequire } from 'module';
 import { APP_HEALTH_STATE, APP_HEALTH_REASON } from '../../src/main/app-health.js';
 import { SENSOR_HEALTH_STATE } from '../../src/main/sensor-health.js';
 import {
@@ -37,6 +38,7 @@ const S = SENSOR_HEALTH_STATE;
 const A = APP_HEALTH_STATE;
 const R = APP_HEALTH_REASON;
 const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
+const require_ = createRequire(import.meta.url);
 
 const shims = installShims();
 
@@ -63,6 +65,26 @@ describe('app-health umbrella (B8)', () => {
   });
 
   describe('S1 — baseline convergence', () => {
+    it('keeps the Windows guest-process coverage gap visible without spawning WSL', async () => {
+      h = createHarness(shims);
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const execFile = vi.fn();
+      wsl._setDepsForTest({ platform: 'win32', execFile });
+
+      const health = await h.bringUp();
+
+      expect(health.sensors.byId.wsl).toMatchObject({
+        state: S.UNSUPPORTED,
+        detail: 'wsl-process-coverage-unavailable',
+        lastAttemptAt: null,
+        lastSuccessAt: null,
+      });
+      expect(health.state).toBe(A.HEALTHY);
+      expect(health.reasons).toEqual([]);
+      expect(execFile).not.toHaveBeenCalled();
+      expect(h.expectSiblings().appHealth.sensors.byId.wsl).toEqual(health.sensors.byId.wsl);
+    });
+
     it('S1a. handle-pool path: every leaf reaches a definite state and the app is HEALTHY', async () => {
       h = createHarness(shims);
       const health = await h.bringUp();
