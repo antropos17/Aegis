@@ -3,11 +3,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { inspectSealedImportBundle } from '../../scripts/qualification/sealed-import-oracle.mjs';
 import { validateSealedImportReport } from '../../scripts/qualification/sealed-import-report.mjs';
 import { parseSealedImportArguments } from '../../scripts/qualification/qualify-sealed-import.mjs';
 import { createSealedImportHarness } from '../fixtures/sealed-import/harness.mjs';
 
+const require = createRequire(import.meta.url);
+const {
+  fixedCorpus,
+  consumeFixedCopy,
+} = require('../../scripts/qualification/cloud-sealed-copy.cjs');
 const corpora = createSealedImportHarness();
 afterAll(corpora.finish);
 
@@ -32,11 +38,20 @@ const refused = {
   cleanup: 'not-created',
 };
 
-function bundleFixture() {
+function bundleFixture(files = { 'sample.bin': Buffer.from([0, 255, 42]) }) {
   const { root, source } = corpora.corpus('oracle');
   fs.unlinkSync(path.join(source, 'readme.txt'));
-  const bytes = Buffer.from([0, 255, 42]);
-  fs.writeFileSync(path.join(source, 'sample.bin'), bytes);
+  const payload = [];
+  let offset = 0;
+  const rows = Object.entries(files).map(([relativePath, content]) => {
+    const bytes = Buffer.from(content);
+    fs.writeFileSync(path.join(source, relativePath), bytes);
+    payload.push(bytes);
+    const row = { relativePath, size: bytes.length, sha256: hash(bytes), offset };
+    offset += bytes.length;
+    return row;
+  });
+  const bytes = Buffer.concat(payload);
   const manifest = Buffer.from(
     JSON.stringify({
       schemaVersion: 1,
@@ -44,7 +59,7 @@ function bundleFixture() {
       developerOnly: true,
       launchAllowed: false,
       directories: [''],
-      files: [{ relativePath: 'sample.bin', size: bytes.length, sha256: hash(bytes), offset: 0 }],
+      files: rows,
     }),
   );
   const header = Buffer.alloc(16);
@@ -54,7 +69,7 @@ function bundleFixture() {
   const bundle = path.join(root, 'bundle.aegis');
   const complete = Buffer.concat([header, manifest, bytes]);
   fs.writeFileSync(bundle, complete);
-  return { source, bundle, complete };
+  return { root, source, bundle, complete };
 }
 
 describe('sealed import redacted contract and independent binary oracle', () => {
@@ -120,6 +135,41 @@ describe('sealed import redacted contract and independent binary oracle', () => 
     ]) {
       fs.writeFileSync(fixture.bundle, bytes);
       expect(() => inspectSealedImportBundle(fixture.bundle, fixture.source)).toThrow();
+    }
+  });
+
+  it('accepts the canonical magic header in the oracle and fixed guest consumer', () => {
+    const fixture = bundleFixture(fixedCorpus);
+    const destination = path.join(fixture.root, 'canonical-copy');
+    expect(inspectSealedImportBundle(fixture.bundle, fixture.source)).toMatchObject({
+      fileCount: 4,
+    });
+    expect(consumeFixedCopy(fixture.complete, hash(fixture.complete), destination)).toMatchObject({
+      passed: true,
+      fileCount: 4,
+      initialTestExitCode: 1,
+      testExitCode: 0,
+      e2Qualified: false,
+      launchAllowed: false,
+    });
+    expect(fs.existsSync(destination)).toBe(true);
+  });
+
+  it('rejects high-bit magic aliases in both readers before creating a guest destination', () => {
+    const fixture = bundleFixture(fixedCorpus);
+    const singleBytes = Array.from({ length: 8 }, (_, index) => [index]);
+    for (const indexes of [...singleBytes, [0, 1, 2, 3, 4, 5, 6, 7]]) {
+      const bytes = Buffer.from(fixture.complete);
+      for (const index of indexes) bytes[index] |= 0x80;
+      fs.writeFileSync(fixture.bundle, bytes);
+      const destination = path.join(fixture.root, `aliased-copy-${indexes.join('-')}`);
+      expect(() => inspectSealedImportBundle(fixture.bundle, fixture.source)).toThrow(
+        'sealed-import-oracle-mismatch',
+      );
+      expect(() => consumeFixedCopy(bytes, hash(bytes), destination)).toThrow(
+        'fixed-sealed-copy-refused',
+      );
+      expect(fs.existsSync(destination)).toBe(false);
     }
   });
 

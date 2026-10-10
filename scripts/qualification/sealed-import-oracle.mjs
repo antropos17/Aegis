@@ -39,7 +39,7 @@ export function inspectSealedImportBundle(bundle, source) {
   if (
     bytes.length < 16 ||
     bytes.length > 16 + 65536 + 1048576 ||
-    bytes.subarray(0, 8).toString('ascii') !== 'AEGSIM01'
+    !bytes.subarray(0, 8).equals(Buffer.from('AEGSIM01', 'ascii'))
   )
     fail();
   const length = bytes.readInt32LE(8);

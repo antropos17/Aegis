@@ -75,7 +75,7 @@ function consumeFixedCopy(bytes, expectedHash, destination) {
     bytes.length > 16 + 65536 + 1048576 ||
     !/^[a-f0-9]{64}$/.test(expectedHash) ||
     hash(bytes) !== expectedHash ||
-    bytes.subarray(0, 8).toString('ascii') !== 'AEGSIM01'
+    !bytes.subarray(0, 8).equals(Buffer.from('AEGSIM01', 'ascii'))
   )
     refuse();
   const length = bytes.readInt32LE(8),
