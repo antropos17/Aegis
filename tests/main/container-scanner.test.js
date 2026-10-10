@@ -263,6 +263,7 @@ describe('Docker metadata discovery', () => {
       Command: 'private command',
     }),
     row(undefined, 'a'.repeat(12)),
+    row(undefined, firstId + '\n'),
     row(undefined, firstId, 'invalid\nname'),
     row() + '\n' + row(),
     row() + '\nnot JSON',

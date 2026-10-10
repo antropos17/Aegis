@@ -84,6 +84,10 @@
         {
           "from": "src/main/platform/linux-process-control.py",
           "to": "linux-process-control.py"
+        },
+        {
+          "from": "src/main/podman-local.conf",
+          "to": "podman-local.conf"
         }
       ]
     },

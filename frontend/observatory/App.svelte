@@ -20,7 +20,7 @@
     type RecordData,
   } from './runtime/host';
   import SensorStatus from './components/SensorStatus.svelte';
-  import DockerCandidates from './components/DockerCandidates.svelte';
+  import ContainerCandidates from './components/ContainerCandidates.svelte';
   import AppExit from './components/AppExit.svelte';
   import WorkspaceNavigation from './components/WorkspaceNavigation.svelte';
   import WorkspaceCommands from './components/WorkspaceCommands.svelte';
@@ -876,7 +876,10 @@
           </div>
         </div>
         {#if view === 'overview' || view === 'agents'}
-          <DockerCandidates snapshot={displayTelemetry.stats.dockerDiscovery} />
+          <ContainerCandidates
+            dockerSnapshot={displayTelemetry.stats.dockerDiscovery}
+            podmanSnapshot={displayTelemetry.stats.podmanDiscovery}
+          />
         {/if}
       </div>
     </main>

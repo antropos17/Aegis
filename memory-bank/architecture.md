@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 211 CommonJS modules (187 top-level + 22 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 213 CommonJS modules (189 top-level + 22 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -18,7 +18,9 @@ Core modules:
 - ipc-handlers.js — all IPC handlers (invoke + listeners)
 - preload.js — IPC bridge (window.aegis via contextBridge, 49 invoke + 11 events = 60 channels)
 - process-scanner.js — bundled and validated custom signatures over platform process snapshots
+- container-metadata.js — shared strict image and projected-row validation for local container candidates
 - container-scanner.js — bounded, local Docker image-metadata candidates kept separate from host process identities and actions
+- podman-scanner.js — Linux-native Podman image-metadata candidates with independent freshness and no VM startup
 - process-utils.js — parent chain resolution + editor annotation
 - file-watcher.js — watcher health, main-thread attribution + handle scanning
 - watch-worker-client.js / watch-worker-thread.js — dedicated chokidar worker per evidence watch group; close invalidates delivery before termination
@@ -46,7 +48,7 @@ Core modules:
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
 88 Svelte components, 11 stores, 21 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
-App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
+App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings. ContainerCandidates presents independent Docker and Linux Podman image-only observations outside host process totals, risk and actions.
 
 runtime/host.ts owns seven telemetry subscriptions, revision-guarded seed results/errors, outage retention, source-specific receipt clocks and freshness updated after confirmed settings saves. runtime/resource-observations.ts merges sequence-ordered per-instance readings and suppresses cached numeric history points; statistics-history.ts preserves collection ranges and resets timelines on backwards wall-clock changes. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
 

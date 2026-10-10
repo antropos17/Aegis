@@ -1,16 +1,22 @@
 # AEGIS Observatory
 
-## Docker metadata candidates — 2026-10-11
+## Container metadata candidates — 2026-10-11
 
-Show matched running Docker containers as a separate, read-only evidence surface
-in the Overview and Agents workspaces. Each row identifies its container and
-image, the matched agent family, and when Docker last answered. A matching image
-is a candidate for an AI workload; it does not prove which process is running
-inside the container or what isolation settings the daemon applies. Keep these
+Show matched running Docker and local Podman containers in one read-only evidence
+panel after the primary content in the Overview and Agents workspaces. Each
+runtime has its own labelled section, observation status, last observation time,
+retained candidates and empty state. One shared row implementation identifies
+the container, image, matched agent family and image-metadata source. A matching
+image is a candidate for an AI workload; it does not prove which process is running
+inside the container or what isolation settings the runtime applies. Keep these
 rows outside host process counts, risk scores and process actions. A failed or
-expired Docker observation retains prior rows with an explicit stale or
-unavailable label; a successful empty observation clears them. Use the existing
-Observatory panel, typography and localization patterns in both interface modes.
+expired observation retains that runtime's prior rows with an explicit stale or
+unavailable label; a successful empty observation clears only its own rows.
+Fresh Docker metadata never establishes Podman availability or freshness. Local
+Podman discovery reports unsupported platforms and remote configuration explicitly.
+Validate runtime-prefixed container identities and accept only the documented
+metadata fields. Use the existing Observatory panel, typography and localization
+patterns in both interface modes, with one freshness timer disposed on panel unmount.
 
 ## Compact density — 2026-10-07
 
