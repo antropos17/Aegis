@@ -8,7 +8,6 @@ namespace Aegis.ProtectedSession
     internal static class CallerEndpointNative
     {
         internal const uint ClientRights = 0x00100182; // data write, attributes, synchronize; no instance-create
-        internal const uint ServerRights = 0x001f01ff;
         [StructLayout(LayoutKind.Sequential)]
         internal struct SecurityAttributes
         { internal int Length; internal IntPtr Descriptor; internal int Inherit; }

@@ -33,7 +33,7 @@ function compile(target, files) {
     ],
     { timeout: 30000, maxBuffer: 8192, windowsHide: true },
   );
-  expect(fs.statSync(target).size).toBeLessThanOrEqual(65536);
+  expect(fs.statSync(target).size).toBeLessThanOrEqual(256 * 1024);
 }
 
 describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(

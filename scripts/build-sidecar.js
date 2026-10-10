@@ -169,6 +169,8 @@ function main() {
       path.join(ROOT, 'sidecar', 'session', 'CallerNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerIdentity.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerRegistration.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'MainRegistrationEvidence.cs'),
+      path.join(ROOT, 'sidecar', 'session', 'CallerMainOperation.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerAdmission.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerEndpointNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerEndpoint.cs'),

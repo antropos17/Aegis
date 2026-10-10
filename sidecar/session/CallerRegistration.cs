@@ -65,6 +65,16 @@ namespace Aegis.ProtectedSession
             CheckCurrent();
             if (broker != null) CallerNative.Require(identity.SameOperator(broker.identity));
         }
+        internal void CheckServer() { CallerNative.Require(authorityServer == null); CheckCurrent(); }
+        internal void CheckHeldProcess(SafeFileHandle held)
+        {
+            CheckCurrent();
+            long observedBirth, exit, kernel, user;
+            CallerNative.Require(held != null && !held.IsClosed && !held.IsInvalid &&
+                CallerNative.GetProcessId(held) == pid && CallerNative.GetProcessTimes(held,
+                    out observedBirth, out exit, out kernel, out user) && observedBirth == birth &&
+                CallerNative.WaitForSingleObject(held, 0) == 0x102);
+        }
 
         internal void CheckLive(uint observedPid)
         {

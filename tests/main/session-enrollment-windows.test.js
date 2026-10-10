@@ -29,7 +29,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         ],
         { timeout: 30000, windowsHide: true, maxBuffer: 4096, stdio: 'pipe' },
       );
-      expect(fs.statSync(output).size).toBeLessThanOrEqual(65536);
+      expect(fs.statSync(output).size).toBeLessThanOrEqual(256 * 1024);
     }
 
     beforeAll(() => {

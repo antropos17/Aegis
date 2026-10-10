@@ -20,6 +20,11 @@ namespace Aegis.ProtectedSession
             "\"operation\":\"inspect-owned\",\"requestId\":\"([a-f0-9]{32})\"," +
             "\"sessionId\":\"([a-f0-9]{32})\",\"generation\":\"([a-f0-9]{32})\",\"sequence\":1\\}\\z",
             RegexOptions.CultureInvariant);
+        private static readonly Regex MainSchema = new Regex(
+            "\\A\\{\"protocol\":\"aegis-supervisor-caller\",\"version\":1,\"role\":\"controller-main\"," +
+            "\"operation\":\"inspect-owned\",\"requestId\":\"([a-f0-9]{32})\",\"sessionId\":\"([a-f0-9]{32})\"," +
+            "\"generation\":\"([a-f0-9]{32})\",\"selectionId\":\"([a-f0-9]{32})\",\"inventoryRevision\":([1-9][0-9]{0,9})," +
+            "\"selectionEpoch\":\"([a-f0-9]{32})\",\"sequence\":1\\}\\z", RegexOptions.CultureInvariant);
 
         internal sealed class Context
         {
@@ -27,8 +32,17 @@ namespace Aegis.ProtectedSession
             private readonly SafeHandle pipe;
             private readonly Stopwatch lease = Stopwatch.StartNew();
             internal readonly string RequestId;
-            internal Context(CallerRegistration owner, SafeHandle connection, string request)
-            { registration = owner; pipe = connection; RequestId = request; }
+            internal readonly string SelectionId, SelectionEpoch;
+            internal readonly uint InventoryRevision;
+            internal Context(CallerRegistration owner, SafeHandle connection, Match frame)
+            {
+                registration = owner; pipe = connection; RequestId = frame.Groups[1].Value;
+                if (frame.Groups.Count > 4)
+                {
+                    SelectionId = frame.Groups[4].Value; SelectionEpoch = frame.Groups[6].Value;
+                    CallerNative.Require(UInt32.TryParse(frame.Groups[5].Value, out InventoryRevision));
+                }
+            }
             // No serialized context or booleans can substitute for this live fence.
             internal void CheckCurrent()
             {
@@ -49,12 +63,16 @@ namespace Aegis.ProtectedSession
         }
 
         internal static Context ReadAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native)
+        { return Authenticate(pipe, registered, native, Schema); }
+        internal static Context ReadMainAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native)
+        { return Authenticate(pipe, registered, native, MainSchema); }
+        private static Context Authenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, Regex schema)
         {
             lock (registered.Gate)
             {
                 CallerNative.Require(!CallerNative.HasThreadToken());
                 registered.CheckCurrent();
-                Match frame = Schema.Match(ReadMessage(pipe));
+                Match frame = schema.Match(ReadMessage(pipe));
                 CallerNative.Require(frame.Success && frame.Groups[2].Value == registered.Session &&
                     frame.Groups[3].Value == registered.Generation);
                 uint peer;
@@ -80,7 +98,7 @@ namespace Aegis.ProtectedSession
                 registered.CheckCurrent();
                 uint available, left;
                 CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero, out available, out left) && available == 0);
-                return new Context(registered, pipe, frame.Groups[1].Value);
+                return new Context(registered, pipe, frame);
             }
         }
 

@@ -15,6 +15,8 @@ namespace Aegis.ProtectedSession
         private Snapshot[] snapshots;
         private SafeFileHandle process, job;
         private CallerRegistration owner;
+        private CallerRegistration boundServer;
+        private EnrollmentInspection.Identity selected;
         private AppContainerExecutable.PinnedFile image;
         private byte[] record;
         private string imageHash;
@@ -66,6 +68,7 @@ namespace Aegis.ProtectedSession
                 for (int index = 0; index < lease.held.Count; index++)
                     lease.snapshots[index] = new Snapshot(lease.held[index], index < lease.held.Count - 3);
                 lease.record = selected.RecordBytes; lease.imageHash = selected.ImageHash;
+                lease.selected = selected.Selected;
                 lease.image = AppContainerExecutable.Open(imagePath, selected.ImageSize, lease.imageHash);
                 lease.CheckCore(watch);
                 return lease;
@@ -79,6 +82,31 @@ namespace Aegis.ProtectedSession
             {
                 var watch = Stopwatch.StartNew();
                 try { EnrollmentNative.Require(!revoked); CheckCore(watch); }
+                catch { Close(); throw Unavailable(); }
+                finally { watch.Stop(); }
+            }
+        }
+        // Release this lease-only precheck before acquiring the supplied server gate.
+        internal void CheckServerAssociation(CallerRegistration server)
+        {
+            lock (gate) EnrollmentNative.Require(!revoked && server != null && (boundServer == null || ReferenceEquals(boundServer, server)));
+        }
+        // Server gate precedes this lease gate. Never call back into the server from Dispose/CheckCore.
+        internal EnrollmentInspection.Identity BindServer(CallerRegistration server)
+        {
+            CheckServerAssociation(server);
+            lock (server.Gate)
+            lock (gate)
+            {
+                EnrollmentNative.Require(boundServer == null || ReferenceEquals(boundServer, server));
+                var watch = Stopwatch.StartNew();
+                try
+                {
+                    CheckCore(watch);
+                    server.CheckServer(); server.CheckHeldProcess(process);
+                    if (boundServer == null) boundServer = server;
+                    return selected;
+                }
                 catch { Close(); throw Unavailable(); }
                 finally { watch.Stop(); }
             }

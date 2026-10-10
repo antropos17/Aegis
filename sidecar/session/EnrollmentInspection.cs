@@ -39,7 +39,7 @@ namespace Aegis.ProtectedSession
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
         private static bool Hex(string text, int length)
         { return text != null && text.Length == length && Regex.IsMatch(text, "\\A[a-f0-9]+\\z"); }
-        private static void Check(EnrollmentHeld file, string path, bool directory, bool ancestor)
+        internal static void Check(EnrollmentHeld file, string path, bool directory, bool ancestor)
         {
             EnrollmentNative.Require(file != null && file.Directory == directory && !file.Reparse &&
                 String.Equals(file.PathName, path, StringComparison.OrdinalIgnoreCase) &&
@@ -57,6 +57,15 @@ namespace Aegis.ProtectedSession
             internal byte[] RecordBytes;
             internal int ImageSize;
             internal string ImageHash;
+            internal Identity Selected;
+        }
+        // Immutable provenance is issued only with the retained native observation.
+        internal sealed class Identity
+        {
+            internal readonly string Root, InstallId, Epoch;
+            internal readonly uint Revision;
+            internal Identity(string root, string installId, uint revision, string epoch)
+            { Root = root; InstallId = installId; Revision = revision; Epoch = epoch; }
         }
         internal static RetainedFiles RetainFiles(string root, string runningImage, IEnrollmentFiles files)
         {
@@ -93,7 +102,7 @@ namespace Aegis.ProtectedSession
                 EnrollmentHeld record = files.Open(recordPath, false); held.Add(record);
                 Check(record, recordPath, false, false); byte[] bytes = record.Read(1024);
                 EnrollmentNative.Require(bytes != null && bytes.Length > 0 && bytes.Length <= 1024);
-                Match match = Record.Match(Utf8.GetString(bytes)); uint revision;
+                Match match = Record.Match(Utf8.GetString(bytes)); uint revision = 0;
                 EnrollmentNative.Require(match.Success && UInt32.TryParse(match.Groups[2].Value, out revision) &&
                     revision > 0 && match.Groups[4].Value == rootHeld.Volume && match.Groups[5].Value == rootHeld.FileId);
                 Deadline(watch);
@@ -114,6 +123,7 @@ namespace Aegis.ProtectedSession
                     if (retained != null) {
                         retained.RecordBytes = (byte[])bytes.Clone();
                         retained.ImageSize = imageBytes.Length; retained.ImageHash = digest;
+                        retained.Selected = new Identity(root, match.Groups[1].Value, revision, match.Groups[3].Value);
                     }
                     result = new EnrollmentInspection(true, "complete", "protected-enrollment-observed");
                 }
