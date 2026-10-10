@@ -1,4 +1,4 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($Mode -ceq 'host-script-scope') { & $PSCommandPath 'host-script-child'; return }
@@ -180,6 +180,75 @@ if ($Mode -ceq 'membership-helper-lookup') {
     return
 }
 . (Join-Path $PSScriptRoot '../../../scripts/qualification/installed-owner-phase.ps1')
+if ($Mode -cin @('attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array')) {
+    # Run the maintained qualification wrapper and attempt in this child script.
+    # Only OS/resource leaves are faked; native receipt mode writes one bounded
+    # modeled JSON file in this process's X: TEMP and removes that exact file.
+    $script:AttemptScratch = $null
+    if ($Mode -cne 'attempt-status') {
+        if (![IO.Path]::IsPathRooted($env:TEMP)) { throw 'fixture-temp-scope-refused' }
+        $script:AttemptScratch = [IO.Path]::Combine($env:TEMP, 'attempt-' + [guid]::NewGuid().ToString('N')); [IO.Directory]::CreateDirectory($script:AttemptScratch) | Out-Null
+    }
+    $script:AttemptService = [pscustomobject]@{ ObservedOwner = $null; statusCalls = 0; stopCalls = 0; deleteCalls = 0; mode = $Mode; resultPath = $null; native = $null }
+    $script:AttemptService | Add-Member ScriptMethod Start {
+        $this.ObservedOwner = @{ pid = [uint32]10; birthFileTime = [long]1; sid = 'S-1-5-18'; authentication = '0000000000000001'; session = [uint32]0; exactProcessExited = $false; image = 'private-image'; unexpected = 'unsafe arbitrary observation' }
+        if ($null -ne $this.native) { [IO.File]::WriteAllText($this.resultPath, ($this.native | ConvertTo-Json -Depth 5)) }
+    }
+    $script:AttemptService | Add-Member ScriptMethod Status {
+        $this.statusCalls++
+        if ($this.mode -ceq 'attempt-status' -and $this.statusCalls -eq 2) { throw [Management.Automation.CommandNotFoundException]::new('unsafe arbitrary command and credential text') }
+        if ($this.mode -ceq 'attempt-status' -and $this.statusCalls -eq 1) { return [uint32[]]@(4, 10) }; return [uint32[]]@(1, 0)
+    }
+    $script:AttemptService | Add-Member ScriptMethod WaitExited { if ($null -ne $this.ObservedOwner) { $this.ObservedOwner.exactProcessExited = $true } }
+    $script:AttemptService | Add-Member ScriptMethod Stop { $this.stopCalls++ }
+    $script:AttemptService | Add-Member ScriptMethod Delete { $this.deleteCalls++ }
+    $script:AttemptAssociation = @{ cleanupUnknown = $false; service = $script:AttemptService; operatorSid = 'S-1-5-21-1-2-3-1001';
+        installId = 'a' * 32; stage = @{ epoch = 'b' * 32; revision = 1 }; receipts = @{ PathName = 'C:\fixture\private-result' }; attemptedReceiptPaths = @(); receiptRows = @(); rollback = $null }
+    if ($null -ne $script:AttemptScratch) {
+        $script:AttemptAssociation.receipts.PathName = $script:AttemptScratch
+        $script:AttemptService.resultPath = (Get-InstalledOwnerReceiptPaths $script:AttemptAssociation).result
+        $script:AttemptService.native = @{ schemaVersion = 1; scope = 'installed-owner-inspection'; phase = 'await-result'; supervisorStage = 3;
+            cleanupConfirmed = $false; ownedJobsEmpty = $false; nativeProducerReady = $true; bootstrapWriteCompleted = $true; bootstrapEofClosed = $true;
+            supervisorReleased = $true; mainReleased = $false; supervisorExitCode = 2; inspected = $false; inspectionCount = 0; launchAllowed = $false; completeE1 = $false;
+            ownerSid = 'S-1-5-18'; ownerAuthentication = '0000000000000001'; ownerSession = 0; ownerBirth = '0000000000000001'; installId = 'a' * 32; epoch = 'b' * 32; revision = 1;
+            inspection = 'unsafe arbitrary receipt content'; path = 'private-result'; password = 'fixture-credential' }
+        if ($Mode -ceq 'attempt-missing-result') { $script:AttemptService.native = $null }
+        if ($Mode -ceq 'attempt-scope-array') {
+            $script:AttemptService.native.scope = @('installed-owner-inspection', 'unsafe arbitrary scope content')
+            $script:AttemptService.native.phase = @('await-result', 'unsafe arbitrary phase content')
+        }
+    }
+    function Assert-ProtectedInstallAdministrator { }
+    function Initialize-ProtectedInstallNative { }
+    function Assert-ProtectedInstallation { param($Association); if ($Association.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' } }
+    function Get-CimInstance { param($ClassName, $OperationTimeoutSec); return @{ Caption = 'Windows fixture'; BuildNumber = '26000'; Version = '10.0'; OSArchitecture = '64-bit' } }
+    function Test-InstalledOwnerPayload { param($PayloadRoot, $SourceSha); return @{ files = @() } }
+    function Get-InstalledOwnerBinaryManifest { param($Payload, $Baseline); return @{} }
+    function Test-Path { param($LiteralPath); if ($null -ne $script:AttemptScratch -and [IO.Path]::GetDirectoryName($LiteralPath) -ceq $script:AttemptScratch) { return [IO.File]::Exists($LiteralPath) }; return $false }
+    function Join-Path { param([string]$Path, [string]$ChildPath); return $Path.TrimEnd('/','\') + '\' + $ChildPath.TrimStart('/','\') }
+    function Get-ChildItem { param($LiteralPath, [switch]$Force); return @() }
+    function New-Item { param($ItemType, $Path) }
+    function Copy-Item { param($LiteralPath, $Destination) }
+    function Read-ProtectedInstallSnapshot { param($Path, $Directory); return @{ path = $Path; volume = '00000001'; fileId = '0000000000000001' } }
+    function Update-ProtectedInstallRuntimeRows { param($Stage) }
+    function New-ProtectedInstallation {
+        param($SourceRoot, $Manifest, $Account, $Password, $FailAfterPublish, $Journal)
+        $Journal.operation = 'verify'; $Journal.failure = $null; $Journal.createdSid = $script:AttemptAssociation.operatorSid
+        $Journal.createdRoots = @(); $Journal.service = @{ creationAttempted = $true; created = $true }; $Journal.published = $true; $Journal.cleanup = @{ state = 'pending' }
+        return $script:AttemptAssociation
+    }
+    $env:GITHUB_ACTIONS = 'true'; $env:RUNNER_ENVIRONMENT = 'github-hosted'; $env:GITHUB_RUN_ID = 'fixture'; $env:GITHUB_RUN_ATTEMPT = '1'
+    try { $report = Invoke-InstalledOwnerQualification 'C:\fixture\payload' 'D:\aegis-cloud-guest-fixture-1\installed-owner-control' ('a' * 40) 'fresh-host' }
+    finally {
+        if ($null -ne $script:AttemptScratch) {
+            if ([IO.File]::Exists($script:AttemptService.resultPath)) { [IO.File]::Delete($script:AttemptService.resultPath) }
+            [IO.Directory]::Delete($script:AttemptScratch, $false)
+        }
+    }
+    $report.fixture = @{ cleanupUnknown = $script:AttemptAssociation.cleanupUnknown; stopCalls = $script:AttemptService.stopCalls; deleteCalls = $script:AttemptService.deleteCalls }
+    $report | ConvertTo-Json -Depth 20 -Compress
+    return
+}
 $script:FixtureProductionAssert = (Get-Command Assert-ProtectedInstallation).ScriptBlock
 $script:FixtureProductionAccount = (Get-Command Assert-ProtectedInstallAccount).ScriptBlock
 $script:FixtureProductionAncillary = (Get-Command Remove-ProtectedInstallAncillary).ScriptBlock

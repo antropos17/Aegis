@@ -134,6 +134,23 @@ describe.skipIf(process.platform !== 'win32')(
         expect(receipt(mode)).toEqual({ corpus: true, guest: false });
       }
     });
+    it('requires all exact mutation actions once and binds actor and token witness to every installed account', () => {
+      expect(receipt('green')).toEqual({ corpus: true, guest: true });
+      const modes = [
+        'duplicate-action',
+        'missing-action',
+        'foreign-action',
+        'action-case',
+        'foreign-actor-sid',
+        'foreign-witness-sid',
+        'array-actor-sid',
+        'array-witness-sid',
+        'foreign-install-sid',
+        'malformed-win32',
+        'floating-win32',
+      ];
+      expect(modes.map(receipt)).toEqual(modes.map(() => ({ corpus: false, guest: false })));
+    }, 30000);
     function orchestration(mode) {
       const value = spawnSync(
         'powershell.exe',
@@ -153,6 +170,88 @@ describe.skipIf(process.platform !== 'win32')(
       expect(value.stdout.toString('utf8')).not.toContain('fixture-credential');
       return JSON.parse(value.stdout.toString('utf8'));
     }
+    it('retains a finite failed attempt checkpoint and partial original owner observations without cleanup authority', () => {
+      const report = orchestration('attempt-status');
+      expect(report).toMatchObject({
+        passed: false,
+        baseline: null,
+        positive: null,
+        failure: {
+          stage: 'original-program-behavioral-red',
+          operation: 'attempt-status',
+          diagnosticCode: 'protected-command-not-found',
+          nativeWin32: null,
+        },
+        failedAttempt: {
+          checkpoint: 'attempt-status',
+          cleanupUnknown: true,
+          independentlyObservedOwner: {
+            pid: 10,
+            birthFileTime: 1,
+            sid: 'S-1-5-18',
+            exactProcessExited: false,
+          },
+          scm: [{ state: 4, pid: 10 }],
+          native: null,
+        },
+        fixture: { cleanupUnknown: true, stopCalls: 0, deleteCalls: 0 },
+        installation: { cleanup: { state: 'unknown' } },
+      });
+      expect(JSON.stringify(report)).not.toMatch(
+        /unsafe|private-image|private-result|fixture-credential/,
+      );
+      const native = orchestration('attempt-native');
+      expect(native).toMatchObject({
+        passed: false,
+        failure: {
+          operation: 'attempt-validate-closure',
+          diagnosticCode: 'installed-native-child-cleanup-unknown',
+        },
+        failedAttempt: {
+          cleanupUnknown: true,
+          resultFile: { exists: true, fresh: true },
+          independentCounter: 0,
+          independentlyObservedOwner: { exactProcessExited: true },
+          native: {
+            phase: 'await-result',
+            supervisorStage: 3,
+            nativeProducerReady: true,
+            cleanupConfirmed: false,
+            ownedJobsEmpty: false,
+          },
+        },
+        fixture: { cleanupUnknown: true, stopCalls: 0, deleteCalls: 0 },
+      });
+      expect(JSON.stringify(native)).not.toMatch(
+        /unsafe|private-image|private-result|fixture-credential/,
+      );
+      const missing = orchestration('attempt-missing-result');
+      expect(missing).toMatchObject({
+        passed: false,
+        failure: { operation: 'attempt-read-result' },
+        failedAttempt: {
+          cleanupUnknown: true,
+          resultFile: { exists: false, fresh: null, bytes: null },
+          independentlyObservedOwner: { exactProcessExited: true },
+          native: null,
+        },
+        fixture: { cleanupUnknown: true, stopCalls: 0, deleteCalls: 0 },
+      });
+      expect(JSON.stringify(missing)).not.toMatch(
+        /unsafe|private-image|private-result|fixture-credential/,
+      );
+      const malformed = orchestration('attempt-scope-array');
+      expect(malformed.failedAttempt.native).not.toHaveProperty('scope');
+      expect(malformed.failedAttempt.native).not.toHaveProperty('phase');
+      expect(malformed.fixture).toMatchObject({
+        cleanupUnknown: true,
+        stopCalls: 0,
+        deleteCalls: 0,
+      });
+      expect(JSON.stringify(malformed)).not.toMatch(
+        /unsafe|private-image|private-result|fixture-credential/,
+      );
+    });
     it('resolves maintained callback helpers from a hosted child script through install, upgrades and uninstall', () => {
       expect(orchestration('host-script-scope')).toMatchObject({
         installed: true,

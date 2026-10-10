@@ -33,57 +33,123 @@ function Get-InstalledOwnerReceiptPaths($Association) {
     $stem = $Association.installId + '-' + $Association.stage.epoch + '-' + $Association.stage.revision
     return @{ result = Join-Path $Association.receipts.PathName ('owner-result-' + $stem + '.json'); count = Join-Path $Association.receipts.PathName ('inspection-count-' + $stem + '.txt') }
 }
+function Get-InstalledOwnerObservedField($Value, [string]$Field) {
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [Collections.IDictionary]) { if ($Value.Contains($Field)) { return $Value[$Field] }; return $null }
+    $property = $Value.PSObject.Properties[$Field]; if ($null -ne $property) { return $property.Value }; return $null
+}
+function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'native')][string]$Kind) {
+    if ($null -eq $Value) { return $null }
+    # Explicit finite scalars exclude images, paths, inspection blobs and unknown fields.
+    $result = @{}
+    $booleans = if ($Kind -ceq 'owner') { @('exactProcessExited') } else { @('inspected', 'cleanupConfirmed', 'ownedJobsEmpty', 'launchAllowed', 'completeE1', 'nativeProducerReady', 'bootstrapWriteCompleted', 'bootstrapEofClosed', 'supervisorReleased', 'mainReleased') }
+    $numbers = if ($Kind -ceq 'owner') { @('pid', 'birthFileTime', 'session') } else { @('schemaVersion', 'ownerSession', 'operatorSession', 'revision', 'supervisorStage', 'supervisorPid', 'mainPid', 'supervisorExitCode', 'inspectionCount') }
+    foreach ($field in $booleans) { $v = Get-InstalledOwnerObservedField $Value $field; if ($v -is [bool]) { $result[$field] = $v } }
+    foreach ($field in $numbers) { $v = Get-InstalledOwnerObservedField $Value $field; if ($v -is [int] -or $v -is [long] -or $v -is [uint32]) { $result[$field] = $v } }
+    foreach ($field in $(if ($Kind -ceq 'owner') { @('sid') } else { @('ownerSid', 'operatorSid') })) {
+        $v = Get-InstalledOwnerObservedField $Value $field
+        if ($v -is [string] -and $v.Length -le 184 -and $v -cmatch '^S-1-(?:[0-9]{1,10}-){1,14}[0-9]{1,10}$') { $result[$field] = $v }
+    }
+    $hex = if ($Kind -ceq 'owner') { @{ authentication = 16 } } else { @{ ownerAuthentication = 16; operatorAuthentication = 16; ownerBirth = 16; supervisorBirth = 16; mainBirth = 16; installId = 32; epoch = 32; ownerImageSha256 = 64; supervisorImageSha256 = 64; mainImageSha256 = 64 } }
+    foreach ($field in $hex.Keys) { $v = Get-InstalledOwnerObservedField $Value $field; if ($v -is [string] -and $v -cmatch ('^[a-f0-9]{' + $hex[$field] + '}$')) { $result[$field] = $v } }
+    if ($Kind -ceq 'native') {
+        $v = Get-InstalledOwnerObservedField $Value 'scope'; if ($v -is [string] -and $v -ceq 'installed-owner-inspection') { $result.scope = $v }
+        $v = Get-InstalledOwnerObservedField $Value 'phase'
+        if ($v -is [string] -and $v -cin @('acquire-owner', 'operator-token', 'create-children', 'publish-main', 'supply-supervisor', 'await-completion', 'supply-main', 'await-result', 'confirm-result', 'complete')) { $result.phase = $v }
+    }
+    return $result
+}
 function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
-    Assert-ProtectedInstallation $Association
-    $paths = Get-InstalledOwnerReceiptPaths $Association
-    if ((Test-Path -LiteralPath $paths.result) -or (Test-Path -LiteralPath $paths.count)) { throw 'installed-fresh-attempt-receipts-required' }
-    $Association.attemptedReceiptPaths += @($paths.result, $paths.count)
-    # Owner exit alone does not prove original children/Jobs closed. Only a fresh
-    # authenticated maintained-owner closure result may clear this terminal latch.
-    $Association.cleanupUnknown = $true
-    $started = [DateTime]::UtcNow; $Association.service.Start()
-    $watch = [Diagnostics.Stopwatch]::StartNew(); $states = [Collections.Generic.List[object]]::new()
-    do {
-        $status = $Association.service.Status()
-        if ($states.Count -eq 0 -or $states[$states.Count - 1].state -ne $status[0]) { $states.Add(@{ state = $status[0]; pid = $status[1]; milliseconds = $watch.ElapsedMilliseconds }) }
-        if ($status[0] -eq 1) { break }
-        if ($watch.ElapsedMilliseconds -ge 20000) { throw 'installed-owner-attempt-deadline' }
-        Start-Sleep -Milliseconds 50
-    } while ($true)
-    $Association.service.WaitExited()
-    $resultFile = Get-Item -LiteralPath $paths.result -Force
-    if ($resultFile.CreationTimeUtc -lt $started.AddSeconds(-1) -or $resultFile.Length -gt 32KB) { throw 'installed-owner-fresh-result-refused' }
-    $row = Read-ProtectedInstallSnapshot $paths.result; $Association.receiptRows += $row
-    $native = [IO.File]::ReadAllText($paths.result) | ConvertFrom-Json
-    $count = 0; $counter = $null
-    if (Test-Path -LiteralPath $paths.count) {
-        $counterFile = Get-Item -LiteralPath $paths.count -Force
-        if ($counterFile.CreationTimeUtc -lt $started.AddSeconds(-1) -or $counterFile.Length -ne 1 -or [IO.File]::ReadAllText($paths.count) -cne '1') { throw 'installed-owner-independent-counter-refused' }
-        $counter = Read-ProtectedInstallSnapshot $paths.count; $Association.receiptRows += $counter; $count = 1
+    $diagnostic = @{ schemaVersion = 1; expectedPositive = $ExpectedPositive; checkpoint = 'attempt-assert'; failure = $null; cleanupUnknown = $Association.cleanupUnknown;
+        scm = @(); independentlyObservedOwner = $null; native = $null; resultFile = @{ exists = $null; fresh = $null; bytes = $null }; counterFile = @{ exists = $null; fresh = $null; bytes = $null }; independentCounter = $null }
+    $Association.attemptDiagnostic = $diagnostic
+    try {
+        Assert-ProtectedInstallation $Association
+        $diagnostic.checkpoint = 'attempt-fresh-receipts'
+        $paths = Get-InstalledOwnerReceiptPaths $Association
+        $diagnostic.resultFile.exists = [bool](Test-Path -LiteralPath $paths.result); $diagnostic.counterFile.exists = [bool](Test-Path -LiteralPath $paths.count)
+        if ($diagnostic.resultFile.exists -or $diagnostic.counterFile.exists) { throw 'installed-fresh-attempt-receipts-required' }
+        $Association.attemptedReceiptPaths += @($paths.result, $paths.count)
+        # Owner exit alone does not prove original children/Jobs closed. Only a fresh
+        # authenticated maintained-owner closure result may clear this terminal latch.
+        $Association.cleanupUnknown = $true
+        $diagnostic.checkpoint = 'attempt-start'
+        $started = [DateTime]::UtcNow; $Association.service.Start()
+        $watch = [Diagnostics.Stopwatch]::StartNew(); $states = [Collections.Generic.List[object]]::new()
+        do {
+            $diagnostic.checkpoint = 'attempt-status'
+            $status = $Association.service.Status()
+            if ($states.Count -eq 0 -or $states[$states.Count - 1].state -ne $status[0]) {
+                if ($states.Count -ge 32) { throw 'installed-owner-observation-budget-refused' }
+                $states.Add(@{ state = $status[0]; pid = $status[1]; milliseconds = $watch.ElapsedMilliseconds }); $diagnostic.scm = $states.ToArray()
+            }
+            if ($status[0] -eq 1) { break }
+            if ($watch.ElapsedMilliseconds -ge 20000) { throw 'installed-owner-attempt-deadline' }
+            Start-Sleep -Milliseconds 50
+        } while ($true)
+        $diagnostic.checkpoint = 'attempt-wait-owner'
+        $Association.service.WaitExited()
+        $diagnostic.checkpoint = 'attempt-read-result'; $diagnostic.resultFile.exists = [bool](Test-Path -LiteralPath $paths.result)
+        $resultFile = Get-Item -LiteralPath $paths.result -Force
+        $diagnostic.resultFile.bytes = $resultFile.Length; $diagnostic.resultFile.fresh = $resultFile.CreationTimeUtc -ge $started.AddSeconds(-1)
+        if ($resultFile.CreationTimeUtc -lt $started.AddSeconds(-1) -or $resultFile.Length -gt 32KB) { throw 'installed-owner-fresh-result-refused' }
+        $row = Read-ProtectedInstallSnapshot $paths.result; $Association.receiptRows += $row
+        $native = [IO.File]::ReadAllText($paths.result) | ConvertFrom-Json
+        $diagnostic.native = Get-InstalledOwnerAttemptObservation $native 'native'
+        $count = 0; $counter = $null
+        $diagnostic.checkpoint = 'attempt-read-counter'; $diagnostic.counterFile.exists = [bool](Test-Path -LiteralPath $paths.count)
+        if ($diagnostic.counterFile.exists) {
+            $counterFile = Get-Item -LiteralPath $paths.count -Force
+            $diagnostic.counterFile.bytes = $counterFile.Length; $diagnostic.counterFile.fresh = $counterFile.CreationTimeUtc -ge $started.AddSeconds(-1)
+            if ($counterFile.CreationTimeUtc -lt $started.AddSeconds(-1) -or $counterFile.Length -ne 1 -or [IO.File]::ReadAllText($paths.count) -cne '1') { throw 'installed-owner-independent-counter-refused' }
+            $counter = Read-ProtectedInstallSnapshot $paths.count; $Association.receiptRows += $counter; $count = 1
+        }
+        $diagnostic.independentCounter = $count; $diagnostic.checkpoint = 'attempt-runtime-rows'
+        Update-ProtectedInstallRuntimeRows $Association.stage
+        $diagnostic.checkpoint = 'attempt-validate-closure'
+        if ($native.cleanupConfirmed -isnot [bool] -or !$native.cleanupConfirmed -or $native.ownedJobsEmpty -isnot [bool] -or !$native.ownedJobsEmpty -or
+            !$Association.service.ObservedOwner['exactProcessExited']) { throw 'installed-native-child-cleanup-unknown' }
+        if ($native.ownerSid -cne 'S-1-5-18' -or $native.ownerAuthentication -cne $Association.service.ObservedOwner['authentication'] -or
+            $native.ownerSession -ne $Association.service.ObservedOwner['session'] -or $native.ownerBirth -cne ([long]$Association.service.ObservedOwner['birthFileTime']).ToString('x16') -or
+            $native.installId -cne $Association.installId -or $native.epoch -cne $Association.stage.epoch -or $native.revision -ne $Association.stage.revision) { throw 'installed-original-owner-binding-refused' }
+        $diagnostic.checkpoint = 'attempt-validate-behavior'
+        if ($native.schemaVersion -ne 1 -or $native.scope -cne 'installed-owner-inspection' -or $native.inspected -isnot [bool] -or $native.inspected -ne $ExpectedPositive -or
+            $native.inspectionCount -ne $count -or $count -ne ([int]$ExpectedPositive) -or $native.cleanupConfirmed -ne $true -or $native.launchAllowed -ne $false -or $native.completeE1 -ne $false) { throw 'installed-owner-behavior-or-cleanup-refused' }
+        if ($ExpectedPositive -and ($native.operatorSid -cne $Association.operatorSid -or $native.operatorAuthentication -cnotmatch '^[a-f0-9]{16}$' -or $native.supervisorPid -lt 1 -or $native.mainPid -lt 1)) { throw 'installed-owner-token-refused' }
+        foreach ($flag in @('nativeProducerReady', 'bootstrapWriteCompleted', 'bootstrapEofClosed', 'supervisorReleased', 'ownedJobsEmpty')) {
+            if ($native.$flag -isnot [bool] -or !$native.$flag) { throw 'installed-original-producer-readiness-refused' }
+        }
+        if ($native.mainReleased -isnot [bool] -or $native.mainReleased -ne $ExpectedPositive -or $native.supervisorPid -lt 1 -or $native.mainPid -lt 1 -or
+            $native.supervisorExitCode -ne $(if ($ExpectedPositive) { 0 } else { 2 })) { throw 'installed-original-program-exit-refused' }
+        foreach ($image in @(@{ field = 'ownerImageSha256'; name = 'aegis-owner.exe' }, @{ field = 'supervisorImageSha256'; name = 'aegis-session.exe' }, @{ field = 'mainImageSha256'; name = 'aegis-main.exe' })) {
+            $pin = @($Association.manifest.files | Where-Object { $_.name -ceq $image.name })[0].sha256
+            if ($native.($image.field) -cne $pin) { throw 'installed-original-image-binding-refused' }
+        }
+        $Association.cleanupUnknown = $false
+        $diagnostic.cleanupUnknown = $false; $diagnostic.independentlyObservedOwner = Get-InstalledOwnerAttemptObservation $Association.service.ObservedOwner 'owner'; $diagnostic.checkpoint = 'attempt-report'
+        return @{ expectedPositive = $ExpectedPositive; native = $native; independentCounter = $count; resultIdentity = $row; counterIdentity = $counter; scm = $states.ToArray();
+            serviceConfiguration = $Association.service.Configuration(); serviceSddl = $Association.service.Security(); root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true;
+            independentlyObservedOwner = $Association.service.ObservedOwner; accountProfile = @{ sid = $Association.operatorSid; usersGroupSid = 'S-1-5-32-545'; usersMembershipConfirmed = $true };
+            staticFiles = @($Association.stage.rows); passed = $true }
+    } catch {
+        $original = $_
+        if ($null -eq $diagnostic.failure) { $diagnostic.failure = Get-ProtectedInstallFailure $original $diagnostic.checkpoint }
+        $diagnostic.cleanupUnknown = $Association.cleanupUnknown
+        $diagnostic.independentlyObservedOwner = Get-InstalledOwnerAttemptObservation $Association.service.ObservedOwner 'owner'
+        throw $original
     }
-    Update-ProtectedInstallRuntimeRows $Association.stage
-    if ($native.cleanupConfirmed -isnot [bool] -or !$native.cleanupConfirmed -or $native.ownedJobsEmpty -isnot [bool] -or !$native.ownedJobsEmpty -or
-        !$Association.service.ObservedOwner['exactProcessExited']) { throw 'installed-native-child-cleanup-unknown' }
-    if ($native.ownerSid -cne 'S-1-5-18' -or $native.ownerAuthentication -cne $Association.service.ObservedOwner['authentication'] -or
-        $native.ownerSession -ne $Association.service.ObservedOwner['session'] -or $native.ownerBirth -cne ([long]$Association.service.ObservedOwner['birthFileTime']).ToString('x16') -or
-        $native.installId -cne $Association.installId -or $native.epoch -cne $Association.stage.epoch -or $native.revision -ne $Association.stage.revision) { throw 'installed-original-owner-binding-refused' }
-    if ($native.schemaVersion -ne 1 -or $native.scope -cne 'installed-owner-inspection' -or $native.inspected -isnot [bool] -or $native.inspected -ne $ExpectedPositive -or
-        $native.inspectionCount -ne $count -or $count -ne ([int]$ExpectedPositive) -or $native.cleanupConfirmed -ne $true -or $native.launchAllowed -ne $false -or $native.completeE1 -ne $false) { throw 'installed-owner-behavior-or-cleanup-refused' }
-    if ($ExpectedPositive -and ($native.operatorSid -cne $Association.operatorSid -or $native.operatorAuthentication -cnotmatch '^[a-f0-9]{16}$' -or $native.supervisorPid -lt 1 -or $native.mainPid -lt 1)) { throw 'installed-owner-token-refused' }
-    foreach ($flag in @('nativeProducerReady', 'bootstrapWriteCompleted', 'bootstrapEofClosed', 'supervisorReleased', 'ownedJobsEmpty')) {
-        if ($native.$flag -isnot [bool] -or !$native.$flag) { throw 'installed-original-producer-readiness-refused' }
+}
+function Test-InstalledOwnerMutationActions($Rows) {
+    $expected = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential' | ForEach-Object {
+        $leaf = $_; foreach ($operation in @('write', 'delete', 'replace')) { $leaf + ':' + $operation }
+    }) + @('ProtectedSession:rename', 'AEGIS:rename', 'Receipts:rename', 'credential:read')
+    if (@($Rows).Count -ne $expected.Count) { return $false }
+    foreach ($action in $expected) {
+        $matched = @($Rows | Where-Object { $_.action -is [string] -and $_.action -ceq $action })
+        if ($matched.Count -ne 1 -or $matched[0].denied -isnot [bool] -or !$matched[0].denied -or
+            ($matched[0].win32Error -isnot [int] -and $matched[0].win32Error -isnot [long]) -or $matched[0].win32Error -ne 5) { return $false }
     }
-    if ($native.mainReleased -isnot [bool] -or $native.mainReleased -ne $ExpectedPositive -or $native.supervisorPid -lt 1 -or $native.mainPid -lt 1 -or
-        $native.supervisorExitCode -ne $(if ($ExpectedPositive) { 0 } else { 2 })) { throw 'installed-original-program-exit-refused' }
-    foreach ($image in @(@{ field = 'ownerImageSha256'; name = 'aegis-owner.exe' }, @{ field = 'supervisorImageSha256'; name = 'aegis-session.exe' }, @{ field = 'mainImageSha256'; name = 'aegis-main.exe' })) {
-        $pin = @($Association.manifest.files | Where-Object { $_.name -ceq $image.name })[0].sha256
-        if ($native.($image.field) -cne $pin) { throw 'installed-original-image-binding-refused' }
-    }
-    $Association.cleanupUnknown = $false
-    return @{ expectedPositive = $ExpectedPositive; native = $native; independentCounter = $count; resultIdentity = $row; counterIdentity = $counter; scm = $states.ToArray();
-        serviceConfiguration = $Association.service.Configuration(); serviceSddl = $Association.service.Security(); root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true;
-        independentlyObservedOwner = $Association.service.ObservedOwner; accountProfile = @{ sid = $Association.operatorSid; usersGroupSid = 'S-1-5-32-545'; usersMembershipConfirmed = $true };
-        staticFiles = @($Association.stage.rows); passed = $true }
+    return $true
 }
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
@@ -122,8 +188,9 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $Association.controlRows = @('actor-result.json', 'write-marker.txt', 'replace-original.txt' | ForEach-Object { Read-ProtectedInstallSnapshot (Join-Path $Scratch $_) $false $false })
     $unchanged = $true
     foreach ($row in @($before) + @($root, $parent)) { try { Assert-ProtectedInstallSnapshot $row } catch { $unchanged = $false } }
-    if ($observed.exitCode -ne 0 -or !$observed.jobEmpty -or !$observed.exactProcessExited -or !$unchanged -or !$actual.passed -or $actual.operatorSid -cne $Association.operatorSid -or
-        @($actual.attempts).Count -ne 28 -or @($actual.attempts | Where-Object { $_.win32Error -ne 5 -or $_.denied -ne $true }).Count -ne 0 -or
+    if ($observed.exitCode -ne 0 -or !$observed.jobEmpty -or !$observed.exactProcessExited -or !$unchanged -or !$actual.passed -or
+        $actual.operatorSid -isnot [string] -or $observed.operatorSid -isnot [string] -or $actual.operatorSid -cne $Association.operatorSid -or $observed.operatorSid -cne $Association.operatorSid -or
+        !(Test-InstalledOwnerMutationActions $actual.attempts) -or
         !$actual.permitted.write -or !$actual.permitted.delete -or !$actual.permitted.replace -or !$actual.policyReadable -or !$permittedObserved -or !$writeObserved -or !$deleteObserved) { throw 'installed-mutation-effect-refused' }
     return @{ actorSha256 = $actorHash; independentTokenAndJob = $observed; actual = $actual; independentlyObservedPermittedReplacement = $permittedObserved; permittedReplacementSha256 = $permittedHash;
         independentlyObservedPermittedWrite = $writeObserved; permittedWriteSha256 = $writeHash; independentlyObservedPermittedDelete = $deleteObserved; seededReplaceFileId = $originalReplaceId; seededReplaceSha256 = $originalReplaceHash;
@@ -133,7 +200,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
 function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location) {
     $report = [ordered]@{ schemaVersion = 1; scope = 'protected-installed-owner-qualification'; location = $Location; sourceSha = $ExpectedSourceSha;
         os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
-        installation = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
+        installation = $null; failedAttempt = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
     $association = $null; $stage = 'preflight'; $scratch = $null; $scratchParent = $null; $password = $null
     $installJournal = @{}
     try {
@@ -174,6 +241,9 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $report.upgrade = Invoke-InstalledOwnerAttempt $association $true
     } catch {
         $report.failure = Get-ProtectedInstallFailure $_ 'qualification'; $report.failure.stage = $stage
+        if ($null -ne $association -and $association.ContainsKey('attemptDiagnostic') -and $null -ne $association.attemptDiagnostic.failure) {
+            $report.failedAttempt = $association.attemptDiagnostic.Clone(); $report.failure = $association.attemptDiagnostic.failure.Clone(); $report.failure.stage = $stage
+        }
         if ($installJournal.ContainsKey('failure') -and $null -ne $installJournal.failure -and $stage -ceq 'baseline-install') {
             $report.failure = $installJournal.failure.Clone(); $report.failure.stage = $stage
         }
@@ -272,14 +342,19 @@ function Test-InstalledOwnerQualificationReceipt($Value, [string]$ExpectedSource
             if ($positive.passed -ne $true -or $positive.expectedPositive -ne $true -or $positive.independentCounter -ne 1 -or $positive.native.inspected -ne $true -or $positive.native.cleanupConfirmed -ne $true -or
                 $positive.independentlyObservedOwner.sid -cne 'S-1-5-18' -or $positive.independentlyObservedOwner.exactProcessExited -ne $true -or $positive.native.operatorAuthentication -cnotmatch '^[a-f0-9]{16}$') { return $false }
         }
+        $installationSid = $Value.baseline.accountProfile.sid
+        if ($installationSid -isnot [string] -or $installationSid -cnotmatch '^S-1-5-21-[0-9]+-[0-9]+-[0-9]+-[0-9]+$' -or
+            $Value.positive.accountProfile.sid -isnot [string] -or $Value.upgrade.accountProfile.sid -isnot [string] -or
+            $Value.mutation.actual.operatorSid -isnot [string] -or $Value.mutation.independentTokenAndJob.operatorSid -isnot [string] -or
+            $Value.positive.accountProfile.sid -cne $installationSid -or $Value.upgrade.accountProfile.sid -cne $installationSid -or
+            $Value.mutation.actual.operatorSid -cne $installationSid -or $Value.mutation.independentTokenAndJob.operatorSid -cne $installationSid) { return $false }
         if ($Value.mutation.actorSha256 -cne $pins['native/installed-owner-actor.exe'] -or !$Value.mutation.actual.passed -or $Value.mutation.actual.administrator -or !$Value.mutation.actual.policyReadable -or
             !$Value.mutation.actual.permitted.write -or !$Value.mutation.actual.permitted.delete -or !$Value.mutation.actual.permitted.replace -or
             $Value.mutation.passed -ne $true -or $Value.mutation.protectedFilesAndAncestorsUnchanged -ne $true -or $Value.mutation.independentlyObservedPermittedReplacement -ne $true -or
             $Value.mutation.independentlyObservedPermittedWrite -ne $true -or $Value.mutation.independentlyObservedPermittedDelete -ne $true -or
             $Value.mutation.independentTokenAndJob.elevated -ne $false -or $Value.mutation.independentTokenAndJob.enabledAdministrator -ne $false -or $Value.mutation.independentTokenAndJob.integritySid -cne 'S-1-16-8192' -or
             $Value.mutation.independentTokenAndJob.adminCapable -ne $false -or $Value.mutation.independentTokenAndJob.powerfulPrivilegesAssigned -ne $false -or $Value.mutation.independentTokenAndJob.strictStandardProfile -ne $true -or
-            $Value.mutation.independentTokenAndJob.jobEmpty -ne $true -or $Value.mutation.independentTokenAndJob.exactProcessExited -ne $true -or @($Value.mutation.actual.attempts).Count -ne 28 -or
-            @($Value.mutation.actual.attempts | Where-Object { $_.denied -isnot [bool] -or $_.denied -ne $true -or $_.win32Error -ne 5 }).Count -ne 0) { return $false }
+            $Value.mutation.independentTokenAndJob.jobEmpty -ne $true -or $Value.mutation.independentTokenAndJob.exactProcessExited -ne $true -or !(Test-InstalledOwnerMutationActions $Value.mutation.actual.attempts)) { return $false }
         if ($Value.rollback.passed -ne $true -or $Value.rollback.originalRootAndFilesRestored -ne $true -or $Value.partial.passed -ne $true -or
             $Value.partial.serviceAbsent -ne $true -or $Value.partial.protectedParentAbsent -ne $true -or $Value.partial.accountAbsent -ne $true -or
             $Value.uninstall.passed -ne $true -or $Value.uninstall.serviceAbsent -ne $true -or $Value.uninstall.protectedParentAbsent -ne $true -or $Value.uninstall.exactAccountSidAbsent -ne $true) { return $false }
