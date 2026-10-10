@@ -1,5 +1,17 @@
 # AEGIS Observatory
 
+## Docker metadata candidates — 2026-10-11
+
+Show matched running Docker containers as a separate, read-only evidence surface
+in the Overview and Agents workspaces. Each row identifies its container and
+image, the matched agent family, and when Docker last answered. A matching image
+is a candidate for an AI workload; it does not prove which process is running
+inside the container or what isolation settings the daemon applies. Keep these
+rows outside host process counts, risk scores and process actions. A failed or
+expired Docker observation retains prior rows with an explicit stale or
+unavailable label; a successful empty observation clears them. Use the existing
+Observatory panel, typography and localization patterns in both interface modes.
+
 ## Compact density — 2026-10-07
 
 The user requests smaller buttons and less empty space. At 100% UI size, use

@@ -20,6 +20,7 @@
     type RecordData,
   } from './runtime/host';
   import SensorStatus from './components/SensorStatus.svelte';
+  import DockerCandidates from './components/DockerCandidates.svelte';
   import AppExit from './components/AppExit.svelte';
   import WorkspaceNavigation from './components/WorkspaceNavigation.svelte';
   import WorkspaceCommands from './components/WorkspaceCommands.svelte';
@@ -874,6 +875,9 @@
             />
           </div>
         </div>
+        {#if view === 'overview' || view === 'agents'}
+          <DockerCandidates snapshot={displayTelemetry.stats.dockerDiscovery} />
+        {/if}
       </div>
     </main>
     <footer bind:this={statusFooter}>
