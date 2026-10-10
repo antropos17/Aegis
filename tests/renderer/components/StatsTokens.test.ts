@@ -8,7 +8,7 @@ import { language } from '../../../frontend/observatory/runtime/i18n';
 afterEach(() => language.set('en'));
 
 it('shows paused accounting with retained incomplete totals and removes the warning on recovery', async () => {
-  const telemetry = {
+  const telemetry: Telemetry = {
     ...emptyTelemetry(),
     ready: true,
     stale: false,
