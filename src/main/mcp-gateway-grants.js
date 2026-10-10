@@ -99,6 +99,7 @@ async function readCredentialKey(store, signal) {
   if (handle) {
     try {
       await handle.close();
+      await verifyStore(store);
     } catch {
       failed = true;
     }

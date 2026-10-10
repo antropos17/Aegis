@@ -61,6 +61,13 @@ the upstream connection and before grant consumption. The key is checked again
 before each durable grant is consumed. A second preparation for
 the same route and token returns the same tag. Changing either requires a fresh
 tag and a new grant ID; old consumed IDs remain consumed in the same store.
+Each connection retains its selected store and ancestor identities. A credential
+read rechecks those identities after closing the key handle, before returning the
+key for upstream initialization or dispatch checks. Observed store or ancestor
+replacement during close refuses and clears the read key, including when the
+replacement carries identical key bytes or retains the original leaf directory.
+This bounded observation does not make later filesystem mutation atomic with
+upstream connection or tool effects.
 The key counts toward the 1024-entry store ceiling and is authorization state:
 do not prune it with diagnostic logs. A crash during creation may retain an
 incomplete key or lock; the gateway fails closed instead of repairing either.
