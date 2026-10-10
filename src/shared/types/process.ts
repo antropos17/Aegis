@@ -152,3 +152,25 @@ export interface ProcessActionResult {
   readonly success: boolean;
   readonly error?: string;
 }
+
+/** Docker image metadata matched a configured agent signature; host process identity is unobserved. */
+export interface DockerContainerCandidate {
+  readonly id: `docker:${string}`;
+  readonly containerId: string;
+  readonly name: string;
+  readonly image: string;
+  readonly agent: string;
+  readonly match: 'image';
+  readonly runtime: 'docker';
+}
+
+/** Independent Docker discovery state, including retained metadata after a failed attempt. */
+export interface DockerDiscoverySnapshot {
+  readonly status: 'pending' | 'ready' | 'unavailable';
+  readonly reason:
+    null | 'cli-missing' | 'daemon-unavailable' | 'timeout' | 'invalid-output' | 'remote-endpoint';
+  readonly observedAt: number | null;
+  readonly attemptedAt: number | null;
+  readonly stale: boolean;
+  readonly candidates: readonly DockerContainerCandidate[];
+}

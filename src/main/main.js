@@ -173,7 +173,8 @@ let baselines,
   platform,
   ideDetector,
   wslDetector,
-  llmDetector;
+  llmDetector,
+  dockerDiscovery;
 
 // How many sequence rules the engine holds — written by loadSequenceRules, read by the
 // `rules:reloaded` push of BOTH rule watchers (file-watcher.js) as `sequenceCount`.
@@ -268,6 +269,14 @@ function loadDeferredModules() {
   ideDetector = require('./ide-extension-detector');
   wslDetector = require('./wsl-detector');
   llmDetector = require('./llm-runtime-detector');
+  if (!dockerDiscovery) {
+    const { createDockerDiscovery } = require('./container-scanner');
+    dockerDiscovery = createDockerDiscovery({
+      onUpdate: () => {
+        if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+      },
+    });
+  }
 }
 
 /**
@@ -429,6 +438,24 @@ function getAuditDelivery() {
 }
 
 /**
+ * Return discovery metadata without starting a Docker command during stats reads.
+ * @returns {import('../shared/types/process').DockerDiscoverySnapshot} Last observation, or an explicitly unobserved startup snapshot.
+ * @since v0.19.2-beta
+ */
+function getDockerDiscoveryStats() {
+  return dockerDiscovery
+    ? dockerDiscovery.snapshot()
+    : {
+        status: 'pending',
+        reason: null,
+        observedAt: null,
+        attemptedAt: null,
+        stale: true,
+        candidates: [],
+      };
+}
+
+/**
  * Monitoring statistics.
  *
  * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
@@ -456,6 +483,7 @@ function getStats() {
       permissionDeniedScans: 0,
       attribution: { confirmed: 0, inferred: 0, unattributed: 0, unattributedSensitive: 0 },
       appHealth: getAppHealth(),
+      dockerDiscovery: getDockerDiscoveryStats(),
       // Same expression as the loaded branch, not a zeroed lookalike: the batcher is a
       // module-scope const, so it has been counting since before this branch was
       // reachable and its numbers are real here too.
@@ -487,6 +515,7 @@ function getStats() {
       unattributedSensitive: attrUnattributedSensitive,
     },
     appHealth: getAppHealth(),
+    dockerDiscovery: getDockerDiscoveryStats(),
     ipc: getIpcStats(),
     sequences: getSequenceStats(),
     monitoringPaused,
@@ -927,6 +956,10 @@ function initDeferredSubsystems(userData) {
     recordAcceptedFileEvent,
     statsUpdateBatcher,
     getStats,
+    isMonitoringPaused: () => monitoringPaused,
+    refreshDockerDiscovery: () => {
+      if (!monitoringPaused && !isQuitting) return dockerDiscovery?.refresh();
+    },
     getResourceUsage,
     getLatestAgents: () => latestAgents,
     setAgents: setLatestAgents,
@@ -1137,6 +1170,7 @@ app.whenReady().then(() => {
 let alertQuitDrainStarted = false;
 let alertQuitDrainFinished = false;
 app.on('before-quit', (event) => {
+  dockerDiscovery?.stop();
   if (alertQuitDrainStarted && !alertQuitDrainFinished) {
     event.preventDefault();
     return;
@@ -1197,6 +1231,7 @@ app.on('before-quit', (event) => {
 });
 app.on('window-all-closed', () => {});
 app.on('quit', () => {
+  dockerDiscovery?.stop();
   fileAccessBatcher.destroy();
   statsUpdateBatcher.destroy();
   if (scanLoop) scanLoop.stopScanIntervals();

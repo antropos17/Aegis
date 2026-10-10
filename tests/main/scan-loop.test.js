@@ -1600,6 +1600,72 @@ describe('scan-loop', () => {
 
   // ── reentrancy guard (doProcessScan) ──
 
+  describe('Docker discovery scheduling', () => {
+    it('publishes host agents while Docker metadata discovery is still pending', async () => {
+      const refreshDockerDiscovery = vi.fn(() => new Promise(() => {}));
+      const deps = makeDeps({ refreshDockerDiscovery });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+      expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
+      expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
+        true,
+      );
+    });
+
+    it.each(['throws', 'rejects'])(
+      'keeps the host scan alive when discovery %s',
+      async (failure) => {
+        const refreshDockerDiscovery = vi.fn(() => {
+          if (failure === 'throws') throw new Error('discovery unavailable');
+          return Promise.reject(new Error('discovery unavailable'));
+        });
+        const deps = makeDeps({ refreshDockerDiscovery });
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+        expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
+          true,
+        );
+        expect(deps.logger.error).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not refresh discovery from a paused startup tick', async () => {
+      const refreshDockerDiscovery = vi.fn();
+      const deps = makeDeps({ refreshDockerDiscovery, isMonitoringPaused: () => true });
+      scanLoop.init(deps);
+      scanLoop.staggeredStartup(5000, true);
+
+      await vi.advanceTimersByTimeAsync(3000);
+
+      expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
+      expect(refreshDockerDiscovery).not.toHaveBeenCalled();
+    });
+
+    it('does not refresh discovery from a skipped overlapping process tick', async () => {
+      const refreshDockerDiscovery = vi.fn();
+      const deps = makeDeps({
+        refreshDockerDiscovery,
+        scanner: { scanProcesses: vi.fn(() => new Promise(() => {})) },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
+      expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+      expect(scanLoop.getScanCadence().skippedProcessTicks).toBe(1);
+    });
+  });
+
   describe('reentrancy guard (doProcessScan)', () => {
     it('does not start an overlapping process scan while a previous scan is in-flight', async () => {
       // First scanProcesses call hangs forever (pending) so scan N stays in-flight
