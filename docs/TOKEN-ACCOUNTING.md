@@ -66,13 +66,20 @@ No JavaScript collection retains every departed session or previously seen ID.
 Resumed and rewritten transcripts still share the original main/subagent dedup
 index for the current run, so dropping an old process does not recount its usage.
 
-Deltas are returned only after their IDs and cursors commit together. If the index
-cannot open, reaches its page limit or fails to commit, the whole batch is rolled
-back and returns no new usage; it retries on subsequent scans. A fixed diagnostic
-is emitted once per uninterrupted failure. Usage can therefore be incomplete
-while storage is unavailable; measured counts are not replaced with estimates.
-A filesystem failure for one process leaves healthy processes readable. Normal
-exit closes and removes the index. Startup resets a leftover marked cache from a
-previous run, while refusing foreign files and links. Cost accounting still resets
-on application restart. Long-duration native qualification remains tracked in
+Deltas for each process are returned only after its shared main/subagent IDs and
+cursors commit together. A failed process rolls back without undoing earlier
+successful processes; later processes in the same scan may still commit if they
+fit. On an index-open, capacity or commit failure, collection reports
+`storage-paused` with the fixed reason `capacity` or `unavailable`. Subsequent
+adapter calls return no new deltas and do not reread registries or transcripts
+during the 30-second cooldown; a later scan then retries from the last committed
+cursors. A permanently full index can remain paused for the rest of the run.
+Retained measured totals are marked incomplete, and the token arrival rate for
+scopes containing Claude Code is unavailable during the pause rather than shown
+as zero or estimated.
+
+Normal exit closes and removes the index. Startup resets a leftover marked cache
+from a previous run, while refusing foreign files and links. Cost accounting
+still resets on application restart. Long-duration packaged qualification and
+sustained-capacity policy remain tracked in
 [#637](https://github.com/antropos17/Aegis/issues/637).
