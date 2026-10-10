@@ -33,6 +33,7 @@ export function summarizeEvidenceMeasurements(samples) {
     const rows = samples.filter((row) => row.arm === arm);
     if (
       rows.length !== 3 ||
+      ![0, 1, 2].every((pair) => rows.some((row) => row.pair === pair)) ||
       rows.some(
         (row) =>
           !Number.isSafeInteger(row.observedEffects) ||
