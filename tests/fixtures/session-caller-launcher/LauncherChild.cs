@@ -6,10 +6,11 @@ using Microsoft.Win32.SafeHandles;
 
 internal static class LauncherChild
 {
-    private static int Main()
+    private static int Main(string[] args)
     {
         try
         {
+            if (args.Length == 1 && args[0] == "--controlled-environment") return ControlledEnvironment();
             string root = Environment.GetEnvironmentVariable("AEGIS_LAUNCH_MARKERS");
             if (Environment.GetEnvironmentVariable("AEGIS_LAUNCH_ROLE") == "descendant")
             {
@@ -51,5 +52,32 @@ internal static class LauncherChild
             }
         }
         catch (Exception error) { Console.Error.WriteLine(error.Message); return 1; }
+    }
+    private static string TextHash(string value)
+    {
+        using (var hash = System.Security.Cryptography.SHA256.Create())
+            return BitConverter.ToString(hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(value)))
+                .Replace("-", "").ToLowerInvariant();
+    }
+    private static int ControlledEnvironment()
+    {
+        var values = Environment.GetEnvironmentVariables();
+        bool exactKeys = values.Count == 3 && values.Contains("PATH") && values.Contains("SystemRoot") && values.Contains("SystemDrive");
+        string system = Environment.SystemDirectory;
+        bool trusted = String.Equals(Environment.GetEnvironmentVariable("PATH"), system, StringComparison.Ordinal) &&
+            String.Equals(Environment.GetEnvironmentVariable("SystemRoot"), Directory.GetParent(system).FullName, StringComparison.Ordinal) &&
+            String.Equals(Environment.GetEnvironmentVariable("SystemDrive"), Path.GetPathRoot(system).TrimEnd('\\'), StringComparison.Ordinal);
+        string common = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        string controlledRoot = Path.Combine(common, "AEGIS", "ProtectedSession");
+        string receipt = Path.Combine(Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName),
+            "controlled-root-" + Process.GetCurrentProcess().Id + ".txt");
+        // Only finite shape/allowlist observations and exact-string digests leave the child.
+        File.WriteAllLines(receipt, new[] {
+            "controlled-environment-1", exactKeys.ToString().ToLowerInvariant(), trusted.ToString().ToLowerInvariant(),
+            (Environment.GetEnvironmentVariable("AEGIS_LAUNCH_ENV_SENTINEL") == null).ToString().ToLowerInvariant(),
+            Path.IsPathRooted(common).ToString().ToLowerInvariant(), TextHash(common),
+            Path.IsPathRooted(controlledRoot).ToString().ToLowerInvariant(), TextHash(controlledRoot)
+        });
+        return 0;
     }
 }

@@ -156,8 +156,18 @@ namespace Aegis.ProtectedSession
                 if (fixedArgument != null)
                 {
                     // A controlled Unicode environment excludes inherited CLR/profiler/loader variables.
-                    string windows = System.IO.Directory.GetParent(Environment.SystemDirectory).FullName;
-                    environment = Marshal.StringToHGlobalUni("PATH=" + Environment.SystemDirectory + "\0SystemRoot=" + windows + "\0\0");
+                    string system = Environment.SystemDirectory;
+                    string driveRoot = System.IO.Path.GetPathRoot(system);
+                    CallerNative.Require(System.IO.Path.IsPathRooted(system) && driveRoot != null && driveRoot.Length == 3 &&
+                        ((driveRoot[0] >= 'A' && driveRoot[0] <= 'Z') || (driveRoot[0] >= 'a' && driveRoot[0] <= 'z')) &&
+                        driveRoot[1] == ':' && driveRoot[2] == '\\');
+                    var windowsDirectory = System.IO.Directory.GetParent(system);
+                    CallerNative.Require(windowsDirectory != null && System.IO.Path.IsPathRooted(windowsDirectory.FullName) &&
+                        String.Equals(System.IO.Path.GetPathRoot(windowsDirectory.FullName), driveRoot, StringComparison.OrdinalIgnoreCase));
+                    string windows = windowsDirectory.FullName;
+                    // Known-folder expansion needs the trusted native drive, never an inherited value.
+                    environment = Marshal.StringToHGlobalUni("PATH=" + system + "\0SystemDrive=" + driveRoot.Substring(0, 2) +
+                        "\0SystemRoot=" + windows + "\0\0");
                     creation |= 0x400;
                 }
                 if (installedSecurity)

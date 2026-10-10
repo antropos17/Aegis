@@ -40,10 +40,65 @@ internal static class CallerLauncherFixture
         {
             if (args[0] == "owner-death") return OwnerDeath(args);
             if (args[0] == "pid-marker-race") return PidMarkerRace(args[3]);
+            if (args[0] == "controlled-environment") return ControlledEnvironment(args[1]);
             if (args[0].StartsWith("deferred-", StringComparison.Ordinal)) return DeferredRelease(args);
             Run(args); return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error.Message); return 1; }
+    }
+    private static string TextHash(string value)
+    {
+        using (var hash = SHA256.Create())
+            return BitConverter.ToString(hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(value)))
+                .Replace("-", "").ToLowerInvariant();
+    }
+    private static int ControlledEnvironment(string image)
+    {
+        string common = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        LauncherObservation.Require(Path.IsPathRooted(common), "parent-common-root-refused");
+        string expectedRoot = Path.Combine(common, "AEGIS", "ProtectedSession");
+        string oldDrive = Environment.GetEnvironmentVariable("SystemDrive");
+        string oldSentinel = Environment.GetEnvironmentVariable("AEGIS_LAUNCH_ENV_SENTINEL");
+        CallerLauncherNative.Created created = null; bool stopped = false;
+        try
+        {
+            // Both untrusted parent values must be excluded from the actual native block.
+            Environment.SetEnvironmentVariable("SystemDrive", "not-a-trusted-drive");
+            Environment.SetEnvironmentVariable("AEGIS_LAUNCH_ENV_SENTINEL", "parent-only");
+            created = new CallerLauncherNative().CreateControlledFixture(image);
+            CallerLauncherNative.CheckCreated(created);
+            LauncherObservation.JobAndHandles(created.Process, created.Thread, created.Job);
+            string receipt = Path.Combine(Path.GetDirectoryName(image), "controlled-root-" + created.Pid + ".txt");
+            System.Threading.Thread.Sleep(200);
+            bool receiptBeforeResume = File.Exists(receipt);
+            CallerLauncherNative.CheckCreated(created);
+            LauncherObservation.Require(CallerLauncherNative.ResumeThread(created.Thread) == 1, "controlled-child-resume-refused");
+            bool exited = LauncherObservation.WaitForSingleObject(created.Process, 4000) == 0;
+            LauncherObservation.Require(exited && File.Exists(receipt) && new FileInfo(receipt).Length <= 4096,
+                "controlled-child-receipt-refused");
+            string[] rows = File.ReadAllLines(receipt);
+            LauncherObservation.Require(rows.Length == 8 && rows[0] == "controlled-environment-1", "controlled-receipt-schema-refused");
+            CallerLauncherNative.Stop(created); stopped = true;
+            Console.WriteLine("{\"receiptBeforeResume\":" + receiptBeforeResume.ToString().ToLowerInvariant() +
+                ",\"exactEnvironmentKeys\":" + (rows[1] == "true").ToString().ToLowerInvariant() +
+                ",\"trustedNativeValues\":" + (rows[2] == "true").ToString().ToLowerInvariant() +
+                ",\"parentSentinelAbsent\":" + (rows[3] == "true").ToString().ToLowerInvariant() +
+                ",\"commonApplicationDataRooted\":" + (rows[4] == "true").ToString().ToLowerInvariant() +
+                ",\"sameCommonApplicationData\":" + (rows[5] == TextHash(common)).ToString().ToLowerInvariant() +
+                ",\"controlledRootRooted\":" + (rows[6] == "true").ToString().ToLowerInvariant() +
+                ",\"sameControlledRoot\":" + (rows[7] == TextHash(expectedRoot)).ToString().ToLowerInvariant() +
+                ",\"rootExited\":true,\"ownedJobEmpty\":true}");
+            return 0;
+        }
+        finally
+        {
+            try { if (created != null) { try { if (!stopped) CallerLauncherNative.Stop(created); } finally { created.Dispose(); } } }
+            finally
+            {
+                Environment.SetEnvironmentVariable("SystemDrive", oldDrive);
+                Environment.SetEnvironmentVariable("AEGIS_LAUNCH_ENV_SENTINEL", oldSentinel);
+            }
+        }
     }
     private static void Run(string[] args)
     {
@@ -269,5 +324,15 @@ internal static class CallerLauncherFixture
             finally { if (!owner.HasExited) { owner.Kill(); owner.WaitForExit(4000); } }
         }
         return 0;
+    }
+}
+
+namespace Aegis.ProtectedSession
+{
+    internal partial class CallerLauncherNative
+    {
+        // Fixture-only entry reaches the maintained fixed-argument environment branch.
+        internal Created CreateControlledFixture(string image)
+        { return CreateCore(image, null, null, null, "--controlled-environment"); }
     }
 }
