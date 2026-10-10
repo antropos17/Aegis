@@ -96,6 +96,45 @@ it('keeps exact shared main/subagent dedup without writing identifiers or conten
   expect(fs.readdirSync(f.dir)).toEqual([]);
 });
 
+it('collects 1000 unique messages within 64 KiB and keeps exact dedup after rewinding', async () => {
+  const f = fixture(64 * 1024);
+  const records = Array.from({ length: 1000 }, (_, i) => usage(`capacity-${i}`)).join('');
+  f.files.set(f.transcript, records);
+  expect(await f.read()).toHaveLength(1000);
+  expect(fs.statSync(f.file).size).toBeLessThanOrEqual(64 * 1024);
+  expect(adapter.getCollectionStatus().state).toBe('ready');
+  f.files.set(f.transcript, usage('capacity-0'));
+  expect(await f.read()).toEqual([]);
+  f.files.set(f.sub, records);
+  expect(await f.read()).toEqual([]);
+});
+
+it('retains the 16 KiB minimum cap and isolates identical IDs across sessions after rollback', () => {
+  const f = fixture();
+  const ledger = createLedger({ file: f.file, maxBytes: 16 * 1024 });
+  const collect = (session) =>
+    ledger.withSession(session, (state) => {
+      const seen = state.seenIds.has('shared-id');
+      state.seenIds.add('shared-id');
+      return seen;
+    });
+  try {
+    expect(collect('rolled-back')).toBe(false);
+    ledger.rollback();
+    expect(collect('first')).toBe(false);
+    ledger.commit();
+    expect(collect('second')).toBe(false);
+    ledger.commit();
+    expect(collect('first')).toBe(true);
+    ledger.commit();
+    expect(collect('second')).toBe(true);
+    ledger.commit();
+    expect(fs.statSync(f.file).size).toBeLessThanOrEqual(16 * 1024);
+  } finally {
+    ledger.close();
+  }
+});
+
 it('commits only a complete smaller main/subagent retry at the disk cap, then resumes without duplicates', async () => {
   const f = fixture(64 * 1024);
   f.files.set(f.transcript, usage('original', 11));

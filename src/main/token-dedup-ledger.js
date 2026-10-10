@@ -66,15 +66,16 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
   let failureReason = null;
   let transaction = false;
   let closed = false;
+  let nextSessionKey = 1;
   try {
     db = new DatabaseSync(file);
     db.exec(`PRAGMA page_size=${PAGE_BYTES}; PRAGMA max_page_count=${pages};
       PRAGMA cache_size=-2048; PRAGMA mmap_size=0; PRAGMA journal_mode=MEMORY;
       PRAGMA temp_store=MEMORY; PRAGMA application_id=${APPLICATION_ID};
-      CREATE TABLE sessions (sid BLOB PRIMARY KEY, offset INTEGER NOT NULL,
-        skipping INTEGER NOT NULL) WITHOUT ROWID;
-      CREATE TABLE messages (sid BLOB, mid BLOB, PRIMARY KEY(sid, mid)) WITHOUT ROWID;
-      CREATE TABLE tails (sid BLOB, fid BLOB, offset INTEGER NOT NULL,
+      CREATE TABLE sessions (sid BLOB PRIMARY KEY, id INTEGER NOT NULL,
+        offset INTEGER NOT NULL, skipping INTEGER NOT NULL) WITHOUT ROWID;
+      CREATE TABLE messages (sid INTEGER, mid BLOB, PRIMARY KEY(sid, mid)) WITHOUT ROWID;
+      CREATE TABLE tails (sid INTEGER, fid BLOB, offset INTEGER NOT NULL,
         skipping INTEGER NOT NULL, PRIMARY KEY(sid, fid)) WITHOUT ROWID;`);
   } catch (error) {
     if (db) db.close();
@@ -82,8 +83,9 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
     throw error;
   }
   const statements = {
-    session: db.prepare('SELECT offset, skipping FROM sessions WHERE sid=?'),
-    saveSession: db.prepare('INSERT OR REPLACE INTO sessions VALUES (?, ?, ?)'),
+    session: db.prepare('SELECT id, offset, skipping FROM sessions WHERE sid=?'),
+    addSession: db.prepare('INSERT INTO sessions (sid, id, offset, skipping) VALUES (?, ?, 0, 0)'),
+    saveSession: db.prepare('UPDATE sessions SET offset=?, skipping=? WHERE sid=?'),
     seen: db.prepare('SELECT 1 FROM messages WHERE sid=? AND mid=?'),
     add: db.prepare('INSERT OR IGNORE INTO messages VALUES (?, ?)'),
     tail: db.prepare('SELECT offset, skipping FROM tails WHERE sid=? AND fid=?'),
@@ -140,8 +142,12 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
     withSession(sessionId, read) {
       ledger.begin();
       guarded(() => db.exec('SAVEPOINT proc'));
-      const sid = digest(sessionId);
-      const row = get('session', sid);
+      const sessionDigest = digest(sessionId);
+      const row = get('session', sessionDigest);
+      // Run-local keys need no digest map or extra SQLite index. Rollbacks may
+      // leave gaps, but never reuse a key belonging to another session.
+      const sid = row?.id ?? nextSessionKey++;
+      if (!row) run('addSession', sessionDigest, sid);
       const state = {
         storageFailed: () => failed,
         offset: row?.offset ?? 0,
@@ -160,7 +166,7 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
           delete: (filePath) => run('skipping', sid, digest(filePath), 0),
         },
         flush() {
-          run('saveSession', sid, this.offset, Number(this.skippingMain));
+          run('saveSession', this.offset, Number(this.skippingMain), sessionDigest);
         },
       };
       try {
