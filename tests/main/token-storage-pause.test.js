@@ -160,7 +160,7 @@ describe('real-file SQLite capacity and truthful collection status', () => {
     const fixture = source(1, [line('oldest')]);
     expect(await adapter.readUsage([proc(1)])).toHaveLength(1);
     openInspection();
-    const fill = inspect.prepare('INSERT INTO messages SELECT sid, randomblob(32) FROM sessions');
+    const fill = inspect.prepare('INSERT INTO messages SELECT id, randomblob(32) FROM sessions');
     let full;
     for (let i = 0; i < 2000; i++) {
       try {
