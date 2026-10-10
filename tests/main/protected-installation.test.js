@@ -134,5 +134,140 @@ describe.skipIf(process.platform !== 'win32')(
         expect(receipt(mode)).toEqual({ corpus: true, guest: false });
       }
     });
+    function orchestration(mode) {
+      const value = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(project, 'tests/fixtures/protected-installation/orchestration-fixture.ps1'),
+          mode,
+        ],
+        { windowsHide: true, timeout: 10000, maxBuffer: 8192 },
+      );
+      expect(value.error).toBeUndefined();
+      expect(value.status).toBe(0);
+      expect(value.stderr.length).toBe(0);
+      expect(value.stdout.toString('utf8')).not.toContain('unsafe');
+      expect(value.stdout.toString('utf8')).not.toContain('fixture-credential');
+      return JSON.parse(value.stdout.toString('utf8'));
+    }
+    it('journals exact held resources and confirmed cleanup through nested maintained orchestration', () => {
+      expect(orchestration('clean-partial')).toMatchObject({
+        refused: true,
+        stageRemoved: true,
+        ancillaryRemoved: true,
+        createdSid: 'S-1-5-21-100-200-300-1001',
+        cleanup: {
+          state: 'confirmed',
+          serviceAbsent: true,
+          protectedParentAbsent: true,
+          exactAccountSidAbsent: true,
+        },
+        failure: {
+          operation: 'publish',
+          diagnosticCode: 'protected-qualified-partial-fault',
+          nativeWin32: null,
+        },
+      });
+    });
+    it('keeps unknown partial cleanup terminal with the original failure and owned resource identities', () => {
+      expect(orchestration('unknown-partial')).toMatchObject({
+        refused: true,
+        stageRemoved: false,
+        ancillaryRemoved: false,
+        createdSid: 'S-1-5-21-100-200-300-1001',
+        cleanup: { state: 'unknown', exactAccountSidAbsent: null },
+        failure: { operation: 'publish', diagnosticCode: 'protected-qualified-partial-fault' },
+      });
+    });
+    it('distinguishes a clean refusal before effects and preserves captured numeric native diagnostics', () => {
+      expect(orchestration('clean-refusal')).toMatchObject({
+        refused: true,
+        createdSid: null,
+        cleanup: { state: 'confirmed-no-effects' },
+        failure: {
+          operation: 'account-create',
+          diagnosticCode: 'protected-operation-refused',
+          nativeWin32: null,
+        },
+      });
+      expect(orchestration('native-refusal')).toMatchObject({
+        refused: true,
+        stageRemoved: true,
+        ancillaryRemoved: true,
+        failure: {
+          operation: 'service-create',
+          diagnosticCode: 'protected-service-create-refused',
+          nativeWin32: 5,
+        },
+      });
+    });
+    it('retains the exact original objects across two upgrades and a publication rollback', () => {
+      expect(orchestration('upgrade-reference')).toMatchObject({
+        firstExact: true,
+        secondExact: true,
+        rollbackRefused: true,
+        rollbackExact: true,
+        cleanupUnknown: false,
+        stageType: 'Hashtable',
+        path: 'C:\\ProgramData\\AEGIS\\ProtectedSession',
+      });
+    });
+    it('refuses extra stage output without adopting or cleaning an ambiguous association', () => {
+      expect(orchestration('noisy-stage')).toMatchObject({
+        refused: true,
+        stageRemoved: false,
+        ancillaryRemoved: false,
+        cleanup: { state: 'unknown' },
+      });
+    });
+    it('keeps an ambiguous upgrade stage terminal and refuses reuse before stopping or deleting', () => {
+      for (const mode of ['noisy-upgrade', 'null-upgrade']) {
+        expect(orchestration(mode)).toEqual({
+          firstRefused: true,
+          retryRefused: true,
+          cleanupUnknown: true,
+          originalExact: true,
+          stageCount: 2,
+          stopCalls: 0,
+          events: [],
+        });
+      }
+    });
+    it('exposes failed installation cleanup through the maintained qualification wrapper with no successful association', () => {
+      const clean = orchestration('phase-clean');
+      expect(clean).toMatchObject({
+        passed: false,
+        launchAllowed: false,
+        completeE1: false,
+        completeE11: false,
+        interactiveUiQualified: false,
+        baseline: null,
+        positive: null,
+        mutation: null,
+        upgrade: null,
+        partial: null,
+        cleanupFailure: null,
+        failure: { stage: 'baseline-install', operation: 'service-create', nativeWin32: 5 },
+        installation: { createdSid: 'S-1-5-21-100-200-300-1001', cleanup: { state: 'confirmed' } },
+      });
+      const unknown = orchestration('phase-unknown');
+      expect(unknown).toMatchObject({
+        passed: false,
+        failure: { stage: 'baseline-install', operation: 'service-create', nativeWin32: 5 },
+        installation: { cleanup: { state: 'unknown', exactAccountSidAbsent: null } },
+        cleanupFailure: {
+          stage: 'partial-install-cleanup',
+          diagnosticCode: 'protected-installation-cleanup-unknown',
+        },
+      });
+      expect(unknown.installation.createdRoots).toHaveLength(3);
+      expect(unknown.fixtureEvents).not.toContain('remove-stage');
+      expect(unknown.fixtureEvents).not.toContain('remove-ancillary');
+      expect(JSON.stringify(unknown)).not.toContain('association');
+      expect(JSON.stringify(unknown)).not.toContain('credential');
+    });
   },
 );

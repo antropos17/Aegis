@@ -133,8 +133,9 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
 function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location) {
     $report = [ordered]@{ schemaVersion = 1; scope = 'protected-installed-owner-qualification'; location = $Location; sourceSha = $ExpectedSourceSha;
         os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
-        failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
+        installation = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
     $association = $null; $stage = 'preflight'; $scratch = $null; $scratchParent = $null; $password = $null
+    $installJournal = @{}
     try {
         Assert-ProtectedInstallAdministrator; Initialize-ProtectedInstallNative
         if ($Location -ceq 'fresh-host') {
@@ -153,7 +154,7 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $baselineSources = Join-Path $ScratchRoot 'baseline-inputs'; New-Item -ItemType Directory -Path $baselineSources | Out-Null
         foreach ($name in @('aegis-owner.exe', 'aegis-main.exe')) { Copy-Item -LiteralPath (Join-Path $PayloadRoot ('binaries/' + $name)) -Destination (Join-Path $baselineSources $name) }
         Copy-Item -LiteralPath (Join-Path $PayloadRoot 'baseline/aegis-session.exe') -Destination (Join-Path $baselineSources 'aegis-session.exe')
-        $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password
+        $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal
         $stage = 'original-program-behavioral-red'; $report.baseline = Invoke-InstalledOwnerAttempt $association $false
         $stage = 'upgrade-to-maintained-native-owner'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
         $stage = 'actual-installed-positive'; $report.positive = Invoke-InstalledOwnerAttempt $association $true
@@ -171,7 +172,12 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $report.rollback = @{ injectedAfterPublication = $fault; originalRootAndFilesRestored = $true; root = $before; serviceConfiguration = $association.service.Configuration(); passed = $fault }
         $stage = 'actual-successful-upgrade'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
         $report.upgrade = Invoke-InstalledOwnerAttempt $association $true
-    } catch { $report.failure = @{ stage = $stage; hResult = $_.Exception.HResult } }
+    } catch {
+        $report.failure = Get-ProtectedInstallFailure $_ 'qualification'; $report.failure.stage = $stage
+        if ($installJournal.ContainsKey('failure') -and $null -ne $installJournal.failure -and $stage -ceq 'baseline-install') {
+            $report.failure = $installJournal.failure.Clone(); $report.failure.stage = $stage
+        }
+    }
     finally {
         if ($null -ne $association) {
             try {
@@ -184,9 +190,24 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
                     else { foreach ($row in $existing) { Assert-ProtectedInstallSnapshot $row } }
                 }
                 $sid = $association.operatorSid; Remove-ProtectedInstallation $association
-                $report.uninstall = @{ serviceAbsent = [ProtectedInstallService]::Absent(); protectedParentAbsent = !(Test-Path -LiteralPath $script:ProtectedInstallParent); exactAccountSidAbsent = @((Get-LocalUser) | Where-Object { $_.SID.Value -ceq $sid }).Count -eq 0; passed = $true }
+                $report.uninstall = @{ serviceAbsent = [ProtectedInstallService]::Absent(); protectedParentAbsent = !(Test-Path -LiteralPath $script:ProtectedInstallParent); exactAccountSidAbsent = @((Get-LocalUser) | Where-Object { $_.SID.Value -ceq $sid }).Count -eq 0; passed = $false }
+                if (!$report.uninstall.serviceAbsent -or !$report.uninstall.protectedParentAbsent -or !$report.uninstall.exactAccountSidAbsent) { throw 'protected-uninstall-absence-unconfirmed' }
+                $report.uninstall.passed = $true
+                $installJournal.cleanup = @{ state = 'confirmed'; serviceAbsent = $true; protectedParentAbsent = $true; exactAccountSidAbsent = $true; failure = $null }
                 $association = $null
-            } catch { $report.cleanupFailure = @{ stage = 'exact-owned-uninstall'; hResult = $_.Exception.HResult } }
+            } catch {
+                $report.cleanupFailure = Get-ProtectedInstallFailure $_ 'qualification'; $report.cleanupFailure.stage = 'exact-owned-uninstall'
+                $installJournal.cleanup = @{ state = 'unknown'; serviceAbsent = $null; protectedParentAbsent = $null; exactAccountSidAbsent = $null; failure = $report.cleanupFailure }
+            }
+        }
+        # Failed New-ProtectedInstallation can retain exact owned associations in
+        # its journal even though no successful return assigned $association.
+        if ($installJournal.ContainsKey('cleanup')) {
+            $report.installation = Get-ProtectedInstallJournalReceipt $installJournal
+            if ($installJournal.cleanup.state -ceq 'unknown' -and $null -eq $report.cleanupFailure) {
+                $report.cleanupFailure = @{ stage = 'partial-install-cleanup'; operation = $installJournal.operation; diagnosticCode = 'protected-installation-cleanup-unknown'; nativeWin32 = $null; hResult = $null }
+                if ($null -ne $installJournal.cleanup.failure) { $report.cleanupFailure = $installJournal.cleanup.failure.Clone(); $report.cleanupFailure.stage = 'partial-install-cleanup' }
+            }
         }
         $password = $null; if ($null -ne $scratchParent) { $scratchParent.Dispose() }
     }
@@ -194,9 +215,10 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $journal = @{}; $partialAccount = 'AegisOp' + [guid]::NewGuid().ToString('N').Substring(0, 12); $fault = $false
         try { New-ProtectedInstallation (Join-Path $PayloadRoot 'binaries') $manifest $partialAccount ('Ae!9-' + [guid]::NewGuid().ToString('N')) $true $journal | Out-Null }
         catch { $fault = $_.Exception.Message -like '*protected-qualified-partial-fault*' }
-        $report.partial = @{ injectedAfterPublication = $fault; journal = $journal; serviceAbsent = [ProtectedInstallService]::Absent(); protectedParentAbsent = !(Test-Path -LiteralPath $script:ProtectedInstallParent);
+        $report.partial = @{ injectedAfterPublication = $fault; journal = Get-ProtectedInstallJournalReceipt $journal; serviceAbsent = [ProtectedInstallService]::Absent(); protectedParentAbsent = !(Test-Path -LiteralPath $script:ProtectedInstallParent);
             accountAbsent = @((Get-LocalUser) | Where-Object { $_.Name -ceq $partialAccount }).Count -eq 0 }
-        $report.partial.passed = $fault -and $report.partial.serviceAbsent -and $report.partial.protectedParentAbsent -and $report.partial.accountAbsent
+        $report.partial.passed = $fault -and $journal.cleanup.state -ceq 'confirmed' -and $report.partial.serviceAbsent -and $report.partial.protectedParentAbsent -and $report.partial.accountAbsent
+        if ($journal.cleanup.state -ceq 'unknown') { $report.cleanupFailure = @{ stage = 'qualified-partial-cleanup'; operation = $journal.operation; diagnosticCode = 'protected-installation-cleanup-unknown'; nativeWin32 = $null; hResult = $null } }
     }
     $report.passed = $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $null -ne $report.partial -and $report.partial.passed
     $json = $report | ConvertTo-Json -Depth 20

@@ -40,32 +40,57 @@ public sealed class ProtectedInstallService : IDisposable
     public const string Name = "AegisProtectedSessionOwner";
     public const string Image = "\"C:\\ProgramData\\AEGIS\\ProtectedSession\\aegis-owner.exe\"";
     private static void Require(bool value) { if (!value) throw new InvalidDataException("protected-service-refused"); }
+    private static InvalidDataException NativeFailure(string operation, int error)
+    {
+        var failure = new InvalidDataException("protected-service-native-refused");
+        failure.Data["protectedOperation"] = operation; failure.Data["protectedNativeWin32"] = error;
+        return failure;
+    }
+    // Call immediately after a failed SetLastError P/Invoke; invariants use Require.
+    private static void Native(bool value, string operation)
+    {
+        if (!value) { int error = Marshal.GetLastWin32Error(); throw NativeFailure(operation, error); }
+    }
+    private static uint ObserveWait(IntPtr value, uint timeout)
+    {
+        uint result = WaitForSingleObject(value, timeout);
+        if (result == 0xFFFFFFFF) { int error = Marshal.GetLastWin32Error(); throw NativeFailure("service-process-wait", error); }
+        return result;
+    }
     private ProtectedInstallService(IntPtr handle) { service = handle; }
     public static bool Absent()
     {
-        IntPtr manager = OpenSCManager(null, null, 1); Require(manager != IntPtr.Zero);
+        IntPtr manager = OpenSCManager(null, null, 1); Native(manager != IntPtr.Zero, "service-manager-open");
         try {
             IntPtr found = OpenService(manager, Name, 4);
-            if (found != IntPtr.Zero) { CloseServiceHandle(found); return false; }
-            Require(Marshal.GetLastWin32Error() == 1060); return true;
+            if (found != IntPtr.Zero) { Native(CloseServiceHandle(found), "service-handle-close"); return false; }
+            int error = Marshal.GetLastWin32Error(); if (error != 1060) throw NativeFailure("service-open", error); return true;
         } finally { CloseServiceHandle(manager); }
     }
     public static ProtectedInstallService Create()
     {
-        IntPtr manager = OpenSCManager(null, null, 3); Require(manager != IntPtr.Zero);
+        IntPtr manager = OpenSCManager(null, null, 3); Native(manager != IntPtr.Zero, "service-manager-open");
         IntPtr result = IntPtr.Zero;
         try {
             // Existing names fail; no ChangeServiceConfig or preexisting-object adoption.
             result = CreateService(manager, Name, Name, 0xF01FF, 0x10, 3, 1, Image, null, IntPtr.Zero, null, "LocalSystem", null);
-            Require(result != IntPtr.Zero);
+            Native(result != IntPtr.Zero, "service-create");
             var acl = new RawSecurityDescriptor("O:BAG:BAD:P(A;;GA;;;SY)(A;;GA;;;BA)");
             byte[] bytes = new byte[acl.BinaryLength]; acl.GetBinaryForm(bytes, 0);
-            Require(SetServiceObjectSecurity(result, 5, bytes));
+            Native(SetServiceObjectSecurity(result, 5, bytes), "service-security-set");
             var value = new ProtectedInstallService(result); value.Recheck(); result = IntPtr.Zero; return value;
-        } catch {
+        } catch (Exception original) {
             if (result != IntPtr.Zero) {
-                bool removed = DeleteService(result); bool closed = CloseServiceHandle(result); result = IntPtr.Zero;
-                if (!removed || !closed || !Absent()) throw new InvalidDataException("protected-service-creation-cleanup-unknown");
+                bool removed = DeleteService(result); int removeError = removed ? 0 : Marshal.GetLastWin32Error();
+                bool closed = CloseServiceHandle(result); int closeError = closed ? 0 : Marshal.GetLastWin32Error(); result = IntPtr.Zero;
+                bool absent = false;
+                try { absent = Absent(); } catch { }
+                if (!removed || !closed || !absent) {
+                    var failure = new InvalidDataException("protected-service-creation-cleanup-unknown", original);
+                    failure.Data["protectedCleanupUnknown"] = true;
+                    if (!removed || !closed) { failure.Data["protectedOperation"] = !removed ? "service-delete" : "service-handle-close"; failure.Data["protectedNativeWin32"] = !removed ? removeError : closeError; }
+                    throw failure;
+                }
             }
             throw;
         } finally { CloseServiceHandle(manager); }
@@ -73,10 +98,11 @@ public sealed class ProtectedInstallService : IDisposable
     public string Configuration()
     {
         Require(service != IntPtr.Zero); uint size;
-        QueryServiceConfig(service, IntPtr.Zero, 0, out size); Require(size > 0 && size <= 16384);
+        bool probe = QueryServiceConfig(service, IntPtr.Zero, 0, out size); int probeError = probe ? 0 : Marshal.GetLastWin32Error();
+        if (!probe && probeError != 122) throw NativeFailure("service-config-query", probeError); Require(size > 0 && size <= 16384);
         IntPtr data = Marshal.AllocHGlobal((int)size);
         try {
-            Require(QueryServiceConfig(service, data, size, out size));
+            Native(QueryServiceConfig(service, data, size, out size), "service-config-query");
             int binaryOffset = IntPtr.Size == 8 ? 16 : 12;
             int accountOffset = IntPtr.Size == 8 ? 48 : 28;
             uint type = unchecked((uint)Marshal.ReadInt32(data, 0)), start = unchecked((uint)Marshal.ReadInt32(data, 4));
@@ -89,8 +115,9 @@ public sealed class ProtectedInstallService : IDisposable
     public string Security()
     {
         Require(service != IntPtr.Zero); uint needed;
-        QueryServiceObjectSecurity(service, 5, null, 0, out needed); Require(needed > 0 && needed <= 16384);
-        byte[] bytes = new byte[needed]; Require(QueryServiceObjectSecurity(service, 5, bytes, needed, out needed));
+        bool probe = QueryServiceObjectSecurity(service, 5, null, 0, out needed); int probeError = probe ? 0 : Marshal.GetLastWin32Error();
+        if (!probe && probeError != 122) throw NativeFailure("service-security-query", probeError); Require(needed > 0 && needed <= 16384);
+        byte[] bytes = new byte[needed]; Native(QueryServiceObjectSecurity(service, 5, bytes, needed, out needed), "service-security-query");
         var sd = new RawSecurityDescriptor(bytes, 0);
         Require(sd.Owner != null && (sd.Owner.Value == "S-1-5-18" || sd.Owner.Value == "S-1-5-32-544") && sd.DiscretionaryAcl != null);
         foreach (GenericAce entry in sd.DiscretionaryAcl) {
@@ -105,7 +132,7 @@ public sealed class ProtectedInstallService : IDisposable
     public uint[] Status()
     {
         Recheck(); uint needed; byte[] bytes = new byte[36];
-        Require(QueryServiceStatusEx(service, 0, bytes, (uint)bytes.Length, out needed));
+        Native(QueryServiceStatusEx(service, 0, bytes, (uint)bytes.Length, out needed), "service-status-query");
         return new uint[] { BitConverter.ToUInt32(bytes, 4), BitConverter.ToUInt32(bytes, 28) };
     }
     private void Wait(uint state)
@@ -117,19 +144,20 @@ public sealed class ProtectedInstallService : IDisposable
     {
         Recheck(); Require(Status()[0] == 1); WaitExited();
         if (ownerProcess != IntPtr.Zero) { CloseHandle(ownerProcess); ownerProcess = IntPtr.Zero; }
-        Require(StartService(service, 0, IntPtr.Zero)); Wait(4);
-        uint pid = Status()[1]; Require(pid > 0); ownerProcess = OpenProcess(0x101000, false, pid); Require(ownerProcess != IntPtr.Zero);
-        Require(Status()[1] == pid && WaitForSingleObject(ownerProcess, 0) == 258);
+        Native(StartService(service, 0, IntPtr.Zero), "service-start"); Wait(4);
+        uint pid = Status()[1]; Require(pid > 0); ownerProcess = OpenProcess(0x101000, false, pid); Native(ownerProcess != IntPtr.Zero, "service-process-open");
+        Require(Status()[1] == pid && ObserveWait(ownerProcess, 0) == 258);
         IntPtr token = IntPtr.Zero;
         try {
             var name = new StringBuilder(2048); uint length = (uint)name.Capacity;
-            Require(QueryFullProcessImageName(ownerProcess, 0, name, ref length) && name.ToString() == Image.Trim('"'));
-            long birth, exit, kernel, user; Require(GetProcessTimes(ownerProcess, out birth, out exit, out kernel, out user) && birth > 0);
-            Require(OpenProcessToken(ownerProcess, 8, out token));
-            int needed; GetTokenInformation(token, 1, IntPtr.Zero, 0, out needed); Require(needed > 0 && needed < 4096);
+            Native(QueryFullProcessImageName(ownerProcess, 0, name, ref length), "service-process-image"); Require(name.ToString() == Image.Trim('"'));
+            long birth, exit, kernel, user; Native(GetProcessTimes(ownerProcess, out birth, out exit, out kernel, out user), "service-process-times"); Require(birth > 0);
+            Native(OpenProcessToken(ownerProcess, 8, out token), "service-token-open");
+            int needed; bool probe = GetTokenInformation(token, 1, IntPtr.Zero, 0, out needed); int probeError = probe ? 0 : Marshal.GetLastWin32Error();
+            if (!probe && probeError != 122) throw NativeFailure("service-token-query", probeError); Require(needed > 0 && needed < 4096);
             IntPtr data = Marshal.AllocHGlobal(needed);
             string sid;
-            try { Require(GetTokenInformation(token, 1, data, needed, out needed)); sid = new SecurityIdentifier(Marshal.ReadIntPtr(data)).Value; }
+            try { Native(GetTokenInformation(token, 1, data, needed, out needed), "service-token-query"); sid = new SecurityIdentifier(Marshal.ReadIntPtr(data)).Value; }
             finally { Marshal.FreeHGlobal(data); }
             Require(sid == "S-1-5-18");
             byte[] statistics = TokenBytes(token, 10), session = TokenBytes(token, 12);
@@ -141,26 +169,27 @@ public sealed class ProtectedInstallService : IDisposable
     }
     private static byte[] TokenBytes(IntPtr token, int kind)
     {
-        int needed; GetTokenInformation(token, kind, IntPtr.Zero, 0, out needed); Require(needed > 0 && needed < 4096);
+        int needed; bool probe = GetTokenInformation(token, kind, IntPtr.Zero, 0, out needed); int probeError = probe ? 0 : Marshal.GetLastWin32Error();
+        if (!probe && probeError != 122) throw NativeFailure("service-token-query", probeError); Require(needed > 0 && needed < 4096);
         IntPtr data = Marshal.AllocHGlobal(needed);
-        try { Require(GetTokenInformation(token, kind, data, needed, out needed)); byte[] bytes = new byte[needed]; Marshal.Copy(data, bytes, 0, needed); return bytes; }
+        try { Native(GetTokenInformation(token, kind, data, needed, out needed), "service-token-query"); byte[] bytes = new byte[needed]; Marshal.Copy(data, bytes, 0, needed); return bytes; }
         finally { Marshal.FreeHGlobal(data); }
     }
     public void WaitExited()
     {
         if (ownerProcess == IntPtr.Zero) return;
-        Require(WaitForSingleObject(ownerProcess, 5000) == 0);
+        Require(ObserveWait(ownerProcess, 5000) == 0);
         if (ObservedOwner != null) ObservedOwner["exactProcessExited"] = true;
     }
     public void Stop()
     {
         Recheck(); uint state = Status()[0]; if (state == 1) { WaitExited(); return; }
-        Require(state == 4); Require(ControlService(service, 1, new byte[28])); Wait(1);
+        Require(state == 4); Native(ControlService(service, 1, new byte[28]), "service-stop"); Wait(1);
         WaitExited();
     }
     public void Delete()
     {
-        Recheck(); Require(Status()[0] == 1 && DeleteService(service)); Dispose();
+        Recheck(); Require(Status()[0] == 1); Native(DeleteService(service), "service-delete"); Dispose();
         Stopwatch watch = Stopwatch.StartNew();
         while (!Absent()) { Require(watch.ElapsedMilliseconds < 10000); Thread.Sleep(50); }
     }
@@ -168,6 +197,6 @@ public sealed class ProtectedInstallService : IDisposable
     {
         IntPtr value = service; service = IntPtr.Zero;
         if (ownerProcess != IntPtr.Zero) { CloseHandle(ownerProcess); ownerProcess = IntPtr.Zero; }
-        if (value != IntPtr.Zero) Require(CloseServiceHandle(value));
+        if (value != IntPtr.Zero) Native(CloseServiceHandle(value), "service-handle-close");
     }
 }
