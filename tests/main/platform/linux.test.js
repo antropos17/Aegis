@@ -123,6 +123,83 @@ describe('linux exec-based functions', () => {
       expect(rows[2]).toMatchObject({ ip: '2001:db8::2', port: 443, state: 'CLOSE-WAIT' });
     });
 
+    it('finds a monitored owner after an unmonitored socket owner', async () => {
+      const stdout = [
+        'State Recv-Q Send-Q Local Address:Port Peer Address:Port Process',
+        'ESTAB 0 0 10.0.0.1:52001 52.1.2.3:443 users:(("helper",pid=999,fd=3),("node",pid=100,fd=4))',
+      ].join('\n');
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, stdout));
+      expect(await linux.getRawTcpConnections([100])).toEqual([
+        {
+          pid: 100,
+          ip: '52.1.2.3',
+          port: 443,
+          state: 'ESTAB',
+          localIp: '10.0.0.1',
+          localPort: 52001,
+        },
+      ]);
+    });
+
+    it('reports each monitored PID once per socket while preserving IPv6 endpoints and state', async () => {
+      const stdout = [
+        'State Recv-Q Send-Q Local Address:Port Peer Address:Port Process',
+        'CLOSE-WAIT 0 0 [2001:db8::1]:52003 [2001:db8::2]:443 users:(("node",pid=100,fd=3),("worker",pid=200,fd=4),("node",pid=100,fd=5))',
+        'ESTAB 0 0 10.0.0.1:52004 52.1.2.3:443 users:(("node",pid=100,fd=6))',
+      ].join('\n');
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, stdout));
+      expect(await linux.getRawTcpConnections([100, 200])).toEqual([
+        {
+          pid: 100,
+          ip: '2001:db8::2',
+          port: 443,
+          state: 'CLOSE-WAIT',
+          localIp: '2001:db8::1',
+          localPort: 52003,
+        },
+        {
+          pid: 200,
+          ip: '2001:db8::2',
+          port: 443,
+          state: 'CLOSE-WAIT',
+          localIp: '2001:db8::1',
+          localPort: 52003,
+        },
+        {
+          pid: 100,
+          ip: '52.1.2.3',
+          port: 443,
+          state: 'ESTAB',
+          localIp: '10.0.0.1',
+          localPort: 52004,
+        },
+      ]);
+    });
+
+    it.each([
+      'users:(("pid=100",pid=999,fd=3))',
+      'users:(("fake,(node,pid=100,fd=3)",pid=999,fd=4))',
+      'users:(("node",pid=100junk,fd=3))',
+      'users:(("node",pid=100,fd=3),)',
+      'users:(("node",pid=100,fd=3),("bad",pid=200))',
+      'pid=100',
+    ])('rejects malformed or lookalike owner text: %s', async (process) => {
+      const stdout = `State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\nESTAB 0 0 10.0.0.1:52001 52.1.2.3:443 ${process}`;
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, stdout));
+      expect(await linux.getRawTcpConnections([100, 200])).toEqual([]);
+    });
+
+    it('uses actual owners when quoted process names contain PID lookalikes', async () => {
+      const stdout = [
+        'State Recv-Q Send-Q Local Address:Port Peer Address:Port Process',
+        'ESTAB 0 0 10.0.0.1:52001 52.1.2.3:443 users:(("pid=200",pid=100,fd=3),("worker",pid=200,fd=4))',
+      ].join('\n');
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, stdout));
+      expect((await linux.getRawTcpConnections([100, 200])).map(({ pid }) => pid)).toEqual([
+        100, 200,
+      ]);
+    });
+
     it('falls back to lsof when ss fails', async () => {
       const lsofOutput = 'p100\nn10.0.0.1:50000->8.8.8.8:443\n';
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
