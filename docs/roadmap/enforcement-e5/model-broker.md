@@ -25,9 +25,21 @@ The broker permits one concurrent exchange and sixteen non-refundable preparatio
 slots during a sixty-second owner lifetime. Invalid preparations consume slots
 once the owner is live. Request and response bodies are limited to sixteen KiB,
 headers to eight KiB, and each exchange to three seconds. Requests contain one to
-four user messages and a requested output allowance of one to 256 tokens. The
-token allowance is a wire request bound, not an independently measured tokenizer
-or provider billing guarantee. Tools and unknown fields are refused.
+four user messages and a requested output allowance of one to 256 tokens. Each
+owner also admits at most 1024 cumulative requested output tokens during its
+sixty-second lifetime. A successful `prepare` synchronously reserves its entire
+`maxOutputTokens` allowance before publishing the handle. The cumulative reserved
+amount and fixed limits are bound into the private snapshot. Invalid preparations
+consume preparation slots without reserving output allowance. Cancellation,
+dispatch refusal, upstream or persistence failure, replay and `close()` never
+refund a successful reservation. Each new owner starts its own allowance; there
+is no aggregate or persisted budget across owners or restarts.
+
+These units are requested maximum output allowance in the wire request. The
+broker does not measure generated tokens, input tokens, provider billing or money.
+Tools and unknown fields are refused. This closes only the bounded developer
+owner's requested-output allowance scope; A2 and production model access remain
+unavailable.
 
 Only literal `127.0.0.1` transport is admitted. The existing route capture detects
 descriptor changes, credential substitution and unsafe Node diagnostics. HTTP
