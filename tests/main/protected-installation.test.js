@@ -328,6 +328,22 @@ describe.skipIf(process.platform !== 'win32')(
         });
       }
     });
+    it('keeps post-effect handoff uncertainty terminal before compensation and later reuse', () => {
+      expect(orchestration('upgrade-handoff-unknown')).toEqual({
+        firstFailure: 'protected-upgrade-handoff-cleanup-unknown',
+        retryGuarded: true,
+        uninstallGuarded: true,
+        cleanupUnknown: true,
+        originalExact: true,
+        postEffectPathRecorded: true,
+        stageCount: 2,
+        stopCalls: 1,
+        eventsAfterFailure: ['publish'],
+        eventsAfterReuse: ['publish'],
+        stageRemoved: false,
+        ancillaryRemoved: false,
+      });
+    });
     it('exposes failed installation cleanup through the maintained qualification wrapper with no successful association', () => {
       const clean = orchestration('phase-clean');
       expect(clean).toMatchObject({

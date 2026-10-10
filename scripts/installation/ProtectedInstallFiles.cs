@@ -22,12 +22,44 @@ public sealed class ProtectedInstallFile : IDisposable
     private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder text, uint length, uint flags);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetFileInformationByHandle(SafeFileHandle file, int kind, IntPtr data, uint size);
+    [StructLayout(LayoutKind.Sequential)] private struct IoStatus { internal IntPtr Status; internal UIntPtr Information; }
+    [DllImport("ntdll.dll")]
+    private static extern int NtSetInformationFile(SafeFileHandle file, IntPtr status, IntPtr data, uint size, int kind);
+    [DllImport("ntdll.dll")]
+    private static extern uint RtlNtStatusToDosError(int status);
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern uint GetSecurityInfo(SafeFileHandle file, int type, uint information,
         out IntPtr owner, out IntPtr group, out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
     [DllImport("advapi32.dll")] private static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr value);
     private readonly SafeFileHandle held;
+    private static readonly object RenameGate = new object();
+    private static RenameBuffers pendingRename;
+    // At most one unresolved synchronous rename retains its exact handles and
+    // native buffers until process teardown. No further rename can be attempted.
+    private sealed class RenameBuffers : IDisposable
+    {
+        internal IntPtr Information, Status;
+        private readonly SafeFileHandle source, parent;
+        private bool sourceReference, parentReference;
+        internal RenameBuffers(SafeFileHandle source, SafeFileHandle parent, int size)
+        {
+            this.source = source; this.parent = parent;
+            try {
+                source.DangerousAddRef(ref sourceReference); parent.DangerousAddRef(ref parentReference);
+                Information = Marshal.AllocHGlobal(size); Status = Marshal.AllocHGlobal(IntPtr.Size * 2);
+                for (int i = 0; i < size; i++) Marshal.WriteByte(Information, i, 0);
+                for (int i = 0; i < IntPtr.Size * 2; i++) Marshal.WriteByte(Status, i, 0);
+            } catch { Dispose(); throw; }
+        }
+        public void Dispose()
+        {
+            if (Information != IntPtr.Zero) { Marshal.FreeHGlobal(Information); Information = IntPtr.Zero; }
+            if (Status != IntPtr.Zero) { Marshal.FreeHGlobal(Status); Status = IntPtr.Zero; }
+            if (parentReference) { parent.DangerousRelease(); parentReference = false; }
+            if (sourceReference) { source.DangerousRelease(); sourceReference = false; }
+        }
+    }
     private FileStream stream;
     private readonly byte[] identity, security;
     private bool closed;
@@ -51,6 +83,20 @@ public sealed class ProtectedInstallFile : IDisposable
             int code = Marshal.GetLastWin32Error();
             throw NativeFailure(operation, code);
         }
+    }
+    private static InvalidDataException HandoffUnknown(Exception cause)
+    {
+        var unknown = new InvalidDataException("protected-file-handoff-cleanup-unknown", cause);
+        unknown.Data["protectedCleanupUnknown"] = true;
+        return unknown;
+    }
+    private static int? MapNtFailure(int status)
+    {
+        try {
+            uint code = RtlNtStatusToDosError(status);
+            return code > 0 && code != 317 && code <= Int32.MaxValue ? (int?)code : null;
+        } catch (EntryPointNotFoundException) { return null; }
+          catch (DllNotFoundException) { return null; }
     }
     private static string Hex(byte[] bytes) { return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant(); }
     public static ProtectedInstallFile CreateDirectory(string path, byte[] descriptor)
@@ -153,17 +199,40 @@ public sealed class ProtectedInstallFile : IDisposable
         byte[] bytes = Read(cap); try { using (SHA256 hash = SHA256.Create()) return Hex(hash.ComputeHash(bytes)); }
         finally { Array.Clear(bytes, 0, bytes.Length); }
     }
-    public void Rename(string destination)
+    public void Rename(string destination, ProtectedInstallFile parent)
     {
-        Recheck(); Require(Directory && String.Equals(Path.GetDirectoryName(destination), Path.GetDirectoryName(PathName), StringComparison.OrdinalIgnoreCase));
-        byte[] name = Encoding.Unicode.GetBytes(destination); int offset = IntPtr.Size == 8 ? 20 : 12;
-        IntPtr data = Marshal.AllocHGlobal(offset + name.Length);
+      lock (RenameGate) {
+        if (pendingRename != null) throw HandoffUnknown(null);
+        Recheck(); Require(parent != null && !Object.ReferenceEquals(parent, this)); parent.Recheck();
+        Require(Directory && parent.Directory && Volume == parent.Volume && destination != null && destination.Length <= 2048 &&
+            Path.IsPathRooted(destination) && !destination.StartsWith("\\\\", StringComparison.Ordinal) && destination.IndexOf(':', 2) < 0 &&
+            String.Equals(destination, Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase) &&
+            String.Equals(Path.GetDirectoryName(PathName), parent.PathName, StringComparison.OrdinalIgnoreCase) &&
+            String.Equals(Path.GetDirectoryName(destination), parent.PathName, StringComparison.OrdinalIgnoreCase));
+        // A simple name and null native RootDirectory rename within the same
+        // directory. The original parent remains held and tuple-checked.
+        byte[] name = Encoding.Unicode.GetBytes(Path.GetFileName(destination) + "\0"); int offset = IntPtr.Size == 8 ? 20 : 12;
+        int size = (IntPtr.Size == 8 ? 24 : 16) + name.Length;
+        Require(Marshal.SizeOf(typeof(IoStatus)) == IntPtr.Size * 2);
+        RenameBuffers buffers = new RenameBuffers(held, parent.held, size);
         try {
-            for (int i = 0; i < offset + name.Length; i++) Marshal.WriteByte(data, i, 0);
-            Marshal.WriteInt32(data, IntPtr.Size == 8 ? 16 : 8, name.Length); Marshal.Copy(name, 0, IntPtr.Add(data, offset), name.Length);
-            RequireNative(SetFileInformationByHandle(held, 3, data, (uint)(offset + name.Length)), "protected-file-rename-directory");
-            PathName = destination; Require(String.Equals(Name(), destination, StringComparison.OrdinalIgnoreCase));
-        } finally { Marshal.FreeHGlobal(data); }
+            Marshal.WriteInt32(buffers.Information, IntPtr.Size == 8 ? 16 : 8, name.Length - 2);
+            Marshal.Copy(name, 0, IntPtr.Add(buffers.Information, offset), name.Length);
+            // These CreateFile handles are synchronous (no FILE_FLAG_OVERLAPPED).
+            // Absolute targets and the Win32 relative-root wrapper reopen or
+            // reject the retained parent on this runtime.
+            int status = NtSetInformationFile(held, buffers.Status, buffers.Information, (uint)size, 10);
+            if (status == 0x103) { pendingRename = buffers; buffers = null; throw HandoffUnknown(null); }
+            // NTSTATUS is returned directly; it is not an ambient LastError.
+            if (status < 0) {
+                var failure = NativeFailure("protected-file-rename-directory", MapNtFailure(status));
+                failure.Data["protectedNativeNtStatus"] = status;
+                throw failure;
+            }
+            try { PathName = destination; Recheck(); parent.Recheck(); }
+            catch (Exception failure) { throw HandoffUnknown(failure); }
+        } finally { if (buffers != null) buffers.Dispose(); }
+      }
     }
     public void Delete()
     {

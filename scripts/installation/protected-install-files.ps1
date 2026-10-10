@@ -64,7 +64,7 @@ function Read-ProtectedInstallInputs([string]$SourceRoot, $Manifest) {
 function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) {
     $path = Join-Path $script:ProtectedInstallParent ('Staging-' + [guid]::NewGuid().ToString('N'))
     $root = New-ProtectedInstallDirectory $path $Context.operatorSid
-    $stage = @{ root = $root; path = $path; rows = @(); revision = $Revision; epoch = $Epoch; published = $false }
+    $stage = @{ root = $root; parent = $Context.parent; path = $path; rows = @(); revision = $Revision; epoch = $Epoch; published = $false }
     try {
         foreach ($name in @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe')) { Write-ProtectedInstallFile (Join-Path $path $name) $Context.inputs[$name] $Context.operatorSid }
         $map = @{}; foreach ($row in $Context.manifest.files) { $map[$row.name] = $row }
@@ -98,9 +98,15 @@ function Assert-ProtectedInstallStage($Stage) {
 function Move-ProtectedInstallStage($Stage, [string]$Destination) {
     Assert-ProtectedInstallStage $Stage
     if (Test-Path -LiteralPath $Destination) { throw 'protected-publish-destination-exists' }
-    $Stage.root.Rename($Destination); $Stage.path = $Destination
-    foreach ($row in $Stage.rows) { $row.path = Join-Path $Destination ([IO.Path]::GetFileName($row.path)) }
-    Assert-ProtectedInstallStage $Stage
+    $Stage.root.Rename($Destination, $Stage.parent); $Stage.path = $Destination
+    try {
+        foreach ($row in $Stage.rows) { $row.path = Join-Path $Destination ([IO.Path]::GetFileName($row.path)) }
+        Assert-ProtectedInstallStage $Stage
+    } catch {
+        $failure = [IO.InvalidDataException]::new('protected-file-handoff-cleanup-unknown', $_.Exception)
+        $failure.Data['protectedCleanupUnknown'] = $true
+        throw $failure
+    }
 }
 function Update-ProtectedInstallRuntimeRows($Stage) {
     $rows = @($Stage.rows); $files = @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)

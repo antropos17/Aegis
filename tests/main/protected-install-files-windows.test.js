@@ -29,7 +29,7 @@ describe.skipIf(process.platform !== 'win32')('protected installer directory pin
         fs.writeFileSync(process.env.AEGIS_INSTALL_PINNING_PACKET, result.stdout);
       }
       expect(JSON.parse(result.stdout.toString())).toEqual({
-        schemaVersion: 2,
+        schemaVersion: 3,
         snapshotSucceeded: true,
         sameIdentity: true,
         readPinError: 0,
@@ -47,6 +47,20 @@ describe.skipIf(process.platform !== 'win32')('protected installer directory pin
           code: 'protected-file-native-refused',
         },
         directoryCleanup: true,
+        renameFlow: {
+          succeeded: true,
+          failure: null,
+          existingDestinationFailure: {
+            operation: 'protected-file-rename-directory',
+            nativeWin32: 183,
+            nativeNtStatus: -1073741771,
+            code: 'protected-file-native-refused',
+          },
+          parentDeleteError: 32,
+          stageDeleteError: 32,
+          siblingSameIdentity: true,
+          moves: 7,
+        },
       });
     } finally {
       fs.rmdirSync(scratch);

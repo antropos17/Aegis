@@ -1,4 +1,4 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($Mode -ceq 'host-script-scope') { & $PSCommandPath 'host-script-child'; return }
@@ -270,6 +270,14 @@ function Invoke-NestedFixture {
         param($Stage, $Destination)
         if (@($global:FixtureState.stages | Where-Object { [object]::ReferenceEquals($_, $Stage) }).Count -ne 1) { throw 'fixture-stage-reference-refused' }
         $Stage.path = $Destination; $global:FixtureEvents.Add('publish')
+        if ($Mode -ceq 'upgrade-handoff-unknown') {
+            # The original owned handle already moved; the native postcheck is
+            # uncertain. Do not model a pre-effect refusal or allow recovery.
+            $Stage.root.PathName = $Destination
+            $failure = [IO.InvalidDataException]::new('protected-file-handoff-cleanup-unknown')
+            $failure.Data['protectedCleanupUnknown'] = $true
+            throw $failure
+        }
     }
     function script:Assert-ProtectedInstallation {
         param($Association)
@@ -306,9 +314,24 @@ function Invoke-NestedFixture {
         $report | ConvertTo-Json -Depth 20 -Compress
         return
     }
-    if ($Mode -cin @('upgrade-reference', 'noisy-upgrade', 'null-upgrade')) {
+    if ($Mode -cin @('upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade')) {
         $original = New-ProtectedInstallStage @{} 1 'original'
         $association = @{ stage = $original; service = [ProtectedInstallService]::new(); manifest = @{}; inputs = @{}; cleanupUnknown = $false; rollback = $null }
+        if ($Mode -ceq 'upgrade-handoff-unknown') {
+            $firstFailure = $null; $retryGuarded = $false; $uninstallGuarded = $false
+            try { Update-ProtectedInstallation $association 'C:\fixture\input' @{} | Out-Null }
+            catch { $firstFailure = if ($_.Exception.Message -ceq 'protected-upgrade-handoff-cleanup-unknown') { $_.Exception.Message } else { 'unclassified' } }
+            $eventsAfterFailure = $global:FixtureEvents.ToArray()
+            try { Update-ProtectedInstallation $association 'C:\fixture\input' @{} | Out-Null }
+            catch { $retryGuarded = $_.Exception.Message -ceq 'protected-owned-cleanup-unknown' }
+            try { Remove-ProtectedInstallation $association }
+            catch { $uninstallGuarded = $_.Exception.Message -ceq 'protected-owned-cleanup-unknown' }
+            @{ firstFailure = $firstFailure; retryGuarded = $retryGuarded; uninstallGuarded = $uninstallGuarded; cleanupUnknown = $association.cleanupUnknown;
+                originalExact = [object]::ReferenceEquals($association.stage, $original); postEffectPathRecorded = $original.path -ceq $original.root.PathName;
+                stageCount = $global:FixtureState.stages.Count; stopCalls = [ProtectedInstallService]::StopCalls; eventsAfterFailure = $eventsAfterFailure;
+                eventsAfterReuse = $global:FixtureEvents.ToArray(); stageRemoved = $global:FixtureState.stageRemoved; ancillaryRemoved = $global:FixtureState.ancillaryRemoved } | ConvertTo-Json -Compress
+            return
+        }
         if ($Mode -cin @('noisy-upgrade', 'null-upgrade')) {
             $firstRefused = $false; $retryRefused = $false
             try { Update-ProtectedInstallation $association 'C:\fixture\input' @{} | Out-Null } catch { $firstRefused = $true }
