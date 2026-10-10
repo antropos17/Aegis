@@ -99,6 +99,12 @@ namespace Aegis.ProtectedSession
             return other != null && sid == other.sid &&
                 SameLuid(authentication, other.authentication) && session == other.session;
         }
+        internal string OperatorSid { get { return sid; } }
+        internal string OperatorAuthentication
+        { get { return (((ulong)unchecked((uint)authentication.High) << 32) | authentication.Low).ToString("x16"); } }
+        internal uint OperatorSession { get { CallerNative.Require(session >= 0); return (uint)session; } }
+        internal bool MatchesOperator(string selectedSid, string selectedAuthentication, uint selectedSession)
+        { return sid == selectedSid && OperatorAuthentication == selectedAuthentication && session >= 0 && (uint)session == selectedSession; }
         internal bool MatchesImpersonation(CallerIdentity other)
         {
             // The pipe impersonation token is a distinct native object. Its own

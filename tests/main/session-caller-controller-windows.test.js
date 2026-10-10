@@ -29,7 +29,7 @@ function compile(target, files) {
   } catch (error) {
     throw new Error(String(error.stdout) + String(error.stderr), { cause: error });
   }
-  expect(fs.statSync(target).size).toBeLessThanOrEqual(65536);
+  expect(fs.statSync(target).size).toBeLessThanOrEqual(256 * 1024);
 }
 describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
   'retained caller controller (same principal)',

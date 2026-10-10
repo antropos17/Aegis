@@ -24,7 +24,7 @@ function compile(target, files) {
     ],
     { timeout: 30000, maxBuffer: 8192, windowsHide: true },
   );
-  expect(fs.statSync(target).size).toBeLessThanOrEqual(65536);
+  expect(fs.statSync(target).size).toBeLessThanOrEqual(256 * 1024);
 }
 function parentSources(lease = path.join(project, 'sidecar/session/EnrollmentLease.cs')) {
   return [

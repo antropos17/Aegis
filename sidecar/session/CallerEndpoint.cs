@@ -37,6 +37,10 @@ namespace Aegis.ProtectedSession
         }
 
         internal CallerAdmission.Context Accept(int timeoutMilliseconds)
+        { return AcceptCore(timeoutMilliseconds, false); }
+        internal CallerAdmission.Context AcceptMain(int timeoutMilliseconds)
+        { return AcceptCore(timeoutMilliseconds, true); }
+        private CallerAdmission.Context AcceptCore(int timeoutMilliseconds, bool main)
         {
             RequireDeadline(timeoutMilliseconds);
             lock (gate)
@@ -58,7 +62,8 @@ namespace Aegis.ProtectedSession
                         Thread.Sleep(2);
                     }
                     // Keep NOWAIT: no pending native IO, and the existing admission reads one already-peeked message.
-                    return CallerAdmission.ReadAndAuthenticate(pipe, peer, new CallerNative());
+                    return main ? CallerAdmission.ReadMainAndAuthenticate(pipe, peer, new CallerNative()) :
+                        CallerAdmission.ReadAndAuthenticate(pipe, peer, new CallerNative());
                 }
                 catch { Close(); throw; }
             }
