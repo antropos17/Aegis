@@ -243,6 +243,11 @@ export function observeStatistics(
     }
   }
   if (fresh('tokens', state.tokensAt)) {
+    const collectionPaused =
+      state.agents.some((agent) => agent.agent === 'Claude Code') &&
+      state.tokenCollection.some(
+        (status) => status.adapter === 'claude-code' && status.state === 'storage-paused',
+      );
     const total = measuredStatisticsTotal(state, state.tokens, 'totalTokens');
     const input = measuredStatisticsTotal(state, state.tokens, 'inputTokens');
     const output = measuredStatisticsTotal(state, state.tokens, 'outputTokens');
@@ -255,7 +260,7 @@ export function observeStatistics(
         input: input.value,
         output: output.value,
         cost: cost.value,
-        tokenRate: state.stale ? null : tokenRate(next.tokens, baseline),
+        tokenRate: state.stale || collectionPaused ? null : tokenRate(next.tokens, baseline),
       },
       {
         tokens: coverage(total),
@@ -265,7 +270,9 @@ export function observeStatistics(
         tokenRate: coverage(total),
       },
     );
-    next.tokens = state.stale ? null : baseline;
+    // Retained totals are incomplete during storage pause. Recovery can include
+    // backlog, so its first delivery establishes a new rate baseline.
+    next.tokens = state.stale || collectionPaused ? null : baseline;
   }
   if (fresh('own', state.ownAt)) {
     const at = state.ownAt;

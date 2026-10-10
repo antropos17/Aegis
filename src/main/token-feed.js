@@ -12,6 +12,7 @@
  *     { id: string,
  *       agentNames?: readonly string[], // exact scanner display names; absent = all
  *       readUsage(procs: Proc[]) => Promise<UsageDelta[]>,
+ *       getCollectionStatus?(): {state, reason, retryAt},
  *       _resetForTest(): void }
  *
  *   An adapter that throws or finds no source contributes nothing — a single bad
@@ -37,7 +38,7 @@ const claudeCode = require('./token-adapters/claude-code');
 const DEFAULT_ADAPTERS = [claudeCode];
 const KNOWN_ADAPTER_IDS = new Set(DEFAULT_ADAPTERS.map((adapter) => adapter.id));
 
-/** @type {Array<{ id: string, agentNames?: readonly string[], readUsage: Function, _resetForTest?: Function }>} */
+/** @type {Array<{ id: string, agentNames?: readonly string[], readUsage: Function, getCollectionStatus?: Function, _resetForTest?: Function }>} */
 let adapters = DEFAULT_ADAPTERS.slice();
 
 /**
@@ -78,6 +79,33 @@ async function readUsageByPid(procs) {
   return out;
 }
 
+/** Report bounded, allowlisted collection health independently of usage deltas.
+ * @returns {Array<{adapter: string, state: string, reason: string|null, retryAt: number|null}>} @since 0.19.2
+ */
+function getCollectionStatus() {
+  return adapters.flatMap((adapter) => {
+    if (!KNOWN_ADAPTER_IDS.has(adapter.id) || typeof adapter.getCollectionStatus !== 'function')
+      return [];
+    try {
+      const status = adapter.getCollectionStatus();
+      if (status?.state !== 'storage-paused')
+        return [{ adapter: adapter.id, state: 'ready', reason: null, retryAt: null }];
+      return [
+        {
+          adapter: adapter.id,
+          state: 'storage-paused',
+          reason: status.reason === 'capacity' ? 'capacity' : 'unavailable',
+          retryAt: Number.isFinite(status.retryAt) ? status.retryAt : null,
+        },
+      ];
+    } catch {
+      return [
+        { adapter: adapter.id, state: 'storage-paused', reason: 'unavailable', retryAt: null },
+      ];
+    }
+  });
+}
+
 /** @internal Swap the adapter registry (tests). @param {Array} arr */
 function _setAdaptersForTest(arr) {
   adapters = arr;
@@ -89,4 +117,4 @@ function _resetForTest() {
   for (const a of DEFAULT_ADAPTERS) if (typeof a._resetForTest === 'function') a._resetForTest();
 }
 
-module.exports = { readUsageByPid, _setAdaptersForTest, _resetForTest };
+module.exports = { readUsageByPid, getCollectionStatus, _setAdaptersForTest, _resetForTest };

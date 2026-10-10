@@ -16,7 +16,7 @@ const resourceSampler = createResourceSampler((targets) =>
 );
 let resourceScanGeneration = 0;
 const tokenTracker = require('./token-tracker');
-const { collectTokenCosts } = require('./token-cost-collector');
+const { collectTokenCosts, getTokenCostDelivery } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { identify } = require('./process-identity');
@@ -943,7 +943,7 @@ async function doProcessScan() {
         resourceGeneration === resourceScanGeneration &&
         (!gapBefore || deps.observationGap.snapshot().suspendCount === gapBefore.suspendCount),
     );
-    sendToRenderer('token-costs', tokenTracker.getAllCosts());
+    sendToRenderer('token-costs', getTokenCostDelivery());
 
     // Per-agent CPU/RAM/GPU is fetched fire-and-forget AFTER the batch so its
     // spawn (~0.4–8s, 5s-cached) never delays getting agents on screen. The

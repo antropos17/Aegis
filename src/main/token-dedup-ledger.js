@@ -52,7 +52,7 @@ function reserve(file) {
 /** Create a fresh index for this application run. A poisoned transaction cannot emit usage.
  * SQLite's page limit bounds the file; its 2 MiB cache target is not a total RAM limit.
  * @param {{file: string, maxBytes?: number}} options Cache path; :memory: is test-only.
- * @returns {{begin: Function, commit: Function, rollback: Function, withSession: Function, isFailed: Function, close: Function}}
+ * @returns {{begin: Function, commit: Function, rollback: Function, withSession: Function, isFailed: Function, failureReason: Function, close: Function}}
  * @since 0.18.2
  */
 function createLedger({ file, maxBytes = MAX_BYTES }) {
@@ -63,6 +63,7 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
   const identity = file === ':memory:' ? null : reserve(file);
   let db;
   let failed = false;
+  let failureReason = null;
   let transaction = false;
   let closed = false;
   try {
@@ -99,6 +100,9 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
       return operation();
     } catch (error) {
       failed = true;
+      // Node SQLite exposes the primary result code even for extended failures.
+      // Keep the public reason content-free: error messages can contain paths.
+      failureReason = (error.errcode & 0xff) === 13 ? 'capacity' : 'unavailable';
       throw error;
     }
   };
@@ -109,6 +113,7 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
     begin() {
       if (transaction) return;
       failed = false;
+      failureReason = null;
       guarded(() => db.exec('BEGIN'));
       transaction = true;
     },
@@ -128,8 +133,10 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
       }
       transaction = false;
       failed = false;
+      failureReason = null;
     },
     isFailed: () => failed,
+    failureReason: () => failureReason,
     withSession(sessionId, read) {
       ledger.begin();
       guarded(() => db.exec('SAVEPOINT proc'));

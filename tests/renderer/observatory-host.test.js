@@ -75,6 +75,26 @@ function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({}), settin
 }
 
 describe('Observatory host boundary', () => {
+  it('keeps measured totals and explicit collection pause together, including recovery and legacy arrays', () => {
+    const run = setup();
+    const records = [{ instanceId: '123:1', totalTokens: 20 }];
+    const paused = [
+      { adapter: 'claude-code', state: 'storage-paused', reason: 'capacity', retryAt: 30000 },
+    ];
+    run.listeners.onTokenCosts({ records, collection: paused });
+    expect(run.current.tokens).toEqual(records);
+    expect(run.current.tokenCollection).toEqual(paused);
+    run.listeners.onTokenCosts({
+      records,
+      collection: [{ adapter: 'claude-code', state: 'ready', reason: null, retryAt: null }],
+    });
+    expect(run.current.tokenCollection[0].state).toBe('ready');
+    expect(run.current.tokens).toEqual(records);
+    run.listeners.onTokenCosts(records);
+    expect(run.current.tokens).toEqual(records);
+    expect(run.current.tokenCollection).toEqual([]);
+    run.dispose();
+  });
   it('does not let a delayed seed overwrite a newer batch', async () => {
     const seed = deferred();
     const run = setup(seed.promise);

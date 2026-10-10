@@ -17,6 +17,53 @@ const state = () => ({
     { instanceId: '2:new', cpu: 70, memMb: 700 },
   ],
 });
+
+it('renders unavailable throughput through storage pause and backlog recovery before accepting a new live interval', async () => {
+  vi.useFakeTimers();
+  try {
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const first = {
+      ...state(),
+      agents: [{ agent: 'Claude Code', pid: 1, instanceId: '1:new', process: 'claude' }],
+      tokensAt: start,
+      tokens: [{ instanceId: '1:new', totalTokens: 10 }],
+    };
+    const { container, rerender } = render(Statistics, {
+      telemetry: first,
+      inspect: vi.fn(),
+      sectionRequest: { id: 'tokens', revision: 1 },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: /Token arrival rate/ }));
+    const readout = () => container.querySelector('.monitor-detail .current');
+    const deliver = async (totalTokens, paused) => {
+      await vi.advanceTimersByTimeAsync(5000);
+      await rerender({
+        telemetry: {
+          ...first,
+          tokensAt: Date.now(),
+          tokens: [{ instanceId: '1:new', totalTokens }],
+          tokenCollection: paused
+            ? [{ adapter: 'claude-code', state: 'storage-paused', reason: 'capacity' }]
+            : [],
+        },
+        inspect: vi.fn(),
+      });
+    };
+    await deliver(15, false);
+    expect(readout()).toHaveTextContent('60');
+    await deliver(15, true);
+    expect(readout()).toHaveTextContent('—');
+    await deliver(15, true);
+    expect(readout()).toHaveTextContent('—');
+    await deliver(1015, false);
+    expect(readout()).toHaveTextContent('—');
+    await deliver(1020, false);
+    expect(readout()).toHaveTextContent('60');
+  } finally {
+    vi.useRealTimers();
+  }
+});
 it('changes chart scope, preserves it across sections and does not select a recycled process', async () => {
   const telemetry = state();
   const { container, rerender } = render(Statistics, { telemetry, inspect: vi.fn() });

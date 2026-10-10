@@ -116,4 +116,11 @@ async function collectTokenCosts(agents) {
   return deltas;
 }
 
-module.exports = { collectTokenCosts };
+/** Retained measured totals and independent collection health for the existing push.
+ * @returns {{records: Array, collection: Array}} @since 0.19.2
+ */
+function getTokenCostDelivery() {
+  return { records: tokenTracker.getAllCosts(), collection: tokenFeed.getCollectionStatus() };
+}
+
+module.exports = { collectTokenCosts, getTokenCostDelivery };

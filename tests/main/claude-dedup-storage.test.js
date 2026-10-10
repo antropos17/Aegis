@@ -21,6 +21,8 @@ const usage = (id, input = 1) =>
 
 function fixture(maxBytes = 128 * 1024 * 1024) {
   adapter._resetForTest();
+  let clock = 1000;
+  adapter._setNowForTest(() => clock);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-dedup-test-'));
   directories.push(dir);
   const file = path.join(dir, 'index.sqlite');
@@ -50,7 +52,10 @@ function fixture(maxBytes = 128 * 1024 * 1024) {
     readdirSync: () => ['agent-private.jsonl'],
   });
   const read = () => adapter.readUsage([{ pid: 7, startTime: startedAt }]);
-  return { file, dir, files, transcript, sub, read, warnings, register };
+  const advanceRetry = () => {
+    clock += 30000;
+  };
+  return { file, dir, files, transcript, sub, read, warnings, register, advanceRetry };
 }
 
 afterEach(() => {
@@ -104,6 +109,7 @@ it('rolls back main and swallowed subagent writes at the disk cap, then retries 
   expect(f.warnings.mock.calls[0][2]).toEqual({ error: 'dedup-batch-not-committed' });
   // Storage can accommodate this smaller batch; its main IDs/cursor were rolled back too.
   f.files.set(f.sub, usage('original', 11) + usage('sub-new', 7));
+  f.advanceRetry();
   expect((await f.read()).map((d) => d.inputTokens)).toEqual([5, 7]);
   expect(await f.read()).toEqual([]);
 });
@@ -119,6 +125,7 @@ it('emits nothing when commit is blocked and retries the uncommitted IDs exactly
     f.files.set(f.transcript, usage('original', 11) + usage('retry-after-commit', 7));
     expect(await f.read()).toEqual([]);
     reader.exec('ROLLBACK');
+    f.advanceRetry();
     expect(await f.read()).toMatchObject([{ inputTokens: 7 }]);
     expect(await f.read()).toEqual([]);
   } finally {
@@ -166,6 +173,7 @@ it('postpones unavailable-index usage without warning growth or an unsafe in-mem
   expect(f.warnings).toHaveBeenCalledOnce();
   expect(fs.readFileSync(f.file, 'utf8')).toBe('FOREIGN-USER-FILE');
   fs.unlinkSync(f.file); // Remove this test's exact foreign-file fixture.
+  f.advanceRetry();
   expect(await f.read()).toMatchObject([{ inputTokens: 11, estimated: false }]);
   expect(await f.read()).toEqual([]);
 });

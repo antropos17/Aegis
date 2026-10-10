@@ -114,6 +114,16 @@ interface TokenCostRecord {
   readonly models: string[];
 }
 
+interface TokenCostDelivery {
+  readonly records: TokenCostRecord[];
+  readonly collection: readonly {
+    adapter: string;
+    state: 'ready' | 'storage-paused';
+    reason: 'capacity' | 'unavailable' | null;
+    retryAt: number | null;
+  }[];
+}
+
 /**
  * One monitored agent's sampled load, pushed on the `agent-resource-usage` channel.
  * Mirrors `AgentResourceRecord` in the main process (resource-monitor.js).
@@ -154,7 +164,7 @@ interface AegisIpcBridge {
   onStatsUpdate(cb: (data: Record<string, unknown>) => void): void;
   onNetworkUpdate(cb: (data: NetworkConnection[]) => void): void;
   onScanStatus(cb: (data: ScanStatusData) => void): void;
-  onTokenCosts(cb: (data: TokenCostRecord[]) => void): void;
+  onTokenCosts(cb: (data: TokenCostRecord[] | TokenCostDelivery) => void): void;
   onAgentResourceUsage(cb: (data: AgentResourceRecord[]) => void): void;
   getStats(): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
@@ -424,7 +434,9 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
     network.set(arr.length > 500 ? arr.slice(-500) : arr);
   });
   window.aegis!.onScanStatus((data) => scanActive.set(data?.scanning ?? false));
-  window.aegis!.onTokenCosts((data) => tokenCosts.set(Array.isArray(data) ? data : []));
+  window.aegis!.onTokenCosts((data) =>
+    tokenCosts.set(Array.isArray(data) ? data : Array.isArray(data?.records) ? data.records : []),
+  );
   // Replace, never merge: a record kept past its push would keep drawing a number for an
   // instance the monitor has stopped reporting.
   window.aegis!.onAgentResourceUsage((data) =>

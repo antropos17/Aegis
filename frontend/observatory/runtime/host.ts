@@ -26,6 +26,7 @@ export interface Telemetry {
   stats: RecordData;
   resources: RecordData[];
   tokens: RecordData[];
+  tokenCollection: RecordData[];
   resourcesAt: number | null;
   tokensAt: number | null;
   ownAt: number | null;
@@ -87,6 +88,7 @@ export function emptyTelemetry(): Telemetry {
     stats: {},
     resources: [],
     tokens: [],
+    tokenCollection: [],
     resourcesAt: null,
     tokensAt: null,
     ownAt: null,
@@ -304,7 +306,14 @@ export function connectHost(
       resourcesAt: Date.now(),
     }),
   );
-  subscribe('onTokenCosts', (value) => update({ tokens: records(value), tokensAt: Date.now() }));
+  subscribe('onTokenCosts', (value) => {
+    const delivery = record(value);
+    update({
+      tokens: records(Array.isArray(value) ? value : delivery.records),
+      tokenCollection: records(delivery.collection),
+      tokensAt: Date.now(),
+    });
+  });
   const seed = (
     method: string,
     revision: string,
