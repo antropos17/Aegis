@@ -42,8 +42,14 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         path.join(project, 'tests/fixtures/session-enrollment/EnrollmentFixture.cs'),
       ]);
       compile(executable, [
-        ...common,
-        ...['Program.cs', 'Protocol.cs'].map((file) => path.join(project, 'sidecar/session', file)),
+        '/reference:System.Management.dll',
+        '/reference:System.Security.dll',
+        ...fs
+          .readdirSync(path.join(project, 'sidecar/session'))
+          .filter((name) => name.endsWith('.cs'))
+          .sort()
+          .map((name) => path.join(project, 'sidecar/session', name)),
+        path.join(project, 'sidecar/mcpjob/AppContainerExecutable.cs'),
       ]);
     }, 65000);
 

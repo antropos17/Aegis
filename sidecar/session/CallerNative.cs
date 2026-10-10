@@ -36,6 +36,13 @@ namespace Aegis.ProtectedSession
                 GetCurrentProcess(), held, GetCurrentProcess(), out duplicate, 0, false, 2));
             return duplicate;
         }
+        internal static SafeFileHandle DuplicateSelf()
+        {
+            SafeFileHandle duplicate;
+            // Self is the native pseudo handle only here; imported/wire handles still reject -1.
+            Require(DuplicateHandle(GetCurrentProcess(), GetCurrentProcess(), GetCurrentProcess(), out duplicate, 0, false, 2));
+            return duplicate;
+        }
 
         internal static SafeFileHandle ProcessToken(SafeFileHandle process)
         {

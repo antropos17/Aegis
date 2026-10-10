@@ -6,7 +6,7 @@ using Microsoft.Win32.SafeHandles;
 namespace Aegis.ProtectedSession
 {
     // Internal native-code seam; no wire-selected handles, commands or policy.
-    internal class CallerLauncherNative
+    internal partial class CallerLauncherNative
     {
         [StructLayout(LayoutKind.Sequential)] private struct Startup
         {
@@ -18,6 +18,11 @@ namespace Aegis.ProtectedSession
         }
         [StructLayout(LayoutKind.Sequential)] private struct ExtendedStartup
         { internal Startup Startup; internal IntPtr Attributes; }
+        [StructLayout(LayoutKind.Sequential)] private struct SecurityAttributes
+        { internal int Length; internal IntPtr Descriptor; internal int Inherit; }
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string text, uint revision, out IntPtr descriptor, out uint bytes);
+        [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr allocation);
         [StructLayout(LayoutKind.Sequential)] internal struct ProcessInformation
         { internal IntPtr Process, Thread; internal uint Pid, Tid; }
         [StructLayout(LayoutKind.Sequential)] private struct BasicLimits
@@ -44,6 +49,10 @@ namespace Aegis.ProtectedSession
         }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern bool CreateProcess(string image, StringBuilder command,
+            IntPtr processSecurity, IntPtr threadSecurity, bool inherit, uint flags,
+            IntPtr environment, string directory, ref ExtendedStartup startup, out ProcessInformation result);
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CreateProcessAsUser(SafeFileHandle token, string image, StringBuilder command,
             IntPtr processSecurity, IntPtr threadSecurity, bool inherit, uint flags,
             IntPtr environment, string directory, ref ExtendedStartup startup, out ProcessInformation result);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -88,10 +97,20 @@ namespace Aegis.ProtectedSession
         internal Created CreateWithInput(string image, SafeFileHandle input)
         { return CreateCore(image, input); }
 
-        private Created CreateCore(string image, SafeFileHandle input)
+        // Fixed installed roles only. The owner keeps the token; it is never inherited.
+        internal Created CreateInstalled(string image, SafeFileHandle token, SafeFileHandle input,
+            SafeFileHandle output, bool controller)
+        {
+            CallerNative.Require(input != null && token != null && (controller ? output == null : output != null));
+            return CreateCore(image, input, output, token, controller ? "--installed-main" : "--installed-owner-session", true);
+        }
+
+        private Created CreateCore(string image, SafeFileHandle input, SafeFileHandle output = null,
+            SafeFileHandle token = null, string fixedArgument = null, bool installedSecurity = false)
         {
             SafeFileHandle job = CreateJobObject(IntPtr.Zero, null);
-            IntPtr list = IntPtr.Zero, jobList = IntPtr.Zero;
+            IntPtr list = IntPtr.Zero, jobList = IntPtr.Zero, environment = IntPtr.Zero;
+            IntPtr descriptor = IntPtr.Zero, processSecurity = IntPtr.Zero, desktop = IntPtr.Zero;
             bool initialized = false, transferred = false;
             try
             {
@@ -106,7 +125,7 @@ namespace Aegis.ProtectedSession
                 CallerNative.Require(!queried && Marshal.GetLastWin32Error() == 122 && size.ToInt64() > 0 && size.ToInt64() <= 65536);
                 list = Marshal.AllocHGlobal(size);
                 CallerNative.Require(InitializeProcThreadAttributeList(list, count, 0, ref size)); initialized = true;
-                jobList = Marshal.AllocHGlobal(IntPtr.Size * count); Marshal.WriteIntPtr(jobList, job.DangerousGetHandle());
+                jobList = Marshal.AllocHGlobal(IntPtr.Size * 3); Marshal.WriteIntPtr(jobList, job.DangerousGetHandle());
                 // PROC_THREAD_ATTRIBUTE_JOB_LIST binds containment atomically at creation.
                 CallerNative.Require(UpdateProcThreadAttribute(list, 0, new IntPtr(0x0002000D),
                     jobList, new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero));
@@ -117,18 +136,51 @@ namespace Aegis.ProtectedSession
                     uint flags;
                     CallerNative.Require(!input.IsClosed && !input.IsInvalid && GetHandleInformation(input, out flags) && (flags & 1) == 1);
                     Marshal.WriteIntPtr(jobList, IntPtr.Size, input.DangerousGetHandle());
+                    if (output != null)
+                    {
+                        CallerNative.Require(!output.IsClosed && !output.IsInvalid && GetHandleInformation(output, out flags) && (flags & 1) == 1);
+                        Marshal.WriteIntPtr(jobList, IntPtr.Size * 2, output.DangerousGetHandle());
+                    }
                     CallerNative.Require(UpdateProcThreadAttribute(list, 0, new IntPtr(0x00020002),
-                        IntPtr.Add(jobList, IntPtr.Size), new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero));
+                        IntPtr.Add(jobList, IntPtr.Size), new IntPtr(IntPtr.Size * (output == null ? 1 : 2)), IntPtr.Zero, IntPtr.Zero));
                     startup.Startup.Flags = 0x100; // STARTF_USESTDHANDLES; exactly one input, no output/error channel.
                     startup.Startup.Input = input.DangerousGetHandle();
-                    startup.Startup.Output = startup.Startup.Error = new IntPtr(-1);
+                    startup.Startup.Output = output == null ? new IntPtr(-1) : output.DangerousGetHandle();
+                    startup.Startup.Error = new IntPtr(-1);
                 }
                 ProcessInformation result;
                 // CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT.
                 // Ordinary creation disables inheritance; opt-in creation uses only its explicit handle allowlist.
-                CallerNative.Require(CreateProcess(image, new StringBuilder("\"" + image + "\""),
-                    IntPtr.Zero, IntPtr.Zero, input != null, 0x00000004 | 0x08000000 | 0x00080000,
-                    IntPtr.Zero, System.IO.Path.GetDirectoryName(image), ref startup, out result));
+                var command = new StringBuilder("\"" + image + "\"" + (fixedArgument == null ? "" : " " + fixedArgument));
+                uint creation = 0x00000004 | 0x08000000 | 0x00080000;
+                if (fixedArgument != null)
+                {
+                    // A controlled Unicode environment excludes inherited CLR/profiler/loader variables.
+                    string windows = System.IO.Directory.GetParent(Environment.SystemDirectory).FullName;
+                    environment = Marshal.StringToHGlobalUni("PATH=" + Environment.SystemDirectory + "\0SystemRoot=" + windows + "\0\0");
+                    creation |= 0x400;
+                }
+                if (installedSecurity)
+                {
+                    // Empty selects the target logon's noninteractive station, without inheriting SYSTEM's desktop.
+                    desktop = Marshal.StringToHGlobalUni(""); startup.Startup.Desktop = desktop;
+                    uint bytes;
+                    CallerNative.Require(ConvertStringSecurityDescriptorToSecurityDescriptor("O:SYG:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)", 1, out descriptor, out bytes));
+                    var attributes = new SecurityAttributes { Length = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor, Inherit = 0 };
+                    processSecurity = Marshal.AllocHGlobal(attributes.Length); Marshal.StructureToPtr(attributes, processSecurity, false);
+                }
+                bool made;
+                if (fixedArgument == null)
+                    made = CreateProcess(image, command,
+                        IntPtr.Zero, IntPtr.Zero, input != null, 0x00000004 | 0x08000000 | 0x00080000,
+                        IntPtr.Zero, System.IO.Path.GetDirectoryName(image), ref startup, out result);
+                else
+                    made = token == null
+                        ? CreateProcess(image, command, processSecurity, processSecurity, input != null, creation,
+                            environment, System.IO.Path.GetDirectoryName(image), ref startup, out result)
+                        : CreateProcessAsUser(token, image, command, processSecurity, processSecurity, true, creation,
+                            environment, System.IO.Path.GetDirectoryName(image), ref startup, out result);
+                CallerNative.Require(made);
                 var created = new Created(result, job); transferred = true; return created;
             }
             finally
@@ -136,6 +188,10 @@ namespace Aegis.ProtectedSession
                 if (initialized) DeleteProcThreadAttributeList(list);
                 if (jobList != IntPtr.Zero) Marshal.FreeHGlobal(jobList);
                 if (list != IntPtr.Zero) Marshal.FreeHGlobal(list);
+                if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
+                if (desktop != IntPtr.Zero) Marshal.FreeHGlobal(desktop);
+                if (processSecurity != IntPtr.Zero) Marshal.FreeHGlobal(processSecurity);
+                if (descriptor != IntPtr.Zero) LocalFree(descriptor);
                 if (!transferred && job != null) job.Dispose();
             }
         }
