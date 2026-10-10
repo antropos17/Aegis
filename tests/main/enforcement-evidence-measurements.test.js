@@ -52,6 +52,20 @@ it('refuses missing or invalid measurements rather than replacing them with zero
   }
 });
 
+it('requires each numeric pair identity once in both arms while preserving sample order', () => {
+  const ordered = corpus();
+  const samples = [ordered[5], ordered[1], ordered[3], ordered[0], ordered[4], ordered[2]];
+  expect(summarizeEvidenceMeasurements(samples).samples).toEqual(samples);
+
+  for (const arm of ['direct', 'gateway']) {
+    for (const pair of [1, undefined, '0', -1, 0.5, 3]) {
+      const invalid = corpus();
+      invalid.find((row) => row.arm === arm && row.pair === 0).pair = pair;
+      expect(() => summarizeEvidenceMeasurements(invalid)).toThrow('measurement-corpus-invalid');
+    }
+  }
+});
+
 it('measures the awaited operation and propagates unexpected execution failure', async () => {
   const row = await measureEvidenceScenario(async () => ({ completed: true }));
   expect(row.result).toEqual({ completed: true });
