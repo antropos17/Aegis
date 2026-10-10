@@ -41,6 +41,77 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       );
     }, 35000);
 
+    it('retains canonical stage-2 private-pipe diagnostics in a failed attempt without cleanup authority', () => {
+      const parsed = spawnSync(fixture, ['--failure-frames'], {
+        timeout: 5000,
+        maxBuffer: 16384,
+        windowsHide: true,
+      });
+      expect(parsed.error).toBeUndefined();
+      expect(parsed.status).toBe(0);
+      expect(parsed.stderr.length).toBe(0);
+      const native = JSON.parse(parsed.stdout.toString('utf8'));
+      const receipt = path.join(root, 'failure-frames.json');
+      fs.writeFileSync(receipt, parsed.stdout);
+      const attempted = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(project, 'tests/fixtures/protected-installation/orchestration-fixture.ps1'),
+          'attempt-failure-frame',
+          receipt,
+        ],
+        { timeout: 10000, maxBuffer: 16384, windowsHide: true },
+      );
+      expect(attempted.error).toBeUndefined();
+      expect(attempted.status).toBe(0);
+      expect(attempted.stderr.length).toBe(0);
+      fs.writeFileSync(path.join(root, 'failure-frame-attempt.json'), attempted.stdout);
+      const report = JSON.parse(attempted.stdout.toString('utf8'));
+      // Both real parser output and the maintained attempt execute before the
+      // regression assertions, including the legacy parser's genuine zero.
+      expect(report).toMatchObject({
+        passed: false,
+        failedAttempt: {
+          cleanupUnknown: true,
+          checkpoint: 'attempt-validate-closure',
+          native: { supervisorStage: 2, supervisorSubstage: native.parsed.substage },
+        },
+        fixture: {
+          cleanupUnknown: true,
+          stopCalls: 0,
+          deleteCalls: 0,
+          genuinelyParsed: native.parsed,
+        },
+        installation: { cleanup: { state: 'unknown' } },
+      });
+      expect(native.frameBytes).toBe(104);
+      expect(native.writer).toEqual({ accepted: true, stage: 2, substage: 8 });
+      expect(native.parsed).toEqual({ accepted: true, stage: 2, substage: 8 });
+      expect(native.rows).toHaveLength(35);
+      for (const row of native.rows) {
+        for (const boundary of ['whole', 'split']) {
+          if (row.kind === 'invalid') expect(row[boundary].accepted).toBe(false);
+          else
+            expect(row[boundary]).toEqual({
+              accepted: true,
+              stage: row.expectedStage,
+              substage: row.expectedSubstage,
+            });
+        }
+      }
+      expect(report.fixture.projectionRows).toHaveLength(33);
+      for (const row of report.fixture.projectionRows) {
+        if (row.expected) expect(row.observation.supervisorSubstage).toBe(row.value);
+        else expect(row.observation).not.toHaveProperty('supervisorSubstage');
+      }
+      expect(JSON.stringify(report)).not.toMatch(
+        /unsafe|private-image|private-result|fixture-credential/,
+      );
+    }, 16000);
+
     it.each(['manufactured-owner', 'missing-eof'])(
       'refuses %s setup using actual original native handles with terminal owned cleanup',
       (mode) => {

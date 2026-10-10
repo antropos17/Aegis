@@ -20,19 +20,29 @@ namespace Aegis.ProtectedSession
         private SafeFileHandle self;
         private long birth;
         private bool closed, cleanupUnknown;
-        internal InstalledOwnerRegistration(InstalledOwnerBootstrap original)
+        internal InstalledOwnerRegistration(InstalledOwnerBootstrap original, ref int substage)
         {
-            setup = original; Policy = InstalledOwnerPolicy.Acquire();
+            substage = 1; setup = original; Policy = InstalledOwnerPolicy.Acquire();
             try
             {
+                substage = 2; // Bind the acquired policy to the original bootstrap.
                 setup.CheckPolicy(Policy);
-                using (var current = Process.GetCurrentProcess()) self = CallerNative.Duplicate(current.Handle);
+                substage = 3;
+                using (var current = Process.GetCurrentProcess())
+                { substage = 4; self = CallerNative.Duplicate(current.Handle); }
+                substage = 5; // Observe self birth through the original owned Job.
                 birth = GuestJobNative.Birth(self.DangerousGetHandle(), setup.Job.DangerousGetHandle(), CallerNative.GetProcessId(self));
+                substage = 6;
                 owner = new CallerRegistration(setup.Owner.DangerousGetHandle(), setup.Session);
+                substage = 7;
                 main = new CallerRegistration(setup.Main.DangerousGetHandle(), setup.Session);
+                substage = 8;
                 service = new InstalledOwnerService(setup.Owner);
+                substage = 9;
                 ownerImage = AppContainerExecutable.Open(System.IO.Path.Combine(InstalledOwnerPolicy.Root, "aegis-owner.exe"), Policy.OwnerSize, Policy.OwnerHash);
+                substage = 10;
                 mainImage = AppContainerExecutable.Open(System.IO.Path.Combine(InstalledOwnerPolicy.Root, "aegis-main.exe"), Policy.MainSize, Policy.MainHash);
+                substage = 11; // Compound recheck; its internal operation is not diagnosed here.
                 CheckCurrent();
             }
             catch { Dispose(); throw; }

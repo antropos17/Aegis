@@ -1,4 +1,4 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array', 'attempt-dictionary')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array', 'attempt-dictionary', 'attempt-failure-frame')][string]$Mode, [string]$FailureFrameReceipt)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($Mode -ceq 'host-script-scope') { & $PSCommandPath 'host-script-child'; return }
@@ -243,7 +243,7 @@ if ($Mode -ceq 'attempt-dictionary') {
     $result | ConvertTo-Json -Depth 10 -Compress
     return
 }
-if ($Mode -cin @('attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array')) {
+if ($Mode -cin @('attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array', 'attempt-failure-frame')) {
     # Run the maintained qualification wrapper and attempt in this child script.
     # Only OS/resource leaves are faked; native receipt mode writes one bounded
     # modeled JSON file in this process's X: TEMP and removes that exact file.
@@ -280,6 +280,20 @@ if ($Mode -cin @('attempt-status', 'attempt-native', 'attempt-missing-result', '
             $script:AttemptService.native.scope = @('installed-owner-inspection', 'unsafe arbitrary scope content')
             $script:AttemptService.native.phase = @('await-result', 'unsafe arbitrary phase content')
         }
+        if ($Mode -ceq 'attempt-failure-frame') {
+            # Consume the actual native private-pipe parser's observed row. The
+            # legacy parser reports zero; the fixture never manufactures eight.
+            $full = [IO.Path]::GetFullPath($FailureFrameReceipt)
+            $prefix = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+            $file = Get-Item -LiteralPath $full -Force
+            if (!$full.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) -or $file.Length -gt 16KB -or
+                ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'fixture-failure-frame-receipt-refused' }
+            $script:FailureFrame = [IO.File]::ReadAllText($full) | ConvertFrom-Json
+            if ($script:FailureFrame.parsed.accepted -isnot [bool] -or !$script:FailureFrame.parsed.accepted -or
+                $script:FailureFrame.parsed.stage -ne 2 -or $script:FailureFrame.parsed.substage -lt 0 -or $script:FailureFrame.parsed.substage -gt 13) { throw 'fixture-failure-frame-row-refused' }
+            $script:AttemptService.native.supervisorStage = $script:FailureFrame.parsed.stage
+            $script:AttemptService.native.supervisorSubstage = $script:FailureFrame.parsed.substage
+        }
     }
     function Assert-ProtectedInstallAdministrator { }
     function Initialize-ProtectedInstallNative { }
@@ -309,6 +323,20 @@ if ($Mode -cin @('attempt-status', 'attempt-native', 'attempt-missing-result', '
         }
     }
     $report.fixture = @{ cleanupUnknown = $script:AttemptAssociation.cleanupUnknown; stopCalls = $script:AttemptService.stopCalls; deleteCalls = $script:AttemptService.deleteCalls }
+    if ($Mode -ceq 'attempt-failure-frame' -or $Mode -ceq 'attempt-native') {
+        $rows = [Collections.Generic.List[object]]::new()
+        foreach ($number in 0..13) { $rows.Add(@{ expected = $true; value = $number; observation = Get-InstalledOwnerAttemptObservation @{ supervisorStage = 2; supervisorSubstage = $number } 'native' }) }
+        foreach ($value in @(-1, 14, '8', 8.5, $true, @('8', 'unsafe substage content'), $null, @(8), @('8'), @($true))) {
+            $rows.Add(@{ expected = $false; observation = Get-InstalledOwnerAttemptObservation @{ supervisorStage = 2; supervisorSubstage = $value } 'native' })
+        }
+        foreach ($stage in @(0, 1, 3, '2', 2.5, @('2', 'unsafe stage content'), @(2))) {
+            $rows.Add(@{ expected = $false; observation = Get-InstalledOwnerAttemptObservation @{ supervisorStage = $stage; supervisorSubstage = 8 } 'native' })
+        }
+        $rows.Add(@{ expected = $false; observation = Get-InstalledOwnerAttemptObservation @{ supervisorStage = 2 } 'native' })
+        $rows.Add(@{ expected = $false; observation = Get-InstalledOwnerAttemptObservation @{ supervisorStage = 3; supervisorSubstage = 0 } 'native' })
+        $report.fixture.projectionRows = $rows.ToArray()
+    }
+    if ($Mode -ceq 'attempt-failure-frame') { $report.fixture.genuinelyParsed = $script:FailureFrame.parsed }
     $report | ConvertTo-Json -Depth 20 -Compress
     return
 }

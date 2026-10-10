@@ -35,8 +35,8 @@ function Get-InstalledOwnerReceiptPaths($Association) {
 }
 function Get-InstalledOwnerObservedField($Value, [string]$Field) {
     if ($null -eq $Value) { return $null }
-    if ($Value -is [Collections.IDictionary]) { if ($Value.Keys -ccontains $Field) { return $Value[$Field] }; return $null }
-    $property = $Value.PSObject.Properties[$Field]; if ($null -ne $property) { return $property.Value }; return $null
+    if ($Value -is [Collections.IDictionary]) { if ($Value.Keys -ccontains $Field) { return ,$Value[$Field] }; return $null }
+    $property = $Value.PSObject.Properties[$Field]; if ($null -ne $property) { return ,$property.Value }; return $null
 }
 function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'native')][string]$Kind) {
     if ($null -eq $Value) { return $null }
@@ -53,6 +53,9 @@ function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'nat
     $hex = if ($Kind -ceq 'owner') { @{ authentication = 16 } } else { @{ ownerAuthentication = 16; operatorAuthentication = 16; ownerBirth = 16; supervisorBirth = 16; mainBirth = 16; installId = 32; epoch = 32; ownerImageSha256 = 64; supervisorImageSha256 = 64; mainImageSha256 = 64 } }
     foreach ($field in $hex.Keys) { $v = Get-InstalledOwnerObservedField $Value $field; if ($v -is [string] -and $v -cmatch ('^[a-f0-9]{' + $hex[$field] + '}$')) { $result[$field] = $v } }
     if ($Kind -ceq 'native') {
+        $v = Get-InstalledOwnerObservedField $Value 'supervisorSubstage'
+        if ($result.ContainsKey('supervisorStage') -and $result.supervisorStage -eq 2 -and
+            ($v -is [int] -or $v -is [long] -or $v -is [uint32]) -and $v -ge 0 -and $v -le 13) { $result.supervisorSubstage = $v }
         $v = Get-InstalledOwnerObservedField $Value 'scope'; if ($v -is [string] -and $v -ceq 'installed-owner-inspection') { $result.scope = $v }
         $v = Get-InstalledOwnerObservedField $Value 'phase'
         if ($v -is [string] -and $v -cin @('acquire-owner', 'operator-token', 'create-children', 'publish-main', 'supply-supervisor', 'await-completion', 'supply-main', 'await-result', 'confirm-result', 'complete')) { $result.phase = $v }

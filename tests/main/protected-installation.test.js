@@ -287,6 +287,11 @@ describe.skipIf(process.platform !== 'win32')(
       expect(JSON.stringify(native)).not.toMatch(
         /unsafe|private-image|private-result|fixture-credential/,
       );
+      expect(native.fixture.projectionRows).toHaveLength(33);
+      for (const row of native.fixture.projectionRows) {
+        if (row.expected) expect(row.observation.supervisorSubstage).toBe(row.value);
+        else expect(row.observation).not.toHaveProperty('supervisorSubstage');
+      }
       const missing = orchestration('attempt-missing-result');
       expect(missing).toMatchObject({
         passed: false,

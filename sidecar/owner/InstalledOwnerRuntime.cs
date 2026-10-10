@@ -27,7 +27,7 @@ namespace Aegis.InstalledOwner
         private uint supervisorPid, mainPid;
         private long ownerBirth, supervisorBirth, mainBirth;
         private string phase = "acquire-owner";
-        private uint supervisorStage;
+        private uint supervisorStage, supervisorSubstage;
         private bool producerReady, bootstrapWritten, bootstrapEof, supervisorReleased, mainReleased;
         private uint supervisorExitCode = 259;
 
@@ -75,8 +75,9 @@ namespace Aegis.InstalledOwner
                 }
                 phase = "await-completion";
                 string completion = Encoding.ASCII.GetString(InstalledOwnerPipe.ReadExact(supervisorOutput.Read, 104, deadline));
-                if (Regex.IsMatch(completion, "\\AAEGISF02[a-f0-9]{96}\\z"))
-                { supervisorStage = Convert.ToUInt32(completion.Substring(8, 8), 16); CallerNative.Require(false); }
+                uint failureStage, failureSubstage;
+                if (InstalledOwnerSession.TryReadFailureFrame(completion, out failureStage, out failureSubstage))
+                { supervisorStage = failureStage; supervisorSubstage = failureSubstage; CallerNative.Require(false); }
                 CallerNative.Require(Regex.IsMatch(completion, "\\AAEGISC02[a-f0-9]{96}\\z"));
                 lock (gate)
                 {
@@ -93,7 +94,11 @@ namespace Aegis.InstalledOwner
                 phase = "await-result";
                 string header = Encoding.ASCII.GetString(InstalledOwnerPipe.ReadExact(supervisorOutput.Read, 16, deadline));
                 if (Regex.IsMatch(header, "\\AAEGISF02[a-f0-9]{8}\\z"))
-                { supervisorStage = Convert.ToUInt32(header.Substring(8), 16); InstalledOwnerPipe.ReadExact(supervisorOutput.Read, 88, deadline); CallerNative.Require(false); }
+                {
+                    string suffix = Encoding.ASCII.GetString(InstalledOwnerPipe.ReadExact(supervisorOutput.Read, 88, deadline));
+                    CallerNative.Require(InstalledOwnerSession.TryReadFailureFrame(header + suffix, out failureStage, out failureSubstage));
+                    supervisorStage = failureStage; supervisorSubstage = failureSubstage; CallerNative.Require(false);
+                }
                 CallerNative.Require(Regex.IsMatch(header, "\\AAEGISR02[a-f0-9]{8}\\z")); int size = Convert.ToInt32(header.Substring(8), 16);
                 CallerNative.Require(size > 0 && size <= 1024);
                 string result = new UTF8Encoding(false, true).GetString(InstalledOwnerPipe.ReadExact(supervisorOutput.Read, size, deadline));
@@ -116,6 +121,7 @@ namespace Aegis.InstalledOwner
             bool success = inspection != null && observedCount == 1 && !cleanupUnknown;
             string receipt = "{\"schemaVersion\":1,\"scope\":\"installed-owner-inspection\",\"inspected\":" + (success ? "true" : "false") +
                 ",\"phase\":\"" + phase + "\",\"supervisorStage\":" + supervisorStage +
+                ",\"supervisorSubstage\":" + supervisorSubstage +
                 ",\"nativeProducerReady\":" + (producerReady ? "true" : "false") + ",\"bootstrapWriteCompleted\":" + (bootstrapWritten ? "true" : "false") +
                 ",\"bootstrapEofClosed\":" + (bootstrapEof ? "true" : "false") + ",\"supervisorReleased\":" + (supervisorReleased ? "true" : "false") +
                 ",\"mainReleased\":" + (mainReleased ? "true" : "false") + ",\"supervisorExitCode\":" + supervisorExitCode +
