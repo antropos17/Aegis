@@ -96,21 +96,49 @@ it('keeps exact shared main/subagent dedup without writing identifiers or conten
   expect(fs.readdirSync(f.dir)).toEqual([]);
 });
 
-it('rolls back main and swallowed subagent writes at the disk cap, then retries without duplicates', async () => {
+it('commits only a complete smaller main/subagent retry at the disk cap, then resumes without duplicates', async () => {
   const f = fixture(64 * 1024);
   f.files.set(f.transcript, usage('original', 11));
   expect(await f.read()).toMatchObject([{ inputTokens: 11 }]);
   f.files.set(f.transcript, usage('original', 11) + usage('main-new', 5));
   f.files.set(f.sub, Array.from({ length: 2000 }, (_, i) => usage(`large-${i}`)).join(''));
-  expect(await f.read()).toEqual([]);
+  const committed = await f.read();
+  expect(committed[0]).toMatchObject({ inputTokens: 5 });
+  expect(committed.length).toBeGreaterThan(1);
+  expect(committed.length).toBeLessThan(2001);
+  expect(committed.slice(1).every((delta) => delta.inputTokens === 1)).toBe(true);
+  const inspect = new DatabaseSync(f.file, { readOnly: true });
+  try {
+    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(
+      1 + committed.length,
+    );
+    expect(inspect.prepare('SELECT offset FROM sessions').get().offset).toBe(
+      Buffer.byteLength(f.files.get(f.transcript)),
+    );
+    const acceptedSubagentBytes = Array.from({ length: committed.length - 1 }, (_, i) =>
+      Buffer.byteLength(usage(`large-${i}`)),
+    ).reduce((sum, bytes) => sum + bytes, 0);
+    expect(inspect.prepare('SELECT offset FROM tails').get().offset).toBe(acceptedSubagentBytes);
+  } finally {
+    inspect.close();
+  }
+  expect(adapter.getCollectionStatus()).toEqual({
+    state: 'storage-paused',
+    reason: 'capacity',
+    retryAt: 31000,
+  });
   expect(fs.statSync(f.file).size).toBeLessThanOrEqual(64 * 1024);
   expect(await f.read()).toEqual([]);
   expect(f.warnings).toHaveBeenCalledOnce();
   expect(f.warnings.mock.calls[0][2]).toEqual({ error: 'dedup-batch-not-committed' });
-  // Storage can accommodate this smaller batch; its main IDs/cursor were rolled back too.
-  f.files.set(f.sub, usage('original', 11) + usage('sub-new', 7));
+  // Replay accepted IDs and a suffix ID from the failed transaction after rotation.
+  f.files.set(
+    f.sub,
+    usage('original', 11) + usage('large-0') + usage('large-1999') + usage('sub-new', 7),
+  );
   f.advanceRetry();
-  expect((await f.read()).map((d) => d.inputTokens)).toEqual([5, 7]);
+  expect((await f.read()).map((d) => d.inputTokens)).toEqual([1, 7]);
+  expect(adapter.getCollectionStatus().state).toBe('ready');
   expect(await f.read()).toEqual([]);
 });
 
