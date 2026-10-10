@@ -10,6 +10,7 @@ const LIMITS = Object.freeze({
   attempts: 16,
   concurrent: 1,
   outputTokens: 256,
+  ownerOutputTokens: 1024,
 });
 const exact = (v, fields) =>
   v &&

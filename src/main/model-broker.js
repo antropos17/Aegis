@@ -20,6 +20,7 @@ async function createBoundedModelBroker({ authority, ledger, endpointPath, model
   const expiresAt = Date.now() + LIMITS.lifetimeMs;
   let active,
     slot = 0,
+    requestedOutputTokens = 0,
     route,
     guard,
     timer,
@@ -119,8 +120,18 @@ async function createBoundedModelBroker({ authority, ledger, endpointPath, model
           ) > LIMITS.bytes
         )
           throw Error('invalid');
+        if (input.maxOutputTokens > LIMITS.ownerOutputTokens - requestedOutputTokens)
+          throw Error('invalid');
+        const reservedOutputTokens = requestedOutputTokens + input.maxOutputTokens;
         const snapshot = Buffer.from(
-          JSON.stringify({ model, route: route.identity, credentialTag, limits: LIMITS, slot }),
+          JSON.stringify({
+            model,
+            route: route.identity,
+            credentialTag,
+            limits: LIMITS,
+            slot,
+            requestedOutputTokens: reservedOutputTokens,
+          }),
         );
         const prepared = Object.freeze({
           binding: Object.freeze({
@@ -132,6 +143,7 @@ async function createBoundedModelBroker({ authority, ledger, endpointPath, model
           }),
         });
         const entry = { operationId, owned, snapshot, text: '', state: 'prepared' };
+        requestedOutputTokens = reservedOutputTokens;
         entries.set(prepared, entry);
         retained.add(entry);
         return prepared;
