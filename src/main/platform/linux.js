@@ -132,25 +132,41 @@ function parseSsOutput(stdout, pidSet) {
     const peer = parts[4]; // e.g. "1.2.3.4:443" or "[::1]:443"
     const process = parts.slice(5).join(' ');
 
-    // Extract pid from process field: users:(("name",pid=123,fd=4))
-    const pidMatch = process.match(/pid=(\d+)/);
-    if (!pidMatch) continue;
-    const pid = parseInt(pidMatch[1], 10);
-    if (!pidSet.has(pid)) continue;
+    // Consume complete owner tuples; quoted names may themselves contain pid text.
+    if (!process.startsWith('users:(') || !process.endsWith(')')) continue;
+    const owners = process.slice(7, -1);
+    const ownerPattern = /\("(?:[^"\\]|\\.)*",pid=(\d+),fd=\d+\)/y;
+    const socketPids = new Set();
+    let offset = 0;
+    while (offset < owners.length) {
+      ownerPattern.lastIndex = offset;
+      const owner = ownerPattern.exec(owners);
+      if (!owner) break;
+      const pid = Number(owner[1]);
+      if (isValidPid(pid) && pidSet.has(pid)) socketPids.add(pid);
+      offset = ownerPattern.lastIndex;
+      if (offset === owners.length) break;
+      // Require another tuple after every separator.
+      if (owners[offset] !== ',' || offset + 1 === owners.length) break;
+      offset++;
+    }
+    if (offset !== owners.length || socketPids.size === 0) continue;
 
     const remote = parseTcpEndpoint(peer);
     if (!remote) continue;
     const { ip, port } = remote;
     if (ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '::') continue;
     const local = parseTcpEndpoint(parts[3]);
-    results.push({
-      pid,
-      ip,
-      port,
-      state,
-      localIp: local?.ip ?? null,
-      localPort: local?.port ?? null,
-    });
+    for (const pid of socketPids) {
+      results.push({
+        pid,
+        ip,
+        port,
+        state,
+        localIp: local?.ip ?? null,
+        localPort: local?.port ?? null,
+      });
+    }
   }
   return results;
 }
