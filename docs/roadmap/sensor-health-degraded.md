@@ -527,15 +527,14 @@ Audit drops remain on **audit** stats path (already honest).
   `ide-extension`: process list unreadable → FAILED; a RUNNING editor whose extensions dir fails
   to read for any reason other than ENOENT/ENOTDIR → DEGRADED (those two stay a definite absence);
   otherwise HEALTHY.
-  `wsl`: non-win32, missing `wsl.exe` (ENOENT), or a successful empty distribution list →
-  UNSUPPORTED (out of the worst-of). On Windows, conclusive availability answers expire
-  after 60 s so a later installation/removal is observed without restarting AEGIS. A retry
-  after UNSUPPORTED starts a fresh health record. Any other failed availability probe,
-  including a numeric non-zero exit, → DEGRADED and is **not cached**: an exit status alone
-  cannot establish that no distribution is installed. This also means an unconfigured WSL
-  executable that rejects the command is reported as an inconclusive probe, rather than
-  assumed absent. The next refresh asks again. WSL present but its process list unreadable
-  or empty → DEGRADED; a list that was read → HEALTHY.
+  `wsl`: guest-process detection is UNSUPPORTED on Windows with detail
+  `wsl-process-coverage-unavailable`, and UNSUPPORTED on other platforms with detail
+  `platform-no-wsl`. The former is an explicit coverage gap, not evidence that WSL is absent
+  or that no agents run inside it. Automatic `wsl.exe -e ps` was removed because it could
+  start a stopped default distribution. A separate host-side running-distribution inventory
+  reports its own pending, ready, unavailable and retained states; it never contributes
+  guest agents or changes the process-sensor health leaf. A successful empty inventory
+  establishes only that no running distribution was observed on that pass.
   `llm-ollama` / `llm-lmstudio`: one record per PROBE, because the two run concurrently under one
   `Promise.all` and a shared record would let the definite answer overwrite the uncertain one.
   ECONNREFUSED and a completed response that is not this runtime's JSON are definite negatives

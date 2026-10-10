@@ -662,17 +662,14 @@ describe('scan-loop', () => {
     });
   });
 
-  // ── external-agent injection (IDE-extension + WSL) ──
+  // ── IDE-extension injection and legacy WSL guest-agent exclusion ──
 
   describe('external-agent injection into scan-batch', () => {
     it('passes only a reliable current process map to the IDE detector', async () => {
       const ide = require_('../../src/main/ide-extension-detector.js');
-      const wsl = require_('../../src/main/wsl-detector.js');
       const origIde = ide.getCachedExtensionAgents;
-      const origWsl = wsl.getCachedWslAgents;
       const getCachedExtensionAgents = vi.fn().mockReturnValue([]);
       ide.getCachedExtensionAgents = getCachedExtensionAgents;
-      wsl.getCachedWslAgents = () => [];
       try {
         const processMap = new Map([[100, { name: 'Code.exe' }]]);
         const deps = makeDeps({
@@ -692,7 +689,6 @@ describe('scan-loop', () => {
         expect(getCachedExtensionAgents).toHaveBeenLastCalledWith(undefined);
       } finally {
         ide.getCachedExtensionAgents = origIde;
-        wsl.getCachedWslAgents = origWsl;
       }
     });
 
@@ -701,12 +697,9 @@ describe('scan-loop', () => {
       ['during working-directory lookup', [0, 0, 1]],
     ])('does not reuse a process map after system sleep %s', async (_phase, suspendCounts) => {
       const ide = require_('../../src/main/ide-extension-detector.js');
-      const wsl = require_('../../src/main/wsl-detector.js');
       const origIde = ide.getCachedExtensionAgents;
-      const origWsl = wsl.getCachedWslAgents;
       const getCachedExtensionAgents = vi.fn().mockReturnValue([]);
       ide.getCachedExtensionAgents = getCachedExtensionAgents;
-      wsl.getCachedWslAgents = () => [];
       try {
         const processMap = new Map([[100, { name: 'Code.exe' }]]);
         let observation = 0;
@@ -731,15 +724,12 @@ describe('scan-loop', () => {
         expect(getCachedExtensionAgents).toHaveBeenCalledWith(undefined);
       } finally {
         ide.getCachedExtensionAgents = origIde;
-        wsl.getCachedWslAgents = origWsl;
       }
     });
 
-    it('injects cached detector agents into the scan-batch payload before sending', async () => {
+    it('injects cached IDE-extension agents into the scan-batch payload before sending', async () => {
       const ide = require_('../../src/main/ide-extension-detector.js');
-      const wsl = require_('../../src/main/wsl-detector.js');
       const origIde = ide.getCachedExtensionAgents;
-      const origWsl = wsl.getCachedWslAgents;
       const synthetic = {
         agent: 'Kilo Code',
         process: 'code.exe',
@@ -750,7 +740,6 @@ describe('scan-loop', () => {
         detectionMethod: 'ide-extension',
       };
       ide.getCachedExtensionAgents = () => [synthetic];
-      wsl.getCachedWslAgents = () => [];
       try {
         const sendToRenderer = vi.fn();
         const mockDeps = {
@@ -798,6 +787,39 @@ describe('scan-loop', () => {
         expect(names).toContain('Kilo Code');
       } finally {
         ide.getCachedExtensionAgents = origIde;
+      }
+    });
+
+    it('excludes a monkey-patched stale WSL guest-agent cache from scan-batch', async () => {
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const origWsl = wsl.getCachedWslAgents;
+      const getCachedWslAgents = vi.fn().mockReturnValue([
+        {
+          agent: 'opencode',
+          process: 'node',
+          pid: 0,
+          status: 'running',
+          category: 'ai',
+          parentEditor: 'WSL',
+          host: 'wsl',
+          wslPid: 4318,
+          detectionMethod: 'wsl-process',
+        },
+      ]);
+      wsl.getCachedWslAgents = getCachedWslAgents;
+      try {
+        const deps = makeDeps();
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        const batchCall = deps.sendToRenderer.mock.calls.find(
+          ([channel]) => channel === 'scan-batch',
+        );
+        expect(batchCall).toBeTruthy();
+        expect(batchCall[1].agents).toEqual([]);
+        expect(deps.setAgents).toHaveBeenCalledWith([]);
+        expect(getCachedWslAgents).not.toHaveBeenCalled();
+      } finally {
         wsl.getCachedWslAgents = origWsl;
       }
     });
@@ -846,20 +868,16 @@ describe('scan-loop', () => {
     }
 
     /**
-     * Run one full process scan with both synthetic detectors stubbed, and return
+     * Run one full process scan with the IDE-extension detector stubbed, and return
      * the `scan-batch` payload.
      * @param {Array} ideAgents
-     * @param {Array} wslAgents
      * @param {boolean} [changed]
      * @returns {Promise<{batch: Object, deps: Object}>}
      */
-    async function runScanWithSynthetics(ideAgents, wslAgents, changed = false) {
+    async function runScanWithSynthetics(ideAgents, changed = false) {
       const ide = require_('../../src/main/ide-extension-detector.js');
-      const wsl = require_('../../src/main/wsl-detector.js');
       const origIde = ide.getCachedExtensionAgents;
-      const origWsl = wsl.getCachedWslAgents;
       ide.getCachedExtensionAgents = () => ideAgents;
-      wsl.getCachedWslAgents = () => wslAgents;
       try {
         const sendToRenderer = vi.fn();
         const mockDeps = makeStampingDeps(sendToRenderer, changed);
@@ -874,14 +892,13 @@ describe('scan-loop', () => {
         return { batch: batchCall[1], deps: mockDeps };
       } finally {
         ide.getCachedExtensionAgents = origIde;
-        wsl.getCachedWslAgents = origWsl;
       }
     }
 
     /**
      * Both IDE-extension agents carry the SAME `process` (the editor host exe) —
      * that is what the real detector emits, and the reason the synthetic key
-     * cannot be derived from `process`. Same for the two WSL agents' interpreter.
+     * cannot be derived from `process`.
      */
     const IDE_SYNTHETICS = [
       {
@@ -903,41 +920,13 @@ describe('scan-loop', () => {
         detectionMethod: 'ide-extension',
       },
     ];
-    const WSL_SYNTHETICS = [
-      {
-        agent: 'grok',
-        process: 'node',
-        pid: 0,
-        status: 'running',
-        category: 'ai',
-        parentEditor: 'WSL',
-        host: 'wsl',
-        wslPid: 4211,
-        detectionMethod: 'wsl-process',
-      },
-      {
-        agent: 'opencode',
-        process: 'node',
-        pid: 0,
-        status: 'running',
-        category: 'ai',
-        parentEditor: 'WSL',
-        host: 'wsl',
-        wslPid: 4318,
-        detectionMethod: 'wsl-process',
-      },
-    ];
-
     it('every agent in the scan-batch payload carries a non-empty instanceId', async () => {
-      const { batch } = await runScanWithSynthetics(
-        IDE_SYNTHETICS.map((a) => ({ ...a })),
-        WSL_SYNTHETICS.map((a) => ({ ...a })),
-      );
+      const { batch } = await runScanWithSynthetics(IDE_SYNTHETICS.map((a) => ({ ...a })));
 
       // The invariant is asserted over the WHOLE batch, and the count is pinned
       // first so a batch that lost its synthetics cannot pass vacuously
-      // (memory-bank/ai-mistakes.md#21): 2 scanned + 2 IDE + 2 WSL.
-      expect(batch.agents).toHaveLength(6);
+      // (memory-bank/ai-mistakes.md#21): 2 scanned + 2 IDE.
+      expect(batch.agents).toHaveLength(4);
       const missing = batch.agents
         .filter((a) => typeof a.instanceId !== 'string' || a.instanceId.length === 0)
         .map((a) => a.agent);
@@ -949,31 +938,20 @@ describe('scan-loop', () => {
     });
 
     it('two distinct pid-0 agents sharing a process name get distinct instanceIds', async () => {
-      const { batch } = await runScanWithSynthetics(
-        IDE_SYNTHETICS.map((a) => ({ ...a })),
-        WSL_SYNTHETICS.map((a) => ({ ...a })),
-      );
+      const { batch } = await runScanWithSynthetics(IDE_SYNTHETICS.map((a) => ({ ...a })));
 
       const byName = new Map(batch.agents.map((a) => [a.agent, a.instanceId]));
-      // Keyed on `process` these would all collapse: 0:code.exe twice, 0:node twice.
+      // Keyed on `process` these would collapse: 0:code.exe twice.
       expect(byName.get('Kilo Code')).toBe('0:kilo-code');
       expect(byName.get('Cline')).toBe('0:cline');
-      expect(byName.get('grok')).toBe('0:grok');
-      expect(byName.get('opencode')).toBe('0:opencode');
       // No two agents in the batch share a key, synthetic or otherwise.
       const ids = batch.agents.map((a) => a.instanceId);
       expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('the synthetic key is stable across ticks — a card does not churn', async () => {
-      const first = await runScanWithSynthetics(
-        IDE_SYNTHETICS.map((a) => ({ ...a })),
-        [],
-      );
-      const second = await runScanWithSynthetics(
-        IDE_SYNTHETICS.map((a) => ({ ...a })),
-        [],
-      );
+      const first = await runScanWithSynthetics(IDE_SYNTHETICS.map((a) => ({ ...a })));
+      const second = await runScanWithSynthetics(IDE_SYNTHETICS.map((a) => ({ ...a })));
       const idsOf = (b) =>
         b.agents.filter((a) => a.pid === 0).map((a) => `${a.agent}=${a.instanceId}`);
       // Pinned literally, so two ticks of `undefined` cannot satisfy "stable".
@@ -1599,6 +1577,93 @@ describe('scan-loop', () => {
   });
 
   // ── reentrancy guard (doProcessScan) ──
+
+  describe('WSL inventory scheduling', () => {
+    it('refreshes on its own cadence while process enumeration remains pending', async () => {
+      const refreshWslInventory = vi.fn(() => new Promise(() => {}));
+      const deps = makeDeps({
+        refreshWslInventory,
+        scanner: { scanProcesses: vi.fn(() => new Promise(() => {})) },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(refreshWslInventory).toHaveBeenCalledTimes(2);
+      expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['throws', 'rejects'])(
+      'keeps host scanning independent when inventory %s',
+      async (failure) => {
+        const refreshWslInventory = vi.fn(() => {
+          if (failure === 'throws') throw new Error('inventory unavailable');
+          return Promise.reject(new Error('inventory unavailable'));
+        });
+        const refreshDockerDiscovery = vi.fn();
+        const refreshPodmanDiscovery = vi.fn();
+        const deps = makeDeps({
+          refreshWslInventory,
+          refreshDockerDiscovery,
+          refreshPodmanDiscovery,
+        });
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(refreshWslInventory).toHaveBeenCalledTimes(1);
+        expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+        expect(refreshPodmanDiscovery).toHaveBeenCalledTimes(1);
+        expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
+        expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
+          true,
+        );
+        expect(deps.logger.error).not.toHaveBeenCalled();
+      },
+    );
+
+    it('cancels an in-flight refresh on stop and resumes with one timer', async () => {
+      let paused = false;
+      const refreshWslInventory = vi.fn(() => new Promise(() => {}));
+      const cancelWslInventory = vi.fn();
+      scanLoop.init(
+        makeDeps({ refreshWslInventory, cancelWslInventory, isMonitoringPaused: () => paused }),
+      );
+      scanLoop.startScanIntervals(5000);
+      expect(refreshWslInventory).toHaveBeenCalledTimes(1);
+      paused = true;
+      scanLoop.stopScanIntervals();
+      expect(cancelWslInventory).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(refreshWslInventory).toHaveBeenCalledTimes(1);
+      paused = false;
+      scanLoop.startScanIntervals(5000);
+      expect(refreshWslInventory).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(refreshWslInventory).toHaveBeenCalledTimes(3);
+    });
+
+    it('never launches from paused startup or a stopped deferred startup', async () => {
+      const refreshWslInventory = vi.fn();
+      const deps = makeDeps({ refreshWslInventory });
+      scanLoop.init(deps);
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(refreshWslInventory).not.toHaveBeenCalled();
+      scanLoop.staggeredStartup(5000, false);
+      scanLoop.stopScanIntervals();
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(refreshWslInventory).not.toHaveBeenCalled();
+    });
+
+    it('keeps one background timer through the warmup transition', async () => {
+      const refreshWslInventory = vi.fn();
+      scanLoop.init(makeDeps({ refreshWslInventory }));
+      scanLoop.staggeredStartup(5000, false);
+      await vi.advanceTimersByTimeAsync(14999);
+      expect(refreshWslInventory).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(60001);
+      expect(refreshWslInventory).toHaveBeenCalledTimes(3);
+    });
+  });
 
   describe('container discovery scheduling', () => {
     it('publishes host agents while both metadata discoveries are still pending', async () => {

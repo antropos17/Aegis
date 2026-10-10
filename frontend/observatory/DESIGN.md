@@ -1,5 +1,16 @@
 # AEGIS Observatory
 
+## Passive WSL inventory — 2026-10-11
+
+Show a read-only list of running WSL distribution names in Statistics sensor
+coverage. Label observation time, unavailable and retained states, and a
+successful empty result separately. This host-side inventory does not inspect
+guest processes or establish the absence of agents inside a distribution.
+Display the WSL guest-process sensor as unavailable with an explicit no-start
+explanation. Keep distribution names outside host agent counts, PID attribution,
+risk scores and actions. Treat names as untrusted display text, and retain the
+existing sensor panel hierarchy, compact spacing and English/Portuguese labels.
+
 ## Container metadata candidates — 2026-10-11
 
 Show matched running Docker and local Podman containers in one read-only evidence

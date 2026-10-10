@@ -202,3 +202,19 @@ export interface PodmanDiscoverySnapshot {
   readonly stale: boolean;
   readonly candidates: readonly PodmanContainerCandidate[];
 }
+
+/** Names observed by a host-only running-distribution query; guest processes are unobserved. */
+export interface WslInventorySnapshot {
+  readonly status: 'pending' | 'ready' | 'unavailable';
+  readonly reason:
+    | null
+    | 'unsupported-platform'
+    | 'cli-missing'
+    | 'invalid-output'
+    | 'timeout'
+    | 'runtime-unavailable';
+  readonly observedAt: number | null;
+  readonly attemptedAt: number | null;
+  readonly stale: boolean;
+  readonly distributions: readonly string[];
+}

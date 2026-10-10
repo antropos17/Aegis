@@ -104,10 +104,8 @@ const AGENT_CONFIG_PATHS = [
   '.cache/lm-studio',
   '.cache/gpt4all',
   '.docker',
-  // WSL-inner agents (grok, opencode) — passive fallback signal when WSL process
-  // enumeration is unavailable. NOTE: resolved against the WINDOWS home dir, so
-  // this watches a NATIVE install (e.g. C:\Users\you\.opencode), NOT the
-  // WSL-inner ~/.opencode. The primary signal is wsl-detector.js enumeration.
+  // Native Windows-home grok/opencode configuration paths. These do not observe
+  // files or processes inside WSL and cannot establish guest-agent presence.
   '.grok-build',
   '.opencode',
 ];
@@ -146,9 +144,8 @@ const AGENT_SELF_CONFIG = {
   goose: /[\\\/]\.config[\\\/]goose[\\\/]/i,
   zed: /[\\\/]\.config[\\\/]zed[\\\/]/i,
   jetbrains: /[\\\/]\.config[\\\/]JetBrains[\\\/]/i,
-  // WSL-inner & extension agents (Gate ③). Keys match the names the detectors
-  // emit — wsl-detector.js → 'opencode'/'grok', ide-extension-detector.js →
-  // 'Kilo Code' — so isSelfAccess (agentName.includes(keyword)) resolves them.
+  // Agent/extension configuration names for native observed paths. The WSL
+  // distro inventory does not emit guest agents or inspect guest paths.
   kilo: /[\\\/]\.config[\\\/]kilo[\\\/]/i,
   opencode: /[\\\/]\.opencode[\\\/]/i,
   grok: /[\\\/]\.grok-build[\\\/]/i,

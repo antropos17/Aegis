@@ -7,8 +7,8 @@ import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
 afterEach(() => language.set('en'));
 
-function telemetry(health, scanCadence) {
-  return { ...emptyTelemetry(), stats: { appHealth: health, scanCadence } };
+function telemetry(health, scanCadence, wslInventory) {
+  return { ...emptyTelemetry(), stats: { appHealth: health, scanCadence, wslInventory } };
 }
 
 it('shows process-scan overruns separately from observed event loss', async () => {
@@ -121,4 +121,128 @@ it('stays quiet before a failure and translates the bounded coverage state', asy
   expect(within(coverage).getByText('Arquivos de ambiente na pasta pessoal')).toBeVisible();
   expect(within(coverage).getByText('Erro no observador')).toBeVisible();
   expect(coverage).not.toHaveTextContent('/private/.env');
+});
+
+it('shows passive WSL inventory without implying guest-process coverage', async () => {
+  const observedAt = Date.now();
+  const health = {
+    state: 'HEALTHY',
+    sensors: {
+      byId: {
+        wsl: { state: 'UNSUPPORTED', detail: 'wsl-process-coverage-unavailable' },
+      },
+    },
+  };
+  const mounted = render(StatsSensors, {
+    telemetry: telemetry(health, undefined, {
+      status: 'ready',
+      observedAt,
+      stale: false,
+      distributions: ['Ubuntu', 'Debian'],
+    }),
+  });
+  const inventory = screen.getByRole('region', { name: 'Running WSL distributions' });
+  expect(inventory).toHaveTextContent('Host-side inventory only.');
+  expect(within(inventory).getByText('Ubuntu')).toBeVisible();
+  expect(within(inventory).getByText('Debian')).toBeVisible();
+  const process = screen.getByRole('heading', { name: 'WSL guest processes' }).closest('article');
+  expect(process).toHaveTextContent('Not inspected');
+  expect(process).toHaveTextContent('Automatic guest-process checks are off');
+  expect(process).not.toHaveTextContent('Healthy');
+
+  await mounted.rerender({
+    telemetry: telemetry(health, undefined, {
+      status: 'unavailable',
+      reason: 'timeout',
+      observedAt,
+      stale: true,
+      distributions: ['Ubuntu'],
+    }),
+  });
+  expect(inventory).toHaveTextContent('Retained');
+  expect(within(inventory).getByText('Ubuntu')).toBeVisible();
+  expect(inventory).not.toHaveTextContent('No running WSL distributions observed.');
+
+  await mounted.rerender({
+    telemetry: telemetry(health, undefined, {
+      status: 'ready',
+      observedAt: Date.now(),
+      stale: false,
+      distributions: [],
+    }),
+  });
+  expect(inventory).toHaveTextContent('No running WSL distributions observed.');
+  expect(inventory).not.toHaveTextContent('Ubuntu');
+
+  language.set('pt');
+  await tick();
+  expect(screen.getByRole('region', { name: 'Distribuições WSL em execução' })).toHaveTextContent(
+    'Nenhuma distribuição WSL em execução foi observada.',
+  );
+});
+
+it('bounds untrusted WSL names and renders text without creating markup', () => {
+  const evil = '<img src=x onerror=alert(1)>';
+  const longValid = 'A'.repeat(129);
+  const mounted = render(StatsSensors, {
+    telemetry: telemetry({ state: 'STARTING' }, undefined, {
+      status: 'ready',
+      observedAt: Date.now(),
+      distributions: [evil, evil, '', longValid, 'A'.repeat(257), 'bad\u0000name'],
+    }),
+  });
+  const inventory = screen.getByRole('region', { name: 'Running WSL distributions' });
+  expect(within(inventory).getAllByText(evil)).toHaveLength(1);
+  expect(inventory.querySelector('img')).toBeNull();
+  expect(inventory).not.toHaveTextContent('bad');
+  expect(inventory).toHaveTextContent(longValid);
+  expect(inventory).not.toHaveTextContent('A'.repeat(257));
+  expect(mounted.container.querySelector('script')).toBeNull();
+});
+
+it('distinguishes unobserved, expired and malformed WSL inventory from a fresh empty result', async () => {
+  const mounted = render(StatsSensors, {
+    telemetry: telemetry({ state: 'STARTING' }, undefined, {
+      status: 'pending',
+      observedAt: null,
+      stale: true,
+      distributions: [],
+    }),
+  });
+  const inventory = screen.getByRole('region', { name: 'Running WSL distributions' });
+  expect(inventory).toHaveTextContent('Pending');
+  expect(inventory).not.toHaveTextContent('Retained');
+
+  await mounted.rerender({
+    telemetry: telemetry({ state: 'STARTING' }, undefined, {
+      status: 'unavailable',
+      observedAt: null,
+      stale: true,
+      distributions: [],
+    }),
+  });
+  expect(inventory).toHaveTextContent('Unavailable');
+  expect(inventory).not.toHaveTextContent('Retained');
+
+  await mounted.rerender({
+    telemetry: telemetry({ state: 'STARTING' }, undefined, {
+      status: 'ready',
+      observedAt: Date.now() - 90000,
+      stale: false,
+      distributions: ['Ubuntu'],
+    }),
+  });
+  expect(inventory).toHaveTextContent('Retained');
+  expect(inventory).toHaveTextContent('Ubuntu');
+
+  await mounted.rerender({
+    telemetry: telemetry({ state: 'STARTING' }, undefined, {
+      status: 'ready',
+      observedAt: Date.now(),
+      stale: false,
+      distributions: ['bad\u0000name'],
+    }),
+  });
+  expect(inventory).toHaveTextContent('Running WSL state is unknown.');
+  expect(inventory).not.toHaveTextContent('No running WSL distributions observed.');
 });

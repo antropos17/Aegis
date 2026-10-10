@@ -8,7 +8,6 @@
 
 const sessionTracker = require('./session-tracker');
 const ideExtensionDetector = require('./ide-extension-detector');
-const wslDetector = require('./wsl-detector');
 const resourceMonitor = require('./resource-monitor');
 const { createResourceSampler } = require('./resource-sampler');
 const resourceSampler = createResourceSampler((targets) =>
@@ -25,6 +24,8 @@ let scanInterval = null;
 let fileScanInterval = null;
 let netInterval = null;
 let hotReadInterval = null;
+let wslInventoryInterval = null;
+const WSL_INVENTORY_INTERVAL_MS = 30000;
 /**
  * Fast hot read-detect cadence (win32 RM only): ~10s, vs the 30s full file scan.
  * Shrinks the read-blind window on the crown-jewel secret dirs (HOT_DIRS). 10s is
@@ -258,6 +259,11 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  if (wslInventoryInterval) {
+    clearInterval(wslInventoryInterval);
+    wslInventoryInterval = null;
+  }
+  deps.cancelWslInventory?.();
   networkScopePending = true;
   networkScopeRevision++;
   networkScopeLifetime++;
@@ -579,9 +585,9 @@ function doNetworkScan() {
 
 /**
  * Append synthetic agents that have no Windows process and so are invisible to
- * the process scanner: editor-extension agents (Kilo Code, Cline) and WSL-inner
- * agents (grok, opencode). Reads each detector's throttled cache synchronously —
- * the dir/WSL scans run in the background, never blocking this batch. Dedups by
+ * the process scanner: editor-extension agents (Kilo Code, Cline). Reads the
+ * detector's throttled cache synchronously; directory scans run in the background.
+ * Running WSL distribution names carry no agent authority. Dedups by
  * agent name so a real process (if any) already in the list wins.
  *
  * These entries are appended AFTER `enrichWithParentChains` — the process
@@ -591,19 +597,16 @@ function doNetworkScan() {
  * The identity is derived from the DISPLAY name, with `process` deliberately
  * withheld from `identify()`. For these detectors `process` is not the agent: the
  * IDE detector emits the editor host exe (`code.exe` for BOTH Kilo Code and
- * Cline) and the WSL detector emits the interpreter (`node` for several agents),
+ * Cline),
  * so keying on it would collapse two distinct pid-0 agents onto one synthetic
  * key — the exact collision the synthetic space exists to prevent. The display
- * name IS the identity here, and it is what both detectors already dedup on.
+ * name IS the identity here, and it is what the detector already dedups on.
  * @param {Array} agents
  * @param {Map<number, {name: string}>} [processMap] Fresh, reliable process snapshot
  * @returns {void} @since v0.11.0-alpha
  */
 function injectDetectedExternalAgents(agents, processMap) {
-  const external = [
-    ...ideExtensionDetector.getCachedExtensionAgents(processMap),
-    ...wslDetector.getCachedWslAgents(),
-  ];
+  const external = ideExtensionDetector.getCachedExtensionAgents(processMap);
   for (const ext of external) {
     if (agents.some((a) => a.agent === ext.agent)) continue;
     const identity = identify({ pid: ext.pid, agent: ext.agent });
@@ -842,7 +845,7 @@ async function doProcessScan() {
       (error) => ({ error }),
     );
     await procUtil.annotateWorkingDirs(agents, { forceRefresh: result.changed === true });
-    // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
+    // Surface extension-only (Kilo/Cline) agents
     // before the batch so the renderer sees them; cache-backed, non-blocking.
     // CWD lookup can also cross system sleep, after the session's earlier witness.
     // Check freshness again before the IDE cache might accept the process map.
@@ -1262,6 +1265,7 @@ async function doHotReadScan() {
 
 /** @param {number} intervalMs @since v0.3.0 */
 function startScanIntervals(intervalMs) {
+  startWslInventoryPolling();
   const ms = intervalMs || 10000;
   scanInterval = setInterval(doProcessScan, ms);
   netInterval = setInterval(doNetworkScan, 30000);
@@ -1277,6 +1281,24 @@ function startScanIntervals(intervalMs) {
 let warmupTimer = null;
 /** @type {Array<ReturnType<typeof setTimeout>>} */
 let startupTimers = [];
+
+/** Refresh names independently of process enumeration and its reentrancy guard. */
+function refreshWslInventory() {
+  if (deps.isMonitoringPaused?.() === true) return;
+  try {
+    Promise.resolve(deps.refreshWslInventory?.()).catch(() => {});
+  } catch {
+    // Inventory failure cannot invalidate host-process observation.
+  }
+}
+
+/** Start one independent timer; warmup transition keeps the existing cadence. */
+function startWslInventoryPolling() {
+  if (wslInventoryInterval || !deps.refreshWslInventory || deps.isMonitoringPaused?.() === true)
+    return;
+  refreshWslInventory();
+  wslInventoryInterval = setInterval(refreshWslInventory, WSL_INVENTORY_INTERVAL_MS);
+}
 
 /** @param {number} targetMs @since v0.4.0 */
 function startWarmup(targetMs) {
@@ -1297,6 +1319,7 @@ function startWarmup(targetMs) {
 
 /** @param {number} intervalMs @param {boolean} paused @since v0.3.0 */
 function staggeredStartup(intervalMs, paused) {
+  if (!paused) startupTimers.push(setTimeout(startWslInventoryPolling, 15000));
   startupTimers.push(setTimeout(() => doProcessScan(), 3000));
   startupTimers.push(setTimeout(() => doFileScan(), 8000));
   startupTimers.push(
