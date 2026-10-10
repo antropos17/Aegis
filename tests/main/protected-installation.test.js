@@ -153,6 +153,21 @@ describe.skipIf(process.platform !== 'win32')(
       expect(value.stdout.toString('utf8')).not.toContain('fixture-credential');
       return JSON.parse(value.stdout.toString('utf8'));
     }
+    it('resolves maintained callback helpers from a hosted child script through install, upgrades and uninstall', () => {
+      expect(orchestration('host-script-scope')).toMatchObject({
+        installed: true,
+        accountVerified: true,
+        memberAdditionComplete: true,
+        addedReferenceExact: true,
+        removedSidExact: true,
+        originalExact: true,
+        firstUpgradeExact: true,
+        secondUpgradeExact: true,
+        rollbackExact: true,
+        uninstalled: true,
+        failure: null,
+      });
+    });
     it('identifies each refused membership boundary and cleans only the exact created account', () => {
       for (const [mode, operation] of [
         ['membership-users-query', 'account-users-query'],
@@ -192,10 +207,10 @@ describe.skipIf(process.platform !== 'win32')(
         });
       }
     }, 30000);
-    it('marks account verification before callback-local helper lookup can fail', () => {
+    it('resolves callback-local account verification before a later parent-creation refusal', () => {
       expect(orchestration('membership-helper-lookup')).toMatchObject({
         refused: true,
-        helperCommandMissing: true,
+        helperCommandMissing: false,
         memberAdditionComplete: true,
         addedReferenceExact: true,
         removedSidExact: true,
@@ -204,8 +219,8 @@ describe.skipIf(process.platform !== 'win32')(
         service: { creationAttempted: false, created: false },
         cleanup: { state: 'confirmed', exactAccountSidAbsent: true },
         failure: {
-          operation: 'account-verify',
-          diagnosticCode: 'protected-command-not-found',
+          operation: 'parent-create',
+          diagnosticCode: 'protected-operation-refused',
           nativeWin32: null,
         },
       });

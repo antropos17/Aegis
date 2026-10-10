@@ -32,6 +32,8 @@ function Assert-ProtectedInstallation($Association) {
 
 # Reusable administrative API; the qualification wrapper separately restricts its
 # host and transport. No administrator can adopt a preexisting account/root/service.
+# Transactions consume operation blocks synchronously before the owning function
+# returns. Keep source-script lookup; GetNewClosure hides child-script helpers.
 function Set-ProtectedInstallCredential($Context) {
     Add-Type -AssemblyName System.Security
     $secret = [Text.Encoding]::Unicode.GetBytes($Context.password)
@@ -64,7 +66,7 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
         if (![ProtectedInstallService]::Absent()) { throw 'protected-install-service-preexisting' }
         if (@(Get-LocalUser | Where-Object { $_.Name -ceq $OperatorAccount }).Count) { throw 'protected-install-account-preexisting' }
         $ops = @{
-            validate = { $Journal.operation = 'validate'; foreach ($held in $context.ancestors) { $held.Recheck() } }.GetNewClosure()
+            validate = { $Journal.operation = 'validate'; foreach ($held in $context.ancestors) { $held.Recheck() } }
             stage = {
               try {
                 $Journal.operation = 'account-create'; $Journal.accountCreationAttempted = $true
@@ -90,29 +92,29 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
                 $Journal.createdRoots += @{ role = 'stage'; volume = $context.stage.root.Volume; fileId = $context.stage.root.FileId }
                 return $context.stage
               } catch { Set-ProtectedInstallFailure $Journal $_; if (Test-ProtectedInstallCleanupUnknown $_) { $context.cleanupUnknown = $true }; throw }
-            }.GetNewClosure()
+            }
             publish = { param($stage)
                 $Journal.operation = 'publish'
                 try { Move-ProtectedInstallStage $stage $installRoot; $stage.published = $true; $Journal.published = $true; if ($FailAfterPublish) { throw 'protected-qualified-partial-fault' } }
                 catch { Set-ProtectedInstallFailure $Journal $_; if (Test-ProtectedInstallCleanupUnknown $_) { $context.cleanupUnknown = $true }; throw }
-            }.GetNewClosure()
+            }
             register = {
                 $Journal.operation = 'service-create'; $Journal.service.creationAttempted = $true
                 try { $context.service = [ProtectedInstallService]::Create(); $Journal.service.created = $true; return $context.service }
                 catch { Set-ProtectedInstallFailure $Journal $_; if (Test-ProtectedInstallCleanupUnknown $_) { $context.cleanupUnknown = $true }; throw }
-            }.GetNewClosure()
+            }
             verify = { param($stage, $service)
                 $Journal.operation = 'verify'
                 try { Assert-ProtectedInstallStage $stage; $service.Recheck(); $Journal.operation = 'account-verify'; Assert-ProtectedInstallAccount $context $true $Journal }
                 catch { Set-ProtectedInstallFailure $Journal $_; throw }
-            }.GetNewClosure()
-            unregister = { param($service) $Journal.operation = 'service-remove'; $service.Stop(); $service.Delete(); $context.service = $null }.GetNewClosure()
+            }
+            unregister = { param($service) $Journal.operation = 'service-remove'; $service.Stop(); $service.Delete(); $context.service = $null }
             remove = { param($stage, $published)
                 $Journal.operation = 'stage-remove'
                 if ($context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
                 if (![ProtectedInstallService]::Absent()) { $context.cleanupUnknown = $true; throw 'protected-service-creation-cleanup-unknown' }
                 Remove-ProtectedInstallStage $stage $published; $context.stage = $null
-            }.GetNewClosure()
+            }
         }
         Invoke-ProtectedInstallTransaction $ops | Out-Null
         $Journal.cleanup.state = 'installed'; $Journal.association = $context
@@ -211,11 +213,11 @@ function Remove-ProtectedInstallation($Association) {
             Assert-ProtectedInstallIdleUpgrade $selected.service
             Assert-ProtectedInstallation $selected; Assert-ProtectedInstallAncillary $selected
             if ($null -ne $selected.rollback) { throw 'protected-uninstall-rollback-pending' }
-        }.GetNewClosure()
-        stop = { param($selected) $selected.service.Stop(); Update-ProtectedInstallRuntimeRows $selected.stage }.GetNewClosure()
-        unregister = { param($service) $service.Delete(); $Association.service = $null }.GetNewClosure()
-        remove = { param($stage, $published) Remove-ProtectedInstallStage $stage $published; $Association.stage = $null }.GetNewClosure()
-        account = { param($selected) Remove-ProtectedInstallAncillary $selected }.GetNewClosure()
+        }
+        stop = { param($selected) $selected.service.Stop(); Update-ProtectedInstallRuntimeRows $selected.stage }
+        unregister = { param($service) $service.Delete(); $Association.service = $null }
+        remove = { param($stage, $published) Remove-ProtectedInstallStage $stage $published; $Association.stage = $null }
+        account = { param($selected) Remove-ProtectedInstallAncillary $selected }
     }
     try { Invoke-ProtectedUninstallTransaction $ops $Association }
     catch { $Association.cleanupUnknown = $true; throw }
@@ -232,17 +234,17 @@ function Update-ProtectedInstallation($Association, [string]$SourceRoot, $Manife
     $installParent = $script:ProtectedInstallParent; $installRoot = $script:ProtectedInstallRoot
     try {
         $ops = @{
-            validate = { param($selected) Assert-ProtectedInstallIdleUpgrade $selected.service; Assert-ProtectedInstallation $selected; if ($null -ne $selected.rollback) { throw 'protected-upgrade-already-pending' } }.GetNewClosure()
-            stage = { New-ProtectedInstallStage $Association ([uint32]($old.revision + 1)) ([guid]::NewGuid().ToString('N')) }.GetNewClosure()
-            stop = { param($selected) $selected.service.Stop() }.GetNewClosure()
-            saveOld = { param($selected) Move-ProtectedInstallStage $old $rollbackPath; $selected.rollback = $old }.GetNewClosure()
-            publish = { param($stage) Move-ProtectedInstallStage $stage $installRoot }.GetNewClosure()
-            verify = { param($stage, $service) Assert-ProtectedInstallStage $stage; $service.Recheck(); if ($FailAfterPublish) { throw 'protected-qualified-upgrade-fault' } }.GetNewClosure()
-            unpublish = { param($stage) Move-ProtectedInstallStage $stage (Join-Path $installParent ('Staging-' + [guid]::NewGuid().ToString('N'))) }.GetNewClosure()
-            restore = { param($selected) Move-ProtectedInstallStage $old $installRoot; $selected.rollback = $null }.GetNewClosure()
-            restart = { param($selected) $selected.service.Recheck() }.GetNewClosure()
-            remove = { param($stage, $published) Remove-ProtectedInstallStage $stage $published }.GetNewClosure()
-            commit = { param($selected, $stage) $selected.stage = $stage; Remove-ProtectedInstallStage $old $true; $selected.rollback = $null }.GetNewClosure()
+            validate = { param($selected) Assert-ProtectedInstallIdleUpgrade $selected.service; Assert-ProtectedInstallation $selected; if ($null -ne $selected.rollback) { throw 'protected-upgrade-already-pending' } }
+            stage = { New-ProtectedInstallStage $Association ([uint32]($old.revision + 1)) ([guid]::NewGuid().ToString('N')) }
+            stop = { param($selected) $selected.service.Stop() }
+            saveOld = { param($selected) Move-ProtectedInstallStage $old $rollbackPath; $selected.rollback = $old }
+            publish = { param($stage) Move-ProtectedInstallStage $stage $installRoot }
+            verify = { param($stage, $service) Assert-ProtectedInstallStage $stage; $service.Recheck(); if ($FailAfterPublish) { throw 'protected-qualified-upgrade-fault' } }
+            unpublish = { param($stage) Move-ProtectedInstallStage $stage (Join-Path $installParent ('Staging-' + [guid]::NewGuid().ToString('N'))) }
+            restore = { param($selected) Move-ProtectedInstallStage $old $installRoot; $selected.rollback = $null }
+            restart = { param($selected) $selected.service.Recheck() }
+            remove = { param($stage, $published) Remove-ProtectedInstallStage $stage $published }
+            commit = { param($selected, $stage) $selected.stage = $stage; Remove-ProtectedInstallStage $old $true; $selected.rollback = $null }
         }
         return Invoke-ProtectedUpgradeTransaction $ops $Association
     }

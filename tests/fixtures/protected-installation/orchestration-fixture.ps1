@@ -1,6 +1,7 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($Mode -ceq 'host-script-scope') { & $PSCommandPath 'host-script-child'; return }
 # No native APIs: these finite resource objects exist only in this child process.
 Add-Type -TypeDefinition @'
 using System;
@@ -12,18 +13,24 @@ public sealed class ProtectedInstallFile : IDisposable {
     public bool Protected(bool ancestor) { return true; }
     public void Recheck() { }
     public void Dispose() { }
+    public bool Deleted;
+    public void Delete() { Deleted = true; }
 }
 public sealed class ProtectedInstallService {
     public const string Name = "AegisProtectedSessionOwner";
     public const string Image = "\"C:\\ProgramData\\AEGIS\\ProtectedSession\\aegis-owner.exe\"";
-    public static bool Absent() { return true; }
+    public static bool Created;
+    public static bool CreateSucceeds;
+    public static bool Absent() { return !Created; }
     public static bool CleanupUnknown;
     public uint[] Status() { return new uint[] { 1, 0 }; }
     public void WaitExited() { }
     public static int StopCalls;
     public void Stop() { StopCalls++; }
     public void Recheck() { }
+    public void Delete() { Created = false; }
     public static ProtectedInstallService Create() {
+        if (CreateSucceeds) { Created = true; return new ProtectedInstallService(); }
         var failure = new InvalidDataException("protected-service-create-refused");
         failure.Data["protectedOperation"] = "service-create";
         failure.Data["protectedNativeWin32"] = 5;
@@ -32,6 +39,96 @@ public sealed class ProtectedInstallService {
     }
 }
 '@
+if ($Mode -ceq 'host-script-child') {
+    # The workflow calls the lab as a child script from its step script. Load
+    # maintained functions here in that child script's scope, never globally.
+    . (Join-Path $PSScriptRoot '../../../scripts/qualification/installed-owner-phase.ps1')
+    $global:FixtureHost = @{ account = $null; exists = $false; member = $false; addedReferenceExact = $false; removedSidExact = $false; namedAccountQueries = 0;
+        files = [Collections.Generic.List[object]]::new(); stages = [Collections.Generic.List[object]]::new() }
+    # Only OS leaves are global fakes, matching globally imported cmdlets. All
+    # maintained account/association/cleanup helpers remain child-script functions.
+    function global:ConvertTo-SecureString { param($String, [switch]$AsPlainText, [switch]$Force); return 'fixture-only-secure-value' }
+    function global:Get-LocalUser {
+        param($Name, $ErrorAction)
+        if ($null -ne $Name) { $global:FixtureHost.namedAccountQueries++; if ($Name -cne 'AegisOp012345abcdef') { throw 'fixture-account-name-refused' } }
+        if ($global:FixtureHost.exists) { return $global:FixtureHost.account }
+    }
+    function global:New-LocalUser {
+        param($Name, $Password, [switch]$AccountNeverExpires, [switch]$PasswordNeverExpires, [switch]$UserMayNotChangePassword)
+        $global:FixtureHost.account = [pscustomobject]@{ Name = $Name; SID = [pscustomobject]@{ Value = 'S-1-5-21-100-200-300-1001' } }
+        $global:FixtureHost.exists = $true; return $global:FixtureHost.account
+    }
+    function global:Get-LocalGroupMember {
+        param($SID)
+        if ($SID -ceq 'S-1-5-32-545' -and $global:FixtureHost.member -and $global:FixtureHost.exists) { return $global:FixtureHost.account }
+        if ($SID -cnotin @('S-1-5-32-544', 'S-1-5-32-545')) { throw 'fixture-group-association-refused' }
+    }
+    function global:Add-LocalGroupMember {
+        param($SID, $Member)
+        if ($SID -cne 'S-1-5-32-545' -or ![object]::ReferenceEquals($Member, $global:FixtureHost.account)) { throw 'fixture-membership-association-refused' }
+        $global:FixtureHost.addedReferenceExact = $true; $global:FixtureHost.member = $true
+    }
+    function global:Remove-LocalUser {
+        param($SID)
+        if (!$global:FixtureHost.exists -or $SID.Value -cne $global:FixtureHost.account.SID.Value) { throw 'fixture-account-removal-association-refused' }
+        $global:FixtureHost.removedSidExact = $true; $global:FixtureHost.exists = $false
+    }
+    function global:Get-ChildItem {
+        param($LiteralPath, [switch]$Force)
+        foreach ($file in $global:FixtureHost.files) {
+            if (!$file.Deleted -and [IO.Path]::GetDirectoryName($file.PathName) -ceq $LiteralPath) { [pscustomobject]@{ FullName = $file.PathName; Name = [IO.Path]::GetFileName($file.PathName); Length = 0 } }
+        }
+    }
+    function global:Test-Path {
+        param($LiteralPath)
+        return @($global:FixtureHost.files | Where-Object { !$_.Deleted -and $_.PathName -ceq $LiteralPath }).Count -ne 0
+    }
+    function Assert-ProtectedInstallAdministrator { }
+    function Initialize-ProtectedInstallNative { }
+    function Read-ProtectedInstallInputs { param($SourceRoot, $Manifest); return @{ fixture = [byte[]]@(1,2,3) } }
+    function New-ProtectedInstallDirectory {
+        param($Path, $OperatorSid, $Private)
+        if ($OperatorSid -cne $global:FixtureHost.account.SID.Value) { throw 'fixture-directory-sid-refused' }
+        $held = [ProtectedInstallFile]::new($Path, $true, $true); $held.FileId = ($global:FixtureHost.files.Count + 1).ToString('x16'); $global:FixtureHost.files.Add($held); return $held
+    }
+    function Set-ProtectedInstallCredential { param($Context); $Context.credential = [byte[]]@(4,5,6) }
+    function New-ProtectedInstallStage {
+        param($Context, $Revision, $Epoch)
+        $held = New-ProtectedInstallDirectory (Join-Path $script:ProtectedInstallParent ('Staging-' + $Epoch)) $Context.operatorSid
+        $stage = @{ root = $held; path = $held.PathName; revision = $Revision; epoch = $Epoch; published = $false; rows = @() }
+        $global:FixtureHost.stages.Add($stage); return $stage
+    }
+    function Assert-ProtectedInstallStage {
+        param($Stage)
+        if (@($global:FixtureHost.stages | Where-Object { [object]::ReferenceEquals($_, $Stage) }).Count -ne 1 -or $Stage.root.Deleted -or $Stage.path -cne $Stage.root.PathName) { throw 'fixture-stage-reference-refused' }
+    }
+    function Update-ProtectedInstallRuntimeRows { param($Stage); Assert-ProtectedInstallStage $Stage }
+    function Move-ProtectedInstallStage {
+        param($Stage, $Destination)
+        Assert-ProtectedInstallStage $Stage; $Stage.path = $Destination; $Stage.root.PathName = $Destination
+    }
+    function Remove-ProtectedInstallStage { param($Stage, $Published); Assert-ProtectedInstallStage $Stage; $Stage.root.Delete() }
+    [ProtectedInstallService]::CreateSucceeds = $true
+    $journal = @{}; $result = @{ installed = $false; originalExact = $false; firstUpgradeExact = $false; secondUpgradeExact = $false; rollbackExact = $false; uninstalled = $false; failure = $null }
+    try {
+        $association = New-ProtectedInstallation 'C:\fixture\input' @{} 'AegisOp012345abcdef' 'fixture-credential-length-32-bytes' $false $journal
+        $result.installed = $true; $result.originalExact = [object]::ReferenceEquals($association.stage, $global:FixtureHost.stages[0])
+        $first = Update-ProtectedInstallation $association 'C:\fixture\input' @{}
+        $result.firstUpgradeExact = [object]::ReferenceEquals($association.stage, $first) -and [object]::ReferenceEquals($first, $global:FixtureHost.stages[1])
+        $second = Update-ProtectedInstallation $association 'C:\fixture\input' @{}
+        $result.secondUpgradeExact = [object]::ReferenceEquals($association.stage, $second) -and [object]::ReferenceEquals($second, $global:FixtureHost.stages[2])
+        $fault = $false
+        try { Update-ProtectedInstallation $association 'C:\fixture\input' @{} $true | Out-Null } catch { if ($_.Exception.Message -cne 'protected-qualified-upgrade-fault') { throw }; $fault = $true }
+        $result.rollbackExact = $fault -and [object]::ReferenceEquals($association.stage, $second) -and $null -eq $association.rollback -and !$association.cleanupUnknown
+        Remove-ProtectedInstallation $association
+        $result.uninstalled = [ProtectedInstallService]::Absent() -and !$global:FixtureHost.exists -and @($global:FixtureHost.files | Where-Object { !$_.Deleted }).Count -eq 0
+    } catch { $result.failure = $journal.failure; if ($null -eq $result.failure) { $result.failure = Get-ProtectedInstallFailure $_ 'qualification' } }
+    $result.accountVerified = $global:FixtureHost.namedAccountQueries -gt 0; $result.memberAdditionComplete = $global:FixtureHost.member
+    $result.addedReferenceExact = $global:FixtureHost.addedReferenceExact; $result.removedSidExact = $global:FixtureHost.removedSidExact
+    $result.cleanup = $journal.cleanup
+    $result | ConvertTo-Json -Depth 6 -Compress
+    return
+}
 if ($Mode -ceq 'membership-helper-lookup') {
     function Invoke-CallbackLookupFixture {
         # Deliberately load maintained helpers in this callback's local scope.
