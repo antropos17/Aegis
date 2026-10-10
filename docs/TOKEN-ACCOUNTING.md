@@ -11,8 +11,9 @@ registries use a bounded read with one extra byte to detect growth after the siz
 check; changing or unreadable metadata is retried on a later scan without resetting
 the transcript cursor. Registry reads share the adapter's 4 MiB call budget.
 
-Transcript reads request at most 64 KiB at a time, at most 1 MiB per file per call and
-at most 4 MiB including registry reads across one adapter call. The first process
+Transcript reads request at most 64 KiB at a time and at most 1 MiB per file per
+attempt. A capacity retry may reread the same file, but all attempts share the
+4 MiB adapter-call budget, including registry reads. The first process
 rotates between calls so a continuously busy prefix cannot monopolize that budget.
 A backlog can take several scan ticks to drain;
 the displayed measured subtotal can therefore lag recent agent activity. An incomplete
@@ -69,11 +70,15 @@ index for the current run, so dropping an old process does not recount its usage
 Deltas for each process are returned only after its shared main/subagent IDs and
 cursors commit together. A failed process rolls back without undoing earlier
 successful processes; later processes in the same scan may still commit if they
-fit. On an index-open, capacity or commit failure, collection reports
-`storage-paused` with the fixed reason `capacity` or `unavailable`. Subsequent
-adapter calls return no new deltas and do not reread registries or transcripts
-during the 30-second cooldown; a later scan then retries from the last committed
-cursors. A permanently full index can remain paused for the rest of the run.
+fit. After a capacity failure, the adapter may retry that process from its last
+committed cursors with a smaller bounded read. Failed reads count against the
+shared scan budget; only a complete retry transaction can emit usage. A
+successful smaller commit still reports `storage-paused/capacity` for the
+unprocessed backlog. The next eligible scan restores the normal read allowance.
+Index-open and commit failures report the fixed reason `capacity` or
+`unavailable`. Subsequent adapter calls return no new deltas and do not reread
+registries or transcripts during the 30-second cooldown. A permanently full
+index can remain paused for the rest of the run.
 Retained measured totals are marked incomplete, and the token arrival rate for
 scopes containing Claude Code is unavailable during the pause rather than shown
 as zero or estimated.

@@ -301,26 +301,43 @@ async function readUsage(procs) {
     if (budget.remaining <= 0) break;
     const proc = procs[(start + index) % procs.length];
     visited++;
-    let deltas;
-    try {
-      deltas = _readOneProc(proc, budget);
-      // Commit a process's IDs, main/subagent cursors and deltas together. A
-      // later process hitting SQLITE_FULL cannot roll back these emitted rows.
-      if (ledger?.commit()) committed = true;
-    } catch (error) {
-      if (error.dedupIndex || ledger?.isFailed()) {
-        const reason = ledger?.failureReason() || 'unavailable';
-        if (pauseReason !== 'capacity') pauseReason = reason;
+    let deltas = [];
+    let allowance = budget.remaining;
+    for (let attempt = 0; attempt < 10 && allowance > 0; attempt++) {
+      const attemptBudget = { remaining: Math.min(allowance, budget.remaining) };
+      const before = attemptBudget.remaining;
+      try {
+        try {
+          deltas = _readOneProc(proc, attemptBudget);
+        } finally {
+          budget.remaining -= before - attemptBudget.remaining;
+        }
+        // Commit a process's IDs, main/subagent cursors and deltas together. A
+        // later process hitting SQLITE_FULL cannot roll back these emitted rows.
+        if (ledger?.commit()) committed = true;
+        break;
+      } catch (error) {
+        deltas = [];
+        if (error.dedupIndex || ledger?.isFailed()) {
+          const reason = ledger?.failureReason() || 'unavailable';
+          if (pauseReason !== 'capacity') pauseReason = reason;
+          ledger?.rollback();
+          // Retry only capacity, from committed cursors, with an attempt-local
+          // allowance. Failed reads still consume the shared 4 MiB call budget.
+          // Keep the observed pause even if this smaller transaction commits.
+          const spent = before - attemptBudget.remaining;
+          allowance = Math.floor(spent / 2);
+          if (reason === 'capacity' && attempt < 9 && allowance > 0) continue;
+          // Other processes may fit in the remaining space (or need no new IDs).
+          // Keep the shared byte budget and rotating first process for fairness.
+          break;
+        }
         ledger?.rollback();
-        // Other processes may fit in the remaining space (or need no new IDs).
-        // Keep the shared byte budget and rotating first process for fairness.
-        continue;
+        _log.warn('token-feed:claude-code', 'adapter read failed for a pid', {
+          error: 'adapter-read-failed',
+        });
+        break;
       }
-      ledger?.rollback();
-      _log.warn('token-feed:claude-code', 'adapter read failed for a pid', {
-        error: 'adapter-read-failed',
-      });
-      continue;
     }
     for (const d of deltas) out.push(d);
   }
