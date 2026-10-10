@@ -103,36 +103,106 @@ afterEach(() => {
 });
 
 describe('real-file SQLite capacity and truthful collection status', () => {
-  it('keeps committed IDs/cursors at the permanent cap and backs off thousands of scans', async () => {
-    const fixture = source(1, [line('oldest')]);
-    expect(await adapter.readUsage([proc(1)])).toHaveLength(1);
-    const committedOffset = fs.statSync(fixture.transcript).size;
-    fs.appendFileSync(
-      fixture.transcript,
-      Array.from({ length: 2000 }, (_, i) => line(`backlog-${i}`)).join(''),
-    );
-    expect(await adapter.readUsage([proc(1)])).toEqual([]);
+  it('retains capacity after an empty smaller retry and restores the allowance for a large valid record', async () => {
+    const record = JSON.parse(line('large-valid', 13));
+    record.padding = 'x'.repeat(450 * 1024);
+    const largeLine = JSON.stringify(record) + '\n';
+    const fixture = source(1, [
+      largeLine,
+      ...Array.from({ length: 2000 }, (_, i) => line(`later-${i}`)),
+    ]);
+    expect(await adapter.readUsage([proc(1)])).toHaveLength(0);
     expect(adapter.getCollectionStatus()).toEqual({
       state: 'storage-paused',
       reason: 'capacity',
       retryAt: 31000,
     });
     openInspection();
+    expect(inspect.prepare('SELECT offset FROM sessions').get().offset).toBe(0);
+    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(0);
+    expect(rangeRead.mock.calls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(
+      4 * 1024 * 1024,
+    );
+    // The supported large record remains at the committed cursor after rotation.
+    fs.writeFileSync(fixture.transcript, largeLine);
+    clock = 31000;
+    expect(await adapter.readUsage([proc(1)])).toMatchObject([{ inputTokens: 13 }]);
+    expect(adapter.getCollectionStatus().state).toBe('ready');
+    expect(await adapter.readUsage([proc(1)])).toHaveLength(0);
+  });
+
+  it('commits a smaller complete batch after capacity rollback and retains the pause', async () => {
+    const fixture = source(
+      1,
+      Array.from({ length: 2000 }, (_, i) => line(`retry-${i}`)),
+    );
+    const rows = await adapter.readUsage([proc(1)]);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(2000);
+    openInspection();
+    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(rows.length);
+    const offset = inspect.prepare('SELECT offset FROM sessions').get().offset;
+    expect(
+      fs.readFileSync(fixture.transcript).subarray(0, offset).toString().split('\n').length - 1,
+    ).toBe(rows.length);
+    expect(adapter.getCollectionStatus()).toEqual({
+      state: 'storage-paused',
+      reason: 'capacity',
+      retryAt: 31000,
+    });
+    expect(rangeRead.mock.calls.reduce((sum, call) => sum + call[2], 0)).toBeLessThanOrEqual(
+      4 * 1024 * 1024,
+    );
+    expect(await adapter.readUsage([proc(1)])).toEqual([]);
+  });
+
+  it('keeps committed IDs/cursors at the permanent cap and backs off thousands of scans', async () => {
+    const fixture = source(1, [line('oldest')]);
+    expect(await adapter.readUsage([proc(1)])).toHaveLength(1);
+    openInspection();
+    const fill = inspect.prepare('INSERT INTO messages SELECT sid, randomblob(32) FROM sessions');
+    let full;
+    for (let i = 0; i < 2000; i++) {
+      try {
+        fill.run();
+      } catch (error) {
+        full = error;
+        break;
+      }
+    }
+    expect(full?.errcode & 0xff).toBe(13);
+    fs.appendFileSync(
+      fixture.transcript,
+      Array.from({ length: 2000 }, (_, i) => line(`backlog-${i}`)).join(''),
+    );
+    let pending = await adapter.readUsage([proc(1)]);
+    for (let i = 0; pending.length && i < 30; i++) {
+      clock = adapter.getCollectionStatus().retryAt;
+      pending = await adapter.readUsage([proc(1)]);
+    }
+    expect(pending).toHaveLength(0);
+    const committedOffset = inspect.prepare('SELECT offset FROM sessions').get().offset;
+    const committedIds = inspect.prepare('SELECT count(*) AS n FROM messages').get().n;
+    expect(adapter.getCollectionStatus()).toEqual({
+      state: 'storage-paused',
+      reason: 'capacity',
+      retryAt: clock + 30000,
+    });
     expect(inspect.prepare('SELECT offset FROM sessions').get().offset).toBe(committedOffset);
-    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(1);
+    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(committedIds);
     expect(inspect.prepare('PRAGMA max_page_count').get().max_page_count).toBe(16);
     expect(fs.statSync(file).size).toBeLessThanOrEqual(MAX_BYTES);
     const reads = rangeRead.mock.calls.length;
     for (let i = 0; i < 3000; i++) expect(await adapter.readUsage([proc(1)])).toEqual([]);
     expect(rangeRead).toHaveBeenCalledTimes(reads);
-    clock = 31000;
+    clock += 30000;
     expect(await adapter.readUsage([proc(1)])).toEqual([]);
     expect(adapter.getCollectionStatus()).toMatchObject({
       state: 'storage-paused',
-      retryAt: 61000,
+      retryAt: clock + 30000,
     });
     expect(inspect.prepare('SELECT offset FROM sessions').get().offset).toBe(committedOffset);
-    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(1);
+    expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(committedIds);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
@@ -151,19 +221,21 @@ describe('real-file SQLite capacity and truthful collection status', () => {
     fs.mkdirSync(subDir, { recursive: true });
     fs.writeFileSync(path.join(subDir, 'agent-a.jsonl'), line('pending-0') + line('sub-new', 9));
     const tick = await collector.collectTokenCosts([proc(1), proc(2)]);
-    expect(tick.map((row) => row.pid)).toEqual([1]);
-    expect(tick[0].inputTokens).toBe(7);
+    const partial = tick.filter((row) => row.pid === 2);
+    expect(tick.filter((row) => row.pid === 1)).toMatchObject([{ inputTokens: 7 }]);
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan(400);
     const paused = collector.getTokenCostDelivery();
     expect(paused.collection).toMatchObject([
       { adapter: 'claude-code', state: 'storage-paused', reason: 'capacity' },
     ]);
     expect(paused.records.find((row) => row.pid === 1).inputTokens).toBe(8);
-    expect(paused.records.find((row) => row.pid === 2).inputTokens).toBe(1);
+    expect(paused.records.find((row) => row.pid === 2).inputTokens).toBe(1 + partial.length);
     expect(
       inspect
         .prepare('SELECT offset FROM sessions ORDER BY offset')
         .all()
-        .some((row) => row.offset === oldOffset),
+        .some((row) => row.offset > oldOffset),
     ).toBe(true);
     // Give the same bounded index space back, preserving every accepted ID.
     inspect.exec('DELETE FROM padding');
@@ -171,7 +243,7 @@ describe('real-file SQLite capacity and truthful collection status', () => {
     expect(collector.getTokenCostDelivery().collection[0].state).toBe('storage-paused');
     clock = 31000;
     const recovered = await collector.collectTokenCosts([proc(1), proc(2)]);
-    expect(recovered).toHaveLength(401);
+    expect(recovered).toHaveLength(401 - partial.length);
     expect(recovered.every((row) => row.pid === 2)).toBe(true);
     expect(recovered[0].inputTokens).toBe(1);
     expect(recovered.filter((row) => row.inputTokens === 9)).toHaveLength(1);
@@ -192,11 +264,11 @@ describe('real-file SQLite capacity and truthful collection status', () => {
     );
     source(2, [line('small')]);
     const rows = await adapter.readUsage([proc(1), proc(2)]);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].pid).toBe(2);
+    expect(rows.filter((row) => row.pid === 2)).toHaveLength(1);
+    expect(rows.filter((row) => row.pid === 1).length).toBeGreaterThan(0);
     expect(adapter.getCollectionStatus().state).toBe('storage-paused');
     clock = 31000;
-    expect(await adapter.readUsage([proc(1), proc(2)])).toEqual([]);
+    expect((await adapter.readUsage([proc(1), proc(2)])).every((row) => row.pid === 1)).toBe(true);
     expect(adapter.getCollectionStatus().state).toBe('storage-paused');
     expect(await adapter.readUsage([])).toEqual([]);
     expect(adapter.getCollectionStatus().state).toBe('storage-paused');
