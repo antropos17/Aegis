@@ -1600,36 +1600,49 @@ describe('scan-loop', () => {
 
   // ── reentrancy guard (doProcessScan) ──
 
-  describe('Docker discovery scheduling', () => {
-    it('publishes host agents while Docker metadata discovery is still pending', async () => {
+  describe('container discovery scheduling', () => {
+    it('publishes host agents while both metadata discoveries are still pending', async () => {
       const refreshDockerDiscovery = vi.fn(() => new Promise(() => {}));
-      const deps = makeDeps({ refreshDockerDiscovery });
+      const refreshPodmanDiscovery = vi.fn(() => new Promise(() => {}));
+      const deps = makeDeps({ refreshDockerDiscovery, refreshPodmanDiscovery });
       scanLoop.init(deps);
       scanLoop.startScanIntervals(5000);
 
       await vi.advanceTimersByTimeAsync(5000);
 
       expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+      expect(refreshPodmanDiscovery).toHaveBeenCalledTimes(1);
       expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
       expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
         true,
       );
     });
 
-    it.each(['throws', 'rejects'])(
-      'keeps the host scan alive when discovery %s',
-      async (failure) => {
-        const refreshDockerDiscovery = vi.fn(() => {
+    it.each([
+      ['Docker', 'throws'],
+      ['Docker', 'rejects'],
+      ['Podman', 'throws'],
+      ['Podman', 'rejects'],
+    ])(
+      'keeps the other runtime and host scan alive when %s discovery %s',
+      async (runtime, failure) => {
+        const refreshDockerDiscovery = vi.fn();
+        const refreshPodmanDiscovery = vi.fn();
+        const failedRefresh =
+          runtime === 'Docker' ? refreshDockerDiscovery : refreshPodmanDiscovery;
+        failedRefresh.mockImplementation(() => {
           if (failure === 'throws') throw new Error('discovery unavailable');
           return Promise.reject(new Error('discovery unavailable'));
         });
-        const deps = makeDeps({ refreshDockerDiscovery });
+        const deps = makeDeps({ refreshDockerDiscovery, refreshPodmanDiscovery });
         scanLoop.init(deps);
         scanLoop.startScanIntervals(5000);
 
         await vi.advanceTimersByTimeAsync(5000);
 
         expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+        expect(refreshPodmanDiscovery).toHaveBeenCalledTimes(1);
+        expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
         expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
           true,
         );
@@ -1639,7 +1652,12 @@ describe('scan-loop', () => {
 
     it('does not refresh discovery from a paused startup tick', async () => {
       const refreshDockerDiscovery = vi.fn();
-      const deps = makeDeps({ refreshDockerDiscovery, isMonitoringPaused: () => true });
+      const refreshPodmanDiscovery = vi.fn();
+      const deps = makeDeps({
+        refreshDockerDiscovery,
+        refreshPodmanDiscovery,
+        isMonitoringPaused: () => true,
+      });
       scanLoop.init(deps);
       scanLoop.staggeredStartup(5000, true);
 
@@ -1647,12 +1665,15 @@ describe('scan-loop', () => {
 
       expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
       expect(refreshDockerDiscovery).not.toHaveBeenCalled();
+      expect(refreshPodmanDiscovery).not.toHaveBeenCalled();
     });
 
     it('does not refresh discovery from a skipped overlapping process tick', async () => {
       const refreshDockerDiscovery = vi.fn();
+      const refreshPodmanDiscovery = vi.fn();
       const deps = makeDeps({
         refreshDockerDiscovery,
+        refreshPodmanDiscovery,
         scanner: { scanProcesses: vi.fn(() => new Promise(() => {})) },
       });
       scanLoop.init(deps);
@@ -1662,6 +1683,7 @@ describe('scan-loop', () => {
 
       expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
       expect(refreshDockerDiscovery).toHaveBeenCalledTimes(1);
+      expect(refreshPodmanDiscovery).toHaveBeenCalledTimes(1);
       expect(scanLoop.getScanCadence().skippedProcessTicks).toBe(1);
     });
   });

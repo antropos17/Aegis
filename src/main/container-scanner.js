@@ -5,11 +5,10 @@
  */
 'use strict';
 const { execFile: defaultExecFile } = require('node:child_process');
+const { MAX_OUTPUT_BYTES, hasControl, parseContainerOutput } = require('./container-metadata');
 
 const CADENCE_MS = 30000;
 const FRESH_MS = 90000;
-const MAX_OUTPUT_BYTES = 524288;
-const MAX_ROWS = 1024;
 const FORMAT = '{"ID":{{json .ID}},"Image":{{json .Image}},"Names":{{json .Names}}}';
 const PS_ARGS = ['ps', '--no-trunc', '--filter', 'status=running', '--format'];
 const WINDOWS_ENDPOINTS = [
@@ -20,114 +19,6 @@ const WINDOWS_ENDPOINTS = [
 // https://docs.docker.com/engine/cli/otel/
 const SCRUB_ENV =
   /^(?:DOCKER_(?:HOST|CONTEXT|TLS|TLS_VERIFY|CERT_PATH|API_VERSION)$|DOCKER_CLI_OTEL_|OTEL_|TRACEPARENT$|TRACESTATE$)/i;
-// Exact runnable application repositories from official project instructions:
-// https://github.com/agent0ai/agent-zero/blob/main/docs/setup/installation.md
-// https://docs.openclaw.ai/install/docker
-// https://github.com/OpenHands/OpenHands/blob/main/README.md
-const IMAGES = new Map([
-  ['docker.io/agent0ai/agent-zero', 'Agent Zero'],
-  ['ghcr.io/openclaw/openclaw', 'OpenClaw'],
-  ['docker.io/openclaw/openclaw', 'OpenClaw'],
-  ['ghcr.io/openhands/agent-canvas', 'OpenHands'],
-]);
-
-/** Resolve a repository without matching lookalikes, tags, or registry ports.
- * @param {string} image Docker's reported image reference.
- * @returns {string} Canonical registry/repository, or empty for an invalid reference.
- */
-function repository(image) {
-  const parts = image.split('@');
-  if (parts.length > 2 || (parts.length === 2 && !/^sha256:[a-f0-9]{64}$/.test(parts[1])))
-    return '';
-  let name = parts[0];
-  const colon = name.lastIndexOf(':');
-  if (colon > name.lastIndexOf('/')) {
-    if (!/^[\w][\w.-]{0,127}$/.test(name.slice(colon + 1))) return '';
-    name = name.slice(0, colon);
-  }
-  if (!/^[a-z0-9][a-z0-9._:/-]*$/.test(name)) return '';
-  const first = name.split('/')[0];
-  if (first === 'index.docker.io') return name.replace(/^index\.docker\.io\//, 'docker.io/');
-  const explicitRegistry = name.includes('/') && (/[.:]/.test(first) || first === 'localhost');
-  return explicitRegistry ? name : `docker.io/${name}`;
-}
-
-/** Detect ASCII controls. @param {string} value @returns {boolean} */
-function hasControl(value) {
-  return [...value].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
-}
-
-/** Match first non-link name from comma-separated Names; discard aliases.
- * https://github.com/docker/cli/blob/master/cli/command/formatter/container.go
- * @param {unknown} value Docker's projected Names field.
- * @returns {string|null} Bounded canonical name, or null for malformed output.
- */
-function canonicalName(value) {
-  if (typeof value !== 'string' || value.length > 8192 || hasControl(value)) return null;
-  const names = value.split(',');
-  if (
-    names.length > 32 ||
-    names.some((name) => {
-      const parts = name.split('/');
-      return (
-        parts.length > 2 || parts.some((part) => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(part))
-      );
-    })
-  )
-    return null;
-  return names.find((name) => !name.includes('/')) ?? null;
-}
-
-/** Validate the whole projected page before accepting any candidate.
- * @param {unknown} output CLI stdout; no commands, arbitrary labels or mounts.
- * @returns {Array<object>|null} Candidates, or null for an unread observation.
- */
-function parseOutput(output) {
-  if (typeof output !== 'string' || Buffer.byteLength(output) > MAX_OUTPUT_BYTES) return null;
-  const lines = output.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length > MAX_ROWS) return null;
-  const seen = new Set();
-  const candidates = [];
-  for (const line of lines) {
-    let row;
-    try {
-      row = JSON.parse(line);
-    } catch {
-      return null;
-    }
-    const name = canonicalName(row?.Names);
-    if (
-      !row ||
-      Array.isArray(row) ||
-      Object.keys(row).length !== 3 ||
-      !Object.keys(row).every((key) => ['ID', 'Image', 'Names'].includes(key)) ||
-      typeof row.ID !== 'string' ||
-      !/^[a-f0-9]{64}$/.test(row.ID) ||
-      seen.has(row.ID) ||
-      name === null ||
-      typeof row.Image !== 'string' ||
-      !row.Image ||
-      row.Image.length > 512 ||
-      /\s/.test(row.Image) ||
-      hasControl(row.Image)
-    )
-      return null;
-    seen.add(row.ID);
-    const agent = IMAGES.get(repository(row.Image));
-    if (agent)
-      candidates.push({
-        id: `docker:${row.ID}`,
-        containerId: row.ID,
-        name,
-        image: row.Image,
-        agent,
-        match: 'image',
-        runtime: 'docker',
-      });
-  }
-  return candidates.sort((a, b) => a.id.localeCompare(b.id));
-}
-
 /** Discard CLI error text. @param {unknown} error @returns {string} Fixed token. */
 function failureReason(error) {
   if (error?.code === 'ENOENT') return 'cli-missing';
@@ -208,7 +99,7 @@ function createDockerDiscovery(options = {}) {
           },
           (error, stdout) => {
             if (error) return finish({ reason: failureReason(error) });
-            const candidates = parseOutput(stdout);
+            const candidates = parseContainerOutput(stdout, 'docker');
             finish(candidates === null ? { reason: 'invalid-output' } : { candidates });
           },
         );

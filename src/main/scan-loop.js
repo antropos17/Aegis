@@ -644,13 +644,15 @@ async function doProcessScan() {
   updateScanStatus(true);
   const t0 = performance.now();
   try {
-    // Docker metadata has its own bounded refresh and never owns host-process
-    // identity. A slow or rejected CLI query must not delay this population pass.
-    try {
-      if (deps.isMonitoringPaused?.() !== true)
-        Promise.resolve(deps.refreshDockerDiscovery?.()).catch(() => {});
-    } catch {
-      // An optional discovery collaborator cannot invalidate the host scan.
+    // Runtime metadata has its own bounded refresh and never owns host-process
+    // identity. Each collaborator is isolated so a synchronous throw or rejected
+    // CLI query cannot delay the other runtime or this population pass.
+    for (const refresh of [deps.refreshDockerDiscovery, deps.refreshPodmanDiscovery]) {
+      try {
+        if (deps.isMonitoringPaused?.() !== true) Promise.resolve(refresh?.()).catch(() => {});
+      } catch {
+        // An optional discovery collaborator cannot invalidate another observation.
+      }
     }
     // Stage-1 step A: this inner try encloses scanProcesses, whose provider call is
     // followed by catalog matching and tracking callbacks. Existing health handling

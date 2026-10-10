@@ -174,3 +174,31 @@ export interface DockerDiscoverySnapshot {
   readonly stale: boolean;
   readonly candidates: readonly DockerContainerCandidate[];
 }
+
+/** Podman image metadata matched a configured agent signature; host process identity is unobserved. */
+export interface PodmanContainerCandidate {
+  readonly id: `podman:${string}`;
+  readonly containerId: string;
+  readonly name: string;
+  readonly image: string;
+  readonly agent: string;
+  readonly match: 'image';
+  readonly runtime: 'podman';
+}
+
+/** Independent Podman discovery state, including retained metadata after a failed attempt. */
+export interface PodmanDiscoverySnapshot {
+  readonly status: 'pending' | 'ready' | 'unavailable';
+  readonly reason:
+    | null
+    | 'cli-missing'
+    | 'runtime-unavailable'
+    | 'timeout'
+    | 'invalid-output'
+    | 'unsupported-platform'
+    | 'remote-config';
+  readonly observedAt: number | null;
+  readonly attemptedAt: number | null;
+  readonly stale: boolean;
+  readonly candidates: readonly PodmanContainerCandidate[];
+}

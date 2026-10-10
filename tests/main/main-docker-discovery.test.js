@@ -14,11 +14,23 @@ const pending = {
 };
 let discovery = pending;
 let onUpdate;
+let podmanDiscovery = pending;
+let onPodmanUpdate;
 const refresh = vi.fn();
 const stop = vi.fn();
+const refreshPodman = vi.fn();
+const stopPodman = vi.fn();
 const createDockerDiscovery = vi.fn((options) => {
   onUpdate = options.onUpdate;
   return { refresh, stop, snapshot: () => structuredClone(discovery) };
+});
+const createPodmanDiscovery = vi.fn((options) => {
+  onPodmanUpdate = options.onUpdate;
+  return {
+    refresh: refreshPodman,
+    stop: stopPodman,
+    snapshot: () => structuredClone(podmanDiscovery),
+  };
 });
 const fakeElectron = {
   app: {
@@ -49,6 +61,8 @@ Module._load = function (request, parent) {
   if (request === 'electron') return fakeElectron;
   if (parent?.filename.endsWith('main.js') && request === './container-scanner')
     return { createDockerDiscovery };
+  if (parent?.filename.endsWith('main.js') && request === './podman-scanner')
+    return { createPodmanDiscovery };
   if (parent?.filename.endsWith('main.js') && request === './scan-loop')
     return { stopScanIntervals: vi.fn() };
   return originalLoad.apply(this, arguments);
@@ -64,11 +78,14 @@ afterAll(() => {
   process.argv = originalArgv;
 });
 
-describe('main Docker discovery stats', () => {
+describe('main container discovery stats', () => {
   it('publishes an unobserved pending snapshot before deferred startup', () => {
     expect(main.getStats().dockerDiscovery).toEqual(pending);
+    expect(main.getStats().podmanDiscovery).toEqual(pending);
     expect(createDockerDiscovery).not.toHaveBeenCalled();
+    expect(createPodmanDiscovery).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+    expect(refreshPodman).not.toHaveBeenCalled();
   });
 
   it('reads the deferred discovery snapshot on both stats branches without scanning', () => {
@@ -92,6 +109,14 @@ describe('main Docker discovery stats', () => {
         },
       ],
     };
+    podmanDiscovery = {
+      ...discovery,
+      candidates: discovery.candidates.map((candidate) => ({
+        ...candidate,
+        id: `podman:${candidate.containerId}`,
+        runtime: 'podman',
+      })),
+    };
     for (const scanner of [
       null,
       {
@@ -105,12 +130,33 @@ describe('main Docker discovery stats', () => {
       main._setScannerForTest(scanner);
       const stats = main.getStats();
       expect(stats.dockerDiscovery).toEqual(discovery);
+      expect(stats.podmanDiscovery).toEqual(podmanDiscovery);
       expect(stats.currentAgents).toBe(0);
+      expect(stats.aiAgentCount).toBe(0);
       expect(stats.appHealth).not.toHaveProperty('dockerDiscovery');
+      expect(stats.appHealth).not.toHaveProperty('podmanDiscovery');
     }
     main._setScannerForTest(null);
+    main._loadDeferredModulesForTest();
     expect(createDockerDiscovery).toHaveBeenCalledTimes(1);
+    expect(createPodmanDiscovery).toHaveBeenCalledTimes(1);
     expect(refresh).not.toHaveBeenCalled();
+    expect(refreshPodman).not.toHaveBeenCalled();
+  });
+
+  it('keeps a stale Podman result independent of ready Docker metadata', () => {
+    podmanDiscovery = {
+      ...podmanDiscovery,
+      status: 'unavailable',
+      reason: 'runtime-unavailable',
+      attemptedAt: podmanDiscovery.attemptedAt + 30000,
+      stale: true,
+    };
+    const stats = main.getStats();
+    expect(stats.podmanDiscovery).toEqual(podmanDiscovery);
+    expect(stats.dockerDiscovery).toEqual(discovery);
+    expect(stats.currentAgents).toBe(0);
+    expect(refreshPodman).not.toHaveBeenCalled();
   });
 
   it('delivers settled discovery through the existing latest-stats batcher', async () => {
@@ -118,23 +164,40 @@ describe('main Docker discovery stats', () => {
     const send = vi.fn();
     main._setMainWindowForTest({ isDestroyed: () => false, webContents: { send } });
     onUpdate();
+    onPodmanUpdate();
     discovery = { ...discovery, candidates: [] };
+    podmanDiscovery = { ...podmanDiscovery, candidates: [] };
     await vi.advanceTimersByTimeAsync(1000);
     expect(send).toHaveBeenCalledWith(
       'stats-update',
-      expect.objectContaining({ dockerDiscovery: discovery }),
+      expect.objectContaining({ dockerDiscovery: discovery, podmanDiscovery }),
     );
+    expect(send).toHaveBeenCalledTimes(1);
     expect(refresh).not.toHaveBeenCalled();
+    expect(refreshPodman).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 
-  it('stops discovery at quit and suppresses subsequent update delivery', async () => {
+  it('stops both discoveries before quit and at quit, suppressing late updates', async () => {
     vi.useFakeTimers();
     const send = vi.fn();
     main._setMainWindowForTest({ isDestroyed: () => false, webContents: { send } });
-    listeners.get('quit')();
+    main._setSensitiveAlertJournalForTest({
+      hasPending: () => true,
+      flush: vi.fn().mockResolvedValue(false),
+    });
+    listeners.get('before-quit')({ preventDefault: vi.fn() });
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(stopPodman).toHaveBeenCalledTimes(1);
     onUpdate();
+    onPodmanUpdate();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(send).not.toHaveBeenCalled();
+    listeners.get('quit')();
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(stopPodman).toHaveBeenCalledTimes(2);
+    onUpdate();
+    onPodmanUpdate();
     await vi.advanceTimersByTimeAsync(1000);
     expect(send).not.toHaveBeenCalled();
     vi.useRealTimers();

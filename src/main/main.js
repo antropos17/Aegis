@@ -174,7 +174,8 @@ let baselines,
   ideDetector,
   wslDetector,
   llmDetector,
-  dockerDiscovery;
+  dockerDiscovery,
+  podmanDiscovery;
 
 // How many sequence rules the engine holds — written by loadSequenceRules, read by the
 // `rules:reloaded` push of BOTH rule watchers (file-watcher.js) as `sequenceCount`.
@@ -272,6 +273,14 @@ function loadDeferredModules() {
   if (!dockerDiscovery) {
     const { createDockerDiscovery } = require('./container-scanner');
     dockerDiscovery = createDockerDiscovery({
+      onUpdate: () => {
+        if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+      },
+    });
+  }
+  if (!podmanDiscovery) {
+    const { createPodmanDiscovery } = require('./podman-scanner');
+    podmanDiscovery = createPodmanDiscovery({
       onUpdate: () => {
         if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
       },
@@ -456,6 +465,24 @@ function getDockerDiscoveryStats() {
 }
 
 /**
+ * Return discovery metadata without starting a Podman command during stats reads.
+ * @returns {import('../shared/types/process').PodmanDiscoverySnapshot} Last observation, or an explicitly unobserved startup snapshot.
+ * @since v0.19.2-beta
+ */
+function getPodmanDiscoveryStats() {
+  return podmanDiscovery
+    ? podmanDiscovery.snapshot()
+    : {
+        status: 'pending',
+        reason: null,
+        observedAt: null,
+        attemptedAt: null,
+        stale: true,
+        candidates: [],
+      };
+}
+
+/**
  * Monitoring statistics.
  *
  * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
@@ -484,6 +511,7 @@ function getStats() {
       attribution: { confirmed: 0, inferred: 0, unattributed: 0, unattributedSensitive: 0 },
       appHealth: getAppHealth(),
       dockerDiscovery: getDockerDiscoveryStats(),
+      podmanDiscovery: getPodmanDiscoveryStats(),
       // Same expression as the loaded branch, not a zeroed lookalike: the batcher is a
       // module-scope const, so it has been counting since before this branch was
       // reachable and its numbers are real here too.
@@ -516,6 +544,7 @@ function getStats() {
     },
     appHealth: getAppHealth(),
     dockerDiscovery: getDockerDiscoveryStats(),
+    podmanDiscovery: getPodmanDiscoveryStats(),
     ipc: getIpcStats(),
     sequences: getSequenceStats(),
     monitoringPaused,
@@ -960,6 +989,9 @@ function initDeferredSubsystems(userData) {
     refreshDockerDiscovery: () => {
       if (!monitoringPaused && !isQuitting) return dockerDiscovery?.refresh();
     },
+    refreshPodmanDiscovery: () => {
+      if (!monitoringPaused && !isQuitting) return podmanDiscovery?.refresh();
+    },
     getResourceUsage,
     getLatestAgents: () => latestAgents,
     setAgents: setLatestAgents,
@@ -1171,6 +1203,7 @@ let alertQuitDrainStarted = false;
 let alertQuitDrainFinished = false;
 app.on('before-quit', (event) => {
   dockerDiscovery?.stop();
+  podmanDiscovery?.stop();
   if (alertQuitDrainStarted && !alertQuitDrainFinished) {
     event.preventDefault();
     return;
@@ -1232,6 +1265,7 @@ app.on('before-quit', (event) => {
 app.on('window-all-closed', () => {});
 app.on('quit', () => {
   dockerDiscovery?.stop();
+  podmanDiscovery?.stop();
   fileAccessBatcher.destroy();
   statsUpdateBatcher.destroy();
   if (scanLoop) scanLoop.stopScanIntervals();
