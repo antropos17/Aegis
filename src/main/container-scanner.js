@@ -77,9 +77,19 @@ function createDockerDiscovery(options = {}) {
   function query(endpoint, env) {
     return new Promise((resolve) => {
       let settled = false;
+      const watchdog = setTimeout(() => {
+        const child = activeChild;
+        finish({ reason: 'timeout' });
+        try {
+          child?.kill('SIGKILL');
+        } catch {
+          /* Settlement must not depend on process termination succeeding. */
+        }
+      }, 3000);
       const finish = (result) => {
         if (settled) return;
         settled = true;
+        clearTimeout(watchdog);
         activeChild = null;
         cancel = null;
         resolve(result);
@@ -91,6 +101,7 @@ function createDockerDiscovery(options = {}) {
           ['--host', endpoint, ...PS_ARGS, FORMAT],
           {
             timeout: 3000,
+            killSignal: 'SIGKILL',
             maxBuffer: MAX_OUTPUT_BYTES,
             windowsHide: true,
             shell: false,
@@ -98,6 +109,7 @@ function createDockerDiscovery(options = {}) {
             env,
           },
           (error, stdout) => {
+            if (settled) return;
             if (error) return finish({ reason: failureReason(error) });
             const candidates = parseContainerOutput(stdout, 'docker');
             finish(candidates === null ? { reason: 'invalid-output' } : { candidates });
@@ -178,7 +190,7 @@ function createDockerDiscovery(options = {}) {
     const child = activeChild;
     cancel?.();
     try {
-      child?.kill();
+      child?.kill('SIGKILL');
     } catch {
       /* A completed process needs no further cleanup. */
     }

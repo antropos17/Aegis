@@ -37,7 +37,10 @@ function harness(replies = [], options = {}) {
 }
 
 beforeEach(() => vi.stubEnv('DOCKER_HOST', ''));
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
 
 describe('Docker metadata discovery', () => {
   it('has a passive pending snapshot and returns independent copies', async () => {
@@ -182,6 +185,7 @@ describe('Docker metadata discovery', () => {
     ]);
     expect(settings).toMatchObject({
       timeout: 3000,
+      killSignal: 'SIGKILL',
       maxBuffer: 524288,
       windowsHide: true,
       shell: false,
@@ -355,7 +359,79 @@ describe('Docker metadata discovery', () => {
     expect(JSON.stringify(discovery.snapshot())).not.toContain('private');
   });
 
+  it.each([false, true])(
+    'bounds a never-callback Windows query and recovers on the next cadence (kill throws: %s)',
+    async (killThrows) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const { discovery, execFile, kill, onUpdate, advance } = harness([row()], {
+        platform: 'win32',
+      });
+      await discovery.refresh();
+      expect(vi.getTimerCount()).toBe(0);
+      if (killThrows)
+        kill.mockImplementation(() => {
+          throw new Error('private kill failure');
+        });
+      advance(31000);
+      const pending = discovery.refresh();
+      await Promise.resolve();
+      const lateCallback = execFile.mock.calls[1][3];
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).resolves.toMatchObject({
+        status: 'unavailable',
+        reason: 'timeout',
+        observedAt: 1000,
+        attemptedAt: 31000,
+        stale: true,
+        candidates: [{ containerId: firstId }],
+      });
+      expect(kill).toHaveBeenCalledTimes(1);
+      expect(kill).toHaveBeenCalledWith('SIGKILL');
+      expect(execFile).toHaveBeenCalledTimes(2);
+      expect(execFile.mock.calls[1][1][1]).toBe('npipe:////./pipe/dockerDesktopLinuxEngine');
+      expect(vi.getTimerCount()).toBe(0);
+      lateCallback(null, row(undefined, secondId));
+      lateCallback(Object.assign(new Error('private late failure'), { code: 1 }));
+      expect(onUpdate).toHaveBeenCalledTimes(2);
+      expect(discovery.snapshot().reason).toBe('timeout');
+      advance(60999);
+      await discovery.refresh();
+      expect(execFile).toHaveBeenCalledTimes(2);
+      advance(61000);
+      const recovered = discovery.refresh();
+      await Promise.resolve();
+      // The expired query must not cancel or kill a subsequent query's owner.
+      lateCallback(null, row(undefined, secondId));
+      execFile.mock.calls[2][3](null, '');
+      await expect(recovered).resolves.toMatchObject({
+        status: 'ready',
+        reason: null,
+        observedAt: 61000,
+        candidates: [],
+        stale: false,
+      });
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(kill).toHaveBeenCalledTimes(1);
+      expect(onUpdate).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it('clears the watchdog on a synchronous spawn failure', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { discovery } = harness([], {
+      execFile: () => {
+        throw new Error('private spawn failure');
+      },
+    });
+    await expect(discovery.refresh()).resolves.toMatchObject({ reason: 'daemon-unavailable' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('stop kills only the owned CLI, resolves pending refresh and suppresses late updates', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { discovery, execFile, kill, onUpdate } = harness();
     const pending = discovery.refresh();
     await Promise.resolve();
@@ -364,7 +440,10 @@ describe('Docker metadata discovery', () => {
     await pending;
     execFile.mock.calls[0][3](null, row());
     await discovery.refresh();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(vi.getTimerCount()).toBe(0);
     expect(kill).toHaveBeenCalledTimes(1);
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
     expect(onUpdate).not.toHaveBeenCalled();
     expect(discovery.snapshot().candidates).toEqual([]);
     expect(execFile).toHaveBeenCalledTimes(1);
