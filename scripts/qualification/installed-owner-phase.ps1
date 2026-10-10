@@ -35,7 +35,7 @@ function Get-InstalledOwnerReceiptPaths($Association) {
 }
 function Get-InstalledOwnerObservedField($Value, [string]$Field) {
     if ($null -eq $Value) { return $null }
-    if ($Value -is [Collections.IDictionary]) { if ($Value.Contains($Field)) { return $Value[$Field] }; return $null }
+    if ($Value -is [Collections.IDictionary]) { if ($Value.Keys -ccontains $Field) { return $Value[$Field] }; return $null }
     $property = $Value.PSObject.Properties[$Field]; if ($null -ne $property) { return $property.Value }; return $null
 }
 function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'native')][string]$Kind) {
@@ -126,7 +126,7 @@ function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
             if ($native.($image.field) -cne $pin) { throw 'installed-original-image-binding-refused' }
         }
         $Association.cleanupUnknown = $false
-        $diagnostic.cleanupUnknown = $false; $diagnostic.independentlyObservedOwner = Get-InstalledOwnerAttemptObservation $Association.service.ObservedOwner 'owner'; $diagnostic.checkpoint = 'attempt-report'
+        $diagnostic.checkpoint = 'attempt-report'; $diagnostic.cleanupUnknown = $false; $diagnostic.independentlyObservedOwner = Get-InstalledOwnerAttemptObservation $Association.service.ObservedOwner 'owner'
         return @{ expectedPositive = $ExpectedPositive; native = $native; independentCounter = $count; resultIdentity = $row; counterIdentity = $counter; scm = $states.ToArray();
             serviceConfiguration = $Association.service.Configuration(); serviceSddl = $Association.service.Security(); root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true;
             independentlyObservedOwner = $Association.service.ObservedOwner; accountProfile = @{ sid = $Association.operatorSid; usersGroupSid = 'S-1-5-32-545'; usersMembershipConfirmed = $true };

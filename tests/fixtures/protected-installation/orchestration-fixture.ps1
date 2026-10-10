@@ -1,4 +1,4 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'phase-clean', 'phase-unknown', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array', 'attempt-dictionary')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($Mode -ceq 'host-script-scope') { & $PSCommandPath 'host-script-child'; return }
@@ -180,6 +180,69 @@ if ($Mode -ceq 'membership-helper-lookup') {
     return
 }
 . (Join-Path $PSScriptRoot '../../../scripts/qualification/installed-owner-phase.ps1')
+if ($Mode -ceq 'attempt-dictionary') {
+    # Match the maintained SCM association's real Dictionary<string,object> type.
+    # Every attempt has a fresh fake service/association and its own receipt;
+    # only the maintained attempt's existing closure checks may clear its latch.
+    if (![IO.Path]::IsPathRooted($env:TEMP)) { throw 'fixture-temp-scope-refused' }
+    $script:DictionaryScratch = [IO.Path]::Combine($env:TEMP, 'attempt-' + [guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($script:DictionaryScratch) | Out-Null
+    $script:DictionaryReceipts = [Collections.Generic.List[string]]::new()
+    function Assert-ProtectedInstallation { param($Association); if ($Association.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' } }
+    function Test-Path { param($LiteralPath); if ([IO.Path]::GetDirectoryName($LiteralPath) -cne $script:DictionaryScratch) { throw 'fixture-receipt-path-refused' }; return [IO.File]::Exists($LiteralPath) }
+    function Read-ProtectedInstallSnapshot { param($Path, $Directory); return @{ volume = '00000001'; fileId = '0000000000000001' } }
+    function Update-ProtectedInstallRuntimeRows { param($Stage) }
+    function Invoke-DictionaryAttemptFixture([ValidateSet('success', 'status', 'report')][string]$Scenario) {
+        $service = [pscustomobject]@{ ObservedOwner = $null; statusCalls = 0; stopCalls = 0; deleteCalls = 0; scenario = $Scenario; resultPath = $null; native = $null }
+        $service | Add-Member ScriptMethod Start {
+            $this.ObservedOwner = [Collections.Generic.Dictionary[string,object]]::new()
+            $fields = @{ pid = [uint32]10; birthFileTime = [long]1; sid = 'S-1-5-18'; authentication = '0000000000000001'; session = [uint32]0;
+                exactProcessExited = $false; image = 'private-image'; unexpected = 'unsafe arbitrary observation' }
+            foreach ($field in $fields.Keys) { $this.ObservedOwner.Add($field, $fields[$field]) }
+            $script:DictionaryReceipts.Add($this.resultPath)
+            [IO.File]::WriteAllText($this.resultPath, ($this.native | ConvertTo-Json -Depth 5))
+        }
+        $service | Add-Member ScriptMethod Status {
+            $this.statusCalls++
+            if ($this.scenario -ceq 'status' -and $this.statusCalls -eq 2) { throw [Management.Automation.CommandNotFoundException]::new('unsafe arbitrary command and credential text') }
+            if ($this.statusCalls -eq 1) { return [uint32[]]@(4, 10) }; return [uint32[]]@(1, 0)
+        }
+        $service | Add-Member ScriptMethod WaitExited { $this.ObservedOwner['exactProcessExited'] = $true }
+        $service | Add-Member ScriptMethod Stop { $this.stopCalls++ }
+        $service | Add-Member ScriptMethod Delete { $this.deleteCalls++ }
+        $service | Add-Member ScriptMethod Configuration {
+            if ($this.scenario -ceq 'report') { throw [Management.Automation.ParameterBindingException]::new('unsafe arbitrary report and credential text') }
+            return @{ serviceType = 16 }
+        }
+        $service | Add-Member ScriptMethod Security { return 'fixture-service-security' }
+        $epoch = $(if ($Scenario -ceq 'success') { 'b' } elseif ($Scenario -ceq 'status') { 'c' } else { 'd' }) * 32
+        $association = @{ cleanupUnknown = $false; service = $service; operatorSid = 'S-1-5-21-1-2-3-1001'; installId = 'a' * 32;
+            stage = @{ epoch = $epoch; revision = 1; root = @{ PathName = 'private-root' }; rows = @() }; receipts = @{ PathName = $script:DictionaryScratch };
+            attemptedReceiptPaths = @(); receiptRows = @(); manifest = @{ files = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe' | ForEach-Object { @{ name = $_; sha256 = 'a' * 64 } }) } }
+        $service.resultPath = (Get-InstalledOwnerReceiptPaths $association).result
+        $service.native = @{ schemaVersion = 1; scope = 'installed-owner-inspection'; phase = 'await-completion'; supervisorStage = 0;
+            cleanupConfirmed = $true; ownedJobsEmpty = $true; nativeProducerReady = $true; bootstrapWriteCompleted = $true; bootstrapEofClosed = $true;
+            supervisorReleased = $true; mainReleased = $false; supervisorExitCode = 2; supervisorPid = 11; mainPid = 12;
+            inspected = $false; inspectionCount = 0; launchAllowed = $false; completeE1 = $false;
+            ownerSid = 'S-1-5-18'; ownerAuthentication = '0000000000000001'; ownerSession = 0; ownerBirth = '0000000000000001'; installId = 'a' * 32; epoch = $epoch; revision = 1;
+            ownerImageSha256 = 'a' * 64; supervisorImageSha256 = 'a' * 64; mainImageSha256 = 'a' * 64 }
+        $attempt = $null; $failure = $null
+        try { $attempt = Invoke-InstalledOwnerAttempt $association $false }
+        catch { $failure = Get-ProtectedInstallFailure $_ $association.attemptDiagnostic.checkpoint }
+        return @{ passed = $null -ne $attempt -and $attempt.passed; cleanupUnknown = $association.cleanupUnknown;
+            ownerIsGenericDictionary = $service.ObservedOwner -is [Collections.Generic.Dictionary[string,object]];
+            ownerReferenceExact = $null -ne $attempt -and [object]::ReferenceEquals($attempt.independentlyObservedOwner, $service.ObservedOwner);
+            checkpoint = $association.attemptDiagnostic.checkpoint; diagnostic = $association.attemptDiagnostic; thrownFailure = $failure;
+            stopCalls = $service.stopCalls; deleteCalls = $service.deleteCalls }
+    }
+    try { $result = @{ success = Invoke-DictionaryAttemptFixture 'success'; status = Invoke-DictionaryAttemptFixture 'status'; report = Invoke-DictionaryAttemptFixture 'report' } }
+    finally {
+        foreach ($receipt in $script:DictionaryReceipts) { if ([IO.File]::Exists($receipt)) { [IO.File]::Delete($receipt) } }
+        [IO.Directory]::Delete($script:DictionaryScratch, $false)
+    }
+    $result | ConvertTo-Json -Depth 10 -Compress
+    return
+}
 if ($Mode -cin @('attempt-status', 'attempt-native', 'attempt-missing-result', 'attempt-scope-array')) {
     # Run the maintained qualification wrapper and attempt in this child script.
     # Only OS/resource leaves are faked; native receipt mode writes one bounded

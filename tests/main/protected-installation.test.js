@@ -170,6 +170,68 @@ describe.skipIf(process.platform !== 'win32')(
       expect(value.stdout.toString('utf8')).not.toContain('fixture-credential');
       return JSON.parse(value.stdout.toString('utf8'));
     }
+    it('exports a generic dictionary owner and retains typed attempt and report failures', () => {
+      const value = orchestration('attempt-dictionary');
+      const owner = {
+        pid: 10,
+        birthFileTime: 1,
+        sid: 'S-1-5-18',
+        authentication: '0000000000000001',
+        session: 0,
+      };
+      expect(value.success).toMatchObject({
+        passed: true,
+        ownerIsGenericDictionary: true,
+        ownerReferenceExact: true,
+        cleanupUnknown: false,
+        checkpoint: 'attempt-report',
+        diagnostic: {
+          failure: null,
+          independentlyObservedOwner: { ...owner, exactProcessExited: true },
+        },
+        thrownFailure: null,
+        stopCalls: 0,
+        deleteCalls: 0,
+      });
+      expect(value.status).toMatchObject({
+        passed: false,
+        ownerIsGenericDictionary: true,
+        cleanupUnknown: true,
+        checkpoint: 'attempt-status',
+        diagnostic: {
+          failure: { operation: 'attempt-status', diagnosticCode: 'protected-command-not-found' },
+          independentlyObservedOwner: { ...owner, exactProcessExited: false },
+        },
+        thrownFailure: {
+          operation: 'attempt-status',
+          diagnosticCode: 'protected-command-not-found',
+        },
+        stopCalls: 0,
+        deleteCalls: 0,
+      });
+      expect(value.report).toMatchObject({
+        passed: false,
+        ownerIsGenericDictionary: true,
+        cleanupUnknown: false,
+        checkpoint: 'attempt-report',
+        diagnostic: {
+          failure: {
+            operation: 'attempt-report',
+            diagnosticCode: 'protected-parameter-binding-refused',
+          },
+          independentlyObservedOwner: { ...owner, exactProcessExited: true },
+        },
+        thrownFailure: {
+          operation: 'attempt-report',
+          diagnosticCode: 'protected-parameter-binding-refused',
+        },
+        stopCalls: 0,
+        deleteCalls: 0,
+      });
+      expect(JSON.stringify(value)).not.toMatch(
+        /unsafe|private-image|private-root|fixture-credential/,
+      );
+    });
     it('retains a finite failed attempt checkpoint and partial original owner observations without cleanup authority', () => {
       const report = orchestration('attempt-status');
       expect(report).toMatchObject({
