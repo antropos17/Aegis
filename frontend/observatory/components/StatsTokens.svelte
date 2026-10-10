@@ -37,6 +37,11 @@
     }),
   );
   let showSources = $state(false);
+  let claudePause = $derived(
+    telemetry.tokenCollection.find(
+      (status) => status.adapter === 'claude-code' && status.state === 'storage-paused',
+    ),
+  );
 </script>
 
 <section class="panel tokens-panel">
@@ -49,6 +54,15 @@
       ><Icon name="database" />{$t('Source samples ·')} {telemetry.tokens.length}</button
     >
   </header>
+  {#if claudePause}
+    <p class="collection-pause" role="status">
+      <strong>{$t('Claude Code token collection paused.')}</strong>
+      {claudePause.reason === 'capacity'
+        ? $t('The usage index has reached its storage capacity.')
+        : $t('The usage index is temporarily unavailable.')}
+      {$t('Recorded totals are retained and incomplete. Collection retries automatically.')}
+    </p>
+  {/if}
   <div class="table-wrap">
     <table>
       <thead
@@ -66,11 +80,13 @@
               ><small>{group.members.length} {$t('processes')}</small></td
             ><td>{group.tokenUsage.measured} / {group.tokenUsage.total}</td><td
               >{statisticsValue(group.tokenUsage.value)}<small
-                >{group.tokenUsage.value === null
-                  ? $t('No current measurement')
-                  : group.tokenUsage.measured < group.tokenUsage.total
-                    ? $t('Measured subtotal')
-                    : $t('From supported logs')}{group.estimated
+                >{claudePause && group.key === 'Claude Code'
+                  ? $t('Recorded subtotal · collection paused')
+                  : group.tokenUsage.value === null
+                    ? $t('No current measurement')
+                    : group.tokenUsage.measured < group.tokenUsage.total
+                      ? $t('Measured subtotal')
+                      : $t('From supported logs')}{group.estimated
                   ? $t(' · includes estimates')
                   : ''}</small
               >{#if group.unobservedClaudeBirth}<small
@@ -153,6 +169,18 @@
 <style>
   .tokens-panel {
     overflow: hidden;
+  }
+  .collection-pause {
+    margin: 0;
+    padding: var(--panel-inset);
+    border-top: 1px solid var(--border);
+    color: var(--ink);
+    font-size: 11px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .collection-pause strong {
+    display: block;
   }
   header {
     display: flex;

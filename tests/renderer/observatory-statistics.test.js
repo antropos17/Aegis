@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { emptyTelemetry } from '../../frontend/observatory/runtime/host';
+import { scopeStatistics } from '../../frontend/observatory/runtime/statistics-scope';
 import {
   measuredStatisticsTotal,
   statisticsValue,
@@ -47,6 +48,58 @@ const state = (at = 1000, extra = {}) => ({
 });
 const latest = (history, id) =>
   history.samples.findLast((sample) => Object.hasOwn(sample.values, id));
+
+it('retains totals but gaps Claude/global throughput through storage pause and backlog recovery', () => {
+  const first = state(1000, {
+    agents: [{ ...agent(1), agent: 'Claude Code' }, agent(2)],
+  });
+  const paused = [
+    { adapter: 'claude-code', state: 'storage-paused', reason: 'capacity', retryAt: 32000 },
+  ];
+  for (const scope of [
+    { agent: '', instanceId: '' },
+    { agent: 'Claude Code', instanceId: '' },
+  ]) {
+    let history = observeStatistics(createStatisticsHistory(), scopeStatistics(first, scope));
+    for (const at of [2000, 7000]) {
+      const next = state(at, { agents: first.agents, tokenCollection: paused });
+      history = observeStatistics(history, scopeStatistics(next, scope));
+      expect(latest(history, 'tokenRate').values.tokenRate).toBeNull();
+      expect(latest(history, 'tokens').values.tokens).toBe(scope.agent ? 100 : 300);
+      expect(latest(history, 'cpu').values.cpu).toBe(scope.agent ? 0 : 20);
+      expect(latest(history, 'fileRate').values.fileRate).toBe(scope.agent ? null : 0);
+      expect(history.tokens).toBeNull();
+      expect(history.stale).toBe(false);
+    }
+    const recovered = state(37000, {
+      agents: first.agents,
+      tokens: first.tokens.map((row) => ({ ...row, totalTokens: row.totalTokens + 10000 })),
+    });
+    history = observeStatistics(history, scopeStatistics(recovered, scope));
+    expect(latest(history, 'tokenRate').values.tokenRate).toBeNull();
+    const reliable = {
+      ...recovered,
+      tokensAt: 42000,
+      tokens: recovered.tokens.map((row) => ({ ...row, totalTokens: row.totalTokens + 5 })),
+    };
+    history = observeStatistics(history, scopeStatistics(reliable, scope));
+    expect(latest(history, 'tokenRate').values.tokenRate).toBe(scope.agent ? 60 : 120);
+  }
+});
+
+it('keeps token rates live for an unrelated selected agent during Claude storage pause', () => {
+  const first = state();
+  const paused = [{ adapter: 'claude-code', state: 'storage-paused', reason: 'capacity' }];
+  let history = observeStatistics(createStatisticsHistory(), first);
+  history = observeStatistics(history, {
+    ...first,
+    tokensAt: 2000,
+    tokenCollection: paused,
+    tokens: first.tokens.map((row) => ({ ...row, totalTokens: row.totalTokens + 5 })),
+  });
+  expect(latest(history, 'tokenRate').values.tokenRate).toBe(600);
+  expect(history.tokens).not.toBeNull();
+});
 
 it('shows measured partial subtotals without matching by PID or counting departed identities', () => {
   const s = state();

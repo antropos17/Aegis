@@ -7,6 +7,48 @@ import { language } from '../../../frontend/observatory/runtime/i18n';
 
 afterEach(() => language.set('en'));
 
+it('shows paused accounting with retained incomplete totals and removes the warning on recovery', async () => {
+  const telemetry: Telemetry = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    tokensAt: Date.now(),
+    lastScan: Date.now(),
+    agents: [
+      {
+        agent: 'Claude Code',
+        process: 'claude.exe',
+        pid: 42,
+        instanceId: '42:live',
+        status: 'running',
+        category: 'ai',
+      },
+    ],
+    tokens: [{ instanceId: '42:live', pid: 42, totalTokens: 12, costUsd: 0.01 }],
+    tokenCollection: [
+      {
+        adapter: 'claude-code',
+        state: 'storage-paused',
+        reason: 'capacity',
+        retryAt: Date.now() + 30000,
+      },
+    ],
+  };
+  const { rerender } = render(StatsTokens, { telemetry, inspect: vi.fn() });
+  expect(screen.getByRole('status')).toHaveTextContent('storage capacity');
+  expect(screen.getByRole('status')).toHaveTextContent('retained and incomplete');
+  expect(screen.getByText('Recorded subtotal · collection paused')).toBeVisible();
+  expect(within(screen.getByRole('row', { name: /Claude Code/ })).getByText('12')).toBeVisible();
+  language.set('pt');
+  await tick();
+  expect(screen.getByRole('status')).toHaveTextContent('capacidade de armazenamento');
+  await rerender({
+    telemetry: { ...telemetry, tokenCollection: [{ adapter: 'claude-code', state: 'ready' }] },
+    inspect: vi.fn(),
+  });
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+
 it('labels archived totals separately from exact live agent attribution in both languages', async () => {
   const telemetry: Telemetry = {
     ...emptyTelemetry(),

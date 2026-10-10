@@ -166,8 +166,9 @@ describe('scan-loop', () => {
           ([channel]) => channel === 'token-costs',
         );
         expect(pushed).toHaveLength(1);
-        expect(pushed[0][1]).toHaveLength(condition === 'confirmed' ? 258 : 1001);
-        expect(pushed[0][1].reduce((sum, row) => sum + row.totalTokens, 0)).toBe(1010);
+        expect(pushed[0][1].records).toHaveLength(condition === 'confirmed' ? 258 : 1001);
+        expect(pushed[0][1].records.reduce((sum, row) => sum + row.totalTokens, 0)).toBe(1010);
+        expect(pushed[0][1].collection).toEqual(expect.any(Array));
         expect(tracker.getCost(live).totalTokens).toBe(10);
         if (condition === 'confirmed') {
           // A single reliable miss is inside session exit grace, not a confirmed exit.

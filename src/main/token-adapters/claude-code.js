@@ -82,6 +82,9 @@ const productionLedger = () =>
   });
 let ledgerFactory = productionLedger;
 let indexWarning = false;
+const STORAGE_RETRY_MS = 30_000;
+let storagePause = null;
+let now = () => Date.now();
 
 /** Starting position for the next bounded scan; rotates to prevent starvation. */
 let nextProcIndex = 0;
@@ -286,22 +289,34 @@ function _readOneProc(proc, budget) {
  */
 async function readUsage(procs) {
   if (!Array.isArray(procs) || procs.length === 0) return [];
+  if (storagePause && now() < storagePause.retryAt) return [];
   const out = [];
-  let indexFailed = false;
+  let pauseReason = null;
+  let committed = false;
+  let visited = 0;
   const budget = { remaining: 4 * 1024 * 1024 };
   const start = nextProcIndex % procs.length;
   nextProcIndex = (start + 1) % procs.length;
   for (let index = 0; index < procs.length; index++) {
     if (budget.remaining <= 0) break;
     const proc = procs[(start + index) % procs.length];
+    visited++;
     let deltas;
     try {
       deltas = _readOneProc(proc, budget);
+      // Commit a process's IDs, main/subagent cursors and deltas together. A
+      // later process hitting SQLITE_FULL cannot roll back these emitted rows.
+      if (ledger?.commit()) committed = true;
     } catch (error) {
       if (error.dedupIndex || ledger?.isFailed()) {
-        indexFailed = true;
-        break;
+        const reason = ledger?.failureReason() || 'unavailable';
+        if (pauseReason !== 'capacity') pauseReason = reason;
+        ledger?.rollback();
+        // Other processes may fit in the remaining space (or need no new IDs).
+        // Keep the shared byte budget and rotating first process for fairness.
+        continue;
       }
+      ledger?.rollback();
       _log.warn('token-feed:claude-code', 'adapter read failed for a pid', {
         error: 'adapter-read-failed',
       });
@@ -309,21 +324,34 @@ async function readUsage(procs) {
     }
     for (const d of deltas) out.push(d);
   }
-  try {
-    // No delta may escape before its IDs and cursors are committed together.
-    if (indexFailed) throw Error('dedup-read-failed');
-    if (ledger?.commit()) indexWarning = false;
-  } catch {
-    ledger?.rollback();
+  if (pauseReason) {
+    storagePause = { reason: pauseReason, retryAt: now() + STORAGE_RETRY_MS };
     if (!indexWarning) {
       _log.warn('token-feed:claude-code', 'usage batch postponed; dedup index unavailable', {
         error: 'dedup-batch-not-committed',
       });
       indexWarning = true;
     }
-    return [];
+  } else if (committed && visited === procs.length) {
+    // Missing registries or absent processes are not evidence of recovery.
+    storagePause = null;
+    indexWarning = false;
   }
   return out;
+}
+
+/** Last observed collection state; no transcript identifiers or storage paths.
+ * @returns {{state: string, reason: string|null, retryAt: number|null}} @since 0.19.2
+ */
+function getCollectionStatus() {
+  return storagePause
+    ? { state: 'storage-paused', ...storagePause }
+    : { state: 'ready', reason: null, retryAt: null };
+}
+
+/** @internal Override retry clock. @param {() => number} clock @returns {void} @since 0.19.2 */
+function _setNowForTest(clock) {
+  now = clock;
 }
 
 /** @internal Override index construction (tests).
@@ -354,6 +382,8 @@ function _setLoggerForTest(obj) {
 function _resetForTest() {
   _setLedgerFactoryForTest(() => createLedger({ file: ':memory:' }));
   indexWarning = false;
+  storagePause = null;
+  now = () => Date.now();
   nextProcIndex = 0;
   _homedir = () => os.homedir();
   _log = logger;
@@ -364,6 +394,7 @@ module.exports = {
   agentNames: Object.freeze(['Claude Code']),
   GUARD_TOLERANCE_MS,
   readUsage,
+  getCollectionStatus,
   _encodeCwd,
   _extractUsage,
   _passesGuard,
@@ -371,5 +402,6 @@ module.exports = {
   _setFsForTest,
   _setLoggerForTest,
   _setLedgerFactoryForTest,
+  _setNowForTest,
   _resetForTest,
 };

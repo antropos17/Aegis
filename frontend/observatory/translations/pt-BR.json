@@ -1808,5 +1808,10 @@
   "Advanced shows every workspace by default. Enable Simple to keep agents, activity and file checks together.": "O modo avançado mostra todos os espaços por padrão. Ative o modo simples para reunir agentes, atividade e verificações de arquivos.",
   "Simple interface": "Interface simples",
   "Theme and motion preview immediately. Save to keep them; discard to restore your saved preferences.": "Tema e movimento são visualizados imediatamente. Salve para mantê-los ou descarte para restaurar suas preferências salvas.",
-  "The workspace uses a fixed 100% interface size.": "O espaço de trabalho usa um tamanho de interface fixo em 100%."
+  "The workspace uses a fixed 100% interface size.": "O espaço de trabalho usa um tamanho de interface fixo em 100%.",
+  "Claude Code token collection paused.": "A coleta de tokens do Claude Code está pausada.",
+  "The usage index has reached its storage capacity.": "O índice de uso atingiu sua capacidade de armazenamento.",
+  "The usage index is temporarily unavailable.": "O índice de uso está temporariamente indisponível.",
+  "Recorded totals are retained and incomplete. Collection retries automatically.": "Os totais registrados estão retidos e incompletos. A coleta tenta novamente automaticamente.",
+  "Recorded subtotal · collection paused": "Subtotal registrado · coleta pausada"
 }
