@@ -9,6 +9,9 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-stdio.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-owner-lifetime.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-owner-lifetime-build.ps1')
+. (Join-Path $PSScriptRoot 'installed-owner-build.ps1')
+. (Join-Path $PSScriptRoot 'installed-owner-phase.ps1')
+. (Join-Path $PSScriptRoot 'installed-owner-guest-phase.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -29,6 +32,7 @@ $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
     ownerLifetimePhase = $null; ownerLifetimeControlsComplete = $false; hostCanariesUnchangedAfterOwnerLifetime = $false;
+    installedOwnerBuild = $null; installedOwnerHost = $null; installedOwnerGuest = $null; installedOwnerControlsComplete = $false; hostCanariesUnchangedAfterInstalledOwner = $false;
     stdioPhase = $null; stdioControlsComplete = $false; hostCanariesUnchangedAfterStdio = $false; cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
@@ -303,6 +307,19 @@ try {
         [IO.File]::WriteAllText((Join-Path $transfer 'manifest.json'), $manifestText, [Text.UTF8Encoding]::new($false))
         $report['runtimeStagingPhase'] = 'Complete'
     } | Out-Null
+    Stage 'build-fixed-installed-owner-payload' {
+        $report.installedOwnerBuild = Build-InstalledOwnerPayload $project (Join-Path $OutputRoot 'transfer\installed-owner') (Join-Path $OutputRoot 'native') $report.actualHead
+        foreach ($relative in $report.installedOwnerBuild.sourceHashes.Keys) { $report.sourceHashes[$relative] = $report.installedOwnerBuild.sourceHashes[$relative] }
+        foreach ($relative in @('installed-owner-build.ps1', 'installed-owner-phase.ps1', 'installed-owner-guest-phase.ps1', 'installed-owner-guest-bootstrap.ps1')) {
+            $report.sourceHashes['scripts/qualification/' + $relative] = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $relative) -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    } | Out-Null
+    $report.installedOwnerHost = Stage 'fixed-host-installed-owner-corpus' {
+        $value = Invoke-InstalledOwnerQualification (Join-Path $OutputRoot 'transfer\installed-owner') (Join-Path $OutputRoot 'installed-owner-control') $report.actualHead 'fresh-host'
+        $script:report.installedOwnerHost = $value
+        if (!(Test-InstalledOwnerQualificationReceipt $value $report.actualHead 'fresh-host') -or !(CanariesUnchanged)) { throw 'installed-owner-host-corpus-refused' }
+        return $value
+    }
     Stage 'create-exact-owned-vm' {
         $initial = Invoke-CloudHyperVCommand recover $name $vmRoot $null
         if ($initial.exists) { throw 'owned-name-preexisting' }; $script:absence = $true; $script:createAttempted = $true; $script:unknown = $true
@@ -384,6 +401,14 @@ try {
         if (!$report.ownerLifetimeControlsComplete -or !$report.hostCanariesUnchangedAfterOwnerLifetime) { throw 'cloud-owner-lifetime-controls-refused' }
         return $value
     }
+    $report.installedOwnerGuest = Stage 'fixed-windows11-installed-owner-corpus' {
+        $value = Invoke-InstalledOwnerGuestPhase $id $name $vmRoot $adminCredential (Join-Path $OutputRoot 'transfer') $report.actualHead $report.guest $report.claudePhase $report.cancellationPhase $report.stdioPhase $report.ownerLifetimePhase
+        $script:report.installedOwnerGuest = $value
+        $script:report.hostCanariesUnchangedAfterInstalledOwner = CanariesUnchanged
+        $script:report.installedOwnerControlsComplete = $value.passed -is [bool] -and $value.passed -and $report.hostCanariesUnchangedAfterInstalledOwner
+        if (!$report.installedOwnerControlsComplete) { throw 'installed-owner-windows11-corpus-refused' }
+        return $value
+    }
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {
@@ -415,7 +440,7 @@ finally {
     }
     RecordDisk 'after' | Out-Null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
-    $report.passed = $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
+    $report.passed = $report.installedOwnerControlsComplete -and $report.hostCanariesUnchangedAfterInstalledOwner -and $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
     $json = $report | ConvertTo-Json -Depth 16
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 1MB) { throw 'guest-receipt-budget-failed' }
     [IO.File]::WriteAllText((Join-Path $OutputRoot 'evidence\cloud-windows11.json'), $json)

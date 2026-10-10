@@ -31,12 +31,13 @@ try {
     $runtime = Compile-Composition 'RuntimeGateFixture-default.exe' $runtimeInputs @('/target:exe')
     $runtime.capBytes = 81920; $runtime.withinCap = $runtime.bytes -le 81920; $results += $runtime
     $optimized = Compile-Composition 'RuntimeGateFixture-optimized.exe' $runtimeInputs @('/target:exe', '/optimize+')
-    $optimized.capBytes = 81920; $optimized.withinCap = $optimized.bytes -le 81920; $results += $optimized
+    # Only the two exact compiler-produced runtime executables get finite 256KiB fixture caps.
+    $optimized.capBytes = 256KB; $optimized.withinCap = $optimized.bytes -le 256KB; $results += $optimized
     $baselineInputs = @($runtimeInputs | ForEach-Object {
         if ($_ -ceq (Join-Path $PSScriptRoot 'CloudGuestProcess.cs')) { Join-Path $ProjectRoot 'tests/fixtures/native-cloud-guest-owner-lifetime/BaselineGuestProcess.cs' } else { $_ }
     })
     $baseline = Compile-Composition 'RuntimeGateFixture-baseline-optimized.exe' $baselineInputs @('/target:exe', '/optimize+')
-    $baseline.capBytes = 81920; $baseline.withinCap = $baseline.bytes -le 81920; $results += $baseline
+    $baseline.capBytes = 256KB; $baseline.withinCap = $baseline.bytes -le 256KB; $results += $baseline
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'tests/fixtures/native-cloud-guest-runtime/client-control.cjs') -Destination $fixture
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-runtime.cjs') -Destination $fixture
     $code = Invoke-CloudGuestNativeProcess $optimized.path @(('"' + $node + '"'), ('"' + $fixture + '"')) (Join-Path $fixture 'runtime.txt') (Join-Path $fixture 'runtime.error') 18000

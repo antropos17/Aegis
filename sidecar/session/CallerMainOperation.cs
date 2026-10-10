@@ -24,13 +24,19 @@ namespace Aegis.ProtectedSession
         private CallerMainOperation(CallerRegistration exactServer) { server = exactServer; }
         internal static CallerMainOperation Acquire(EnrollmentLease lease, CallerRegistration server, IntPtr heldMain)
         { return AcquireCore(lease, server, heldMain, new EnrollmentNative()); }
+        internal static CallerMainOperation AcquireInstalled(EnrollmentLease lease, CallerRegistration server,
+            IntPtr heldMain, ICallerInstalledEndpoint installed)
+        {
+            CallerNative.Require(installed != null);
+            return AcquireCore(lease, server, heldMain, new EnrollmentNative(), installed);
+        }
 #if ENROLLMENT_LEASE_TEST
         internal static CallerMainOperation AcquireForTest(EnrollmentLease lease, CallerRegistration server,
             IntPtr heldMain, IEnrollmentFiles files)
         { return AcquireCore(lease, server, heldMain, files); }
 #endif
         private static CallerMainOperation AcquireCore(EnrollmentLease lease, CallerRegistration server,
-            IntPtr heldMain, IEnrollmentFiles files)
+            IntPtr heldMain, IEnrollmentFiles files, ICallerInstalledEndpoint installed = null)
         {
             CallerNative.Require(lease != null && server != null && files != null);
             lease.CheckServerAssociation(server);
@@ -45,7 +51,7 @@ namespace Aegis.ProtectedSession
                     lease.BindServer(server);
                     owner.main = CallerRegistration.RegisterMain(heldMain, server);
                     owner.proof = MainRegistrationEvidence.Acquire(lease, server, owner.main, files);
-                    owner.endpoint = new CallerEndpoint(owner.main, heldMain);
+                    owner.endpoint = new CallerEndpoint(owner.main, heldMain, installed);
                     owner.CheckCore(); owner.Labels = new Routing(owner.endpoint, owner.main);
                     return owner;
                 }

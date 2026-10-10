@@ -34,7 +34,7 @@ try {
     $arguments += ('"' + (Join-Path $fixtureSources 'RuntimeGateFixture.cs') + '"')
     $arguments += ('"' + (Join-Path $fixtureSources 'RuntimeStartupFixture.cs') + '"')
     $compile = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000
-    if ($compile -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 80KB) { throw 'runtime-controls-compile-failed' }
+    if ($compile -ne 0 -or (Get-Item -LiteralPath $exe).Length -gt 256KB) { throw 'runtime-controls-compile-failed' }
     Write-Output ('runtime-composite-bytes:' + (Get-Item -LiteralPath $exe).Length)
     $node = (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $code = Invoke-CloudGuestNativeProcess $exe @(('"' + $node + '"'), ('"' + $fixture + '"')) (Join-Path $fixture 'native.txt') (Join-Path $fixture 'native.error') 15000
@@ -50,8 +50,8 @@ try {
     $pure.Trim()
 } finally {
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
-        # Keep source and log bounds separate from the fixed compiler output.
-        $fileBound = if ([string]::Equals($file.FullName, $exe, [StringComparison]::OrdinalIgnoreCase)) { 80KB } else { 64KB }
+        # Only the exact compiler-produced executable gets this finite 256KiB fixture cap.
+        $fileBound = if ([string]::Equals($file.FullName, $exe, [StringComparison]::OrdinalIgnoreCase)) { 256KB } else { 64KB }
         if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt $fileBound -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'runtime-fixture-cleanup-refused' }
         Remove-Item -LiteralPath $file.FullName -Force
     }

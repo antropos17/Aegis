@@ -11,11 +11,6 @@ namespace Aegis.ProtectedSession
 
         private static int Main(string[] arguments)
         {
-            if (arguments.Length == 1 && arguments[0] == "--installed-owner-session")
-            {
-                try { return InstalledOwnerSession.Run(); }
-                catch { return 2; }
-            }
             if (arguments.Length == 1 && arguments[0] == "--inspect-enrollment") {
                 try {
                     EnrollmentInspection result = EnrollmentInspection.InspectInstalled();

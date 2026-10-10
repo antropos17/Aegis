@@ -57,7 +57,8 @@ $ast = [Management.Automation.Language.Parser]::ParseFile($lab, [ref]$null, [ref
 if ($errors.Count) { throw 'owner-lifetime-lab-syntax-refused' }
 $assignments = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$report.passed' }, $true))
 if ($assignments.Count -ne 1) { throw 'owner-lifetime-controller-seam-refused' }
-$report = @{ ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true;
+# Synthetic installed-owner facts only; no actual installation qualification.
+$report = @{ installedOwnerControlsComplete = $true; hostCanariesUnchangedAfterInstalledOwner = $true; ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true;
     stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true;
     hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null; offObserved = $true;
     removedObserved = $true; hostCanariesUnchangedAfterTask = $true; hostCanariesUnchangedAfterRemoval = $true }
