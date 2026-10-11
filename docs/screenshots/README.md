@@ -1,6 +1,6 @@
 # Observatory screenshots
 
-Captured on 1 October 2026 from the [beta-preparation source](https://github.com/antropos17/Aegis/tree/2f5689743639821c4e82a0a003cd0b3c848c29ad), whose package version is still 0.17.0-alpha. Data is simulated and notification popups were dismissed through their normal controls. These images show the interface; live detection, an installed beta and automatic blocking require separate verification.
+Captured on 11 October 2026 from [source revision d437c2f](https://github.com/antropos17/Aegis/tree/d437c2f332dc71b92a18de4febf9b8a5c06aa9cf), whose package version is 0.19.2-beta. These are source UI preview captures. Data is simulated and notification popups were dismissed through their normal controls. These images show the interface; live detection, an installed beta and automatic blocking require separate verification.
 
 | Observe | Investigate |
 | --- | --- |
@@ -9,3 +9,5 @@ Captured on 1 October 2026 from the [beta-preparation source](https://github.com
 | [![Action control workspace](05-action-control.png)](05-action-control.png) | [![Settings workspace](06-settings.png)](06-settings.png) |
 
 The [Start here guide](../images/observatory-guide.png) is also captured from the same preview. To recapture these files and the [social preview](../social-preview.png) from the current source, run `node scripts/capture-screenshots.mjs` after `npm ci`.
+
+Capture provenance, image hashes and presentation-check limits are recorded in [the receipt](capture-2026-10-11.json). The tracked social PNG is separate from the image selected in GitHub Repository Settings; this refresh does not change that selection.

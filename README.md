@@ -22,7 +22,7 @@ VM/provider routes. Default monitoring does not automatically intercept or block
 <p align="center">
   <img src="docs/screenshots/01-monitoring.png" width="980" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar">
 </p>
-<p align="center"><sub>Observatory preview with simulated data, captured during beta preparation on 1 October 2026.</sub></p>
+<p align="center"><sub>Observatory source UI preview with simulated data, captured on 11 October 2026.</sub></p>
 
 ## Start with a task
 
