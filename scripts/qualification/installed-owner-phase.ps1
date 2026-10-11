@@ -54,8 +54,9 @@ function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'nat
     foreach ($field in $hex.Keys) { $v = Get-InstalledOwnerObservedField $Value $field; if ($v -is [string] -and $v -cmatch ('^[a-f0-9]{' + $hex[$field] + '}$')) { $result[$field] = $v } }
     if ($Kind -ceq 'native') {
         $v = Get-InstalledOwnerObservedField $Value 'supervisorSubstage'
-        if ($result.ContainsKey('supervisorStage') -and $result.supervisorStage -eq 2 -and
-            ($v -is [int] -or $v -is [long] -or $v -is [uint32]) -and $v -ge 0 -and $v -le 44) { $result.supervisorSubstage = $v }
+        if ($result.ContainsKey('supervisorStage') -and
+            ($v -is [int] -or $v -is [long] -or $v -is [uint32]) -and $v -ge 0 -and
+            (($result.supervisorStage -eq 2 -and $v -le 44) -or ($result.supervisorStage -eq 7 -and $v -le 7))) { $result.supervisorSubstage = $v }
         $v = Get-InstalledOwnerObservedField $Value 'scope'; if ($v -is [string] -and $v -ceq 'installed-owner-inspection') { $result.scope = $v }
         $v = Get-InstalledOwnerObservedField $Value 'phase'
         if ($v -is [string] -and $v -cin @('acquire-owner', 'operator-token', 'create-children', 'publish-main', 'supply-supervisor', 'await-completion', 'supply-main', 'await-result', 'confirm-result', 'complete')) { $result.phase = $v }

@@ -63,19 +63,21 @@ namespace Aegis.ProtectedSession
         }
 
         internal static Context ReadAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native)
-        { return Authenticate(pipe, registered, native, Schema); }
+        { int substage = 0; return Authenticate(pipe, registered, native, Schema, ref substage); }
         internal static Context ReadMainAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native)
-        { return Authenticate(pipe, registered, native, MainSchema); }
-        private static Context Authenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, Regex schema)
+        { int substage = 0; return ReadMainAndAuthenticate(pipe, registered, native, ref substage); }
+        internal static Context ReadMainAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, ref int substage)
+        { return Authenticate(pipe, registered, native, MainSchema, ref substage); }
+        private static Context Authenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, Regex schema, ref int substage)
         {
             lock (registered.Gate)
             {
-                CallerNative.Require(!CallerNative.HasThreadToken());
+                substage = 1; CallerNative.Require(!CallerNative.HasThreadToken());
                 registered.CheckCurrent();
-                Match frame = schema.Match(ReadMessage(pipe));
+                substage = 4; Match frame = schema.Match(ReadMessage(pipe, ref substage));
                 CallerNative.Require(frame.Success && frame.Groups[2].Value == registered.Session &&
                     frame.Groups[3].Value == registered.Generation);
-                uint peer;
+                substage = 5; uint peer;
                 CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(pipe, out peer));
                 bool impersonated = false;
                 try
@@ -94,7 +96,7 @@ namespace Aegis.ProtectedSession
                         throw new InvalidOperationException("caller-reversion-failed");
                     }
                 }
-                CallerNative.Require(!CallerNative.HasThreadToken());
+                substage = 6; CallerNative.Require(!CallerNative.HasThreadToken());
                 registered.CheckCurrent();
                 uint available, left;
                 CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero, out available, out left) && available == 0);
@@ -102,7 +104,7 @@ namespace Aegis.ProtectedSession
             }
         }
 
-        private static string ReadMessage(SafeHandle pipe)
+        private static string ReadMessage(SafeHandle pipe, ref int substage)
         {
             uint state;
             CallerNative.Require(CallerNative.GetNamedPipeHandleState(pipe, out state, IntPtr.Zero,
@@ -113,7 +115,8 @@ namespace Aegis.ProtectedSession
             {
                 CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero, out available, out left));
                 if (available > 0) break;
-                CallerNative.Require(timer.ElapsedMilliseconds < 2000);
+                if (timer.ElapsedMilliseconds >= 2000)
+                { substage = 7; CallerNative.Require(false); }
                 Thread.Sleep(2);
             } while (true);
             CallerNative.Require(left >= 5 && left <= MaxFrameBytes + 4 && available == left);

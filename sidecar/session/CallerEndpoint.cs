@@ -49,12 +49,14 @@ namespace Aegis.ProtectedSession
         }
 
         internal CallerAdmission.Context Accept(int timeoutMilliseconds)
-        { return AcceptCore(timeoutMilliseconds, false); }
+        { int substage = 0; return AcceptCore(timeoutMilliseconds, false, ref substage); }
         internal CallerAdmission.Context AcceptMain(int timeoutMilliseconds)
-        { return AcceptCore(timeoutMilliseconds, true); }
-        private CallerAdmission.Context AcceptCore(int timeoutMilliseconds, bool main)
+        { int substage = 0; return AcceptMain(timeoutMilliseconds, ref substage); }
+        internal CallerAdmission.Context AcceptMain(int timeoutMilliseconds, ref int substage)
+        { return AcceptCore(timeoutMilliseconds, true, ref substage); }
+        private CallerAdmission.Context AcceptCore(int timeoutMilliseconds, bool main, ref int substage)
         {
-            RequireDeadline(timeoutMilliseconds);
+            substage = 1; RequireDeadline(timeoutMilliseconds);
             lock (gate)
             {
                 CallerNative.Require(!disposed && !consumed);
@@ -64,17 +66,20 @@ namespace Aegis.ProtectedSession
                 {
                     while (true)
                     {
+                        substage = 1;
                         lock (peer.Gate) { peer.CheckCurrent(); if (installed != null) installed.CheckCurrent(); }
+                        substage = 2;
                         bool result = CallerEndpointNative.ConnectNamedPipe(pipe, IntPtr.Zero);
                         int error = result ? 0 : Marshal.GetLastWin32Error();
                         // In NOWAIT mode TRUE means listening, not connected. Only 535 admits the connection.
                         if (!result && error == 535) break;
                         CallerNative.Require(result || error == 536);
-                        if (timer.ElapsedMilliseconds >= timeoutMilliseconds) throw new TimeoutException("caller-endpoint-connect-deadline");
+                        if (timer.ElapsedMilliseconds >= timeoutMilliseconds)
+                        { substage = 3; throw new TimeoutException("caller-endpoint-connect-deadline"); }
                         Thread.Sleep(2);
                     }
                     // Keep NOWAIT: no pending native IO, and the existing admission reads one already-peeked message.
-                    return main ? CallerAdmission.ReadMainAndAuthenticate(pipe, peer, new CallerNative()) :
+                    return main ? CallerAdmission.ReadMainAndAuthenticate(pipe, peer, new CallerNative(), ref substage) :
                         CallerAdmission.ReadAndAuthenticate(pipe, peer, new CallerNative());
                 }
                 catch { Close(); throw; }
