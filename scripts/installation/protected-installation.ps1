@@ -207,7 +207,7 @@ function Remove-ProtectedInstallAncillary($Context) {
 }
 
 function Remove-ProtectedInstallation($Association) {
-    Assert-ProtectedInstallAdministrator
+    Invoke-ProtectedUninstallCheckpoint 'administrator' { Assert-ProtectedInstallAdministrator }
     $ops = @{
         validate = { param($selected)
             Assert-ProtectedInstallIdleUpgrade $selected.service
@@ -221,7 +221,9 @@ function Remove-ProtectedInstallation($Association) {
     }
     try { Invoke-ProtectedUninstallTransaction $ops $Association }
     catch { $Association.cleanupUnknown = $true; throw }
-    if ((Test-Path -LiteralPath $script:ProtectedInstallParent) -or ![ProtectedInstallService]::Absent()) { throw 'protected-uninstall-absence-unconfirmed' }
+    Invoke-ProtectedUninstallCheckpoint 'absence-confirm' {
+        if ((Test-Path -LiteralPath $script:ProtectedInstallParent) -or ![ProtectedInstallService]::Absent()) { throw 'protected-uninstall-absence-unconfirmed' }
+    }
 }
 
 function Update-ProtectedInstallation($Association, [string]$SourceRoot, $Manifest, [bool]$FailAfterPublish = $false) {
