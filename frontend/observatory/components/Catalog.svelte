@@ -370,6 +370,7 @@
     ]}
     bind:selected={editorSection}
     close={() => (showForm = false)}
+    focusFallback={() => searchInput}
   >
     {#snippet children(section)}
       <fieldset class="detail-section" disabled={mutating || loading}>
