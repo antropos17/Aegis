@@ -12,9 +12,11 @@ export function oracle(count) {
 
 /** Check every numeric sample, including restart/replay samples.
  * @param {object} actual Packaged sample. @param {number} count Unique messages.
+ * @param {number[]} messagesPerIdentity Parent-owned lifetime counts by slot.
+ * @param {number[]} [countsAtLaunch=[0, 0]] Copied counts at successful launch.
  * @returns {void} @since 0.19.2
  */
-export function checkSample(actual, count) {
+export function checkSample(actual, count, messagesPerIdentity, countsAtLaunch = [0, 0]) {
   const expected = oracle(count);
   assert.equal(actual.isPackaged, true, 'packaged-required');
   assert.equal(actual.collection, 'ready', 'collection-unavailable');
@@ -30,6 +32,37 @@ export function checkSample(actual, count) {
       actual.ledgerBytes <= actual.ledgerLimitBytes,
     'ledger-size-limit',
   );
+  const validCounts = (counts) =>
+    Array.isArray(counts) &&
+    counts.length === 2 &&
+    [0, 1].every((slot) => Number.isSafeInteger(counts[slot]) && counts[slot] >= 0);
+  assert.ok(
+    validCounts(messagesPerIdentity) &&
+      validCounts(countsAtLaunch) &&
+      messagesPerIdentity[0] + messagesPerIdentity[1] === count &&
+      [0, 1].every((slot) => countsAtLaunch[slot] <= messagesPerIdentity[slot]),
+    'identity-oracle-invalid',
+  );
+  assert.ok(
+    Array.isArray(actual.identities) &&
+      actual.identities.length === 2 &&
+      [0, 1].every(
+        (slot) => actual.identities.filter((identity) => identity?.slot === slot).length === 1,
+      ),
+    'identity-slots-invalid',
+  );
+  for (const identity of actual.identities) {
+    const totals = oracle(messagesPerIdentity[identity.slot] - countsAtLaunch[identity.slot]);
+    assert.ok(
+      Number.isSafeInteger(identity.inputTokens) &&
+        identity.inputTokens >= 0 &&
+        Number.isSafeInteger(identity.outputTokens) &&
+        identity.outputTokens >= 0,
+      'identity-totals-invalid',
+    );
+    if (identity.inputTokens !== totals.inputTokens) throw Error('identity-input-divergence');
+    if (identity.outputTokens !== totals.outputTokens) throw Error('identity-output-divergence');
+  }
 }
 
 /** Reject symbolic links and account for all disposable output before removal.
