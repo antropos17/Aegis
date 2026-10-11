@@ -123,6 +123,7 @@ function _resetForTest() {
   dnsCache.clear();
   dnsPending.clear();
   forwardPending.clear();
+  activeDnsCalls = new Set();
   networkScanRunning = false;
   _networkHealth = sensorHealth.createSensorHealth(NETWORK_SENSOR_ID);
 }
@@ -143,6 +144,12 @@ const DNS_CACHE_TTL = 300000;
 const DNS_NEGATIVE_TTL = 30000;
 const DNS_CACHE_CAPACITY = 500;
 const DNS_SCAN_CONCURRENCY = 16;
+const DNS_SCAN_DEADLINE_MS = 3000;
+const DNS_PTR_CANDIDATE_LIMIT = 16;
+// Slots track the underlying resolver promises, including work whose caller timed out.
+// Never free a slot on a race timeout: Node's promise resolvers cannot be cancelled.
+let activeDnsCalls = new Set();
+const sharedDnsWaiters = new WeakMap();
 const dnsPending = new Map();
 const forwardPending = new Map();
 let dnsGeneration = 0;
@@ -165,6 +172,7 @@ const VERDICT_REASONS = {
   PTR_MISSING: 'ptr-missing',
   /** A PTR name existed but did not resolve back to this address, so it was discarded. */
   PTR_UNCONFIRMED: 'ptr-unconfirmed',
+  DNS_TIMEOUT: 'dns-timeout',
 };
 
 /** @type {string[]|null} Allowlisted hosts (lazy-built): published set + agent-db entries */
@@ -385,19 +393,35 @@ async function resolveIp(ip) {
  * @returns {Promise<{domain: string|null, reason: string}>} DNS evidence
  * @since 0.14.1
  */
-async function resolveIpEvidence(ip, resolveName = resolveHostname) {
+async function resolveIpEvidence(ip, resolveName = resolveHostname, budget = null) {
   const key = normalizeIp(ip);
   if (!isIP(key)) return { domain: null, reason: VERDICT_REASONS.PTR_MISSING };
   const cached = freshDnsEntry(key);
   if (cached) return cached;
-  if (dnsPending.has(key)) return dnsPending.get(key);
+  if (dnsPending.has(key)) {
+    try {
+      return await waitForSharedDns(dnsPending.get(key), budget);
+    } catch (error) {
+      if (error?.message === VERDICT_REASONS.DNS_TIMEOUT)
+        return { domain: null, reason: VERDICT_REASONS.DNS_TIMEOUT };
+      throw error;
+    }
+  }
   const generation = dnsGeneration;
   const reverse = _dnsReverse;
   const forward = _dnsResolve;
   const pending = Promise.resolve().then(async () => {
-    const result = await lookupIp(key, reverse, (name) => resolveName(name, forward, generation));
+    const result = await lookupIp(
+      key,
+      (address) => boundedDnsCall(() => reverse(address), budget),
+      (name) => resolveName(name, forward, generation, budget),
+    );
     // A reset must not let an earlier lookup repopulate the next generation's cache.
-    if (generation === dnsGeneration) {
+    if (
+      generation === dnsGeneration &&
+      !budget?.expired &&
+      result.reason !== VERDICT_REASONS.DNS_TIMEOUT
+    ) {
       if (dnsCache.size >= DNS_CACHE_CAPACITY) dnsCache.delete(dnsCache.keys().next().value);
       dnsCache.set(key, { ...result, timestamp: Date.now() });
     }
@@ -422,21 +446,75 @@ async function resolveIpEvidence(ip, resolveName = resolveHostname) {
 async function resolveScanIpEvidence(ips) {
   const evidence = new Map();
   const hostnames = new Map();
+  let expire;
+  const budget = {
+    expired: false,
+    deadline: Date.now() + DNS_SCAN_DEADLINE_MS,
+    timeout: new Promise((resolve) => {
+      expire = resolve;
+    }),
+  };
+  const timer = setTimeout(() => {
+    budget.expired = true;
+    expire();
+  }, DNS_SCAN_DEADLINE_MS);
   let next = 0;
   const resolveScanHostname = (name, forward, generation) => {
     if (!hostnames.has(name)) {
-      hostnames.set(name, resolveHostname(name, forward, generation));
+      hostnames.set(name, resolveHostname(name, forward, generation, budget));
     }
     return hostnames.get(name);
   };
   async function worker() {
-    while (next < ips.length) {
+    while (!budget.expired && Date.now() < budget.deadline && next < ips.length) {
       const ip = ips[next++];
-      evidence.set(ip, await resolveIpEvidence(ip, resolveScanHostname));
+      const result = await resolveIpEvidence(ip, resolveScanHostname, budget);
+      if (!budget.expired) evidence.set(ip, result);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(DNS_SCAN_CONCURRENCY, ips.length) }, worker));
+  try {
+    await Promise.race([
+      Promise.all(Array.from({ length: Math.min(DNS_SCAN_CONCURRENCY, ips.length) }, worker)),
+      budget.timeout,
+    ]);
+  } finally {
+    budget.expired = true;
+    expire();
+    clearTimeout(timer);
+  }
+  for (const ip of ips) {
+    if (!evidence.has(ip)) evidence.set(ip, { domain: null, reason: VERDICT_REASONS.DNS_TIMEOUT });
+  }
   return evidence;
+}
+
+/** Bound actual resolver work across scans; expired callers cannot start another query.
+ * @param {Function} query Resolver invocation @param {object|null} budget Scan deadline
+ * @returns {Promise<unknown>} Resolver result @since 0.19.2
+ */
+async function boundedDnsCall(query, budget) {
+  if (
+    budget?.expired ||
+    (budget && Date.now() >= budget.deadline) ||
+    activeDnsCalls.size >= DNS_SCAN_CONCURRENCY
+  ) {
+    throw new Error(VERDICT_REASONS.DNS_TIMEOUT);
+  }
+  const slots = activeDnsCalls;
+  const pending = Promise.resolve().then(query);
+  slots.add(pending);
+  // Both branches handle settlement even after the caller's deadline.
+  pending.then(
+    () => slots.delete(pending),
+    () => slots.delete(pending),
+  );
+  if (!budget) return pending;
+  return Promise.race([
+    pending,
+    budget.timeout.then(() => {
+      throw new Error(VERDICT_REASONS.DNS_TIMEOUT);
+    }),
+  ]);
 }
 
 /** Share concurrent forward queries across endpoints with the same PTR name.
@@ -444,16 +522,55 @@ async function resolveScanIpEvidence(ips) {
  * @param {number} generation Lookup generation
  * @returns {Promise<string[]>} Resolver addresses @since 0.14.1
  */
-async function resolveHostname(name, resolve, generation) {
-  if (generation !== dnsGeneration) return resolve(name);
-  if (forwardPending.has(name)) return forwardPending.get(name);
-  const pending = Promise.resolve().then(() => resolve(name));
+async function resolveHostname(name, resolve, generation, budget = null) {
+  if (generation !== dnsGeneration) return boundedDnsCall(() => resolve(name), budget);
+  if (forwardPending.has(name)) return waitForSharedDns(forwardPending.get(name), budget);
+  const pending = boundedDnsCall(() => resolve(name), budget);
   forwardPending.set(name, pending);
   try {
     return await pending;
   } finally {
     if (forwardPending.get(name) === pending) forwardPending.delete(name);
   }
+}
+
+/** Wait within this scan's budget without retaining expired subscribers on a hung query.
+ * @param {Promise} pending Shared DNS query @param {object|null} budget Caller deadline
+ * @returns {Promise<unknown>} Shared result @since 0.19.2
+ */
+function waitForSharedDns(pending, budget) {
+  if (!budget) return pending;
+  if (budget.expired || Date.now() >= budget.deadline)
+    return Promise.reject(new Error(VERDICT_REASONS.DNS_TIMEOUT));
+  let state = sharedDnsWaiters.get(pending);
+  if (!state) {
+    state = { waiters: new Set(), settled: false, failed: false, value: undefined };
+    sharedDnsWaiters.set(pending, state);
+    const finish = (failed, value) => {
+      state.settled = true;
+      state.failed = failed;
+      state.value = value;
+      for (const waiter of state.waiters) waiter(failed, value);
+      state.waiters.clear();
+    };
+    pending.then(
+      (value) => finish(false, value),
+      (error) => finish(true, error),
+    );
+  }
+  if (state.settled)
+    return state.failed ? Promise.reject(state.value) : Promise.resolve(state.value);
+  return new Promise((resolve, reject) => {
+    const waiter = (failed, value) => {
+      state.waiters.delete(waiter);
+      if (failed) reject(value);
+      else resolve(value);
+    };
+    state.waiters.add(waiter);
+    budget.timeout.then(() => {
+      if (state.waiters.delete(waiter)) reject(new Error(VERDICT_REASONS.DNS_TIMEOUT));
+    });
+  });
 }
 
 /** Read an unexpired normalized DNS entry. @param {string} ip Address @returns {object|null} Cached result @since 0.14.1 */
@@ -478,7 +595,9 @@ async function lookupIp(ip, reverse, forward) {
   let hostnames;
   try {
     hostnames = await reverse(ip);
-  } catch (_) {
+  } catch (error) {
+    if (error?.message === VERDICT_REASONS.DNS_TIMEOUT)
+      return { domain: null, reason: VERDICT_REASONS.DNS_TIMEOUT };
     return { domain: null, reason: VERDICT_REASONS.PTR_MISSING };
   }
   const candidates = Array.isArray(hostnames)
@@ -491,7 +610,7 @@ async function lookupIp(ip, reverse, forward) {
         ),
       ]
     : [];
-  for (const candidate of candidates) {
+  for (const candidate of candidates.slice(0, DNS_PTR_CANDIDATE_LIMIT)) {
     try {
       const addresses = await forward(candidate);
       if (
@@ -500,13 +619,20 @@ async function lookupIp(ip, reverse, forward) {
       ) {
         return { domain: candidate, reason: 'forward-confirmed' };
       }
-    } catch (_) {
+    } catch (error) {
+      if (error?.message === VERDICT_REASONS.DNS_TIMEOUT)
+        return { domain: null, reason: VERDICT_REASONS.DNS_TIMEOUT };
       // One broken PTR candidate does not discard the remaining candidates.
     }
   }
   return {
     domain: null,
-    reason: candidates.length ? VERDICT_REASONS.PTR_UNCONFIRMED : VERDICT_REASONS.PTR_MISSING,
+    reason:
+      candidates.length > DNS_PTR_CANDIDATE_LIMIT
+        ? VERDICT_REASONS.DNS_TIMEOUT
+        : candidates.length
+          ? VERDICT_REASONS.PTR_UNCONFIRMED
+          : VERDICT_REASONS.PTR_MISSING,
   };
 }
 
@@ -529,8 +655,9 @@ function classifyConnection(ip, evidence = freshDnsEntry(ip)) {
   const domain = cached && cached.domain ? cached.domain : '';
   if (!domain) {
     const reason =
-      cached && cached.reason === VERDICT_REASONS.PTR_UNCONFIRMED
-        ? VERDICT_REASONS.PTR_UNCONFIRMED
+      cached &&
+      [VERDICT_REASONS.PTR_UNCONFIRMED, VERDICT_REASONS.DNS_TIMEOUT].includes(cached.reason)
+        ? cached.reason
         : VERDICT_REASONS.PTR_MISSING;
     return { verdict: 'unknown', reason, domain: '' };
   }
