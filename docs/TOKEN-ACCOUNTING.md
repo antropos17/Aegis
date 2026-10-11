@@ -89,25 +89,44 @@ scopes containing Claude Code is unavailable during the pause rather than shown
 as zero or estimated.
 
 Normal exit closes and preserves the database. SQLite uses a disk rollback journal
-(`DELETE`) and `synchronous=FULL`; the database remains capped at 128 MiB, with an
-additional rollback journal bounded by touched database pages (up to approximately
-another database-sized file plus journal headers). Journal writes are synchronous;
-this change does not establish a power-loss guarantee or a packaged performance result.
-Startup refuses unknown or incompatible database formats and unsafe sidecars.
-Every preexisting SQLite sidecar is preserved and pauses collection pending
-manual recovery, because
-SQLite headers alone cannot establish journal ownership. Restart after committed
-transactions or normal close is automatic; a crash during an uncommitted transaction
-may leave a journal and require manual recovery. It restores the pre-run accepted
-aggregate once, even when no monitored process is live, as an explicit historical
-row with null PID and instance ID. Newly accepted deltas retain current-run process
-attribution and never inherit prior-run counters. Model labels are not persisted;
-the historical row reports their omission. The previous run-scoped cache is not imported,
-since it had no accepted aggregate. No transcript history sweep is added.
+(`PERSIST`), verified on open, and `synchronous=FULL`. `journal_size_limit=0`
+truncates the retained journal after each completed transaction. The database
+remains capped at 128 MiB; during a transaction the additional rollback journal
+is bounded by touched database pages and their headers. The 1 KiB ownership
+manifest and at most one publication temporary file add a fixed storage bound.
+Journal and manifest writes are synchronous. Windows has no portable Node
+directory-fsync primitive; this mechanism establishes process-termination
+recovery, without claiming a power-loss guarantee or packaged performance result.
 
-Focused child-process termination tests exercise automatic committed recovery and
-fail-closed preservation of an interrupted uncommitted journal. A disposable
-fixture manual-recovery step verifies its uncommitted IDs, cursor and aggregate
-remain unaccepted. Long-duration packaged qualification, power-loss behavior,
-durable-schema migration and sustained-capacity policy remain tracked in
+Before SQLite can write, the adapter exclusively reserves the database and journal
+with `wx` and publishes a flushed `initializing` ownership manifest. It stores
+only a format/state marker and decimal bigint device/inode strings. Once the
+schema and aggregate are validated it publishes `ready`. Every subsequent open
+validates the manifest and exact regular-file identities, rejecting symlinks and
+hardlinks before SQLite can recover the journal. SQLite may delete a hot journal
+while rolling back; the adapter exclusively reserves its replacement and flushes
+the updated witness before further writes. Same-user concurrent path replacement,
+in-place modification and deliberate manifest forgery are outside this contract.
+
+A committed sidecar-free version-1 ledger from the preceding implementation can
+migrate once, preserving accepted totals and IDs. Version 2 requires its witness.
+Missing, corrupt or initializing manifests and interrupted manifest publication
+pause collection for explicit recovery. Unknown or incompatible databases and
+ambiguous preexisting sidecars are preserved. SQLite journal headers alone do not
+establish ownership. Interrupted transactions with a valid ready witness recover
+automatically; committed transactions and normal close also reopen automatically.
+Recovery restores the pre-run accepted aggregate once, even when no monitored
+process is live, as an explicit historical row with null PID and instance ID.
+Newly accepted deltas retain current-run process attribution. Model labels are
+not persisted; the historical row reports their omission. The previous run-scoped
+cache is not imported, since it had no accepted aggregate. No transcript history
+sweep is added.
+
+Focused child-process `SIGKILL` tests exceed the page cache to exercise hot-journal
+rollback after uncommitted database pages spill, and also exercise committed
+exactly-once recovery. They verify wrong-identity empty, zeroed and valid-header
+journals, journal links, and missing/corrupt witnesses remain fail-closed.
+Sidecar-free version-1 migration preserves totals. Long-duration packaged
+qualification, power-loss behavior, broader durable-schema migration and
+sustained-capacity policy remain tracked in
 [#637](https://github.com/antropos17/Aegis/issues/637).

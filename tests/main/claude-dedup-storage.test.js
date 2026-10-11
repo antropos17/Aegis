@@ -62,7 +62,14 @@ afterEach(() => {
   adapter._resetForTest();
   for (const dir of directories.splice(0)) {
     // Only exact files created by these tests; no recursive temp-directory cleanup.
-    for (const name of ['index.sqlite', 'foreign.sqlite', 'link.sqlite']) {
+    for (const name of [
+      'index.sqlite',
+      'index.sqlite-journal',
+      'index.sqlite.ownership',
+      'index.sqlite.ownership.next',
+      'foreign.sqlite',
+      'link.sqlite',
+    ]) {
       const target = path.join(dir, name);
       if (fs.existsSync(target)) fs.unlinkSync(target);
     }
@@ -80,6 +87,8 @@ it('keeps exact shared main/subagent dedup without writing identifiers or conten
   f.files.set(f.sub, usage('PRIVATE-ID-CANARY', 11) + usage('after-rewrite', 3));
   expect(await f.read()).toMatchObject([{ inputTokens: 3, estimated: false }]);
   const bytes = fs.readFileSync(f.file);
+  const journal = fs.readFileSync(f.file + '-journal');
+  const witness = fs.readFileSync(f.file + '.ownership');
   for (const secret of [
     'PRIVATE-ID-CANARY',
     'PRIVATE-SESSION-CANARY',
@@ -88,12 +97,17 @@ it('keeps exact shared main/subagent dedup without writing identifiers or conten
     'claude-sonnet-4-6',
     'agent-private.jsonl',
   ]) {
-    expect(bytes.includes(Buffer.from(secret))).toBe(false);
+    for (const artifact of [bytes, journal, witness])
+      expect(artifact.includes(Buffer.from(secret))).toBe(false);
     expect(JSON.stringify(f.warnings.mock.calls)).not.toContain(secret);
   }
   adapter._resetForTest();
   expect(fs.readFileSync(f.file)).toEqual(bytes);
-  expect(fs.readdirSync(f.dir)).toEqual(['index.sqlite']);
+  expect(new Set(fs.readdirSync(f.dir))).toEqual(
+    new Set(['index.sqlite', 'index.sqlite-journal', 'index.sqlite.ownership']),
+  );
+  expect(fs.statSync(f.file + '-journal').size).toBe(0);
+  expect(witness.length).toBeLessThanOrEqual(1024);
   const reopened = createLedger({ file: f.file });
   try {
     expect(reopened.getAggregate()).toMatchObject({ inputTokens: 21, outputTokens: 6 });
@@ -271,7 +285,7 @@ it('preserves a legacy marked cache without the durable ownership version', () =
   stale.exec('PRAGMA application_id=1095059284; CREATE TABLE old_run (value);');
   stale.close();
   const bytes = fs.readFileSync(f.file);
-  expect(() => createLedger({ file: f.file })).toThrow('dedup-cache-not-owned');
+  expect(() => createLedger({ file: f.file })).toThrow('dedup-witness-missing');
   expect(fs.readFileSync(f.file)).toEqual(bytes);
   const observer = new DatabaseSync(f.file, { readOnly: true });
   try {

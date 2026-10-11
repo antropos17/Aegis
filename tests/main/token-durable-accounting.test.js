@@ -73,6 +73,9 @@ it.each(['before', 'after'])(
     const { createLedger } = require(${JSON.stringify(require.resolve('../../src/main/token-dedup-ledger'))});
     const ledger = createLedger({file:process.argv[2]});
     ledger.withSession('session', state => {
+      // Exceed the 2 MiB page cache so the uncommitted case contains a hot
+      // rollback journal with spilled database pages, rather than only RAM edits.
+      for(let i=0;i<70000;i++) state.seenIds.add('spill-'+i);
       state.seenIds.add('message'); state.offset=200;
       ledger.accumulate([${JSON.stringify(delta)}]);
     });
@@ -94,20 +97,35 @@ it.each(['before', 'after'])(
       const exit = once(child, 'exit');
       child.kill('SIGKILL');
       await exit;
-      if (boundary === 'before' && fs.existsSync(file + '-journal')) {
-        const residue = fs.readFileSync(file + '-journal');
-        expect(() => createLedger({ file })).toThrow('dedup-journal-not-owned');
-        expect(fs.readFileSync(file + '-journal')).toEqual(residue);
-        // Controlled small fixture has not spilled database pages. This manual
-        // step applies only to the known disposable fixture journal.
-        fs.unlinkSync(file + '-journal');
-      }
-      const ledger = createLedger({ file });
+      expect(fs.existsSync(file + '-journal')).toBe(true);
+      if (boundary === 'before')
+        expect(
+          fs
+            .readFileSync(file + '-journal')
+            .subarray(0, 8)
+            .toString('hex'),
+        ).toBe('d9d505f920a163d7');
+      let ledger = createLedger({ file });
       const committed = boundary === 'after';
       expect(ledger.getAggregate().inputTokens).toBe(committed ? 10 : 0);
       ledger.withSession('session', (state) => {
         expect(state.offset).toBe(committed ? 200 : 0);
         expect(state.seenIds.has('message')).toBe(committed);
+      });
+      accept(ledger, 'later-session', 'later-message');
+      ledger.commit();
+      ledger.close();
+      expect(fs.statSync(file + '-journal').size).toBe(0);
+      expect(fs.statSync(file + '.ownership').size).toBeLessThanOrEqual(1024);
+      ledger = createLedger({ file });
+      expect(ledger.getAggregate().inputTokens).toBe(committed ? 20 : 10);
+      ledger.withSession('session', (state) => {
+        expect(state.offset).toBe(committed ? 200 : 0);
+        expect(state.seenIds.has('message')).toBe(committed);
+      });
+      ledger.withSession('later-session', (state) => {
+        expect(state.offset).toBe(200);
+        expect(state.seenIds.has('later-message')).toBe(true);
       });
       ledger.close();
     } finally {
@@ -181,6 +199,8 @@ it('fails closed without modifying foreign files or sidecar links', () => {
   fs.unlinkSync(file);
   const ledger = createLedger({ file });
   ledger.close();
+  // Replace the reserved journal so every shaped impostor has a different inode.
+  fs.renameSync(file + '-journal', file + '-original');
   fs.writeFileSync(file + '-journal', 'foreign');
   expect(() => createLedger({ file })).toThrow('dedup-journal-not-owned');
   expect(fs.readFileSync(file + '-journal', 'utf8')).toBe('foreign');
@@ -223,6 +243,62 @@ it('rolls back aggregate and IDs together and refuses an incompatible owned sche
     inspect.prepare("SELECT name FROM sqlite_master WHERE name='aggregate'").get(),
   ).toBeUndefined();
   inspect.close();
+});
+
+it('preserves empty, symlink and hardlink journal impostors with the wrong identity', () => {
+  const ledger = createLedger({ file });
+  ledger.close();
+  const journal = file + '-journal';
+  const original = journal + '-original';
+  fs.renameSync(journal, original);
+  fs.writeFileSync(journal, '');
+  expect(() => createLedger({ file })).toThrow('dedup-journal-not-owned');
+  expect(fs.statSync(journal).size).toBe(0);
+  fs.unlinkSync(journal);
+  fs.linkSync(original, journal);
+  expect(() => createLedger({ file })).toThrow('dedup-cache-not-owned');
+  expect(fs.statSync(original).nlink).toBe(2);
+  fs.unlinkSync(journal);
+  const target = path.join(directory, 'foreign-target');
+  fs.mkdirSync(target);
+  // Directory junctions exercise Windows no-follow behavior without privileges.
+  fs.symlinkSync(target, journal, process.platform === 'win32' ? 'junction' : 'dir');
+  expect(() => createLedger({ file })).toThrow('dedup-cache-not-owned');
+  expect(fs.lstatSync(journal).isSymbolicLink()).toBe(true);
+  expect(fs.readdirSync(target)).toEqual([]);
+});
+
+it('fails closed on missing/corrupt witness and migrates only sidecar-free v1 ledgers', () => {
+  let ledger = createLedger({ file });
+  accept(ledger, 'session', 'first');
+  ledger.commit();
+  ledger.close();
+  const witnessFile = file + '.ownership';
+  const witness = fs.readFileSync(witnessFile);
+  const database = fs.readFileSync(file);
+  fs.writeFileSync(witnessFile, '{broken');
+  expect(() => createLedger({ file })).toThrow('dedup-witness-invalid');
+  expect(fs.readFileSync(file)).toEqual(database);
+  fs.unlinkSync(witnessFile);
+  fs.unlinkSync(file + '-journal');
+  expect(() => createLedger({ file })).toThrow('dedup-witness-missing');
+  expect(fs.readFileSync(file)).toEqual(database);
+  fs.writeFileSync(witnessFile, witness);
+  ledger = createLedger({ file });
+  ledger.close();
+  // Reproduce the previous schema's committed, sidecar-free database.
+  const db = new DatabaseSync(file);
+  db.exec('PRAGMA journal_mode=DELETE; PRAGMA user_version=1');
+  db.close();
+  fs.unlinkSync(witnessFile);
+  ledger = createLedger({ file });
+  expect(ledger.getAggregate().inputTokens).toBe(10);
+  ledger.withSession('session', (state) => {
+    expect(state.offset).toBe(200);
+    expect(state.seenIds.has('first')).toBe(true);
+  });
+  ledger.close();
+  expect(JSON.parse(fs.readFileSync(witnessFile, 'utf8')).state).toBe('ready');
 });
 
 it('clears startup unavailable health after successful historical retry without live agents', async () => {

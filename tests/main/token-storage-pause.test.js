@@ -47,6 +47,8 @@ function source(pid, rows) {
 }
 function openInspection() {
   inspect = new DatabaseSync(file);
+  // Fixture writes must use the ledger's persistent rollback-journal mode.
+  expect(inspect.prepare('PRAGMA journal_mode=PERSIST').get().journal_mode).toBe('persist');
   inspect.exec(`PRAGMA max_page_count=${MAX_BYTES / 4096}`);
   return inspect;
 }
