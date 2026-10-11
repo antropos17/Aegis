@@ -136,6 +136,14 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
     expect(fakeWatchers.length).toBeGreaterThanOrEqual(2);
     expect(state.watchers).toHaveLength(fakeWatchers.length);
     expect(state.watchers).toEqual(fakeWatchers);
+    const envWatchers = fakeWatchers.filter((w) => w._opts.basenamePrefix === '.env');
+    expect(envWatchers).toHaveLength(1);
+    expect(envWatchers[0]._paths).toBe(os.homedir());
+    expect(envWatchers[0]._opts).toMatchObject({
+      depth: 0,
+      ignoreInitial: true,
+      followSymlinks: false,
+    });
   });
 
   it('subscribes every production evidence watcher to add, change, unlink, error, ready', async () => {

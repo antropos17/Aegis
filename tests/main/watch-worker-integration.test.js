@@ -58,6 +58,44 @@ function start(root, extra = {}) {
 }
 
 describe('real worker filesystem delivery', () => {
+  it('observes existing and later home .env files while excluding siblings and nested files', async () => {
+    const root = await fixture();
+    const existing = path.join(root, '.env.local');
+    await fs.writeFile(existing, 'fixture');
+    await fs.mkdir(path.join(root, '.env-directory'));
+    const w = start(root, { depth: 0, basenamePrefix: '.env' });
+    const seen = [];
+    for (const type of ['add', 'change', 'unlink']) w.on(type, (p) => seen.push([type, p]));
+    await waitFor(w, 'ready');
+    expect(seen).toEqual([]);
+    let received = waitFor(w, 'change', existing);
+    await fs.appendFile(existing, 'changed');
+    await received;
+    received = waitFor(w, 'unlink', existing);
+    await fs.unlink(existing);
+    await received;
+    await fs.writeFile(path.join(root, 'unrelated.txt'), 'fixture');
+    await fs.writeFile(path.join(root, '.env-directory', '.env'), 'fixture');
+    const target = path.join(root, '.env');
+    received = waitFor(w, 'add', target);
+    await fs.writeFile(target, 'fixture');
+    await received;
+    received = waitFor(w, 'change', target);
+    await fs.appendFile(target, 'changed');
+    await received;
+    received = waitFor(w, 'unlink', target);
+    await fs.unlink(target);
+    await received;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(seen).toEqual([
+      ['change', existing],
+      ['unlink', existing],
+      ['add', target],
+      ['change', target],
+      ['unlink', target],
+    ]);
+  }, 15000);
+
   it('reports a native registration exception without claiming ready', async () => {
     const w = start(42);
     let ready = false;

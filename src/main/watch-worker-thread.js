@@ -3,21 +3,37 @@
 
 const { parentPort, workerData } = require('node:worker_threads');
 const chokidar = require('chokidar');
+const path = require('node:path');
 const { createQueue } = require('./watch-event-queue');
 
 if (parentPort) {
   const queue = createQueue((batch) => parentPort.postMessage(batch));
-  const { ignoredDirectories, ignorePackageLock, ...options } = workerData.options;
-  if (ignoredDirectories || ignorePackageLock) {
-    options.ignored = (filePath) =>
-      (ignorePackageLock && /package-lock\.json$/.test(filePath)) ||
-      (ignoredDirectories || []).some(
-        (dir) =>
-          filePath.includes('/' + dir + '/') ||
-          filePath.includes('\\' + dir + '\\') ||
-          filePath.endsWith('/' + dir) ||
-          filePath.endsWith('\\' + dir),
+  const { ignoredDirectories, ignorePackageLock, basenamePrefix, ...options } = workerData.options;
+  const roots = basenamePrefix ? [workerData.paths].flat().map((root) => path.resolve(root)) : [];
+  if (ignoredDirectories || ignorePackageLock || basenamePrefix) {
+    options.ignored = (filePath, stats) => {
+      if (basenamePrefix) {
+        const resolved = path.resolve(filePath);
+        // Chokidar probes with and without stats; never exclude the watched root.
+        if (!roots.includes(resolved)) {
+          const directFile = roots.some((root) => path.dirname(resolved) === root);
+          const basename = filePath.split(/[/\\]/).pop();
+          if (!directFile || !basename.startsWith(basenamePrefix) || stats?.isDirectory()) {
+            return true;
+          }
+        }
+      }
+      return (
+        (ignorePackageLock && /package-lock\.json$/.test(filePath)) ||
+        (ignoredDirectories || []).some(
+          (dir) =>
+            filePath.includes('/' + dir + '/') ||
+            filePath.includes('\\' + dir + '\\') ||
+            filePath.endsWith('/' + dir) ||
+            filePath.endsWith('\\' + dir),
+        )
       );
+    };
   }
   try {
     const watcher = chokidar.watch(workerData.paths, options);

@@ -805,9 +805,10 @@ async function setupFileWatchers() {
       [
         WATCH_GROUP.ENV_FILES,
         () =>
-          watchWorker.watch(path.join(homeDir, '.env*'), {
+          watchWorker.watch(homeDir, {
             persistent: true,
             ignoreInitial: true,
+            basenamePrefix: '.env',
             depth: 0,
             usePolling: false,
             followSymlinks: false,
