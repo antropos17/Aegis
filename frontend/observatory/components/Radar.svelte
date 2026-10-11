@@ -181,6 +181,7 @@
                   {selected}
                   active={group === chosenGroup}
                   {select}
+                  {clearSelection}
                 />{/each}
             </div>
             {#if !groups.length}<p class="entity-note">

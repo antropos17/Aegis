@@ -10,19 +10,28 @@
     selected,
     active,
     select,
+    clearSelection,
   }: {
     group: RadarGroup;
     ordinal: number;
     selected: string | null;
     active?: boolean;
     select: (_group: RadarGroup) => void;
+    clearSelection: () => void;
   } = $props();
   let chosen = $derived(
     active ?? group.members.some((a) => !!selected && a.instanceId === selected),
   );
 </script>
 
-<button class="radar-agent-card" aria-pressed={chosen} onclick={() => select(group)}>
+<button
+  class="radar-agent-card"
+  aria-pressed={chosen}
+  onclick={() => select(group)}
+  onkeydown={(event) => {
+    if (event.key === 'Escape') clearSelection();
+  }}
+>
   <span class="roster-number" aria-hidden="true">{ordinal}</span>
   <AgentLogo id={group.key} name={group.name} size={24} />
   <span class="roster-identity"
