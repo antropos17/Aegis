@@ -110,6 +110,36 @@ describe('network-monitor', () => {
       expect(networkMonitor.isAllowlistedIp('::ffff:160.79.104.10')).toBe(true);
     });
 
+    it.each([
+      '::ffff:a04f:680a',
+      '0:0:0:0:0:ffff:160.79.104.10',
+      '0:0:0:0:0:FFFF:A04F:680A',
+      '0000::0000:ffff:a04f:680a%eth0',
+    ])('allowlists the equivalent mapped address %s', (ip) => {
+      expect(networkMonitor.isAllowlistedIp(ip)).toBe(true);
+      expect(networkMonitor.classifyConnection(ip)).toMatchObject({
+        verdict: 'allowlisted',
+        reason: 'ip-allowlist',
+      });
+    });
+
+    it.each([
+      '::ffff:a04f:67ff',
+      '::ffff:160.79.106.0',
+      '0:0:0:0:0:ffff:160.79.106.0',
+      '::a04f:680a',
+      '::160.79.104.10',
+      '64:ff9b::a04f:680a',
+      '::ffff:0:160.79.104.10',
+      '0:0:0:0:1:ffff:a04f:680a',
+      '::ffff::160.79.104.10',
+      '2607:6bc0::1::2',
+      '::ffff:160.079.104.10',
+      '[::ffff:a04f:680a]:443',
+    ])('rejects unmapped, out-of-range or invalid address %s', (ip) => {
+      expect(networkMonitor.isAllowlistedIp(ip)).toBe(false);
+    });
+
     it('matches the published IPv6 range 2607:6bc0::/48', () => {
       // The API is reachable over IPv6, and an IPv6-preferring host will use it. Without
       // this range that connection would fall through to a name check it can never pass.
@@ -263,6 +293,36 @@ describe('network-monitor DI tests', () => {
       expect(mockDnsResolve).toHaveBeenCalledWith('api.anthropic.com');
     });
 
+    it.each([
+      ['::ffff:808:808', '8.8.8.8'],
+      ['0:0:0:0:0:ffff:8.8.8.8', '::ffff:0808:0808'],
+      ['8.8.8.8', '0:0:0:0:0:ffff:8.8.8.8'],
+    ])('forward-confirms %s against %s and shares its IPv4 cache', async (ip, forwardIp) => {
+      mockDnsReverse.mockResolvedValue(['api.github.com']);
+      mockDnsResolve.mockResolvedValue([forwardIp]);
+      expect(await networkMonitor.resolveIp(ip)).toBe('api.github.com');
+      expect(await networkMonitor.resolveIp('8.8.8.8')).toBe('api.github.com');
+      expect(mockDnsReverse).toHaveBeenCalledExactlyOnceWith('8.8.8.8');
+      expect(mockDnsResolve).toHaveBeenCalledExactlyOnceWith('api.github.com');
+    });
+
+    it('forward-confirms equivalent dotted and hex tails without flattening other IPv6', async () => {
+      mockDnsReverse.mockResolvedValue(['api.github.com']);
+      mockDnsResolve.mockResolvedValue(['64:ff9b::808:808']);
+      expect(await networkMonitor.resolveIp('64:ff9b::8.8.8.8')).toBe('api.github.com');
+      expect(mockDnsReverse).toHaveBeenCalledExactlyOnceWith('64:ff9b:0:0:0:0:808:808');
+    });
+
+    it.each(['::808:808', '64:ff9b::808:808', '::ffff:0:8.8.8.8'])(
+      'does not forward-confirm distinct IPv6 %s as IPv4',
+      async (ip) => {
+        mockDnsReverse.mockResolvedValue(['api.github.com']);
+        mockDnsResolve.mockResolvedValue(['8.8.8.8']);
+        expect(await networkMonitor.resolveIp(ip)).toBeNull();
+        expect(networkMonitor.classifyConnection(ip).reason).toBe('ptr-unconfirmed');
+      },
+    );
+
     it('discards a PTR name that does not resolve back to the same address', async () => {
       // The owner of an address writes its own PTR record. Without forward confirmation
       // that record is attacker-supplied text, not an identity.
@@ -310,6 +370,22 @@ describe('network-monitor DI tests', () => {
   });
 
   describe('scanNetworkConnections()', () => {
+    it('allowlists mapped socket spellings without DNS and preserves observed addresses', async () => {
+      const ips = ['::ffff:a04f:680a', '0:0:0:0:0:ffff:160.79.104.10'];
+      mockGetRawTcp.mockResolvedValue(
+        ips.map((ip) => ({ pid: 100, ip, port: 443, state: 'ESTAB' })),
+      );
+      const rows = await networkMonitor.scanNetworkConnections([
+        { pid: 100, agent: 'Claude Code' },
+      ]);
+      expect(rows.map((row) => row.remoteIp)).toEqual(ips);
+      expect(
+        rows.every((row) => row.verdict === 'allowlisted' && row.verdictReason === 'ip-allowlist'),
+      ).toBe(true);
+      expect(mockDnsReverse).not.toHaveBeenCalled();
+      expect(mockDnsResolve).not.toHaveBeenCalled();
+    });
+
     it('returns empty for no agents', async () => {
       const results = await networkMonitor.scanNetworkConnections([]);
       expect(results).toEqual([]);
