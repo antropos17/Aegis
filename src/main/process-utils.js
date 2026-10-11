@@ -467,6 +467,7 @@ async function enrichWithParentChains(agents, opts = {}) {
   }
   annotateApplicationGroups(agents, processMap);
   require('./process-lineage').annotateParentRelations(agents, processMap);
+  annotateObservedHostEditors(agents, processMap);
 }
 
 /**
@@ -498,6 +499,82 @@ function _recordWitness(agent) {
 const EDITOR_LABELS = Object.fromEntries(
   EDITORS.flatMap((e) => e.names.map((n) => [n.toLowerCase(), e.label])),
 );
+
+/** Attach presentation-only nearest editor ancestry from this pass's process map.
+ * Every traversed generation needs a strong witness and a strictly older parent.
+ * Cached names and millisecond-only witnesses never establish this observation.
+ * This metadata must not authorize actions, enrollment, sessions or delegation.
+ * @param {Array} agents Freshly enriched records.
+ * @param {Map|undefined} processMap The same observation used for identity stamping.
+ * @returns {void}
+ * @since v0.19.2
+ */
+function annotateObservedHostEditors(agents, processMap) {
+  const counts = new Map();
+  for (const agent of agents) {
+    delete agent.observedHostEditor;
+    counts.set(agent.pid, (counts.get(agent.pid) || 0) + 1);
+  }
+  if (!(processMap instanceof Map)) return;
+  const strong = (row) => {
+    if (!row || !Number.isSafeInteger(row.startTime) || row.startTime <= 0) return false;
+    if (row.witnessSource === 'sequence' || row.witnessSource === 'createTime100ns')
+      return typeof row.witness === 'string' && /^[1-9]\d{0,19}$/.test(row.witness);
+    return (
+      row.witnessSource === 'linuxStartTicks' &&
+      typeof row.witness === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[1-9]\d{0,19}$/i.test(
+        row.witness,
+      )
+    );
+  };
+  for (const agent of agents) {
+    const pid = agent.pid;
+    let child = processMap.get(pid);
+    if (
+      !Number.isSafeInteger(pid) ||
+      pid <= 0 ||
+      counts.get(pid) !== 1 ||
+      agent._demo === true ||
+      agent.instanceIdSource !== 'os' ||
+      !strong(child) ||
+      agent.instanceId !== `${pid}:${child.startTime}` ||
+      agent.startTime !== child.startTime ||
+      agent.generationWitness !== child.witness ||
+      agent.generationWitnessSource !== child.witnessSource
+    )
+      continue;
+    const seen = new Set([pid]);
+    // Bound work even for malformed maps; unresolved deep chains produce no metadata.
+    for (let depth = 0; depth < 64; depth++) {
+      const parentPid = child.ppid;
+      if (!Number.isSafeInteger(parentPid) || parentPid <= 0 || seen.has(parentPid)) break;
+      const parent = processMap.get(parentPid);
+      if (
+        !strong(parent) ||
+        parent.startTime >= child.startTime ||
+        seen.has(parent.ppid) ||
+        (counts.get(parentPid) || 0) > 1
+      )
+        break;
+      seen.add(parentPid);
+      const editorName = typeof parent.name === 'string' ? parent.name.toLowerCase() : '';
+      const label = Object.hasOwn(EDITOR_LABELS, editorName) ? EDITOR_LABELS[editorName] : null;
+      if (typeof label === 'string' && label.length > 0) {
+        agent.observedHostEditor = {
+          pid: parentPid,
+          label,
+          startTime: parent.startTime,
+          generationWitness: parent.witness,
+          generationWitnessSource: parent.witnessSource,
+          source: 'fresh-process-table',
+        };
+        break;
+      }
+      child = parent;
+    }
+  }
+}
 
 /**
  * Annotate agents whose parentChain includes an editor host.
@@ -667,6 +744,7 @@ module.exports = {
   getParentChains,
   enrichWithParentChains,
   annotateHostApps,
+  annotateObservedHostEditors,
   annotateWorkingDirs,
   _setPlatformForTest,
   _resetForTest,
