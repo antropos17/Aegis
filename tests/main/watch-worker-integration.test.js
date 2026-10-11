@@ -58,6 +58,52 @@ function start(root, extra = {}) {
 }
 
 describe('real worker filesystem delivery', () => {
+  it.each(['plain/project', 'build/project', 'build'])(
+    'ignores only child build directories when the watched root is %s',
+    async (rootSuffix) => {
+      const base = await fixture();
+      const root = path.join(base, rootSuffix);
+      const ignored = path.join(root, 'build');
+      const visibleDirectory = path.join(root, 'build-output');
+      await fs.mkdir(ignored, { recursive: true });
+      await fs.mkdir(visibleDirectory);
+      const w = start(root, { ignoredDirectories: ['build'] });
+      const added = [];
+      w.on('add', (p) => added.push(p));
+      await waitFor(w, 'ready');
+      await fs.writeFile(path.join(ignored, 'ignored.txt'), 'fixture');
+      const target = path.join(root, 'visible.txt');
+      let received = waitFor(w, 'add', target);
+      await fs.writeFile(target, 'fixture');
+      await received;
+      const nestedTarget = path.join(visibleDirectory, 'visible.txt');
+      received = waitFor(w, 'add', nestedTarget);
+      await fs.writeFile(nestedTarget, 'fixture');
+      await received;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(added).toEqual([target, nestedTarget]);
+    },
+    15000,
+  );
+
+  it('admits an explicitly watched nested root while retaining its child exclusions', async () => {
+    const root = await fixture();
+    const nestedRoot = path.join(root, 'build', 'project');
+    const ignored = path.join(nestedRoot, 'build');
+    await fs.mkdir(ignored, { recursive: true });
+    const w = start([root, nestedRoot], { ignoredDirectories: ['build'] });
+    const added = [];
+    w.on('add', (p) => added.push(p));
+    await waitFor(w, 'ready');
+    await fs.writeFile(path.join(ignored, 'ignored.txt'), 'fixture');
+    const target = path.join(nestedRoot, 'visible.txt');
+    const received = waitFor(w, 'add', target);
+    await fs.writeFile(target, 'fixture');
+    await received;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(added).toEqual([target]);
+  });
+
   it('observes existing and later home .env files while excluding siblings and nested files', async () => {
     const root = await fixture();
     const existing = path.join(root, '.env.local');
