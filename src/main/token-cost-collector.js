@@ -60,6 +60,8 @@ let _warnedReadError = false;
  * @since v0.11.0-alpha
  */
 async function collectTokenCosts(agents) {
+  for (const baseline of tokenFeed.getHistoricalUsage())
+    tokenTracker.restoreHistoricalUsage(baseline);
   const list = Array.isArray(agents) ? agents : [];
 
   // C-01: build the procs batch ONLY from agents whose OS birth-time is a real

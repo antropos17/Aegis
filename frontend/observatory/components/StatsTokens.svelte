@@ -118,15 +118,19 @@
         <article>
           <div>
             <h4>
-              {token.archived === true
-                ? $t('Archived exited usage')
-                : agent?.agent || $t('Unlinked source')}
+              {token.historical === true
+                ? $t('Prior runs · Claude Code')
+                : token.archived === true
+                  ? $t('Archived exited usage')
+                  : agent?.agent || $t('Unlinked source')}
               <small
-                >{token.archived === true
-                  ? $t('{count} compacted records', { count: token.archivedRecords })
-                  : typeof token.pid === 'number'
-                    ? 'PID ' + token.pid
-                    : 'Sample ' + (index + 1)}</small
+                >{token.historical === true
+                  ? $t('Retained usage · process identity unavailable')
+                  : token.archived === true
+                    ? $t('{count} compacted records', { count: token.archivedRecords })
+                    : typeof token.pid === 'number'
+                      ? 'PID ' + token.pid
+                      : 'Sample ' + (index + 1)}</small
               >
             </h4>
             <span>{token.estimated === true ? $t('Estimated') : $t('Recorded')}</span>

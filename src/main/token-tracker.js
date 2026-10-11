@@ -92,6 +92,7 @@ const MODEL_LABEL_LIMIT = 32;
 const MODEL_LABEL_LENGTH = 256;
 /** @type {CostRecord|null} */
 let archive = null;
+const historical = new Map();
 
 /** Retain bounded display labels without changing pricing or numeric accounting.
  * @param {CostRecord} record @param {string} model @returns {void} @since 0.18.0-beta
@@ -220,9 +221,10 @@ function trackTokens(proc, event) {
   record.inputTokens += inTok;
   record.outputTokens += outTok;
   record.totalTokens = record.inputTokens + record.outputTokens;
-  record.costUsd += costUsd;
-  if (cachePricingEstimated) record.pricingEstimated = true;
-  record.estimated = record.estimated || eventEstimated;
+  record.costUsd += isNonNegativeNumber(event.acceptedCostUsd) ? event.acceptedCostUsd : costUsd;
+  if (event.acceptedPricingEstimated === true || cachePricingEstimated)
+    record.pricingEstimated = true;
+  record.estimated = record.estimated || eventEstimated || event.acceptedEstimated === true;
   rememberModel(record, model);
 
   // Map order represents the latest usage update, including resumed retained rows.
@@ -254,7 +256,40 @@ function getCost(proc) {
  * @since v0.10.0-alpha
  */
 function getAllCosts() {
-  return [...records.values(), ...(archive ? [archive] : [])];
+  return [
+    ...records.values(),
+    ...(archive ? [archive] : []),
+    ...[...historical.values()].filter(Boolean),
+  ];
+}
+
+/** Restore one pre-run baseline per adapter without inventing process ownership.
+ * @param {Object} usage Numeric startup aggregate with adapter id.
+ * @returns {void} @since 0.19.2
+ */
+function restoreHistoricalUsage(usage) {
+  if (!usage || typeof usage.adapter !== 'string' || historical.has(usage.adapter)) return;
+  if (![usage.inputTokens, usage.outputTokens, usage.costUsd].every(isNonNegativeNumber)) return;
+  if (!Number.isFinite(usage.inputTokens + usage.outputTokens)) return;
+  if (usage.inputTokens + usage.outputTokens === 0 && usage.costUsd === 0) {
+    historical.set(usage.adapter, null);
+    return;
+  }
+  historical.set(usage.adapter, {
+    ...zeroRecord(0, ''),
+    pid: null,
+    instanceId: null,
+    archived: true,
+    historical: true,
+    source: usage.adapter,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.inputTokens + usage.outputTokens,
+    costUsd: usage.costUsd,
+    estimated: usage.estimated === true,
+    pricingEstimated: usage.pricingEstimated === true,
+    modelsTruncated: true,
+  });
 }
 
 /** Fold older confirmed exited records into a constant-size lifetime aggregate.
@@ -295,6 +330,7 @@ function compactCosts(isLive, observed = false) {
 function _resetForTest() {
   records.clear();
   archive = null;
+  historical.clear();
 }
 
 module.exports = {
@@ -302,6 +338,7 @@ module.exports = {
   DEFAULT_PRICING,
   computeCost,
   trackTokens,
+  restoreHistoricalUsage,
   getCost,
   getAllCosts,
   compactCosts,

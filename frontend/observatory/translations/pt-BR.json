@@ -1750,6 +1750,8 @@
   "Observation unknown": "Observação desconhecida",
   "AEGIS main process": "Processo principal do AEGIS",
   "Archived exited usage": "Uso arquivado de processos encerrados",
+  "Prior runs · Claude Code": "Execuções anteriores · Claude Code",
+  "Retained usage · process identity unavailable": "Uso retido · identidade do processo indisponível",
   "{count} compacted records": "{count} registros compactados",
   "Additional model labels omitted. Usage and cost totals are retained.": "Rótulos adicionais de modelos omitidos. Os totais de uso e custo são preservados.",
   "Single-key shortcuts": "Atalhos de uma tecla",
