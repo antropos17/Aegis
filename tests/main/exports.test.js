@@ -152,6 +152,96 @@ describe('exports', () => {
   });
 
   describe('exportLog', () => {
+    it('preserves recorded process lifetimes and only allowlisted attribution evidence', async () => {
+      const filePath = path.join(tmpDir, 'provenance.json');
+      const hostile = 'fixture-secret-must-not-export';
+      initExporter({
+        activityLog: ['100:1700000000000', '100:1700000001000'].map((instanceId, index) => ({
+          timestamp: 1700000000000 + index * 1000,
+          agent: 'Fixture',
+          pid: 100,
+          instanceId,
+          source: 'chokidar-write',
+          file: '/fixture/example.js',
+          sensitive: false,
+          contents: hostile,
+          apiKey: hostile,
+          attribution: {
+            status: 'confirmed',
+            evidence: ['handle-scan-pid', 'self-config-path', hostile, { contents: hostile }],
+            extra: { apiKey: hostile },
+          },
+        })),
+      });
+      mockShowSaveDialog.mockResolvedValue({ filePath });
+      await exporter.exportLog();
+      const serialized = fs.readFileSync(filePath, 'utf8');
+      const { events } = JSON.parse(serialized);
+      expect(events.map((event) => event.instanceId)).toEqual([
+        '100:1700000000000',
+        '100:1700000001000',
+      ]);
+      for (const event of events) {
+        expect(event.pid).toBe(100);
+        expect(event.source).toBe('chokidar-write');
+        expect(event.attribution).toBe('confirmed');
+        expect(event.attributionEvidence).toEqual(['handle-scan-pid', 'self-config-path']);
+        expect(event).not.toHaveProperty('contents');
+        expect(event).not.toHaveProperty('apiKey');
+      }
+      expect(serialized).not.toContain(hostile);
+    });
+
+    it('does not infer missing identity or serialize nested provenance values', async () => {
+      const filePath = path.join(tmpDir, 'unknown-provenance.json');
+      const hostile = 'fixture-nested-secret';
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: '',
+            pid: null,
+            instanceId: null,
+            file: '/fixture/unowned.js',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+          { timestamp: 1700000001000, agent: 'Fixture', pid: 100, file: '/fixture/legacy.js' },
+          {
+            timestamp: 1700000002000,
+            agent: '',
+            pid: null,
+            file: '/fixture/malformed.js',
+            instanceId: { contents: hostile },
+            source: { apiKey: hostile },
+            attribution: { status: 'unattributed', evidence: { contents: hostile } },
+          },
+          {
+            timestamp: 1700000003000,
+            agent: '',
+            pid: null,
+            file: '/fixture/unsafe-source.js',
+            instanceId: 'x'.repeat(257),
+            source: hostile,
+          },
+        ],
+      });
+      mockShowSaveDialog.mockResolvedValue({ filePath });
+      await exporter.exportLog();
+      const serialized = fs.readFileSync(filePath, 'utf8');
+      const { events } = JSON.parse(serialized);
+      expect(events[0].agent).toBe('');
+      expect(events[0].attribution).toBe('unattributed');
+      expect(events[0].attributionEvidence).toEqual(['no-owner-match']);
+      expect(events[1].attribution).toBeNull();
+      for (const event of events) {
+        expect(event.instanceId).toBeNull();
+        expect(event.source).toBeNull();
+      }
+      expect(events[1].attributionEvidence).toEqual([]);
+      expect(events[2].attributionEvidence).toEqual([]);
+      expect(serialized).not.toContain(hostile);
+    });
+
     it('returns success:false when dialog is canceled', async () => {
       initExporter();
       mockShowSaveDialog.mockResolvedValue({ canceled: true });
