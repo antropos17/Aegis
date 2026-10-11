@@ -600,10 +600,37 @@ describe('Docker executable admission', () => {
     },
   );
 
+  it.each([{ uid: 1000 }, { mode: 0o777 }])(
+    'rejects a transitive Docker redirect through an unsafe intermediate path %j',
+    async (unsafe) => {
+      const links = {
+        '/usr/bin/docker': '/home/user/redirect',
+        '/home/user/redirect': '/usr/libexec/docker',
+      };
+      const fs = {
+        ...trustedFs,
+        realpathSync: (file) => {
+          if (file !== '/usr/bin/docker') throw new Error('ENOENT');
+          return '/usr/libexec/docker';
+        },
+        readlinkSync: (file) => links[file],
+        lstatSync: (file) => ({
+          ...trustedFs.lstatSync(file),
+          ...(file === '/home/user' ? unsafe : {}),
+          isSymbolicLink: () => file in links,
+        }),
+      };
+      const { discovery, execFile } = harness([''], { fs });
+      await expect(discovery.refresh()).resolves.toMatchObject({ reason: 'cli-missing' });
+      expect(execFile).not.toHaveBeenCalled();
+    },
+  );
+
   it('accepts a root-owned system symlink only with a protected regular executable target', () => {
     const fs = {
       ...trustedFs,
       realpathSync: () => '/opt/docker-cli/bin/docker',
+      readlinkSync: () => '/opt/docker-cli/bin/docker',
       lstatSync: (file) => ({
         ...trustedFs.lstatSync(file),
         isSymbolicLink: () => file === '/usr/bin/docker',
@@ -619,6 +646,55 @@ describe('Docker executable admission', () => {
     });
     expect(resolveDockerExecutable('linux', fs)).toBeNull();
   });
+
+  it('accepts protected relative multi-hop and ancestor redirects', () => {
+    const links = {
+      '/usr/bin': 'libexec',
+      '/usr/libexec/docker': '../lib/docker-link',
+      '/usr/lib/docker-link': '../lib/docker',
+    };
+    const fs = {
+      ...trustedFs,
+      realpathSync: () => '/usr/lib/docker',
+      readlinkSync: (file) => links[file],
+      lstatSync: (file) => ({
+        ...trustedFs.lstatSync(file),
+        isSymbolicLink: () => file in links,
+      }),
+    };
+    expect(resolveDockerExecutable('linux', fs)).toEqual({
+      file: '/usr/lib/docker',
+      cwd: '/usr/lib',
+    });
+  });
+
+  it.each(['cycle', 'too-many-hops', 'attacker-owned-link'])(
+    'rejects %s even when the realpath seam reports a protected destination',
+    (kind) => {
+      let reads = 0;
+      const fs = {
+        ...trustedFs,
+        realpathSync: (file) => {
+          if (file !== '/usr/bin/docker') throw new Error('ENOENT');
+          return '/usr/libexec/docker';
+        },
+        readlinkSync: (file) => {
+          reads++;
+          if (file === '/usr/bin/docker') return '/usr/libexec/hop0';
+          if (kind === 'cycle') return 'hop0';
+          const index = Number(file.match(/hop(\d+)$/)[1]);
+          return index < 40 ? `hop${index + 1}` : 'docker';
+        },
+        lstatSync: (file) => ({
+          ...trustedFs.lstatSync(file),
+          ...(kind === 'attacker-owned-link' && file === '/usr/libexec/hop0' ? { uid: 1000 } : {}),
+          isSymbolicLink: () => file === '/usr/bin/docker' || /hop\d+$/.test(file),
+        }),
+      };
+      expect(resolveDockerExecutable('linux', fs)).toBeNull();
+      expect(reads).toBeLessThanOrEqual(40);
+    },
+  );
 
   it('rejects non-executable files and unsupported platforms', () => {
     expect(
