@@ -6,6 +6,19 @@ const {
   CONFIGURATION_FORMAT,
 } = require('../../src/main/container-configuration');
 const { createDockerDiscovery } = require('../../src/main/container-scanner');
+const trustedFs = {
+  realpathSync: (file) => file,
+  lstatSync: (file) => ({
+    uid: 0,
+    mode: 0o755,
+    isSymbolicLink: () => false,
+    isFile: () => /docker(?:\.exe)?$/.test(file),
+    isDirectory: () => !/docker(?:\.exe)?$/.test(file),
+  }),
+  statSync: () => ({ isFile: () => true }),
+  accessSync: () => {},
+};
+
 const id = 'a'.repeat(64);
 const projected = (ID = id, extra = {}) =>
   JSON.stringify({
@@ -72,6 +85,7 @@ describe('Docker configuration observations', () => {
     const ids = Array.from({ length: 10 }, (_, index) => index.toString(16).padStart(64, '0'));
     const calls = [];
     const discovery = createDockerDiscovery({
+      fs: trustedFs,
       platform: 'linux',
       now: () => 42,
       execFile: (file, args, options, callback) => {
@@ -112,6 +126,7 @@ describe('Docker configuration observations', () => {
     const kill = vi.fn();
     const onUpdate = vi.fn();
     const discovery = createDockerDiscovery({
+      fs: trustedFs,
       platform: 'linux',
       onUpdate,
       execFile: (file, args, options, callback) => {

@@ -5,6 +5,8 @@
  */
 'use strict';
 const { execFile: defaultExecFile } = require('node:child_process');
+const defaultFs = require('node:fs');
+const path = require('node:path');
 const { MAX_OUTPUT_BYTES, hasControl, parseContainerOutput } = require('./container-metadata');
 const {
   MAX_CONFIGURATION_CANDIDATES,
@@ -26,6 +28,61 @@ const WINDOWS_ENDPOINTS = [
 // https://docs.docker.com/engine/cli/otel/
 const SCRUB_ENV =
   /^(?:DOCKER_(?:HOST|CONTEXT|TLS|TLS_VERIFY|CERT_PATH|API_VERSION)$|DOCKER_CLI_OTEL_|OTEL_|TRACEPARENT$|TRACESTATE$)/i;
+// Fixed system installation locations deliberately exclude PATH and the launch cwd.
+// Windows assumes the default Program Files ACLs; this is not signature/ACL attestation.
+const DOCKER_EXECUTABLES = {
+  win32: ['C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe'],
+  linux: ['/usr/bin/docker', '/usr/local/bin/docker'],
+  darwin: ['/Applications/Docker.app/Contents/Resources/bin/docker', '/usr/local/bin/docker'],
+};
+
+/**
+ * Admit a regular executable in a system installation tree. POSIX symlink targets
+ * and both ancestor chains must be root-owned and not group/world writable.
+ * Windows rejects redirects along the entire default Program Files tree.
+ * @param {string} platform Host platform.
+ * @param {object} [fs] Filesystem seam for focused tests.
+ * @returns {{file: string, cwd: string}|null} Absolute command or no admitted CLI.
+ * @since 0.19.2-beta
+ */
+function resolveDockerExecutable(platform, fs = defaultFs) {
+  const paths = platform === 'win32' ? path.win32 : path.posix;
+  for (const candidate of DOCKER_EXECUTABLES[platform] || []) {
+    try {
+      const file = fs.realpathSync(candidate);
+      if (!paths.isAbsolute(file)) continue;
+      if (platform === 'win32' && file.toLowerCase() !== candidate.toLowerCase()) continue;
+      let trusted = true;
+      for (const start of new Set([candidate, file])) {
+        let current = start;
+        while (true) {
+          const stat = fs.lstatSync(current);
+          if (platform === 'win32') {
+            if (stat.isSymbolicLink()) trusted = false;
+          } else if (stat.uid !== 0 || (!stat.isSymbolicLink() && (stat.mode & 0o022) !== 0)) {
+            trusted = false;
+          }
+          if (!stat.isSymbolicLink() && !(current === start ? stat.isFile() : stat.isDirectory()))
+            trusted = false;
+          const parent = paths.dirname(current);
+          if (!trusted || parent === current) break;
+          current = parent;
+        }
+        if (!trusted) break;
+      }
+      if (!trusted || !fs.statSync(file).isFile()) continue;
+      fs.accessSync(
+        file,
+        platform === 'win32' ? defaultFs.constants.F_OK : defaultFs.constants.X_OK,
+      );
+      return { file, cwd: paths.dirname(file) };
+    } catch {
+      // Missing, inaccessible and unsafe installation paths all fail closed.
+    }
+  }
+  return null;
+}
+
 /** Discard CLI error text. @param {unknown} error @returns {string} Fixed token. */
 function failureReason(error) {
   if (error?.code === 'ENOENT') return 'cli-missing';
@@ -46,7 +103,7 @@ function isLocalHost(host) {
  * Create a passive owner: Windows queries Desktop Linux then standard pipe on
  * daemon failure (at most two 3s calls); others query the default local Unix socket.
  * Scrub inherited overrides; custom/rootless/remote endpoints are outside this slice.
- * @param {{execFile?: Function, now?: Function, platform?: string, onUpdate?: Function}} [options]
+ * @param {{execFile?: Function, now?: Function, platform?: string, fs?: object, onUpdate?: Function}} [options]
  * @returns {{refresh: Function, snapshot: Function, stop: Function}} Discovery lifecycle.
  * @since 0.19.2-beta
  */
@@ -85,6 +142,8 @@ function createDockerDiscovery(options = {}) {
 
   /** Metadata-only query. @param {string} endpoint @param {object} env @returns {Promise<object>} */
   function query(endpoint, env, id = null, timeout = 3000) {
+    const executable = resolveDockerExecutable(platform, options.fs);
+    if (!executable) return Promise.resolve({ reason: 'cli-missing' });
     return new Promise((resolve) => {
       let settled = false;
       const watchdog = setTimeout(() => {
@@ -107,7 +166,7 @@ function createDockerDiscovery(options = {}) {
       cancel = () => finish({ cancelled: true });
       try {
         const child = execFile(
-          platform === 'win32' ? 'docker.exe' : 'docker',
+          executable.file,
           [
             '--host',
             endpoint,
@@ -117,6 +176,7 @@ function createDockerDiscovery(options = {}) {
           ],
           {
             timeout,
+            cwd: executable.cwd,
             killSignal: 'SIGKILL',
             maxBuffer: id ? CONFIGURATION_OUTPUT_BYTES : MAX_OUTPUT_BYTES,
             windowsHide: true,
@@ -237,4 +297,4 @@ function createDockerDiscovery(options = {}) {
   return { refresh, snapshot, stop };
 }
 
-module.exports = { createDockerDiscovery };
+module.exports = { createDockerDiscovery, resolveDockerExecutable };

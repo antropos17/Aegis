@@ -2,7 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { createDockerDiscovery } = require('../../src/main/container-scanner');
+const {
+  createDockerDiscovery,
+  resolveDockerExecutable,
+} = require('../../src/main/container-scanner');
+const trustedFs = {
+  realpathSync: (file) => file,
+  lstatSync: (file) => ({
+    uid: 0,
+    mode: 0o755,
+    isSymbolicLink: () => false,
+    isFile: () => /docker(?:\.exe)?$/.test(file),
+    isDirectory: () => !/docker(?:\.exe)?$/.test(file),
+  }),
+  statSync: () => ({ isFile: () => true }),
+  accessSync: () => {},
+};
+
 const firstId = 'a'.repeat(64);
 const secondId = 'b'.repeat(64);
 const row = (image = 'agent0ai/agent-zero:latest', ID = firstId, Names = 'agent-zero') =>
@@ -19,6 +35,7 @@ function harness(replies = [], options = {}) {
     return { kill };
   });
   const discovery = createDockerDiscovery({
+    fs: trustedFs,
     execFile: (file, args, settings, callback) => {
       if (args[2] === 'container') {
         queueMicrotask(() => callback(new Error('unavailable')));
@@ -179,7 +196,8 @@ describe('Docker metadata discovery', () => {
     const { discovery, execFile } = harness(['']);
     await discovery.refresh();
     const [file, args, settings] = execFile.mock.calls[0];
-    expect(file).toBe('docker');
+    expect(file).toBe('/usr/bin/docker');
+    expect(settings.cwd).toBe('/usr/bin');
     expect(args).toEqual([
       '--host',
       'unix:///var/run/docker.sock',
@@ -213,8 +231,14 @@ describe('Docker metadata discovery', () => {
     const { discovery, execFile } = harness([error, row()], { platform: 'win32' });
     await discovery.refresh();
     expect(execFile.mock.calls.map((call) => [call[0], call[1][1]])).toEqual([
-      ['docker.exe', 'npipe:////./pipe/dockerDesktopLinuxEngine'],
-      ['docker.exe', 'npipe:////./pipe/docker_engine'],
+      [
+        'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe',
+        'npipe:////./pipe/dockerDesktopLinuxEngine',
+      ],
+      [
+        'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe',
+        'npipe:////./pipe/docker_engine',
+      ],
     ]);
     expect(discovery.snapshot().status).toBe('ready');
   });
@@ -351,6 +375,7 @@ describe('Docker metadata discovery', () => {
 
   it('never rejects for synchronous spawn or update callback errors', async () => {
     const discovery = createDockerDiscovery({
+      fs: trustedFs,
       platform: 'linux',
       execFile: () => {
         throw new Error('private spawn error');
@@ -454,5 +479,156 @@ describe('Docker metadata discovery', () => {
     expect(onUpdate).not.toHaveBeenCalled();
     expect(discovery.snapshot().candidates).toEqual([]);
     expect(execFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Docker executable admission', () => {
+  it.each([
+    [
+      'win32',
+      'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe',
+      'C:\\Program Files\\Docker\\Docker\\resources\\bin',
+    ],
+    ['linux', '/usr/bin/docker', '/usr/bin'],
+    [
+      'darwin',
+      '/Applications/Docker.app/Contents/Resources/bin/docker',
+      '/Applications/Docker.app/Contents/Resources/bin',
+    ],
+  ])('ignores PATH/cwd shadows and inherited install hints on %s', async (platform, file, cwd) => {
+    vi.stubEnv('PATH', '/attacker/project;C:\\attacker');
+    vi.stubEnv('ProgramFiles', 'C:\\attacker');
+    const seen = [];
+    const fs = {
+      ...trustedFs,
+      realpathSync: (candidate) => {
+        seen.push(candidate);
+        return candidate;
+      },
+    };
+    const { discovery, execFile } = harness([''], { platform, fs });
+    await discovery.refresh();
+    expect(execFile.mock.calls[0][0]).toBe(file);
+    expect(execFile.mock.calls[0][2].cwd).toBe(cwd);
+    expect(seen).toEqual([file]);
+  });
+
+  it('supports the secondary protected system installation when the first is missing', () => {
+    const fs = {
+      ...trustedFs,
+      realpathSync: (file) => {
+        if (file === '/usr/bin/docker') throw new Error('ENOENT');
+        return file;
+      },
+    };
+    expect(resolveDockerExecutable('linux', fs)).toEqual({
+      file: '/usr/local/bin/docker',
+      cwd: '/usr/local/bin',
+    });
+  });
+
+  it('revalidates admission before inspection instead of retaining a previously admitted path', async () => {
+    let admitted = true;
+    const fs = {
+      ...trustedFs,
+      realpathSync: (file) => {
+        if (!admitted) throw new Error('unsafe replacement');
+        return file;
+      },
+    };
+    const execFile = vi.fn((file, args, settings, callback) => {
+      admitted = false;
+      callback(null, row());
+      return { kill: vi.fn() };
+    });
+    const { discovery } = harness([], { fs, execFile });
+    const result = await discovery.refresh();
+    expect(execFile).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      status: 'ready',
+      candidates: [{ configuration: { status: 'unavailable' } }],
+    });
+  });
+
+  it('fails closed without spawning a PATH fallback when fixed installations are missing', async () => {
+    const fs = {
+      ...trustedFs,
+      realpathSync: () => {
+        throw new Error('missing');
+      },
+    };
+    const { discovery, execFile } = harness([''], { fs });
+    await expect(discovery.refresh()).resolves.toMatchObject({
+      status: 'unavailable',
+      reason: 'cli-missing',
+    });
+    expect(execFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'C:\\Program Files',
+    'C:\\Program Files\\Docker',
+    'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe',
+  ])('rejects Windows junction/symlink redirects at %s', (redirect) => {
+    const fs = {
+      ...trustedFs,
+      lstatSync: (file) => ({
+        ...trustedFs.lstatSync(file),
+        isSymbolicLink: () => file === redirect,
+      }),
+    };
+    expect(resolveDockerExecutable('win32', fs)).toBeNull();
+  });
+
+  it('rejects a redirected Windows canonical path', () => {
+    expect(
+      resolveDockerExecutable('win32', {
+        ...trustedFs,
+        realpathSync: () => 'C:\\attacker\\docker.exe',
+      }),
+    ).toBeNull();
+  });
+
+  it.each([{ uid: 1000 }, { mode: 0o777 }])(
+    'rejects unsafe POSIX executable or parent ownership/mode %j',
+    (unsafe) => {
+      const fs = {
+        ...trustedFs,
+        lstatSync: (file) => ({ ...trustedFs.lstatSync(file), ...(file === '/usr' ? unsafe : {}) }),
+      };
+      expect(resolveDockerExecutable('linux', fs)).toBeNull();
+    },
+  );
+
+  it('accepts a root-owned system symlink only with a protected regular executable target', () => {
+    const fs = {
+      ...trustedFs,
+      realpathSync: () => '/opt/docker-cli/bin/docker',
+      lstatSync: (file) => ({
+        ...trustedFs.lstatSync(file),
+        isSymbolicLink: () => file === '/usr/bin/docker',
+      }),
+    };
+    expect(resolveDockerExecutable('linux', fs)).toEqual({
+      file: '/opt/docker-cli/bin/docker',
+      cwd: '/opt/docker-cli/bin',
+    });
+    fs.lstatSync = (file) => ({
+      ...trustedFs.lstatSync(file),
+      ...(file === '/opt' ? { uid: 1000 } : {}),
+    });
+    expect(resolveDockerExecutable('linux', fs)).toBeNull();
+  });
+
+  it('rejects non-executable files and unsupported platforms', () => {
+    expect(
+      resolveDockerExecutable('linux', {
+        ...trustedFs,
+        accessSync: () => {
+          throw new Error('EACCES');
+        },
+      }),
+    ).toBeNull();
+    expect(resolveDockerExecutable('other', trustedFs)).toBeNull();
   });
 });
