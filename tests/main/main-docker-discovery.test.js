@@ -27,15 +27,18 @@ const stopPodman = vi.fn();
 const refreshWsl = vi.fn();
 const stopWsl = vi.fn();
 const cancelWsl = vi.fn();
+const cancelDocker = vi.fn();
+const cancelPodman = vi.fn();
 const createDockerDiscovery = vi.fn((options) => {
   onUpdate = options.onUpdate;
-  return { refresh, stop, snapshot: () => structuredClone(discovery) };
+  return { refresh, stop, cancelRefresh: cancelDocker, snapshot: () => structuredClone(discovery) };
 });
 const createPodmanDiscovery = vi.fn((options) => {
   onPodmanUpdate = options.onUpdate;
   return {
     refresh: refreshPodman,
     stop: stopPodman,
+    cancelRefresh: cancelPodman,
     snapshot: () => structuredClone(podmanDiscovery),
   };
 });
@@ -231,20 +234,39 @@ describe('main container discovery stats', () => {
     vi.useRealTimers();
   });
 
-  it('cancels WSL inventory on pause and suppresses its late stats delivery', async () => {
+  it('cancels all discoveries on pause and suppresses late stats until resume', async () => {
     vi.useFakeTimers();
     const send = vi.fn();
     main._setMainWindowForTest({ isDestroyed: () => false, webContents: { send } });
     main._setMonitoringPausedForTest(true);
     expect(cancelWsl).toHaveBeenCalledTimes(1);
+    expect(cancelDocker).toHaveBeenCalledTimes(1);
+    expect(cancelPodman).toHaveBeenCalledTimes(1);
+    onUpdate();
+    onPodmanUpdate();
     onWslUpdate();
     await vi.advanceTimersByTimeAsync(1000);
     expect(send).not.toHaveBeenCalled();
     expect(main.getStats().monitoringPaused).toBe(true);
     main._setMonitoringPausedForTest(false);
+    onUpdate();
+    onPodmanUpdate();
     onWslUpdate();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(send).toHaveBeenCalledWith('stats-update', expect.objectContaining({ wslInventory }));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(
+      'stats-update',
+      expect.objectContaining({
+        dockerDiscovery: discovery,
+        podmanDiscovery,
+        wslInventory,
+        monitoringPaused: false,
+      }),
+    );
+    expect(cancelDocker).toHaveBeenCalledTimes(1);
+    expect(cancelPodman).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(refreshPodman).not.toHaveBeenCalled();
     expect(refreshWsl).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
