@@ -186,9 +186,40 @@ try {
     await sweep.evaluate((node) => node === document.querySelector('.dial-sweep')),
     'layer switch recreates sweep',
   );
-  await page
-    .getByRole('button', { name: 'Clear radar selection', exact: true })
-    .click({ position: { x: 10, y: 70 } });
+  await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
+  assert.equal(await page.locator('.radar-blip[aria-pressed="true"]').count(), 1);
+  const blankStage = page.getByRole('button', { name: 'Clear radar selection', exact: true });
+  await blankStage.scrollIntoViewIfNeeded();
+  // Find visible stage background: controls and the zoomed canvas may cover it.
+  // Require a small clear patch so this remains a real pointer interaction.
+  const blankPoint = await blankStage.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    for (
+      let y = Math.min(rect.bottom, innerHeight) - 16;
+      y >= Math.max(rect.top, 0) + 16;
+      y -= 16
+    ) {
+      for (
+        let x = Math.max(rect.left, 0) + 16;
+        x <= Math.min(rect.right, innerWidth) - 16;
+        x += 16
+      ) {
+        if (
+          [
+            [0, 0],
+            [-8, 0],
+            [8, 0],
+            [0, -8],
+            [0, 8],
+          ].every(([dx, dy]) => document.elementFromPoint(x + dx, y + dy) === node)
+        )
+          return { x: x - rect.left, y: y - rect.top };
+      }
+    }
+    return null;
+  });
+  assert(blankPoint, 'radar has no visible blank stage area to clear selection');
+  await blankStage.click({ position: blankPoint });
   assert.equal(await page.locator('.radar-blip[aria-pressed="true"]').count(), 0);
   assert(
     await sweep.evaluate((node) => node === document.querySelector('.dial-sweep')),
