@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { t } from '../runtime/i18n';
   import type { Host } from '../runtime/host';
   import {
@@ -32,6 +32,16 @@
   let active = false;
   let queued = false;
   let queuedRefresh = false;
+  let retrying = $state(false);
+  let retryButton = $state<HTMLButtonElement>();
+  let toggleButton = $state<HTMLButtonElement>();
+  let limitStatus = $state<HTMLParagraphElement>();
+
+  function retryRead() {
+    if (pending || retrying || !visible || !alive) return;
+    retrying = true;
+    requestRead(true);
+  }
 
   // Saved-state signals and a visible return request verification without
   // replacing this control or racing its current serialized write/readback.
@@ -73,6 +83,21 @@
       if (alive) {
         pending = false;
         flushRead();
+        // Keep Retry mounted until its destination exists. Native
+        // focus ownership also prevents stealing focus after the user tabs away.
+        await tick();
+        if (alive && !pending && retrying) {
+          if (
+            visible &&
+            verified &&
+            retryButton?.isConnected &&
+            document.activeElement === retryButton
+          ) {
+            if (toggleButton?.isConnected && !toggleButton.disabled) toggleButton.focus();
+            else if (target.pattern.length > 256 && limitStatus?.isConnected) limitStatus.focus();
+          }
+          retrying = false;
+        }
       }
     }
   }
@@ -107,6 +132,7 @@
 
 <div class="false-positive-control">
   <button
+    bind:this={toggleButton}
     class="button"
     disabled={pending || !verified || target.pattern.length > 256}
     aria-busy={pending}
@@ -124,7 +150,12 @@
     </p>
     {#if pending}<p role="status" class="muted">{$t('Checking saved exception…')}</p>
     {:else if error}<p role="alert" class="error">{$t(error)}</p>
-    {:else if target.pattern.length > 256}<p role="status" class="muted">
+    {:else if target.pattern.length > 256}<p
+        bind:this={limitStatus}
+        role="status"
+        tabindex="-1"
+        class="muted"
+      >
         {$t('This exact path exceeds the saved exception limit.')}
       </p>
     {:else if verified}<p role="status" class="muted">
@@ -137,8 +168,12 @@
         )}
       </p>{/if}
   </div>
-  {#if !pending && !verified}<button class="button" onclick={() => requestRead(true)}
-      >{$t('Retry status')}</button
+  {#if retrying || (!pending && !verified)}<button
+      bind:this={retryButton}
+      class="button"
+      aria-disabled={pending}
+      aria-busy={pending}
+      onclick={retryRead}>{$t('Retry status')}</button
     >{/if}
 </div>
 
