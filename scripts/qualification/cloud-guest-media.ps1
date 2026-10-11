@@ -17,7 +17,8 @@ function Start-CloudGuestNativeProcess([string]$FilePath, [string[]]$Arguments) 
 }
 
 # Drain both pipes concurrently without an unbounded ReadToEnd allocation.
-function Invoke-CloudGuestNativeProcess([string]$FilePath, [string[]]$Arguments, [string]$Stdout, [string]$Stderr, [int]$Milliseconds) {
+function Invoke-CloudGuestNativeProcess([string]$FilePath, [string[]]$Arguments, [string]$Stdout, [string]$Stderr, [int]$Milliseconds,
+    [ValidateSet('none', 'diagnostics-compile')][string]$DiagnosticPhase = 'none') {
     if ($Milliseconds -lt 1 -or $Milliseconds -gt 30000) { throw 'native-wait-input-invalid' }
     $process = $null; $files = @(); $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
@@ -30,7 +31,17 @@ function Invoke-CloudGuestNativeProcess([string]$FilePath, [string[]]$Arguments,
             $reads += @{ buffer = $buffer; pending = $pipe.ReadAsync($buffer, 0, $buffer.Length); total = 0; ended = $false }
         }
         while (!$process.HasExited -or !$reads[0].ended -or !$reads[1].ended) {
-            if ($watch.ElapsedMilliseconds -ge $Milliseconds) { throw 'native-process-deadline' }
+            if ($watch.ElapsedMilliseconds -ge $Milliseconds) {
+                if ($DiagnosticPhase -cne 'none') {
+                    # Fixed metadata only; never include paths, arguments, output or exception text.
+                    $diagnostic = [ordered]@{ schemaVersion = 1; phase = $DiagnosticPhase; code = 'native-process-deadline';
+                        budgetMilliseconds = $Milliseconds; elapsedMilliseconds = [Math]::Min($watch.ElapsedMilliseconds, [int]::MaxValue);
+                        childExited = [bool]$process.HasExited; stdoutEof = [bool]$reads[0].ended; stderrEof = [bool]$reads[1].ended;
+                        stdoutBytes = [int]$reads[0].total; stderrBytes = [int]$reads[1].total }
+                    [Console]::Error.WriteLine(($diagnostic | ConvertTo-Json -Compress))
+                }
+                throw 'native-process-deadline'
+            }
             for ($index = 0; $index -lt 2; $index++) {
                 $read = $reads[$index]
                 if (!$read.ended -and $read.pending.IsCompleted) {
