@@ -36,7 +36,18 @@
   let retryButton = $state<HTMLButtonElement>();
   let toggleButton = $state<HTMLButtonElement>();
   let limitStatus = $state<HTMLParagraphElement>();
+  let recoveringFocus = $state(false);
 
+  async function settleMainFocus() {
+    if (!recoveringFocus) return;
+    await tick();
+    // A queued verification owns pending until its final read settles.
+    // Keep the focused main control mounted and focusable across that read.
+    if (!alive || pending) return;
+    if (visible && !verified && retryButton?.isConnected && document.activeElement === toggleButton)
+      retryButton.focus();
+    recoveringFocus = false;
+  }
   function retryRead() {
     if (pending || retrying || !visible || !alive) return;
     retrying = true;
@@ -98,6 +109,7 @@
           }
           retrying = false;
         }
+        await settleMainFocus();
       }
     }
   }
@@ -117,7 +129,10 @@
       if (alive) saved = result;
     } catch (failure) {
       if (alive) {
-        if (failure instanceof ExceptionReadbackError) verified = false;
+        if (failure instanceof ExceptionReadbackError) {
+          recoveringFocus = document.activeElement === toggleButton;
+          verified = false;
+        }
         error = failure instanceof Error ? failure.message : String(failure);
       }
     } finally {
@@ -125,6 +140,7 @@
       if (alive) {
         pending = false;
         flushRead();
+        await settleMainFocus();
       }
     }
   }
@@ -134,7 +150,8 @@
   <button
     bind:this={toggleButton}
     class="button"
-    disabled={pending || !verified || target.pattern.length > 256}
+    disabled={(!verified && !recoveringFocus) || target.pattern.length > 256}
+    aria-disabled={pending || !verified}
     aria-busy={pending}
     aria-describedby={feedbackId}
     onclick={toggle}

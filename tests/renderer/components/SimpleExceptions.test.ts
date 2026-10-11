@@ -293,12 +293,13 @@ it('simple-exceptions: coalesces external verification behind a pending serializ
   await fireEvent.click(button);
   await waitFor(() => expect(host.addFalsePositive).toHaveBeenCalledTimes(1));
   await mounted.rerender({ statusRevision: 1 });
-  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute('aria-disabled', 'true');
   expect(host.getFalsePositives).toHaveBeenCalledTimes(2);
   releaseWrite();
   await waitFor(() => {
     expect(button).toHaveAccessibleName('Mute false alarm');
     expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('aria-disabled', 'false');
   });
   expect(host.getFalsePositives).toHaveBeenCalledTimes(4);
   expect(host.addFalsePositive).toHaveBeenCalledTimes(1);
