@@ -141,6 +141,29 @@ describe('resource-monitor', () => {
   });
 
   describe('_parseGpuCsv()', () => {
+    it('keeps complete bounded readings and skips malformed or unavailable rows', () => {
+      const rows = [
+        '42, 12oops',
+        '43, 12.5',
+        '44, 12, 99',
+        '45, N/A',
+        '46, [Not Supported]',
+        '47, -1',
+        '0, 12',
+        '9007199254740992, 12',
+        '48, 9007199254740992',
+        '49, Infinity',
+        '50, ',
+        '51oops, 12',
+        ' 52 , 0 \r',
+        '53, 512',
+      ];
+      expect([..._parseGpuCsv(rows.join('\n'))]).toEqual([
+        [52, 0],
+        [53, 512],
+      ]);
+    });
+
     it('parses nvidia-smi compute-apps rows to pid → MiB', () => {
       const map = _parseGpuCsv('100, 512\n200, 1024\n');
       expect(map.get(100)).toBe(512);
