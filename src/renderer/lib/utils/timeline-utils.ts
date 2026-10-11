@@ -16,8 +16,6 @@ export const LANE_LOW = 54;
 export const TICK_TOP = 60;
 export const TICK_H = 6;
 export const PX_PER_UNIT = 120;
-export const PAD = 20;
-export const MIN_TICK_PX = 64;
 const CLUSTER_PX = 12;
 
 export const ZOOM_LEVELS: { ms: number }[] = [
@@ -28,10 +26,6 @@ export const ZOOM_LEVELS: { ms: number }[] = [
   { ms: 60000 },
   { ms: 30000 },
   { ms: 10000 },
-];
-
-const NICE_INTERVALS: number[] = [
-  5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000,
 ];
 
 export const HISTORY_BATCH = 25;
@@ -97,15 +91,6 @@ export function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-/** Format timestamp for tick labels. Sub-minute includes seconds. */
-export function formatTick(ts: number, subMinute: boolean): string {
-  const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  if (!subMinute) return `${hh}:${mm}`;
-  return `${hh}:${mm}:${String(d.getSeconds()).padStart(2, '0')}`;
-}
-
 /** Event types eligible for timeline display from audit log. */
 export const AUDIT_EVENT_TYPES = [
   'file-access',
@@ -113,15 +98,6 @@ export const AUDIT_EVENT_TYPES = [
   'network-connection',
   'permission-deny',
 ];
-
-/** Pick the best tick interval for the current zoom/width. */
-export function pickTickInterval(totalWidth: number, displayRange: number): number {
-  const pxPerMs = (totalWidth - PAD * 2) / displayRange;
-  for (const interval of NICE_INTERVALS) {
-    if (interval * pxPerMs >= MIN_TICK_PX) return interval;
-  }
-  return NICE_INTERVALS[NICE_INTERVALS.length - 1];
-}
 
 // ═══ AUDIT ENTRY CONVERSION ═══
 
@@ -220,28 +196,6 @@ export function formatAttribution(attribution?: NormalizedAttribution | null): s
   const codes = evidence.filter((code) => typeof code === 'string');
   if (codes.length === 0) return status;
   return `${status} via ${codes.join(', ')}`;
-}
-
-/** Compute summary counters from events. */
-export function buildSummary(events: TimelineEvent[]): {
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-  total: number;
-} {
-  let critical = 0;
-  let high = 0;
-  let medium = 0;
-  let low = 0;
-  for (const ev of events) {
-    const sev = getSeverity(ev);
-    if (sev === 'critical') critical++;
-    else if (sev === 'high') high++;
-    else if (sev === 'medium') medium++;
-    else low++;
-  }
-  return { critical, high, medium, low, total: events.length };
 }
 
 // ═══ DATA TRANSFORMS ═══
@@ -400,11 +354,6 @@ export interface Link {
   color: string;
 }
 
-export interface Tick {
-  x: number;
-  label: string;
-}
-
 /** Cluster nearby dots on the same lane. */
 export function buildClusters(
   events: (TimelineEvent & {
@@ -483,28 +432,6 @@ export function buildLinks(clusters: ClusterDot[]): Link[] {
       result.push({ x1: prev.x, y1: prev.y, x2: dot.x, y2: dot.y, color: dot.color });
     }
     lastByInstance[dot.agentKey] = { x: dot.x, y: dot.y, color: dot.color };
-  }
-  return result;
-}
-
-/** Compute tick positions and labels for the timeline axis. */
-export function buildTicks(
-  displayMinT: number,
-  displayRange: number,
-  tickInterval: number,
-  tsToX: (ts: number) => number,
-): Tick[] {
-  const subMinute = tickInterval < 60000;
-  const result: Tick[] = [];
-  const tickEnd = displayMinT + displayRange;
-  const firstTick = Math.ceil(displayMinT / tickInterval) * tickInterval;
-  let isFirst = true;
-  for (let t = firstTick; t <= tickEnd; t += tickInterval) {
-    if (isFirst) {
-      isFirst = false;
-      continue;
-    }
-    result.push({ x: tsToX(t), label: formatTick(t, subMinute) });
   }
   return result;
 }
