@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const { runCommandHookInput } = require('./command-hook-input');
 const {
   LIMITS: ACTION_LIMITS,
   parseActionJson,
@@ -105,84 +106,20 @@ async function evaluateGeminiBeforeTool(policyPath, raw) {
 function handleGeminiBeforeToolHook(args, write) {
   const input = testDeps?.input || process.stdin;
   const evaluate = testDeps?.evaluate || evaluateGeminiBeforeTool;
-  const started = performance.now();
-  return new Promise((resolve) => {
-    const chunks = [];
-    let bytes = 0;
-    let settled = false;
-    let ended = false;
-    let timer;
-    const finish = (denied = true) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      chunks.length = 0;
-      input.removeListener('data', onData);
-      input.removeListener('end', onEnd);
-      // A destroyed stream may already have a queued error; keep its handler until close.
-      if (!ended) input.destroy();
-      let code = 0;
-      try {
-        write(JSON.stringify(denied ? DENY : {}));
-      } catch (_) {
-        code = 2;
-      }
-      resolve(code);
-    };
-    function onError() {
-      finish();
-    }
-    function onClose() {
-      if (!ended) finish();
-      input.removeListener('error', onError);
-      input.removeListener('close', onClose);
-    }
-    function onData(chunk) {
-      if (settled) return;
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      bytes += buffer.length;
-      if (bytes > LIMITS.inputBytes || performance.now() - started >= LIMITS.deadlineMs)
-        return finish();
-      chunks.push(buffer);
-    }
-    function onEnd() {
-      ended = true;
-      if (settled) return;
-      let raw;
-      try {
-        raw = Buffer.concat(chunks, bytes);
-      } catch (_) {
-        return finish();
-      }
-      chunks.length = 0;
-      Promise.resolve()
-        .then(() => {
-          if (settled || performance.now() - started >= LIMITS.deadlineMs) return null;
-          return evaluate(args[1], raw);
-        })
-        .then((denied) => {
-          if (settled) return;
-          finish(
-            performance.now() - started >= LIMITS.deadlineMs || typeof denied !== 'boolean'
-              ? true
-              : denied,
-          );
-        })
-        .catch(() => finish())
-        .finally(() => raw.fill(0));
-    }
-    timer = setTimeout(() => finish(), LIMITS.deadlineMs);
-    input.on('error', onError);
-    input.on('close', onClose);
-    if (
-      args.length !== 2 ||
-      args[0] !== '--gemini-beforetool-hook' ||
-      typeof args[1] !== 'string' ||
-      !args[1].length
-    )
-      return finish();
-    input.on('end', onEnd);
-    input.on('data', onData);
+  return runCommandHookInput({
+    input,
+    args,
+    flag: '--gemini-beforetool-hook',
+    limits: LIMITS,
+    evaluate,
+    normalize(result) {
+      return typeof result === 'boolean' ? result : true;
+    },
+    respond(result) {
+      const denied = typeof result === 'boolean' ? result : true;
+      write(JSON.stringify(denied ? DENY : {}));
+      return 0;
+    },
   });
 }
 
