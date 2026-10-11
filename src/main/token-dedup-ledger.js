@@ -1,7 +1,7 @@
 /** Durable, disk-bounded Claude accounting and dedup index. No transcript text or raw IDs persist. */
 'use strict';
 
-const fs = require('node:fs');
+const { reserveLedger } = require('./token-ledger-ownership');
 const { createHash } = require('node:crypto');
 
 const APPLICATION_ID = 0x41454754;
@@ -10,60 +10,6 @@ const MAX_BYTES = 128 * 1024 * 1024;
 
 /** @param {string} value @returns {Buffer} Fixed-size, content-free lookup key. */
 const digest = (value) => createHash('sha256').update(value).digest();
-
-/** Read only the file whose identity was checked, with no-follow where supported.
- * @param {string} file @param {import('node:fs').Stats} identity @param {number} size
- * @returns {Buffer} Header bytes. @since 0.19.2
- */
-function readOwnedHeader(file, identity, size) {
-  const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-  try {
-    const actual = fs.fstatSync(fd);
-    if (
-      !actual.isFile() ||
-      actual.nlink !== 1 ||
-      actual.dev !== identity.dev ||
-      actual.ino !== identity.ino
-    )
-      throw Error('dedup-cache-replaced');
-    const header = Buffer.alloc(size);
-    fs.readSync(fd, header, 0, size, 0);
-    return header;
-  } finally {
-    fs.closeSync(fd);
-  }
-}
-
-/** Reserve or reopen an owned durable ledger without following links.
- * @param {string} file @returns {boolean} Whether a ledger already exists. @since 0.19.2
- */
-function reserve(file) {
-  for (const suffix of ['', '-journal', '-wal', '-shm']) {
-    const candidate = file + suffix;
-    let identity;
-    try {
-      identity = fs.lstatSync(candidate);
-    } catch (error) {
-      if (error.code === 'ENOENT') continue;
-      throw error;
-    }
-    if (!identity.isFile() || identity.nlink !== 1) throw Error('dedup-cache-not-owned');
-    // SQLite journal bytes cannot prove that this application created the file.
-    // Preserve every preexisting sidecar for explicit recovery rather than delete it.
-    if (suffix) throw Error('dedup-journal-not-owned');
-  }
-  if (fs.existsSync(file)) {
-    const header = readOwnedHeader(file, fs.lstatSync(file), 100);
-    if (
-      header.toString('ascii', 0, 16) !== 'SQLite format 3\0' ||
-      header.readInt32BE(68) !== APPLICATION_ID ||
-      header.readInt32BE(60) !== 1
-    )
-      throw Error('dedup-cache-not-owned');
-    return true;
-  } else fs.closeSync(fs.openSync(file, 'wx', 0o600));
-  return false;
-}
 
 /** Open the durable index and accepted aggregate. A poisoned transaction cannot emit usage.
  * SQLite's page limit bounds the file; its 2 MiB cache target is not a total RAM limit.
@@ -76,7 +22,8 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
   if (!Number.isSafeInteger(pages) || pages < 4 || pages > MAX_BYTES / PAGE_BYTES)
     throw Error('dedup-cache-limit-invalid');
   const { DatabaseSync } = require('node:sqlite');
-  const reopening = file !== ':memory:' && reserve(file);
+  const ownership = file !== ':memory:' && reserveLedger(file);
+  const reopening = ownership && ownership.reopening;
   let db;
   let failed = false;
   let failureReason = null;
@@ -110,8 +57,14 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
       if (!db.prepare('SELECT 1 FROM aggregate WHERE id=1').get())
         throw Error('dedup-aggregate-missing');
     }
+    if (ownership) {
+      const mode = db.prepare('PRAGMA journal_mode=PERSIST').get().journal_mode;
+      if (mode !== 'persist') throw Error('dedup-journal-mode-invalid');
+      db.exec('PRAGMA journal_size_limit=0');
+      ownership.prepareJournal();
+    }
     db.exec(`PRAGMA page_size=${PAGE_BYTES}; PRAGMA max_page_count=${pages};
-      PRAGMA cache_size=-2048; PRAGMA mmap_size=0; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL;
+      PRAGMA cache_size=-2048; PRAGMA mmap_size=0; PRAGMA synchronous=FULL;
       PRAGMA temp_store=MEMORY; PRAGMA application_id=${APPLICATION_ID};
       CREATE TABLE IF NOT EXISTS sessions (sid BLOB PRIMARY KEY, id INTEGER NOT NULL,
         offset INTEGER NOT NULL, skipping INTEGER NOT NULL) WITHOUT ROWID;
@@ -121,7 +74,7 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
       CREATE TABLE IF NOT EXISTS aggregate (id INTEGER PRIMARY KEY CHECK(id=1),
         inputTokens REAL NOT NULL, outputTokens REAL NOT NULL, costUsd REAL NOT NULL,
         estimated INTEGER NOT NULL, pricingEstimated INTEGER NOT NULL);
-      INSERT OR IGNORE INTO aggregate VALUES (1, 0, 0, 0, 0, 0); PRAGMA user_version=1;`);
+      INSERT OR IGNORE INTO aggregate VALUES (1, 0, 0, 0, 0, 0); PRAGMA user_version=2;`);
     const aggregate = db
       .prepare(
         'SELECT inputTokens, outputTokens, costUsd, estimated, pricingEstimated FROM aggregate WHERE id=1',
@@ -138,6 +91,7 @@ function createLedger({ file, maxBytes = MAX_BYTES }) {
       db.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next FROM sessions').get().next,
     );
     if (!Number.isSafeInteger(nextSessionKey)) throw Error('dedup-session-key-invalid');
+    if (ownership) ownership.ready();
   } catch (error) {
     if (db) db.close();
     throw error;
