@@ -6,7 +6,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Aegis.ProtectedSession
 {
-    internal sealed class CallerIdentity
+    internal sealed partial class CallerIdentity
     {
         [StructLayout(LayoutKind.Sequential)]
         private struct Luid { internal uint Low; internal int High; }

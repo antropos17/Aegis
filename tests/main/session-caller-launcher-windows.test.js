@@ -102,6 +102,21 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
     });
 
+    it('resolves the same controlled root through the actual trusted three-key environment while excluding parent values', () => {
+      expect(success('controlled-environment')).toEqual({
+        receiptBeforeResume: false,
+        exactEnvironmentKeys: true,
+        trustedNativeValues: true,
+        parentSentinelAbsent: true,
+        commonApplicationDataRooted: true,
+        sameCommonApplicationData: true,
+        controlledRootRooted: true,
+        sameControlledRoot: true,
+        rootExited: true,
+        ownedJobEmpty: true,
+      });
+    });
+
     it('executes the actual selected image only after retained registration and closes root and descendant on disposal', () => {
       expect(success('positive')).toMatchObject({
         refused: false,
