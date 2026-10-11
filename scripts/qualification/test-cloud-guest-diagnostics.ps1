@@ -19,7 +19,8 @@ $compileArgs += @('"' + (Join-Path $PSScriptRoot 'CloudGuestRuntimeGate.cs') + '
 foreach ($leaf in @('CallerAdmission', 'CallerRegistration', 'CallerIdentity', 'CallerNative')) {
     $compileArgs += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"')
 }
-$compileExit = Invoke-CloudGuestNativeProcess $compiler $compileArgs (Join-Path $fixture 'compile.stdout') (Join-Path $fixture 'compile.stderr') 10000
+# The hosted compile invocation exceeded 10s; retain the helper's existing 30s ceiling.
+$compileExit = Invoke-CloudGuestNativeProcess $compiler $compileArgs (Join-Path $fixture 'compile.stdout') (Join-Path $fixture 'compile.stderr') 30000 -DiagnosticPhase diagnostics-compile
 if ($compileExit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 80KB) { throw 'focused-native-compile-failed' }
 [void][Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
 $tokens = $null; $parseErrors = $null
@@ -168,6 +169,8 @@ $summary | ConvertTo-Json -Depth 5
     }
     Remove-Item -LiteralPath $fixture
 }
+
+& (Join-Path $PSScriptRoot 'test-cloud-guest-native-diagnostic.ps1')
 
 & (Join-Path $PSScriptRoot 'test-cloud-guest-bootstrap.ps1')
 
