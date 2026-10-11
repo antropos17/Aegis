@@ -57,13 +57,13 @@ $ast = [Management.Automation.Language.Parser]::ParseFile($lab, [ref]$null, [ref
 if ($errors.Count) { throw 'owner-lifetime-lab-syntax-refused' }
 $assignments = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$report.passed' }, $true))
 if ($assignments.Count -ne 1) { throw 'owner-lifetime-controller-seam-refused' }
-$report = @{ ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true;
+$report = @{ installedOwnerControlsComplete = $true; hostCanariesUnchangedAfterInstalledOwner = $true; ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true;
     stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true;
     hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null; offObserved = $true;
     removedObserved = $true; hostCanariesUnchangedAfterTask = $true; hostCanariesUnchangedAfterRemoval = $true }
 $expression = [scriptblock]::Create($assignments[0].Right.Extent.Text)
 if (!(& $expression)) { throw 'owner-lifetime-controller-positive-refused' }; $controllerControls = 1
-foreach ($field in @('ownerLifetimeControlsComplete', 'hostCanariesUnchangedAfterOwnerLifetime', 'stdioControlsComplete',
+foreach ($field in @('installedOwnerControlsComplete', 'hostCanariesUnchangedAfterInstalledOwner', 'ownerLifetimeControlsComplete', 'hostCanariesUnchangedAfterOwnerLifetime', 'stdioControlsComplete',
     'hostCanariesUnchangedAfterStdio', 'cancellationControlsComplete', 'hostCanariesUnchangedAfterCancellation')) {
     $report[$field] = $false
     try { if (& $expression) { throw 'owner-lifetime-controller-mutation-accepted' }; $controllerControls++ }
