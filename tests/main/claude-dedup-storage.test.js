@@ -92,8 +92,20 @@ it('keeps exact shared main/subagent dedup without writing identifiers or conten
     expect(JSON.stringify(f.warnings.mock.calls)).not.toContain(secret);
   }
   adapter._resetForTest();
-  expect(fs.existsSync(f.file)).toBe(false);
-  expect(fs.readdirSync(f.dir)).toEqual([]);
+  expect(fs.readFileSync(f.file)).toEqual(bytes);
+  expect(fs.readdirSync(f.dir)).toEqual(['index.sqlite']);
+  const reopened = createLedger({ file: f.file });
+  try {
+    expect(reopened.getAggregate()).toMatchObject({ inputTokens: 21, outputTokens: 6 });
+    expect(
+      reopened.withSession('PRIVATE-SESSION-CANARY', (state) =>
+        state.seenIds.has('PRIVATE-ID-CANARY'),
+      ),
+    ).toBe(true);
+    reopened.commit();
+  } finally {
+    reopened.close();
+  }
 });
 
 it('collects 1000 unique messages within 64 KiB and keeps exact dedup after rewinding', async () => {
@@ -109,9 +121,17 @@ it('collects 1000 unique messages within 64 KiB and keeps exact dedup after rewi
   expect(await f.read()).toEqual([]);
 });
 
-it('retains the 16 KiB minimum cap and isolates identical IDs across sessions after rollback', () => {
+it('rejects a cap below the schema size before creating a file', () => {
   const f = fixture();
-  const ledger = createLedger({ file: f.file, maxBytes: 16 * 1024 });
+  expect(() => createLedger({ file: f.file, maxBytes: 16 * 1024 })).toThrow(
+    'dedup-cache-limit-invalid',
+  );
+  expect(fs.existsSync(f.file)).toBe(false);
+});
+
+it('fits the 20 KiB minimum cap and isolates identical IDs across sessions after rollback', () => {
+  const f = fixture();
+  const ledger = createLedger({ file: f.file, maxBytes: 20 * 1024 });
   const collect = (session) =>
     ledger.withSession(session, (state) => {
       const seen = state.seenIds.has('shared-id');
@@ -129,7 +149,7 @@ it('retains the 16 KiB minimum cap and isolates identical IDs across sessions af
     ledger.commit();
     expect(collect('second')).toBe(true);
     ledger.commit();
-    expect(fs.statSync(f.file).size).toBeLessThanOrEqual(16 * 1024);
+    expect(fs.statSync(f.file).size).toBeLessThanOrEqual(20 * 1024);
   } finally {
     ledger.close();
   }
@@ -245,23 +265,20 @@ it('postpones unavailable-index usage without warning growth or an unsafe in-mem
   expect(await f.read()).toEqual([]);
 });
 
-it('resets only a marked cache from a previous application run', () => {
+it('preserves a legacy marked cache without the durable ownership version', () => {
   const f = fixture();
   const stale = new DatabaseSync(f.file);
   stale.exec('PRAGMA application_id=1095059284; CREATE TABLE old_run (value);');
   stale.close();
-  const ledger = createLedger({ file: f.file });
+  const bytes = fs.readFileSync(f.file);
+  expect(() => createLedger({ file: f.file })).toThrow('dedup-cache-not-owned');
+  expect(fs.readFileSync(f.file)).toEqual(bytes);
+  const observer = new DatabaseSync(f.file, { readOnly: true });
   try {
-    const observer = new DatabaseSync(f.file, { readOnly: true });
-    try {
-      expect(
-        observer.prepare("SELECT name FROM sqlite_schema WHERE name='old_run'").get(),
-      ).toBeUndefined();
-    } finally {
-      observer.close();
-    }
+    expect(
+      observer.prepare("SELECT name FROM sqlite_schema WHERE name='old_run'").get(),
+    ).toMatchObject({ name: 'old_run' });
   } finally {
-    ledger.close();
+    observer.close();
   }
-  expect(fs.existsSync(f.file)).toBe(false);
 });

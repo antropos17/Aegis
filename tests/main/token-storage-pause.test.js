@@ -182,6 +182,7 @@ describe('real-file SQLite capacity and truthful collection status', () => {
     }
     expect(pending).toHaveLength(0);
     const committedOffset = inspect.prepare('SELECT offset FROM sessions').get().offset;
+    const committedAggregate = inspect.prepare('SELECT * FROM aggregate').get();
     const committedIds = inspect.prepare('SELECT count(*) AS n FROM messages').get().n;
     expect(adapter.getCollectionStatus()).toEqual({
       state: 'storage-paused',
@@ -204,7 +205,9 @@ describe('real-file SQLite capacity and truthful collection status', () => {
     expect(inspect.prepare('SELECT offset FROM sessions').get().offset).toBe(committedOffset);
     expect(inspect.prepare('SELECT count(*) AS n FROM messages').get().n).toBe(committedIds);
     expect(warn).toHaveBeenCalledTimes(1);
-  });
+    expect(inspect.prepare('SELECT * FROM aggregate').get()).toEqual(committedAggregate);
+    // This fixture performs up to 2,000 individual synchronous disk commits.
+  }, 15000);
 
   it('commits healthy processes around a failing process, then resumes oldest main/subagent records exactly once', async () => {
     const healthy = source(1, [line('healthy-old')]);
