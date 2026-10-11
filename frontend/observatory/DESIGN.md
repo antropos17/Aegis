@@ -1,5 +1,20 @@
 # AEGIS Observatory
 
+## Shared recorded files — 2026-10-11
+
+Draw restrained dashed lines behind the existing radar markers when two visible
+agent products share a canonical file path in confirmed recorded observations.
+Join only unique scoped process lifetimes with matching recorded agent and PID;
+exclude ambiguous, inferred, unattributed and historical lifetimes. Aggregate
+duplicate observations into one file count per undirected product pair. The four
+visible groups produce at most six lines. Use the displayed snapshot during pause
+or stale retention and preserve the existing marker geometry and hit targets.
+Expose pair names and recorded file counts to assistive technology. Explain that
+shared file observations do not establish communication between agents. Keep the
+overlay inert and use existing secondary-ink tokens in both themes.
+Keep the radar snapshot label visible at the minimum desktop viewport so retained
+connections cannot appear to represent a live scan.
+
 ## Passive WSL inventory — 2026-10-11
 
 Show a read-only list of running WSL distribution names in Statistics sensor
