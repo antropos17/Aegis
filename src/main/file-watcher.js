@@ -1589,7 +1589,7 @@ function _isRuleFile(basename) {
 }
 
 /**
- * Watch the rules/ directory for YAML changes and hot-reload the FLAT rules. `depth: 0`, so
+ * Watch the rules/ directory for YAML additions, changes and removals and hot-reload the FLAT rules. `depth: 0`, so
  * `rules/sequences/` is not this watcher's — {@link setupSequenceRulesWatcher} owns it — and
  * an edit here never resets the sequence engine (docs/roadmap/sequence-rules.md §5
  * "Hot-reload"). The push carries both figures: `count` from the reloaded flat set and
@@ -1605,7 +1605,7 @@ function setupRulesWatcher(sendFn, { sequenceCount }) {
   const rulesDir = path.join(_appDir, 'rules');
   const rw = _watchRuleDir(rulesDir);
   if (!rw) return null;
-  rw.on('change', (filePath) => {
+  const onRuleMutation = (filePath) => {
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
     reloadRules();
@@ -1613,12 +1613,13 @@ function setupRulesWatcher(sendFn, { sequenceCount }) {
       count: getAllRules().size,
       sequenceCount: sequenceCount(),
     });
-  });
+  };
+  for (const event of ['add', 'change', 'unlink']) rw.on(event, onRuleMutation);
   return rw;
 }
 
 /**
- * Watch rules/sequences/ for YAML changes and hot-reload the SEQUENCE rules — the second
+ * Watch rules/sequences/ for YAML additions, changes and removals and hot-reload the SEQUENCE rules — the second
  * watcher of docs/roadmap/sequence-rules.md §5 "Hot-reload", same options as
  * {@link setupRulesWatcher}. Only this one calls `deps.reload`, which main.js supplies as:
  * load the directory again, reset the engine, re-init it with the new rules. The flat rules
@@ -1634,12 +1635,13 @@ function setupSequenceRulesWatcher(sendFn, { reload }) {
   const sequencesDir = path.join(_appDir, 'rules', 'sequences');
   const rw = _watchRuleDir(sequencesDir);
   if (!rw) return null;
-  rw.on('change', (filePath) => {
+  const onRuleMutation = (filePath) => {
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
     const sequenceCount = reload();
     sendFn('rules:reloaded', { count: getAllRules().size, sequenceCount });
-  });
+  };
+  for (const event of ['add', 'change', 'unlink']) rw.on(event, onRuleMutation);
   return rw;
 }
 
