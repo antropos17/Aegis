@@ -1,5 +1,6 @@
 import type {
   DockerContainerCandidate,
+  DockerConfigurationObservation,
   DockerDiscoverySnapshot,
   PodmanContainerCandidate,
   PodmanDiscoverySnapshot,
@@ -68,13 +69,85 @@ function timestamp(value: unknown): number | null {
     : null;
 }
 
+const configurationKeys = new Set([
+  'status',
+  'observedAt',
+  'running',
+  'privileged',
+  'readOnlyRootFilesystem',
+  'networkMode',
+  'pidMode',
+]);
+function configuration(value: unknown): DockerConfigurationObservation {
+  const source = record(value);
+  const unavailable: DockerConfigurationObservation = { status: 'unavailable', observedAt: null };
+  if (Object.keys(source).some((key) => !configurationKeys.has(key))) return unavailable;
+  if (source.status !== 'observed' || timestamp(source.observedAt) === null) return unavailable;
+  const facts: {
+    running?: boolean;
+    privileged?: boolean;
+    readOnlyRootFilesystem?: boolean;
+    networkMode?: DockerConfigurationObservation['networkMode'];
+    pidMode?: DockerConfigurationObservation['pidMode'];
+  } = {};
+  for (const key of ['running', 'privileged', 'readOnlyRootFilesystem'] as const) {
+    if (Object.hasOwn(source, key)) {
+      if (typeof source[key] !== 'boolean') return unavailable;
+      facts[key] = source[key];
+    }
+  }
+  if (Object.hasOwn(source, 'networkMode')) {
+    if (
+      typeof source.networkMode !== 'string' ||
+      !['bridge', 'host', 'none', 'other'].includes(source.networkMode)
+    )
+      return unavailable;
+    facts.networkMode = source.networkMode as DockerConfigurationObservation['networkMode'];
+  }
+  if (Object.hasOwn(source, 'pidMode')) {
+    if (
+      typeof source.pidMode !== 'string' ||
+      !['host', 'private', 'container', 'other'].includes(source.pidMode)
+    )
+      return unavailable;
+    facts.pidMode = source.pidMode as DockerConfigurationObservation['pidMode'];
+  }
+  return Object.keys(facts).length
+    ? { status: 'observed', observedAt: timestamp(source.observedAt), ...facts }
+    : unavailable;
+}
+
+/** Determine freshness of optional configuration independently of candidate discovery.
+ * @param observation Allowlisted configuration observation
+ * @param discoveryStale Whether candidate discovery is stale
+ * @param now Current time
+ * @returns Whether current configuration is unconfirmed
+ * @since 0.19.2
+ */
+export function configurationStale(
+  observation: DockerConfigurationObservation,
+  discoveryStale: boolean,
+  now: number,
+): boolean {
+  return (
+    discoveryStale ||
+    observation.status !== 'observed' ||
+    observation.observedAt === null ||
+    !Number.isFinite(now) ||
+    observation.observedAt > now ||
+    now - observation.observedAt >= CONTAINER_DISCOVERY_FRESHNESS_MS
+  );
+}
+
 function candidate(
   value: unknown,
   runtime: ContainerRuntime,
 ): DockerContainerCandidate | PodmanContainerCandidate | null {
   const row = record(value);
   if (
-    Object.keys(row).some((key) => !candidateKeys.has(key)) ||
+    Object.keys(row).some(
+      (key) => !candidateKeys.has(key) && !(runtime === 'docker' && key === 'configuration'),
+    ) ||
     typeof row.containerId !== 'string' ||
     !/^[a-f0-9]{64}$/.test(row.containerId) ||
     row.id !== `${runtime}:${row.containerId}` ||
@@ -96,7 +169,14 @@ function candidate(
     match: 'image' as const,
   };
   return runtime === 'docker'
-    ? { ...metadata, id: `docker:${row.containerId}`, runtime: 'docker' }
+    ? {
+        ...metadata,
+        id: `docker:${row.containerId}`,
+        runtime: 'docker',
+        ...(Object.hasOwn(row, 'configuration')
+          ? { configuration: configuration(row.configuration) }
+          : {}),
+      }
     : { ...metadata, id: `podman:${row.containerId}`, runtime: 'podman' };
 }
 

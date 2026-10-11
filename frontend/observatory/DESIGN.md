@@ -29,6 +29,15 @@ Validate runtime-prefixed container identities and accept only the documented
 metadata fields. Use the existing Observatory panel, typography and localization
 patterns in both interface modes, with one freshness timer disposed on panel unmount.
 
+For matched Docker candidates, show a separate, dated configuration observation
+when a bounded local inspect query succeeds. Display only running state,
+privileged mode, read-only root filesystem and categorical network/PID modes.
+An unavailable or expired inspect result must remain explicit; never treat a
+successful container list as a successful configuration observation. These
+settings describe the runtime configuration at observation time, not effective
+isolation or a security grade. Podman configuration inspection is outside this
+increment, and neither runtime's candidates gain host-process attribution.
+
 ## Compact density — 2026-10-07
 
 The user requests smaller buttons and less empty space. At 100% UI size, use

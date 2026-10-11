@@ -153,6 +153,17 @@ export interface ProcessActionResult {
   readonly error?: string;
 }
 
+/** Allowlisted Docker configuration facts; these observations do not establish isolation. */
+export interface DockerConfigurationObservation {
+  readonly status: 'observed' | 'unavailable';
+  readonly observedAt: number | null;
+  readonly running?: boolean;
+  readonly privileged?: boolean;
+  readonly readOnlyRootFilesystem?: boolean;
+  readonly networkMode?: 'bridge' | 'host' | 'none' | 'other';
+  readonly pidMode?: 'host' | 'private' | 'container' | 'other';
+}
+
 /** Docker image metadata matched a configured agent signature; host process identity is unobserved. */
 export interface DockerContainerCandidate {
   readonly id: `docker:${string}`;
@@ -162,6 +173,7 @@ export interface DockerContainerCandidate {
   readonly agent: string;
   readonly match: 'image';
   readonly runtime: 'docker';
+  readonly configuration?: DockerConfigurationObservation;
 }
 
 /** Independent Docker discovery state, including retained metadata after a failed attempt. */
