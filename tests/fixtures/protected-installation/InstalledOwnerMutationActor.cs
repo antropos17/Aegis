@@ -31,6 +31,8 @@ public static class InstalledOwnerMutationActor
                     code = file.IsInvalid ? Marshal.GetLastWin32Error() : 0;
                 }
                 passed &= Add(rows, leaf + ":write", code);
+                passed &= Add(rows, leaf + ":writeDac", Access(path, 0x40000, false));
+                passed &= Add(rows, leaf + ":writeOwner", Access(path, 0x80000, false));
                 bool deleted = DeleteFile(path); code = deleted ? 0 : Marshal.GetLastWin32Error();
                 passed &= Add(rows, leaf + ":delete", code);
                 bool replaced = MoveFileEx(replacement, path, 1); code = replaced ? 0 : Marshal.GetLastWin32Error();
@@ -40,6 +42,8 @@ public static class InstalledOwnerMutationActor
             foreach (string path in new[] { Root, "C:\\ProgramData\\AEGIS", "C:\\ProgramData\\AEGIS\\Receipts" }) {
                 bool changed = MoveFileEx(path, path + "-attacker", 0); int code = changed ? 0 : Marshal.GetLastWin32Error();
                 passed &= Add(rows, Path.GetFileName(path) + ":rename", code);
+                passed &= Add(rows, Path.GetFileName(path) + ":writeDac", Access(path, 0x40000, true));
+                passed &= Add(rows, Path.GetFileName(path) + ":writeOwner", Access(path, 0x80000, true));
             }
             using (SafeFileHandle file = CreateFile(Path.Combine(Root, "operator.credential"), 0x80000000, 7, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero)) {
                 passed &= Add(rows, "credential:read", file.IsInvalid ? Marshal.GetLastWin32Error() : 0);
@@ -49,13 +53,24 @@ public static class InstalledOwnerMutationActor
             File.WriteAllText(writeMarker, "allowed-disposable-write"); bool write = File.ReadAllText(writeMarker) == "allowed-disposable-write";
             File.Delete(deleteMarker); bool delete = !File.Exists(deleteMarker);
             bool replace = MoveFileEx(replacement, replaceMarker, 1) && File.ReadAllText(replaceMarker) == "allowed-disposable-replacement";
-            passed &= readable && write && delete && replace;
+            // Match the kernel access checks above on disposable same-volume
+            // objects. Success grants the requested right; no protected ACL is set.
+            bool writeDac = Access(replaceMarker, 0x40000, false) == 0 && Access(scratch, 0x40000, true) == 0;
+            bool writeOwner = Access(replaceMarker, 0x80000, false) == 0 && Access(scratch, 0x80000, true) == 0;
+            passed &= readable && write && delete && replace && writeDac && writeOwner;
             string json = "{\"schemaVersion\":1,\"passed\":" + (passed ? "true" : "false") +
                 ",\"operatorSid\":\"" + identity.User.Value + "\",\"administrator\":false,\"policyReadable\":" + (readable ? "true" : "false") +
                 ",\"permitted\":{\"write\":" + (write ? "true" : "false") + ",\"delete\":" + (delete ? "true" : "false") +
-                ",\"replace\":" + (replace ? "true" : "false") + "},\"attempts\":[" + String.Join(",", rows) + "]}";
+                ",\"replace\":" + (replace ? "true" : "false") + ",\"writeDac\":" + (writeDac ? "true" : "false") +
+                ",\"writeOwner\":" + (writeOwner ? "true" : "false") + "},\"attempts\":[" + String.Join(",", rows) + "]}";
             File.WriteAllText(output, json, new UTF8Encoding(false)); return passed ? 0 : 1;
         } catch { return 4; }
+    }
+    private static int Access(string path, uint rights, bool directory)
+    {
+        using (SafeFileHandle file = CreateFile(path, rights, 7, IntPtr.Zero, 3, directory ? 0x02200000U : 0x00200000U, IntPtr.Zero)) {
+            return file.IsInvalid ? Marshal.GetLastWin32Error() : 0;
+        }
     }
     private static bool Add(List<string> rows, string label, int code)
     {
