@@ -53,6 +53,14 @@ function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'nat
     $hex = if ($Kind -ceq 'owner') { @{ authentication = 16 } } else { @{ ownerAuthentication = 16; operatorAuthentication = 16; ownerBirth = 16; supervisorBirth = 16; mainBirth = 16; installId = 32; epoch = 32; ownerImageSha256 = 64; supervisorImageSha256 = 64; mainImageSha256 = 64 } }
     foreach ($field in $hex.Keys) { $v = Get-InstalledOwnerObservedField $Value $field; if ($v -is [string] -and $v -cmatch ('^[a-f0-9]{' + $hex[$field] + '}$')) { $result[$field] = $v } }
     if ($Kind -ceq 'native') {
+        # Preserve a nullable exact-process observation. Exit code is meaningful only after signaling.
+        $signaled = Get-InstalledOwnerObservedField $Value 'mainSignaledBeforeCleanup'
+        if ($null -eq $signaled -or $signaled -is [bool]) { $result.mainSignaledBeforeCleanup = $signaled }
+        $code = Get-InstalledOwnerObservedField $Value 'mainExitCode'
+        if ($null -eq $code) { $result.mainExitCode = $null }
+        elseif ($signaled -is [bool] -and $signaled -eq $true -and
+            ($code -is [int] -or $code -is [long] -or $code -is [uint32]) -and
+            $code -ge 0 -and $code -le [uint32]::MaxValue) { $result.mainExitCode = $code }
         $v = Get-InstalledOwnerObservedField $Value 'supervisorSubstage'
         if ($result.ContainsKey('supervisorStage') -and
             ($v -is [int] -or $v -is [long] -or $v -is [uint32]) -and $v -ge 0 -and

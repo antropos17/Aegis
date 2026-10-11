@@ -36,7 +36,17 @@ internal static class InstalledOwnerExitFixture
             }
         }
         if (args.Length != 1) return 2;
-        string mode = args[0], name = "Local\\AegisExitFixture" + Guid.NewGuid().ToString("N");
+        if (args[0] == "main-checkpoint")
+        {
+            var entry = typeof(InstalledOwnerMain).GetMethod("Main", BindingFlags.Static | BindingFlags.NonPublic);
+            CallerNative.Require((int)entry.Invoke(null, new object[] { new string[0] }) == 2);
+            // This fixture has stdout/stderr, so the installed headless guard must refuse at checkpoint 201.
+            CallerNative.Require((int)entry.Invoke(null, new object[] { new string[] { "--installed-main" } }) == 201);
+            Console.WriteLine("{\"invalidArgumentsRefused\":true,\"headlessGuardCode\":201}");
+            return 0;
+        }
+        bool mainMode = args[0].StartsWith("main-");
+        string mode = mainMode ? args[0].Substring(5) : args[0], name = "Local\\AegisExitFixture" + Guid.NewGuid().ToString("N");
         using (var release = new EventWaitHandle(false, EventResetMode.ManualReset, name))
         using (var input = new InstalledOwnerPipe(false))
         using (var output = new InstalledOwnerPipe(true))
@@ -51,8 +61,8 @@ internal static class InstalledOwnerExitFixture
                 IntPtr held = InstalledOwnerPipe.Reduce(child.Process, observed, 0x00101000);
                 using (var exact = new SafeFileHandle(held, true))
                 {
-                    typeof(InstalledOwnerRuntime).GetField("supervisor", Fields).SetValue(runtime, child);
-                    typeof(InstalledOwnerRuntime).GetField("supervisorReleased", Fields).SetValue(runtime, true);
+                    typeof(InstalledOwnerRuntime).GetField(mainMode ? "main" : "supervisor", Fields).SetValue(runtime, child);
+                    typeof(InstalledOwnerRuntime).GetField(mainMode ? "mainReleased" : "supervisorReleased", Fields).SetValue(runtime, true);
                     typeof(InstalledOwnerRuntime).GetField("phase", Fields).SetValue(runtime, "await-completion");
                     input.Read.Dispose(); output.Write.Dispose();
                     CallerNative.Require(CallerLauncherNative.ResumeThread(child.Thread) == 1);
@@ -64,7 +74,9 @@ internal static class InstalledOwnerExitFixture
                     if (mode == "expired") Thread.Sleep(10);
                     using (var current = CallerNative.ProcessToken(observed))
                         CallerNative.Require(!CallerIdentity.Observe(current).InstalledSystem());
-                    release.Set(); var watch = Stopwatch.StartNew();
+                    release.Set();
+                    if (mainMode && mode != "hung") CallerNative.Require(CallerNative.WaitForSingleObject(exact, 2000) == 0);
+                    var watch = Stopwatch.StartNew();
                     try
                     {
                         if (mode == "stop") runtime.Dispose();
@@ -82,10 +94,11 @@ internal static class InstalledOwnerExitFixture
                     }
                     finally { runtime.Dispose(); }
                     CallerNative.Require(CallerNative.WaitForSingleObject(exact, 0) == 0);
-                    object code = typeof(InstalledOwnerRuntime).GetField("supervisorExitCode", Fields).GetValue(runtime);
+                    object code = typeof(InstalledOwnerRuntime).GetField(mainMode ? "mainExitCode" : "supervisorExitCode", Fields).GetValue(runtime);
+                    object signaled = typeof(InstalledOwnerRuntime).GetField("mainSignaledBeforeCleanup", Fields).GetValue(runtime);
                     bool unknown = (bool)typeof(InstalledOwnerRuntime).GetField("cleanupUnknown", Fields).GetValue(runtime);
                     Console.WriteLine("{\"mode\":\"" + mode + "\",\"eofBeforeExit\":true,\"exitCode\":" +
-                        (code == null ? "null" : code.ToString()) + ",\"elapsedMs\":" + watch.ElapsedMilliseconds +
+                        (code == null ? "null" : code.ToString()) + ",\"mainSignaledBeforeCleanup\":" + (signaled == null ? "null" : ((bool)signaled ? "true" : "false")) + ",\"elapsedMs\":" + watch.ElapsedMilliseconds +
                         ",\"cleanupConfirmed\":" + (!unknown ? "true" : "false") + ",\"exactProcessExited\":true}");
                 }
             }

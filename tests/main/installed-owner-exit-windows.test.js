@@ -63,6 +63,25 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       return result;
     }
 
+    it('preserves argument refusal and reports a fixed headless startup checkpoint', () => {
+      const result = spawnSync(fixture, ['main-checkpoint'], { timeout: 8000, windowsHide: true });
+      expect(result.status).toBe(0);
+      expect(result.stderr.length).toBe(0);
+      expect(JSON.parse(result.stdout.toString('utf8'))).toEqual({
+        invalidArgumentsRefused: true,
+        headlessGuardCode: 201,
+      });
+    });
+
+    it.each(['delayed', 'active-code', 'hung'])(
+      'observes main %s before forced cleanup',
+      (mode) => {
+        const result = run('main-' + mode);
+        expect(result.mainSignaledBeforeCleanup).toBe(mode !== 'hung');
+        expect(result.exitCode).toBe(mode === 'hung' ? null : mode === 'active-code' ? 259 : 2);
+      },
+    );
+
     it('records natural exit2 when completion EOF precedes exact supervisor exit', () => {
       const result = run('delayed');
       expect(result.exitCode).toBe(2);

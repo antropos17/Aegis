@@ -29,7 +29,8 @@ namespace Aegis.InstalledOwner
         private string phase = "acquire-owner";
         private uint supervisorStage, supervisorSubstage;
         private bool producerReady, bootstrapWritten, bootstrapEof, supervisorReleased, mainReleased;
-        private uint? supervisorExitCode;
+        private uint? supervisorExitCode, mainExitCode;
+        private bool? mainSignaledBeforeCleanup;
 
         internal bool Run(InstalledOwnerDeadline deadline = null)
         {
@@ -125,6 +126,8 @@ namespace Aegis.InstalledOwner
                 ",\"nativeProducerReady\":" + (producerReady ? "true" : "false") + ",\"bootstrapWriteCompleted\":" + (bootstrapWritten ? "true" : "false") +
                 ",\"bootstrapEofClosed\":" + (bootstrapEof ? "true" : "false") + ",\"supervisorReleased\":" + (supervisorReleased ? "true" : "false") +
                 ",\"mainReleased\":" + (mainReleased ? "true" : "false") + ",\"supervisorExitCode\":" + (supervisorExitCode.HasValue ? supervisorExitCode.Value.ToString() : "null") +
+                ",\"mainSignaledBeforeCleanup\":" + (mainSignaledBeforeCleanup.HasValue ? (mainSignaledBeforeCleanup.Value ? "true" : "false") : "null") +
+                ",\"mainExitCode\":" + (mainExitCode.HasValue ? mainExitCode.Value.ToString() : "null") +
                 ",\"inspectionCount\":" + observedCount + ",\"cleanupConfirmed\":" + (!cleanupUnknown ? "true" : "false") +
                 ",\"supervisorPid\":" + supervisorPid + ",\"mainPid\":" + mainPid + ",\"operatorSid\":\"" + (actual == null ? "" : actual.OperatorSid) +
                 "\",\"operatorAuthentication\":\"" + (actual == null ? "" : actual.OperatorAuthentication) + "\",\"operatorSession\":0," +
@@ -195,6 +198,20 @@ namespace Aegis.InstalledOwner
                         else cleanupUnknown = true;
                     }
                     else if (state != 0x102) cleanupUnknown = true;
+                }
+                // Observe the retained exact main before our termination can overwrite its exit code.
+                // A signaled process can legitimately exit 259; never infer liveness from its code.
+                if (main != null)
+                {
+                    uint state = CallerNative.WaitForSingleObject(main.Process, 0);
+                    if (state == 0 || state == 0x102) mainSignaledBeforeCleanup = state == 0;
+                    else cleanupUnknown = true;
+                    if (state == 0)
+                    {
+                        uint code;
+                        if (GetExitCodeProcess(main.Process, out code)) mainExitCode = code;
+                        else cleanupUnknown = true;
+                    }
                 }
                 CloseResource(timer); Stop(main); Stop(supervisor);
                 CloseResource(mainInput); CloseResource(supervisorOutput); CloseResource(supervisorInput);
