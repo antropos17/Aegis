@@ -19,7 +19,7 @@ they are missing from the current branch. Isolate new work without switching,
 stashing or resetting someone else's changes. Check existing attached worktrees
 before creating one; archive only task-created worktrees whose needed artifacts
 have been preserved. Derive current module and IPC counts with `npm run counts:check`.
-Shared contracts live in `src/shared/types/` (9 TS files); this declaration is
+Shared contracts live in `src/shared/types/` (8 TS files); this declaration is
 checked by that gate.
 
 Desktop and preview share `frontend/observatory/`, selected by

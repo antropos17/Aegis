@@ -65,8 +65,6 @@ export type {
   EnrichedAgent,
 } from './risk';
 
-export type { CommandCategory, CommandItem, ScoredCommand } from './command-palette';
-
 export type {
   AppHealthState,
   AppHealthReason,
