@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdir, mkdtemp, writeFile, lstat, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
   oracle,
   checkSample,
@@ -17,7 +19,7 @@ import { createLaunchEnvironment } from '../../scripts/qualification/token-accou
 describe('token soak safety and independent oracle (Node fixtures, no packaged evidence)', () => {
   it('isolates child credentials, runtime flags and executable search paths', () => {
     const parent = {
-      sYsTeMrOoT: 'D:\\Windows',
+      sYsTeMrOoT: 'X:\\writable;X:\\injected',
       PATH: 'C:\\untrusted-tools',
       COMSPEC: 'C:\\untrusted-tools\\cmd.exe',
       ANTHROPIC_API_KEY: 'fixture-secret',
@@ -30,10 +32,10 @@ describe('token soak safety and independent oracle (Node fixtures, no packaged e
     const directories = { home: 'X:\\home', profile: 'X:\\profile', temp: 'X:\\temp' };
     const env = createLaunchEnvironment(parent, directories);
     expect(env).toEqual({
-      SystemRoot: 'D:\\Windows',
-      WINDIR: 'D:\\Windows',
-      COMSPEC: 'D:\\Windows\\System32\\cmd.exe',
-      PATH: 'D:\\Windows\\System32;D:\\Windows;D:\\Windows\\System32\\Wbem',
+      SystemRoot: 'C:\\Windows',
+      WINDIR: 'C:\\Windows',
+      COMSPEC: 'C:\\Windows\\System32\\cmd.exe',
+      PATH: 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0',
       PATHEXT: '.COM;.EXE;.BAT;.CMD',
       USERPROFILE: directories.home,
       HOME: directories.home,
@@ -45,6 +47,24 @@ describe('token soak safety and independent oracle (Node fixtures, no packaged e
     expect(parent.ANTHROPIC_API_KEY).toBe('fixture-secret');
     expect(createLaunchEnvironment({}, directories).SystemRoot).toBe('C:\\Windows');
   });
+
+  it.skipIf(process.platform !== 'win32')(
+    'resolves system PowerShell in the child environment',
+    async () => {
+      const env = createLaunchEnvironment(
+        { SystemRoot: 'X:\\untrusted;X:\\injected', PATH: 'X:\\untrusted' },
+        { home: os.tmpdir(), profile: os.tmpdir(), temp: os.tmpdir() },
+      );
+      const { stdout } = await promisify(execFile)(
+        'C:\\Windows\\System32\\where.exe',
+        ['powershell.exe'],
+        { env, timeout: 10_000 },
+      );
+      expect(stdout.trim().toLowerCase()).toBe(
+        'c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe',
+      );
+    },
+  );
 
   it('rejects development launch and mismatched numeric totals', async () => {
     await expect(packagedStep({ app: { isPackaged: false } }, {})).rejects.toThrow(

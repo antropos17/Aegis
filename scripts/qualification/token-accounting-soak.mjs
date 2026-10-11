@@ -77,7 +77,6 @@ const owner = { app: undefined, stopping: undefined, launchUnconfirmed: false };
 const deadline = createDeadline(durationMs + 120_000);
 const monotonicStart = performance.now();
 let failureStage = 'fixture-setup';
-const env = createLaunchEnvironment(process.env, { home, profile, temp });
 async function stop() {
   await stopOwned(owner, async (pid) => {
     await new Promise((resolve, reject) => {
@@ -91,6 +90,7 @@ async function stop() {
 async function launch() {
   assert.ok(!deadline.cancelled, 'run-timeout');
   assert.ok(!owner.app && !owner.launchUnconfirmed, 'previous-app-unclosed');
+  const env = createLaunchEnvironment(process.env, { home, profile, temp });
   const { _electron } = await import('playwright');
   owner.launchUnconfirmed = true;
   owner.app = await _electron.launch({
@@ -215,6 +215,7 @@ try {
   receipt.status = deadline.cancelled ? 'timeout' : 'failed';
   receipt.failureStage = failureStage;
   const known = new Set([
+    'trusted-windows-directory-required',
     'run-timeout',
     'packaged-required',
     'profile-isolation-failed',

@@ -19,6 +19,10 @@ Its launch environment allows only Windows system paths (SystemRoot/WINDIR,
 COMSPEC, a system-only PATH and PATHEXT) plus those six disposable paths.
 Parent credentials, custom executable search paths, Electron/Node flags and
 unrecognised environment variables are omitted.
+The system root is pinned to `C:\Windows`, matching the validated taskkill path.
+Every launch search directory is checked as an existing ordinary directory with
+an unchanged realpath; incompatible installations fail closed. PATH also includes
+`C:\Windows\System32\WindowsPowerShell\v1.0` for packaged monitor commands.
 
 Run from an AEGIS checkout with its normal dependencies available:
 
