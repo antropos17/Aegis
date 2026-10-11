@@ -150,6 +150,18 @@ describe('Docker metadata discovery', () => {
     expect(discovery.snapshot().candidates).toHaveLength(1);
   });
 
+  it('keeps discovery ready when a long unrelated name accompanies Agent Zero', async () => {
+    const { discovery } = harness([row() + '\n' + row('alpine:latest', secondId, 'n'.repeat(256))]);
+    await discovery.refresh();
+    expect(discovery.snapshot()).toMatchObject({
+      status: 'ready',
+      reason: null,
+      stale: false,
+      candidates: [{ containerId: firstId, name: 'agent-zero', agent: 'Agent Zero' }],
+    });
+    expect(discovery.snapshot().candidates).toHaveLength(1);
+  });
+
   it.each(['agent-zero,web/agent', 'web/agent,agent-zero', 'agent-zero,other-agent'])(
     'keeps only the canonical name from %s',
     async (names) => {

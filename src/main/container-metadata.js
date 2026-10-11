@@ -3,6 +3,7 @@
 
 const MAX_OUTPUT_BYTES = 524288;
 const MAX_ROWS = 1024;
+const MAX_NAME_FIELD_LENGTH = 8192;
 // Exact runnable repositories, shared by Docker and Podman:
 // https://github.com/agent0ai/agent-zero/blob/main/docs/setup/installation.md
 // https://docs.openclaw.ai/install/docker
@@ -61,15 +62,14 @@ function hasControl(value) {
  * @returns {string|null} Canonical name or null for malformed output.
  */
 function dockerName(value) {
-  if (typeof value !== 'string' || value.length > 8192 || hasControl(value)) return null;
+  if (typeof value !== 'string' || value.length > MAX_NAME_FIELD_LENGTH || hasControl(value))
+    return null;
   const names = value.split(',');
   if (
     names.length > 32 ||
     names.some((name) => {
       const parts = name.split('/');
-      return (
-        parts.length > 2 || parts.some((part) => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(part))
-      );
+      return parts.length > 2 || parts.some((part) => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(part));
     })
   )
     return null;
@@ -105,8 +105,9 @@ function parseContainerOutput(output, runtime) {
       runtime === 'docker'
         ? dockerName(row?.Names)
         : typeof row?.Names === 'string' &&
+            row.Names.length <= MAX_NAME_FIELD_LENGTH &&
             !hasControl(row.Names) &&
-            /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(row.Names)
+            /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(row.Names)
           ? row.Names
           : null;
     if (
