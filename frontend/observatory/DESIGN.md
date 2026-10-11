@@ -889,3 +889,11 @@ read-only root filesystem and categorized network/PID modes establish configurat
 facts only; they confer no isolation or security grade. Custom namespace names and
 container references are discarded. Native Podman execution and rendered device
 coverage remain separate qualification evidence.
+
+Radar zoom uses explicit Zoom out, Zoom in and Reset zoom controls with a visible
+100–200% scale in 25% steps. A bounded native scroll viewport enlarges the dial
+without changing observed-risk coordinates, shared-file endpoints or 44px marker
+targets. Snapshot cues, controls and the roster stay outside moving content.
+Zoom survives scans, pause/stale states and population contractions while mounted;
+reset returns to 100%. Wheel input remains native scrolling. Zoom has no animation
+or saved preference.
