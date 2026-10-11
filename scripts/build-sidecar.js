@@ -180,6 +180,16 @@ function main() {
       path.join(ROOT, 'sidecar', 'session', 'CallerBootstrap.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerBootstrapInput.cs'),
       path.join(ROOT, 'sidecar', 'session', 'CallerBootstrapFrame.cs'),
+      ...[
+        'InstalledOwnerPolicy',
+        'InstalledOwnerNative',
+        'InstalledOwnerService',
+        'InstalledOwnerBootstrap',
+        'InstalledOwnerRegistration',
+        'InstalledOwnerFiles',
+        'InstalledOwnerSession',
+      ].map((name) => path.join(ROOT, 'sidecar', 'session', `${name}.cs`)),
+      '/reference:System.Security.dll',
       path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerExecutable.cs'),
       path.join(ROOT, 'sidecar', 'session', 'GuestJobNative.cs'),
       path.join(ROOT, 'sidecar', 'session', 'GuestJobInventory.cs'),
@@ -189,6 +199,43 @@ function main() {
     { stdio: 'inherit' },
   );
   console.log(`built  ${sessionExe}`);
+
+  // SCM owner and the Session-0 fixed controller share the maintained native guards.
+  const ownerSources = fs
+    .readdirSync(path.join(ROOT, 'sidecar', 'session'))
+    .filter((name) => name.endsWith('.cs') && name !== 'Program.cs')
+    .sort()
+    .map((name) => path.join(ROOT, 'sidecar', 'session', name));
+  ownerSources.push(path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerExecutable.cs'));
+  const ownedSources = fs
+    .readdirSync(path.join(ROOT, 'sidecar', 'owner'))
+    .filter((name) => name.endsWith('.cs'))
+    .sort()
+    .map((name) => path.join(ROOT, 'sidecar', 'owner', name));
+  for (const [filename, entrypoint] of [
+    ['aegis-owner.exe', 'Aegis.InstalledOwner.OwnerProgram'],
+    ['aegis-main.exe', 'Aegis.InstalledOwner.InstalledOwnerMain'],
+  ]) {
+    const output = path.join(OUT_DIR, filename);
+    execFileSync(
+      csc,
+      [
+        '/nologo',
+        '/target:exe',
+        '/platform:x64',
+        '/optimize+',
+        '/warnaserror+',
+        '/reference:System.Management.dll',
+        '/reference:System.Security.dll',
+        `/main:${entrypoint}`,
+        `/out:${output}`,
+        ...ownerSources,
+        ...ownedSources,
+      ],
+      { stdio: 'inherit' },
+    );
+    console.log(`built  ${output}`);
+  }
 
   const bytes = fs.readFileSync(OUT_EXE);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');

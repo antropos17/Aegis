@@ -7,18 +7,27 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Aegis.ProtectedSession
 {
+    // Only a retained installed guard supplies this authority; no received flag or SID does.
+    internal interface ICallerInstalledEndpoint
+    {
+        void CheckEndpoint(SafeFileHandle self, SafeFileHandle peer);
+        void CheckCurrent();
+    }
     // Internal owned endpoint primitive. Installation and trusted locator/registration delivery remain separate gates.
     internal sealed class CallerEndpoint : IDisposable
     {
         private readonly object gate = new object();
         private readonly CallerRegistration peer;
         private readonly SafeFileHandle pipe;
+        private readonly ICallerInstalledEndpoint installed;
         private bool consumed, disposed;
         internal readonly string LocalLocator;
 
         internal CallerEndpoint(CallerRegistration registration, IntPtr heldPeerProcess)
+            : this(registration, heldPeerProcess, null) { }
+        internal CallerEndpoint(CallerRegistration registration, IntPtr heldPeerProcess, ICallerInstalledEndpoint authority)
         {
-            peer = registration;
+            peer = registration; installed = authority;
             CallerNative.Require(!CallerNative.HasThreadToken());
             using (var held = CallerNative.Duplicate(heldPeerProcess))
             using (var token = CallerNative.ProcessToken(held))
@@ -31,7 +40,10 @@ namespace Aegis.ProtectedSession
                     peer.CheckLive(CallerNative.GetProcessId(held));
                     CallerNative.Require(CallerIdentity.Observe(self).PermittedBroker());
                     LocalLocator = "\\\\.\\pipe\\aegis-owned-caller-" + Guid.NewGuid().ToString("N");
-                    pipe = CallerEndpointNative.Create(LocalLocator, CallerEndpointNative.LogonSid(self), CallerEndpointNative.LogonSid(token));
+                    // LocalSystem has no logon SID. Only the retained installed guard authorizes its fixed SID.
+                    if (installed != null) installed.CheckEndpoint(selfProcess, held);
+                    string serverPrincipal = installed == null ? CallerEndpointNative.LogonSid(self) : "S-1-5-18";
+                    pipe = CallerEndpointNative.Create(LocalLocator, serverPrincipal, CallerEndpointNative.LogonSid(token));
                 }
             }
         }
@@ -52,7 +64,7 @@ namespace Aegis.ProtectedSession
                 {
                     while (true)
                     {
-                        lock (peer.Gate) peer.CheckCurrent();
+                        lock (peer.Gate) { peer.CheckCurrent(); if (installed != null) installed.CheckCurrent(); }
                         bool result = CallerEndpointNative.ConnectNamedPipe(pipe, IntPtr.Zero);
                         int error = result ? 0 : Marshal.GetLastWin32Error();
                         // In NOWAIT mode TRUE means listening, not connected. Only 535 admits the connection.
@@ -79,6 +91,7 @@ namespace Aegis.ProtectedSession
                     !pipe.IsClosed && !pipe.IsInvalid);
                 CallerEndpointNative.RequireNonInherited(pipe);
                 peer.CheckCurrent();
+                if (installed != null) installed.CheckCurrent();
                 CallerNative.Require(!CallerNative.HasThreadToken());
             }
         }
