@@ -156,6 +156,42 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
     }, 10000);
 
+    it('retains nullable main exit diagnostics only for an observed signaled process', () => {
+      const phase = path.join(project, 'scripts/qualification/installed-owner-phase.ps1');
+      const command = `
+        . '${phase.replaceAll("'", "''")}'
+        $rows = @()
+        foreach ($signal in @($null, $false, $true, 'true', 1)) {
+          foreach ($code in @($null, 2, 201, 208, 259, 4294967295L, -1, 4294967296L, '201', $true)) {
+            $value = Get-InstalledOwnerAttemptObservation @{ mainSignaledBeforeCleanup = $signal; mainExitCode = $code; secret = 'excluded' } native
+            $rows += @{ signal = $signal; code = $code; signalIncluded = $value.ContainsKey('mainSignaledBeforeCleanup'); codeIncluded = $value.ContainsKey('mainExitCode'); observed = $value['mainExitCode']; excluded = !$value.ContainsKey('secret') }
+          }
+        }
+        ConvertTo-Json -InputObject $rows -Compress
+      `;
+      const result = spawnSync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', command],
+        { timeout: 10000, maxBuffer: 65536, windowsHide: true },
+      );
+      expect(result.status).toBe(0);
+      expect(result.stderr.length).toBe(0);
+      const rows = JSON.parse(result.stdout.toString('utf8'));
+      expect(rows).toHaveLength(50);
+      for (const row of rows) {
+        expect(row.signalIncluded).toBe(row.signal === null || typeof row.signal === 'boolean');
+        const admitted =
+          row.code === null ||
+          (row.signal === true &&
+            Number.isInteger(row.code) &&
+            row.code >= 0 &&
+            row.code <= 4294967295);
+        expect(row.codeIncluded).toBe(admitted);
+        if (admitted) expect(row.observed).toBe(row.code);
+        expect(row.excluded).toBe(true);
+      }
+    });
+
     it('retains only bounded stage-two and stage-seven numeric checkpoints in host observations', () => {
       const phase = path.join(project, 'scripts/qualification/installed-owner-phase.ps1');
       const command = `
