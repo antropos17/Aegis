@@ -155,6 +155,99 @@ function readyAll() {
 describe('chokidar watch-root registry (step B)', () => {
   let state;
 
+  it('leaves complete plan loss to the main retry without creating a local worker', async () => {
+    vi.useFakeTimers();
+    try {
+      stubPreflight(true);
+      await fileWatcher.setupFileWatchers();
+      readyAll();
+      for (const watcher of fakeWatchers) {
+        watcher.emit('error', { code: 'AEGIS_WATCH_WORKER_TERMINATED' });
+      }
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(fakeWatchers).toHaveLength(4);
+      expect(state.watchers).toHaveLength(0);
+      expect(fileWatcher.getWatchPlan().state).toBe('FAILED');
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('bounds replacement readiness failures and keeps survivors active', async () => {
+    vi.useFakeTimers();
+    try {
+      stubPreflight(true);
+      await fileWatcher.setupFileWatchers();
+      readyAll();
+      fakeWatchers[0].emit('error', { code: 'AEGIS_WATCH_WORKER_TERMINATED' });
+      await vi.advanceTimersByTimeAsync(40000);
+      expect(fakeWatchers).toHaveLength(7);
+      expect(state.watchers).toHaveLength(3);
+      expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+      for (const replacement of fakeWatchers.slice(4)) {
+        expect(replacement.close).toHaveBeenCalledOnce();
+        replacement.emit('ready');
+      }
+      expect(root(fileWatcher.getWatchPlan(), ALL_GROUPS[0]).hasLiveWatcher).toBe(false);
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries a registration exception and cancels pending recovery on shutdown', async () => {
+    vi.useFakeTimers();
+    try {
+      installChokidarMock({ failOnCall: 5 });
+      fileWatcher = loadFileWatcher();
+      fileWatcher.init(state);
+      stubPreflight(true);
+      await fileWatcher.setupFileWatchers();
+      readyAll();
+      fakeWatchers[0].emit('error', { code: 'AEGIS_WATCH_WORKER_TERMINATED' });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(root(fileWatcher.getWatchPlan(), ALL_GROUPS[0]).state).toBe('registration-failed');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fakeWatchers).toHaveLength(5);
+      fakeWatchers[4].emit('ready');
+      expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+      fakeWatchers[4].emit('error', { code: 'AEGIS_WATCH_WORKER_TERMINATED' });
+      await fileWatcher.closeFileWatchers();
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(fakeWatchers).toHaveLength(5);
+      expect(state.watchers).toHaveLength(0);
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('recreates only a terminated root and fences its retired callbacks', async () => {
+    vi.useFakeTimers();
+    try {
+      stubPreflight(true);
+      await fileWatcher.setupFileWatchers();
+      readyAll();
+      const previous = [...fakeWatchers];
+      previous[0].emit('error', { code: 'AEGIS_WATCH_WORKER_TERMINATED' });
+      expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fakeWatchers).toHaveLength(5);
+      expect(state.watchers).toHaveLength(4);
+      for (const survivor of previous.slice(1)) expect(survivor.close).not.toHaveBeenCalled();
+      previous[0].emit('ready');
+      previous[0].emit('add', samplePath('retired-root.js'));
+      expect(root(fileWatcher.getWatchPlan(), ALL_GROUPS[0]).deliveredCount).toBe(0);
+      expect(fileWatcher.getWatchPlan().state).toBe('STARTING');
+      fakeWatchers[4].emit('ready');
+      expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
   beforeEach(() => {
     installChokidarMock();
     fileWatcher = loadFileWatcher();

@@ -350,6 +350,7 @@ const watcherDebounce = new Map();
 let _state = null;
 let _watchGeneration = 0;
 let _ownedWatchers = [];
+const _rootRecovery = new Map();
 // One audit pair per continuous confirmed reduction, including watcher re-creation.
 // STARTING during preflight is not evidence that the prior gap has recovered.
 let _watchCoverageReduced = false;
@@ -357,6 +358,11 @@ let _watchCoverageReduced = false;
 /** Stop delivery immediately, then release this lifetime's workers. @returns {Promise<void>} @since v0.14.0 */
 async function closeFileWatchers() {
   _watchGeneration++;
+  for (const recovery of _rootRecovery.values()) {
+    clearTimeout(recovery.retryTimer);
+    clearTimeout(recovery.readyTimer);
+  }
+  _rootRecovery.clear();
   // A retired watch lifetime cannot continue advertising coverage while the next
   // setup is awaiting preflight or while native handles are being terminated.
   _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
@@ -543,20 +549,22 @@ function applyWatchPlaneHealth(now) {
  * @returns {void}
  */
 function bindWatcherEvents(watcher, rootId, generation) {
+  const current = () =>
+    generation === _watchGeneration && _rootRecovery.get(rootId)?.watcher === watcher;
   // noteRootDelivery lives HERE, not in handleWatcherEvent: the handler is exported
   // and called directly with no root context by the attribution/ignore suites.
   watcher.on('add', (p) => {
-    if (generation !== _watchGeneration) return;
+    if (!current()) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('created', p);
   });
   watcher.on('change', (p) => {
-    if (generation !== _watchGeneration) return;
+    if (!current()) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('modified', p);
   });
   watcher.on('unlink', (p) => {
-    if (generation !== _watchGeneration) return;
+    if (!current()) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('deleted', p);
   });
@@ -566,22 +574,26 @@ function bindWatcherEvents(watcher, rootId, generation) {
   // and only on a real transition — W is derived over the plan, so re-deriving it for
   // an event that named no planned root would read an empty plan and throw.
   watcher.on('error', (error) => {
-    if (generation !== _watchGeneration) return;
+    if (!current()) return;
     const changed =
       error?.code === 'AEGIS_WATCH_WORKER_TERMINATED'
         ? markRootTerminated(rootId, 'watch-worker-terminated')
         : markRootErrored(rootId, 'watch-root-error');
     if (changed) applyWatchPlaneHealth(Date.now());
+    if (changed && error?.code === 'AEGIS_WATCH_WORKER_TERMINATED') {
+      retireRootWatcher(rootId, watcher, generation);
+    }
   });
   // ready = successful initialization of this FSWatcher instance — that one root. A
   // `ready` on a root already `errored` moves nothing (§1.4 — terminal), so it writes
   // no record either.
   watcher.on('ready', () => {
-    if (generation !== _watchGeneration) return;
+    if (!current()) return;
+    clearTimeout(_rootRecovery.get(rootId).readyTimer);
     if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
   });
   watcher.on('loss', (amount) => {
-    if (generation !== _watchGeneration) return;
+    if (!current()) return;
     _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.addLoss(
       _fsHealth[FS_SENSOR.CHOKIDAR],
       amount,
@@ -590,6 +602,52 @@ function bindWatcherEvents(watcher, rootId, generation) {
     );
     if (markRootErrored(rootId, 'watch-worker-overflow')) applyWatchPlaneHealth(Date.now());
   });
+}
+
+/** Retire one dead proxy and bound its local replacement attempts. @returns {void} @since v0.14.0 */
+function retireRootWatcher(rootId, watcher, generation) {
+  const recovery = _rootRecovery.get(rootId);
+  if (!recovery || recovery.watcher !== watcher || generation !== _watchGeneration) return;
+  clearTimeout(recovery.readyTimer);
+  recovery.watcher = null;
+  _ownedWatchers = _ownedWatchers.filter((w) => w !== watcher);
+  const index = _state.watchers.indexOf(watcher);
+  if (index >= 0) _state.watchers.splice(index, 1);
+  Promise.resolve(watcher.close()).catch(() => {});
+  scheduleRootRecovery(rootId, generation);
+}
+
+/** Retry a missing root without closing the surviving plan. @returns {void} @since v0.14.0 */
+function scheduleRootRecovery(rootId, generation) {
+  const recovery = _rootRecovery.get(rootId);
+  if (!recovery || recovery.retryTimer || recovery.attempts >= 3) return;
+  // The existing main-process retry owns complete plan loss.
+  if (getWatchPlan().liveWatcherCount === 0) return;
+  recovery.retryTimer = setTimeout(() => {
+    recovery.retryTimer = null;
+    if (generation !== _watchGeneration || _rootRecovery.get(rootId) !== recovery) return;
+    if (getWatchPlan().liveWatcherCount === 0) return;
+    recovery.attempts++;
+    try {
+      const watcher = recovery.register();
+      recovery.watcher = watcher;
+      markRootRegistered(rootId, watcher);
+      bindWatcherEvents(watcher, rootId, generation);
+      _ownedWatchers.push(watcher);
+      _state.watchers.push(watcher);
+      if (recovery.unknown) markRootErrored(rootId, 'watch-root-preflight-unavailable');
+      recovery.readyTimer = setTimeout(() => {
+        if (generation !== _watchGeneration || recovery.watcher !== watcher) return;
+        markRootTerminated(rootId, 'watch-root-ready-timeout');
+        applyWatchPlaneHealth(Date.now());
+        retireRootWatcher(rootId, watcher, generation);
+      }, 10000);
+    } catch {
+      markRootRegistrationFailed(rootId, 'watch-root-registration-failed');
+      scheduleRootRecovery(rootId, generation);
+    }
+    applyWatchPlaneHealth(Date.now());
+  }, 1000);
 }
 
 function handleWatcherEvent(action, filePath) {
@@ -826,6 +884,7 @@ async function setupFileWatchers() {
       }
       attempted = id;
       const w = register();
+      _rootRecovery.set(id, { register, watcher: w, attempts: 0, unknown: !!probe?.unknown });
       markRootRegistered(id, w);
       bindWatcherEvents(w, id, generation);
       _ownedWatchers.push(w);
