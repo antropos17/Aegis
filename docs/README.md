@@ -14,7 +14,7 @@ qualification limits.
 | --- | --- |
 | Find a task or understand a result | [Guided Observatory workflows](OBSERVATORY-GUIDED-WORKFLOWS.md) |
 | Understand alerts and saved permissions | [Alerts, review and permissions](ALERTS-AND-PERMISSIONS.md) |
-| See the current-source interface | [Observatory screenshots](screenshots/README.md) (simulated preview) |
+| See the simulated preview from 1 October 2026 | [Observatory screenshots](screenshots/README.md) |
 | Review local files and saved snapshots | [Local security workspace](LOCAL-SECURITY-UI.md) |
 | Check a selected action or action catalog | [Action control workspace](ACTION-COVERAGE-UI.md) |
 | Verify a downloaded installer | [Release verification](RELEASE-VERIFICATION.md) |
