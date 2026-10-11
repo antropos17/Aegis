@@ -135,19 +135,38 @@ function writeCount(dir, day, count) {
 /** @param {string} dir Log directory. @param {string} day Day key. @returns {Promise<number>} Non-empty lines in existing daily files. @since v0.17.0-alpha */
 async function scanCount(dir, day) {
   let count = 0;
-  for (const name of listLogFiles(dir)) {
-    if (name.match(LOG_FILE_PATTERN)[1] !== day) continue;
-    const file = path.join(dir, name);
-    const stat = regularFile(file);
-    if (!stat?.size) continue;
-    const stream = fs.createReadStream(file, { encoding: 'utf-8', end: stat.size - 1 });
-    const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
-    try {
-      for await (const line of lines) if (line.trim()) count++;
-    } finally {
-      lines.close();
-      stream.destroy();
+  const snapshot = [];
+  try {
+    // Capture every file before yielding: startup writes can append or rotate
+    // later paths while an earlier file is being streamed.
+    for (const name of listLogFiles(dir)) {
+      if (name.match(LOG_FILE_PATTERN)[1] !== day) continue;
+      const file = path.join(dir, name);
+      const stat = regularFile(file);
+      if (!stat?.size) continue;
+      snapshot.push({ file, size: stat.size, fd: fs.openSync(file, 'r') });
     }
+    for (const entry of snapshot) {
+      const stream = fs.createReadStream(entry.file, {
+        fd: entry.fd,
+        encoding: 'utf-8',
+        end: entry.size - 1,
+      });
+      entry.fd = null; // The stream now owns and closes this descriptor.
+      const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+      try {
+        for await (const line of lines) if (line.trim()) count++;
+      } finally {
+        lines.close();
+        await new Promise((resolve) => {
+          if (stream.closed) return resolve();
+          stream.once('close', resolve);
+          stream.destroy();
+        });
+      }
+    }
+  } finally {
+    for (const { fd } of snapshot) if (fd !== null) fs.closeSync(fd);
   }
   return count;
 }
