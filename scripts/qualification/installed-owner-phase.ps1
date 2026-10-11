@@ -160,12 +160,6 @@ function Test-InstalledOwnerMutationActions($Rows) {
     }
     return $true
 }
-function Test-InstalledOwnerAclContinuation($Association) {
-    # This checkpoint is reached only after owner binding, child closure and
-    # receipt/image validation. A failed readiness verdict grants no broker pass.
-    return $Association.cleanupUnknown -is [bool] -and !$Association.cleanupUnknown -and
-        $Association.attemptDiagnostic.checkpoint -ceq 'attempt-validate-behavior'
-}
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     Assert-ProtectedInstallation $Association
@@ -245,15 +239,9 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal
         $stage = 'original-program-behavioral-red'; $report.baseline = Invoke-InstalledOwnerAttempt $association $false
         $stage = 'upgrade-to-maintained-native-owner'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
-        $stage = 'actual-installed-positive'; $positiveFailure = $null
-        try { $report.positive = Invoke-InstalledOwnerAttempt $association $true }
-        catch {
-            # Only a behavior refusal after independently bound owner exit,
-            # native child closure, schema and image pins permits ACL controls.
-            # Unknown closure remains terminal. Retain the original refusal.
-            if (!(Test-InstalledOwnerAclContinuation $association)) { throw }
-            $positiveFailure = $_
-        }
+        $stage = 'actual-installed-positive'
+        # A refused positive attempt goes directly to exact owned cleanup.
+        $report.positive = Invoke-InstalledOwnerAttempt $association $true
         $stage = 'ordinary-token-mutation';
         # Same-volume replacement makes ERROR_ACCESS_DENIED a real ACL result.
         $scratch = Join-Path $script:ProtectedInstallParent 'MutationControl'
@@ -266,9 +254,8 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin }
         catch {
             $report.mutationFailure = Get-ProtectedInstallFailure $_ 'installed-acl-controls'
-            if ($null -eq $positiveFailure) { throw }
+            throw
         }
-        if ($null -ne $positiveFailure) { $stage = 'actual-installed-positive'; throw $positiveFailure }
         $stage = 'actual-upgrade-rollback'; $before = Read-ProtectedInstallSnapshot $association.stage.root.PathName $true; $oldRows = @($association.stage.rows); $fault = $false
         try { Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest $true | Out-Null } catch { if ($_.Exception.Message -notlike '*protected-qualified-upgrade-fault*') { throw }; $fault = $true }
         Assert-ProtectedInstallSnapshot $before; foreach ($row in $oldRows) { Assert-ProtectedInstallSnapshot $row }

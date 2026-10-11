@@ -7,7 +7,33 @@ const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
 describe.skipIf(process.platform !== 'win32')(
   'installed ACL control contract (no installation)',
   () => {
-    it('refuses missing or successful security denials and unknown owner closure', () => {
+    it('retains positive refusals and cleans up before mutation resource creation', () => {
+      const result = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(
+            project,
+            'tests/fixtures/protected-installation/installed-owner-positive-fail-fast-fixture.ps1',
+          ),
+        ],
+        { windowsHide: true, timeout: 15000, maxBuffer: 8192 },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.stderr.toString()).toBe('');
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout.toString())).toEqual({
+        refusedCases: 6,
+        resourcesSkipped: true,
+        originalRefusalRetained: true,
+        exactCleanupReached: true,
+        successfulPositiveReachesControls: true,
+        nativeQualification: false,
+      });
+    }, 20000);
+    it('refuses missing or successful security denials', () => {
       const result = spawnSync(
         'powershell.exe',
         [
@@ -27,7 +53,6 @@ describe.skipIf(process.platform !== 'win32')(
       expect(JSON.parse(result.stdout.toString())).toEqual({
         contractActions: 50,
         malformedSecurityDenialsRefused: true,
-        unknownClosureRefused: true,
         scratchSecurityAccessGranted: true,
         nativeAclQualification: false,
       });
