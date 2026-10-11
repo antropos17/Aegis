@@ -120,7 +120,7 @@ function parseContainerOutput(output, runtime) {
       seen.has(row.ID) ||
       name === null ||
       typeof row.Image !== 'string' ||
-      !row.Image ||
+      (runtime === 'docker' && !row.Image) ||
       row.Image.length > 512 ||
       /\s/.test(row.Image) ||
       hasControl(row.Image) ||
@@ -128,6 +128,8 @@ function parseContainerOutput(output, runtime) {
     )
       return null;
     seen.add(row.ID);
+    // Podman can report an empty image for infra containers; they cannot match an agent.
+    if (!row.Image) continue;
     if (runtime === 'podman' && row.State !== 'running') continue;
     const agent = IMAGES.get(repository(row.Image));
     if (agent)
