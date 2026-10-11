@@ -4,6 +4,7 @@
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, riskBand, type RadarGroup } from '../runtime/radar';
   import { radarConnections } from '../runtime/radar-connections';
+  import { radarHostClusters } from '../runtime/radar-hosts';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import RadarSummary from './RadarSummary.svelte';
@@ -52,6 +53,7 @@
   );
   let chosen = $derived(agents.find((a) => !!selected && a.instanceId === selected));
   let connections = $derived(radarConnections(telemetry, plotted));
+  let hostClusters = $derived(radarHostClusters(telemetry, plotted));
   let connectionLabel = $derived(
     connections
       .map((link) =>
@@ -195,20 +197,47 @@
                         <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
                       {/each}
                     </svg>{/if}
-                  {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
+                  {#each plotted as group, i (group.key)}{@const point = position(group, i)}
+                    {@const observedHost = hostClusters.find((host) =>
+                      host.products.includes(group.key),
+                    )}
+                    <button
                       class={`radar-blip ${riskBand(group.risk)}`}
                       data-group={group.key}
+                      class:observed-host={!!observedHost}
                       style={`left:${point.x}%;top:${point.y}%`}
                       aria-label={$t('Select {value0}, {value1} processes, risk {value2}', {
                         value0: group.name,
                         value1: group.members.length,
                         value2: group.risk,
-                      })}
+                      }) +
+                        (observedHost
+                          ? '; ' +
+                            $t('Observed under {value0} · PID {value1}', {
+                              value0: observedHost.label,
+                              value1: observedHost.pid,
+                            }) +
+                            '. ' +
+                            $t(
+                              'Observed ancestry does not establish communication or an authenticated host.',
+                            )
+                          : '')}
                       title={$t('{value0} · {value1} processes · risk {value2}/100', {
                         value0: group.name,
                         value1: group.members.length,
                         value2: group.risk,
-                      })}
+                      }) +
+                        (observedHost
+                          ? '; ' +
+                            $t('Observed under {value0} · PID {value1}', {
+                              value0: observedHost.label,
+                              value1: observedHost.pid,
+                            }) +
+                            '. ' +
+                            $t(
+                              'Observed ancestry does not establish communication or an authenticated host.',
+                            )
+                          : '')}
                       aria-pressed={group === chosenGroup}
                       onclick={() => select(group)}
                       onkeydown={(e) => {
@@ -252,6 +281,28 @@
                   {clearSelection}
                 />{/each}
             </div>
+            {#if hostClusters.length}
+              <ul class="host-clusters" aria-label={$t('Observed editor ancestry')}>
+                {#each hostClusters as host (host.key)}
+                  <li>
+                    <strong
+                      >{$t('Observed under {value0} · PID {value1}', {
+                        value0: host.label,
+                        value1: host.pid,
+                      })}</strong
+                    >
+                    <span
+                      >{host.products
+                        .map((key) => plotted.find((group) => group.key === key)?.name)
+                        .join(' · ')}</span
+                    >
+                  </li>
+                {/each}
+              </ul>
+              <p class="entity-note">
+                {$t('Observed ancestry does not establish communication or an authenticated host.')}
+              </p>
+            {/if}
             {#if !groups.length}<p class="entity-note">
                 {telemetry.ready ? $t('No agents observed.') : $t('Waiting for a scan.')}
               </p>{/if}
@@ -324,6 +375,33 @@
 </div>
 
 <style>
+  .radar-blip.observed-host::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border: 2px solid var(--muted);
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .host-clusters {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+  .host-clusters li {
+    border-inline-start: 3px solid var(--muted);
+    padding-inline-start: var(--space-2);
+    display: grid;
+    gap: 4px;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .host-clusters strong {
+    font-weight: 600;
+  }
   .radar-clarity .radar-coordinate {
     display: block;
     position: static;

@@ -1,5 +1,17 @@
 # AEGIS Observatory
 
+## Observed editor ancestry — 2026-10-11
+
+Keep product markers, risk radii, selection, action routes and four-product pages.
+After page slicing, show an inert roster list only when every process in each
+participating product has one identical fresh observed editor lifetime: source,
+PID, birth time, strong witness source and witness value. Require at least two
+products; reject missing, duplicate, mixed, synthetic and stale process records.
+Use the displayed snapshot during pause or retained-scan states. A solid vertical
+roster accent separates this ancestry cue from dashed shared-file lines. Label it
+"Observed under [editor] · PID [n]" and explain that observed ancestry establishes
+neither communication nor an authenticated host. This cue has no action target.
+
 ## Shared recorded files — 2026-10-11
 
 Draw restrained dashed lines behind the existing radar markers when two visible

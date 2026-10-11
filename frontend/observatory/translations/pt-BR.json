@@ -1884,5 +1884,8 @@
   "Reset zoom": "Redefinir zoom",
   "Radar zoom": "Zoom do radar",
   "Radar zoom controls": "Controles de zoom do radar",
-  "Radar viewport": "Área do radar"
+  "Radar viewport": "Área do radar",
+  "Observed editor ancestry": "Ancestralidade observada do editor",
+  "Observed under {value0} · PID {value1}": "Observado sob {value0} · PID {value1}",
+  "Observed ancestry does not establish communication or an authenticated host.": "A ancestralidade observada não estabelece comunicação nem um host autenticado."
 }
