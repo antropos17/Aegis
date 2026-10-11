@@ -834,3 +834,157 @@ describe('network-monitor DI tests', () => {
     });
   });
 });
+
+describe('whole-scan DNS budget', () => {
+  const agents = [{ pid: 42, agent: 'Claude', instanceId: '42:t' }];
+  const tcp = (ip) => ({ pid: 42, ip, port: 443, state: 'Established' });
+  let reverse;
+  let forward;
+  let raw;
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    networkMonitor._resetForTest();
+    reverse = vi.fn();
+    forward = vi.fn().mockResolvedValue([]);
+    raw = vi.fn();
+    networkMonitor._setDepsForTest({
+      getRawTcpConnections: raw,
+      dnsReverse: reverse,
+      dnsResolve: forward,
+    });
+  });
+  afterEach(() => {
+    networkMonitor._resetForTest();
+    vi.useRealTimers();
+  });
+  it.each(['reverse', 'forward'])(
+    'returns TCP observations after a hung %s within the shared deadline',
+    async (stage) => {
+      const hung = deferred();
+      raw.mockResolvedValue([tcp('8.8.8.8'), tcp('1.1.1.1'), tcp('160.79.104.10')]);
+      reverse.mockImplementation((ip) =>
+        ip === '8.8.8.8' && stage === 'reverse'
+          ? hung.promise
+          : Promise.resolve([ip === '8.8.8.8' ? 'hung.example' : 'api.github.com']),
+      );
+      forward.mockImplementation((name) =>
+        name === 'hung.example' ? hung.promise : Promise.resolve(['1.1.1.1']),
+      );
+      const scan = networkMonitor.scanNetworkConnections(agents);
+      await vi.advanceTimersByTimeAsync(2999);
+      let finished = false;
+      scan.then(() => {
+        finished = true;
+      });
+      await Promise.resolve();
+      expect(finished).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const rows = await scan;
+      expect(rows[0]).toMatchObject({
+        verdict: 'unknown',
+        verdictReason: 'dns-timeout',
+        instanceId: '42:t',
+      });
+      expect(rows[1]).toMatchObject({ verdict: 'allowlisted', domain: 'api.github.com' });
+      expect(rows[2]).toMatchObject({ verdict: 'allowlisted', verdictReason: 'ip-allowlist' });
+      expect(reverse).not.toHaveBeenCalledWith('160.79.104.10');
+      expect(networkMonitor.getNetworkSensorHealth().state).toBe('HEALTHY');
+      hung.resolve(stage === 'reverse' ? ['api.github.com'] : ['8.8.8.8']);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(networkMonitor.classifyConnection('8.8.8.8').reason).toBe('ptr-missing');
+      raw.mockResolvedValue([tcp('8.8.8.8')]);
+      reverse.mockResolvedValue(['api.github.com']);
+      forward.mockResolvedValue(['8.8.8.8']);
+      expect((await networkMonitor.scanNetworkConnections(agents))[0].verdict).toBe('allowlisted');
+    },
+  );
+  it('retains actual resolver slots across repeated scans and releases them only on settlement', async () => {
+    const hung = deferred();
+    const rows = Array.from({ length: 40 }, (_, i) => tcp(`8.8.1.${i + 1}`));
+    raw.mockResolvedValue(rows);
+    reverse.mockReturnValue(hung.promise);
+    const first = networkMonitor.scanNetworkConnections(agents);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect((await first).every((row) => row.verdictReason === 'dns-timeout')).toBe(true);
+    expect(reverse).toHaveBeenCalledTimes(16);
+    for (let i = 0; i < 3; i++) {
+      expect(await networkMonitor.scanNetworkConnections(agents)).toHaveLength(40);
+    }
+    expect(reverse).toHaveBeenCalledTimes(16);
+    hung.resolve([]);
+    await vi.advanceTimersByTimeAsync(0);
+    reverse.mockResolvedValue([]);
+    expect((await networkMonitor.scanNetworkConnections(agents))[0].verdictReason).toBe(
+      'ptr-missing',
+    );
+    expect(reverse).toHaveBeenCalledTimes(56);
+  });
+  it('limits distinct PTR candidates and reports incomplete enrichment', async () => {
+    raw.mockResolvedValue([tcp('8.8.8.8')]);
+    reverse.mockResolvedValue(Array.from({ length: 80 }, (_, i) => `candidate${i}.example`));
+    const rows = await networkMonitor.scanNetworkConnections(agents);
+    expect(forward).toHaveBeenCalledTimes(16);
+    expect(rows[0]).toMatchObject({ verdict: 'unknown', verdictReason: 'dns-timeout' });
+  });
+  it.each(['reverse', 'forward'])(
+    'bounds scan waiters sharing an unbudgeted hung %s lookup',
+    async (stage) => {
+      const hung = deferred();
+      reverse.mockImplementation((ip) =>
+        stage === 'reverse' ? hung.promise : Promise.resolve(['shared.example', `${ip}.example`]),
+      );
+      forward.mockImplementation((name) =>
+        name === 'shared.example' ? hung.promise : Promise.resolve([]),
+      );
+      const owner = networkMonitor.resolveIp('9.9.9.9');
+      await vi.advanceTimersByTimeAsync(0);
+      raw.mockResolvedValue([tcp(stage === 'reverse' ? '9.9.9.9' : '8.8.8.8')]);
+      for (let i = 0; i < 3; i++) {
+        const scan = networkMonitor.scanNetworkConnections(agents);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect((await scan)[0]).toMatchObject({ verdict: 'unknown', verdictReason: 'dns-timeout' });
+      }
+      expect(reverse).toHaveBeenCalledTimes(stage === 'reverse' ? 1 : 4);
+      expect(forward).toHaveBeenCalledTimes(stage === 'reverse' ? 0 : 1);
+      hung.resolve([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(await owner).toBeNull();
+      // Only the original unbudgeted owner may continue; expired scan workers have left.
+      expect(forward).toHaveBeenCalledTimes(stage === 'reverse' ? 0 : 2);
+      expect(networkMonitor.classifyConnection('8.8.8.8').reason).toBe('ptr-missing');
+    },
+  );
+  it('uses one deadline across worker waves rather than granting each IP another deadline', async () => {
+    raw.mockResolvedValue(Array.from({ length: 64 }, (_, i) => tcp(`8.8.2.${i + 1}`)));
+    reverse.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve([]), 1100)));
+    const scan = networkMonitor.scanNetworkConnections(agents);
+    await vi.advanceTimersByTimeAsync(3000);
+    const rows = await scan;
+    expect(rows.filter((row) => row.verdictReason === 'ptr-missing')).toHaveLength(32);
+    expect(rows.filter((row) => row.verdictReason === 'dns-timeout')).toHaveLength(32);
+    expect(reverse).toHaveBeenCalledTimes(48);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(reverse).toHaveBeenCalledTimes(48);
+    expect(networkMonitor.classifyConnection('8.8.2.33').reason).toBe('ptr-missing');
+  });
+  it('still rejects a changed population after the DNS deadline', async () => {
+    raw.mockResolvedValue([tcp('8.8.8.8')]);
+    reverse.mockReturnValue(new Promise(() => {}));
+    let current = true;
+    const scan = networkMonitor.scanNetworkConnections(agents, { isScopeCurrent: () => current });
+    await vi.advanceTimersByTimeAsync(1);
+    current = false;
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(await scan).toBeNull();
+    expect(networkMonitor.getNetworkSensorHealth().lastError).toBe(
+      'population-changed-during-scan',
+    );
+  });
+});
