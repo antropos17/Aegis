@@ -5,6 +5,18 @@ import os from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
+const trustedFs = {
+  realpathSync: (file) => file,
+  lstatSync: (file) => ({
+    uid: 0,
+    mode: 0o755,
+    isSymbolicLink: () => false,
+    isFile: () => file === '/usr/bin/podman',
+    isDirectory: () => file !== '/usr/bin/podman',
+  }),
+  statSync: () => ({ isFile: () => true }),
+  accessSync: () => {},
+};
 const { createPodmanDiscovery, resolvePodmanConfigPath } = require('../../src/main/podman-scanner');
 const firstId = 'a'.repeat(64);
 const secondId = 'b'.repeat(64);
@@ -39,6 +51,7 @@ function harness(replies = [], options = {}) {
     return { kill };
   });
   const discovery = createPodmanDiscovery({
+    fs: trustedFs,
     execFile,
     now: () => time,
     platform: 'linux',
@@ -72,6 +85,21 @@ afterEach(() => {
 });
 
 describe('Podman metadata discovery', () => {
+  it('refuses a writable executable ancestor before starting the CLI', async () => {
+    const unsafeFs = {
+      ...trustedFs,
+      lstatSync: (file) => ({
+        ...trustedFs.lstatSync(file),
+        ...(file === '/usr' ? { mode: 0o777 } : {}),
+      }),
+    };
+    const { discovery, execFile } = harness([''], { fs: unsafeFs });
+    expect(await discovery.refresh()).toMatchObject({
+      status: 'unavailable',
+      reason: 'cli-missing',
+    });
+    expect(execFile).not.toHaveBeenCalled();
+  });
   it('keeps snapshot passive and copies only metadata candidate fields', async () => {
     const { discovery, execFile, onUpdate } = harness([row()]);
     expect(discovery.snapshot()).toEqual({
@@ -195,6 +223,7 @@ describe('Podman metadata discovery', () => {
       windowsHide: true,
       shell: false,
       encoding: 'utf8',
+      cwd: '/usr/bin',
     });
     expect(settings.env.CONTAINERS_CONF_OVERRIDE).toBe(resolvePodmanConfigPath());
     expect(
@@ -525,6 +554,93 @@ describe('Podman metadata discovery', () => {
     expect(execFile).not.toHaveBeenCalled();
     expect(onUpdate).not.toHaveBeenCalled();
   });
+});
+
+describe('Podman executable admission', () => {
+  it.each([
+    ['/', { uid: 1000 }],
+    ['/usr', { uid: 1000 }],
+    ['/usr/bin/podman', { uid: 1000 }],
+    ['/usr/bin', { mode: 0o775 }],
+    ['/usr/bin/podman', { mode: 0o777 }],
+    ['/usr/bin/podman', { isFile: () => false }],
+  ])('refuses unsafe installation component %s %j', async (component, unsafe) => {
+    const seam = {
+      ...trustedFs,
+      lstatSync: (file) => ({
+        ...trustedFs.lstatSync(file),
+        ...(file === component ? unsafe : {}),
+      }),
+    };
+    const { discovery, execFile } = harness([''], { fs: seam });
+    expect(await discovery.refresh()).toMatchObject({ reason: 'cli-missing' });
+    expect(execFile).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'not-executable'])('refuses %s without PATH fallback', async (kind) => {
+    const seam = {
+      ...trustedFs,
+      [kind === 'missing' ? 'realpathSync' : 'accessSync']: () => {
+        throw new Error('private installation path');
+      },
+    };
+    const { discovery, execFile } = harness([''], { fs: seam });
+    expect(await discovery.refresh()).toMatchObject({ reason: 'cli-missing' });
+    expect(execFile).not.toHaveBeenCalled();
+    expect(JSON.stringify(discovery.snapshot())).not.toContain('private');
+  });
+
+  it('executes protected relative multi-hop ancestor redirects at their canonical cwd', async () => {
+    const links = {
+      '/usr/bin': 'libexec',
+      '/usr/libexec/podman': '../lib/podman-link',
+      '/usr/lib/podman-link': 'podman',
+    };
+    const seam = {
+      ...trustedFs,
+      realpathSync: () => '/usr/lib/podman',
+      readlinkSync: (file) => links[file],
+      lstatSync: (file) => ({
+        ...trustedFs.lstatSync(file),
+        isSymbolicLink: () => file in links,
+        isFile: () => file.endsWith('/podman'),
+        isDirectory: () => !file.endsWith('/podman'),
+      }),
+    };
+    const { discovery, execFile } = harness([row()], { fs: seam });
+    expect(await discovery.refresh()).toMatchObject({ status: 'ready' });
+    expect(execFile).toHaveBeenCalledTimes(2);
+    for (const [file, , settings] of execFile.mock.calls) {
+      expect(file).toBe('/usr/lib/podman');
+      expect(settings.cwd).toBe('/usr/lib');
+    }
+  });
+
+  it.each(['writable-parent', 'owned-link', 'cycle', 'mismatch'])(
+    'rejects %s even with a protected canonical destination',
+    async (kind) => {
+      const links = {
+        '/usr/bin/podman': '/opt/redirect',
+        '/opt/redirect': kind === 'cycle' ? 'redirect' : '/usr/lib/podman',
+      };
+      const seam = {
+        ...trustedFs,
+        realpathSync: () => (kind === 'mismatch' ? '/usr/other/podman' : '/usr/lib/podman'),
+        readlinkSync: (file) => links[file],
+        lstatSync: (file) => ({
+          ...trustedFs.lstatSync(file),
+          ...(kind === 'writable-parent' && file === '/opt' ? { mode: 0o777 } : {}),
+          ...(kind === 'owned-link' && file === '/opt/redirect' ? { uid: 1000 } : {}),
+          isSymbolicLink: () => file in links,
+          isFile: () => file.endsWith('/podman'),
+          isDirectory: () => !file.endsWith('/podman'),
+        }),
+      };
+      const { discovery, execFile } = harness([''], { fs: seam });
+      expect(await discovery.refresh()).toMatchObject({ reason: 'cli-missing' });
+      expect(execFile).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('Podman local configuration resource', () => {

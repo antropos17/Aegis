@@ -3,6 +3,7 @@
 const { execFile: defaultExecFile } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolveSystemExecutable } = require('./system-executable-admission');
 const { MAX_OUTPUT_BYTES, parseContainerOutput } = require('./container-metadata');
 
 const {
@@ -101,7 +102,7 @@ function failureReason(error) {
 }
 
 /** Create a bounded Linux-native observer, without starting machines or services.
- * @param {{execFile?: Function, now?: Function, platform?: string, onUpdate?: Function}} [options]
+ * @param {{execFile?: Function, now?: Function, platform?: string, onUpdate?: Function, fs?: object}} [options]
  * @returns {{refresh: Function, snapshot: Function, stop: Function}} Discovery lifecycle.
  * @since 0.19.2-beta
  */
@@ -144,6 +145,9 @@ function createPodmanDiscovery(options = {}) {
    * @returns {Promise<object>} A result without CLI error or stderr content.
    */
   function query(env, id = null, timeout = 3000) {
+    // Recheck all redirected ancestors and symlink hops for every subprocess.
+    const executable = resolveSystemExecutable('linux', ['/usr/bin/podman'], options.fs);
+    if (!executable) return Promise.resolve({ reason: 'cli-missing' });
     return new Promise((resolve) => {
       let settled = false;
       let deadline = null;
@@ -169,7 +173,7 @@ function createPodmanDiscovery(options = {}) {
       }, timeout);
       try {
         const child = execFile(
-          '/usr/bin/podman',
+          executable.file,
           id
             ? [
                 ...ARGS.slice(0, 3),
@@ -187,6 +191,7 @@ function createPodmanDiscovery(options = {}) {
             windowsHide: true,
             shell: false,
             encoding: 'utf8',
+            cwd: executable.cwd,
             env,
           },
           (error, stdout) => {

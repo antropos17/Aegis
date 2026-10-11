@@ -4,6 +4,18 @@ import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 const { createPodmanDiscovery, resolvePodmanConfigPath } = require('../../src/main/podman-scanner');
 const { PODMAN_CONFIGURATION_FORMAT } = require('../../src/main/container-configuration');
+const trustedFs = {
+  realpathSync: (file) => file,
+  lstatSync: (file) => ({
+    uid: 0,
+    mode: 0o755,
+    isSymbolicLink: () => false,
+    isFile: () => file === '/usr/bin/podman',
+    isDirectory: () => file !== '/usr/bin/podman',
+  }),
+  statSync: () => ({ isFile: () => true }),
+  accessSync: () => {},
+};
 const id = 'a'.repeat(64);
 const metadata = (ids = [id]) =>
   ids
@@ -38,6 +50,37 @@ afterEach(() => {
 });
 
 describe('Podman bounded configuration observations', () => {
+  it.each(['discovery', 'first-inspection'])(
+    'revalidates executable admission after %s and preserves completed metadata',
+    async (changedAfter) => {
+      let unsafe = false;
+      const seam = {
+        ...trustedFs,
+        lstatSync: (file) => ({
+          ...trustedFs.lstatSync(file),
+          ...(unsafe && file === '/usr' ? { mode: 0o777 } : {}),
+        }),
+      };
+      const execFile = vi.fn((file, args, settings, callback) => {
+        if (args[3] === 'ps') {
+          if (changedAfter === 'discovery') unsafe = true;
+          callback(null, metadata([id, 'b'.repeat(64)]));
+        } else {
+          unsafe = true;
+          callback(null, projected(args.at(-1)));
+        }
+        return { kill: vi.fn() };
+      });
+      const owner = createPodmanDiscovery({ fs: seam, platform: 'linux', execFile });
+      const result = await owner.refresh();
+      expect(result.status).toBe('ready');
+      expect(execFile).toHaveBeenCalledTimes(changedAfter === 'discovery' ? 1 : 2);
+      expect(result.candidates[0].configuration.status).toBe(
+        changedAfter === 'discovery' ? 'unavailable' : 'observed',
+      );
+      expect(result.candidates[1].configuration.status).toBe('unavailable');
+    },
+  );
   it('inspects only freshly matched full IDs, at most eight, with native-local guards and no secret projection', async () => {
     vi.stubEnv('CONTAINERS_CONF_OVERRIDE', 'private');
     vi.stubEnv('PODMAN_TRACE', 'private');
@@ -47,6 +90,7 @@ describe('Podman bounded configuration observations', () => {
     const onUpdate = vi.fn();
     let time = 100;
     const owner = createPodmanDiscovery({
+      fs: trustedFs,
       platform: 'linux',
       now: () => time,
       onUpdate,
@@ -114,6 +158,7 @@ describe('Podman bounded configuration observations', () => {
     'keeps candidate metadata while invalid/failed inspection is unavailable',
     async (inspection) => {
       const owner = createPodmanDiscovery({
+        fs: trustedFs,
         platform: 'linux',
         execFile: (file, args, options, cb) => {
           cb(
@@ -143,6 +188,7 @@ describe('Podman bounded configuration observations', () => {
         );
       const resolvePath = resolvePodmanConfigPath();
       const owner = createPodmanDiscovery({
+        fs: trustedFs,
         platform: 'linux',
         execFile: (file, args, options, cb) => {
           if (args[3] === 'ps') cb(null, metadata([id, 'b'.repeat(64)]));
@@ -175,7 +221,7 @@ describe('Podman bounded configuration observations', () => {
         else late = cb;
         return { kill };
       });
-      const owner = createPodmanDiscovery({ platform: 'linux', execFile, onUpdate });
+      const owner = createPodmanDiscovery({ fs: trustedFs, platform: 'linux', execFile, onUpdate });
       const pending = owner.refresh();
       await Promise.resolve();
       await Promise.resolve();
@@ -205,6 +251,7 @@ it('shares one monotonic 3s budget across serial inspections', async () => {
   vi.spyOn(performance, 'now').mockImplementation(() => clock);
   const calls = [];
   const owner = createPodmanDiscovery({
+    fs: trustedFs,
     platform: 'linux',
     execFile: (file, args, options, cb) => {
       if (args[3] === 'ps')
