@@ -29,7 +29,9 @@ function harness(replies = [], options = {}) {
   const kill = vi.fn();
   const onUpdate = vi.fn();
   const execFile = vi.fn((file, args, settings, callback) => {
-    const reply = replies.shift();
+    const reply = args.includes('inspect')
+      ? new Error('configuration unavailable')
+      : replies.shift();
     if (reply !== undefined)
       queueMicrotask(() =>
         callback(reply instanceof Error ? reply : null, reply, 'private stderr'),
@@ -90,6 +92,7 @@ describe('Podman metadata discovery', () => {
       agent: 'Agent Zero',
       match: 'image',
       runtime: 'podman',
+      configuration: { status: 'unavailable', observedAt: null },
     };
     expect(discovery.snapshot().candidates).toEqual([candidate]);
     discovery.snapshot().candidates[0].name = 'mutated';
@@ -339,7 +342,7 @@ describe('Podman metadata discovery', () => {
     await discovery.refresh();
     advance(30999);
     await discovery.refresh();
-    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(execFile).toHaveBeenCalledTimes(2);
     advance(31000);
     await discovery.refresh();
     expect(discovery.snapshot()).toMatchObject({
@@ -369,7 +372,7 @@ describe('Podman metadata discovery', () => {
     vi.stubEnv('CONTAINER_HOST', 'ssh://private');
     advance(31000);
     await discovery.refresh();
-    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(execFile).toHaveBeenCalledTimes(2);
     expect(discovery.snapshot()).toMatchObject({
       status: 'unavailable',
       reason: 'remote-config',
@@ -448,7 +451,7 @@ describe('Podman metadata discovery', () => {
     });
     expect(kill).toHaveBeenCalledExactlyOnceWith('SIGKILL');
     expect(vi.getTimerCount()).toBe(0);
-    execFile.mock.calls[1][3](null, row(undefined, secondId));
+    execFile.mock.calls[2][3](null, row(undefined, secondId));
     expect(discovery.snapshot()).toMatchObject({
       reason: 'timeout',
       candidates: [{ containerId: firstId }],
@@ -456,7 +459,7 @@ describe('Podman metadata discovery', () => {
     expect(onUpdate).toHaveBeenCalledTimes(2);
     advance(61000);
     await discovery.refresh();
-    expect(execFile).toHaveBeenCalledTimes(3);
+    expect(execFile).toHaveBeenCalledTimes(4);
     expect(discovery.snapshot()).toMatchObject({ status: 'ready', candidates: [] });
     expect(vi.getTimerCount()).toBe(0);
   });
