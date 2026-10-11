@@ -9,6 +9,7 @@
     title,
     caption,
     close,
+    focusFallback,
     children,
     actions,
     tabs,
@@ -17,6 +18,7 @@
     title: string;
     caption: string;
     close: () => void;
+    focusFallback?: () => HTMLElement | null | undefined;
     children: Snippet<[string]>;
     actions: Snippet;
     tabs: DetailTab[];
@@ -43,8 +45,12 @@
     dialog.showModal();
     heading.focus({ preventScroll: true });
     return () => {
+      const active = document.activeElement;
+      const restoreFocus = !active || active === document.body || dialog.contains(active);
       dialog.close();
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+      if (!restoreFocus) return;
+      const target = trigger?.isConnected ? trigger : focusFallback?.();
+      if (target?.isConnected) target.focus({ preventScroll: true });
     };
   });
 </script>
