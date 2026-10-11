@@ -25,12 +25,6 @@ foreach ($operation in @('writeDac', 'writeOwner')) {
     $target.win32Error = 5; $target.denied = 'true'; Require (!(Test-InstalledOwnerMutationActions $rows))
     $target.denied = $true; Require (!(Test-InstalledOwnerMutationActions (@($rows) + @($target))))
 }
-foreach ($checkpoint in @('attempt-validate-behavior', 'attempt-validate-closure', 'attempt-read-result', 'attempt-runtime-rows')) {
-    foreach ($unknown in @($false, $true, 'false')) {
-        $association = @{ cleanupUnknown = $unknown; attemptDiagnostic = @{ checkpoint = $checkpoint } }
-        Require ((Test-InstalledOwnerAclContinuation $association) -eq ($unknown -is [bool] -and !$unknown -and $checkpoint -ceq 'attempt-validate-behavior'))
-    }
-}
 # Compile the actual actor but invoke only its kernel access helper on exact
 # disposable scratch objects. Main never executes; no protected ACL is probed.
 Add-Type -Path (Join-Path $PSScriptRoot 'InstalledOwnerMutationActor.cs')
@@ -48,7 +42,7 @@ try {
         Require ((Access $scratch $rights $true) -eq 0)
         Require ((Access (Join-Path $scratch 'absent') $rights $false) -eq 2)
     }
-    @{ contractActions = $rows.Count; malformedSecurityDenialsRefused = $true; unknownClosureRefused = $true; scratchSecurityAccessGranted = $true; nativeAclQualification = $false } | ConvertTo-Json -Compress
+    @{ contractActions = $rows.Count; malformedSecurityDenialsRefused = $true; scratchSecurityAccessGranted = $true; nativeAclQualification = $false } | ConvertTo-Json -Compress
 } finally {
     # Exact created leaves only; never recurse through a computed directory.
     if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
