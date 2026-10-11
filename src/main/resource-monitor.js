@@ -211,12 +211,12 @@ function _parsePsOutput(stdout) {
 function _parseGpuCsv(stdout) {
   const map = new Map();
   for (const line of (stdout || '').split('\n')) {
-    const m = line.trim().match(/^(\d+)\s*,\s*(\d+)/);
+    const m = line.trim().match(/^(\d+)\s*,\s*(\d+)$/);
     if (!m) continue;
     const pid = Number(m[1]);
-    if (!Number.isInteger(pid) || pid <= 0) continue;
+    if (!Number.isSafeInteger(pid) || pid <= 0) continue;
     const memory = measurement(m[2]);
-    if (memory !== null) map.set(pid, memory);
+    if (memory !== null && Number.isSafeInteger(memory)) map.set(pid, memory);
   }
   return map;
 }
