@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-11T14:13:04.7662384Z",
+  "sourceRevision": "d437c2f332dc71b92a18de4febf9b8a5c06aa9cf",
+  "packageVersion": "0.19.2-beta",
+  "captureCommand": "node scripts/capture-screenshots.mjs",
+  "captureScriptModified": false,
+  "sourceMode": "Vite preview mode; shared Observatory App.svelte with isolated createPreviewHost fixtures",
+  "captureViewport": {
+    "width": 1200,
+    "deviceScaleFactor": 1,
+    "height": 800,
+    "colorScheme": "dark"
+  },
+  "socialViewport": {
+    "width": 1280,
+    "deviceScaleFactor": 1,
+    "height": 640
+  },
+  "browser": "Playwright Chromium launch with Chromium/Chrome/Edge fallback; installed Chrome used for local presentation review",
+  "captureOutcome": "Exit 0; eight PNGs created; screenshot script checks page errors before each workspace capture and dismisses notifications through normal controls",
+  "safetyReview": "Preview host uses generated X:/Preview/project paths and reserved example.test/192.0.2 endpoints; no real preload, user telemetry or secret file contents were captured. .env is a fixture path label only.",
+  "images": [
+    {
+      "file": "docs/screenshots/01-monitoring.png",
+      "bytes": 128047,
+      "sha256": "163125d3a0e673bbbed41480cdec3ee0e2be343707dbe1b6c201dfa708a2af8c",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/screenshots/02-agents.png",
+      "bytes": 120500,
+      "sha256": "574f6a3b4dc3c864815d0d701d77d7c03614a33d3eddb60b6f5cc9c9b1ae940e",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/screenshots/03-events.png",
+      "bytes": 121574,
+      "sha256": "1180ae38aacf0ba4345ff384b16b77bf7e870a3877cd2014d7b0aee5a61a6fc5",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/screenshots/04-local-security.png",
+      "bytes": 123301,
+      "sha256": "7b3f667a139870d8840a5d6b03d0a77d8088a0ed3d9076bf3158a1cd55fcc01a",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/screenshots/05-action-control.png",
+      "bytes": 161435,
+      "sha256": "b4863660fae5041a579d1fbc36b72d4add6318e52c83fb88155997ce9df52210",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/screenshots/06-settings.png",
+      "bytes": 118665,
+      "sha256": "9ebed0b5161576422abdfa1d32e5a04a8bc2ab6f4ba7f7011ed69699ffd32c7a",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/images/observatory-guide.png",
+      "bytes": 126015,
+      "sha256": "f37a8faf8fb2652c958d2f861b1b7fe668a4a5a4121b3a4d4be7d6eb9948a93b",
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "file": "docs/social-preview.png",
+      "bytes": 186286,
+      "sha256": "b6ca9c5004e28480293f202191021d8d7f84f53644c50a68051bcffdfc61ca5e",
+      "width": 1280,
+      "height": 640
+    }
+  ],
+  "presentationReview": {
+    "method": "Local browser image harness on dark #0d1117 and light #ffffff backgrounds",
+    "renderedWidths": {
+      "guide": 980,
+      "social": 640,
+      "monitoring": 980,
+      "gallery": 480
+    },
+    "allImagesLoaded": true,
+    "limitations": "This local presentation check does not establish actual GitHub rendering. Gallery thumbnails and embedded social UI contain small text; linked full PNGs are the reading surface. Only dark source UI was captured.",
+    "visuallyInspected": true
+  },
+  "verification": {
+    "gitDiffCheck": "passed",
+    "repositorySuite": "not run: asset/documentation-only refresh",
+    "nativeElectron": "not performed",
+    "installedRelease": "not performed",
+    "githubSettingsUpload": "not performed",
+    "githubSocialCard": "not verified by this capture"
+  },
+  "diagnosticRetention": {
+    "location": "worktree-local .tmp/capture and .tmp/npm-cache",
+    "beforeFreeBytes": {
+      "X": 174453682176,
+      "C": 7720251392
+    },
+    "afterFreeBytes": {
+      "X": 174073688064,
+      "C": 7717412864
+    },
+    "policy": "Single bounded capture/presentation batch; preserve review evidence until independent review; remove only task-owned closed disposable output after handoff approval; no recurring logging enabled",
+    "captureTempFilesAfterBrowserExit": 0
+  }
+}
