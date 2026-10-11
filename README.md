@@ -13,7 +13,7 @@ policy-controlled execution and MCP action tools require explicit setup.
 published 6 October 2026. [Verify the installer](docs/RELEASE-VERIFICATION.md)
 and read its [beta readiness record](docs/BETA-READINESS.md).
 
-**Current source version**: 0.19.2-beta <!-- x-release-please-version -->
+**Current source version**: 0.20.0-beta <!-- x-release-please-version -->
 
 This README includes changes after that release tag. They require a new installer
 release; the beta label does not qualify general agent containment or experimental

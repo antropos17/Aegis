@@ -20,6 +20,83 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.20.0-beta (2026-10-11)
+
+## What's Changed
+* docs(github): refresh verified 0.19.2 beta publication by @antropos17 in https://github.com/antropos17/Aegis/pull/778
+* feat(ux): keep review context beside results by @antropos17 in https://github.com/antropos17/Aegis/pull/780
+* fix(ux): preserve drafts and confirmed catalog changes by @antropos17 in https://github.com/antropos17/Aegis/pull/782
+* feat(ux): simplify agent monitoring and live activity by @antropos17 in https://github.com/antropos17/Aegis/pull/783
+* feat(ui): keep agent investigation in one workspace by @antropos17 in https://github.com/antropos17/Aegis/pull/784
+* feat(ui): expose advanced workspaces in distinct continuous panels by @antropos17 in https://github.com/antropos17/Aegis/pull/785
+* fix(ui): align workspace padding and spacing by @antropos17 in https://github.com/antropos17/Aegis/pull/786
+* fix(ui): make Action control configuration visible first by @antropos17 in https://github.com/antropos17/Aegis/pull/787
+* fix(ui): clarify workspace layouts and continuous review pages by @antropos17 in https://github.com/antropos17/Aegis/pull/788
+* Refine radar motion, navigation and visual hierarchy by @antropos17 in https://github.com/antropos17/Aegis/pull/789
+* Compact controls and reduce empty workspace spacing by @antropos17 in https://github.com/antropos17/Aegis/pull/790
+* Bind native pipe admission to retained caller identity by @antropos17 in https://github.com/antropos17/Aegis/pull/791
+* Support current Codex binaries in the bounded provider probe by @antropos17 in https://github.com/antropos17/Aegis/pull/792
+* Import native sealed baselines into retained result review by @antropos17 in https://github.com/antropos17/Aegis/pull/793
+* Add bounded cloud Windows enforcement qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/794
+* docs(agents): disclose task-specific guidance by @antropos17 in https://github.com/antropos17/Aegis/pull/795
+* fix(enforcement): pin grant ownership and verify guest process cleanup by @antropos17 in https://github.com/antropos17/Aegis/pull/796
+* fix(mcp): reject lost grant receipts before dispatch by @antropos17 in https://github.com/antropos17/Aegis/pull/798
+* fix(enforcement): recheck consumed operation records before dispatch by @antropos17 in https://github.com/antropos17/Aegis/pull/799
+* feat(enforcement): exercise native Hyper-V lifecycle and Windows guest lab by @antropos17 in https://github.com/antropos17/Aegis/pull/797
+* fix(enforcement): refuse replay after partial operation history loss by @antropos17 in https://github.com/antropos17/Aegis/pull/801
+* fix(enforcement): qualify guest cancellation and bounded readiness by @antropos17 in https://github.com/antropos17/Aegis/pull/800
+* feat(enforcement): inspect protected enrollment without granting launch by @antropos17 in https://github.com/antropos17/Aegis/pull/802
+* fix(broker): close invalid HTTPS responses at headers by @antropos17 in https://github.com/antropos17/Aegis/pull/804
+* fix(enforcement): refuse live-ledger replay after record loss by @antropos17 in https://github.com/antropos17/Aegis/pull/805
+* test(enforcement): verify sealed project copy in fixed guest task by @antropos17 in https://github.com/antropos17/Aegis/pull/806
+* feat(enforcement): add bounded guest standard-stream qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/803
+* test(enforcement): allow bounded Windows image transfer time by @antropos17 in https://github.com/antropos17/Aegis/pull/807
+* test(enforcement): qualify controlled guest owner lifetimes by @antropos17 in https://github.com/antropos17/Aegis/pull/808
+* feat(session): own native caller endpoints with explicit pipe security by @antropos17 in https://github.com/antropos17/Aegis/pull/809
+* fix(session): fence retained caller token changes and preserve effective-only admission by @antropos17 in https://github.com/antropos17/Aegis/pull/810
+* fix(qualification): verify live stdio payload before cancellation by @antropos17 in https://github.com/antropos17/Aegis/pull/811
+* feat(session): register retained callers before suspended execution by @antropos17 in https://github.com/antropos17/Aegis/pull/812
+* docs(github): refresh source-backed repository presentation by @antropos17 in https://github.com/antropos17/Aegis/pull/813
+* fix(mcp): capture approved request parameters before dispatch by @antropos17 in https://github.com/antropos17/Aegis/pull/814
+* feat(enrollment): retain native observations in inactive lease by @antropos17 in https://github.com/antropos17/Aegis/pull/816
+* fix(qualification): share retained stdio exit deadline by @antropos17 in https://github.com/antropos17/Aegis/pull/815
+* fix(qualification): settle sealed verifier before measurement by @antropos17 in https://github.com/antropos17/Aegis/pull/817
+* docs(enforcement): retain successful Windows 11 stdio evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/818
+* fix(enforcement): deny impersonated retained caller contexts by @antropos17 in https://github.com/antropos17/Aegis/pull/819
+* fix(enforcement): tolerate sibling activity on enrollment ancestors by @antropos17 in https://github.com/antropos17/Aegis/pull/820
+* fix(observatory): use canonical complete resource totals by @antropos17 in https://github.com/antropos17/Aegis/pull/821
+* fix(hooks): clear owned command input after evaluation by @antropos17 in https://github.com/antropos17/Aegis/pull/822
+* feat(session): prepare retained callers before one-use release by @antropos17 in https://github.com/antropos17/Aegis/pull/823
+* refactor(ui): remove unused renderer modules and artwork by @antropos17 in https://github.com/antropos17/Aegis/pull/824
+* feat(session): retain caller enrollment across release and admission by @antropos17 in https://github.com/antropos17/Aegis/pull/825
+* fix(session): remember recovered operation consumption by @antropos17 in https://github.com/antropos17/Aegis/pull/826
+* feat(session): bootstrap retained callers through exact child stdin by @antropos17 in https://github.com/antropos17/Aegis/pull/827
+* fix(session): recheck ledger store after absent record lookups by @antropos17 in https://github.com/antropos17/Aegis/pull/828
+* feat(session): bind inactive callers to retained main authority by @antropos17 in https://github.com/antropos17/Aegis/pull/829
+* fix(mcp): recheck credential store after handle close by @antropos17 in https://github.com/antropos17/Aegis/pull/830
+* feat(enforcement): prepare retained main role inspection by @antropos17 in https://github.com/antropos17/Aegis/pull/831
+* fix(qualification): reject aliased sealed-copy headers by @antropos17 in https://github.com/antropos17/Aegis/pull/834
+* fix(qualification): reject mismatched measurement pairs by @antropos17 in https://github.com/antropos17/Aegis/pull/835
+* feat(model-broker): cap owner output allowances by @antropos17 in https://github.com/antropos17/Aegis/pull/836
+* fix(tokens): surface Claude dedup storage pauses by @antropos17 in https://github.com/antropos17/Aegis/pull/837
+* chore(screenshots): remove obsolete Electron entry by @antropos17 in https://github.com/antropos17/Aegis/pull/838
+* docs(tokens): explain storage pause accounting by @antropos17 in https://github.com/antropos17/Aegis/pull/839
+* feat(discovery): surface local Docker agent candidates by @antropos17 in https://github.com/antropos17/Aegis/pull/840
+* feat(discovery): add local Podman metadata candidates by @antropos17 in https://github.com/antropos17/Aegis/pull/841
+* Add passive WSL running-distribution inventory by @antropos17 in https://github.com/antropos17/Aegis/pull/842
+* Bound Docker metadata queries when the CLI never calls back by @antropos17 in https://github.com/antropos17/Aegis/pull/843
+* fix(tokens): recover bounded usage batches at index capacity by @antropos17 in https://github.com/antropos17/Aegis/pull/844
+* fix(linux): capture every monitored TCP socket owner by @antropos17 in https://github.com/antropos17/Aegis/pull/845
+* perf(tokens): compact session keys in dedup ledger by @antropos17 in https://github.com/antropos17/Aegis/pull/846
+* feat(containers): observe Docker configuration for matched candidates by @antropos17 in https://github.com/antropos17/Aegis/pull/847
+* feat(tokens): restore committed Claude usage across restarts by @antropos17 in https://github.com/antropos17/Aegis/pull/848
+* feat(containers): observe bounded Podman configuration by @antropos17 in https://github.com/antropos17/Aegis/pull/849
+* feat(tokens): witness owned rollback journals across crashes by @antropos17 in https://github.com/antropos17/Aegis/pull/850
+* feat(containers): explain observed host and privileged configuration by @antropos17 in https://github.com/antropos17/Aegis/pull/851
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...aegis-v0.20.0-beta
+
 ## 0.19.2-beta (2026-10-06)
 
 ## What's Changed
