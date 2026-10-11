@@ -18,6 +18,7 @@ namespace Aegis.ProtectedSession
         private CallerRegistration owner, main;
         private AppContainerExecutable.PinnedFile ownerImage, mainImage;
         private SafeFileHandle self;
+        private InstalledJobInventory inventory;
         private long birth;
         private bool closed, cleanupUnknown;
         internal InstalledOwnerRegistration(InstalledOwnerBootstrap original, ref int substage)
@@ -75,7 +76,8 @@ namespace Aegis.ProtectedSession
             substage = 24;
             CallerNative.Require(GuestJobNative.Birth(self.DangerousGetHandle(), setup.Job.DangerousGetHandle(), CallerNative.GetProcessId(self)) == birth);
             substage = 25;
-            GuestJobNative.RequireSingleton(setup.Job.DangerousGetHandle(), ref substage);
+            if (inventory == null) inventory = new InstalledJobInventory(setup.Job, self, birth, ref substage);
+            else inventory.CheckCurrent(ref substage);
             substage = 26; // Unimpersonated exit.
             CallerNative.Require(!CallerNative.HasThreadToken());
         }
@@ -95,7 +97,7 @@ namespace Aegis.ProtectedSession
             if (!closed)
             {
                 closed = true; CloseResource(mainImage); CloseResource(ownerImage); CloseResource(service);
-                CloseResource(main); CloseResource(owner); CloseResource(self); CloseResource(Policy);
+                CloseResource(inventory); CloseResource(main); CloseResource(owner); CloseResource(self); CloseResource(Policy);
             }
             if (cleanupUnknown) throw new InvalidOperationException("installed-owner-registration-cleanup-unconfirmed");
         }

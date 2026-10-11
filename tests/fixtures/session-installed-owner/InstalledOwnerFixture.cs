@@ -65,22 +65,22 @@ internal static class InstalledOwnerFixture
         var rows = new List<string>();
         for (uint stage = 1; stage <= 12; stage++)
             rows.Add("{\"kind\":\"legacy\",\"expectedStage\":" + stage + ",\"expectedSubstage\":0,\"whole\":" + Parsed(Frame(stage, 0), false) + ",\"split\":" + Parsed(Frame(stage, 0), true) + "}");
-        for (uint substage = 1; substage <= 35; substage++)
+        for (uint substage = 1; substage <= 44; substage++)
             rows.Add("{\"kind\":\"stage2\",\"expectedStage\":2,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(2, substage), false) + ",\"split\":" + Parsed(Frame(2, substage), true) + "}");
-        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 36), Frame(1, 1), Frame(3, 13),
+        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
             Frame(1, 14), Frame(3, 26), Frame(12, 26),
             Frame(2, 8).Substring(0, 103) + "1", Frame(2, 8).Replace("00000008", "0000000A"),
             "AEGISF03" + Frame(2, 8).Substring(8), Frame(2, 8).Substring(0, 103), Frame(2, 8) + "0" };
         for (int index = 0; index < invalid.Length; index++)
             rows.Add("{\"kind\":\"invalid\",\"index\":" + index + ",\"whole\":" + Parsed(invalid[index], false) + ",\"split\":" + Parsed(invalid[index], true) + "}");
         int writerChecks = 0;
-        for (int checkpoint = 0; checkpoint <= 35; checkpoint++)
+        for (int checkpoint = 0; checkpoint <= 44; checkpoint++)
         {
             byte[] frame = InstalledOwnerSession.FailureFrame(2, checkpoint);
             CallerNative.Require(frame.Length == 104 && Encoding.ASCII.GetString(frame) == Frame(2, (uint)checkpoint));
             writerChecks++;
         }
-        int[,] invalidWriter = { { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 36 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
+        int[,] invalidWriter = { { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 45 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
         for (int index = 0; index < invalidWriter.GetLength(0); index++)
         {
             bool refused = false;
@@ -145,6 +145,133 @@ internal static class InstalledOwnerFixture
         Console.WriteLine("{\"syntheticChecks\":" + checks + ",\"queryRefused\":true,\"singletonAccepted\":true,\"extraMemberRefused\":true,\"ownedJobsEmpty\":true}");
         return 0;
     }
+    private static CallerIdentity SystemIdentity(string sid, string integrity, int session, uint authentication)
+    {
+        Type type = typeof(CallerIdentity);
+        var value = (CallerIdentity)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        type.GetField("sid", flags).SetValue(value, sid);
+        type.GetField("integrity", flags).SetValue(value, integrity);
+        type.GetField("session", flags).SetValue(value, session);
+        type.GetField("Type", flags).SetValue(value, 1);
+        type.GetField("restricting", flags).SetValue(value, new string[0]);
+        type.GetField("groups", flags).SetValue(value, new string[0]);
+        type.GetField("privileges", flags).SetValue(value, new string[0]);
+        var luidType = type.GetNestedType("Luid", System.Reflection.BindingFlags.NonPublic);
+        object luid = Activator.CreateInstance(luidType);
+        luidType.GetField("Low", flags).SetValue(luid, authentication);
+        type.GetField("authentication", flags).SetValue(value, luid);
+        return value;
+    }
+    private static void SealedNativeControls(CallerIdentity root)
+    {
+        using (var job = CreateJobObject(IntPtr.Zero, null))
+        using (var child = Process.Start(new ProcessStartInfo { FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+            Arguments = "--child", UseShellExecute = false, CreateNoWindow = true }))
+        using (var extra = Process.Start(new ProcessStartInfo { FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+            Arguments = "--child", UseShellExecute = false, CreateNoWindow = true }))
+        using (var held = CallerNative.Duplicate(child.Handle))
+        {
+            // The SYSTEM identity seam never appears in production. Job membership,
+            // held births, historical accounting and image observations remain native.
+            InstalledJobInventory.TokenForTest = delegate(SafeFileHandle unused) { return root; };
+            try
+            {
+                CallerNative.Require(AssignProcessToJobObject(job, child.Handle));
+                long birth = GuestJobNative.Birth(held.DangerousGetHandle(), job.DangerousGetHandle(), CallerNative.GetProcessId(held));
+                int checkpoint = 0;
+                using (var inventory = new InstalledJobInventory(job, held, birth, ref checkpoint))
+                {
+                    inventory.CheckCurrent(ref checkpoint);
+                    CallerNative.Require(AssignProcessToJobObject(job, extra.Handle));
+                    bool lateRefused = false;
+                    try { inventory.CheckCurrent(ref checkpoint); } catch (InvalidOperationException) { lateRefused = true; }
+                    CallerNative.Require(lateRefused && checkpoint == 44);
+                }
+                checkpoint = 0; bool wrongImage = false;
+                try { using (var inventory = new InstalledJobInventory(job, held, birth, ref checkpoint)) { } }
+                catch (InvalidOperationException) { wrongImage = true; }
+                CallerNative.Require(wrongImage && checkpoint == 40);
+                extra.Kill(); CallerNative.Require(extra.WaitForExit(2000));
+                var watch = Stopwatch.StartNew();
+                while (GuestJobNative.Counts(job.DangerousGetHandle()).Active != 1)
+                { CallerNative.Require(watch.ElapsedMilliseconds < 2000); System.Threading.Thread.Sleep(2); }
+                checkpoint = 0; bool historyRefused = false;
+                try { using (var inventory = new InstalledJobInventory(job, held, birth, ref checkpoint)) { } }
+                catch (InvalidOperationException) { historyRefused = true; }
+                CallerNative.Require(historyRefused && checkpoint == 36);
+            }
+            finally
+            {
+                InstalledJobInventory.TokenForTest = null;
+                CallerNative.Require(TerminateJobObject(job, 1));
+                CallerNative.Require(child.WaitForExit(2000) && extra.WaitForExit(2000));
+            }
+        }
+    }
+    private static int InstalledInventoryControls()
+    {
+        int accounting = 0, identity = 0, protection = 0;
+        CallerNative.Require(InstalledJobInventory.ValidAccounting(new GuestJobNative.Accounting { Total = 1, Active = 1 }, new uint[] { 1 })); accounting++;
+        CallerNative.Require(InstalledJobInventory.ValidAccounting(new GuestJobNative.Accounting { Total = 2, Active = 2 }, new uint[] { 1, 2 })); accounting++;
+        GuestJobNative.Accounting[] refused = {
+            new GuestJobNative.Accounting { Total = 2, Active = 1 },
+            new GuestJobNative.Accounting { Total = 3, Active = 2 },
+            new GuestJobNative.Accounting { Total = 3, Active = 3 },
+            new GuestJobNative.Accounting { Total = 2, Active = 2, Terminated = 1 },
+            new GuestJobNative.Accounting { Total = 0, Active = 0 } };
+        foreach (var value in refused) { CallerNative.Require(!InstalledJobInventory.ValidAccounting(value, new uint[] { 1, 2 })); accounting++; }
+        CallerNative.Require(!InstalledJobInventory.ValidAccounting(new GuestJobNative.Accounting { Total = 2, Active = 2 }, new uint[] { 1 })); accounting++;
+        CallerNative.Require(!InstalledJobInventory.SameMembers(new uint[] { 1 }, new uint[] { 1, 2 }) &&
+            !InstalledJobInventory.SameMembers(new uint[] { 1, 2 }, new uint[] { 1, 3 }) &&
+            InstalledJobInventory.SameMembers(new uint[] { 1, 2 }, new uint[] { 1, 2 })); accounting++;
+        CallerIdentity root = SystemIdentity("S-1-5-18", "S-1-16-16384", 0, 999);
+        SealedNativeControls(root);
+        CallerNative.Require(InstalledJobInventory.PermittedHelper(root, SystemIdentity("S-1-5-18", "S-1-16-16384", 0, 999))); identity++;
+        foreach (var candidate in new CallerIdentity[] { SystemIdentity("S-1-5-18", "S-1-16-16384", 0, 998),
+            SystemIdentity("S-1-5-18", "S-1-16-16384", 1, 999), SystemIdentity("S-1-5-18", "S-1-16-12288", 0, 999),
+            SystemIdentity("S-1-5-21-1-2-3-1000", "S-1-16-16384", 0, 999), null })
+        { CallerNative.Require(!InstalledJobInventory.PermittedHelper(root, candidate)); identity++; }
+        string[] descriptors = { "O:SYG:SYD:(A;;FA;;;SY)(A;;FR;;;BU)", "O:SYG:SYD:(A;;FA;;;SY)(A;;FW;;;BU)",
+            "O:BUG:SYD:(A;;FA;;;SY)", "O:SYG:SYD:NO_ACCESS_CONTROL", "O:SYG:SYD:(A;;FA;;;SY)(A;;WD;;;BU)" };
+        bool[] expected = { true, false, false, false, false };
+        for (int index = 0; index < descriptors.Length; index++)
+        {
+            var descriptor = new System.Security.AccessControl.RawSecurityDescriptor(descriptors[index]);
+            byte[] bytes = new byte[descriptor.BinaryLength]; descriptor.GetBinaryForm(bytes, 0);
+            CallerNative.Require(InstalledJobInventory.ProtectedSystemImage(bytes) == expected[index]); protection++;
+        }
+        using (var job = CreateJobObject(IntPtr.Zero, null))
+        using (var child = Process.Start(new ProcessStartInfo { FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+            Arguments = "--child", UseShellExecute = false, CreateNoWindow = true }))
+        using (var held = CallerNative.Duplicate(child.Handle))
+        {
+            try
+            {
+                CallerNative.Require(AssignProcessToJobObject(job, child.Handle));
+                long birth = GuestJobNative.Birth(held.DangerousGetHandle(), job.DangerousGetHandle(), CallerNative.GetProcessId(held));
+                int checkpoint = 0; bool denied = false;
+                try { using (var inventory = new InstalledJobInventory(job, held, birth, ref checkpoint)) { } }
+                catch (InvalidOperationException) { denied = true; }
+                CallerNative.Require(denied && checkpoint == 38);
+                checkpoint = 0; denied = false;
+                try { using (var inventory = new InstalledJobInventory(job, held, birth + 1, ref checkpoint)) { } }
+                catch (InvalidOperationException) { denied = true; }
+                CallerNative.Require(denied && checkpoint == 37);
+            }
+            finally { CallerNative.Require(TerminateJobObject(job, 1)); CallerNative.Require(child.WaitForExit(2000)); }
+            var watch = Stopwatch.StartNew();
+            while (GuestJobNative.Counts(job.DangerousGetHandle()).Active != 0)
+            { CallerNative.Require(watch.ElapsedMilliseconds < 2000); System.Threading.Thread.Sleep(2); }
+            int finalCheckpoint = 0; bool exitedRefused = false;
+            try { using (var inventory = new InstalledJobInventory(job, held, 1, ref finalCheckpoint)) { } }
+            catch (InvalidOperationException) { exitedRefused = true; }
+            CallerNative.Require(exitedRefused && finalCheckpoint == 36);
+        }
+        Console.WriteLine("{\"accountingChecks\":" + accounting + ",\"identityChecks\":" + identity + ",\"protectionChecks\":" + protection +
+            ",\"nonSystemRefused\":true,\"wrongBirthRefused\":true,\"exitedRefused\":true,\"ownedJobEmpty\":true}");
+        return 0;
+    }
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern SafeFileHandle CreateJobObject(IntPtr security, string name);
     [DllImport("kernel32.dll")] private static extern bool TerminateJobObject(SafeFileHandle job, uint code);
@@ -156,6 +283,7 @@ internal static class InstalledOwnerFixture
     }
     private static int Main(string[] arguments)
     {
+        if (arguments.Length == 1 && arguments[0] == "--installed-inventory-controls") return InstalledInventoryControls();
         if (arguments.Length == 1 && arguments[0] == "--accounting-controls") return AccountingControls();
         if (arguments.Length == 1 && arguments[0] == "--failure-frames") return FailureFrames();
         if (arguments.Length == 1 && arguments[0] == "--child") { System.Threading.Thread.Sleep(20000); return 0; }
