@@ -105,7 +105,10 @@ it('shows failed initial history as unknown with fixed feedback and a read-only 
   expect(await screen.findByRole('alert')).not.toHaveTextContent('PRIVATE_PATH_SENTINEL');
   expect(screen.queryByRole('table')).toBeNull();
   expect(screen.queryByText('0 audit entries loaded')).toBeNull();
-  expect(screen.getByRole('button', { name: 'Load older entries' })).toBeDisabled();
+  const older = screen.getByRole('button', { name: 'Load older entries' });
+  expect(older).toHaveAttribute('aria-disabled', 'true');
+  await fireEvent.click(older);
+  expect(host.getAuditEntriesBefore).toHaveBeenCalledOnce();
   expect(screen.getByRole('button', { name: 'Retry history' })).toBeVisible();
 });
 

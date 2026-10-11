@@ -249,7 +249,7 @@
           <button
             bind:this={refreshButton}
             class="button"
-            disabled={loading}
+            aria-disabled={loading}
             aria-busy={loading}
             onclick={() => void refresh(true).catch(() => {})}
             ><Icon name="refresh" />{$t('Refresh')}</button
@@ -305,10 +305,12 @@
             )}{/if}</span
         ><button
           class="button"
-          disabled={!page.loaded || page.exhausted || loading}
+          aria-disabled={!page.loaded || page.exhausted || loading}
           aria-busy={loading}
-          onclick={() => void refresh().catch(() => {})}
-          ><Icon name="history" />{$t('Load older entries')}</button
+          onclick={() => {
+            if (!page.loaded || page.exhausted || loading) return;
+            void refresh().catch(() => {});
+          }}><Icon name="history" />{$t('Load older entries')}</button
         >
       </div>
     </section>
@@ -557,6 +559,11 @@
     align-items: start;
     gap: var(--space-2);
     min-width: 0;
+  }
+  .audit-filter-actions > .button[aria-disabled='true'],
+  .pagination > .button[aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: default;
   }
   .audit-filter-actions :global(.action-control) {
     min-width: 0;
