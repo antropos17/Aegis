@@ -1,7 +1,8 @@
 # Claude Code accounting at storage capacity
 
-The run-scoped deduplication database retains hashed session/message keys and
-main/subagent cursors. Its production SQLite page limit remains 128 MiB. It does
+The durable deduplication database retains hashed session/message keys,
+main/subagent cursors and accepted numeric totals across application runs.
+Its production SQLite page limit remains 128 MiB. It does
 not evict accepted IDs to make room: doing so could count an old message again
 when a transcript is truncated, resumed or repeated in a subagent log.
 
@@ -15,9 +16,11 @@ A failed SQLite operation or failed index initialization records
 `storage-paused`, with only the fixed reason `capacity` or `unavailable` and the
 next retry time. During the 30-second retry interval the adapter returns no new
 deltas and does not reread transcripts or registries. A retry starts from the
-last committed cursors. The pause clears only after a scan visits every supplied
-process without another storage failure and successfully commits a process.
-An empty population or missing registry alone does not establish recovery.
+last committed cursors. A process pause clears only after a scan visits every
+supplied process without another storage failure and commits a process. A
+successful startup-open retry can also clear the startup pause
+when committed historical usage is restored, even with no live process. An
+empty population or missing registry alone does not establish process recovery.
 
 The existing `token-costs` push now carries `{records, collection}`. Records are
 the retained measured totals; collection contains independent adapter health.
@@ -39,7 +42,10 @@ The application does not grow the limit, remove deduplication evidence, reset
 cursors, or estimate the backlog. Automatic recovery requires an actual
 successful storage operation; a transient storage outage can recover, while a
 permanently exhausted index still requires a different future retention/storage
-design. The database and accounting totals are scoped to an application run.
+design. Committed state and accepted totals persist across application runs;
+prior usage is restored as historical without a live PID. An interrupted
+transaction is recovered automatically only when its rollback journal matches
+the ledger ownership witness.
 
 ## Focused evidence
 
