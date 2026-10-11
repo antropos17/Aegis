@@ -9,7 +9,10 @@ const { createQueue } = require('./watch-event-queue');
 if (parentPort) {
   const queue = createQueue((batch) => parentPort.postMessage(batch));
   const { ignoredDirectories, ignorePackageLock, basenamePrefix, ...options } = workerData.options;
-  const roots = basenamePrefix ? [workerData.paths].flat().map((root) => path.resolve(root)) : [];
+  const roots =
+    ignoredDirectories || basenamePrefix
+      ? [workerData.paths].flat().map((root) => path.resolve(root))
+      : [];
   if (ignoredDirectories || ignorePackageLock || basenamePrefix) {
     options.ignored = (filePath, stats) => {
       if (basenamePrefix) {
@@ -23,15 +26,29 @@ if (parentPort) {
           }
         }
       }
+      // Directory descriptors apply below a watched root, never to its name or
+      // ancestors. An explicitly watched nested root can admit its own children.
+      const relativePaths = roots
+        .map((root) => path.relative(root, path.resolve(filePath)))
+        .filter(
+          (relative) =>
+            relative !== '..' &&
+            !relative.startsWith('..' + path.sep) &&
+            !path.isAbsolute(relative),
+        );
       return (
         (ignorePackageLock && /package-lock\.json$/.test(filePath)) ||
-        (ignoredDirectories || []).some(
-          (dir) =>
-            filePath.includes('/' + dir + '/') ||
-            filePath.includes('\\' + dir + '\\') ||
-            filePath.endsWith('/' + dir) ||
-            filePath.endsWith('\\' + dir),
-        )
+        (relativePaths.length > 0 &&
+          relativePaths.every((relative) => {
+            const childPath = relative ? path.sep + relative : '';
+            return (ignoredDirectories || []).some(
+              (dir) =>
+                childPath.includes('/' + dir + '/') ||
+                childPath.includes('\\' + dir + '\\') ||
+                childPath.endsWith('/' + dir) ||
+                childPath.endsWith('\\' + dir),
+            );
+          }))
       );
     };
   }
