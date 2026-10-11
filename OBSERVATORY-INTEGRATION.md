@@ -74,11 +74,11 @@ All 59 preload methods; the original transfer matrix is extended with Local secu
 | exportCsv | App.svelte, lib/components/Reports.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | generateReport | App.svelte, lib/components/Reports.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | getSettings | lib/components/Footer.svelte, lib/components/OptionsPanel.svelte, lib/components/Timeline.svelte | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
-| getUpdateStatus | lib/stores/ipc.ts, lib/stores/updates.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
-| checkForUpdates | lib/components/SettingsUpdates.svelte, lib/stores/ipc.ts, lib/stores/updates.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
-| downloadUpdate | lib/stores/ipc.ts, lib/stores/updates.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
-| installUpdate | lib/stores/ipc.ts, lib/stores/updates.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
-| onUpdateStatus | lib/stores/ipc.ts, lib/stores/updates.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| getUpdateStatus | lib/stores/ipc.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| checkForUpdates | lib/components/SettingsUpdates.svelte, lib/stores/ipc.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| downloadUpdate | lib/stores/ipc.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| installUpdate | lib/stores/ipc.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| onUpdateStatus | lib/stores/ipc.ts | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | saveSettings | lib/components/OptionsPanel.svelte, lib/components/Timeline.svelte | `Settings.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | analyzeAgent | lib/components/ThreatAnalysis.svelte | `Analysis.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | analyzeSession | lib/components/ThreatAnalysis.svelte | `Analysis.svelte` | Implemented; host/component tests and Electron workspace smoke |
