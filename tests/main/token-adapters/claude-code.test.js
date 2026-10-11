@@ -171,12 +171,24 @@ describe('readUsage — happy path (real tokens, estimated:false)', () => {
       {
         pid: 1234,
         model: 'claude-opus-4-8',
+        acceptedCostUsd: 0.00025725,
+        acceptedEstimated: false,
+        acceptedPricingEstimated: true,
         inputTokens: 17,
         outputTokens: 7,
         estimated: false,
         inputBreakdown: { uncached: 10, read: 2, write5m: 0, write1h: 0, writeUnknown: 5 },
       },
-      { pid: 1234, model: 'claude-opus-4-8', inputTokens: 100, outputTokens: 20, estimated: false },
+      {
+        pid: 1234,
+        model: 'claude-opus-4-8',
+        inputTokens: 100,
+        outputTokens: 20,
+        estimated: false,
+        acceptedCostUsd: 0.001,
+        acceptedEstimated: false,
+        acceptedPricingEstimated: false,
+      },
     ]);
   });
 });
@@ -360,7 +372,16 @@ describe('readUsage — privacy invariant (regression anchor)', () => {
 
     expect(out).toHaveLength(1);
     expect(Object.keys(out[0]).sort()).toEqual(
-      ['estimated', 'inputTokens', 'model', 'outputTokens', 'pid'].sort(),
+      [
+        'estimated',
+        'inputTokens',
+        'model',
+        'outputTokens',
+        'pid',
+        'acceptedCostUsd',
+        'acceptedEstimated',
+        'acceptedPricingEstimated',
+      ].sort(),
     );
     expect(JSON.stringify(out)).not.toContain(SECRET);
   });

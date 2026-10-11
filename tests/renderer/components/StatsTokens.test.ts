@@ -7,6 +7,42 @@ import { language } from '../../../frontend/observatory/runtime/i18n';
 
 afterEach(() => language.set('en'));
 
+it('shows prior-run usage without inventing a process identity or exited-record count', async () => {
+  const telemetry: Telemetry = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    tokens: [
+      {
+        pid: null,
+        instanceId: null,
+        archived: true,
+        historical: true,
+        source: 'claude-code',
+        inputTokens: 60,
+        outputTokens: 40,
+        totalTokens: 100,
+        costUsd: 0.25,
+        models: [],
+        modelsTruncated: true,
+      },
+    ],
+  };
+  render(StatsTokens, { telemetry, inspect: vi.fn() });
+  expect(screen.getByText('No current agents with token attribution.')).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: /Source samples/ }));
+  const baseline = screen
+    .getByRole('heading', { name: /Prior runs · Claude Code/ })
+    .closest('article');
+  expect(baseline).toHaveTextContent('Retained usage · process identity unavailable');
+  expect(baseline).toHaveTextContent('100');
+  expect(baseline).not.toHaveTextContent(/PID|Sample|exited|compacted records|undefined/);
+  language.set('pt');
+  await tick();
+  expect(baseline).toHaveTextContent('Execuções anteriores · Claude Code');
+  expect(baseline).toHaveTextContent('Uso retido · identidade do processo indisponível');
+});
+
 it('shows paused accounting with retained incomplete totals and removes the warning on recovery', async () => {
   const telemetry: Telemetry = {
     ...emptyTelemetry(),

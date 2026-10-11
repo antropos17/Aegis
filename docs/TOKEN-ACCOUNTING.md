@@ -48,7 +48,9 @@ of retained rows and this archive preserve all recorded input/output tokens and
 estimated costs for the current application run, including sticky count/pricing
 uncertainty. The archive is not attributed to current agents or included in their
 rates. Individual archived process counters are no longer available through
-per-instance lookup. Application restart still resets this in-memory accounting.
+per-instance lookup. Current-run process records remain in memory; accepted
+Claude usage from prior runs is restored as a separate historical aggregate
+without process ownership.
 
 Each record retains at most 32 model labels, each at most 256 characters. Omitted
 labels are explicitly flagged; all numeric usage and pricing still accumulate.
@@ -57,18 +59,21 @@ during provider failures, missing birth-time witnesses, suspend gaps or a stoppe
 scan generation. Its bound scales with the live population plus recent history;
 active processes are not dropped to enforce a fixed fleet-size cap.
 
-The Claude Code adapter keeps its run-scoped cursors and exact message-ID index in
-`token-dedup-run.sqlite` under the application profile. The file is limited to
+The Claude Code adapter keeps its durable cursors and exact message-ID index in
+`token-accounting.sqlite` under the application profile. The file is limited to
 128 MiB; SQLite uses a 2 MiB page-cache target with memory mapping disabled. This
 cache target is not a bound on total application memory. Only SHA-256 digests of
-session/message IDs and subagent paths, byte offsets and oversized-record flags
+session/message IDs and subagent paths, byte offsets, oversized-record flags,
+numeric accepted token/cost totals and sticky pricing/count uncertainty flags
 are stored. Transcript content, raw identifiers, paths and models are excluded.
 No JavaScript collection retains every departed session or previously seen ID.
 Resumed and rewritten transcripts still share the original main/subagent dedup
-index for the current run, so dropping an old process does not recount its usage.
+index across application restarts, so dropping an old process does not recount its usage.
 
 Deltas for each process are returned only after its shared main/subagent IDs and
-cursors commit together. A failed process rolls back without undoing earlier
+cursors and numeric aggregate commit together. The accepted USD amount uses the
+local pricing table at acceptance and is retained without repricing on recovery.
+A failed process rolls back without undoing earlier
 successful processes; later processes in the same scan may still commit if they
 fit. After a capacity failure, the adapter may retry that process from its last
 committed cursors with a smaller bounded read. Failed reads count against the
@@ -83,8 +88,26 @@ Retained measured totals are marked incomplete, and the token arrival rate for
 scopes containing Claude Code is unavailable during the pause rather than shown
 as zero or estimated.
 
-Normal exit closes and removes the index. Startup resets a leftover marked cache
-from a previous run, while refusing foreign files and links. Cost accounting
-still resets on application restart. Long-duration packaged qualification and
-sustained-capacity policy remain tracked in
+Normal exit closes and preserves the database. SQLite uses a disk rollback journal
+(`DELETE`) and `synchronous=FULL`; the database remains capped at 128 MiB, with an
+additional rollback journal bounded by touched database pages (up to approximately
+another database-sized file plus journal headers). Journal writes are synchronous;
+this change does not establish a power-loss guarantee or a packaged performance result.
+Startup refuses unknown or incompatible database formats and unsafe sidecars.
+Every preexisting SQLite sidecar is preserved and pauses collection pending
+manual recovery, because
+SQLite headers alone cannot establish journal ownership. Restart after committed
+transactions or normal close is automatic; a crash during an uncommitted transaction
+may leave a journal and require manual recovery. It restores the pre-run accepted
+aggregate once, even when no monitored process is live, as an explicit historical
+row with null PID and instance ID. Newly accepted deltas retain current-run process
+attribution and never inherit prior-run counters. Model labels are not persisted;
+the historical row reports their omission. The previous run-scoped cache is not imported,
+since it had no accepted aggregate. No transcript history sweep is added.
+
+Focused child-process termination tests exercise automatic committed recovery and
+fail-closed preservation of an interrupted uncommitted journal. A disposable
+fixture manual-recovery step verifies its uncommitted IDs, cursor and aggregate
+remain unaccepted. Long-duration packaged qualification, power-loss behavior,
+durable-schema migration and sustained-capacity policy remain tracked in
 [#637](https://github.com/antropos17/Aegis/issues/637).

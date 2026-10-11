@@ -79,6 +79,22 @@ async function readUsageByPid(procs) {
   return out;
 }
 
+/** Read adapter startup baselines before live collection, even with no live agents.
+ * @returns {Array} Historical numeric aggregates. @since 0.19.2
+ */
+function getHistoricalUsage() {
+  return adapters.flatMap((adapter) => {
+    if (!KNOWN_ADAPTER_IDS.has(adapter.id) || typeof adapter.getHistoricalUsage !== 'function')
+      return [];
+    try {
+      const usage = adapter.getHistoricalUsage();
+      return usage ? [{ ...usage, adapter: adapter.id }] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 /** Report bounded, allowlisted collection health independently of usage deltas.
  * @returns {Array<{adapter: string, state: string, reason: string|null, retryAt: number|null}>} @since 0.19.2
  */
@@ -117,4 +133,10 @@ function _resetForTest() {
   for (const a of DEFAULT_ADAPTERS) if (typeof a._resetForTest === 'function') a._resetForTest();
 }
 
-module.exports = { readUsageByPid, getCollectionStatus, _setAdaptersForTest, _resetForTest };
+module.exports = {
+  getHistoricalUsage,
+  readUsageByPid,
+  getCollectionStatus,
+  _setAdaptersForTest,
+  _resetForTest,
+};

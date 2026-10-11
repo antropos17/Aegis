@@ -31,6 +31,7 @@ const logger = require('../logger');
 const { readSubagentUsage, readTranscriptBatch } = require('./claude-code-subagents');
 const { readRegistry } = require('../claude-registry');
 const { createLedger } = require('../token-dedup-ledger');
+const { computeCost } = require('../token-pricing');
 
 /**
  * @typedef {Object} Proc
@@ -49,6 +50,9 @@ const { createLedger } = require('../token-dedup-ledger');
  * @property {number} outputTokens - output_tokens.
  * @property {{uncached:number, read:number, write5m:number, write1h:number, writeUnknown:number}} [inputBreakdown] - numeric cache categories only.
  * @property {boolean} estimated - always `false`: measured, not guessed.
+ * @property {number} [acceptedCostUsd] - price committed atomically with accepted usage.
+ * @property {boolean} [acceptedEstimated] - sticky count/model-price uncertainty.
+ * @property {boolean} [acceptedPricingEstimated] - cache-price uncertainty at acceptance.
  */
 
 /** @type {string} stable adapter id used by the core registry. */
@@ -74,14 +78,15 @@ const GUARD_TOLERANCE_MS = 60_000;
  * @property {Function} [storageFailed] - Whether an index failure poisoned this batch.
  */
 
-/** Run-scoped index, opened lazily after a valid process registry is observed. */
+/** Durable index, opened for historical recovery independently of live processes. */
 let ledger = null;
 const productionLedger = () =>
   createLedger({
-    file: path.join(require('electron').app.getPath('userData'), 'token-dedup-run.sqlite'),
+    file: path.join(require('electron').app.getPath('userData'), 'token-accounting.sqlite'),
   });
 let ledgerFactory = productionLedger;
 let indexWarning = false;
+let historicalUsage = null;
 const STORAGE_RETRY_MS = 30_000;
 let storagePause = null;
 let now = () => Date.now();
@@ -263,21 +268,53 @@ function _readOneProc(proc, budget) {
   if (typeof sessionId !== 'string' || typeof cwd !== 'string') return [];
 
   const projDir = path.join(_homedir(), '.claude', 'projects', _encodeCwd(cwd));
-  if (!ledger) {
-    try {
-      ledger = ledgerFactory();
-    } catch {
-      throw Object.assign(Error('dedup-index-unavailable'), { dedupIndex: true });
-    }
-  }
+  ensureLedger();
   return ledger.withSession(sessionId, (st) => {
     const deltas = _tailMain(path.join(projDir, `${sessionId}.jsonl`), st, pid, budget);
     const sessionDir = path.join(projDir, sessionId);
     for (const d of readSubagentUsage(sessionDir, st, _extractUsage, _fs, _log, budget)) {
       deltas.push({ pid, ...d }); // C-01: subagent tokens → MAIN session pid
     }
+    for (const d of deltas) {
+      const price = computeCost(d.model, d.inputTokens, d.outputTokens, d.inputBreakdown);
+      d.acceptedCostUsd = price.costUsd;
+      d.acceptedEstimated = d.estimated === true || !price.knownModel;
+      d.acceptedPricingEstimated = price.cachePricingEstimated === true;
+    }
+    ledger.accumulate(deltas);
     return deltas;
   });
+}
+
+/** Open once and freeze the pre-run historical aggregate before accepting new rows.
+ * @returns {void} @since 0.19.2
+ */
+function ensureLedger() {
+  if (ledger) return;
+  try {
+    ledger = ledgerFactory();
+    historicalUsage = ledger.getAggregate();
+    storagePause = null;
+    indexWarning = false;
+  } catch {
+    ledger?.close();
+    ledger = null;
+    throw Object.assign(Error('dedup-index-unavailable'), { dedupIndex: true });
+  }
+}
+
+/** Read the startup baseline; never attributes previous runs to a live PID.
+ * @returns {Object|null} @since 0.19.2
+ */
+function getHistoricalUsage() {
+  if (storagePause && now() < storagePause.retryAt) return null;
+  try {
+    ensureLedger();
+    return { ...historicalUsage };
+  } catch {
+    storagePause = { reason: 'unavailable', retryAt: now() + STORAGE_RETRY_MS };
+    return null;
+  }
 }
 
 /**
@@ -377,6 +414,7 @@ function _setNowForTest(clock) {
 function _setLedgerFactoryForTest(factory) {
   ledger?.close();
   ledger = null;
+  historicalUsage = null;
   ledgerFactory = factory;
 }
 
@@ -412,6 +450,7 @@ module.exports = {
   GUARD_TOLERANCE_MS,
   readUsage,
   getCollectionStatus,
+  getHistoricalUsage,
   _encodeCwd,
   _extractUsage,
   _passesGuard,
