@@ -108,6 +108,8 @@
   "Agent profile": "Perfil do agente",
   "Agent radar": "Radar de agentes",
   "Agent risk": "Risco do agente",
+  "{value0} ↔ {value1}: {value2} shared recorded files": "{value0} ↔ {value1}: {value2} arquivos registrados em comum",
+  "Lines show shared recorded file observations. They do not establish agent communication.": "As linhas mostram observações registradas de arquivos em comum. Elas não comprovam comunicação entre agentes.",
   "Agent risk radar": "Radar de risco dos agentes",
   "Agent risk radar, outer rings indicate higher risk": "Radar de risco dos agentes; anéis externos indicam maior risco",
   "Agent sections": "Seções do agente",
