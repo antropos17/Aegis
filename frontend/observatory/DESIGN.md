@@ -909,3 +909,14 @@ targets. Snapshot cues, controls and the roster stay outside moving content.
 Zoom survives scans, pause/stale states and population contractions while mounted;
 reset returns to 100%. Wheel input remains native scrolling. Zoom has no animation
 or saved preference.
+
+Radar markers show a small static tooltip on pointer hover and keyboard focus,
+using the existing localized product/process/risk wording and current snapshot.
+Hover temporarily takes precedence over keyboard focus; pointer exit restores
+the focused marker's tooltip. Blur removes its focus activation. Escape dismisses
+both until a fresh hover/focus activation; layer/page changes and marker removal
+discard obsolete activations.
+The tooltip stays beside its 44px target and wraps long names; it adds no motion
+and preserves risk coordinates, selection, host cues and shared-file lines.
+All marker hit targets stay above the hoverable tooltip so wrapped text cannot
+intercept another marker's pointer interaction.
