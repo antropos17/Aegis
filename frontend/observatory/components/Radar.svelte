@@ -8,6 +8,7 @@
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import RadarSummary from './RadarSummary.svelte';
+  import RadarMarkerTooltip from './RadarMarkerTooltip.svelte';
   import RadarInspector from './RadarInspector.svelte';
   import RadarResourceExplorer from './RadarResourceExplorer.svelte';
   import { leadingRiskReason } from '../runtime/risk-context';
@@ -43,15 +44,31 @@
   let visited = $state<string[]>([]);
   let resourceAgent = $state('');
   let focusedGroup = $state('');
+  const tooltipPrefix = $props.id();
+  let hoveredTooltipGroup = $state<string | null>(null);
+  let focusedTooltipGroup = $state<string | null>(null);
+  let tooltipDismissed = $state(false);
+  let tooltipGroup = $derived(
+    tooltipDismissed ? null : (hoveredTooltipGroup ?? focusedTooltipGroup),
+  );
   let pages = $derived(Math.max(1, Math.ceil(groups.length / 4)));
   $effect(() => {
     // Commit population contractions so later growth cannot restore an obsolete page.
-    if (page >= pages) page = pages - 1;
+    if (page >= pages) {
+      resetTooltips();
+      page = pages - 1;
+    }
   });
   let plotted = $derived(
     groups.slice(Math.min(page, pages - 1) * 4, Math.min(page, pages - 1) * 4 + 4),
   );
   let chosen = $derived(agents.find((a) => !!selected && a.instanceId === selected));
+  $effect(() => {
+    if (hoveredTooltipGroup && !plotted.some((group) => group.key === hoveredTooltipGroup))
+      hoveredTooltipGroup = null;
+    if (focusedTooltipGroup && !plotted.some((group) => group.key === focusedTooltipGroup))
+      focusedTooltipGroup = null;
+  });
   let connections = $derived(radarConnections(telemetry, plotted));
   let hostClusters = $derived(radarHostClusters(telemetry, plotted));
   let connectionLabel = $derived(
@@ -70,17 +87,25 @@
       groups.find((g) => g.members.some((a) => !!selected && a.instanceId === selected)),
   );
   function chooseLayer(next: string) {
+    resetTooltips();
     if (layer === 'radar' && next !== 'radar') resourceAgent = chosenGroup?.name ?? '';
     layer = next;
     if (!visited.includes(next)) visited = [...visited, next];
   }
   function clearSelection() {
+    tooltipDismissed = true;
     selected = null;
     focusedGroup = '';
   }
   function changePage(offset: number) {
+    resetTooltips();
     page = Math.max(0, Math.min(pages - 1, Math.min(page, pages - 1) + offset));
     clearSelection();
+  }
+  function resetTooltips() {
+    hoveredTooltipGroup = null;
+    focusedTooltipGroup = null;
+    tooltipDismissed = true;
   }
   function select(g: RadarGroup) {
     focusedGroup = g.key;
@@ -100,6 +125,12 @@
     };
   }
 </script>
+
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key === 'Escape') tooltipDismissed = true;
+  }}
+/>
 
 <div class="overview-grid radar-clarity" class:agent-launcher={!!openAgent}>
   <section class="panel radar-panel">
@@ -198,6 +229,7 @@
                       {/each}
                     </svg>{/if}
                   {#each plotted as group, i (group.key)}{@const point = position(group, i)}
+                    {@const tooltipId = `${tooltipPrefix}-marker-${i}`}
                     {@const observedHost = hostClusters.find((host) =>
                       host.products.includes(group.key),
                     )}
@@ -222,23 +254,27 @@
                               'Observed ancestry does not establish communication or an authenticated host.',
                             )
                           : '')}
-                      title={$t('{value0} · {value1} processes · risk {value2}/100', {
-                        value0: group.name,
-                        value1: group.members.length,
-                        value2: group.risk,
-                      }) +
-                        (observedHost
-                          ? '; ' +
-                            $t('Observed under {value0} · PID {value1}', {
-                              value0: observedHost.label,
-                              value1: observedHost.pid,
-                            }) +
-                            '. ' +
-                            $t(
-                              'Observed ancestry does not establish communication or an authenticated host.',
-                            )
-                          : '')}
                       aria-pressed={group === chosenGroup}
+                      aria-describedby={tooltipGroup === group.key ? tooltipId : undefined}
+                      onmouseenter={() => {
+                        hoveredTooltipGroup = group.key;
+                        tooltipDismissed = false;
+                      }}
+                      onmouseleave={(event) => {
+                        if (
+                          event.relatedTarget instanceof Element &&
+                          event.relatedTarget.closest('[role="tooltip"]')?.id === tooltipId
+                        )
+                          return;
+                        if (hoveredTooltipGroup === group.key) hoveredTooltipGroup = null;
+                      }}
+                      onfocus={() => {
+                        focusedTooltipGroup = group.key;
+                        tooltipDismissed = false;
+                      }}
+                      onblur={() => {
+                        if (focusedTooltipGroup === group.key) focusedTooltipGroup = null;
+                      }}
                       onclick={() => select(group)}
                       onkeydown={(e) => {
                         if (e.key === 'Escape') clearSelection();
@@ -250,7 +286,30 @@
                       <span class="marker-number" aria-hidden="true"
                         >{Math.min(page, pages - 1) * 4 + i + 1}</span
                       >
-                    </button>{/each}
+                    </button>
+                    {#if tooltipGroup === group.key}
+                      <RadarMarkerTooltip
+                        id={tooltipId}
+                        {group}
+                        x={point.x}
+                        y={point.y}
+                        onenter={() => {
+                          hoveredTooltipGroup = group.key;
+                          tooltipDismissed = false;
+                        }}
+                        onexit={(event) => {
+                          if (
+                            event.relatedTarget instanceof Element &&
+                            event.relatedTarget
+                              .closest('.radar-blip')
+                              ?.getAttribute('data-group') === group.key
+                          )
+                            return;
+                          if (hoveredTooltipGroup === group.key) hoveredTooltipGroup = null;
+                        }}
+                      />
+                    {/if}
+                  {/each}
                 </div>
               </div>
             </div>
