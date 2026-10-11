@@ -238,17 +238,27 @@ function normalizeIp(ip) {
   let s = String(ip).trim().toLowerCase();
   const zone = s.indexOf('%');
   if (zone !== -1) s = s.slice(0, zone);
-  if (s.startsWith('::ffff:') && s.includes('.')) s = s.slice(7);
-  if (!s.includes(':')) return s;
+  if (isIP(s) !== 6) return s;
+  // A valid dotted IPv6 tail occupies two 16-bit groups before :: expansion.
+  if (s.includes('.')) {
+    const lastColon = s.lastIndexOf(':');
+    const octets = s
+      .slice(lastColon + 1)
+      .split('.')
+      .map(Number);
+    s = `${s.slice(0, lastColon + 1)}${((octets[0] << 8) | octets[1]).toString(16)}:${((octets[2] << 8) | octets[3]).toString(16)}`;
+  }
   const [head, tail] = s.split('::');
   const h = head ? head.split(':') : [];
   const t = tail ? tail.split(':') : [];
-  const parts =
-    tail === undefined
-      ? h
-      : [...h, ...new Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
-  if (parts.length !== 8) return s;
-  return parts.map((p) => p.replace(/^0+(?=.)/, '')).join(':');
+  const parts = (
+    tail === undefined ? h : [...h, ...new Array(8 - h.length - t.length).fill('0'), ...t]
+  ).map((p) => parseInt(p, 16));
+  // Only ::ffff:0:0/96 inherits IPv4 identity; compatible and NAT64 stay IPv6.
+  if (parts.slice(0, 5).every((part) => part === 0) && parts[5] === 0xffff) {
+    return [parts[6] >>> 8, parts[6] & 255, parts[7] >>> 8, parts[7] & 255].join('.');
+  }
+  return parts.map((part) => part.toString(16)).join(':');
 }
 
 /**
@@ -260,6 +270,7 @@ function normalizeIp(ip) {
  */
 function ipToBytes(ip) {
   const s = normalizeIp(ip);
+  if (!isIP(s)) return null;
   if (!s.includes(':')) {
     const n = ipv4ToInt(s);
     return n === null ? null : [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
