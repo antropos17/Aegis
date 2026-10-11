@@ -92,7 +92,7 @@
                   <dd>{$t('Image metadata')}</dd>
                 </div>
               </dl>
-              {#if row.runtime === 'docker' && row.configuration}
+              {#if row.configuration}
                 {@const configuration = row.configuration}
                 <div class="configuration-context">
                   <h4>{$t('Observed configuration')}</h4>

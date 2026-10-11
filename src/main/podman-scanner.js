@@ -5,6 +5,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { MAX_OUTPUT_BYTES, parseContainerOutput } = require('./container-metadata');
 
+const {
+  MAX_CONFIGURATION_CANDIDATES,
+  CONFIGURATION_TIMEOUT_MS,
+  CONFIGURATION_OUTPUT_BYTES,
+  PODMAN_CONFIGURATION_FORMAT,
+  parseConfiguration,
+} = require('./container-configuration');
+
 const CADENCE_MS = 30000;
 const FRESH_MS = 90000;
 const CONFIG_NAME = 'podman-local.conf';
@@ -65,6 +73,22 @@ function resolvePodmanConfigPath(runtime = process, sourceDirectory = __dirname)
   }
 }
 
+/** Revalidate native-local selectors and the final overlay before every spawn.
+ * @returns {object|null} Scrubbed child environment or null to refuse the query.
+ * @since 0.19.2-beta
+ */
+function localEnvironment() {
+  if (Object.entries(process.env).some(([key, value]) => REMOTE_ENV.test(key) && value))
+    return null;
+  const configPath = resolvePodmanConfigPath();
+  if (!configPath) return null;
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !SCRUB_ENV.test(key)),
+  );
+  env.CONTAINERS_CONF_OVERRIDE = configPath;
+  return env;
+}
+
 /** Discard transport error text.
  * @param {unknown} error CLI failure.
  * @returns {string} Fixed public reason.
@@ -106,15 +130,20 @@ function createPodmanDiscovery(options = {}) {
     return {
       ...state,
       stale: stopped || state.status !== 'ready' || age === null || age < 0 || age >= FRESH_MS,
-      candidates: state.candidates.map((candidate) => ({ ...candidate })),
+      candidates: state.candidates.map((candidate) => ({
+        ...candidate,
+        ...(candidate.configuration ? { configuration: { ...candidate.configuration } } : {}),
+      })),
     };
   }
 
   /** Fixed metadata-only query.
    * @param {object} env Sanitized child environment with the verified final overlay.
+   * @param {string|null} id Validated fresh candidate ID or null for discovery.
+   * @param {number} timeout Remaining bounded request budget.
    * @returns {Promise<object>} A result without CLI error or stderr content.
    */
-  function query(env) {
+  function query(env, id = null, timeout = 3000) {
     return new Promise((resolve) => {
       let settled = false;
       let deadline = null;
@@ -137,15 +166,24 @@ function createPodmanDiscovery(options = {}) {
         } catch {
           /* The deadline settles even if child termination fails. */
         }
-      }, 3000);
+      }, timeout);
       try {
         const child = execFile(
           '/usr/bin/podman',
-          [...ARGS],
+          id
+            ? [
+                ...ARGS.slice(0, 3),
+                'container',
+                'inspect',
+                '--format',
+                PODMAN_CONFIGURATION_FORMAT,
+                id,
+              ]
+            : [...ARGS],
           {
-            timeout: 3000,
+            timeout,
             killSignal: 'SIGKILL',
-            maxBuffer: MAX_OUTPUT_BYTES,
+            maxBuffer: id ? CONFIGURATION_OUTPUT_BYTES : MAX_OUTPUT_BYTES,
             windowsHide: true,
             shell: false,
             encoding: 'utf8',
@@ -154,6 +192,7 @@ function createPodmanDiscovery(options = {}) {
           (error, stdout) => {
             if (settled) return;
             if (error) return finish({ reason: failureReason(error) });
+            if (id) return finish({ configuration: parseConfiguration(stdout, id, now()) });
             const candidates = parseContainerOutput(stdout, 'podman');
             finish(candidates === null ? { reason: 'invalid-output' } : { candidates });
           },
@@ -186,25 +225,36 @@ function createPodmanDiscovery(options = {}) {
         if (stopped) return snapshot();
         let outcome;
         if (platform !== 'linux') outcome = { reason: 'unsupported-platform' };
-        else if (Object.entries(process.env).some(([key, value]) => REMOTE_ENV.test(key) && value))
-          outcome = { reason: 'remote-config' };
         else {
-          const configPath = resolvePodmanConfigPath();
-          if (!configPath) outcome = { reason: 'remote-config' };
-          else {
-            const env = Object.fromEntries(
-              Object.entries(process.env).filter(([key]) => !SCRUB_ENV.test(key)),
-            );
-            env.CONTAINERS_CONF_OVERRIDE = configPath;
-            outcome = await query(env);
+          const environment = localEnvironment();
+          outcome = environment ? await query(environment) : { reason: 'remote-config' };
+        }
+        const discoveryObservedAt = outcome.candidates ? now() : null;
+        if (!stopped && outcome.candidates?.length) {
+          // Bound the entire serial inspection batch, independently of the discovery request.
+          const deadline = performance.now() + CONFIGURATION_TIMEOUT_MS;
+          for (const [index, candidate] of outcome.candidates.entries()) {
+            candidate.configuration = { status: 'unavailable', observedAt: null };
+            const remaining = Math.floor(deadline - performance.now());
+            if (stopped || index >= MAX_CONFIGURATION_CANDIDATES || remaining <= 0) continue;
+            // Reverify the overlay and selectors for every invocation; fail closed if they changed.
+            const environment = localEnvironment();
+            if (!environment) break;
+            const queryBudget = Math.floor(deadline - performance.now());
+            if (queryBudget <= 0) break;
+            const inspection = await query(environment, candidate.containerId, queryBudget);
+            if (inspection.configuration) candidate.configuration = inspection.configuration;
+            if (inspection.cancelled || inspection.reason === 'timeout') break;
           }
+          for (const candidate of outcome.candidates)
+            candidate.configuration ||= { status: 'unavailable', observedAt: null };
         }
         if (!stopped) {
           state = outcome.candidates
             ? {
                 status: 'ready',
                 reason: null,
-                observedAt: now(),
+                observedAt: discoveryObservedAt,
                 attemptedAt,
                 candidates: outcome.candidates,
               }

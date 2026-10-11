@@ -193,28 +193,31 @@ it.each(runtimes)(
   },
 );
 
-it('preserves boolean false and exposes only allowlisted Docker configuration facts', () => {
-  const configuration = {
-    status: 'observed' as const,
-    observedAt: now,
-    running: false,
-    privileged: false,
-    readOnlyRootFilesystem: true,
-    networkMode: 'none' as const,
-    pidMode: 'private' as const,
-  };
-  const result = containerDiscovery(
-    { ...ready('docker'), candidates: [{ ...candidate('docker'), configuration }] },
-    'docker',
-    now,
-  );
-  expect(result).toMatchObject({ status: 'ready', candidates: [{ configuration }] });
-  expect(configurationStale(configuration, false, now)).toBe(false);
-  expect(configurationStale(configuration, false, now + CONTAINER_DISCOVERY_FRESHNESS_MS)).toBe(
-    true,
-  );
-  expect(configurationStale(configuration, true, now)).toBe(true);
-});
+it.each(runtimes)(
+  'preserves boolean false and exposes only allowlisted %s configuration facts',
+  (runtime) => {
+    const configuration = {
+      status: 'observed' as const,
+      observedAt: now,
+      running: false,
+      privileged: false,
+      readOnlyRootFilesystem: true,
+      networkMode: 'none' as const,
+      pidMode: 'private' as const,
+    };
+    const result = containerDiscovery(
+      { ...ready(runtime), candidates: [{ ...candidate(runtime), configuration }] },
+      runtime,
+      now,
+    );
+    expect(result).toMatchObject({ status: 'ready', candidates: [{ configuration }] });
+    expect(configurationStale(configuration, false, now)).toBe(false);
+    expect(configurationStale(configuration, false, now + CONTAINER_DISCOVERY_FRESHNESS_MS)).toBe(
+      true,
+    );
+    expect(configurationStale(configuration, true, now)).toBe(true);
+  },
+);
 
 it.each([
   null,
@@ -241,19 +244,49 @@ it.each([
   },
 );
 
-it('does not accept Docker configuration in Podman metadata', () => {
+it('normalizes Podman optional configuration independently from discovery freshness', () => {
   const result = containerDiscovery(
     {
       ...ready('podman'),
       candidates: [
         {
           ...candidate('podman'),
-          configuration: { status: 'observed', observedAt: now, running: true },
+          configuration: {
+            status: 'observed',
+            observedAt: now - CONTAINER_DISCOVERY_FRESHNESS_MS,
+            running: false,
+          },
         },
       ],
     },
     'podman',
     now,
   );
-  expect(result).toMatchObject({ status: 'unavailable', reason: 'invalid-output', candidates: [] });
+  expect(result).toMatchObject({
+    status: 'ready',
+    stale: false,
+    candidates: [{ configuration: { running: false } }],
+  });
+  expect(configurationStale(result.candidates[0].configuration!, false, now)).toBe(true);
+});
+
+it('drops expanded Podman configuration while retaining the candidate', () => {
+  const result = containerDiscovery(
+    {
+      ...ready('podman'),
+      candidates: [
+        {
+          ...candidate('podman'),
+          configuration: { status: 'observed', observedAt: now, running: true, env: ['SECRET'] },
+        },
+      ],
+    },
+    'podman',
+    now,
+  );
+  expect(result).toMatchObject({
+    status: 'ready',
+    candidates: [{ configuration: { status: 'unavailable', observedAt: null } }],
+  });
+  expect(JSON.stringify(result)).not.toContain('SECRET');
 });
