@@ -266,3 +266,99 @@ it.each(['docker', 'podman'] as const)(
     expect(within(region).queryByText('Privileged')).toBeNull();
   },
 );
+it.each(['docker', 'podman'] as const)(
+  'keeps %s explanations local and changes them to historical copy when only inspect expires',
+  async (runtime) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const configured = snapshot(runtime);
+    const facts = {
+      status: 'observed',
+      observedAt: Date.now() - 89_000,
+      networkMode: 'host',
+      pidMode: 'host',
+      privileged: true,
+    };
+    const candidate = { ...configured.candidates[0], configuration: facts };
+    const otherId = 'b'.repeat(64);
+    configured.candidates = [
+      candidate,
+      {
+        ...configured.candidates[0],
+        id: `${runtime}:${otherId}`,
+        containerId: otherId,
+      },
+    ] as typeof configured.candidates;
+    const view = render(ContainerCandidates, {
+      dockerSnapshot: runtime === 'docker' ? configured : snapshot('docker'),
+      podmanSnapshot: runtime === 'podman' ? configured : snapshot('podman'),
+    });
+    const region = screen.getByRole('region', {
+      name: `${runtime === 'docker' ? 'Docker' : 'Podman'} container candidates`,
+    });
+    const rows = within(region).getAllByRole('listitem');
+    expect(within(rows[0]).getByText(/^Host network mode is configured/)).toBeVisible();
+    expect(within(rows[0]).getByText(/^Host PID mode is configured/)).toBeVisible();
+    expect(within(rows[0]).getByText(/^Privileged mode is configured/)).toBeVisible();
+    expect(within(rows[1]).queryByText(/is configured/)).toBeNull();
+    expect(rows[0].querySelectorAll('time')).toHaveLength(1);
+    expect(within(rows[0]).queryByRole('button')).toBeNull();
+    await vi.advanceTimersByTimeAsync(1000);
+    await tick();
+    expect(within(rows[0]).queryByText(/is configured/)).toBeNull();
+    expect(within(rows[0]).getAllByText(/^At the last observation,/)).toHaveLength(3);
+    expect(within(region).getByRole('status')).toHaveTextContent('metadata observed');
+    language.set('pt');
+    await tick();
+    expect(within(rows[0]).getAllByText(/^Na última observação,/)).toHaveLength(3);
+    language.set('en');
+    await tick();
+    await view.rerender({
+      dockerSnapshot:
+        runtime === 'docker'
+          ? {
+              ...configured,
+              stale: true,
+              candidates: [{ ...candidate, configuration: { ...facts, observedAt: Date.now() } }],
+            }
+          : snapshot('docker'),
+      podmanSnapshot:
+        runtime === 'podman'
+          ? {
+              ...configured,
+              stale: true,
+              candidates: [{ ...candidate, configuration: { ...facts, observedAt: Date.now() } }],
+            }
+          : snapshot('podman'),
+    });
+    expect(within(region).getAllByText(/^At the last observation,/)).toHaveLength(3);
+    expect(within(region).queryByText(/is configured/)).toBeNull();
+  },
+);
+
+it.each([
+  undefined,
+  {
+    status: 'unavailable',
+    observedAt: null,
+    networkMode: 'host',
+    pidMode: 'host',
+    privileged: true,
+  },
+  { status: 'observed', observedAt: null, networkMode: 'host', privileged: true },
+  {
+    status: 'observed',
+    observedAt: Date.now(),
+    networkMode: 'bridge',
+    pidMode: 'private',
+    privileged: false,
+  },
+  { status: 'observed', observedAt: Date.now(), networkMode: 'other', pidMode: 'container' },
+])('does not explain absent, unavailable, invalid or non-host settings: %j', (configuration) => {
+  const docker = snapshot('docker');
+  render(ContainerCandidates, {
+    dockerSnapshot: { ...docker, candidates: [{ ...docker.candidates[0], configuration }] },
+    podmanSnapshot: snapshot('podman'),
+  });
+  expect(screen.queryByText(/is configured|was configured/)).toBeNull();
+});

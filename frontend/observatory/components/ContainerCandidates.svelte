@@ -99,6 +99,11 @@
                   {#if configuration.status === 'unavailable'}
                     <p class="muted">{$t('Configuration unavailable')}</p>
                   {:else}
+                    {@const stale = configurationStale(
+                      configuration,
+                      discovery.stale,
+                      Math.max(now, Date.now()),
+                    )}
                     <p class="muted">
                       {$t('Last observed:')}
                       {#if configuration.observedAt !== null}<time
@@ -106,7 +111,7 @@
                           >{new Date(configuration.observedAt).toLocaleString()}</time
                         >{/if}
                     </p>
-                    {#if configurationStale(configuration, discovery.stale, Math.max(now, Date.now()))}
+                    {#if stale}
                       <p class="muted">
                         {$t('Configuration is stale; current settings are unconfirmed.')}
                       </p>
@@ -119,6 +124,11 @@
                           </div>{/if}
                       {/each}
                     </dl>
+                    {#each [[configuration.networkMode === 'host', 'Host network mode is configured to share the container runtime host’s network namespace.', 'At the last observation, host network mode was configured to share the container runtime host’s network namespace.'], [configuration.pidMode === 'host', 'Host PID mode is configured to share the container runtime host’s process namespace.', 'At the last observation, host PID mode was configured to share the container runtime host’s process namespace.'], [configuration.privileged === true, 'Privileged mode is configured to request broader device access and permissions from the container runtime.', 'At the last observation, privileged mode was configured to request broader device access and permissions from the container runtime.']] as [observed, freshCopy, historicalCopy] (freshCopy)}
+                      {#if observed}
+                        <p class="muted">{$t(String(stale ? historicalCopy : freshCopy))}</p>
+                      {/if}
+                    {/each}
                   {/if}
                   <p class="muted">
                     {$t(
