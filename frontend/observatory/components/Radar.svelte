@@ -419,6 +419,11 @@
   .radar-zoom-controls button {
     min-height: 44px;
   }
+  .radar-zoom-controls button:disabled {
+    color: var(--muted);
+    background: var(--panel);
+    opacity: 1;
+  }
   .radar-zoom-controls output {
     font-variant-numeric: tabular-nums;
   }
