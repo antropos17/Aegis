@@ -1647,6 +1647,118 @@ describe('file-watcher rules hot-reload watchers', () => {
     expect(JSON.stringify(sendFn.mock.calls)).not.toContain('PRIVATE_RULE_NAME_CANARY');
   });
 
+  it.each(['add', 'unlink'])(
+    'a flat YAML %s refreshes counts without resetting sequences',
+    (event) => {
+      const { sendFn, reload, flat } = installBoth({ sequenceCount: () => 2 });
+      reloadRules.mockImplementation(() => {
+        if (event === 'add') flatRules.set('ADDED', {});
+        else flatRules.delete('FA001');
+      });
+
+      flat.emit(event, path.join(RULES_DIR, 'file-access.yml'));
+
+      expect(reloadRules).toHaveBeenCalledTimes(1);
+      expect(reload).not.toHaveBeenCalled();
+      expect(sendFn).toHaveBeenCalledExactlyOnceWith('rules:reloaded', {
+        count: event === 'add' ? 4 : 2,
+        sequenceCount: 2,
+      });
+    },
+  );
+
+  it.each(['add', 'unlink'])('a sequence YAML %s installs the current detection rules', (event) => {
+    const engine = require_('../../src/main/sequence-engine.js');
+    const onDetection = vi.fn();
+    const rule = {
+      id: 'RELOAD_TEST',
+      title: 'Reload test',
+      level: 'high',
+      timespanMs: 60000,
+      steps: [
+        {
+          name: 'enter',
+          category: 'process',
+          matcher: (doc) => doc.event.action === 'agent-enter',
+        },
+        { name: 'exit', category: 'process', matcher: (doc) => doc.event.action === 'agent-exit' },
+      ],
+    };
+    const start = (rules) => engine.init({ rules, now: () => 1000, onDetection });
+    const detect = (instanceId) => {
+      const carrier = {
+        instanceId,
+        pid: 4242,
+        agent: 'Claude Code',
+        process: 'node.exe',
+        firstSeen: 1,
+      };
+      engine.ingest(carrier);
+      engine.ingest({ ...carrier, lastSeen: 2 });
+    };
+    try {
+      start([rule]);
+      detect('4242:1');
+      expect(onDetection).toHaveBeenCalledTimes(1);
+      onDetection.mockClear();
+      start(event === 'add' ? [] : [rule]);
+      const { seq, reload, sendFn } = installBoth({
+        reload: () => {
+          const rules = event === 'add' ? [rule] : [];
+          engine.reset();
+          start(rules);
+          return rules.length;
+        },
+      });
+
+      seq.emit(event, path.join(SEQUENCES_DIR, 'reload-test.yaml'));
+      detect('4242:2');
+
+      expect(onDetection).toHaveBeenCalledTimes(event === 'add' ? 1 : 0);
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(reloadRules).not.toHaveBeenCalled();
+      expect(sendFn).toHaveBeenCalledExactlyOnceWith('rules:reloaded', {
+        count: 3,
+        sequenceCount: event === 'add' ? 1 : 0,
+      });
+    } finally {
+      engine.reset();
+      engine.init({ rules: [] });
+    }
+  });
+
+  it.each(['add', 'change', 'unlink'])(
+    'non-YAML %s events never reload either ruleset',
+    (event) => {
+      const { flat, seq, reload, sendFn } = installBoth();
+      for (const watcher of [flat, seq]) {
+        watcher.emit(event, path.join(watcher.paths, 'notes.txt'));
+        watcher.emit(event, path.join(watcher.paths, 'rule.yaml.bak'));
+      }
+      expect(reloadRules).not.toHaveBeenCalled();
+      expect(reload).not.toHaveBeenCalled();
+      expect(sendFn).not.toHaveBeenCalled();
+    },
+  );
+
+  it('an atomic-save unlink/add burst leaves both rulesets at their final counts', () => {
+    let sequenceFiles = 1;
+    const { flat, seq, reload, sendFn } = installBoth({ reload: () => sequenceFiles });
+    reloadRules
+      .mockImplementationOnce(() => flatRules.delete('FA001'))
+      .mockImplementationOnce(() => flatRules.set('FA001', {}));
+    flat.emit('unlink', path.join(RULES_DIR, 'file-access.yaml'));
+    flat.emit('add', path.join(RULES_DIR, 'file-access.yaml'));
+    sequenceFiles = 0;
+    seq.emit('unlink', path.join(SEQUENCES_DIR, 'sequences.yaml'));
+    sequenceFiles = 1;
+    seq.emit('add', path.join(SEQUENCES_DIR, 'sequences.yaml'));
+
+    expect(reloadRules).toHaveBeenCalledTimes(2);
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(sendFn).toHaveBeenLastCalledWith('rules:reloaded', { count: 3, sequenceCount: 1 });
+  });
+
   it('the flat push reads the sequence figure at the time of the change, not at setup', () => {
     let loaded = 1;
     const { sendFn, flat } = installBoth({ sequenceCount: () => loaded });
