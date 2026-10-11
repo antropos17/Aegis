@@ -49,7 +49,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     it('accepts only canonical bounded native failure frames across whole and split reads', () => {
       const parsed = spawnSync(fixture, ['--failure-frames'], {
         timeout: 5000,
-        maxBuffer: 16384,
+        maxBuffer: 32768,
         windowsHide: true,
       });
       expect(parsed.error).toBeUndefined();
@@ -58,10 +58,10 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       const native = JSON.parse(parsed.stdout.toString('utf8'));
       expect(native.frameBytes).toBe(104);
       expect(native.entryChecks).toBe(2);
-      expect(native.writerChecks).toBe(62);
+      expect(native.writerChecks).toBe(121);
       expect(native.writer).toEqual({ accepted: true, stage: 2, substage: 26 });
       expect(native.parsed).toEqual({ accepted: true, stage: 2, substage: 8 });
-      expect(native.rows).toHaveLength(78);
+      expect(native.rows).toHaveLength(137);
       for (const row of native.rows) {
         for (const boundary of ['whole', 'split']) {
           if (row.kind === 'invalid') expect(row[boundary].accepted).toBe(false);
@@ -85,7 +85,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(value.status).toBe(0);
       expect(value.stderr.length).toBe(0);
       expect(JSON.parse(value.stdout.toString('utf8')).rows).toEqual([
-        { mode: 'precheck', checkpoint: 1 },
+        { mode: 'precheck', checkpoint: 22 },
         { mode: 'connect-error', checkpoint: 2 },
         { mode: 'connect-timeout', checkpoint: 3 },
         { mode: 'framing', checkpoint: 4 },
@@ -94,6 +94,29 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         { mode: 'message-timeout', checkpoint: 7 },
       ]);
     }, 10000);
+
+    it('distinguishes reached early and poll prechecks with nested installed provenance', () => {
+      const value = spawnSync(fixture, ['--precheck-checkpoints'], {
+        timeout: 5000,
+        maxBuffer: 8192,
+        windowsHide: true,
+      });
+      expect(value.error).toBeUndefined();
+      expect(value.status).toBe(0);
+      expect(value.stderr.length).toBe(0);
+      expect(JSON.parse(value.stdout.toString('utf8')).rows).toEqual([
+        { mode: 'operation-entry', checkpoint: 9 },
+        { mode: 'operation-publication', checkpoint: 8 },
+        { mode: 'endpoint-inheritance', checkpoint: 14 },
+        { mode: 'installed-fence-entry', checkpoint: 114 },
+        { mode: 'installed-poll-entry', checkpoint: 214 },
+        { mode: 'endpoint-deadline', checkpoint: 19 },
+        { mode: 'endpoint-closed', checkpoint: 13 },
+        { mode: 'endpoint-peer', checkpoint: 15 },
+        { mode: 'poll-peer', checkpoint: 17 },
+        { mode: 'admission-peer', checkpoint: 21 },
+      ]);
+    }, 7000);
 
     it('distinguishes accounting refusal and preserves singleton admission with owned cleanup', () => {
       const value = spawnSync(fixture, ['--accounting-controls'], {
@@ -139,7 +162,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         . '${phase.replaceAll("'", "''")}'
         $rows = @()
         foreach ($stage in @(2, 5, 7, 8, 10)) {
-          foreach ($substage in @(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 26, 27, 35, 36, 44, 45, '26', $true)) {
+          foreach ($substage in @(-1) + @(0..255) + @('26', $true)) {
             $value = Get-InstalledOwnerAttemptObservation @{ supervisorStage = $stage; supervisorSubstage = $substage; arbitrary = 'excluded' } native
             $rows += @{ stage = $stage; input = $substage; included = $value.ContainsKey('supervisorSubstage'); value = $value['supervisorSubstage']; excluded = !$value.ContainsKey('arbitrary') }
           }
@@ -151,7 +174,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         ['-NoProfile', '-NonInteractive', '-Command', command],
         {
           timeout: 10000,
-          maxBuffer: 8192,
+          maxBuffer: 262144,
           windowsHide: true,
         },
       );
@@ -159,12 +182,18 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(value.status).toBe(0);
       expect(value.stderr.length).toBe(0);
       const rows = JSON.parse(value.stdout.toString('utf8'));
-      expect(rows).toHaveLength(100);
+      expect(rows).toHaveLength(1295);
       for (const row of rows) {
         const admitted =
           Number.isInteger(row.input) &&
           row.input >= 0 &&
-          ((row.stage === 2 && row.input <= 44) || (row.stage === 7 && row.input <= 7));
+          ((row.stage === 2 && row.input <= 44) ||
+            (row.stage === 7 &&
+              (row.input <= 22 ||
+                (row.input >= 114 && row.input <= 126) ||
+                (row.input >= 136 && row.input <= 144) ||
+                (row.input >= 214 && row.input <= 226) ||
+                (row.input >= 236 && row.input <= 244))));
         expect(row.included).toBe(admitted);
         expect(row.excluded).toBe(true);
         if (admitted) expect(row.value).toBe(row.input);

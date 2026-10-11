@@ -40,6 +40,58 @@ internal static class InstalledOwnerFixture
         return "{\"accepted\":" + (accepted ? "true" : "false") + ",\"stage\":" + stage + ",\"substage\":" + substage + "}";
     }
     private delegate void DiagnosticCheck(ref int substage);
+    private static void ExpectCheckpoint(List<string> rows, string mode, int expected, DiagnosticCheck check)
+    {
+        int checkpoint = 0; bool refused = false;
+        try { check(ref checkpoint); }
+        catch (InvalidOperationException) { refused = true; }
+        CallerNative.Require(refused && checkpoint == expected && !CallerNative.HasThreadToken());
+        byte[] frame = InstalledOwnerSession.FailureFrame(7, checkpoint); uint stage, substage;
+        CallerNative.Require(frame.Length == 104 && InstalledOwnerSession.TryReadFailureFrame(Encoding.ASCII.GetString(frame), out stage, out substage) && stage == 7 && substage == expected);
+        rows.Add("{\"mode\":\"" + mode + "\",\"checkpoint\":" + checkpoint + "}");
+    }
+    private static int PrecheckCheckpoints()
+    {
+        var rows = new List<string>();
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        Type operationType = typeof(CallerMainOperation);
+        var operation = (CallerMainOperation)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(operationType);
+        operationType.GetField("closed", flags).SetValue(operation, true);
+        var core = (DiagnosticCheck)Delegate.CreateDelegate(typeof(DiagnosticCheck), operation,
+            operationType.GetMethod("CheckCore", flags, null, new Type[] { typeof(int).MakeByRefType() }, null));
+        ExpectCheckpoint(rows, "operation-entry", 9, core);
+        using (var self = Process.GetCurrentProcess())
+        using (var peer = new CallerRegistration(self.Handle, new string('a', 32)))
+        using (var endpoint = new CallerEndpoint(peer, self.Handle))
+        {
+            operationType.GetField("server", flags).SetValue(operation, peer);
+            operationType.GetField("published", flags).SetValue(operation, true);
+            ExpectCheckpoint(rows, "operation-publication", 8, delegate(ref int checkpoint) { operation.Accept(20, ref checkpoint); });
+            var pipe = (SafeFileHandle)typeof(CallerEndpoint).GetField("pipe", flags).GetValue(endpoint);
+            CallerNative.Require(SetHandleInformation(pipe, 1, 1));
+            try { ExpectCheckpoint(rows, "endpoint-inheritance", 14, endpoint.CheckCurrent); }
+            finally { CallerNative.Require(SetHandleInformation(pipe, 1, 0)); }
+            var registration = (InstalledOwnerRegistration)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(InstalledOwnerRegistration));
+            typeof(InstalledOwnerRegistration).GetField("closed", flags).SetValue(registration, true);
+            typeof(CallerEndpoint).GetField("installed", flags).SetValue(endpoint, registration);
+            ExpectCheckpoint(rows, "installed-fence-entry", 114, endpoint.CheckCurrent);
+            ExpectCheckpoint(rows, "installed-poll-entry", 214, delegate(ref int checkpoint) { endpoint.AcceptMain(20, ref checkpoint); });
+            ExpectCheckpoint(rows, "endpoint-deadline", 19, delegate(ref int checkpoint) { endpoint.AcceptMain(0, ref checkpoint); });
+            ExpectCheckpoint(rows, "endpoint-closed", 13, endpoint.CheckCurrent);
+        }
+        using (var self = Process.GetCurrentProcess())
+        using (var peer = new CallerRegistration(self.Handle, new string('a', 32)))
+        using (var endpoint = new CallerEndpoint(peer, self.Handle))
+        {
+            peer.Dispose();
+            ExpectCheckpoint(rows, "endpoint-peer", 15, endpoint.CheckCurrent);
+            ExpectCheckpoint(rows, "poll-peer", 17, delegate(ref int checkpoint) { endpoint.AcceptMain(20, ref checkpoint); });
+            using (var invalid = new SafeFileHandle(new IntPtr(-1), false))
+                ExpectCheckpoint(rows, "admission-peer", 21, delegate(ref int checkpoint) { CallerAdmission.ReadMainAndAuthenticate(invalid, peer, new CallerNative(), ref checkpoint); });
+        }
+        Console.WriteLine("{\"rows\":[" + String.Join(",", rows) + "]}"); return 0;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetHandleInformation(SafeHandle handle, uint mask, uint flags);
     private static int CheckClosedRegistration()
     {
         // No installation, handles or service: the first assertion must refuse
@@ -67,7 +119,7 @@ internal static class InstalledOwnerFixture
     {
         var rows = new List<string>();
         string[] modes = { "precheck", "connect-error", "connect-timeout", "framing", "authentication", "postcheck", "message-timeout" };
-        int[] expected = { 1, 2, 3, 4, 5, 6, 7 };
+        int[] expected = { 22, 2, 3, 4, 5, 6, 7 };
         for (int index = 0; index < modes.Length; index++)
         using (var self = Process.GetCurrentProcess())
         using (var peer = new CallerRegistration(self.Handle, new string('a', 32)))
@@ -117,9 +169,14 @@ internal static class InstalledOwnerFixture
             rows.Add("{\"kind\":\"legacy\",\"expectedStage\":" + stage + ",\"expectedSubstage\":0,\"whole\":" + Parsed(Frame(stage, 0), false) + ",\"split\":" + Parsed(Frame(stage, 0), true) + "}");
         for (uint substage = 1; substage <= 44; substage++)
             rows.Add("{\"kind\":\"stage2\",\"expectedStage\":2,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(2, substage), false) + ",\"split\":" + Parsed(Frame(2, substage), true) + "}");
-        for (uint substage = 1; substage <= 7; substage++)
+        uint[] stageSeven = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+            114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126,
+            136, 137, 138, 139, 140, 141, 142, 143, 144,
+            214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226,
+            236, 237, 238, 239, 240, 241, 242, 243, 244 };
+        foreach (uint substage in stageSeven)
             rows.Add("{\"kind\":\"stage7\",\"expectedStage\":7,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(7, substage), false) + ",\"split\":" + Parsed(Frame(7, substage), true) + "}");
-        string[] invalid = { Frame(7, 8), Frame(7, UInt32.MaxValue), Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
+        string[] invalid = { Frame(7, 23), Frame(7, UInt32.MaxValue), Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
             Frame(1, 14), Frame(3, 26), Frame(12, 26),
             Frame(2, 8).Substring(0, 103) + "1", Frame(2, 8).Replace("00000008", "0000000A"),
             "AEGISF03" + Frame(2, 8).Substring(8), Frame(2, 8).Substring(0, 103), Frame(2, 8) + "0" };
@@ -132,18 +189,30 @@ internal static class InstalledOwnerFixture
             CallerNative.Require(frame.Length == 104 && Encoding.ASCII.GetString(frame) == Frame(2, (uint)checkpoint));
             writerChecks++;
         }
-        for (int checkpoint = 0; checkpoint <= 7; checkpoint++)
+        CallerNative.Require(Encoding.ASCII.GetString(InstalledOwnerSession.FailureFrame(7, 0)) == Frame(7, 0));
+        writerChecks++;
+        foreach (uint checkpoint in stageSeven)
         {
-            CallerNative.Require(Encoding.ASCII.GetString(InstalledOwnerSession.FailureFrame(7, checkpoint)) == Frame(7, (uint)checkpoint));
+            CallerNative.Require(Encoding.ASCII.GetString(InstalledOwnerSession.FailureFrame(7, (int)checkpoint)) == Frame(7, checkpoint));
             writerChecks++;
         }
-        int[,] invalidWriter = { { 7, -1 }, { 7, 8 }, { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 45 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
+        int[,] invalidWriter = { { 7, -1 }, { 7, 23 }, { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 45 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
         for (int index = 0; index < invalidWriter.GetLength(0); index++)
         {
             bool refused = false;
             try { InstalledOwnerSession.FailureFrame(invalidWriter[index, 0], invalidWriter[index, 1]); }
             catch (InvalidOperationException) { refused = true; }
             CallerNative.Require(refused); writerChecks++;
+        }
+        for (uint checkpoint = 23; checkpoint <= 255; checkpoint++)
+        {
+            if (Array.IndexOf(stageSeven, checkpoint) >= 0) continue;
+            uint gapStage, gapSubstage;
+            CallerNative.Require(!InstalledOwnerSession.TryReadFailureFrame(Frame(7, checkpoint), out gapStage, out gapSubstage));
+            bool refused = false;
+            try { InstalledOwnerSession.FailureFrame(7, (int)checkpoint); }
+            catch (InvalidOperationException) { refused = true; }
+            CallerNative.Require(refused);
         }
         byte[] issued = InstalledOwnerSession.FailureFrame(2, 26); uint writerStage, writerSubstage;
         bool writerAccepted = InstalledOwnerSession.TryReadFailureFrame(Encoding.ASCII.GetString(issued), out writerStage, out writerSubstage);
@@ -340,6 +409,7 @@ internal static class InstalledOwnerFixture
     }
     private static int Main(string[] arguments)
     {
+        if (arguments.Length == 1 && arguments[0] == "--precheck-checkpoints") return PrecheckCheckpoints();
         if (arguments.Length == 1 && arguments[0] == "--admission-checkpoints") return AdmissionCheckpoints();
         if (arguments.Length == 1 && arguments[0] == "--installed-inventory-controls") return InstalledInventoryControls();
         if (arguments.Length == 1 && arguments[0] == "--accounting-controls") return AccountingControls();

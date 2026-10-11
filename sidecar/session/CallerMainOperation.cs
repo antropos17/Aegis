@@ -60,15 +60,15 @@ namespace Aegis.ProtectedSession
         }
         internal Context Accept(int timeoutMilliseconds)
         { int substage = 0; return Accept(timeoutMilliseconds, ref substage); }
-        // Fixed installed stage-seven checkpoints: 1 precheck, 2 connect, 3 connect timeout,
-        // 4 framing, 5 authentication, 6 postcheck, 7 message timeout. They carry no native data.
+        // Fixed installed stage-seven last checkpoints; no native data is serialized.
+        // Post-admission checks retain checkpoint 6 and their existing default sink.
         internal Context Accept(int timeoutMilliseconds, ref int substage)
         {
             lock (server.Gate)
             {
                 try
                 {
-                    substage = 1; CallerNative.Require(!published); CheckCore();
+                    substage = 8; CallerNative.Require(!published); CheckCore(ref substage);
                     CallerAdmission.Context admitted = endpoint.AcceptMain(timeoutMilliseconds, ref substage);
                     // Authenticate has reverted before proof/selection rechecks and publication.
                     substage = 6; CheckCore(); admitted.CheckCurrent(); proof.CheckSelection(admitted); CheckCore();
@@ -78,10 +78,13 @@ namespace Aegis.ProtectedSession
             }
         }
         private void CheckCore()
+        { int substage = 0; CheckCore(ref substage); }
+        private void CheckCore(ref int substage)
         {
-            CallerNative.Require(!closed && !CallerNative.HasThreadToken());
-            server.CheckServer(); proof.CheckCurrent(); endpoint.CheckCurrent();
-            CallerNative.Require(!CallerNative.HasThreadToken());
+            substage = 9; CallerNative.Require(!closed && !CallerNative.HasThreadToken());
+            substage = 10; server.CheckServer();
+            substage = 11; proof.CheckCurrent(); endpoint.CheckCurrent(ref substage);
+            substage = 12; CallerNative.Require(!CallerNative.HasThreadToken());
         }
         internal sealed class Context
         {

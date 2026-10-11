@@ -83,6 +83,19 @@ namespace Aegis.ProtectedSession
         }
         private void CloseResource(IDisposable value) { if (value != null) try { value.Dispose(); } catch { cleanupUnknown = true; } }
         void ICallerInstalledEndpoint.CheckCurrent() { CheckCurrent(); }
+        void ICallerInstalledEndpoint.CheckCurrent(ref int substage, bool polling)
+        {
+            // Only failures translate the existing registration checkpoint. The two
+            // fixed bases retain fence/poll provenance without changing authority.
+            int checkpoint = 14;
+            try { CheckCurrent(ref checkpoint); }
+            catch
+            {
+                if ((checkpoint >= 14 && checkpoint <= 26) || (checkpoint >= 36 && checkpoint <= 44))
+                    substage = (polling ? 200 : 100) + checkpoint;
+                throw;
+            }
+        }
         void ICallerInstalledEndpoint.CheckEndpoint(SafeFileHandle actualSelf, SafeFileHandle actualPeer)
         {
             CheckCurrent(); main.CheckHeldProcess(actualPeer);
