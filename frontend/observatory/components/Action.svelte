@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
+  import { tick } from 'svelte';
 
   import type { Snippet } from 'svelte';
   let {
@@ -11,8 +12,11 @@
   let pending = $state(false);
   let error = $state('');
   let done = $state(false);
-  async function run() {
+  async function run(event: MouseEvent) {
     if (pending) return;
+    const button = event.currentTarget as HTMLButtonElement;
+    const document = button.ownerDocument;
+    const restoreFocus = document.activeElement === button;
     pending = true;
     error = '';
     done = false;
@@ -23,6 +27,16 @@
       error = e instanceof Error ? e.message : String(e);
     } finally {
       pending = false;
+      await tick();
+      if (
+        restoreFocus &&
+        button.isConnected &&
+        !disabled &&
+        !button.disabled &&
+        document.activeElement === document.body
+      ) {
+        button.focus({ preventScroll: true });
+      }
     }
   }
 </script>
