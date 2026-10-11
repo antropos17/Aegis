@@ -115,6 +115,14 @@ function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
         if ($native.ownerSid -cne 'S-1-5-18' -or $native.ownerAuthentication -cne $Association.service.ObservedOwner['authentication'] -or
             $native.ownerSession -ne $Association.service.ObservedOwner['session'] -or $native.ownerBirth -cne ([long]$Association.service.ObservedOwner['birthFileTime']).ToString('x16') -or
             $native.installId -cne $Association.installId -or $native.epoch -cne $Association.stage.epoch -or $native.revision -ne $Association.stage.revision) { throw 'installed-original-owner-binding-refused' }
+        # Receipt contract, closure, owner identity and pinned images establish safe
+        # owned cleanup independently of the inspection/readiness verdict below.
+        if ($native.schemaVersion -ne 1 -or $native.scope -cne 'installed-owner-inspection') { throw 'installed-owner-behavior-or-cleanup-refused' }
+        foreach ($image in @(@{ field = 'ownerImageSha256'; name = 'aegis-owner.exe' }, @{ field = 'supervisorImageSha256'; name = 'aegis-session.exe' }, @{ field = 'mainImageSha256'; name = 'aegis-main.exe' })) {
+            $pin = @($Association.manifest.files | Where-Object { $_.name -ceq $image.name })[0].sha256
+            if ($native.($image.field) -cne $pin) { throw 'installed-original-image-binding-refused' }
+        }
+        $Association.cleanupUnknown = $false
         $diagnostic.checkpoint = 'attempt-validate-behavior'
         if ($native.schemaVersion -ne 1 -or $native.scope -cne 'installed-owner-inspection' -or $native.inspected -isnot [bool] -or $native.inspected -ne $ExpectedPositive -or
             $native.inspectionCount -ne $count -or $count -ne ([int]$ExpectedPositive) -or $native.cleanupConfirmed -ne $true -or $native.launchAllowed -ne $false -or $native.completeE1 -ne $false) { throw 'installed-owner-behavior-or-cleanup-refused' }
@@ -124,11 +132,6 @@ function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
         }
         if ($native.mainReleased -isnot [bool] -or $native.mainReleased -ne $ExpectedPositive -or $native.supervisorPid -lt 1 -or $native.mainPid -lt 1 -or
             $native.supervisorExitCode -ne $(if ($ExpectedPositive) { 0 } else { 2 })) { throw 'installed-original-program-exit-refused' }
-        foreach ($image in @(@{ field = 'ownerImageSha256'; name = 'aegis-owner.exe' }, @{ field = 'supervisorImageSha256'; name = 'aegis-session.exe' }, @{ field = 'mainImageSha256'; name = 'aegis-main.exe' })) {
-            $pin = @($Association.manifest.files | Where-Object { $_.name -ceq $image.name })[0].sha256
-            if ($native.($image.field) -cne $pin) { throw 'installed-original-image-binding-refused' }
-        }
-        $Association.cleanupUnknown = $false
         $diagnostic.checkpoint = 'attempt-report'; $diagnostic.cleanupUnknown = $false; $diagnostic.independentlyObservedOwner = Get-InstalledOwnerAttemptObservation $Association.service.ObservedOwner 'owner'
         return @{ expectedPositive = $ExpectedPositive; native = $native; independentCounter = $count; resultIdentity = $row; counterIdentity = $counter; scm = $states.ToArray();
             serviceConfiguration = $Association.service.Configuration(); serviceSddl = $Association.service.Security(); root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true;
