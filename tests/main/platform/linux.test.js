@@ -211,6 +211,30 @@ describe('linux exec-based functions', () => {
       expect(results[0]).toMatchObject({ pid: 100, ip: '8.8.8.8', port: 443 });
     });
 
+    it('accepts a clean lsof no-match result when ss is unavailable', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        if (cmd === 'ss') return cb(new Error('ss not found'));
+        // lsof normally exits 1 for no matches; -Q changes only search failures.
+        cb(args.includes('-Q') ? null : Object.assign(new Error('no matches'), { code: 1 }), '');
+      });
+      await expect(linux.getRawTcpConnections([100])).resolves.toEqual([]);
+      expect(mockExecFile).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      Object.assign(new Error('lsof permission denied'), { code: 1 }),
+      Object.assign(new Error('lsof timed out'), { killed: true, signal: 'SIGTERM' }),
+      Object.assign(new Error('lsof: illegal option -- Q'), { code: 1 }),
+    ])('rejects genuine lsof failure after ss fails: %s', async (failure) => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        if (cmd === 'ss') return cb(new Error('ss not found'));
+        expect(opts).toEqual({ timeout: 10000, maxBuffer: 4 * 1024 * 1024 });
+        // Partial stdout must not disguise provider failure as a valid snapshot.
+        cb(failure, 'p100\nn10.0.0.1:50000->8.8.8.8:443\n');
+      });
+      await expect(linux.getRawTcpConnections([100])).rejects.toBe(failure);
+    });
+
     it('returns empty when ss succeeds but no matching PIDs', async () => {
       const ssOutput = [
         'State      Recv-Q Send-Q Local Address:Port  Peer Address:Port  Process',
