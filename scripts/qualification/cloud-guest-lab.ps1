@@ -9,6 +9,9 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-stdio.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-owner-lifetime.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-owner-lifetime-build.ps1')
+. (Join-Path $PSScriptRoot 'installed-owner-build.ps1')
+. (Join-Path $PSScriptRoot 'installed-owner-phase.ps1')
+. (Join-Path $PSScriptRoot 'installed-owner-guest-phase.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -29,6 +32,7 @@ $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
     ownerLifetimePhase = $null; ownerLifetimeControlsComplete = $false; hostCanariesUnchangedAfterOwnerLifetime = $false;
+    installedOwnerBuild = $null; installedOwnerHost = $null; installedOwnerGuest = $null; installedOwnerControlsComplete = $false; hostCanariesUnchangedAfterInstalledOwner = $false;
     stdioPhase = $null; stdioControlsComplete = $false; hostCanariesUnchangedAfterStdio = $false; cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
@@ -218,38 +222,6 @@ try {
         $stdioExe = CompileStdioGuest
         Copy-Item -LiteralPath $stdioExe -Destination (Join-Path $OutputRoot 'transfer\guest-stdio.exe')
     } | Out-Null
-    $mediaObservation = [CloudGuestMetadata+DownloadObservation]::new()
-    try {
-        $report.media = Stage 'pinned-media-download-and-hash' {
-            $url = 'https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
-            $digest = [CloudGuestMetadata]::Download($url, $windowsIso, 8225329152, $mediaObservation)
-            if ($digest -cne 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38') { throw 'published-media-hash-mismatch' }
-            return @{ url = $url; bytes = 8225329152; sha256 = $digest; hashSource = 'https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file'; license = 'Microsoft 90-day evaluation; disposable testing'; verifiedBeforeMount = $true }
-        }
-    }
-    finally {
-        $report['mediaDownload'] = @{ schemaVersion = 1; phase = $mediaObservation.Phase.ToString(); responseStatusCode = $mediaObservation.ResponseStatusCode;
-            expectedBytes = $mediaObservation.ExpectedBytes; declaredBytes = $mediaObservation.DeclaredBytes; bytesRead = $mediaObservation.BytesRead; bytesWritten = $mediaObservation.BytesWritten;
-            readCalls = $mediaObservation.ReadCalls; elapsedMilliseconds = $mediaObservation.ElapsedMilliseconds; lastReadMilliseconds = $mediaObservation.LastReadMilliseconds;
-            lastWriteMilliseconds = $mediaObservation.LastWriteMilliseconds; deadlineExpired = $mediaObservation.DeadlineExpired }
-    }
-    $metadata = Stage 'read-only-exact-wim-metadata' {
-        Mount-DiskImage -ImagePath $windowsIso -Access ReadOnly -PassThru | Out-Null; $script:mounted = $true
-        $volumes = @(Get-DiskImage -ImagePath $windowsIso | Get-Volume | Where-Object DriveLetter)
-        if ($volumes.Count -ne 1) { throw 'pinned-media-volume-unavailable' }
-        return (Get-CloudGuestImageMetadata ([CloudGuestMetadata]::ImageXml(($volumes[0].DriveLetter + ':\sources\install.wim'))))
-    }
-    $report.media.image = $metadata
-    Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false
-    $generator = [Security.Cryptography.RandomNumberGenerator]::Create(); $bytes = New-Object byte[] 24
-    $generator.GetBytes($bytes); $adminPassword = 'Aa1!' + [Convert]::ToBase64String($bytes)
-    $generator.GetBytes($bytes); $taskPassword = 'Bb2!' + [Convert]::ToBase64String($bytes); $generator.Dispose(); [Array]::Clear($bytes, 0, $bytes.Length)
-    $adminCredential = [pscredential]::new('AegisSetup', (ConvertTo-SecureString $adminPassword -AsPlainText -Force))
-    Stage 'tiny-answer-iso' {
-        $answer = New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword
-        $length = New-CloudGuestAnswerIso (Join-Path $mediaRoot 'answer') $answerIso $answer
-        $report.media.answerIsoBytes = $length; $answer = $null
-    } | Out-Null
     Stage 'stage-fixed-runtime-and-host-controls' {
         $report['runtimeStagingPhase'] = 'NodeSelect'
         $transfer = Join-Path $OutputRoot 'transfer'
@@ -302,6 +274,51 @@ try {
         $manifestText = @{ schemaVersion = 1; scope = 'fixed-cloud-guest-task'; files = $files; hostCanaries = @($canaryEntries | ForEach-Object path) } | ConvertTo-Json -Depth 5
         [IO.File]::WriteAllText((Join-Path $transfer 'manifest.json'), $manifestText, [Text.UTF8Encoding]::new($false))
         $report['runtimeStagingPhase'] = 'Complete'
+    } | Out-Null
+    Stage 'build-fixed-installed-owner-payload' {
+        $report.installedOwnerBuild = Build-InstalledOwnerPayload $project (Join-Path $OutputRoot 'transfer\installed-owner') (Join-Path $OutputRoot 'native') $report.actualHead
+        foreach ($relative in $report.installedOwnerBuild.sourceHashes.Keys) { $report.sourceHashes[$relative] = $report.installedOwnerBuild.sourceHashes[$relative] }
+        foreach ($relative in @('installed-owner-build.ps1', 'installed-owner-phase.ps1', 'installed-owner-guest-phase.ps1', 'installed-owner-guest-bootstrap.ps1')) {
+            $report.sourceHashes['scripts/qualification/' + $relative] = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $relative) -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    } | Out-Null
+    $report.installedOwnerHost = Stage 'fixed-host-installed-owner-corpus' {
+        $value = Invoke-InstalledOwnerQualification (Join-Path $OutputRoot 'transfer\installed-owner') (Join-Path $OutputRoot 'installed-owner-control') $report.actualHead 'fresh-host'
+        $script:report.installedOwnerHost = $value
+        if (!(Test-InstalledOwnerQualificationReceipt $value $report.actualHead 'fresh-host') -or !(CanariesUnchanged)) { throw 'installed-owner-host-corpus-refused' }
+        return $value
+    }
+    $mediaObservation = [CloudGuestMetadata+DownloadObservation]::new()
+    try {
+        $report.media = Stage 'pinned-media-download-and-hash' {
+            $url = 'https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
+            $digest = [CloudGuestMetadata]::Download($url, $windowsIso, 8225329152, $mediaObservation)
+            if ($digest -cne 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38') { throw 'published-media-hash-mismatch' }
+            return @{ url = $url; bytes = 8225329152; sha256 = $digest; hashSource = 'https://support.microsoft.com/en-us/servicing/os/windows/docs/2026/09/verify-the-authenticity-of-a-windows-11-enterprise-evaluation-iso-file'; license = 'Microsoft 90-day evaluation; disposable testing'; verifiedBeforeMount = $true }
+        }
+    }
+    finally {
+        $report['mediaDownload'] = @{ schemaVersion = 1; phase = $mediaObservation.Phase.ToString(); responseStatusCode = $mediaObservation.ResponseStatusCode;
+            expectedBytes = $mediaObservation.ExpectedBytes; declaredBytes = $mediaObservation.DeclaredBytes; bytesRead = $mediaObservation.BytesRead; bytesWritten = $mediaObservation.BytesWritten;
+            readCalls = $mediaObservation.ReadCalls; elapsedMilliseconds = $mediaObservation.ElapsedMilliseconds; lastReadMilliseconds = $mediaObservation.LastReadMilliseconds;
+            lastWriteMilliseconds = $mediaObservation.LastWriteMilliseconds; deadlineExpired = $mediaObservation.DeadlineExpired }
+    }
+    $metadata = Stage 'read-only-exact-wim-metadata' {
+        Mount-DiskImage -ImagePath $windowsIso -Access ReadOnly -PassThru | Out-Null; $script:mounted = $true
+        $volumes = @(Get-DiskImage -ImagePath $windowsIso | Get-Volume | Where-Object DriveLetter)
+        if ($volumes.Count -ne 1) { throw 'pinned-media-volume-unavailable' }
+        return (Get-CloudGuestImageMetadata ([CloudGuestMetadata]::ImageXml(($volumes[0].DriveLetter + ':\sources\install.wim'))))
+    }
+    $report.media.image = $metadata
+    Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create(); $bytes = New-Object byte[] 24
+    $generator.GetBytes($bytes); $adminPassword = 'Aa1!' + [Convert]::ToBase64String($bytes)
+    $generator.GetBytes($bytes); $taskPassword = 'Bb2!' + [Convert]::ToBase64String($bytes); $generator.Dispose(); [Array]::Clear($bytes, 0, $bytes.Length)
+    $adminCredential = [pscredential]::new('AegisSetup', (ConvertTo-SecureString $adminPassword -AsPlainText -Force))
+    Stage 'tiny-answer-iso' {
+        $answer = New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword
+        $length = New-CloudGuestAnswerIso (Join-Path $mediaRoot 'answer') $answerIso $answer
+        $report.media.answerIsoBytes = $length; $answer = $null
     } | Out-Null
     Stage 'create-exact-owned-vm' {
         $initial = Invoke-CloudHyperVCommand recover $name $vmRoot $null
@@ -384,6 +401,14 @@ try {
         if (!$report.ownerLifetimeControlsComplete -or !$report.hostCanariesUnchangedAfterOwnerLifetime) { throw 'cloud-owner-lifetime-controls-refused' }
         return $value
     }
+    $report.installedOwnerGuest = Stage 'fixed-windows11-installed-owner-corpus' {
+        $value = Invoke-InstalledOwnerGuestPhase $id $name $vmRoot $adminCredential (Join-Path $OutputRoot 'transfer') $report.actualHead $report.guest $report.claudePhase $report.cancellationPhase $report.stdioPhase $report.ownerLifetimePhase
+        $script:report.installedOwnerGuest = $value
+        $script:report.hostCanariesUnchangedAfterInstalledOwner = CanariesUnchanged
+        $script:report.installedOwnerControlsComplete = $value.passed -is [bool] -and $value.passed -and $report.hostCanariesUnchangedAfterInstalledOwner
+        if (!$report.installedOwnerControlsComplete) { throw 'installed-owner-windows11-corpus-refused' }
+        return $value
+    }
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {
@@ -415,7 +440,7 @@ finally {
     }
     RecordDisk 'after' | Out-Null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
-    $report.passed = $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
+    $report.passed = $report.installedOwnerControlsComplete -and $report.hostCanariesUnchangedAfterInstalledOwner -and $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
     $json = $report | ConvertTo-Json -Depth 16
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 1MB) { throw 'guest-receipt-budget-failed' }
     [IO.File]::WriteAllText((Join-Path $OutputRoot 'evidence\cloud-windows11.json'), $json)
