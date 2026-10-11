@@ -10,6 +10,46 @@ const process = (pid, agent = 'ChatGPT Desktop') => ({
   instanceId: `${pid}:live`,
   instanceIdSource: 'os',
 });
+it.each([true, false])('dismisses roster focus with Escape (stamped: %s)', async (stamped) => {
+  const mounted = render(Radar, {
+    telemetry: {
+      ...emptyTelemetry(),
+      ready: true,
+      stale: false,
+      agents: [
+        { ...process(1), instanceId: stamped ? '1:live' : null },
+        process(2, 'OpenAI Codex CLI'),
+      ],
+    },
+    selected: null,
+    inspect: vi.fn(),
+    openAgent: vi.fn(),
+  });
+  const roster = within(screen.getByLabelText('Observed agents'));
+  const row = roster.getByRole('button', { name: /ChatGPT Desktop/ });
+  const marker = screen.getByRole('button', { name: /Select ChatGPT Desktop,/ });
+  row.focus();
+  await fireEvent.click(row);
+  expect(row).toHaveAttribute('aria-pressed', 'true');
+  expect(marker).toHaveAttribute('aria-pressed', 'true');
+  expect(roster.getByRole('button', { name: 'View files' })).toBeVisible();
+  await fireEvent.keyDown(row, { key: 'Escape' });
+  expect(row).toHaveAttribute('aria-pressed', 'false');
+  expect(marker).toHaveAttribute('aria-pressed', 'false');
+  expect(row).toHaveFocus();
+  expect(screen.queryByRole('button', { name: 'Clear agent focus' })).toBeNull();
+  expect(roster.queryByRole('button', { name: 'View files' })).toBeNull();
+  expect(mounted.container.querySelector('.radar-focus')).toBeNull();
+  const next = roster.getByRole('button', { name: /OpenAI Codex CLI/ });
+  await fireEvent.click(next);
+  expect(next).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: /Select OpenAI Codex CLI,/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect(roster.getByRole('button', { name: 'View files' })).toBeVisible();
+});
+
 it('shows one roster entry and compact marker per agent while grouping many processes', async () => {
   const inspect = vi.fn();
   const state = {
