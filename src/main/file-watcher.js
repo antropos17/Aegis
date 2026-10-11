@@ -1596,16 +1596,17 @@ function _isRuleFile(basename) {
  * `sequenceCount` read off `deps.sequenceCount` at the time of the change, so the renderer
  * is never handed a flat count with no sequence figure beside it.
  * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
- * @param {{sequenceCount: () => number}} deps - `sequenceCount` answers how many sequence
+ * @param {{sequenceCount: () => number, isActive?: () => boolean}} deps - `sequenceCount` answers how many sequence
  *   rules the engine currently holds (main.js owns that figure).
  * @returns {import('chokidar').FSWatcher|null} null for rules embedded in ASAR.
  * @since v0.6.0
  */
-function setupRulesWatcher(sendFn, { sequenceCount }) {
+function setupRulesWatcher(sendFn, { sequenceCount, isActive = () => true }) {
   const rulesDir = path.join(_appDir, 'rules');
   const rw = _watchRuleDir(rulesDir);
   if (!rw) return null;
   const onRuleMutation = (filePath) => {
+    if (!isActive()) return;
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
     reloadRules();
@@ -1626,16 +1627,17 @@ function setupRulesWatcher(sendFn, { sequenceCount }) {
  * are NOT reloaded from here. The `rules:reloaded` push carries only the two
  * counts; the renderer does not need the changed rule file name.
  * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
- * @param {{reload: () => number}} deps - `reload` re-reads the sequence rules into the engine
+ * @param {{reload: () => number, isActive?: () => boolean}} deps - `reload` re-reads the sequence rules into the engine
  *   and returns how many are loaded now.
  * @returns {import('chokidar').FSWatcher|null} null for rules embedded in ASAR.
  * @since v0.14.0
  */
-function setupSequenceRulesWatcher(sendFn, { reload }) {
+function setupSequenceRulesWatcher(sendFn, { reload, isActive = () => true }) {
   const sequencesDir = path.join(_appDir, 'rules', 'sequences');
   const rw = _watchRuleDir(sequencesDir);
   if (!rw) return null;
   const onRuleMutation = (filePath) => {
+    if (!isActive()) return;
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
     const sequenceCount = reload();

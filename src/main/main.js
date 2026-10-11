@@ -803,6 +803,24 @@ async function setupFileWatchers(generation, retry) {
   }
 }
 
+/** Rule watchers have a separate lifetime from retryable file-root watchers. */
+const ruleWatchers = [];
+
+/**
+ * Fence callbacks before requesting asynchronous closes; shutdown must not wait on them.
+ * @returns {void}
+ * @since v0.19.2-beta
+ */
+function closeRuleWatchers() {
+  for (const handle of ruleWatchers.splice(0)) {
+    try {
+      Promise.resolve(handle.close()).catch(() => {});
+    } catch {
+      // A failing close must not prevent the other rule watcher or journal drain.
+    }
+  }
+}
+
 /**
  * Create the startup watcher set exactly once: the chokidar file watchers
  * (credential dirs, agent-config dirs, the app directory, `~/.env*`) plus both
@@ -817,12 +835,20 @@ async function startWatchers() {
   if (watchersStarted || isQuitting) return;
   watchersStarted = true;
   try {
-    watcher.setupRulesWatcher(sendToRenderer, { sequenceCount: getSequenceRuleCount });
+    const handle = watcher.setupRulesWatcher(sendToRenderer, {
+      sequenceCount: getSequenceRuleCount,
+      isActive: () => !isQuitting,
+    });
+    if (handle) ruleWatchers.push(handle);
   } catch {
     logger.error('main', 'Rule watcher setup failed', { error: 'rule-watcher-setup-failed' });
   }
   try {
-    watcher.setupSequenceRulesWatcher(sendToRenderer, { reload: reloadSequenceRules });
+    const handle = watcher.setupSequenceRulesWatcher(sendToRenderer, {
+      reload: reloadSequenceRules,
+      isActive: () => !isQuitting,
+    });
+    if (handle) ruleWatchers.push(handle);
   } catch {
     logger.error('main', 'Sequence rule watcher setup failed', {
       error: 'sequence-rule-watcher-setup-failed',
@@ -1261,6 +1287,7 @@ app.on('before-quit', (event) => {
     event.preventDefault();
     alertQuitDrainStarted = true;
     isQuitting = true;
+    closeRuleWatchers();
     cancelFileWatchRetry();
     if (scanLoop) scanLoop.stopScanIntervals();
     // Give a normal restart a chance to save the final debounce window, with a
@@ -1291,6 +1318,7 @@ app.on('before-quit', (event) => {
     return;
   }
   isQuitting = true;
+  closeRuleWatchers();
   cancelFileWatchRetry();
   etwFile?.dispose();
   updates?.dispose();
@@ -1401,6 +1429,8 @@ function _setSensitiveAlertJournalForTest(journal) {
 
 /** @internal Clear startup and retry state and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
+  isQuitting = true;
+  closeRuleWatchers();
   cancelFileWatchRetry();
   watchersStarted = false;
   fileWatchRetryPolicy.reset();

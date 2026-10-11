@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import Module from 'module';
 import os from 'os';
+import { EventEmitter } from 'node:events';
 import { createRequire } from 'module';
 
 // ── electron stub ─────────────────────────────────────────────────────────────
@@ -157,6 +158,7 @@ describe('main — watcher startup ordering', () => {
     expect(watcherMock.setupSequenceRulesWatcher).toHaveBeenCalledTimes(1);
     expect(watcherMock.setupSequenceRulesWatcher.mock.calls[0][1]).toEqual({
       reload: expect.any(Function),
+      isActive: expect.any(Function),
     });
   });
 
@@ -400,6 +402,84 @@ describe('main — watcher startup ordering', () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
   });
+
+  it.each([false, true])(
+    'fences rule mutations at quit start (pending drain: %s)',
+    async (pending) => {
+      const realWatcher = require_('../../src/main/file-watcher.js');
+      const chokidar = require_('chokidar');
+      const handles = [];
+      const sends = vi.fn();
+      vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+        const handle = new EventEmitter();
+        handle.close = vi.fn(() => new Promise(() => {}));
+        handles.push(handle);
+        return handle;
+      });
+      watcherMock.setupRulesWatcher = vi.fn((_send, deps) =>
+        realWatcher.setupRulesWatcher(sends, deps),
+      );
+      watcherMock.setupSequenceRulesWatcher = vi.fn((_send, deps) =>
+        realWatcher.setupSequenceRulesWatcher(sends, deps),
+      );
+      const engine = { reset: vi.fn(), init: vi.fn() };
+      main._setSequenceEngineForTest(engine);
+      await main.startWatchers();
+      handles[0].emit('change', 'fixture.yaml');
+      handles[1].emit('change', 'fixture.yaml');
+      expect(sends).toHaveBeenCalledTimes(2);
+      expect(engine.reset).toHaveBeenCalledOnce();
+      sends.mockClear();
+      engine.reset.mockClear();
+      let release;
+      watcherMock.closeFileWatchers = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+      );
+      main._setSensitiveAlertJournalForTest(
+        pending ? { hasPending: () => true, flush: async () => false } : undefined,
+      );
+      vi.spyOn(logger, 'shutdown').mockImplementation(() => {});
+      vi.spyOn(fakeElectron.app, 'quit').mockImplementation(() => {});
+      appListeners['before-quit'][0]({ preventDefault: vi.fn() });
+      try {
+        for (const handle of handles) {
+          for (const event of ['add', 'change', 'unlink']) handle.emit(event, 'fixture.yaml');
+        }
+        expect(sends).not.toHaveBeenCalled();
+        expect(engine.reset).not.toHaveBeenCalled();
+        expect(handles.every((handle) => handle.close.mock.calls.length === 1)).toBe(true);
+      } finally {
+        main._setSequenceEngineForTest(undefined);
+        release();
+        await flush();
+      }
+    },
+  );
+
+  it.each(['throw', 'reject', 'null'])(
+    'continues quit with rule close/setup result %s',
+    async (mode) => {
+      const close = vi.fn(() => {
+        if (mode === 'throw') throw new Error('fixture close');
+        return Promise.reject(new Error('fixture close'));
+      });
+      watcherMock.setupRulesWatcher.mockReturnValue(mode === 'null' ? null : { close });
+      const secondClose = vi.fn(async () => {});
+      watcherMock.setupSequenceRulesWatcher.mockReturnValue({ close: secondClose });
+      await main.startWatchers();
+      const shutdown = vi.spyOn(logger, 'shutdown').mockImplementation(() => {});
+      expect(() => appListeners['before-quit'][0]()).not.toThrow();
+      await flush();
+      expect(secondClose).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledTimes(mode === 'null' ? 0 : 1);
+      expect(shutdown).toHaveBeenCalledOnce();
+      appListeners['before-quit'][0]();
+      expect(secondClose).toHaveBeenCalledOnce();
+    },
+  );
 
   it('keeps repeated quit requests behind the pending alert-journal drain', async () => {
     let releaseWatchers;
