@@ -39,6 +39,11 @@ describe.skipIf(process.platform !== 'win32')('native inactive Protected Session
   beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-session-protocol-'));
     helper = path.join(root, 'session.exe');
+    const sources = fs
+      .readdirSync(path.join(project, 'sidecar/session'))
+      .filter((name) => name.endsWith('.cs'))
+      .sort()
+      .map((name) => path.join(project, 'sidecar/session', name));
     const csc = path.join(
       process.env.WINDIR || 'C:\\Windows',
       'Microsoft.NET',
@@ -54,11 +59,11 @@ describe.skipIf(process.platform !== 'win32')('native inactive Protected Session
         '/platform:x64',
         '/optimize+',
         '/warnaserror+',
+        '/reference:System.Management.dll',
+        '/reference:System.Security.dll',
         `/out:${helper}`,
-        path.join(project, 'sidecar/session/Program.cs'),
-        path.join(project, 'sidecar/session/Protocol.cs'),
-        path.join(project, 'sidecar/session/EnrollmentNative.cs'),
-        path.join(project, 'sidecar/session/EnrollmentInspection.cs'),
+        ...sources,
+        path.join(project, 'sidecar/mcpjob/AppContainerExecutable.cs'),
       ],
       { timeout: 30000, stdio: 'pipe', windowsHide: true },
     );
