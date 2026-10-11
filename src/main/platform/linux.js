@@ -95,10 +95,10 @@ function getRawTcpConnections(pids) {
         resolve(parseSsOutput(stdout || '', pidSet));
         return;
       }
-      // Fallback to lsof
+      // lsof >= 4.95: -Q makes empty searches succeed; execution errors still reject.
       _execFile(
         'lsof',
-        ['-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
+        ['-Q', '-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
         { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
         (lsofErr, lsofStdout) => {
           // B-S05: both providers failed → reject (not silent empty calm).

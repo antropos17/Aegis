@@ -177,6 +177,7 @@ internal sealed class CloudGuestStdio : IDisposable
                     {
                         live = CheckExchangeLive(result.InputEof, clock, milliseconds, cancellation);
                     }
+                    else live = ExchangeExit(result.InputEof, clock, milliseconds, cancellation);
                     if (!Drain(pipes[1], output, outputLimit, ref result.OutputEof) || !Drain(pipes[2], error, errorLimit, ref result.ErrorEof))
                     { result.Outcome = Outcome.OutputLimit; break; }
                     if (outputObservation != null) outputObservation(output.ToArray());
