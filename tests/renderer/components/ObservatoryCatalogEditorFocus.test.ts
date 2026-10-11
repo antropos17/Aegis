@@ -15,13 +15,15 @@ it.each(['Edit', 'Add agent'])(
     };
     render(Catalog, { host, inspect: vi.fn() });
     await screen.findByText('Existing agent');
-    const opener = screen.getByRole('button', { name: action, exact: true });
+    const opener = screen.getByRole('button', {
+      name: action === 'Edit' ? /^Edit$/ : /^Add agent$/,
+    });
     await act(() => opener.focus());
     await fireEvent.click(opener);
     const dialog = screen.getByRole('dialog', {
       name: action === 'Edit' ? 'Edit custom agent' : 'Add custom agent',
     });
-    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel', exact: true }));
+    await fireEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/ }));
     await waitFor(() => expect(dialog.isConnected).toBe(false));
     expect(opener).toHaveFocus();
     expect(host.saveCustomAgents).not.toHaveBeenCalled();
