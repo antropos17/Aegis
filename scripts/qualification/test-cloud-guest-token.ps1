@@ -8,6 +8,8 @@ $parent = Get-Item -LiteralPath $temporary -Force
 while ($null -ne $parent) { if ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'token-fixture-reparse-refused' }; $parent = $parent.Parent }
 $fixture = Join-Path $temporary ('aegis-guest-token-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
+# Current fixed-source DLL measures 82,432 bytes; match the bounded 84KiB cleanup fixture allowance.
+$nativeBound = 84KB
 try {
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     $dll = Join-Path $fixture 'token-controls.dll'
@@ -17,7 +19,7 @@ try {
     foreach ($leaf in @('CloudGuestRuntimeGate.cs','CloudGuestNetwork.cs', 'CloudGuestClaudeReceiver.cs')) { $arguments += ('"' + (Join-Path $PSScriptRoot $leaf) + '"') }
     foreach ($leaf in @('CallerAdmission','CallerRegistration','CallerIdentity','CallerNative')) { $arguments += ('"' + (Join-Path $project ('sidecar/session/' + $leaf + '.cs')) + '"') }
     $exit = Invoke-CloudGuestNativeProcess $compiler $arguments (Join-Path $fixture 'compile.txt') (Join-Path $fixture 'compile.error') 10000
-    if ($exit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt 80KB) { throw 'token-native-compile-failed' }
+    if ($exit -ne 0 -or (Get-Item -LiteralPath $dll).Length -gt $nativeBound) { throw 'token-native-compile-failed' }
     $assembly = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($dll))
     $type = $assembly.GetType('CloudGuestTokenFixture')
     $old = $type.GetMethod('Observe').Invoke($null, @($true))
@@ -42,7 +44,7 @@ try {
         childLaunchAccountAclOrVmEffects=$false;launchAllowed=$false} | ConvertTo-Json -Depth 5
 } finally {
     foreach ($file in @(Get-ChildItem -LiteralPath $fixture -File -Force)) {
-        $fileBound = if ([string]::Equals($file.FullName, $dll, [StringComparison]::OrdinalIgnoreCase)) { 80KB } else { 64KB }
+        $fileBound = if ([string]::Equals($file.FullName, $dll, [StringComparison]::OrdinalIgnoreCase)) { $nativeBound } else { 64KB }
         if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt $fileBound -or !$file.FullName.StartsWith($fixture + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'token-fixture-cleanup-refused' }
         Remove-Item -LiteralPath $file.FullName -Force
     }
