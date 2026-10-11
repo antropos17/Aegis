@@ -141,6 +141,28 @@ describe('resource-monitor', () => {
   });
 
   describe('_parseGpuCsv()', () => {
+    it('sums repeated PID readings across GPU rows independently of row order', () => {
+      const rows = ['100, N/A', '100, 512', '200, 1024', '100, 256', '100, 0', '100, N/A'];
+      for (const orderedRows of [rows, [...rows].reverse()]) {
+        const map = _parseGpuCsv(orderedRows.join('\n'));
+        expect(map.get(100)).toBe(768);
+        expect(map.get(200)).toBe(1024);
+        expect(map.size).toBe(2);
+      }
+    });
+
+    it('omits an overflowing PID total without restoring a partial later reading', () => {
+      const rows = ['100, 9007199254740991', '200, 1024', '100, 1', '100, 12'];
+      for (const orderedRows of [rows, [...rows].reverse()]) {
+        const map = _parseGpuCsv(orderedRows.join('\n'));
+        expect(map.has(100)).toBe(false);
+        expect(map.get(200)).toBe(1024);
+        expect(map.size).toBe(1);
+      }
+      expect(_parseGpuCsv('100, 9007199254740990\n100, 1').get(100)).toBe(Number.MAX_SAFE_INTEGER);
+      expect(_parseGpuCsv('100, 12').get(100)).toBe(12);
+    });
+
     it('keeps complete bounded readings and skips malformed or unavailable rows', () => {
       const rows = [
         '42, 12oops',
