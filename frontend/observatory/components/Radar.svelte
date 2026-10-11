@@ -3,6 +3,7 @@
 
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, riskBand, type RadarGroup } from '../runtime/radar';
+  import { radarConnections } from '../runtime/radar-connections';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import RadarSummary from './RadarSummary.svelte';
@@ -46,6 +47,18 @@
     groups.slice(Math.min(page, pages - 1) * 4, Math.min(page, pages - 1) * 4 + 4),
   );
   let chosen = $derived(agents.find((a) => !!selected && a.instanceId === selected));
+  let connections = $derived(radarConnections(telemetry, plotted));
+  let connectionLabel = $derived(
+    connections
+      .map((link) =>
+        $t('{value0} ↔ {value1}: {value2} shared recorded files', {
+          value0: plotted.find((group) => group.key === link.from)?.name,
+          value1: plotted.find((group) => group.key === link.to)?.name,
+          value2: link.files,
+        }),
+      )
+      .join('; '),
+  );
   let chosenGroup = $derived(
     groups.find((g) => g.key === focusedGroup) ??
       groups.find((g) => g.members.some((a) => !!selected && a.instanceId === selected)),
@@ -129,6 +142,20 @@
               <div class="dial-ticks"></div>
               <div class="dial-sweep" use:radarSweep={sweepActive} aria-hidden="true"></div>
               <div class="radar-center"><Icon name="shield" /></div>
+              {#if connections.length}<svg
+                  class="radar-connections"
+                  viewBox="0 0 100 100"
+                  role="img"
+                  aria-label={connectionLabel}
+                >
+                  {#each connections as link (link.key)}
+                    {@const fromIndex = plotted.findIndex((group) => group.key === link.from)}
+                    {@const toIndex = plotted.findIndex((group) => group.key === link.to)}
+                    {@const from = position(plotted[fromIndex], fromIndex)}
+                    {@const to = position(plotted[toIndex], toIndex)}
+                    <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                  {/each}
+                </svg>{/if}
               {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
                   class={`radar-blip ${riskBand(group.risk)}`}
                   data-group={group.key}
@@ -226,6 +253,11 @@
             'Choose a marker or row. Open the focused agent when you need its controls.',
           )}
         </p>
+        {#if connections.length}<p class="radar-guidance">
+            {$t(
+              'Lines show shared recorded file observations. They do not establish agent communication.',
+            )}
+          </p>{/if}
       </div>
     </div>
     {#each ['files', 'network'] as resourceLayer (resourceLayer)}
@@ -251,6 +283,23 @@
 </div>
 
 <style>
+  .radar-clarity .radar-coordinate {
+    display: block;
+  }
+  .radar-connections {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    color: var(--muted);
+  }
+  .radar-connections line {
+    stroke: currentColor;
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+    vector-effect: non-scaling-stroke;
+  }
   .radar-clarity .dial-sweep {
     animation: none;
     transform: rotate(0deg);
