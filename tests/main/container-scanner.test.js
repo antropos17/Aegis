@@ -298,6 +298,7 @@ describe('Docker metadata discovery', () => {
       Command: 'private command',
     }),
     row(undefined, 'a'.repeat(12)),
+    row() + '\n' + row('', secondId, '463241862e7e-infra'),
     row(undefined, firstId + '\n'),
     row(undefined, firstId, 'invalid\nname'),
     row() + '\n' + row(),

@@ -129,6 +129,37 @@ describe('Podman metadata discovery', () => {
     expect(JSON.stringify(discovery.snapshot())).not.toMatch(/private|Pid|pid|risk|kill|State/);
   });
 
+  it.each([false, true])(
+    'retains an agent with an empty-image infra row first=%s',
+    async (infraFirst) => {
+      const image = 'docker.io/agent0ai/agent-zero:latest';
+      const rows = [row(image), row('', secondId, '463241862e7e-infra')];
+      const { discovery } = harness([(infraFirst ? rows.reverse() : rows).join('\n')]);
+      await discovery.refresh();
+      expect(discovery.snapshot()).toMatchObject({
+        status: 'ready',
+        reason: null,
+        stale: false,
+        candidates: [{ id: `podman:${firstId}`, image, agent: 'Agent Zero' }],
+      });
+      expect(discovery.snapshot().candidates).toHaveLength(1);
+    },
+  );
+
+  it.each(['463241862e7e-infra', 'agent-zero'])(
+    'does not infer an agent from an empty image named %s',
+    async (name) => {
+      const { discovery } = harness([row('', firstId, name)]);
+      await discovery.refresh();
+      expect(discovery.snapshot()).toMatchObject({
+        status: 'ready',
+        reason: null,
+        stale: false,
+        candidates: [],
+      });
+    },
+  );
+
   it.each([
     ['agent0ai/agent-zero', 'Agent Zero'],
     ['docker.io/agent0ai/agent-zero:v2.0', 'Agent Zero'],
@@ -305,7 +336,12 @@ describe('Podman metadata discovery', () => {
     row(undefined, firstId, 'web/agent'),
     row(undefined, firstId, 'a'.repeat(256)),
     row('agent0ai/agent-zero\n'),
-    row('', firstId),
+    row(null, firstId),
+    row(42, firstId),
+    row(' ', firstId),
+    row() + '\n' + row('', firstId, '463241862e7e-infra'),
+    row() + '\n' + row('', secondId, 'bad/name'),
+    row() + '\n' + row('', secondId, '463241862e7e-infra', 'unexpected-state'),
     row('a'.repeat(513)),
     row(undefined, firstId, 'agent', 'unexpected-state'),
     row(undefined, firstId, 'agent', ['running']),
