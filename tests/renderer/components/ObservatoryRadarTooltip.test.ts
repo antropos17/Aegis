@@ -1,19 +1,22 @@
 import { expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import Radar from '../../../frontend/observatory/components/Radar.svelte';
-import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
+import { emptyTelemetry, type Telemetry } from '../../../frontend/observatory/runtime/host';
+import type { DetectedAgent } from '../../../src/shared/types';
 
 it('restores the focused marker after hover ends and keeps Escape dismissed until fresh activation', async () => {
-  const telemetry = {
+  const telemetry: Telemetry = {
     ...emptyTelemetry(),
     ready: true,
     stale: false,
-    agents: ['Agent A', 'Agent B'].map((agent, index) => ({
+    agents: ['Agent A', 'Agent B'].map((agent, index): DetectedAgent => ({
       agent,
       process: 'agent.exe',
       pid: index + 1,
       instanceId: `${index + 1}:mixed`,
       instanceIdSource: 'os',
+      status: 'running',
+      category: 'cli-tool',
     })),
   };
   const mounted = render(Radar, { telemetry, selected: null, inspect: vi.fn() });
@@ -41,14 +44,16 @@ it('restores the focused marker after hover ends and keeps Escape dismissed unti
 });
 
 it('shows current marker details on keyboard focus and hover and dismisses obsolete details', async () => {
-  const agents = Array.from({ length: 5 }, (_, index) => ({
+  const agents = Array.from({ length: 5 }, (_, index): DetectedAgent => ({
     agent: `Agent ${index + 1}`,
     process: 'agent.exe',
     pid: index + 1,
     instanceId: `${index + 1}:now`,
     instanceIdSource: 'os',
+    status: 'running',
+    category: 'cli-tool',
   }));
-  const telemetry = { ...emptyTelemetry(), ready: true, stale: false, agents };
+  const telemetry: Telemetry = { ...emptyTelemetry(), ready: true, stale: false, agents };
   const mounted = render(Radar, { telemetry, selected: null, inspect: vi.fn() });
   const marker = () => screen.getByRole('button', { name: /Select Agent 1,/ });
   await fireEvent.focus(marker());
@@ -61,10 +66,15 @@ it('shows current marker details on keyboard focus and hover and dismisses obsol
       events: [
         {
           ...agents[0],
+          instanceId: agents[0].instanceId ?? null,
           timestamp: Date.now(),
           file: 'X:/fixture/key',
           sensitive: true,
           reason: 'SSH',
+          parentEditor: null,
+          cwd: null,
+          selfAccess: false,
+          action: 'accessed',
         },
       ],
     },
