@@ -37,8 +37,50 @@ const DOCKER_EXECUTABLES = {
 };
 
 /**
+ * Walk every POSIX symlink hop, including redirected ancestor directories.
+ * Process dot segments after links, matching filesystem traversal semantics.
+ * @param {string} candidate Absolute installation path.
+ * @param {object} fs Filesystem seam.
+ * @returns {string|null} Protected regular file, or a rejected/bounded traversal.
+ * @since 0.19.2-beta
+ */
+function walkProtectedExecutable(candidate, fs) {
+  let current = '/';
+  let pending = candidate.split('/').filter(Boolean);
+  let hops = 0;
+  let steps = 0;
+  const root = fs.lstatSync('/');
+  if (root.uid !== 0 || (root.mode & 0o022) !== 0 || !root.isDirectory()) return null;
+  while (pending.length) {
+    if (++steps > 1024) return null;
+    const part = pending.shift();
+    if (part === '.') continue;
+    if (part === '..') {
+      current = path.posix.dirname(current);
+      continue;
+    }
+    const next = path.posix.join(current, part);
+    const stat = fs.lstatSync(next);
+    if (stat.uid !== 0) return null;
+    if (stat.isSymbolicLink()) {
+      if (++hops > 40) return null;
+      const target = fs.readlinkSync(next);
+      if (typeof target !== 'string' || !target || target.length > 4096) return null;
+      pending = [...target.split('/').filter(Boolean), ...pending];
+      if (pending.length > 1024) return null;
+      if (target.startsWith('/')) current = '/';
+      continue;
+    }
+    if ((stat.mode & 0o022) !== 0 || !(pending.length ? stat.isDirectory() : stat.isFile()))
+      return null;
+    current = next;
+  }
+  return fs.lstatSync(current).isFile() ? current : null;
+}
+
+/**
  * Admit a regular executable in a system installation tree. POSIX symlink targets
- * and both ancestor chains must be root-owned and not group/world writable.
+ * and every redirected ancestor chain must be root-owned and protected.
  * Windows rejects redirects along the entire default Program Files tree.
  * @param {string} platform Host platform.
  * @param {object} [fs] Filesystem seam for focused tests.
@@ -52,6 +94,7 @@ function resolveDockerExecutable(platform, fs = defaultFs) {
       const file = fs.realpathSync(candidate);
       if (!paths.isAbsolute(file)) continue;
       if (platform === 'win32' && file.toLowerCase() !== candidate.toLowerCase()) continue;
+      if (platform !== 'win32' && walkProtectedExecutable(candidate, fs) !== file) continue;
       let trusted = true;
       for (const start of new Set([candidate, file])) {
         let current = start;
