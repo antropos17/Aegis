@@ -75,7 +75,7 @@ namespace Aegis.ProtectedSession
             substage = 24;
             CallerNative.Require(GuestJobNative.Birth(self.DangerousGetHandle(), setup.Job.DangerousGetHandle(), CallerNative.GetProcessId(self)) == birth);
             substage = 25;
-            CallerNative.Require(GuestJobNative.Counts(setup.Job.DangerousGetHandle()).Active == 1);
+            GuestJobNative.RequireSingleton(setup.Job.DangerousGetHandle(), ref substage);
             substage = 26; // Unimpersonated exit.
             CallerNative.Require(!CallerNative.HasThreadToken());
         }
