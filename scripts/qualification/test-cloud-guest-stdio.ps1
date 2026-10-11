@@ -119,6 +119,43 @@ foreach ($label in @('natural-exit-fixed', 'natural-exit-original', 'natural-exi
     }
 }
 $mutations = 0
+# Exercise the outer signaled wait with a real helper, after authenticated stdin/output EOF.
+# The bypass control must reach Verify with Complete, proving Exchange admitted exit 7.
+$outerWait = 'uint wait = GuestJobNative.WaitForSingleObject(process, 0); Need(wait == 0 || wait == 0x102);'
+if ($transportText.Split(@($outerWait), [StringSplitOptions]::None).Count -ne 2) { throw 'stdio-outer-exit-seam-refused' }
+$outerSchedule = 'if (result.InputEof) { var schedule = Stopwatch.StartNew(); while (!result.OutputEof || !result.ErrorEof) { Need(schedule.ElapsedMilliseconds < 2000); Need(Drain(pipes[1], output, outputLimit, ref result.OutputEof) && Drain(pipes[2], error, errorLimit, ref result.ErrorEof)); Thread.Sleep(1); } Need(GuestJobNative.WaitForSingleObject(process, 2000) == 0); } ' + $outerWait
+$nonzeroTask = Join-Path $owned 'exit-seven.cjs'
+$taskText = [IO.File]::ReadAllText($task)
+$taskExit = "process.stdin.on('end', () => {"
+if ($taskText.Split(@($taskExit), [StringSplitOptions]::None).Count -ne 2) { throw 'stdio-helper-exit-seam-refused' }
+[IO.File]::WriteAllText($nonzeroTask, $taskText.Replace($taskExit, $taskExit + ' process.exitCode = 7;'), [Text.UTF8Encoding]::new($false))
+foreach ($label in @('outer-exit-zero', 'outer-exit-seven', 'outer-exit-bypass-zero', 'outer-exit-bypass-seven')) {
+    $text = $transportText.Replace($outerWait, $outerSchedule)
+    if ($label -clike 'outer-exit-bypass-*') {
+        $guard = 'else live = ExchangeExit(result.InputEof, clock, milliseconds, cancellation);'
+        if ($text.Split(@($guard), [StringSplitOptions]::None).Count -ne 2) { throw 'stdio-outer-exit-guard-seam-refused' }
+        $text = $text.Replace($guard, '')
+    }
+    $source = Join-Path $owned ($label + '.cs'); [IO.File]::WriteAllText($source, $text, [Text.UTF8Encoding]::new($false))
+    $binary = Compile-Stdio $label @($selected | ForEach-Object { if ($_ -ceq $selected[0]) { $source } else { $_ } }) 'StdioFixture'
+    $outerOut = Join-Path $owned ($label + '.txt'); $outerErr = $outerOut + '.error'
+    $helperTask = if ($label -clike '*-seven') { $nonzeroTask } else { $task }
+    $outerCode = Invoke-CloudGuestNativeProcess $binary @(('"' + $node + '"'), ('"' + $helperTask + '"'), '--single-node') $outerOut $outerErr 10000
+    if ($label -clike '*-zero') {
+        if ($outerCode -ne 0 -or [IO.File]::ReadAllText($outerOut).Trim() -cne 'native-stdio-node:passed' -or (Get-Item -LiteralPath $outerErr).Length -ne 0) { throw 'stdio-outer-exit-positive-refused' }
+    } else {
+        $failure = [IO.File]::ReadAllLines($outerErr)
+        if ($outerCode -ne 1 -or (Get-Item -LiteralPath $outerOut).Length -ne 0 -or !(Test-StdioClosedDiagnostic $failure) -or
+            $failure[3] -cnotmatch ';connectedMask=7;peerExited=True;peerExitObserved=True;peerExitCode=7\z' -or
+            $failure[4] -cne 'stdio-fixture-exception:Invariant;hresult=-2146233079') { throw 'stdio-outer-exit-negative-admitted' }
+        if ($label -ceq 'outer-exit-seven') {
+            if ($failure.Count -ne 7 -or $failure[-2] -cne 'stdio-fixture-phase:Exchange') { throw 'stdio-outer-exit-refusal-phase-refused' }
+        } else {
+            if ($failure.Count -ne 8 -or $failure[-2] -cne 'stdio-fixture-phase:Verify' -or
+                $failure[5] -cne 'stdio-fixture-result:Complete;input=8192;output=8192;error=8192;inputEof=True;outputEof=True;errorEof=True') { throw 'stdio-outer-exit-bypass-not-observed' }
+        }
+    }
+}
 if ($MutationControls) {
     foreach ($label in @('stdin-eof', 'stderr-drain', 'handle-list')) {
         $path = if ($label -ceq 'handle-list') { $selected[1] } else { $selected[0] }
@@ -146,6 +183,7 @@ if ($MutationControls) {
 [ordered]@{ schemaVersion = 1; scope = 'actual-same-principal-Job-owned-standard-handles'; nativeCases = 8;
     closedDiagnosticControls = 5; localNodeCaseSelected = 1;
     naturalExitScheduleControls = 8; innerWaitFailureControls = 2; innerWaitGuardMutationControls = 2;
+    outerSignaledExitControls = 4; outerNonzeroExitRefused = 1; outerExitGuardMutationObserved = 1;
     regressionMutationsRefused = $mutations; stdinBytes = 8192; stdoutBurstBytes = 56192; stderrBurstBytes = 48000;
     retainedLiveCensusMembers = [int]$parts[1]; exactSystemConhostMembers = [int]$parts[5];
     fixtureBinaryBytes = (Get-Item -LiteralPath $exe).Length; guestBinaryBytes = (Get-Item -LiteralPath $guest).Length;
