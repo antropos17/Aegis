@@ -30,6 +30,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           '/platform:x64',
           '/optimize+',
           '/warnaserror+',
+          '/define:INSTALLED_JOB_TEST',
           '/reference:System.Management.dll',
           '/reference:System.Security.dll',
           '/out:' + fixture,
@@ -57,10 +58,10 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       const native = JSON.parse(parsed.stdout.toString('utf8'));
       expect(native.frameBytes).toBe(104);
       expect(native.entryChecks).toBe(2);
-      expect(native.writerChecks).toBe(43);
+      expect(native.writerChecks).toBe(52);
       expect(native.writer).toEqual({ accepted: true, stage: 2, substage: 26 });
       expect(native.parsed).toEqual({ accepted: true, stage: 2, substage: 8 });
-      expect(native.rows).toHaveLength(60);
+      expect(native.rows).toHaveLength(69);
       for (const row of native.rows) {
         for (const boundary of ['whole', 'split']) {
           if (row.kind === 'invalid') expect(row[boundary].accepted).toBe(false);
@@ -92,15 +93,35 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
     }, 10000);
 
+    it('binds installed-only inventory accounting, SYSTEM context and protected image rules', () => {
+      const value = spawnSync(fixture, ['--installed-inventory-controls'], {
+        timeout: 8000,
+        maxBuffer: 8192,
+        windowsHide: true,
+      });
+      expect(value.error).toBeUndefined();
+      expect(value.status).toBe(0);
+      expect(value.stderr.length).toBe(0);
+      expect(JSON.parse(value.stdout.toString('utf8'))).toEqual({
+        accountingChecks: 9,
+        identityChecks: 6,
+        protectionChecks: 5,
+        nonSystemRefused: true,
+        wrongBirthRefused: true,
+        exitedRefused: true,
+        ownedJobEmpty: true,
+      });
+    }, 10000);
+
     it('retains only stage-two numeric checkpoints in host observations', () => {
       const phase = path.join(project, 'scripts/qualification/installed-owner-phase.ps1');
       const command = `
         . '${phase.replaceAll("'", "''")}'
         $rows = @()
         foreach ($stage in @(2, 5, 8, 10)) {
-          foreach ($substage in @(-1, 0, 13, 14, 26, 27, 35, 36, '26', $true)) {
+          foreach ($substage in @(-1, 0, 13, 14, 26, 27, 35, 36, 44, 45, '26', $true)) {
             $value = Get-InstalledOwnerAttemptObservation @{ supervisorStage = $stage; supervisorSubstage = $substage; arbitrary = 'excluded' } native
-            $rows += @{ stage = $stage; input = $substage; included = $value.ContainsKey('supervisorSubstage'); value = $value.supervisorSubstage; excluded = !$value.ContainsKey('arbitrary') }
+            $rows += @{ stage = $stage; input = $substage; included = $value.ContainsKey('supervisorSubstage'); value = $value['supervisorSubstage']; excluded = !$value.ContainsKey('arbitrary') }
           }
         }
         ConvertTo-Json -InputObject $rows -Compress
@@ -118,10 +139,10 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(value.status).toBe(0);
       expect(value.stderr.length).toBe(0);
       const rows = JSON.parse(value.stdout.toString('utf8'));
-      expect(rows).toHaveLength(40);
+      expect(rows).toHaveLength(48);
       for (const row of rows) {
         const admitted =
-          row.stage === 2 && Number.isInteger(row.input) && row.input >= 0 && row.input <= 35;
+          row.stage === 2 && Number.isInteger(row.input) && row.input >= 0 && row.input <= 44;
         expect(row.included).toBe(admitted);
         expect(row.excluded).toBe(true);
         if (admitted) expect(row.value).toBe(row.input);

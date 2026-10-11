@@ -186,6 +186,7 @@ function main() {
         'InstalledOwnerService',
         'InstalledOwnerBootstrap',
         'InstalledOwnerRegistration',
+        'InstalledJobInventory',
         'InstalledOwnerFiles',
         'InstalledOwnerSession',
       ].map((name) => path.join(ROOT, 'sidecar', 'session', `${name}.cs`)),
