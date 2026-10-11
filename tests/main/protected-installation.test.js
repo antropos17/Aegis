@@ -28,6 +28,81 @@ describe.skipIf(process.platform !== 'win32')(
       expect(value.stderr.length).toBe(0);
       return JSON.parse(value.stdout.toString('utf8'));
     }
+    it('projects finite uninstall checkpoints and stops at the first failing callback', () => {
+      const script = `
+        . './scripts/installation/protected-install-transaction.ps1'
+        $rows = @()
+        $names = @('validate', 'stop', 'unregister', 'remove', 'account')
+        foreach ($failed in $names) {
+          $events = [Collections.Generic.List[string]]::new()
+          $ops = @{}
+          foreach ($name in $names) {
+            $selectedName = $name; $selectedFailure = $failed; $selectedEvents = $events
+            $ops[$name] = {
+              param($first, $second)
+              $selectedEvents.Add($selectedName)
+              if ($selectedName -ceq $selectedFailure) {
+                $error = [InvalidOperationException]::new('private-path-password-command')
+                if ($selectedName -ceq 'unregister') {
+                  $error.Data['protectedOperation'] = 'service-delete'
+                  $error.Data['protectedNativeWin32'] = [int]5
+                }
+                throw $error
+              }
+            }.GetNewClosure()
+          }
+          try { Invoke-ProtectedUninstallTransaction $ops @{ service = @{}; stage = @{} } }
+          catch { $rows += @{ events = @($events.ToArray()); failure = Get-ProtectedInstallFailure $_ 'qualification' } }
+        }
+        foreach ($checkpoint in @('administrator', 'absence-confirm', 'private-path-password-command')) {
+          try { Invoke-ProtectedUninstallCheckpoint $checkpoint { throw 'private-path-password-command' } }
+          catch { $rows += @{ failure = Get-ProtectedInstallFailure $_ 'qualification' } }
+        }
+        foreach ($code in @('protected-control-unknown-child', 'protected-receipt-unknown-child')) {
+          try { Invoke-ProtectedUninstallCheckpoint 'validate' { throw $code } }
+          catch { $rows += @{ failure = Get-ProtectedInstallFailure $_ 'qualification' } }
+        }
+        $rows | ConvertTo-Json -Depth 8 -Compress
+      `;
+      const value = spawnSync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        {
+          cwd: project,
+          windowsHide: true,
+          timeout: 10000,
+          maxBuffer: 8192,
+        },
+      );
+      expect(value.error).toBeUndefined();
+      expect(value.status).toBe(0);
+      expect(value.stderr.toString()).toBe('');
+      expect(value.stdout.toString()).not.toContain('private-path-password-command');
+      const rows = JSON.parse(value.stdout.toString('utf8'));
+      const callbacks = ['validate', 'stop', 'unregister', 'remove', 'account'];
+      const checkpoints = ['validate', 'stop', 'unregister', 'stage-removal', 'ancillary-account'];
+      checkpoints.forEach((checkpoint, index) => {
+        expect(rows[index].events).toEqual(callbacks.slice(0, index + 1));
+        expect(rows[index].failure).toMatchObject({
+          uninstallCheckpoint: checkpoint,
+          diagnosticCode: 'protected-operation-refused',
+          operation: index === 2 ? 'service-delete' : 'qualification',
+          nativeWin32: index === 2 ? 5 : null,
+        });
+      });
+      expect(rows[5].failure.uninstallCheckpoint).toBe('administrator');
+      expect(rows[6].failure.uninstallCheckpoint).toBe('absence-confirm');
+      expect(rows[7].failure).not.toHaveProperty('uninstallCheckpoint');
+      expect(rows[7].failure.diagnosticCode).toBe('protected-operation-refused');
+      expect(rows[8].failure).toMatchObject({
+        uninstallCheckpoint: 'validate',
+        diagnosticCode: 'protected-control-unknown-child',
+      });
+      expect(rows[9].failure).toMatchObject({
+        uninstallCheckpoint: 'validate',
+        diagnosticCode: 'protected-receipt-unknown-child',
+      });
+    });
     it('refuses an unrelated service before any stop, file deletion or account removal', () => {
       expect(invoke('uninstall-foreign')).toMatchObject({ refused: true, events: ['validate'] });
     });

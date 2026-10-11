@@ -68,11 +68,18 @@ function Invoke-ProtectedUpgradeTransaction([hashtable]$Operations, $Association
 
 function Invoke-ProtectedUninstallTransaction([hashtable]$Operations, $Association) {
     # The complete finite resource set is validated before the first mutation.
-    (& $Operations.validate $Association) | Out-Null
-    (& $Operations.stop $Association) | Out-Null
-    (& $Operations.unregister $Association.service) | Out-Null
-    (& $Operations.remove $Association.stage $true) | Out-Null
-    (& $Operations.account $Association) | Out-Null
+    Invoke-ProtectedUninstallCheckpoint 'validate' $Operations.validate @($Association)
+    Invoke-ProtectedUninstallCheckpoint 'stop' $Operations.stop @($Association)
+    Invoke-ProtectedUninstallCheckpoint 'unregister' $Operations.unregister @($Association.service)
+    Invoke-ProtectedUninstallCheckpoint 'stage-removal' $Operations.remove @($Association.stage, $true)
+    Invoke-ProtectedUninstallCheckpoint 'ancillary-account' $Operations.account @($Association)
+}
+
+# Rethrow the original failure immediately. A checkpoint adds context without
+# replacing native helper operation/LastError or enabling later cleanup callbacks.
+function Invoke-ProtectedUninstallCheckpoint([string]$Checkpoint, [scriptblock]$Action, [object[]]$Arguments = @()) {
+    try { (& $Action @Arguments) | Out-Null }
+    catch { $_.Exception.Data['protectedUninstallCheckpoint'] = $Checkpoint; throw }
 }
 
 Set-StrictMode -Version Latest
@@ -85,9 +92,15 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         'service-manager-open', 'service-open', 'service-security-set', 'service-config-query', 'service-security-query', 'service-status-query', 'service-start', 'service-process-open', 'service-process-image', 'service-process-times', 'service-token-open', 'service-token-query', 'service-stop', 'service-delete', 'service-handle-close', 'service-process-wait')
     $codes = @('protected-operation-output-refused', 'protected-upgrade-stage-cleanup-unknown', 'protected-upgrade-handoff-cleanup-unknown', 'protected-qualified-partial-fault', 'protected-installer-elevated-windows51-x64-required', 'protected-install-input-refused', 'protected-input-manifest-refused', 'protected-input-digest-refused', 'protected-ancestor-acl-refused', 'protected-install-parent-preexisting', 'protected-install-service-preexisting', 'protected-install-account-preexisting', 'protected-owned-account-association-refused', 'protected-operator-administrator-refused', 'protected-operator-users-membership-required', 'protected-file-native-refused', 'protected-file-refused', 'protected-directory-creation-cleanup-unknown', 'protected-file-handoff-cleanup-unknown', 'protected-file-repin-cleanup-unknown', 'protected-service-native-refused', 'protected-service-refused', 'protected-service-create-refused', 'protected-service-creation-cleanup-unknown', 'protected-partial-install-cleanup-unknown', 'protected-installation-cleanup-unknown', 'protected-owned-cleanup-unknown', 'protected-account-removal-unconfirmed', 'protected-uninstall-absence-unconfirmed')
     $codes += @('installed-fresh-attempt-receipts-required', 'installed-owner-attempt-deadline', 'installed-owner-observation-budget-refused', 'installed-owner-fresh-result-refused', 'installed-owner-independent-counter-refused', 'installed-native-child-cleanup-unknown', 'installed-original-owner-binding-refused', 'installed-owner-behavior-or-cleanup-refused', 'installed-owner-token-refused', 'installed-original-producer-readiness-refused', 'installed-original-program-exit-refused', 'installed-original-image-binding-refused')
+    $codes += @('protected-control-unknown-child', 'protected-receipt-unknown-child')
     $failure = @{ operation = $(if ($Operation -cin $operations) { $Operation } else { 'qualification' }); diagnosticCode = 'protected-operation-refused'; nativeWin32 = $null; hResult = $ErrorRecord.Exception.HResult }
     $cause = $ErrorRecord.Exception; $semanticCode = $null
     for ($depth = 0; $depth -lt 8 -and $null -ne $cause; $depth++) {
+        if (!$failure.ContainsKey('uninstallCheckpoint') -and $cause.Data.Contains('protectedUninstallCheckpoint') -and
+            $cause.Data['protectedUninstallCheckpoint'] -is [string] -and
+            $cause.Data['protectedUninstallCheckpoint'] -cin @('administrator', 'validate', 'stop', 'unregister', 'stage-removal', 'ancillary-account', 'absence-confirm')) {
+            $failure.uninstallCheckpoint = $cause.Data['protectedUninstallCheckpoint']
+        }
         if ($cause.Message -cin $codes) { $failure.diagnosticCode = $cause.Message }
         # Classify only known exception types. Never project command names,
         # parameter text, FQIDs or an opaque Win32Exception's ambient last error.
