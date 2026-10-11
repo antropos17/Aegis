@@ -1,4 +1,4 @@
-/** Bounded Docker configuration projection. These observations do not establish isolation. */
+/** Bounded container configuration projections. These observations do not establish isolation. */
 'use strict';
 const { hasControl } = require('./container-metadata');
 
@@ -8,6 +8,8 @@ const CONFIGURATION_OUTPUT_BYTES = 4096;
 // https://docs.docker.com/reference/cli/docker/container/inspect/
 const CONFIGURATION_FORMAT =
   '{"ID":{{json .Id}},"Running":{{json .State.Running}},"Privileged":{{json .HostConfig.Privileged}},"ReadonlyRootfs":{{json .HostConfig.ReadonlyRootfs}},"NetworkMode":{{json .HostConfig.NetworkMode}},"PidMode":{{json .HostConfig.PidMode}}}';
+// https://docs.podman.io/en/latest/markdown/podman-container-inspect.1.html
+const PODMAN_CONFIGURATION_FORMAT = CONFIGURATION_FORMAT.replace('.Id', '.ID');
 const KEYS = ['ID', 'Running', 'Privileged', 'ReadonlyRootfs', 'NetworkMode', 'PidMode'];
 
 /** Validate an exact projection and discard custom namespace names and container references.
@@ -70,5 +72,6 @@ module.exports = {
   CONFIGURATION_TIMEOUT_MS,
   CONFIGURATION_OUTPUT_BYTES,
   CONFIGURATION_FORMAT,
+  PODMAN_CONFIGURATION_FORMAT,
   parseConfiguration,
 };

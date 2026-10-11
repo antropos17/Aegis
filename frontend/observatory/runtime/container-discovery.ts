@@ -1,6 +1,6 @@
 import type {
   DockerContainerCandidate,
-  DockerConfigurationObservation,
+  ContainerConfigurationObservation,
   DockerDiscoverySnapshot,
   PodmanContainerCandidate,
   PodmanDiscoverySnapshot,
@@ -78,17 +78,20 @@ const configurationKeys = new Set([
   'networkMode',
   'pidMode',
 ]);
-function configuration(value: unknown): DockerConfigurationObservation {
+function configuration(value: unknown): ContainerConfigurationObservation {
   const source = record(value);
-  const unavailable: DockerConfigurationObservation = { status: 'unavailable', observedAt: null };
+  const unavailable: ContainerConfigurationObservation = {
+    status: 'unavailable',
+    observedAt: null,
+  };
   if (Object.keys(source).some((key) => !configurationKeys.has(key))) return unavailable;
   if (source.status !== 'observed' || timestamp(source.observedAt) === null) return unavailable;
   const facts: {
     running?: boolean;
     privileged?: boolean;
     readOnlyRootFilesystem?: boolean;
-    networkMode?: DockerConfigurationObservation['networkMode'];
-    pidMode?: DockerConfigurationObservation['pidMode'];
+    networkMode?: ContainerConfigurationObservation['networkMode'];
+    pidMode?: ContainerConfigurationObservation['pidMode'];
   } = {};
   for (const key of ['running', 'privileged', 'readOnlyRootFilesystem'] as const) {
     if (Object.hasOwn(source, key)) {
@@ -102,7 +105,7 @@ function configuration(value: unknown): DockerConfigurationObservation {
       !['bridge', 'host', 'none', 'other'].includes(source.networkMode)
     )
       return unavailable;
-    facts.networkMode = source.networkMode as DockerConfigurationObservation['networkMode'];
+    facts.networkMode = source.networkMode as ContainerConfigurationObservation['networkMode'];
   }
   if (Object.hasOwn(source, 'pidMode')) {
     if (
@@ -110,7 +113,7 @@ function configuration(value: unknown): DockerConfigurationObservation {
       !['host', 'private', 'container', 'other'].includes(source.pidMode)
     )
       return unavailable;
-    facts.pidMode = source.pidMode as DockerConfigurationObservation['pidMode'];
+    facts.pidMode = source.pidMode as ContainerConfigurationObservation['pidMode'];
   }
   return Object.keys(facts).length
     ? { status: 'observed', observedAt: timestamp(source.observedAt), ...facts }
@@ -125,7 +128,7 @@ function configuration(value: unknown): DockerConfigurationObservation {
  * @since 0.19.2
  */
 export function configurationStale(
-  observation: DockerConfigurationObservation,
+  observation: ContainerConfigurationObservation,
   discoveryStale: boolean,
   now: number,
 ): boolean {
@@ -145,9 +148,7 @@ function candidate(
 ): DockerContainerCandidate | PodmanContainerCandidate | null {
   const row = record(value);
   if (
-    Object.keys(row).some(
-      (key) => !candidateKeys.has(key) && !(runtime === 'docker' && key === 'configuration'),
-    ) ||
+    Object.keys(row).some((key) => !candidateKeys.has(key) && key !== 'configuration') ||
     typeof row.containerId !== 'string' ||
     !/^[a-f0-9]{64}$/.test(row.containerId) ||
     row.id !== `${runtime}:${row.containerId}` ||
@@ -167,15 +168,15 @@ function candidate(
     image: row.image,
     agent: row.agent,
     match: 'image' as const,
+    ...(Object.hasOwn(row, 'configuration')
+      ? { configuration: configuration(row.configuration) }
+      : {}),
   };
   return runtime === 'docker'
     ? {
         ...metadata,
         id: `docker:${row.containerId}`,
         runtime: 'docker',
-        ...(Object.hasOwn(row, 'configuration')
-          ? { configuration: configuration(row.configuration) }
-          : {}),
       }
     : { ...metadata, id: `podman:${row.containerId}`, runtime: 'podman' };
 }

@@ -29,14 +29,14 @@ Validate runtime-prefixed container identities and accept only the documented
 metadata fields. Use the existing Observatory panel, typography and localization
 patterns in both interface modes, with one freshness timer disposed on panel unmount.
 
-For matched Docker candidates, show a separate, dated configuration observation
+For matched Docker and Linux-native Podman candidates, show a separate, dated configuration observation
 when a bounded local inspect query succeeds. Display only running state,
 privileged mode, read-only root filesystem and categorical network/PID modes.
 An unavailable or expired inspect result must remain explicit; never treat a
 successful container list as a successful configuration observation. These
 settings describe the runtime configuration at observation time, not effective
-isolation or a security grade. Podman configuration inspection is outside this
-increment, and neither runtime's candidates gain host-process attribution.
+isolation or a security grade. Neither runtime's candidates gain host-process
+attribution.
 
 ## Compact density — 2026-10-07
 
@@ -862,3 +862,15 @@ and new notifications; retained Alerts, journal and history remain available.
 Failed preference reads are qualified. Existing canonical process identity,
 confirmation and operation failure handling remain in force. This interface
 change does not establish automatic process blocking.
+
+
+### Podman configuration observations (2026-10-11)
+
+Podman candidates use the existing observed-configuration composition alongside
+Docker candidates. The Linux-native owner queries a bounded fixed projection for
+freshly matched full IDs and separately dates each validated observation. Unknown,
+unavailable and stale configuration remain explicit. Running state, privilege,
+read-only root filesystem and categorized network/PID modes establish configuration
+facts only; they confer no isolation or security grade. Custom namespace names and
+container references are discarded. Native Podman execution and rendered device
+coverage remain separate qualification evidence.

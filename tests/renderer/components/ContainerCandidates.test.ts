@@ -203,58 +203,66 @@ it.each(['false', 'true'])(
   },
 );
 
-it('shows dated configuration facts and independently expires them without grading isolation', async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(1_000_000);
-  const docker = snapshot('docker');
-  const configured = {
-    ...docker,
-    candidates: [
-      {
-        ...docker.candidates[0],
-        configuration: {
-          status: 'observed',
-          observedAt: Date.now() - 89_000,
-          privileged: false,
-          readOnlyRootFilesystem: true,
-          networkMode: 'host',
+it.each(['docker', 'podman'] as const)(
+  'shows dated %s configuration facts and independently expires them without grading isolation',
+  async (runtime) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const docker = snapshot(runtime);
+    const other = runtime === 'docker' ? 'podman' : 'docker';
+    const title = runtime === 'docker' ? 'Docker' : 'Podman';
+    const configured = {
+      ...docker,
+      candidates: [
+        {
+          ...docker.candidates[0],
+          configuration: {
+            status: 'observed',
+            observedAt: Date.now() - 89_000,
+            privileged: false,
+            readOnlyRootFilesystem: true,
+            networkMode: 'host',
+          },
         },
-      },
-    ],
-  };
-  const view = render(ContainerCandidates, {
-    dockerSnapshot: configured,
-    podmanSnapshot: snapshot('podman'),
-  });
-  const region = screen.getByRole('region', { name: 'Docker container candidates' });
-  expect(within(region).getByText('Observed configuration')).toBeVisible();
-  expect(within(region).getByText('No')).toBeVisible();
-  expect(within(region).getByText('Yes')).toBeVisible();
-  expect(region.querySelectorAll('time')).toHaveLength(2);
-  expect(within(region).queryByText(/Configuration is stale/)).toBeNull();
-  await vi.advanceTimersByTimeAsync(1000);
-  await tick();
-  expect(within(region).getByText(/Configuration is stale/)).toBeVisible();
-  expect(within(region).getByRole('status')).toHaveTextContent('Docker metadata observed');
-  expect(
-    within(region).getByText(
-      'Configuration observations do not establish isolation or a security grade.',
-    ),
-  ).toBeVisible();
-  expect(
-    within(screen.getByRole('region', { name: 'Podman container candidates' })).queryByText(
-      'Observed configuration',
-    ),
-  ).toBeNull();
-  await view.rerender({
-    dockerSnapshot: {
+      ],
+    };
+    const view = render(ContainerCandidates, {
+      dockerSnapshot: runtime === 'docker' ? configured : snapshot('docker'),
+      podmanSnapshot: runtime === 'podman' ? configured : snapshot('podman'),
+    });
+    const region = screen.getByRole('region', { name: `${title} container candidates` });
+    expect(within(region).getByText('Observed configuration')).toBeVisible();
+    expect(within(region).getByText('No')).toBeVisible();
+    expect(within(region).getByText('Yes')).toBeVisible();
+    expect(region.querySelectorAll('time')).toHaveLength(2);
+    expect(within(region).queryByText(/Configuration is stale/)).toBeNull();
+    await vi.advanceTimersByTimeAsync(1000);
+    await tick();
+    expect(within(region).getByText(/Configuration is stale/)).toBeVisible();
+    expect(within(region).getByRole('status')).toHaveTextContent(`${title} metadata observed`);
+    expect(
+      within(region).getByText(
+        'Configuration observations do not establish isolation or a security grade.',
+      ),
+    ).toBeVisible();
+    expect(
+      within(
+        screen.getByRole('region', {
+          name: `${other === 'docker' ? 'Docker' : 'Podman'} container candidates`,
+        }),
+      ).queryByText('Observed configuration'),
+    ).toBeNull();
+    const unavailable = {
       ...docker,
       candidates: [
         { ...docker.candidates[0], configuration: { status: 'unavailable', observedAt: null } },
       ],
-    },
-    podmanSnapshot: snapshot('podman'),
-  });
-  expect(within(region).getByText('Configuration unavailable')).toBeVisible();
-  expect(within(region).queryByText('Privileged')).toBeNull();
-});
+    };
+    await view.rerender({
+      dockerSnapshot: runtime === 'docker' ? unavailable : snapshot('docker'),
+      podmanSnapshot: runtime === 'podman' ? unavailable : snapshot('podman'),
+    });
+    expect(within(region).getByText('Configuration unavailable')).toBeVisible();
+    expect(within(region).queryByText('Privileged')).toBeNull();
+  },
+);
