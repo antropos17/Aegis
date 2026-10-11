@@ -29,7 +29,7 @@ namespace Aegis.InstalledOwner
         private string phase = "acquire-owner";
         private uint supervisorStage, supervisorSubstage;
         private bool producerReady, bootstrapWritten, bootstrapEof, supervisorReleased, mainReleased;
-        private uint supervisorExitCode = 259;
+        private uint? supervisorExitCode;
 
         internal bool Run(InstalledOwnerDeadline deadline = null)
         {
@@ -115,7 +115,7 @@ namespace Aegis.InstalledOwner
                 }
             }
             catch { /* Fixed receipt fields only; native exceptions never become output. */ }
-            finally { Dispose(); }
+            finally { Cleanup(deadline); }
             if (policy == null) return false;
             int observedCount = InstalledOwnerFiles.InspectionCount(policy);
             bool success = inspection != null && observedCount == 1 && !cleanupUnknown;
@@ -124,7 +124,7 @@ namespace Aegis.InstalledOwner
                 ",\"supervisorSubstage\":" + supervisorSubstage +
                 ",\"nativeProducerReady\":" + (producerReady ? "true" : "false") + ",\"bootstrapWriteCompleted\":" + (bootstrapWritten ? "true" : "false") +
                 ",\"bootstrapEofClosed\":" + (bootstrapEof ? "true" : "false") + ",\"supervisorReleased\":" + (supervisorReleased ? "true" : "false") +
-                ",\"mainReleased\":" + (mainReleased ? "true" : "false") + ",\"supervisorExitCode\":" + supervisorExitCode +
+                ",\"mainReleased\":" + (mainReleased ? "true" : "false") + ",\"supervisorExitCode\":" + (supervisorExitCode.HasValue ? supervisorExitCode.Value.ToString() : "null") +
                 ",\"inspectionCount\":" + observedCount + ",\"cleanupConfirmed\":" + (!cleanupUnknown ? "true" : "false") +
                 ",\"supervisorPid\":" + supervisorPid + ",\"mainPid\":" + mainPid + ",\"operatorSid\":\"" + (actual == null ? "" : actual.OperatorSid) +
                 "\",\"operatorAuthentication\":\"" + (actual == null ? "" : actual.OperatorAuthentication) + "\",\"operatorSession\":0," +
@@ -154,12 +154,48 @@ namespace Aegis.InstalledOwner
         private void Stop(CallerLauncherNative.Created child)
         { if (child != null) { try { CallerLauncherNative.Stop(child); } catch { cleanupUnknown = true; } finally { CloseResource(child); } } }
         public void Dispose()
+        { Cleanup(null); }
+        private void AwaitSupervisorExit(InstalledOwnerDeadline deadline)
         {
+            if (deadline == null) return;
+            var grace = Stopwatch.StartNew();
+            while (grace.ElapsedMilliseconds < 2000)
+            {
+                lock (gate)
+                {
+                    if (closed || supervisor == null || !supervisorReleased ||
+                        (phase != "await-completion" && phase != "await-result")) return;
+                    int remaining;
+                    try { remaining = deadline.Remaining; }
+                    catch (InvalidOperationException) { return; }
+                    // Yield the gate between short waits so SCM stop and expiry can force cleanup.
+                    uint wait = (uint)Math.Min(25, Math.Min(remaining, Math.Max(0, 2000 - (int)grace.ElapsedMilliseconds)));
+                    uint state = CallerNative.WaitForSingleObject(supervisor.Process, wait);
+                    if (state == 0) return;
+                    if (state != 0x102) { cleanupUnknown = true; return; }
+                }
+                Thread.Sleep(1);
+            }
+        }
+        private void Cleanup(InstalledOwnerDeadline deadline)
+        {
+            // EOF/refusal can precede process signaling. Grace never extends the original deadline.
+            // Cleanup still runs after an expired budget, timeout, or a failed native wait.
+            AwaitSupervisorExit(deadline);
             lock (gate)
             {
                 if (closed) return; closed = true;
-                if (supervisor != null && CallerNative.WaitForSingleObject(supervisor.Process, 0) == 0)
-                    if (!GetExitCodeProcess(supervisor.Process, out supervisorExitCode)) cleanupUnknown = true;
+                if (supervisor != null)
+                {
+                    uint state = CallerNative.WaitForSingleObject(supervisor.Process, 0);
+                    if (state == 0)
+                    {
+                        uint code;
+                        if (GetExitCodeProcess(supervisor.Process, out code)) supervisorExitCode = code;
+                        else cleanupUnknown = true;
+                    }
+                    else if (state != 0x102) cleanupUnknown = true;
+                }
                 CloseResource(timer); Stop(main); Stop(supervisor);
                 CloseResource(mainInput); CloseResource(supervisorOutput); CloseResource(supervisorInput);
                 CloseResource(mainImage); CloseResource(supervisorImage); CloseResource(ownerImage);
