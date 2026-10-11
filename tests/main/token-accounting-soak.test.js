@@ -12,8 +12,40 @@ import {
   createDeadline,
 } from '../../scripts/qualification/token-accounting-soak-support.mjs';
 import { packagedStep } from '../../scripts/qualification/token-accounting-soak-runtime.mjs';
+import { createLaunchEnvironment } from '../../scripts/qualification/token-accounting-soak-env.mjs';
 
 describe('token soak safety and independent oracle (Node fixtures, no packaged evidence)', () => {
+  it('isolates child credentials, runtime flags and executable search paths', () => {
+    const parent = {
+      sYsTeMrOoT: 'D:\\Windows',
+      PATH: 'C:\\untrusted-tools',
+      COMSPEC: 'C:\\untrusted-tools\\cmd.exe',
+      ANTHROPIC_API_KEY: 'fixture-secret',
+      AWS_SECRET_ACCESS_KEY: 'fixture-cloud-secret',
+      UNKNOWN_FUTURE_CREDENTIAL: 'fixture-secret',
+      NODE_OPTIONS: '--require C:\\untrusted.js',
+      ELECTRON_RUN_AS_NODE: '1',
+      USERPROFILE: 'C:\\real-home',
+    };
+    const directories = { home: 'X:\\home', profile: 'X:\\profile', temp: 'X:\\temp' };
+    const env = createLaunchEnvironment(parent, directories);
+    expect(env).toEqual({
+      SystemRoot: 'D:\\Windows',
+      WINDIR: 'D:\\Windows',
+      COMSPEC: 'D:\\Windows\\System32\\cmd.exe',
+      PATH: 'D:\\Windows\\System32;D:\\Windows;D:\\Windows\\System32\\Wbem',
+      PATHEXT: '.COM;.EXE;.BAT;.CMD',
+      USERPROFILE: directories.home,
+      HOME: directories.home,
+      APPDATA: directories.profile,
+      LOCALAPPDATA: directories.profile,
+      TEMP: directories.temp,
+      TMP: directories.temp,
+    });
+    expect(parent.ANTHROPIC_API_KEY).toBe('fixture-secret');
+    expect(createLaunchEnvironment({}, directories).SystemRoot).toBe('C:\\Windows');
+  });
+
   it('rejects development launch and mismatched numeric totals', async () => {
     await expect(packagedStep({ app: { isPackaged: false } }, {})).rejects.toThrow(
       'packaged-required',

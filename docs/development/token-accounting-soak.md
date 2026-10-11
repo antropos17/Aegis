@@ -15,6 +15,10 @@ and SQLite ledger; they do not mutate the live application's module cache.
 The normal packaged application also starts, with an empty disposable profile
 and HOME/USERPROFILE/APPDATA/LOCALAPPDATA/TEMP/TMP on X:. It can observe the host's
 process population; this run qualifies synthetic accounting only.
+Its launch environment allows only Windows system paths (SystemRoot/WINDIR,
+COMSPEC, a system-only PATH and PATHEXT) plus those six disposable paths.
+Parent credentials, custom executable search paths, Electron/Node flags and
+unrecognised environment variables are omitted.
 
 Run from an AEGIS checkout with its normal dependencies available:
 

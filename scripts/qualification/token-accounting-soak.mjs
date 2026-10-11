@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { packagedStep } from './token-accounting-soak-runtime.mjs';
+import { createLaunchEnvironment } from './token-accounting-soak-env.mjs';
 import {
   checkSample,
   treeBytes,
@@ -76,16 +77,7 @@ const owner = { app: undefined, stopping: undefined, launchUnconfirmed: false };
 const deadline = createDeadline(durationMs + 120_000);
 const monotonicStart = performance.now();
 let failureStage = 'fixture-setup';
-const env = {
-  ...process.env,
-  USERPROFILE: home,
-  HOME: home,
-  APPDATA: profile,
-  LOCALAPPDATA: profile,
-  TEMP: temp,
-  TMP: temp,
-};
-delete env.ELECTRON_RUN_AS_NODE;
+const env = createLaunchEnvironment(process.env, { home, profile, temp });
 async function stop() {
   await stopOwned(owner, async (pid) => {
     await new Promise((resolve, reject) => {
