@@ -9,7 +9,6 @@ import {
   createStatisticsHistory,
   observeStatistics,
   statisticsRate,
-  statisticsPaths,
   STATISTICS_HISTORY_LIMIT,
   STATISTICS_HISTORY_MS,
 } from '../../frontend/observatory/runtime/statistics-history';
@@ -266,20 +265,6 @@ it('rate arithmetic rejects resets, invalid intervals and overflow', () => {
   expect(statisticsRate(3, 1, 1000)).toBeNull();
   expect(statisticsRate(0, Number.MAX_VALUE, 1)).toBeNull();
 });
-it('ignores unrelated sparse frames while preserving explicit graph gaps', () => {
-  const paths = statisticsPaths(
-    [
-      { at: 0, values: { cpu: 0 } },
-      { at: 1000, values: { memory: 20 } },
-      { at: 2000, values: { cpu: null } },
-      { at: 4000, values: { cpu: 40 } },
-    ],
-    'cpu',
-    100,
-  );
-  expect(paths).toEqual(['M 2.00 158.00', 'M 598.00 96.40']);
-});
-
 it('manual pause records its real action time without erasing a prior valid sample', () => {
   const first = state();
   let h = observeStatistics(createStatisticsHistory(), first);

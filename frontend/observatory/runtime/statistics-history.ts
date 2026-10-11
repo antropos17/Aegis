@@ -311,32 +311,3 @@ export function observeStatistics(
     .slice(-STATISTICS_HISTORY_LIMIT);
   return next;
 }
-/** Split graph paths at explicit unavailable values, ignoring unrelated source frames.
- * @param samples Timeline @param key Metric @param maximum Vertical scale
- * @returns SVG line paths @since 0.14.1
- */
-export function statisticsPaths(
-  samples: StatisticsSample[],
-  key: string,
-  maximum: number,
-): string[] {
-  const measured = samples.filter((sample) => Object.hasOwn(sample.values, key));
-  if (!measured.length || !Number.isFinite(maximum) || maximum <= 0) return [];
-  const start = measured[0].at,
-    span = Math.max(1, measured.at(-1)!.at - start);
-  const paths: string[] = [];
-  let path = '';
-  for (const sample of measured) {
-    const value = sample.values[key];
-    if (value === null || !Number.isFinite(value) || value < 0) {
-      if (path) paths.push(path);
-      path = '';
-      continue;
-    }
-    const x = 2 + ((sample.at - start) / span) * 596;
-    const y = 158 - Math.min(1, value / maximum) * 154;
-    path += (path ? ' L ' : 'M ') + x.toFixed(2) + ' ' + y.toFixed(2);
-  }
-  if (path) paths.push(path);
-  return paths;
-}
