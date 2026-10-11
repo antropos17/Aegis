@@ -39,21 +39,58 @@ internal static class InstalledOwnerFixture
         uint stage, substage; bool accepted = InstalledOwnerSession.TryReadFailureFrame(ReadFailure(frame, split), out stage, out substage);
         return "{\"accepted\":" + (accepted ? "true" : "false") + ",\"stage\":" + stage + ",\"substage\":" + substage + "}";
     }
+    private delegate void DiagnosticCheck(ref int substage);
+    private static int CheckClosedRegistration()
+    {
+        // No installation, handles or service: the first assertion must refuse
+        // before touching any resource, through both diagnostic and later calls.
+        Type type = typeof(InstalledOwnerRegistration);
+        var registration = (InstalledOwnerRegistration)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        type.GetField("closed", flags).SetValue(registration, true);
+        int checkpoint = 11;
+        var check = (DiagnosticCheck)Delegate.CreateDelegate(typeof(DiagnosticCheck), registration,
+            type.GetMethod("CheckCurrent", flags, null, new Type[] { typeof(int).MakeByRefType() }, null));
+        Exception diagnosed = null, later = null;
+        try { check(ref checkpoint); }
+        catch (InvalidOperationException error) { diagnosed = error; }
+        try { registration.CheckCurrent(); }
+        catch (InvalidOperationException error) { later = error; }
+        CallerNative.Require(diagnosed is InvalidOperationException && later != null && diagnosed.Message == later.Message && checkpoint == 14);
+        return 2;
+    }
     private static int FailureFrames()
     {
+        int entryChecks = CheckClosedRegistration();
         var rows = new List<string>();
         for (uint stage = 1; stage <= 12; stage++)
             rows.Add("{\"kind\":\"legacy\",\"expectedStage\":" + stage + ",\"expectedSubstage\":0,\"whole\":" + Parsed(Frame(stage, 0), false) + ",\"split\":" + Parsed(Frame(stage, 0), true) + "}");
-        for (uint substage = 1; substage <= 13; substage++)
+        for (uint substage = 1; substage <= 26; substage++)
             rows.Add("{\"kind\":\"stage2\",\"expectedStage\":2,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(2, substage), false) + ",\"split\":" + Parsed(Frame(2, substage), true) + "}");
-        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 14), Frame(1, 1), Frame(3, 13),
+        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 27), Frame(1, 1), Frame(3, 13),
+            Frame(1, 14), Frame(3, 26), Frame(12, 26),
             Frame(2, 8).Substring(0, 103) + "1", Frame(2, 8).Replace("00000008", "0000000A"),
             "AEGISF03" + Frame(2, 8).Substring(8), Frame(2, 8).Substring(0, 103), Frame(2, 8) + "0" };
         for (int index = 0; index < invalid.Length; index++)
             rows.Add("{\"kind\":\"invalid\",\"index\":" + index + ",\"whole\":" + Parsed(invalid[index], false) + ",\"split\":" + Parsed(invalid[index], true) + "}");
-        byte[] issued = InstalledOwnerSession.FailureFrame(2, 8); uint writerStage, writerSubstage;
+        int writerChecks = 0;
+        for (int checkpoint = 0; checkpoint <= 26; checkpoint++)
+        {
+            byte[] frame = InstalledOwnerSession.FailureFrame(2, checkpoint);
+            CallerNative.Require(frame.Length == 104 && Encoding.ASCII.GetString(frame) == Frame(2, (uint)checkpoint));
+            writerChecks++;
+        }
+        int[,] invalidWriter = { { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 27 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
+        for (int index = 0; index < invalidWriter.GetLength(0); index++)
+        {
+            bool refused = false;
+            try { InstalledOwnerSession.FailureFrame(invalidWriter[index, 0], invalidWriter[index, 1]); }
+            catch (InvalidOperationException) { refused = true; }
+            CallerNative.Require(refused); writerChecks++;
+        }
+        byte[] issued = InstalledOwnerSession.FailureFrame(2, 26); uint writerStage, writerSubstage;
         bool writerAccepted = InstalledOwnerSession.TryReadFailureFrame(Encoding.ASCII.GetString(issued), out writerStage, out writerSubstage);
-        Console.WriteLine("{\"frameBytes\":" + issued.Length + ",\"writer\":{\"accepted\":" + (writerAccepted ? "true" : "false") +
+        Console.WriteLine("{\"entryChecks\":" + entryChecks + ",\"writerChecks\":" + writerChecks + ",\"frameBytes\":" + issued.Length + ",\"writer\":{\"accepted\":" + (writerAccepted ? "true" : "false") +
             ",\"stage\":" + writerStage + ",\"substage\":" + writerSubstage + "},\"parsed\":" + Parsed(Frame(2, 8), false) +
             ",\"rows\":[" + String.Join(",", rows) + "]}");
         return 0;

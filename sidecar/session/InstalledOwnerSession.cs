@@ -9,7 +9,7 @@ namespace Aegis.ProtectedSession
     {
         internal static byte[] FailureFrame(int stage, int substage)
         {
-            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && substage <= 13 && (stage == 2 || substage == 0));
+            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && substage <= 26 && (stage == 2 || substage == 0));
             return Encoding.ASCII.GetBytes("AEGISF02" + stage.ToString("x8") + substage.ToString("x8") + new string('0', 80));
         }
         internal static bool TryReadFailureFrame(string frame, out uint stage, out uint substage)
@@ -18,7 +18,7 @@ namespace Aegis.ProtectedSession
             if (!System.Text.RegularExpressions.Regex.IsMatch(frame ?? "", "\\AAEGISF02[a-f0-9]{16}0{80}\\z")) return false;
             uint parsedStage = Convert.ToUInt32(frame.Substring(8, 8), 16);
             uint parsedSubstage = Convert.ToUInt32(frame.Substring(16, 8), 16);
-            if (parsedStage < 1 || parsedStage > 12 || parsedSubstage > 13 || (parsedStage != 2 && parsedSubstage != 0)) return false;
+            if (parsedStage < 1 || parsedStage > 12 || parsedSubstage > 26 || (parsedStage != 2 && parsedSubstage != 0)) return false;
             stage = parsedStage; substage = parsedSubstage; return true;
         }
         internal static int Run()
