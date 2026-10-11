@@ -1878,5 +1878,11 @@
   "Host PID mode is configured to share the container runtime host’s process namespace.": "O modo de PID do host está configurado para compartilhar o namespace de processos do host do runtime de contêineres.",
   "At the last observation, host PID mode was configured to share the container runtime host’s process namespace.": "Na última observação, o modo de PID do host estava configurado para compartilhar o namespace de processos do host do runtime de contêineres.",
   "Privileged mode is configured to request broader device access and permissions from the container runtime.": "O modo privilegiado está configurado para solicitar acesso mais amplo a dispositivos e permissões ao runtime de contêineres.",
-  "At the last observation, privileged mode was configured to request broader device access and permissions from the container runtime.": "Na última observação, o modo privilegiado estava configurado para solicitar acesso mais amplo a dispositivos e permissões ao runtime de contêineres."
+  "At the last observation, privileged mode was configured to request broader device access and permissions from the container runtime.": "Na última observação, o modo privilegiado estava configurado para solicitar acesso mais amplo a dispositivos e permissões ao runtime de contêineres.",
+  "Zoom out": "Diminuir zoom",
+  "Zoom in": "Aumentar zoom",
+  "Reset zoom": "Redefinir zoom",
+  "Radar zoom": "Zoom do radar",
+  "Radar zoom controls": "Controles de zoom do radar",
+  "Radar viewport": "Área do radar"
 }

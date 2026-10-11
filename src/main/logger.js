@@ -24,6 +24,7 @@ let _buffer = [];
 let _flushTimer = null;
 let _cleanImmediate = null;
 let _seedGeneration = 0;
+let _logWriteGeneration = 0;
 let _seedDone = true;
 const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
@@ -71,6 +72,7 @@ function _seedTodayCount(day = logFiles.dateKey(new Date())) {
   _todayDate = day;
   _seedDone = false;
   const generation = ++_seedGeneration;
+  const writeGeneration = _logWriteGeneration;
   if (!_logDir) return;
   try {
     const saved = logFiles.readCount(_logDir, day);
@@ -90,8 +92,12 @@ function _seedTodayCount(day = logFiles.dateKey(new Date())) {
         if (generation !== _seedGeneration || day !== _todayDate) return;
         _todayEntries += count;
         _seedDone = true;
+        // A flush can change the streamed snapshot's files/bytes while it is pending.
+        // Leave the index absent or stale so the next startup scans disk again.
+        if (writeGeneration !== _logWriteGeneration) return;
         try {
-          logFiles.writeCount(_logDir, day, _todayEntries);
+          // Startup entries remain buffered: persist only the scanned disk count.
+          logFiles.writeCount(_logDir, day, count);
         } catch {
           console.error('[logger] seed count persistence failed');
         }
@@ -177,6 +183,7 @@ function flush() {
     groups.get(entry.day).push(entry.line);
   }
   try {
+    _logWriteGeneration++;
     for (const [day, lines] of groups) logFiles.appendLines(_logDir, day, lines);
   } catch {
     console.error('[logger] flush write failed');

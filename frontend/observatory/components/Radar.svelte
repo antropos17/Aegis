@@ -33,6 +33,10 @@
   let held = $derived(paused || (!!liveTelemetry && liveTelemetry !== telemetry));
   let groups = $derived(radarGroups(agents));
   let page = $state(0);
+  const MIN_ZOOM = 100;
+  const MAX_ZOOM = 200;
+  const ZOOM_STEP = 25;
+  let zoom = $state(MIN_ZOOM);
   let layer = $state('radar');
   let sweepActive = $derived(!held && telemetry.ready && !telemetry.stale && layer === 'radar');
   let visited = $state<string[]>([]);
@@ -137,52 +141,89 @@
                     ? $t('Paused snapshot')
                     : $t('Live observation')}
             </div>
-            <div class="radar-dial">
-              <div class="dial-grid"></div>
-              <div class="dial-ticks"></div>
-              <div class="dial-sweep" use:radarSweep={sweepActive} aria-hidden="true"></div>
-              <div class="radar-center"><Icon name="shield" /></div>
-              {#if connections.length}<svg
-                  class="radar-connections"
-                  viewBox="0 0 100 100"
-                  role="img"
-                  aria-label={connectionLabel}
-                >
-                  {#each connections as link (link.key)}
-                    {@const fromIndex = plotted.findIndex((group) => group.key === link.from)}
-                    {@const toIndex = plotted.findIndex((group) => group.key === link.to)}
-                    {@const from = position(plotted[fromIndex], fromIndex)}
-                    {@const to = position(plotted[toIndex], toIndex)}
-                    <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
-                  {/each}
-                </svg>{/if}
-              {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
-                  class={`radar-blip ${riskBand(group.risk)}`}
-                  data-group={group.key}
-                  style={`left:${point.x}%;top:${point.y}%`}
-                  aria-label={$t('Select {value0}, {value1} processes, risk {value2}', {
-                    value0: group.name,
-                    value1: group.members.length,
-                    value2: group.risk,
-                  })}
-                  title={$t('{value0} · {value1} processes · risk {value2}/100', {
-                    value0: group.name,
-                    value1: group.members.length,
-                    value2: group.risk,
-                  })}
-                  aria-pressed={group === chosenGroup}
-                  onclick={() => select(group)}
-                  onkeydown={(e) => {
-                    if (e.key === 'Escape') clearSelection();
-                  }}
-                >
-                  <span class="blip-dot"
-                    ><AgentLogo id={group.key} name={group.name} size={24} /></span
-                  >
-                  <span class="marker-number" aria-hidden="true"
-                    >{Math.min(page, pages - 1) * 4 + i + 1}</span
-                  >
-                </button>{/each}
+            <div class="radar-zoom-controls" role="group" aria-label={$t('Radar zoom controls')}>
+              <button
+                class="button"
+                disabled={zoom === MIN_ZOOM}
+                onclick={() => (zoom = Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
+                >{$t('Zoom out')}</button
+              >
+              <output aria-label={$t('Radar zoom')} aria-live="polite">{zoom}%</output>
+              <button
+                class="button"
+                disabled={zoom === MAX_ZOOM}
+                onclick={() => (zoom = Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
+                >{$t('Zoom in')}</button
+              >
+              <button class="button" disabled={zoom === MIN_ZOOM} onclick={() => (zoom = MIN_ZOOM)}
+                >{$t('Reset zoom')}</button
+              >
+            </div>
+            <!-- Native scroll region needs keyboard focus for arrow-key scrolling. -->
+            <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+            <div
+              class="radar-viewport"
+              role="region"
+              aria-label={$t('Radar viewport')}
+              tabindex="0"
+              style:--radar-zoom={zoom / 100}
+              onclick={(event) => {
+                if (event.target instanceof Element && !event.target.closest('button'))
+                  clearSelection();
+              }}
+              onkeydown={(event) => {
+                if (event.key === 'Escape') clearSelection();
+              }}
+            >
+              <div class="radar-canvas">
+                <div class="radar-dial">
+                  <div class="dial-grid"></div>
+                  <div class="dial-ticks"></div>
+                  <div class="dial-sweep" use:radarSweep={sweepActive} aria-hidden="true"></div>
+                  <div class="radar-center"><Icon name="shield" /></div>
+                  {#if connections.length}<svg
+                      class="radar-connections"
+                      viewBox="0 0 100 100"
+                      role="img"
+                      aria-label={connectionLabel}
+                    >
+                      {#each connections as link (link.key)}
+                        {@const fromIndex = plotted.findIndex((group) => group.key === link.from)}
+                        {@const toIndex = plotted.findIndex((group) => group.key === link.to)}
+                        {@const from = position(plotted[fromIndex], fromIndex)}
+                        {@const to = position(plotted[toIndex], toIndex)}
+                        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+                      {/each}
+                    </svg>{/if}
+                  {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
+                      class={`radar-blip ${riskBand(group.risk)}`}
+                      data-group={group.key}
+                      style={`left:${point.x}%;top:${point.y}%`}
+                      aria-label={$t('Select {value0}, {value1} processes, risk {value2}', {
+                        value0: group.name,
+                        value1: group.members.length,
+                        value2: group.risk,
+                      })}
+                      title={$t('{value0} · {value1} processes · risk {value2}/100', {
+                        value0: group.name,
+                        value1: group.members.length,
+                        value2: group.risk,
+                      })}
+                      aria-pressed={group === chosenGroup}
+                      onclick={() => select(group)}
+                      onkeydown={(e) => {
+                        if (e.key === 'Escape') clearSelection();
+                      }}
+                    >
+                      <span class="blip-dot"
+                        ><AgentLogo id={group.key} name={group.name} size={24} /></span
+                      >
+                      <span class="marker-number" aria-hidden="true"
+                        >{Math.min(page, pages - 1) * 4 + i + 1}</span
+                      >
+                    </button>{/each}
+                </div>
+              </div>
             </div>
             {#if !groups.length && layer === 'radar'}<p class="radar-message">
                 {telemetry.ready
@@ -285,6 +326,48 @@
 <style>
   .radar-clarity .radar-coordinate {
     display: block;
+    position: static;
+    max-width: none;
+    padding: var(--space-3) var(--space-4) 0;
+  }
+  .radar-zoom-controls {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+  .radar-zoom-controls button {
+    min-height: 44px;
+  }
+  .radar-zoom-controls output {
+    font-variant-numeric: tabular-nums;
+  }
+  .radar-viewport {
+    position: relative;
+    height: 328px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    margin: 0 var(--space-3);
+  }
+  .radar-viewport:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
+  }
+  .radar-canvas {
+    --dial-size: calc(min(280px, calc(100cqw - 48px)) * var(--radar-zoom));
+    position: relative;
+    width: max(100%, calc(var(--dial-size) + 48px));
+    height: max(100%, calc(var(--dial-size) + 48px));
+  }
+  .radar-clarity .radar-dial {
+    width: var(--dial-size);
+    height: var(--dial-size);
+  }
+  .radar-clarity .radar-scale {
+    position: static;
+    padding: var(--space-3);
   }
   .radar-connections {
     position: absolute;
@@ -413,9 +496,11 @@
       align-self: start;
       min-height: 280px;
     }
-    .radar-clarity .radar-dial {
-      width: min(216px, calc(100cqw - 64px));
-      height: min(216px, calc(100cqw - 64px));
+    .radar-viewport {
+      height: 264px;
+    }
+    .radar-canvas {
+      --dial-size: calc(min(216px, calc(100cqw - 64px)) * var(--radar-zoom));
     }
     .radar-clarity .roster-items {
       min-height: 0;
