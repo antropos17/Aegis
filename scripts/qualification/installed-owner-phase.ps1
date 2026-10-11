@@ -147,8 +147,10 @@ function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
 }
 function Test-InstalledOwnerMutationActions($Rows) {
     $expected = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential' | ForEach-Object {
-        $leaf = $_; foreach ($operation in @('write', 'delete', 'replace')) { $leaf + ':' + $operation }
-    }) + @('ProtectedSession:rename', 'AEGIS:rename', 'Receipts:rename', 'credential:read')
+        $leaf = $_; foreach ($operation in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) { $leaf + ':' + $operation }
+    }) + @('ProtectedSession', 'AEGIS', 'Receipts' | ForEach-Object {
+        $directory = $_; foreach ($operation in @('rename', 'writeDac', 'writeOwner')) { $directory + ':' + $operation }
+    }) + @('credential:read')
     if (@($Rows).Count -ne $expected.Count) { return $false }
     foreach ($action in $expected) {
         $matched = @($Rows | Where-Object { $_.action -is [string] -and $_.action -ceq $action })
@@ -157,11 +159,18 @@ function Test-InstalledOwnerMutationActions($Rows) {
     }
     return $true
 }
+function Test-InstalledOwnerAclContinuation($Association) {
+    # This checkpoint is reached only after owner binding, child closure and
+    # receipt/image validation. A failed readiness verdict grants no broker pass.
+    return $Association.cleanupUnknown -is [bool] -and !$Association.cleanupUnknown -and
+        $Association.attemptDiagnostic.checkpoint -ceq 'attempt-validate-behavior'
+}
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     Assert-ProtectedInstallation $Association
-    $before = @($Association.stage.rows | ForEach-Object { Read-ProtectedInstallSnapshot $_.path })
+    $before = @(@($Association.stage.rows) + @($Association.receiptRows) | ForEach-Object { Read-ProtectedInstallSnapshot $_.path })
     $parent = Read-ProtectedInstallSnapshot $Association.parent.PathName $true; $root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true
+    $receipts = Read-ProtectedInstallSnapshot $Association.receipts.PathName $true
     foreach ($name in @('delete-original.txt', 'replace-original.txt')) { [IO.File]::WriteAllText((Join-Path $Scratch $name), 'seeded-original', [Text.UTF8Encoding]::new($false)) }
     $originalReplace = [ProtectedInstallFile]::new((Join-Path $Scratch 'replace-original.txt'), $false, $false)
     try { $originalReplaceId = $originalReplace.FileId; $originalReplaceHash = $originalReplace.Hash(1024) } finally { $originalReplace.Dispose() }
@@ -193,19 +202,24 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $deleteObserved = !(Test-Path -LiteralPath (Join-Path $Scratch 'delete-original.txt'))
     $Association.controlRows = @('actor-result.json', 'write-marker.txt', 'replace-original.txt' | ForEach-Object { Read-ProtectedInstallSnapshot (Join-Path $Scratch $_) $false $false })
     $unchanged = $true
-    foreach ($row in @($before) + @($root, $parent)) { try { Assert-ProtectedInstallSnapshot $row } catch { $unchanged = $false } }
+    $after = @()
+    foreach ($row in @($before) + @($root, $parent, $receipts)) {
+        try { Assert-ProtectedInstallSnapshot $row; $after += Read-ProtectedInstallSnapshot $row.path ([bool]$row.directory) } catch { $unchanged = $false }
+    }
     if ($observed.exitCode -ne 0 -or !$observed.jobEmpty -or !$observed.exactProcessExited -or !$unchanged -or !$actual.passed -or
         $actual.operatorSid -isnot [string] -or $observed.operatorSid -isnot [string] -or $actual.operatorSid -cne $Association.operatorSid -or $observed.operatorSid -cne $Association.operatorSid -or
         !(Test-InstalledOwnerMutationActions $actual.attempts) -or
+        $actual.permitted.writeDac -isnot [bool] -or !$actual.permitted.writeDac -or $actual.permitted.writeOwner -isnot [bool] -or !$actual.permitted.writeOwner -or
         !$actual.permitted.write -or !$actual.permitted.delete -or !$actual.permitted.replace -or !$actual.policyReadable -or !$permittedObserved -or !$writeObserved -or !$deleteObserved) { throw 'installed-mutation-effect-refused' }
     return @{ actorSha256 = $actorHash; independentTokenAndJob = $observed; actual = $actual; independentlyObservedPermittedReplacement = $permittedObserved; permittedReplacementSha256 = $permittedHash;
         independentlyObservedPermittedWrite = $writeObserved; permittedWriteSha256 = $writeHash; independentlyObservedPermittedDelete = $deleteObserved; seededReplaceFileId = $originalReplaceId; seededReplaceSha256 = $originalReplaceHash;
-        protectedFilesAndAncestorsUnchanged = $unchanged; before = $before; passed = $true }
+        scope = 'standard-account-installed-acl-access-controls'; brokerReleaseRequired = $false; completeE14 = $false;
+        securityRightsOperation = 'CreateFile-requested-access'; protectedFilesAndAncestorsUnchanged = $unchanged; before = @($before) + @($root, $parent, $receipts); after = $after; passed = $true }
 }
 
 function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location) {
     $report = [ordered]@{ schemaVersion = 1; scope = 'protected-installed-owner-qualification'; location = $Location; sourceSha = $ExpectedSourceSha;
-        os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
+        os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; mutationFailure = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
         installation = $null; failedAttempt = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
     $association = $null; $stage = 'preflight'; $scratch = $null; $scratchParent = $null; $password = $null
     $installJournal = @{}
@@ -230,15 +244,30 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal
         $stage = 'original-program-behavioral-red'; $report.baseline = Invoke-InstalledOwnerAttempt $association $false
         $stage = 'upgrade-to-maintained-native-owner'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
-        $stage = 'actual-installed-positive'; $report.positive = Invoke-InstalledOwnerAttempt $association $true
+        $stage = 'actual-installed-positive'; $positiveFailure = $null
+        try { $report.positive = Invoke-InstalledOwnerAttempt $association $true }
+        catch {
+            # Only a behavior refusal after independently bound owner exit,
+            # native child closure, schema and image pins permits ACL controls.
+            # Unknown closure remains terminal. Retain the original refusal.
+            if (!(Test-InstalledOwnerAclContinuation $association)) { throw }
+            $positiveFailure = $_
+        }
         $stage = 'ordinary-token-mutation';
         # Same-volume replacement makes ERROR_ACCESS_DENIED a real ACL result.
         $scratch = Join-Path $script:ProtectedInstallParent 'MutationControl'
         $scratchAcl = New-ProtectedInstallAcl $true $association.operatorSid
-        $scratchAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($association.operatorSid), [Security.AccessControl.FileSystemRights]::Modify, [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+        # FullControl is confined to this exact disposable child, never inherited
+        # by the protected installation or receipts. It matches WRITE_DAC/OWNER.
+        $scratchAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($association.operatorSid), [Security.AccessControl.FileSystemRights]::FullControl, [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
         $association.control = [ProtectedInstallFile]::CreateDirectory($scratch, $scratchAcl.GetSecurityDescriptorBinaryForm())
         $actorPin = @($payload.files | Where-Object { $_.path -ceq 'native/installed-owner-actor.exe' })[0].sha256
-        $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin
+        try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin }
+        catch {
+            $report.mutationFailure = Get-ProtectedInstallFailure $_ 'installed-acl-controls'
+            if ($null -eq $positiveFailure) { throw }
+        }
+        if ($null -ne $positiveFailure) { $stage = 'actual-installed-positive'; throw $positiveFailure }
         $stage = 'actual-upgrade-rollback'; $before = Read-ProtectedInstallSnapshot $association.stage.root.PathName $true; $oldRows = @($association.stage.rows); $fault = $false
         try { Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest $true | Out-Null } catch { if ($_.Exception.Message -notlike '*protected-qualified-upgrade-fault*') { throw }; $fault = $true }
         Assert-ProtectedInstallSnapshot $before; foreach ($row in $oldRows) { Assert-ProtectedInstallSnapshot $row }
@@ -311,7 +340,7 @@ function Test-InstalledOwnerQualificationReceipt($Value, [string]$ExpectedSource
             @{ value = $Value.mutation; fields = @('passed', 'protectedFilesAndAncestorsUnchanged', 'independentlyObservedPermittedReplacement', 'independentlyObservedPermittedWrite', 'independentlyObservedPermittedDelete') },
             @{ value = $Value.mutation.independentTokenAndJob; fields = @('elevated', 'enabledAdministrator', 'adminCapable', 'powerfulPrivilegesAssigned', 'strictStandardProfile', 'jobEmpty', 'exactProcessExited') },
             @{ value = $Value.mutation.actual; fields = @('passed', 'administrator', 'policyReadable') },
-            @{ value = $Value.mutation.actual.permitted; fields = @('write', 'delete', 'replace') },
+            @{ value = $Value.mutation.actual.permitted; fields = @('write', 'delete', 'replace', 'writeDac', 'writeOwner') },
             @{ value = $Value.rollback; fields = @('passed', 'injectedAfterPublication', 'originalRootAndFilesRestored') },
             @{ value = $Value.partial; fields = @('passed', 'injectedAfterPublication', 'serviceAbsent', 'protectedParentAbsent', 'accountAbsent') },
             @{ value = $Value.uninstall; fields = @('passed', 'serviceAbsent', 'protectedParentAbsent', 'exactAccountSidAbsent') })
@@ -355,7 +384,7 @@ function Test-InstalledOwnerQualificationReceipt($Value, [string]$ExpectedSource
             $Value.positive.accountProfile.sid -cne $installationSid -or $Value.upgrade.accountProfile.sid -cne $installationSid -or
             $Value.mutation.actual.operatorSid -cne $installationSid -or $Value.mutation.independentTokenAndJob.operatorSid -cne $installationSid) { return $false }
         if ($Value.mutation.actorSha256 -cne $pins['native/installed-owner-actor.exe'] -or !$Value.mutation.actual.passed -or $Value.mutation.actual.administrator -or !$Value.mutation.actual.policyReadable -or
-            !$Value.mutation.actual.permitted.write -or !$Value.mutation.actual.permitted.delete -or !$Value.mutation.actual.permitted.replace -or
+            !$Value.mutation.actual.permitted.write -or !$Value.mutation.actual.permitted.delete -or !$Value.mutation.actual.permitted.replace -or !$Value.mutation.actual.permitted.writeDac -or !$Value.mutation.actual.permitted.writeOwner -or
             $Value.mutation.passed -ne $true -or $Value.mutation.protectedFilesAndAncestorsUnchanged -ne $true -or $Value.mutation.independentlyObservedPermittedReplacement -ne $true -or
             $Value.mutation.independentlyObservedPermittedWrite -ne $true -or $Value.mutation.independentlyObservedPermittedDelete -ne $true -or
             $Value.mutation.independentTokenAndJob.elevated -ne $false -or $Value.mutation.independentTokenAndJob.enabledAdministrator -ne $false -or $Value.mutation.independentTokenAndJob.integritySid -cne 'S-1-16-8192' -or
