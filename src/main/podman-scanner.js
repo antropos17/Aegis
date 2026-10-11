@@ -103,7 +103,7 @@ function failureReason(error) {
 
 /** Create a bounded Linux-native observer, without starting machines or services.
  * @param {{execFile?: Function, now?: Function, platform?: string, onUpdate?: Function, fs?: object}} [options]
- * @returns {{refresh: Function, snapshot: Function, stop: Function}} Discovery lifecycle.
+ * @returns {{refresh: Function, snapshot: Function, cancelRefresh: Function, stop: Function}} Discovery lifecycle.
  * @since 0.19.2-beta
  */
 function createPodmanDiscovery(options = {}) {
@@ -120,6 +120,7 @@ function createPodmanDiscovery(options = {}) {
   let inFlight = null;
   let activeChild = null;
   let cancel = null;
+  let generation = 0;
   let stopped = false;
 
   /** Return a copied observation; snapshot reads never start work.
@@ -225,9 +226,10 @@ function createPodmanDiscovery(options = {}) {
       return Promise.resolve(snapshot());
     state = { ...state, attemptedAt };
     // Install the owner before execution, including synchronous test callbacks.
-    inFlight = Promise.resolve()
+    const owner = generation;
+    const work = Promise.resolve()
       .then(async () => {
-        if (stopped) return snapshot();
+        if (stopped || owner !== generation) return snapshot();
         let outcome;
         if (platform !== 'linux') outcome = { reason: 'unsupported-platform' };
         else {
@@ -235,13 +237,19 @@ function createPodmanDiscovery(options = {}) {
           outcome = environment ? await query(environment) : { reason: 'remote-config' };
         }
         const discoveryObservedAt = outcome.candidates ? now() : null;
-        if (!stopped && outcome.candidates?.length) {
+        if (!stopped && owner === generation && outcome.candidates?.length) {
           // Bound the entire serial inspection batch, independently of the discovery request.
           const deadline = performance.now() + CONFIGURATION_TIMEOUT_MS;
           for (const [index, candidate] of outcome.candidates.entries()) {
             candidate.configuration = { status: 'unavailable', observedAt: null };
             const remaining = Math.floor(deadline - performance.now());
-            if (stopped || index >= MAX_CONFIGURATION_CANDIDATES || remaining <= 0) continue;
+            if (
+              stopped ||
+              owner !== generation ||
+              index >= MAX_CONFIGURATION_CANDIDATES ||
+              remaining <= 0
+            )
+              continue;
             // Reverify the overlay and selectors for every invocation; fail closed if they changed.
             const environment = localEnvironment();
             if (!environment) break;
@@ -254,7 +262,7 @@ function createPodmanDiscovery(options = {}) {
           for (const candidate of outcome.candidates)
             candidate.configuration ||= { status: 'unavailable', observedAt: null };
         }
-        if (!stopped) {
+        if (!stopped && owner === generation) {
           state = outcome.candidates
             ? {
                 status: 'ready',
@@ -273,13 +281,15 @@ function createPodmanDiscovery(options = {}) {
         return snapshot();
       })
       .catch(() => {
-        if (!stopped) state = { ...state, status: 'unavailable', reason: 'runtime-unavailable' };
+        if (!stopped && owner === generation)
+          state = { ...state, status: 'unavailable', reason: 'runtime-unavailable' };
         return snapshot();
       })
       .finally(() => {
-        inFlight = null;
+        if (inFlight === work) inFlight = null;
       });
-    return inFlight;
+    inFlight = work;
+    return work;
   }
 
   /** Permanently stop this owner and suppress late CLI results.
@@ -289,15 +299,26 @@ function createPodmanDiscovery(options = {}) {
   function stop() {
     if (stopped) return;
     stopped = true;
+    cancelRefresh();
+  }
+
+  /** Cancel the current observation and allow an immediate resumed refresh.
+   * @returns {void}
+   * @since 0.19.2-beta
+   */
+  function cancelRefresh() {
+    generation++;
     const child = activeChild;
     cancel?.();
+    inFlight = null;
+    state = { ...state, attemptedAt: null };
     try {
       child?.kill('SIGKILL');
     } catch {
       /* Completed processes need no cleanup. */
     }
   }
-  return { refresh, snapshot, stop };
+  return { refresh, snapshot, cancelRefresh, stop };
 }
 
 module.exports = { createPodmanDiscovery, resolvePodmanConfigPath };

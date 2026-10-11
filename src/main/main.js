@@ -210,7 +210,11 @@ let isQuitting = false,
 function setMonitoringPaused(paused) {
   monitoringPaused = paused;
   etwFile?.setPaused(paused);
-  if (paused) wslInventory?.cancelRefresh();
+  if (paused) {
+    wslInventory?.cancelRefresh();
+    dockerDiscovery?.cancelRefresh();
+    podmanDiscovery?.cancelRefresh();
+  }
 }
 let oomIntervalId = null;
 let latestNetConnections = [],
@@ -287,7 +291,7 @@ function loadDeferredModules() {
     const { createDockerDiscovery } = require('./container-scanner');
     dockerDiscovery = createDockerDiscovery({
       onUpdate: () => {
-        if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+        if (!monitoringPaused && !isQuitting) statsUpdateBatcher.pushLazy(getStats);
       },
     });
   }
@@ -295,7 +299,7 @@ function loadDeferredModules() {
     const { createPodmanDiscovery } = require('./podman-scanner');
     podmanDiscovery = createPodmanDiscovery({
       onUpdate: () => {
-        if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+        if (!monitoringPaused && !isQuitting) statsUpdateBatcher.pushLazy(getStats);
       },
     });
   }
@@ -1037,6 +1041,8 @@ function initDeferredSubsystems(userData) {
       if (!monitoringPaused && !isQuitting) return wslInventory?.refresh();
     },
     cancelWslInventory: () => wslInventory?.cancelRefresh(),
+    cancelDockerDiscovery: () => dockerDiscovery?.cancelRefresh(),
+    cancelPodmanDiscovery: () => podmanDiscovery?.cancelRefresh(),
     getResourceUsage,
     getLatestAgents: () => latestAgents,
     setAgents: setLatestAgents,

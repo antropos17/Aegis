@@ -708,3 +708,43 @@ describe('Docker executable admission', () => {
     expect(resolveDockerExecutable('other', trustedFs)).toBeNull();
   });
 });
+
+describe('resumable discovery cancellation', () => {
+  it.each(['deferred', 'ps', 'inspect'])(
+    'discards the %s generation while a resumed query owns its callback',
+    async (phase) => {
+      const callbacks = [];
+      const kills = [];
+      const execFile = vi.fn((file, args, options, callback) => {
+        callbacks.push(callback);
+        const kill = vi.fn();
+        kills.push(kill);
+        return { kill };
+      });
+      const { discovery, onUpdate } = harness([], { execFile });
+      const old = discovery.refresh();
+      if (phase !== 'deferred') await Promise.resolve();
+      if (phase === 'inspect') {
+        callbacks[0](null, row());
+        await Promise.resolve();
+        expect(execFile).toHaveBeenCalledTimes(2);
+      }
+      discovery.cancelRefresh();
+      const resumed = discovery.refresh();
+      await old;
+      await Promise.resolve();
+      expect(discovery.refresh()).toBe(resumed);
+      expect(onUpdate).not.toHaveBeenCalled();
+      if (phase !== 'deferred') expect(kills[phase === 'inspect' ? 1 : 0]).toHaveBeenCalledOnce();
+      for (const callback of callbacks.slice(0, -1)) callback(null, row());
+      callbacks.at(-1)(null, '');
+      await resumed;
+      expect(discovery.snapshot().status).toBe('ready');
+      expect(onUpdate).toHaveBeenCalledOnce();
+      discovery.stop();
+      discovery.stop();
+      await discovery.refresh();
+      expect(onUpdate).toHaveBeenCalledOnce();
+    },
+  );
+});

@@ -67,7 +67,7 @@ function isLocalHost(host) {
  * daemon failure (at most two 3s calls); others query the default local Unix socket.
  * Scrub inherited overrides; custom/rootless/remote endpoints are outside this slice.
  * @param {{execFile?: Function, now?: Function, platform?: string, fs?: object, onUpdate?: Function}} [options]
- * @returns {{refresh: Function, snapshot: Function, stop: Function}} Discovery lifecycle.
+ * @returns {{refresh: Function, snapshot: Function, cancelRefresh: Function, stop: Function}} Discovery lifecycle.
  * @since 0.19.2-beta
  */
 function createDockerDiscovery(options = {}) {
@@ -85,6 +85,7 @@ function createDockerDiscovery(options = {}) {
   let inFlight = null;
   let activeChild = null;
   let cancel = null;
+  let generation = 0;
   let stopped = false;
 
   /** Return a dated copy; reads neither spawn nor refresh.
@@ -184,13 +185,19 @@ function createDockerDiscovery(options = {}) {
       ([key, host]) => key.toUpperCase() === 'DOCKER_HOST' && host && !isLocalHost(host),
     );
     // Defer execution until the in-flight owner is installed, including sync test callbacks.
-    inFlight = Promise.resolve()
+    const owner = generation;
+    const work = Promise.resolve()
       .then(async () => {
         let outcome = remote ? { reason: 'remote-endpoint' } : null;
         let selectedEndpoint = null;
         let discoveryObservedAt = null;
         for (const endpoint of endpoints) {
-          if (stopped || (outcome?.reason && outcome.reason !== 'daemon-unavailable')) break;
+          if (
+            stopped ||
+            owner !== generation ||
+            (outcome?.reason && outcome.reason !== 'daemon-unavailable')
+          )
+            break;
           outcome = await query(endpoint, env);
           if (outcome.candidates) {
             selectedEndpoint = endpoint;
@@ -198,13 +205,19 @@ function createDockerDiscovery(options = {}) {
           }
           if (outcome.cancelled || !outcome.reason) break;
         }
-        if (!stopped && outcome?.candidates?.length) {
+        if (!stopped && owner === generation && outcome?.candidates?.length) {
           // One serial batch: at most eight calls and three seconds total, including stalled callbacks.
           const deadline = performance.now() + CONFIGURATION_TIMEOUT_MS;
           for (const [index, candidate] of outcome.candidates.entries()) {
             candidate.configuration = { status: 'unavailable', observedAt: null };
             const remaining = Math.floor(deadline - performance.now());
-            if (stopped || index >= MAX_CONFIGURATION_CANDIDATES || remaining <= 0) continue;
+            if (
+              stopped ||
+              owner !== generation ||
+              index >= MAX_CONFIGURATION_CANDIDATES ||
+              remaining <= 0
+            )
+              continue;
             const inspection = await query(selectedEndpoint, env, candidate.containerId, remaining);
             if (inspection.configuration) candidate.configuration = inspection.configuration;
             if (inspection.cancelled || inspection.reason === 'timeout') break;
@@ -213,7 +226,7 @@ function createDockerDiscovery(options = {}) {
           for (const candidate of outcome.candidates)
             candidate.configuration ||= { status: 'unavailable', observedAt: null };
         }
-        if (!stopped) {
+        if (!stopped && owner === generation) {
           state = outcome?.candidates
             ? {
                 status: 'ready',
@@ -232,13 +245,15 @@ function createDockerDiscovery(options = {}) {
         return snapshot();
       })
       .catch(() => {
-        if (!stopped) state = { ...state, status: 'unavailable', reason: 'daemon-unavailable' };
+        if (!stopped && owner === generation)
+          state = { ...state, status: 'unavailable', reason: 'daemon-unavailable' };
         return snapshot();
       })
       .finally(() => {
-        inFlight = null;
+        if (inFlight === work) inFlight = null;
       });
-    return inFlight;
+    inFlight = work;
+    return work;
   }
 
   /** Permanently stop this owner and suppress late results from its CLI.
@@ -248,8 +263,19 @@ function createDockerDiscovery(options = {}) {
   function stop() {
     if (stopped) return;
     stopped = true;
+    cancelRefresh();
+  }
+
+  /** Cancel the current observation and allow an immediate resumed refresh.
+   * @returns {void}
+   * @since 0.19.2-beta
+   */
+  function cancelRefresh() {
+    generation++;
     const child = activeChild;
     cancel?.();
+    inFlight = null;
+    state = { ...state, attemptedAt: null };
     try {
       child?.kill('SIGKILL');
     } catch {
@@ -257,7 +283,7 @@ function createDockerDiscovery(options = {}) {
     }
   }
 
-  return { refresh, snapshot, stop };
+  return { refresh, snapshot, cancelRefresh, stop };
 }
 
 module.exports = { createDockerDiscovery, resolveDockerExecutable };

@@ -264,6 +264,8 @@ function stopScanIntervals() {
     wslInventoryInterval = null;
   }
   deps.cancelWslInventory?.();
+  deps.cancelDockerDiscovery?.();
+  deps.cancelPodmanDiscovery?.();
   networkScopePending = true;
   networkScopeRevision++;
   networkScopeLifetime++;

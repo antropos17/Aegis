@@ -1620,6 +1620,75 @@ describe('scan-loop', () => {
       },
     );
 
+    it.each(['docker', 'podman'])(
+      'cancels %s discovery between ps and inspect and permits resume',
+      async (engine) => {
+        const module = require_(
+          `../../src/main/${engine === 'docker' ? 'container' : 'podman'}-scanner`,
+        );
+        const create =
+          engine === 'docker' ? module.createDockerDiscovery : module.createPodmanDiscovery;
+        const callbacks = [];
+        const kill = vi.fn();
+        const onUpdate = vi.fn();
+        const execFile = vi.fn((file, args, options, callback) => {
+          callbacks.push(callback);
+          return { kill };
+        });
+        const discovery = create({
+          platform: 'linux',
+          execFile,
+          onUpdate,
+          fs: {
+            realpathSync: (file) => file,
+            lstatSync: (file) => ({
+              uid: 0,
+              mode: 0o755,
+              isSymbolicLink: () => false,
+              isFile: () => file === `/usr/bin/${engine}`,
+              isDirectory: () => file !== `/usr/bin/${engine}`,
+            }),
+            statSync: () => ({ isFile: () => true }),
+            accessSync: () => {},
+          },
+        });
+        let pending;
+        const refresh = () => {
+          pending = discovery.refresh();
+          return pending;
+        };
+        scanLoop.init(
+          makeDeps({
+            [engine === 'docker' ? 'refreshDockerDiscovery' : 'refreshPodmanDiscovery']: refresh,
+            [engine === 'docker' ? 'cancelDockerDiscovery' : 'cancelPodmanDiscovery']: () =>
+              discovery.cancelRefresh(),
+          }),
+        );
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        const row = JSON.stringify({
+          ID: 'a'.repeat(64),
+          Image: 'agent0ai/agent-zero:latest',
+          Names: 'agent-zero',
+          ...(engine === 'podman' ? { State: 'running' } : {}),
+        });
+        callbacks[0](null, row);
+        scanLoop.stopScanIntervals();
+        await vi.advanceTimersByTimeAsync(4000);
+        await pending;
+        expect(execFile).toHaveBeenCalledTimes(1);
+        expect(onUpdate).not.toHaveBeenCalled();
+        expect(discovery.snapshot().candidates).toEqual([]);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(execFile).toHaveBeenCalledTimes(2);
+        callbacks[1](null, '');
+        await pending;
+        expect(onUpdate).toHaveBeenCalledTimes(1);
+        discovery.stop();
+      },
+    );
+
     it('cancels an in-flight refresh on stop and resumes with one timer', async () => {
       let paused = false;
       const refreshWslInventory = vi.fn(() => new Promise(() => {}));
