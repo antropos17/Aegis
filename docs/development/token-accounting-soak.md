@@ -43,8 +43,18 @@ tokens, 20 output tokens, and $0.0006 per unique message for the package's
 `claude-sonnet-4-6` table. No production parser or pricing function computes the
 oracle; a changed local pricing table causes a failure requiring review.
 
-Every sample compares exact token totals and cost within 1e-8. A midpoint restart
-and a final restart replay the durable ledger without appending a new message.
+Every sample compares exact aggregate token totals and cost within 1e-8. It also
+requires exactly the two numeric identity slots, each once, and checks each slot's
+input/output totals against the parent's independent transcript append counts.
+Swapping unequal identity totals fails even when their aggregate remains correct.
+The parent copies both lifetime counts after each successful launch; per-identity
+expectations subtract that launch baseline. Historical ledger totals restore
+without PID attribution, so replay samples require zero tokens for both slots,
+while aggregate totals retain all committed messages. Only new appends contribute
+to those identity slots after restart. Missing, duplicate or extra slots and
+invalid numeric identity totals fail with stable `identity-*` receipt codes.
+A midpoint restart and a final restart replay the durable ledger without appending
+a new message.
 Storage pauses fail the run. Package version and executable SHA-256 identify the
 tested artifact; this does not establish its Git commit or authenticity.
 Smoke and soak both require at least four unique messages, at least two messages
@@ -78,7 +88,8 @@ remain for review. Keep at most five completed run receipts for 14 days; remove
 older exact completed directories manually after review. Failed cleanup requires
 investigation before another run; the script does not delete earlier runs.
 
-Focused Node tests validate refusal of development mode, oracle divergence,
+Focused Node tests validate refusal of development mode, aggregate and per-identity
+oracle divergence, both SQLite restart/replay epochs and new appends after restart,
 storage-pause refusal, failed process-stop ownership, ancestor-junction refusal,
 and scoped cleanup. They provide no packaged evidence:
 

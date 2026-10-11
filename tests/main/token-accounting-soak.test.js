@@ -77,16 +77,114 @@ describe('token soak safety and independent oracle (Node fixtures, no packaged e
       rowCount: 2,
       ledgerBytes: 4096,
       ledgerLimitBytes: 128 * 1024 ** 2,
+      identities: [
+        { slot: 0, inputTokens: 100, outputTokens: 20 },
+        { slot: 1, inputTokens: 100, outputTokens: 20 },
+      ],
     };
-    expect(() => checkSample(sample, 2)).not.toThrow();
-    expect(() => checkSample({ ...sample, inputTokens: 300 }, 2)).toThrow('input-divergence');
-    expect(() => checkSample({ ...sample, costUsd: NaN }, 2)).toThrow('cost-nonfinite');
-    expect(() => checkSample({ ...sample, collection: 'storage-paused' }, 2)).toThrow(
+    expect(() => checkSample(sample, 2, [1, 1])).not.toThrow();
+    expect(() => checkSample({ ...sample, inputTokens: 300 }, 2, [1, 1])).toThrow(
+      'input-divergence',
+    );
+    expect(() => checkSample({ ...sample, costUsd: NaN }, 2, [1, 1])).toThrow('cost-nonfinite');
+    expect(() => checkSample({ ...sample, collection: 'storage-paused' }, 2, [1, 1])).toThrow(
       'collection-unavailable',
     );
-    expect(() => checkSample({ ...sample, ledgerBytes: 129 * 1024 ** 2 }, 2)).toThrow(
+    expect(() => checkSample({ ...sample, ledgerBytes: 129 * 1024 ** 2 }, 2, [1, 1])).toThrow(
       'ledger-size-limit',
     );
+  });
+
+  it('rejects swapped identity totals even when aggregate totals are correct', () => {
+    const sample = {
+      ...oracle(3),
+      isPackaged: true,
+      collection: 'ready',
+      rowCount: 2,
+      ledgerBytes: 4096,
+      ledgerLimitBytes: 128 * 1024 ** 2,
+      identities: [
+        { slot: 0, inputTokens: 100, outputTokens: 20 },
+        { slot: 1, inputTokens: 200, outputTokens: 40 },
+      ],
+    };
+    expect(() => checkSample(sample, 3, [2, 1])).toThrow('identity-input-divergence');
+    const wrongOutput = {
+      ...sample,
+      identities: [
+        { slot: 0, inputTokens: 200, outputTokens: 20 },
+        { slot: 1, inputTokens: 100, outputTokens: 40 },
+      ],
+    };
+    const known = new Set(['identity-input-divergence', 'identity-output-divergence']);
+    for (const [actual, expectedCode] of [
+      [sample, 'identity-input-divergence'],
+      [wrongOutput, 'identity-output-divergence'],
+    ]) {
+      let failureCode;
+      try {
+        checkSample(actual, 3, [2, 1]);
+      } catch (error) {
+        failureCode = known.has(error.message) ? error.message : 'unexpected';
+      }
+      expect(failureCode).toBe(expectedCode);
+    }
+  });
+
+  it('checks current-launch identity totals while preserving lifetime aggregate totals', () => {
+    const sample = {
+      ...oracle(3),
+      isPackaged: true,
+      collection: 'ready',
+      rowCount: 3,
+      ledgerBytes: 4096,
+      ledgerLimitBytes: 128 * 1024 ** 2,
+      identities: [
+        { slot: 0, inputTokens: 0, outputTokens: 0 },
+        { slot: 1, inputTokens: 0, outputTokens: 0 },
+      ],
+    };
+    expect(() => checkSample(sample, 3, [2, 1], [2, 1])).not.toThrow();
+    expect(() => checkSample(sample, 3, [2, 1])).toThrow('identity-input-divergence');
+    const appended = {
+      ...sample,
+      ...oracle(4),
+      identities: [{ slot: 1, inputTokens: 100, outputTokens: 20 }, sample.identities[0]],
+    };
+    expect(() => checkSample(appended, 4, [2, 2], [2, 1])).not.toThrow();
+    expect(() =>
+      checkSample({ ...appended, identities: [appended.identities[0]] }, 4, [2, 2], [2, 1]),
+    ).toThrow('identity-slots-invalid');
+    expect(() =>
+      checkSample(
+        { ...appended, identities: [sample.identities[0], sample.identities[0]] },
+        4,
+        [2, 2],
+        [2, 1],
+      ),
+    ).toThrow('identity-slots-invalid');
+    expect(() =>
+      checkSample(
+        { ...appended, identities: [...appended.identities, { slot: 2 }] },
+        4,
+        [2, 2],
+        [2, 1],
+      ),
+    ).toThrow('identity-slots-invalid');
+    expect(() => checkSample({ ...appended, identities: undefined }, 4, [2, 2], [2, 1])).toThrow(
+      'identity-slots-invalid',
+    );
+    expect(() =>
+      checkSample(
+        {
+          ...appended,
+          identities: [{ slot: 0, inputTokens: 0, outputTokens: 1 }, appended.identities[0]],
+        },
+        4,
+        [2, 2],
+        [2, 1],
+      ),
+    ).toThrow('identity-output-divergence');
   });
 
   it('requires both accounted identities and a minimum workload', () => {
@@ -106,6 +204,51 @@ describe('token soak safety and independent oracle (Node fixtures, no packaged e
     expect(() => checkWorkload({ ...receipt, identitiesObserved: [true, false] })).toThrow(
       'two-identity-accounting-missing',
     );
+  });
+
+  it('rejects malformed parent counts and identity numeric totals', () => {
+    const sample = {
+      ...oracle(3),
+      isPackaged: true,
+      collection: 'ready',
+      rowCount: 2,
+      ledgerBytes: 4096,
+      ledgerLimitBytes: 128 * 1024 ** 2,
+      identities: [
+        { slot: 0, inputTokens: 200, outputTokens: 40 },
+        { slot: 1, inputTokens: 100, outputTokens: 20 },
+      ],
+    };
+    for (const counts of [
+      undefined,
+      [3],
+      [3, 0, 0],
+      Array(2),
+      [2, -1],
+      [2, 1.5],
+      [2, '1'],
+      [2, NaN],
+      [Number.MAX_SAFE_INTEGER + 1, 1],
+      [1, 1],
+    ])
+      expect(() => checkSample(sample, 3, counts)).toThrow('identity-oracle-invalid');
+    for (const baseline of [Array(2), [3, 0], [-1, 0], [0, '0']])
+      expect(() => checkSample(sample, 3, [2, 1], baseline)).toThrow('identity-oracle-invalid');
+    for (const value of [NaN, Infinity, -1, 1.5, '200', Number.MAX_SAFE_INTEGER + 1]) {
+      for (const field of ['inputTokens', 'outputTokens']) {
+        const identities = [{ ...sample.identities[0], [field]: value }, sample.identities[1]];
+        expect(() => checkSample({ ...sample, identities }, 3, [2, 1])).toThrow(
+          'identity-totals-invalid',
+        );
+      }
+    }
+    expect(() =>
+      checkSample(
+        { ...sample, identities: [{ ...sample.identities[0], slot: '0' }, sample.identities[1]] },
+        3,
+        [2, 1],
+      ),
+    ).toThrow('identity-slots-invalid');
   });
 
   it('rejects guarded work on deadline and allows awaited owned-process cleanup', async () => {
@@ -218,7 +361,10 @@ describe('token soak safety and independent oracle (Node fixtures, no packaged e
       home,
       profile,
       ledger: path.join(profile, 'soak.sqlite'),
-      procs: [{ pid: 600001, startTime, instanceId: `600001:${startTime}` }],
+      procs: [
+        { pid: 600001, startTime, instanceId: `600001:${startTime}` },
+        { pid: 600002, startTime, instanceId: `600002:${startTime}` },
+      ],
     };
     const previousHome = process.env.HOME;
     const previousProfile = process.env.USERPROFILE;
@@ -249,15 +395,25 @@ describe('token soak safety and independent oracle (Node fixtures, no packaged e
         }) + '\n';
       await writeFile(path.join(project, `${sessionId}.jsonl`), line + line);
       const initial = await packagedStep({ app }, config);
-      checkSample(initial, 1);
+      checkSample(initial, 1, [1, 0]);
       expect(initial.collectionReason).toBeNull();
       expect(initial.collectionRetryAt).toBeNull();
       expect(initial.ledgerBytes).toBeGreaterThan(0);
-      expect(initial.identities).toEqual([{ slot: 0, inputTokens: 100, outputTokens: 20 }]);
+      expect(initial.identities).toEqual([
+        { slot: 0, inputTokens: 100, outputTokens: 20 },
+        { slot: 1, inputTokens: 0, outputTokens: 0 },
+      ]);
       globalThis.__tokenSoak.adapter._resetForTest();
       delete globalThis.__tokenSoak;
-      checkSample(await packagedStep({ app }, config), 1);
-      checkSample(await packagedStep({ app }, config), 1);
+      checkSample(await packagedStep({ app }, config), 1, [1, 0], [1, 0]);
+      checkSample(await packagedStep({ app }, config), 1, [1, 0], [1, 0]);
+      const nextLine = line.replace('fixture-message', 'fixture-message-next');
+      await writeFile(path.join(project, `${sessionId}.jsonl`), line + line + nextLine + nextLine);
+      checkSample(await packagedStep({ app }, config), 2, [2, 0], [1, 0]);
+      globalThis.__tokenSoak.adapter._resetForTest();
+      delete globalThis.__tokenSoak;
+      checkSample(await packagedStep({ app }, config), 2, [2, 0], [2, 0]);
+      checkSample(await packagedStep({ app }, config), 2, [2, 0], [2, 0]);
     } finally {
       globalThis.__tokenSoak?.adapter._resetForTest();
       delete globalThis.__tokenSoak;

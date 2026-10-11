@@ -74,6 +74,7 @@ const receipt = {
   ],
 };
 const owner = { app: undefined, stopping: undefined, launchUnconfirmed: false };
+let countsAtLaunch = [0, 0];
 const deadline = createDeadline(durationMs + 120_000);
 const monotonicStart = performance.now();
 let failureStage = 'fixture-setup';
@@ -114,6 +115,7 @@ async function launch() {
   assert.equal(identity.packaged, true, 'packaged-required');
   assert.equal(path.resolve(identity.profile), profile, 'profile-isolation-failed');
   assert.equal(path.resolve(identity.home), home, 'home-isolation-failed');
+  countsAtLaunch = [...receipt.messagesPerIdentity];
 }
 async function sample() {
   let timeout;
@@ -129,11 +131,6 @@ async function sample() {
     );
   } finally {
     clearTimeout(timeout);
-  }
-  for (const identity of actual.identities) {
-    if (identity.slot === 0 || identity.slot === 1)
-      receipt.identitiesObserved[identity.slot] ||=
-        identity.inputTokens > 0 && identity.outputTokens > 0;
   }
   const bytes = await treeBytes(disposable);
   receipt.peakDisposableBytes = Math.max(receipt.peakDisposableBytes, bytes);
@@ -151,7 +148,11 @@ async function sample() {
     }) + '\n',
   );
   assert.ok((await treeBytes(samplesPath)) <= 1024 ** 2, 'receipt-size-limit');
-  checkSample(actual, receipt.uniqueMessages); // Retain collection/ledger diagnostics on failure.
+  // Retain raw collection/ledger diagnostics before any oracle rejection.
+  checkSample(actual, receipt.uniqueMessages, receipt.messagesPerIdentity, countsAtLaunch);
+  for (const identity of actual.identities)
+    receipt.identitiesObserved[identity.slot] ||=
+      identity.inputTokens > 0 && identity.outputTokens > 0;
 }
 try {
   for (const directory of [profile, temp, path.join(home, '.claude', 'sessions')])
@@ -225,6 +226,11 @@ try {
     'input-divergence',
     'output-divergence',
     'cost-divergence',
+    'identity-oracle-invalid',
+    'identity-slots-invalid',
+    'identity-totals-invalid',
+    'identity-input-divergence',
+    'identity-output-divergence',
     'ledger-size-limit',
     'process-exit-unconfirmed',
     'disk-space-low',
