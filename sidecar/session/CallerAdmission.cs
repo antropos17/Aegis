@@ -72,8 +72,8 @@ namespace Aegis.ProtectedSession
         {
             lock (registered.Gate)
             {
-                substage = 1; CallerNative.Require(!CallerNative.HasThreadToken());
-                registered.CheckCurrent();
+                substage = 20; CallerNative.Require(!CallerNative.HasThreadToken());
+                substage = 21; registered.CheckCurrent();
                 substage = 4; Match frame = schema.Match(ReadMessage(pipe, ref substage));
                 CallerNative.Require(frame.Success && frame.Groups[2].Value == registered.Session &&
                     frame.Groups[3].Value == registered.Generation);

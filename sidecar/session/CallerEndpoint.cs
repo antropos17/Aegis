@@ -12,6 +12,7 @@ namespace Aegis.ProtectedSession
     {
         void CheckEndpoint(SafeFileHandle self, SafeFileHandle peer);
         void CheckCurrent();
+        void CheckCurrent(ref int substage, bool polling);
     }
     // Internal owned endpoint primitive. Installation and trusted locator/registration delivery remain separate gates.
     internal sealed class CallerEndpoint : IDisposable
@@ -56,18 +57,21 @@ namespace Aegis.ProtectedSession
         { return AcceptCore(timeoutMilliseconds, true, ref substage); }
         private CallerAdmission.Context AcceptCore(int timeoutMilliseconds, bool main, ref int substage)
         {
-            substage = 1; RequireDeadline(timeoutMilliseconds);
+            substage = 19; RequireDeadline(timeoutMilliseconds);
             lock (gate)
             {
-                CallerNative.Require(!disposed && !consumed);
+                substage = 22; CallerNative.Require(!disposed && !consumed);
                 consumed = true;
                 var timer = Stopwatch.StartNew();
                 try
                 {
                     while (true)
                     {
-                        substage = 1;
-                        lock (peer.Gate) { peer.CheckCurrent(); if (installed != null) installed.CheckCurrent(); }
+                        lock (peer.Gate)
+                        {
+                            substage = 17; peer.CheckCurrent();
+                            substage = 18; if (installed != null) installed.CheckCurrent(ref substage, true);
+                        }
                         substage = 2;
                         bool result = CallerEndpointNative.ConnectNamedPipe(pipe, IntPtr.Zero);
                         int error = result ? 0 : Marshal.GetLastWin32Error();
@@ -88,16 +92,18 @@ namespace Aegis.ProtectedSession
 
         // A composition fence, without consuming a connection or supplying authority.
         internal void CheckCurrent()
+        { int substage = 0; CheckCurrent(ref substage); }
+        internal void CheckCurrent(ref int substage)
         {
             lock (gate)
             lock (peer.Gate)
             {
-                CallerNative.Require(!CallerNative.HasThreadToken() && !disposed &&
+                substage = 13; CallerNative.Require(!CallerNative.HasThreadToken() && !disposed &&
                     !pipe.IsClosed && !pipe.IsInvalid);
-                CallerEndpointNative.RequireNonInherited(pipe);
-                peer.CheckCurrent();
-                if (installed != null) installed.CheckCurrent();
-                CallerNative.Require(!CallerNative.HasThreadToken());
+                substage = 14; CallerEndpointNative.RequireNonInherited(pipe);
+                substage = 15; peer.CheckCurrent();
+                substage = 16; if (installed != null) installed.CheckCurrent(ref substage, false);
+                substage = 12; CallerNative.Require(!CallerNative.HasThreadToken());
             }
         }
 

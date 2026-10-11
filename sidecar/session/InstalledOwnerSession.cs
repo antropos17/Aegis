@@ -7,9 +7,21 @@ namespace Aegis.ProtectedSession
 {
     internal static class InstalledOwnerSession
     {
+        // 0..7 are existing protocol codes. New codes are fixed last checkpoints:
+        // 8 publication, 9 core entry, 10 server, 11 proof, 12 exit, 13 endpoint
+        // handles, 14 inheritance, 15 endpoint peer, 16 installed fence fallback,
+        // 17 poll peer, 18 installed poll fallback, 19 deadline, 20 admission entry,
+        // 21 admission peer, 22 endpoint state. Nested registration 14..26/36..44
+        // is prefixed by 100 (fence) or 200 (poll); constructor-only gaps are refused.
+        private static bool KnownStageSeven(uint checkpoint)
+        {
+            return checkpoint <= 22 || (checkpoint >= 114 && checkpoint <= 126) ||
+                (checkpoint >= 136 && checkpoint <= 144) ||
+                (checkpoint >= 214 && checkpoint <= 226) || (checkpoint >= 236 && checkpoint <= 244);
+        }
         internal static byte[] FailureFrame(int stage, int substage)
         {
-            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && ((stage == 2 && substage <= 44) || (stage == 7 && substage <= 7) || substage == 0));
+            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && ((stage == 2 && substage <= 44) || (stage == 7 && KnownStageSeven((uint)substage)) || substage == 0));
             return Encoding.ASCII.GetBytes("AEGISF02" + stage.ToString("x8") + substage.ToString("x8") + new string('0', 80));
         }
         internal static bool TryReadFailureFrame(string frame, out uint stage, out uint substage)
@@ -18,7 +30,7 @@ namespace Aegis.ProtectedSession
             if (!System.Text.RegularExpressions.Regex.IsMatch(frame ?? "", "\\AAEGISF02[a-f0-9]{16}0{80}\\z")) return false;
             uint parsedStage = Convert.ToUInt32(frame.Substring(8, 8), 16);
             uint parsedSubstage = Convert.ToUInt32(frame.Substring(16, 8), 16);
-            if (parsedStage < 1 || parsedStage > 12 || !((parsedStage == 2 && parsedSubstage <= 44) || (parsedStage == 7 && parsedSubstage <= 7) || parsedSubstage == 0)) return false;
+            if (parsedStage < 1 || parsedStage > 12 || !((parsedStage == 2 && parsedSubstage <= 44) || (parsedStage == 7 && KnownStageSeven(parsedSubstage)) || parsedSubstage == 0)) return false;
             stage = parsedStage; substage = parsedSubstage; return true;
         }
         internal static int Run()
