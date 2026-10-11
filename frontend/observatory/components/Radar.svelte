@@ -38,6 +38,10 @@
   let resourceAgent = $state('');
   let focusedGroup = $state('');
   let pages = $derived(Math.max(1, Math.ceil(groups.length / 4)));
+  $effect(() => {
+    // Commit population contractions so later growth cannot restore an obsolete page.
+    if (page >= pages) page = pages - 1;
+  });
   let plotted = $derived(
     groups.slice(Math.min(page, pages - 1) * 4, Math.min(page, pages - 1) * 4 + 4),
   );
@@ -56,7 +60,7 @@
     focusedGroup = '';
   }
   function changePage(offset: number) {
-    page = Math.max(0, Math.min(pages - 1, page + offset));
+    page = Math.max(0, Math.min(pages - 1, Math.min(page, pages - 1) + offset));
     clearSelection();
   }
   function select(g: RadarGroup) {
