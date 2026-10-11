@@ -27,7 +27,7 @@ function isTerminalAvailable() {
 }
 
 /**
- * Keep terminal closure/errors connected to the owner through child cleanup.
+ * Keep terminal completion/closure/errors connected to the owner through child cleanup.
  * @param {() => void} abort Revoke the owning operation.
  * @returns {() => void} Release only this observer's listeners.
  * @since v0.15.1
@@ -38,6 +38,7 @@ function watchTerminalLifetime(abort) {
     [input, 'end'],
     [input, 'close'],
     [input, 'error'],
+    [output, 'finish'],
     [output, 'close'],
     [output, 'error'],
   ];

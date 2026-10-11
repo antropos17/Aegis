@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
+import { PassThrough, Writable } from 'node:stream';
 
 const require = createRequire(import.meta.url);
 const api = require('../../src/main/action-confirmation-terminal');
@@ -52,6 +52,39 @@ afterEach(() => {
 });
 
 describe('terminal-owned explicit action confirmation', () => {
+  it('revokes execution when real terminal output finishes without closing and removes its listeners', async () => {
+    const input = new EventEmitter();
+    const output = new Writable({
+      autoDestroy: false,
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    });
+    api._setDepsForTest({ input, output });
+    const abort = vi.fn();
+    const stop = api.watchTerminalLifetime(abort);
+    try {
+      output.end();
+      await tick();
+      expect(output.writableFinished).toBe(true);
+      expect(output.destroyed).toBe(false);
+      expect(abort).toHaveBeenCalledOnce();
+      stop();
+      for (const event of ['finish', 'close', 'error']) {
+        expect(output.listenerCount(event)).toBe(0);
+      }
+      for (const event of ['end', 'close', 'error']) {
+        expect(input.listenerCount(event)).toBe(0);
+      }
+      output.destroy();
+      await tick();
+      expect(abort).toHaveBeenCalledOnce();
+    } finally {
+      stop();
+      output.destroy();
+    }
+  });
+
   it('explains creation and retention of the isolated workspace before confirmation', async () => {
     const t = setup();
     const pending = t.run(launch(), { kind: 'appcontainer-launch' });
