@@ -42,6 +42,22 @@
   let reviewRevision = 0;
   let reviewPending = $state(false);
   let centerTrigger: HTMLButtonElement;
+  let toastStack: HTMLDivElement;
+  $effect.pre(() => {
+    $toasts;
+    const focused = document.activeElement;
+    if (!focused || !toastStack?.contains(focused)) return;
+    // Sensitive banners manage their own focus and expiry.
+    if (!focused.closest('.notification:not(.sensitive)')) return;
+    void tick().then(() => {
+      if (
+        !focused.isConnected &&
+        document.activeElement === document.body &&
+        centerTrigger?.isConnected
+      )
+        centerTrigger.focus({ preventScroll: true });
+    });
+  });
   let measureTrigger: (() => void) | undefined;
   const needsReview = $derived(alerts.filter((item) => !item.reviewed).length);
 
@@ -229,7 +245,7 @@
     onClose={closeCenter}
   />
 {/if}
-<div class="notifications" aria-live="polite" aria-atomic="false">
+<div bind:this={toastStack} class="notifications" aria-live="polite" aria-atomic="false">
   {#if !centerOpen && recent.length}
     <div
       class="notification sensitive"
