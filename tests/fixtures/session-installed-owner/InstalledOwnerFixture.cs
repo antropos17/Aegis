@@ -65,22 +65,22 @@ internal static class InstalledOwnerFixture
         var rows = new List<string>();
         for (uint stage = 1; stage <= 12; stage++)
             rows.Add("{\"kind\":\"legacy\",\"expectedStage\":" + stage + ",\"expectedSubstage\":0,\"whole\":" + Parsed(Frame(stage, 0), false) + ",\"split\":" + Parsed(Frame(stage, 0), true) + "}");
-        for (uint substage = 1; substage <= 26; substage++)
+        for (uint substage = 1; substage <= 35; substage++)
             rows.Add("{\"kind\":\"stage2\",\"expectedStage\":2,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(2, substage), false) + ",\"split\":" + Parsed(Frame(2, substage), true) + "}");
-        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 27), Frame(1, 1), Frame(3, 13),
+        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 36), Frame(1, 1), Frame(3, 13),
             Frame(1, 14), Frame(3, 26), Frame(12, 26),
             Frame(2, 8).Substring(0, 103) + "1", Frame(2, 8).Replace("00000008", "0000000A"),
             "AEGISF03" + Frame(2, 8).Substring(8), Frame(2, 8).Substring(0, 103), Frame(2, 8) + "0" };
         for (int index = 0; index < invalid.Length; index++)
             rows.Add("{\"kind\":\"invalid\",\"index\":" + index + ",\"whole\":" + Parsed(invalid[index], false) + ",\"split\":" + Parsed(invalid[index], true) + "}");
         int writerChecks = 0;
-        for (int checkpoint = 0; checkpoint <= 26; checkpoint++)
+        for (int checkpoint = 0; checkpoint <= 35; checkpoint++)
         {
             byte[] frame = InstalledOwnerSession.FailureFrame(2, checkpoint);
             CallerNative.Require(frame.Length == 104 && Encoding.ASCII.GetString(frame) == Frame(2, (uint)checkpoint));
             writerChecks++;
         }
-        int[,] invalidWriter = { { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 27 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
+        int[,] invalidWriter = { { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 36 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
         for (int index = 0; index < invalidWriter.GetLength(0); index++)
         {
             bool refused = false;
@@ -95,6 +95,59 @@ internal static class InstalledOwnerFixture
             ",\"rows\":[" + String.Join(",", rows) + "]}");
         return 0;
     }
+    private static int AccountingControls()
+    {
+        int checks = 0;
+        int[] errors = { 5, 6, 87, 24, 122, 0, 999 };
+        int[] expected = { 27, 28, 29, 30, 30, 31, 31 };
+        for (int index = 0; index < errors.Length; index++)
+        { CallerNative.Require(GuestJobNative.SingletonCheckpoint(false, errors[index], new GuestJobNative.Accounting()) == expected[index]); checks++; }
+        uint[,] counts = { { 1, 1, 0 }, { 99, 1, 0 }, { 64, 65, 32 }, { 0, 1, 33 }, { 0, 0, 34 }, { 2, 2, 35 } };
+        for (int index = 0; index < counts.GetLength(0); index++)
+        {
+            CallerNative.Require(GuestJobNative.SingletonCheckpoint(true, 5,
+                new GuestJobNative.Accounting { Total = counts[index, 0], Active = counts[index, 1] }) == counts[index, 2]); checks++;
+        }
+        int checkpoint = 25; bool refused = false;
+        try { GuestJobNative.RequireSingleton(new IntPtr(-1), ref checkpoint); }
+        catch (InvalidDataException) { refused = true; }
+        CallerNative.Require(refused && checkpoint == 28);
+        byte[] frame = InstalledOwnerSession.FailureFrame(2, checkpoint); uint stage, substage;
+        CallerNative.Require(frame.Length == 104 && InstalledOwnerSession.TryReadFailureFrame(Encoding.ASCII.GetString(frame), out stage, out substage) && stage == 2 && substage == 28);
+        using (var job = CreateJobObject(IntPtr.Zero, null))
+        using (var first = Process.Start(new ProcessStartInfo { FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+            Arguments = "--child", UseShellExecute = false, CreateNoWindow = true }))
+        using (var second = Process.Start(new ProcessStartInfo { FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+            Arguments = "--child", UseShellExecute = false, CreateNoWindow = true }))
+        {
+            try
+            {
+                CallerNative.Require(!job.IsInvalid && AssignProcessToJobObject(job, first.Handle));
+                checkpoint = 25; GuestJobNative.RequireSingleton(job.DangerousGetHandle(), ref checkpoint);
+                CallerNative.Require(checkpoint == 25);
+                CallerNative.Require(AssignProcessToJobObject(job, second.Handle));
+                checkpoint = 25; refused = false;
+                try { GuestJobNative.RequireSingleton(job.DangerousGetHandle(), ref checkpoint); }
+                catch (InvalidDataException) { refused = true; }
+                CallerNative.Require(refused && checkpoint == 35);
+            }
+            finally
+            {
+                CallerNative.Require(TerminateJobObject(job, 1));
+                if (!first.WaitForExit(2000)) first.Kill();
+                if (!second.WaitForExit(2000)) second.Kill();
+                CallerNative.Require(first.WaitForExit(2000) && second.WaitForExit(2000));
+            }
+            var watch = Stopwatch.StartNew();
+            while (GuestJobNative.Counts(job.DangerousGetHandle()).Active != 0)
+            { CallerNative.Require(watch.ElapsedMilliseconds < 2000); System.Threading.Thread.Sleep(2); }
+        }
+        Console.WriteLine("{\"syntheticChecks\":" + checks + ",\"queryRefused\":true,\"singletonAccepted\":true,\"extraMemberRefused\":true,\"ownedJobsEmpty\":true}");
+        return 0;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern SafeFileHandle CreateJobObject(IntPtr security, string name);
+    [DllImport("kernel32.dll")] private static extern bool TerminateJobObject(SafeFileHandle job, uint code);
     private static string Observation(SafeFileHandle handle)
     {
         long birth, exit, kernel, user;
@@ -103,6 +156,7 @@ internal static class InstalledOwnerFixture
     }
     private static int Main(string[] arguments)
     {
+        if (arguments.Length == 1 && arguments[0] == "--accounting-controls") return AccountingControls();
         if (arguments.Length == 1 && arguments[0] == "--failure-frames") return FailureFrames();
         if (arguments.Length == 1 && arguments[0] == "--child") { System.Threading.Thread.Sleep(20000); return 0; }
         if (arguments.Length != 3) return 2;

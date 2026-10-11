@@ -56,6 +56,25 @@ namespace Aegis.ProtectedSession
             Require(QueryAccounting(job, 1, out value, Marshal.SizeOf(typeof(Accounting)), IntPtr.Zero));
             Require(value.Active <= MaximumMembers && value.Active <= value.Total); return value;
         }
+        // Private fixed checkpoints: query denied/invalid handle/parameter/buffer/other, malformed
+        // capacity/total, then empty/non-singleton. No native error value is emitted.
+        internal static int SingletonCheckpoint(bool queried, int error, Accounting value)
+        {
+            if (!queried) return error == 5 ? 27 : error == 6 ? 28 : error == 87 ? 29 :
+                error == 24 || error == 122 ? 30 : 31;
+            if (value.Active > MaximumMembers) return 32;
+            if (value.Active > value.Total) return 33;
+            return value.Active == 0 ? 34 : value.Active > 1 ? 35 : 0;
+        }
+        internal static void RequireSingleton(IntPtr job, ref int substage)
+        {
+            Accounting value;
+            bool queried = QueryAccounting(job, 1, out value, Marshal.SizeOf(typeof(Accounting)), IntPtr.Zero);
+            int error = Marshal.GetLastWin32Error();
+            int checkpoint = SingletonCheckpoint(queried, error, value);
+            if (checkpoint != 0) substage = checkpoint;
+            Require(checkpoint == 0);
+        }
         internal static uint[] Members(IntPtr job)
         {
             // OS lists are non-atomic. Bound every retry/allocation; never use a partial list.
