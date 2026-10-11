@@ -73,7 +73,8 @@ function reserve(file) {
  */
 function createLedger({ file, maxBytes = MAX_BYTES }) {
   const pages = Math.floor(maxBytes / PAGE_BYTES);
-  if (!Number.isSafeInteger(pages) || pages < 4 || pages > MAX_BYTES / PAGE_BYTES)
+  // The schema and four table roots require five pages before accepting usage.
+  if (!Number.isSafeInteger(pages) || pages < 5 || pages > MAX_BYTES / PAGE_BYTES)
     throw Error('dedup-cache-limit-invalid');
   const { DatabaseSync } = require('node:sqlite');
   const reopening = file !== ':memory:' && reserve(file);
