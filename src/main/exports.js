@@ -16,7 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { dialog, shell, app } = require('electron');
-const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
+const { UNKNOWN_SOURCE_LABEL, EVIDENCE_CODES } = require('./attribution');
 const { writePrivateReport, startPrivateReportRetention } = require('./private-report-temp');
 const {
   describeObservation,
@@ -29,6 +29,10 @@ const {
 const { version } = require('../../package.json');
 
 let _state = null;
+
+// Recorded file-observation source labels only; never derive one from an action
+// or accept arbitrary text (which could carry contents or credentials).
+const FILE_OBSERVATION_SOURCES = new Set(['chokidar-write', 'rm-hold', 'handle-scan', 'watcher']);
 
 /**
  * Agent name for a HUMAN-facing export cell (CSV, HTML report). An unattributed
@@ -152,11 +156,21 @@ async function exportLog(canComplete = () => true) {
       timestamp: new Date(e.timestamp).toISOString(),
       agent: e.agent,
       pid: e.pid,
+      // Preserve a bounded recorded key verbatim; truncating or reconstructing it
+      // would create an identity that cannot join to the original observation.
+      instanceId:
+        typeof e.instanceId === 'string' && e.instanceId.length > 0 && e.instanceId.length <= 256
+          ? e.instanceId
+          : null,
+      source: FILE_OBSERVATION_SOURCES.has(e.source) ? e.source : null,
       file: e.file,
       sensitive: e.sensitive,
       reason: e.reason,
       action: e.action || 'accessed',
       attribution: e.attribution ? e.attribution.status : null,
+      attributionEvidence: Array.isArray(e.attribution?.evidence)
+        ? e.attribution.evidence.filter((code) => EVIDENCE_CODES.includes(code))
+        : [],
     })),
   };
   fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
