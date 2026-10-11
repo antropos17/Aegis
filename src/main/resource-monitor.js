@@ -204,19 +204,29 @@ function _parsePsOutput(stdout) {
 }
 
 /**
- * Parse nvidia-smi compute-apps CSV rows of "pid, used_gpu_memory" (MiB).
+ * Sum nvidia-smi compute-apps GPU rows of "pid, used_gpu_memory" (MiB) by PID.
+ * Omit a PID for this snapshot if its total exceeds the safe integer range.
  * @param {string} stdout
  * @returns {Map<number, number>} pid → GPU memory in MiB
+ * @since v0.10.0
  */
 function _parseGpuCsv(stdout) {
   const map = new Map();
+  const overflowed = new Set();
   for (const line of (stdout || '').split('\n')) {
     const m = line.trim().match(/^(\d+)\s*,\s*(\d+)$/);
     if (!m) continue;
     const pid = Number(m[1]);
-    if (!Number.isSafeInteger(pid) || pid <= 0) continue;
+    if (!Number.isSafeInteger(pid) || pid <= 0 || overflowed.has(pid)) continue;
     const memory = measurement(m[2]);
-    if (memory !== null && Number.isSafeInteger(memory)) map.set(pid, memory);
+    if (memory === null || !Number.isSafeInteger(memory)) continue;
+    const total = (map.get(pid) ?? 0) + memory;
+    if (!Number.isSafeInteger(total)) {
+      map.delete(pid);
+      overflowed.add(pid);
+    } else {
+      map.set(pid, total);
+    }
   }
   return map;
 }
