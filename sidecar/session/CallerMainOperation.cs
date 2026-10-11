@@ -59,15 +59,19 @@ namespace Aegis.ProtectedSession
             }
         }
         internal Context Accept(int timeoutMilliseconds)
+        { int substage = 0; return Accept(timeoutMilliseconds, ref substage); }
+        // Fixed installed stage-seven checkpoints: 1 precheck, 2 connect, 3 connect timeout,
+        // 4 framing, 5 authentication, 6 postcheck, 7 message timeout. They carry no native data.
+        internal Context Accept(int timeoutMilliseconds, ref int substage)
         {
             lock (server.Gate)
             {
                 try
                 {
-                    CallerNative.Require(!published); CheckCore();
-                    CallerAdmission.Context admitted = endpoint.AcceptMain(timeoutMilliseconds);
+                    substage = 1; CallerNative.Require(!published); CheckCore();
+                    CallerAdmission.Context admitted = endpoint.AcceptMain(timeoutMilliseconds, ref substage);
                     // Authenticate has reverted before proof/selection rechecks and publication.
-                    CheckCore(); admitted.CheckCurrent(); proof.CheckSelection(admitted); CheckCore();
+                    substage = 6; CheckCore(); admitted.CheckCurrent(); proof.CheckSelection(admitted); CheckCore();
                     admission = admitted; var context = new Context(this); published = true; return context;
                 }
                 catch { Close(); throw; }

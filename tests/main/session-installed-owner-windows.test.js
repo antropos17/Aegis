@@ -58,10 +58,10 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       const native = JSON.parse(parsed.stdout.toString('utf8'));
       expect(native.frameBytes).toBe(104);
       expect(native.entryChecks).toBe(2);
-      expect(native.writerChecks).toBe(52);
+      expect(native.writerChecks).toBe(62);
       expect(native.writer).toEqual({ accepted: true, stage: 2, substage: 26 });
       expect(native.parsed).toEqual({ accepted: true, stage: 2, substage: 8 });
-      expect(native.rows).toHaveLength(69);
+      expect(native.rows).toHaveLength(78);
       for (const row of native.rows) {
         for (const boundary of ['whole', 'split']) {
           if (row.kind === 'invalid') expect(row[boundary].accepted).toBe(false);
@@ -74,6 +74,26 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         }
       }
     }, 16000);
+
+    it('maps native admission refusals to exact stage-seven checkpoints', () => {
+      const value = spawnSync(fixture, ['--admission-checkpoints'], {
+        timeout: 8000,
+        maxBuffer: 8192,
+        windowsHide: true,
+      });
+      expect(value.error).toBeUndefined();
+      expect(value.status).toBe(0);
+      expect(value.stderr.length).toBe(0);
+      expect(JSON.parse(value.stdout.toString('utf8')).rows).toEqual([
+        { mode: 'precheck', checkpoint: 1 },
+        { mode: 'connect-error', checkpoint: 2 },
+        { mode: 'connect-timeout', checkpoint: 3 },
+        { mode: 'framing', checkpoint: 4 },
+        { mode: 'authentication', checkpoint: 5 },
+        { mode: 'postcheck', checkpoint: 6 },
+        { mode: 'message-timeout', checkpoint: 7 },
+      ]);
+    }, 10000);
 
     it('distinguishes accounting refusal and preserves singleton admission with owned cleanup', () => {
       const value = spawnSync(fixture, ['--accounting-controls'], {
@@ -113,13 +133,13 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
     }, 10000);
 
-    it('retains only stage-two numeric checkpoints in host observations', () => {
+    it('retains only bounded stage-two and stage-seven numeric checkpoints in host observations', () => {
       const phase = path.join(project, 'scripts/qualification/installed-owner-phase.ps1');
       const command = `
         . '${phase.replaceAll("'", "''")}'
         $rows = @()
-        foreach ($stage in @(2, 5, 8, 10)) {
-          foreach ($substage in @(-1, 0, 13, 14, 26, 27, 35, 36, 44, 45, '26', $true)) {
+        foreach ($stage in @(2, 5, 7, 8, 10)) {
+          foreach ($substage in @(-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 26, 27, 35, 36, 44, 45, '26', $true)) {
             $value = Get-InstalledOwnerAttemptObservation @{ supervisorStage = $stage; supervisorSubstage = $substage; arbitrary = 'excluded' } native
             $rows += @{ stage = $stage; input = $substage; included = $value.ContainsKey('supervisorSubstage'); value = $value['supervisorSubstage']; excluded = !$value.ContainsKey('arbitrary') }
           }
@@ -139,10 +159,12 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(value.status).toBe(0);
       expect(value.stderr.length).toBe(0);
       const rows = JSON.parse(value.stdout.toString('utf8'));
-      expect(rows).toHaveLength(48);
+      expect(rows).toHaveLength(100);
       for (const row of rows) {
         const admitted =
-          row.stage === 2 && Number.isInteger(row.input) && row.input >= 0 && row.input <= 44;
+          Number.isInteger(row.input) &&
+          row.input >= 0 &&
+          ((row.stage === 2 && row.input <= 44) || (row.stage === 7 && row.input <= 7));
         expect(row.included).toBe(admitted);
         expect(row.excluded).toBe(true);
         if (admitted) expect(row.value).toBe(row.input);

@@ -59,6 +59,56 @@ internal static class InstalledOwnerFixture
         CallerNative.Require(diagnosed is InvalidOperationException && later != null && diagnosed.Message == later.Message && checkpoint == 14);
         return 2;
     }
+    private sealed class RefuseAuthentication : CallerNative
+    {
+        internal override bool Impersonate(SafeHandle pipe) { return false; }
+    }
+    private static int AdmissionCheckpoints()
+    {
+        var rows = new List<string>();
+        string[] modes = { "precheck", "connect-error", "connect-timeout", "framing", "authentication", "postcheck", "message-timeout" };
+        int[] expected = { 1, 2, 3, 4, 5, 6, 7 };
+        for (int index = 0; index < modes.Length; index++)
+        using (var self = Process.GetCurrentProcess())
+        using (var peer = new CallerRegistration(self.Handle, new string('a', 32)))
+        using (var endpoint = new CallerEndpoint(peer, self.Handle))
+        {
+            int checkpoint = 0; bool refused = false;
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var pipe = (SafeFileHandle)typeof(CallerEndpoint).GetField("pipe", flags).GetValue(endpoint);
+            try
+            {
+                if (index == 0) { endpoint.Dispose(); endpoint.AcceptMain(20, ref checkpoint); }
+                else if (index == 1) { pipe.Dispose(); endpoint.AcceptMain(20, ref checkpoint); }
+                else if (index == 2) endpoint.AcceptMain(20, ref checkpoint);
+                else using (var client = CallerEndpointNative.CreateFile(endpoint.LocalLocator, CallerEndpointNative.ClientRights,
+                    0, IntPtr.Zero, 3, 0x00100000 | 0x00020000, IntPtr.Zero))
+                {
+                    CallerNative.Require(!client.IsInvalid);
+                    if (index != 6)
+                    {
+                        string body = index == 3 ? "{}" : "{\"protocol\":\"aegis-supervisor-caller\",\"version\":1,\"role\":\"controller-main\",\"operation\":\"inspect-owned\",\"requestId\":\"" + new string('b', 32) +
+                            "\",\"sessionId\":\"" + peer.Session + "\",\"generation\":\"" + peer.Generation + "\",\"selectionId\":\"" + new string('c', 32) +
+                            "\",\"inventoryRevision\":" + (index == 5 ? "4294967296" : "1") + ",\"selectionEpoch\":\"" + new string('d', 32) + "\",\"sequence\":1}";
+                        byte[] payload = Encoding.UTF8.GetBytes(body), frame = new byte[payload.Length + 4];
+                        Array.Copy(BitConverter.GetBytes(payload.Length), frame, 4); Array.Copy(payload, 0, frame, 4, payload.Length);
+                        uint written; CallerNative.Require(CallerEndpointNative.WriteFile(client, frame, (uint)frame.Length, out written, IntPtr.Zero) && written == frame.Length);
+                    }
+                    // The real one-shot endpoint proves connect/framing/timeouts. The retained
+                    // pipe permits an existing native seam to force authentication refusal.
+                    if (index == 4) CallerAdmission.ReadMainAndAuthenticate(pipe, peer, new RefuseAuthentication(), ref checkpoint);
+                    else endpoint.AcceptMain(2000, ref checkpoint);
+                }
+            }
+            catch (InvalidOperationException) { refused = true; }
+            catch (TimeoutException) { refused = true; }
+            CallerNative.Require(refused && checkpoint == expected[index] && !CallerNative.HasThreadToken());
+            uint stage, substage;
+            CallerNative.Require(InstalledOwnerSession.TryReadFailureFrame(Encoding.ASCII.GetString(InstalledOwnerSession.FailureFrame(7, checkpoint)), out stage, out substage) && stage == 7 && substage == expected[index]);
+            rows.Add("{\"mode\":\"" + modes[index] + "\",\"checkpoint\":" + checkpoint + "}");
+        }
+        Console.WriteLine("{\"rows\":[" + String.Join(",", rows) + "]}"); return 0;
+    }
     private static int FailureFrames()
     {
         int entryChecks = CheckClosedRegistration();
@@ -67,7 +117,9 @@ internal static class InstalledOwnerFixture
             rows.Add("{\"kind\":\"legacy\",\"expectedStage\":" + stage + ",\"expectedSubstage\":0,\"whole\":" + Parsed(Frame(stage, 0), false) + ",\"split\":" + Parsed(Frame(stage, 0), true) + "}");
         for (uint substage = 1; substage <= 44; substage++)
             rows.Add("{\"kind\":\"stage2\",\"expectedStage\":2,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(2, substage), false) + ",\"split\":" + Parsed(Frame(2, substage), true) + "}");
-        string[] invalid = { Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
+        for (uint substage = 1; substage <= 7; substage++)
+            rows.Add("{\"kind\":\"stage7\",\"expectedStage\":7,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(7, substage), false) + ",\"split\":" + Parsed(Frame(7, substage), true) + "}");
+        string[] invalid = { Frame(7, 8), Frame(7, UInt32.MaxValue), Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
             Frame(1, 14), Frame(3, 26), Frame(12, 26),
             Frame(2, 8).Substring(0, 103) + "1", Frame(2, 8).Replace("00000008", "0000000A"),
             "AEGISF03" + Frame(2, 8).Substring(8), Frame(2, 8).Substring(0, 103), Frame(2, 8) + "0" };
@@ -80,7 +132,12 @@ internal static class InstalledOwnerFixture
             CallerNative.Require(frame.Length == 104 && Encoding.ASCII.GetString(frame) == Frame(2, (uint)checkpoint));
             writerChecks++;
         }
-        int[,] invalidWriter = { { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 45 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
+        for (int checkpoint = 0; checkpoint <= 7; checkpoint++)
+        {
+            CallerNative.Require(Encoding.ASCII.GetString(InstalledOwnerSession.FailureFrame(7, checkpoint)) == Frame(7, (uint)checkpoint));
+            writerChecks++;
+        }
+        int[,] invalidWriter = { { 7, -1 }, { 7, 8 }, { 0, 0 }, { 13, 0 }, { 2, -1 }, { 2, 45 }, { 1, 14 }, { 3, 26 }, { 12, 26 } };
         for (int index = 0; index < invalidWriter.GetLength(0); index++)
         {
             bool refused = false;
@@ -283,6 +340,7 @@ internal static class InstalledOwnerFixture
     }
     private static int Main(string[] arguments)
     {
+        if (arguments.Length == 1 && arguments[0] == "--admission-checkpoints") return AdmissionCheckpoints();
         if (arguments.Length == 1 && arguments[0] == "--installed-inventory-controls") return InstalledInventoryControls();
         if (arguments.Length == 1 && arguments[0] == "--accounting-controls") return AccountingControls();
         if (arguments.Length == 1 && arguments[0] == "--failure-frames") return FailureFrames();

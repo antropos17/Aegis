@@ -9,7 +9,7 @@ namespace Aegis.ProtectedSession
     {
         internal static byte[] FailureFrame(int stage, int substage)
         {
-            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && substage <= 44 && (stage == 2 || substage == 0));
+            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && ((stage == 2 && substage <= 44) || (stage == 7 && substage <= 7) || substage == 0));
             return Encoding.ASCII.GetBytes("AEGISF02" + stage.ToString("x8") + substage.ToString("x8") + new string('0', 80));
         }
         internal static bool TryReadFailureFrame(string frame, out uint stage, out uint substage)
@@ -18,7 +18,7 @@ namespace Aegis.ProtectedSession
             if (!System.Text.RegularExpressions.Regex.IsMatch(frame ?? "", "\\AAEGISF02[a-f0-9]{16}0{80}\\z")) return false;
             uint parsedStage = Convert.ToUInt32(frame.Substring(8, 8), 16);
             uint parsedSubstage = Convert.ToUInt32(frame.Substring(16, 8), 16);
-            if (parsedStage < 1 || parsedStage > 12 || parsedSubstage > 44 || (parsedStage != 2 && parsedSubstage != 0)) return false;
+            if (parsedStage < 1 || parsedStage > 12 || !((parsedStage == 2 && parsedSubstage <= 44) || (parsedStage == 7 && parsedSubstage <= 7) || parsedSubstage == 0)) return false;
             stage = parsedStage; substage = parsedSubstage; return true;
         }
         internal static int Run()
@@ -63,9 +63,9 @@ namespace Aegis.ProtectedSession
                                     string locator = operation.Labels.Locator.Substring("\\\\.\\pipe\\aegis-owned-caller-".Length);
                                     stage = 6;
                                     InstalledOwnerPipe.Send(output, Encoding.ASCII.GetBytes("AEGISC02" + locator + operation.Labels.Session + operation.Labels.Generation), deadline);
-                                    stage = 7; CallerMainOperation.Context admitted = operation.Accept(Math.Min(2000, deadline.Remaining));
+                                    stage = 7; substage = 1; CallerMainOperation.Context admitted = operation.Accept(Math.Min(2000, deadline.Remaining), ref substage);
                                     // Admission reverted its thread token. Recheck installed authority immediately before the fixed observation.
-                                    stage = 8; registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
+                                    stage = 8; substage = 0; registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
                                     stage = 9; deadline.Check(); string result = admitted.InspectOwned();
                                     // Independently persisted actual-dispatch oracle outside the pinned installation root.
                                     stage = 10; InstalledOwnerFiles.WriteNew(true, "inspection-count.txt", "1", registration.Policy);
