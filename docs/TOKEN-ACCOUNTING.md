@@ -126,7 +126,11 @@ Focused child-process `SIGKILL` tests exceed the page cache to exercise hot-jour
 rollback after uncommitted database pages spill, and also exercise committed
 exactly-once recovery. They verify wrong-identity empty, zeroed and valid-header
 journals, journal links, and missing/corrupt witnesses remain fail-closed.
-Sidecar-free version-1 migration preserves totals. Long-duration packaged
-qualification, power-loss behavior, broader durable-schema migration and
-sustained-capacity policy remain tracked in
-[#637](https://github.com/antropos17/Aegis/issues/637).
+Sidecar-free version-1 migration preserves totals. Issue
+[#637](https://github.com/antropos17/Aegis/issues/637) is closed. Long-duration
+packaged qualification, power-loss behavior, broader durable-schema migration and
+sustained-capacity policy remain incomplete. The earlier two-hour receipt used
+pre-final harness bytes; [#863](https://github.com/antropos17/Aegis/pull/863)
+records a 15-second smoke of the final per-identity harness. See the
+[packaged-module qualification scope](development/token-accounting-soak.md) for
+the fixture's acceptance limits.
