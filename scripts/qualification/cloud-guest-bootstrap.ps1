@@ -31,9 +31,25 @@ function Read-CloudGuestTaskDiagnostics([string]$Path) {
                 if ($fields -cnotin @('action,outcome,route', 'action,code,outcome,route') -or $probe.action -cnotin @('read', 'write', 'delete') -or
                     $probe.outcome -cnotin @('succeeded-in-guest-namespace', 'absent-in-guest-namespace', 'guest-refused') -or
                     ($fields -ceq 'action,code,outcome,route' -and $probe.code -cnotin $codes)) { throw 'refused' }
-            } elseif ($probe.route -cin @('shell', 'descendant')) {
+            } elseif ($probe.route -ceq 'descendant') {
+                if ($fields -cne 'action,exitCode,outcomes,processFailed,route' -or $probe.action -cne 'read-write-delete' -or
+                    $probe.processFailed -isnot [bool] -or $probe.processFailed -or $probe.exitCode -ne 0 -or
+                    ($probe.exitCode -isnot [int] -and $probe.exitCode -isnot [long]) -or $probe.outcomes -isnot [array] -or $probe.outcomes.Count -ne 3 -or
+                    ((@($probe.outcomes | ForEach-Object { $_.action }) -join ',') -cne 'read,write,delete')) { throw 'refused' }
+                foreach ($attempt in $probe.outcomes) {
+                    $attemptFields = @($attempt.PSObject.Properties.Name | Sort-Object) -join ','
+                    if ($attemptFields -ceq 'action,outcome') {
+                        if ($attempt.outcome -cne 'succeeded-in-guest-namespace' -or $value.passed) { throw 'refused' }
+                    } elseif ($attemptFields -ceq 'action,code,outcome') {
+                        if ($attempt.code -cnotin $codes -or
+                            ($attempt.code -cin @('ENOENT', 'ENOTDIR') -and $attempt.outcome -cne 'absent-in-guest-namespace') -or
+                            ($attempt.code -cnotin @('ENOENT', 'ENOTDIR') -and $attempt.outcome -cne 'guest-refused') -or
+                            ($value.passed -and $attempt.code -cnotin @('ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'))) { throw 'refused' }
+                    } else { throw 'refused' }
+                }
+            } elseif ($probe.route -ceq 'shell') {
                 if ($fields -cne 'action,exitCode,processFailed,route' -or $probe.processFailed -isnot [bool] -or
-                    $probe.action -cnotin @('read', 'write', 'delete', 'read-write-delete') -or
+                    $probe.action -cnotin @('read', 'write', 'delete') -or
                     ($null -ne $probe.exitCode -and ($probe.exitCode -isnot [int] -and $probe.exitCode -isnot [long]))) { throw 'refused' }
             } else { throw 'refused' }
         }

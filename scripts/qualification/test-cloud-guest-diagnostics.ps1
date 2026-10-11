@@ -97,7 +97,8 @@ $hostProbes = @()
 foreach ($canary in 1..2) {
     foreach ($action in @('read', 'write', 'delete')) { $hostProbes += @{ route = 'direct'; action = $action; outcome = 'absent-in-guest-namespace'; code = 'ENOENT' } }
     foreach ($action in @('read', 'write', 'delete')) { $hostProbes += @{ route = 'shell'; action = $action; exitCode = 1; processFailed = $false } }
-    $hostProbes += @{ route = 'descendant'; action = 'read-write-delete'; exitCode = 0; processFailed = $false }
+    $hostProbes += @{ route = 'descendant'; action = 'read-write-delete'; exitCode = 0; processFailed = $false;
+        outcomes = @('read', 'write', 'delete') | ForEach-Object { @{ action = $_; outcome = 'absent-in-guest-namespace'; code = 'ENOENT' } } }
 }
 $claimedSuccess = @{ schemaVersion = 1; task = 'fixed-read-edit-test'; passed = $true; stage = 'completed'; failure = $null;
     networkControlsComplete = $true; readEditTestPassed = $true; shellAndDescendantPositive = $true; protectedProbes = @($protected); hostPathProbes = @($hostProbes) }
@@ -106,6 +107,24 @@ $resultPath = Join-Path $fixture 'claimed-success.json'
 $parsed = Read-CloudGuestTaskDiagnostics $resultPath
 Check ($parsed.status -eq 'verified' -and $parsed.task.passed) 'valid-result-parser-refused'
 Check ((Merge-CloudGuestTaskDiagnostics $successful $parsed $true).task.passed) 'valid-success-model-refused'
+foreach ($mode in @('success', 'missing', 'duplicate', 'malformed', 'oversized', 'unknown', 'inconsistent', 'extra-field', 'legacy')) {
+    $changed = $claimedSuccess | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    $leaf = $changed.hostPathProbes[6]
+    if ($mode -eq 'success') { $leaf.outcomes[0] = [pscustomobject]@{ action='read'; outcome='succeeded-in-guest-namespace' } }
+    elseif ($mode -eq 'missing') { $leaf.outcomes = @($leaf.outcomes | Select-Object -First 2) }
+    elseif ($mode -eq 'duplicate') { $leaf.outcomes[1].action = 'read' }
+    elseif ($mode -eq 'malformed') { $leaf.outcomes[0].code = 'SECRET_SENTINEL' }
+    elseif ($mode -eq 'oversized') { $leaf.outcomes = @(1..4 | ForEach-Object { $leaf.outcomes[0] }) }
+    elseif ($mode -eq 'unknown') { $leaf.outcomes[0].code = 'UNKNOWN'; $leaf.outcomes[0].outcome = 'guest-refused' }
+    elseif ($mode -eq 'inconsistent') { $leaf.outcomes[0].code = 'EACCES' }
+    elseif ($mode -eq 'extra-field') { $leaf.outcomes[0] | Add-Member -NotePropertyName private -NotePropertyValue SECRET_SENTINEL }
+    else { $leaf.PSObject.Properties.Remove('outcomes') }
+    [IO.File]::WriteAllText($resultPath, ($changed | ConvertTo-Json -Depth 8))
+    $refusedLeaf = Read-CloudGuestTaskDiagnostics $resultPath
+    Check ($refusedLeaf.status -eq 'guest-task-result-malformed' -and !(Merge-CloudGuestTaskDiagnostics $successful $refusedLeaf $true).passed) ('descendant-report-accepted-' + $mode)
+    Check (!(($refusedLeaf | ConvertTo-Json -Depth 8).Contains('SECRET_SENTINEL'))) 'descendant-private-output-exposed'
+}
+[IO.File]::WriteAllText($resultPath, ($claimedSuccess | ConvertTo-Json -Depth 8))
 foreach ($name in @('runtimeResumed','runtimeCallerAuthenticated','runtimeInitializedBeforeProject','networkReceiverStartedAfterRuntimeReady','taskReleased')) {
     $changed = [Collections.Generic.Dictionary[string,object]]::new($successful)
     $changed.Remove($name) | Out-Null

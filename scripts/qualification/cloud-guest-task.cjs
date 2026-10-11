@@ -41,6 +41,7 @@ function child(exe, args) {
     exitCode: value.status,
     failed: !!value.error,
     stdout: value.stdout?.toString('utf8') || '',
+    stderrPresent: (value.stderr?.length || 0) !== 0,
   };
 }
 function denied(label, operation) {
@@ -217,15 +218,44 @@ try {
     }
     const leaf = child(process.execPath, [
       '-e',
-      'const f=require("fs");const p=process.argv[1];for(const action of [()=>f.readFileSync(p),()=>f.writeFileSync(p,"leaf",{flag:"wx"}),()=>f.unlinkSync(p)]){try{action()}catch{}}',
+      'const f=require("fs");const p=process.argv[1];const codes=["EACCES","EPERM","ENOENT","ENOTDIR","EIO","EBUSY","EEXIST"];for(const [name,action] of [["read",()=>f.readFileSync(p)],["write",()=>f.writeFileSync(p,"leaf",{flag:"wx"})],["delete",()=>f.unlinkSync(p)]]){let code="SUCCESS";try{action()}catch(e){code=codes.includes(e.code)?e.code:"UNKNOWN"}process.stdout.write(name+":"+code+"\\n")}',
       selected,
     ]);
+    // Exact ordered fixed-code report: no child bytes, paths or content are copied.
+    if (
+      leaf.failed ||
+      leaf.exitCode !== 0 ||
+      leaf.stderrPresent ||
+      Buffer.byteLength(leaf.stdout) > 128
+    )
+      throw new Error('descendant-report-refused');
+    const report =
+      /^read:(SUCCESS|EACCES|EPERM|ENOENT|ENOTDIR|EIO|EBUSY|EEXIST|UNKNOWN)\nwrite:(SUCCESS|EACCES|EPERM|ENOENT|ENOTDIR|EIO|EBUSY|EEXIST|UNKNOWN)\ndelete:(SUCCESS|EACCES|EPERM|ENOENT|ENOTDIR|EIO|EBUSY|EEXIST|UNKNOWN)\n$/.exec(
+        leaf.stdout,
+      );
+    if (!report || report[0].length !== leaf.stdout.length)
+      throw new Error('descendant-report-refused');
+    const outcomes = ['read', 'write', 'delete'].map((action, index) => {
+      const code = report[index + 1];
+      return code === 'SUCCESS'
+        ? { action, outcome: 'succeeded-in-guest-namespace' }
+        : {
+            action,
+            outcome: ['ENOENT', 'ENOTDIR'].includes(code)
+              ? 'absent-in-guest-namespace'
+              : 'guest-refused',
+            code,
+          };
+    });
     result.hostPathProbes.push({
       route: 'descendant',
       action: 'read-write-delete',
       exitCode: leaf.exitCode,
       processFailed: leaf.failed,
+      outcomes,
     });
+    if (report.slice(1).some((code) => !['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code)))
+      throw new Error('descendant-outcome-refused');
   }
   result.stage = 'git';
   // Reserve 3s for fixed Git, 2s for actual Job closure, and the existing
