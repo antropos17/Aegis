@@ -1861,5 +1861,14 @@
   "The usage index has reached its storage capacity.": "O índice de uso atingiu sua capacidade de armazenamento.",
   "The usage index is temporarily unavailable.": "O índice de uso está temporariamente indisponível.",
   "Recorded totals are retained and incomplete. Collection retries automatically.": "Os totais registrados estão retidos e incompletos. A coleta tenta novamente automaticamente.",
-  "Recorded subtotal · collection paused": "Subtotal registrado · coleta pausada"
+  "Recorded subtotal · collection paused": "Subtotal registrado · coleta pausada",
+  "Observed configuration": "Configuração observada",
+  "Configuration unavailable": "Configuração indisponível",
+  "Configuration is stale; current settings are unconfirmed.": "A configuração está desatualizada; as definições atuais não estão confirmadas.",
+  "Configuration observations do not establish isolation or a security grade.": "As observações de configuração não comprovam isolamento nem uma classificação de segurança.",
+  "Running": "Em execução",
+  "Privileged": "Privilegiado",
+  "Read-only root filesystem": "Sistema de arquivos raiz somente leitura",
+  "Network mode": "Modo de rede",
+  "PID mode": "Modo de PID"
 }

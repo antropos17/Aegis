@@ -6,6 +6,13 @@
 'use strict';
 const { execFile: defaultExecFile } = require('node:child_process');
 const { MAX_OUTPUT_BYTES, hasControl, parseContainerOutput } = require('./container-metadata');
+const {
+  MAX_CONFIGURATION_CANDIDATES,
+  CONFIGURATION_TIMEOUT_MS,
+  CONFIGURATION_OUTPUT_BYTES,
+  CONFIGURATION_FORMAT,
+  parseConfiguration,
+} = require('./container-configuration');
 
 const CADENCE_MS = 30000;
 const FRESH_MS = 90000;
@@ -69,12 +76,15 @@ function createDockerDiscovery(options = {}) {
     return {
       ...state,
       stale: stopped || state.status !== 'ready' || age === null || age < 0 || age >= FRESH_MS,
-      candidates: state.candidates.map((candidate) => ({ ...candidate })),
+      candidates: state.candidates.map((candidate) => ({
+        ...candidate,
+        ...(candidate.configuration ? { configuration: { ...candidate.configuration } } : {}),
+      })),
     };
   }
 
   /** Metadata-only query. @param {string} endpoint @param {object} env @returns {Promise<object>} */
-  function query(endpoint, env) {
+  function query(endpoint, env, id = null, timeout = 3000) {
     return new Promise((resolve) => {
       let settled = false;
       const watchdog = setTimeout(() => {
@@ -85,7 +95,7 @@ function createDockerDiscovery(options = {}) {
         } catch {
           /* Settlement must not depend on process termination succeeding. */
         }
-      }, 3000);
+      }, timeout);
       const finish = (result) => {
         if (settled) return;
         settled = true;
@@ -98,11 +108,17 @@ function createDockerDiscovery(options = {}) {
       try {
         const child = execFile(
           platform === 'win32' ? 'docker.exe' : 'docker',
-          ['--host', endpoint, ...PS_ARGS, FORMAT],
+          [
+            '--host',
+            endpoint,
+            ...(id
+              ? ['container', 'inspect', '--format', CONFIGURATION_FORMAT, id]
+              : [...PS_ARGS, FORMAT]),
+          ],
           {
-            timeout: 3000,
+            timeout,
             killSignal: 'SIGKILL',
-            maxBuffer: MAX_OUTPUT_BYTES,
+            maxBuffer: id ? CONFIGURATION_OUTPUT_BYTES : MAX_OUTPUT_BYTES,
             windowsHide: true,
             shell: false,
             encoding: 'utf8',
@@ -111,6 +127,7 @@ function createDockerDiscovery(options = {}) {
           (error, stdout) => {
             if (settled) return;
             if (error) return finish({ reason: failureReason(error) });
+            if (id) return finish({ configuration: parseConfiguration(stdout, id, now()) });
             const candidates = parseContainerOutput(stdout, 'docker');
             finish(candidates === null ? { reason: 'invalid-output' } : { candidates });
           },
@@ -147,17 +164,38 @@ function createDockerDiscovery(options = {}) {
     inFlight = Promise.resolve()
       .then(async () => {
         let outcome = remote ? { reason: 'remote-endpoint' } : null;
+        let selectedEndpoint = null;
+        let discoveryObservedAt = null;
         for (const endpoint of endpoints) {
           if (stopped || (outcome?.reason && outcome.reason !== 'daemon-unavailable')) break;
           outcome = await query(endpoint, env);
+          if (outcome.candidates) {
+            selectedEndpoint = endpoint;
+            discoveryObservedAt = now();
+          }
           if (outcome.cancelled || !outcome.reason) break;
+        }
+        if (!stopped && outcome?.candidates?.length) {
+          // One serial batch: at most eight calls and three seconds total, including stalled callbacks.
+          const deadline = performance.now() + CONFIGURATION_TIMEOUT_MS;
+          for (const [index, candidate] of outcome.candidates.entries()) {
+            candidate.configuration = { status: 'unavailable', observedAt: null };
+            const remaining = Math.floor(deadline - performance.now());
+            if (stopped || index >= MAX_CONFIGURATION_CANDIDATES || remaining <= 0) continue;
+            const inspection = await query(selectedEndpoint, env, candidate.containerId, remaining);
+            if (inspection.configuration) candidate.configuration = inspection.configuration;
+            if (inspection.cancelled || inspection.reason === 'timeout') break;
+          }
+          // Unqueried candidates have no observed configuration.
+          for (const candidate of outcome.candidates)
+            candidate.configuration ||= { status: 'unavailable', observedAt: null };
         }
         if (!stopped) {
           state = outcome?.candidates
             ? {
                 status: 'ready',
                 reason: null,
-                observedAt: now(),
+                observedAt: discoveryObservedAt,
                 attemptedAt,
                 candidates: outcome.candidates,
               }
