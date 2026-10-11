@@ -214,6 +214,18 @@ describe('Podman metadata discovery', () => {
     ]);
   });
 
+  it('keeps discovery ready when a long unrelated name accompanies Agent Zero', async () => {
+    const { discovery } = harness([row() + '\n' + row('alpine:latest', secondId, 'n'.repeat(256))]);
+    await discovery.refresh();
+    expect(discovery.snapshot()).toMatchObject({
+      status: 'ready',
+      reason: null,
+      stale: false,
+      candidates: [{ containerId: firstId, name: 'agent-zero', agent: 'Agent Zero' }],
+    });
+    expect(discovery.snapshot().candidates).toHaveLength(1);
+  });
+
   it('uses only the fixed native executable, local engine guards and narrow projection', async () => {
     for (const key of remoteKeys) vi.stubEnv(key.toLowerCase(), '');
     for (const key of [
@@ -334,7 +346,7 @@ describe('Podman metadata discovery', () => {
     row(undefined, firstId, ['array-name']),
     row(undefined, firstId, 'agent,alias'),
     row(undefined, firstId, 'web/agent'),
-    row(undefined, firstId, 'a'.repeat(256)),
+    row(undefined, firstId, 'a'.repeat(8193)),
     row('agent0ai/agent-zero\n'),
     row(null, firstId),
     row(42, firstId),
