@@ -77,6 +77,18 @@ export interface ApplicationProcessGroup {
 
 /** Agent detected by process scanner */
 export interface DetectedAgent {
+  /** Presentation-only nearest recognized editor ancestor observed during this fresh
+   * identity pass. Absent when any traversed generation or edge is uncertain.
+   * Equality requires PID, witness value AND witness source; label is insufficient.
+   * This observation establishes no session, authority, action target or delegation. */
+  readonly observedHostEditor?: {
+    readonly pid: number;
+    readonly label: string;
+    readonly startTime: number;
+    readonly generationWitness: string;
+    readonly generationWitnessSource: Exclude<GenerationWitnessSource, 'startTimeMs'>;
+    readonly source: 'fresh-process-table';
+  };
   readonly agent: string;
   readonly process: string;
   readonly pid: number;
