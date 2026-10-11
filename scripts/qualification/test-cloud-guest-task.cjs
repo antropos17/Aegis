@@ -16,7 +16,7 @@ process.on('uncaughtException', (error) => {
         : 'other';
   console.log(
     JSON.stringify({
-      cases: 27,
+      cases: 37,
       passed: completedCases,
       scope: 'synthetic-task-source-behavior-no-guest-or-VM-effects',
       diagnostic: { case: currentCase, phase: currentPhase, errorKind },
@@ -181,7 +181,55 @@ function run(mode) {
           mode === 'shell-marker-mismatch' ? 'unapproved-marker' : 'guest-scratch-control',
         ),
       };
-    return { status: args[0] === '-e' ? 0 : 1 };
+    if (args[0] === '-e') {
+      const attempts = [];
+      let stdout = '';
+      const leafFs = Object.fromEntries(
+        [
+          ['readFileSync', 'read'],
+          ['writeFileSync', 'write'],
+          ['unlinkSync', 'delete'],
+        ].map(([method, action]) => [
+          method,
+          (selected) => {
+            assert.equal(selected, args[2]);
+            attempts.push(action);
+            if (mode === 'descendant-read-success' && action === 'read') return 'PRIVATE_SENTINEL';
+            fail(mode === 'descendant-unknown' ? 'PRIVATE_SENTINEL' : 'ENOENT');
+          },
+        ]),
+      );
+      vm.runInNewContext(
+        args[1],
+        {
+          require: () => leafFs,
+          process: {
+            argv: ['node', args[2]],
+            stdout: {
+              write: (text) => {
+                stdout += text;
+              },
+            },
+          },
+        },
+        { timeout: 1000 },
+      );
+      assert.deepEqual(attempts, ['read', 'write', 'delete']);
+      const changes = {
+        'descendant-missing': '',
+        'descendant-duplicate': stdout + stdout,
+        'descendant-malformed': 'PRIVATE_SENTINEL',
+        'descendant-oversized': 'x'.repeat(129),
+        'descendant-trailing': stdout + '\n',
+      };
+      return {
+        status: mode === 'descendant-nonzero' ? 7 : 0,
+        error: mode === 'descendant-process-failed' ? {} : null,
+        stderr: mode === 'descendant-stderr' ? Buffer.from('PRIVATE_SENTINEL') : Buffer.alloc(0),
+        stdout: Buffer.from(changes[mode] ?? stdout),
+      };
+    }
+    return { status: 1 };
   };
   const process = {
     platform: 'win32',
@@ -226,6 +274,26 @@ function run(mode) {
   currentPhase = 'assertions';
   return { result, process, files };
 }
+for (const mode of [
+  'descendant-read-success',
+  'descendant-missing',
+  'descendant-duplicate',
+  'descendant-malformed',
+  'descendant-oversized',
+  'descendant-unknown',
+  'descendant-trailing',
+  'descendant-nonzero',
+  'descendant-process-failed',
+  'descendant-stderr',
+]) {
+  const escaped = run(mode);
+  assert.equal(escaped.result.passed, false);
+  assert.equal(escaped.process.exitCode, 1);
+  assert.equal(escaped.result.stage, 'host-path-probes');
+  assert.equal(escaped.files.has(path.join(root, 'work', 'git-result.json')), false);
+  assert.equal(JSON.stringify(escaped.result).includes('PRIVATE_SENTINEL'), false);
+  completedCases++;
+}
 const positive = run('positive');
 assert.equal(positive.process.exitCode, 0);
 assert.equal(positive.result.passed, true);
@@ -234,6 +302,18 @@ assert.equal(positive.result.readEditTestPassed, true);
 assert.equal(positive.result.shellAndDescendantPositive, true);
 assert.equal(positive.result.protectedProbes.length, 4);
 assert.equal(positive.result.hostPathProbes.length, 14);
+for (const probe of positive.result.hostPathProbes.filter(
+  (probe) => probe.route === 'descendant',
+)) {
+  assert.deepEqual(
+    probe.outcomes,
+    ['read', 'write', 'delete'].map((action) => ({
+      action,
+      outcome: 'absent-in-guest-namespace',
+      code: 'ENOENT',
+    })),
+  );
+}
 assert.equal(
   positive.files
     .get(path.join(root, 'work', 'sum.cjs'))
@@ -331,10 +411,10 @@ for (const mode of ['sealed-copy-error', 'sealed-copy-refused']) {
   assert.equal(JSON.stringify(refused.result).includes('PRIVATE_SENTINEL'), false);
   completedCases++;
 }
-assert.equal(completedCases, 27);
+assert.equal(completedCases, 37);
 console.log(
   JSON.stringify({
-    cases: 27,
+    cases: 37,
     passed: completedCases,
     scope: 'synthetic-task-source-behavior-no-guest-or-VM-effects',
   }),
