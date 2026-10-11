@@ -3,6 +3,7 @@
   import { t } from '../runtime/i18n';
   import {
     containerDiscovery,
+    configurationStale,
     containerDiscoveryCopy,
     containerDiscoveryLabel,
     containerDiscoveryReason,
@@ -91,6 +92,41 @@
                   <dd>{$t('Image metadata')}</dd>
                 </div>
               </dl>
+              {#if row.runtime === 'docker' && row.configuration}
+                {@const configuration = row.configuration}
+                <div class="configuration-context">
+                  <h4>{$t('Observed configuration')}</h4>
+                  {#if configuration.status === 'unavailable'}
+                    <p class="muted">{$t('Configuration unavailable')}</p>
+                  {:else}
+                    <p class="muted">
+                      {$t('Last observed:')}
+                      {#if configuration.observedAt !== null}<time
+                          datetime={new Date(configuration.observedAt).toISOString()}
+                          >{new Date(configuration.observedAt).toLocaleString()}</time
+                        >{/if}
+                    </p>
+                    {#if configurationStale(configuration, discovery.stale, Math.max(now, Date.now()))}
+                      <p class="muted">
+                        {$t('Configuration is stale; current settings are unconfirmed.')}
+                      </p>
+                    {/if}
+                    <dl>
+                      {#each [['Running', configuration.running], ['Privileged', configuration.privileged], ['Read-only root filesystem', configuration.readOnlyRootFilesystem], ['Network mode', configuration.networkMode], ['PID mode', configuration.pidMode]] as [label, value] (label)}
+                        {#if value !== undefined}<div>
+                            <dt>{$t(String(label))}</dt>
+                            <dd>{typeof value === 'boolean' ? $t(value ? 'Yes' : 'No') : value}</dd>
+                          </div>{/if}
+                      {/each}
+                    </dl>
+                  {/if}
+                  <p class="muted">
+                    {$t(
+                      'Configuration observations do not establish isolation or a security grade.',
+                    )}
+                  </p>
+                </div>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -164,6 +200,15 @@
   dd {
     margin: var(--space-1) 0 0;
     overflow-wrap: anywhere;
+  }
+  .configuration-context {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+  h4 {
+    margin: 0;
+    font-size: inherit;
   }
   .container-id {
     font-family: var(--mono);

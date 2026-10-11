@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   containerDiscovery,
+  configurationStale,
   containerDiscoveryCopy,
   containerDiscoveryLabel,
   containerDiscoveryReason,
@@ -191,3 +192,68 @@ it.each(runtimes)(
     expect(result.candidates).toEqual([row]);
   },
 );
+
+it('preserves boolean false and exposes only allowlisted Docker configuration facts', () => {
+  const configuration = {
+    status: 'observed' as const,
+    observedAt: now,
+    running: false,
+    privileged: false,
+    readOnlyRootFilesystem: true,
+    networkMode: 'none' as const,
+    pidMode: 'private' as const,
+  };
+  const result = containerDiscovery(
+    { ...ready('docker'), candidates: [{ ...candidate('docker'), configuration }] },
+    'docker',
+    now,
+  );
+  expect(result).toMatchObject({ status: 'ready', candidates: [{ configuration }] });
+  expect(configurationStale(configuration, false, now)).toBe(false);
+  expect(configurationStale(configuration, false, now + CONTAINER_DISCOVERY_FRESHNESS_MS)).toBe(
+    true,
+  );
+  expect(configurationStale(configuration, true, now)).toBe(true);
+});
+
+it.each([
+  null,
+  { status: 'observed', observedAt: now, privileged: 'false' },
+  { status: 'observed', observedAt: null, running: true },
+  { status: 'observed', observedAt: now, networkMode: 'secret/path' },
+  { status: 'observed', observedAt: now, running: true, env: ['SECRET=fixture'] },
+  { status: 'unavailable', observedAt: now, privileged: false },
+])(
+  'degrades malformed or unavailable optional evidence without losing the Docker candidate (%j)',
+  (configuration) => {
+    const result = containerDiscovery(
+      { ...ready('docker'), candidates: [{ ...candidate('docker'), configuration }] },
+      'docker',
+      now,
+    );
+    expect(result).toMatchObject({
+      status: 'ready',
+      candidates: [
+        { agent: 'Claude Code', configuration: { status: 'unavailable', observedAt: null } },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toMatch(/SECRET|secret\/path/);
+  },
+);
+
+it('does not accept Docker configuration in Podman metadata', () => {
+  const result = containerDiscovery(
+    {
+      ...ready('podman'),
+      candidates: [
+        {
+          ...candidate('podman'),
+          configuration: { status: 'observed', observedAt: now, running: true },
+        },
+      ],
+    },
+    'podman',
+    now,
+  );
+  expect(result).toMatchObject({ status: 'unavailable', reason: 'invalid-output', candidates: [] });
+});

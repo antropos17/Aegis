@@ -202,3 +202,59 @@ it.each(['false', 'true'])(
     expect(screen.getByRole('region', { name: 'Podman container candidates' })).toBeVisible();
   },
 );
+
+it('shows dated configuration facts and independently expires them without grading isolation', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(1_000_000);
+  const docker = snapshot('docker');
+  const configured = {
+    ...docker,
+    candidates: [
+      {
+        ...docker.candidates[0],
+        configuration: {
+          status: 'observed',
+          observedAt: Date.now() - 89_000,
+          privileged: false,
+          readOnlyRootFilesystem: true,
+          networkMode: 'host',
+        },
+      },
+    ],
+  };
+  const view = render(ContainerCandidates, {
+    dockerSnapshot: configured,
+    podmanSnapshot: snapshot('podman'),
+  });
+  const region = screen.getByRole('region', { name: 'Docker container candidates' });
+  expect(within(region).getByText('Observed configuration')).toBeVisible();
+  expect(within(region).getByText('No')).toBeVisible();
+  expect(within(region).getByText('Yes')).toBeVisible();
+  expect(region.querySelectorAll('time')).toHaveLength(2);
+  expect(within(region).queryByText(/Configuration is stale/)).toBeNull();
+  await vi.advanceTimersByTimeAsync(1000);
+  await tick();
+  expect(within(region).getByText(/Configuration is stale/)).toBeVisible();
+  expect(within(region).getByRole('status')).toHaveTextContent('Docker metadata observed');
+  expect(
+    within(region).getByText(
+      'Configuration observations do not establish isolation or a security grade.',
+    ),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole('region', { name: 'Podman container candidates' })).queryByText(
+      'Observed configuration',
+    ),
+  ).toBeNull();
+  await view.rerender({
+    dockerSnapshot: {
+      ...docker,
+      candidates: [
+        { ...docker.candidates[0], configuration: { status: 'unavailable', observedAt: null } },
+      ],
+    },
+    podmanSnapshot: snapshot('podman'),
+  });
+  expect(within(region).getByText('Configuration unavailable')).toBeVisible();
+  expect(within(region).queryByText('Privileged')).toBeNull();
+});

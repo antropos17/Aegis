@@ -19,7 +19,13 @@ function harness(replies = [], options = {}) {
     return { kill };
   });
   const discovery = createDockerDiscovery({
-    execFile,
+    execFile: (file, args, settings, callback) => {
+      if (args[2] === 'container') {
+        queueMicrotask(() => callback(new Error('unavailable')));
+        return { kill };
+      }
+      return execFile(file, args, settings, callback);
+    },
     now: () => time,
     platform: 'linux',
     onUpdate,
@@ -67,6 +73,7 @@ describe('Docker metadata discovery', () => {
         agent: 'Agent Zero',
         match: 'image',
         runtime: 'docker',
+        configuration: { status: 'unavailable', observedAt: null },
       },
     ]);
   });
