@@ -1,9 +1,14 @@
 # Opt-in packaged token-accounting qualification
 
-Issue #637 needs two hours of packaged runtime evidence. This separately invoked
-harness provides a bounded **packaged-module fixture qualification**. It has not
-established native scanner attribution, renderer/IPC delivery, provider billing,
-real Claude process behavior, or the complete acceptance criteria of #637.
+Issue [#637](https://github.com/antropos17/Aegis/issues/637) is closed;
+long-duration packaged qualification remains incomplete. The earlier two-hour
+receipt used pre-final harness bytes.
+[#863](https://github.com/antropos17/Aegis/pull/863) records a 15-second smoke
+of the final per-identity harness and preserves the earlier receipt's provenance.
+This separately invoked harness provides a bounded **packaged-module fixture
+qualification**. It has not established native scanner attribution, renderer/IPC
+delivery, provider billing, real Claude process behavior, or the complete
+acceptance criteria of #637.
 
 The executable must be an existing trusted Windows package. No build, install,
 production-code edit, network provider request, or dependency installation is
