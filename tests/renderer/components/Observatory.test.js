@@ -152,7 +152,13 @@ describe('Observatory production components', () => {
     );
     expect(new Set(inspect.mock.calls[0][1].observations.map((row) => row.eventId)).size).toBe(101);
     expect(host.getAuditEntriesBefore.mock.calls[1]).toEqual([timestamp, 100, undefined, 100]);
-    await waitFor(() => expect(older).toBeDisabled());
+    await waitFor(() => expect(older).toHaveAttribute('aria-busy', 'false'));
+    expect(older).toHaveAttribute('aria-disabled', 'true');
+    older.focus();
+    await fireEvent.click(older);
+    expect(older).toHaveFocus();
+    expect(host.getAuditEntriesBefore).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('101 audit entries loaded')).toBeVisible();
   });
 
   it('keeps cancelled exports visible as incomplete', async () => {
