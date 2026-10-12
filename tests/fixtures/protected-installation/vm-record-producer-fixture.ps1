@@ -33,7 +33,8 @@ $context = @{ installId = '11111111111111111111111111111111'; selectionId = '444
     inputs = @{ 'aegis-owner.exe' = $blob; 'aegis-session.exe' = $blob; 'aegis-main.exe' = $blob }; vmBinding = $null }
 $results = @()
 foreach ($configured in @($false, $true)) {
-    $context.vmBinding = if ($configured) { @{ vmId = $VmId; identitySha256 = $IdentityHash } } else { $null }
+    if ($configured) { $context.vmBinding = @{ vmId = $VmId; identitySha256 = $IdentityHash } }
+    else { $context.Remove('vmBinding') } # Earlier process-only associations have no binding key.
     $stage = New-ProtectedInstallStage $context 1 '22222222222222222222222222222222'
     if ($stage.rows.Count -ne 8) { throw 'fixture-initial-leaf-count' }
     Assert-ProtectedInstallStage $stage

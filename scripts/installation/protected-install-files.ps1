@@ -98,7 +98,8 @@ function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) 
         $utf8 = [Text.UTF8Encoding]::new($false)
         $policyBytes = $utf8.GetBytes(($policy | ConvertTo-Json -Compress))
         Write-ProtectedInstallFile (Join-Path $path 'owner-policy.json') $policyBytes $Context.operatorSid
-        Write-ProtectedInstallFile (Join-Path $path 'registered-vm.json') (New-ProtectedInstallVmRecord $policy $policyBytes $Context.vmBinding) $Context.operatorSid
+        $binding = if ($Context.ContainsKey('vmBinding')) { $Context.vmBinding } else { $null }
+        Write-ProtectedInstallFile (Join-Path $path 'registered-vm.json') (New-ProtectedInstallVmRecord $policy $policyBytes $binding) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'enrollment.json') $utf8.GetBytes(($enrollment | ConvertTo-Json -Compress)) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'inventory.json') $utf8.GetBytes(($inventory | ConvertTo-Json -Compress -Depth 5)) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'operator.credential') $Context.credential $Context.operatorSid $true
