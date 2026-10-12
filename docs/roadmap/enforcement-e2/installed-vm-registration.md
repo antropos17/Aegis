@@ -22,7 +22,7 @@ rechecks the SCM owner, held processes, tokens, Job, pinned installation and cal
 selection through those original objects, before and after the native query.
 An observed failure permanently refuses that lease.
 
-The canonical active UTF-8 record, without a BOM or trailing whitespace, is:
+The legacy version 1 active UTF-8 record, without a BOM or trailing whitespace, is:
 
 ```json
 {"schemaVersion":1,"installId":"<32 lowercase hex>","revision":1,"epoch":"<32 lowercase hex>","policySha256":"<64 lowercase hex>","selectionId":"<32 lowercase hex>","selectionEpoch":"<32 lowercase hex>","vmId":"<canonical lowercase nonzero GUID>","identitySha256":"<64 lowercase hex>","status":"active"}
@@ -50,11 +50,38 @@ record without constructing a native VM manager. A missing leaf preserves
 compatibility with the earlier process-only installation; neither state grants VM
 authority. An unconfigured record with active-only fields is refused.
 
+New administrative registrations use version 2. Its common fields have the same
+order and binding, with `"schemaVersion":2`; after `identitySha256` it adds
+`"storageSha256":"<64 lowercase hex>"` before `status`. Version 1 active records
+retain their identity-only read-only compatibility path. Unconfigured records
+remain version 1. Upgrades preserve whichever binding was originally captured;
+they never recapture a changed disk as the expected one.
+
+The version 2 inspection additionally requires the VM to be Off. The native
+observer reads the exact realized settings and their virtual hard-disk/DVD file
+allocations, including parent-drive identity and slot. It refuses physical disks,
+unsupported storage types, duplicate IDs/files, malformed or remote/ADS paths,
+reparse points, hard-linked files and missing observations. Empty DVD trays are
+included in the topology. The finite attachment set is sorted and serialized
+with length-prefixed fields; its digest also binds each file's volume serial,
+128-bit file ID, size, creation/write/change times and flags. Access time is
+excluded. Each local ancestor and file is held without write/delete sharing
+through the installed inspection and its result publication. Rechecks compare
+the held metadata and current attachment topology before and after observations;
+any observed failure permanently refuses the lease. Disposal releases the holds.
+
+This offline binding detects a replaced attached file or changed metadata/topology.
+It does not hash image contents, validate VHD parent chains or seal storage ACLs,
+image provenance, checkpoints, firmware, network or integration configuration.
+The file holds also prevent starting the VM while this observation is retained.
+A production lifecycle needs its own authority, storage design and containment
+qualification; the existing `inspect-owned` grant cannot be reused for that step.
+
 `New-ProtectedInstallation -RegisteredVmId <GUID>` is an administrative, read-only
 registration option. After the existing administrator and binary-input checks,
 the installer loads the exact verified session image bytes and calls its fixed
-native observer. The selected local VM must exist, have an exact realized identity
-and be Off. The returned digest supplies the binding; this step does not start,
+native observer. The selected local VM must exist, have an exact realized identity,
+supported observable attachments and be Off. The returned digests supply the binding; this step does not start,
 stop, reconfigure or adopt VM storage. There is no new ordinary UI/helper wire
 selector or preparation route.
 

@@ -350,7 +350,7 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         foreach ($name in @('aegis-owner.exe', 'aegis-main.exe')) { Copy-Item -LiteralPath (Join-Path $PayloadRoot ('binaries/' + $name)) -Destination (Join-Path $baselineSources $name) }
         Copy-Item -LiteralPath (Join-Path $PayloadRoot 'baseline/aegis-session.exe') -Destination (Join-Path $baselineSources 'aegis-session.exe')
         $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal $RegisteredVmId
-        if ($RegisteredVmId -cne '') { $report['registeredVm'] = @{ vmId = $association.vmBinding.vmId; identitySha256 = $association.vmBinding.identitySha256; inspectionOnly = $true } }
+        if ($RegisteredVmId -cne '') { $report['registeredVm'] = @{ vmId = $association.vmBinding.vmId; identitySha256 = $association.vmBinding.identitySha256; storageSha256 = $association.vmBinding.storageSha256; inspectionOnly = $true } }
         $stage = 'original-program-behavioral-red'; $report.baseline = Invoke-InstalledOwnerAttempt $association $false
         $stage = 'upgrade-to-maintained-native-owner'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
         $stage = 'actual-installed-positive'

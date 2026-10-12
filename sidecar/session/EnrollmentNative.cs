@@ -16,6 +16,7 @@ namespace Aegis.ProtectedSession
         internal abstract bool Directory { get; }
         internal abstract bool Reparse { get; }
         internal abstract bool Protected(bool ancestor);
+        internal virtual string BindingMetadata { get { return null; } }
         internal abstract byte[] Read(int maximum);
         internal abstract void Recheck(bool ancestor);
         public abstract void Dispose();
@@ -114,12 +115,12 @@ namespace Aegis.ProtectedSession
             private readonly SafeFileHandle file;
             private readonly string name, volume, id;
             private readonly bool directory, reparse;
-            private readonly byte[] identity, basic, security;
+            private readonly byte[] identity, basic, security, standard;
             private FileStream stream;
             private bool disposed;
             internal Held(SafeFileHandle held, string expected, bool isDirectory)
             {
-                file = held; identity = Query(file, 18, 24); basic = Query(file, 0, 40);
+                file = held; identity = Query(file, 18, 24); basic = Query(file, 0, 40); standard = Query(file, 1, 24);
                 byte[] tag = Query(file, 9, 8); uint attributes = BitConverter.ToUInt32(tag, 0);
                 directory = (attributes & 0x10) != 0; reparse = (attributes & 0x400) != 0;
                 name = Name(file); volume = BitConverter.ToUInt64(identity, 0).ToString("x16");
@@ -133,6 +134,17 @@ namespace Aegis.ProtectedSession
             internal override string FileId { get { return id; } }
             internal override bool Directory { get { return directory; } }
             internal override bool Reparse { get { return reparse; } }
+            internal override string BindingMetadata
+            {
+                get {
+                    Require(!disposed && !directory && BitConverter.ToUInt32(standard, 16) == 1 && standard[20] == 0);
+                    // Include only defined fields, excluding last access and
+                    // native structure padding.
+                    byte[] metadata = new byte[42]; Array.Copy(basic, 0, metadata, 0, 8);
+                    Array.Copy(basic, 16, metadata, 8, 20); Array.Copy(standard, 8, metadata, 28, 14);
+                    using (var hash = System.Security.Cryptography.SHA256.Create()) return Hex(hash.ComputeHash(metadata));
+                }
+            }
             internal override bool Protected(bool ancestor) { Require(!disposed); return ProtectedDescriptor(security, ancestor); }
             internal override byte[] Read(int maximum)
             {
@@ -150,6 +162,11 @@ namespace Aegis.ProtectedSession
                     String.Equals(Name(file), name, StringComparison.OrdinalIgnoreCase) &&
                     Hex(Security(file)) == Hex(security));
                 byte[] after = Query(file, 0, 40);
+                if (!directory)
+                {
+                    byte[] current = Query(file, 1, 24);
+                    for (int index = 8; index < 22; index++) Require(current[index] == standard[index]);
+                }
                 for (int index = 0; index < basic.Length; index++)
                 {
                     // Access times are volatile. An ancestor directory also permits
