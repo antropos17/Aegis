@@ -51,7 +51,7 @@ describe.skipIf(process.platform !== 'win32')(
       expect(result.stderr.toString()).toBe('');
       expect(result.status).toBe(0);
       expect(JSON.parse(result.stdout.toString())).toEqual({
-        contractActions: 50,
+        contractActions: 55,
         malformedSecurityDenialsRefused: true,
         scratchSecurityAccessGranted: true,
         nativeAclQualification: false,

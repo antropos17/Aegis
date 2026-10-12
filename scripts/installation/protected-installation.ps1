@@ -40,7 +40,7 @@ function Set-ProtectedInstallCredential($Context) {
     try { $Context.credential = [Security.Cryptography.ProtectedData]::Protect($secret, [Text.Encoding]::ASCII.GetBytes('AEGIS-installed-owner-credential-v1'), [Security.Cryptography.DataProtectionScope]::LocalMachine) }
     finally { [Array]::Clear($secret, 0, $secret.Length) }
 }
-function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$OperatorAccount, [string]$Password, [bool]$FailAfterPublish = $false, [hashtable]$Journal = @{}) {
+function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$OperatorAccount, [string]$Password, [bool]$FailAfterPublish = $false, [hashtable]$Journal = @{}, [string]$RegisteredVmId = '') {
     $Journal.operation = 'administrator'; $Journal.failure = $null; $Journal.createdSid = $null; $Journal.createdRoots = @(); $Journal.published = $false
     $Journal.service = @{ name = 'AegisProtectedSessionOwner'; creationAttempted = $false; created = $false }
     $Journal.cleanup = @{ state = 'pending'; serviceAbsent = $null; protectedParentAbsent = $null; exactAccountSidAbsent = $null; failure = $null }
@@ -49,13 +49,14 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
     $installParent = $script:ProtectedInstallParent; $installRoot = $script:ProtectedInstallRoot
     $context = @{ manifest = $Manifest; inputs = $inputs; operatorAccount = $OperatorAccount; password = $Password; operatorSid = $null;
         installId = [guid]::NewGuid().ToString('N'); selectionId = [guid]::NewGuid().ToString('N'); selectionEpoch = [guid]::NewGuid().ToString('N');
-        credential = $null; parent = $null; receipts = $null; stage = $null; service = $null; ancestors = [Collections.Generic.List[object]]::new(); receiptRows = @(); attemptedReceiptPaths = @(); rollback = $null; control = $null; controlRows = @(); cleanupUnknown = $false }
+        credential = $null; vmBinding = $null; parent = $null; receipts = $null; stage = $null; service = $null; ancestors = [Collections.Generic.List[object]]::new(); receiptRows = @(); attemptedReceiptPaths = @(); rollback = $null; control = $null; controlRows = @(); cleanupUnknown = $false }
     try {
         Assert-ProtectedInstallAdministrator
         $Journal.operation = 'native-initialize'; Initialize-ProtectedInstallNative
         $Journal.operation = 'input'
         if ($OperatorAccount -cnotmatch '^AegisOp[a-f0-9]{12}$' -or $Password.Length -lt 24 -or $Password.Length -gt 64) { throw 'protected-install-input-refused' }
         $inputs = Read-ProtectedInstallInputs $SourceRoot $Manifest; $context.inputs = $inputs
+        $context.vmBinding = Read-ProtectedInstallVmBinding $RegisteredVmId $inputs['aegis-session.exe']
         $Journal.operation = 'ancestor'
         foreach ($path in @('C:\', 'C:\ProgramData')) {
             $held = [ProtectedInstallFile]::new($path, $true, $false); $context.ancestors.Add($held)

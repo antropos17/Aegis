@@ -24,7 +24,7 @@ public static class InstalledOwnerMutationActor
         string replacement = Path.Combine(scratch, "replacement.bin"), output = Path.Combine(scratch, "actor-result.json");
         try {
             File.WriteAllText(replacement, "allowed-disposable-replacement");
-            string[] leaves = { "aegis-owner.exe", "aegis-session.exe", "aegis-main.exe", "owner-policy.json", "enrollment.json", "inventory.json", "main-registration.json", "operator.credential" };
+            string[] leaves = { "aegis-owner.exe", "aegis-session.exe", "aegis-main.exe", "owner-policy.json", "enrollment.json", "inventory.json", "main-registration.json", "operator.credential", "registered-vm.json" };
             foreach (string leaf in leaves) {
                 string path = Path.Combine(Root, leaf); int code;
                 using (SafeFileHandle file = CreateFile(path, 0x40000000, 7, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero)) {

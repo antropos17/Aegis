@@ -100,7 +100,7 @@ function Get-CloudGuestFailureDetails([Exception]$Exception) {
         'wim-read-open-failed', 'wim-metadata-read-failed', 'wim-metadata-budget-failed', 'wim-image-count-failed', 'wim-exact-edition-unavailable', 'wim-pinned-version-mismatch',
         'media-http-length-failed', 'media-byte-budget-failed', 'media-disk-headroom-failed', 'media-download-incomplete', 'published-media-hash-mismatch', 'pinned-media-volume-unavailable',
         'answer-input-invalid', 'fresh-answer-output-required', 'answer-iso-budget-failed', 'answer-iso-stream-failed', 'fixed-media-source-required',
-        'trusted-node-input-invalid', 'node-version-observation-failed', 'host-read-write-control-failed', 'host-delete-control-failed', 'owned-name-preexisting', 'created-identity-unknown', 'native-start-unconfirmed',
+        'trusted-node-input-invalid', 'node-version-observation-failed', 'host-read-write-control-failed', 'host-delete-control-failed', 'owned-name-preexisting', 'created-identity-unknown', 'native-start-unconfirmed', 'registered-vm-initial-state-refused', 'registered-vm-owner-corpus-refused',
         'guest-configure-provider-unknown', 'guest-setup-disk-headroom-failed', 'guest-setup-psdirect-not-ready', 'guest-setup-or-task-deadline', 'guest-bootstrap-failed',
         'guest-edition-version-mismatch', 'guest-readiness-observation-failed', 'guest-transfer-manifest-invalid', 'guest-transfer-hash-mismatch', 'answer-dvd-ejection-unconfirmed', 'media-eject-owner-mismatch', 'media-eject-inventory-unexpected',
         'setup-secret-cleanup-unconfirmed', 'guest-result-budget-failed', 'guest-controls-unconfirmed', 'guest-task-process-refused', 'guest-job-inventory-unavailable', 'trusted-guest-bootstrap-required',
