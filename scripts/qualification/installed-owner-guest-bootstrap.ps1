@@ -28,7 +28,7 @@ $held = [Collections.Generic.List[IO.FileStream]]::new()
 $stage = 'scope'
 $result = @{ schemaVersion = 1; kind = 'fixed-installed-owner-windows11'; passed = $false;
     inputPinsVerified = $false; inputsHeldThroughClosure = $false; sourceSha = $ExpectedSourceSha;
-    os = $null; corpus = $null; failureStage = $null; completeE1 = $false; completeE11 = $false; launchAllowed = $false }
+    os = $null; corpus = $null; failureStage = $null; failureDetail = $null; completeE1 = $false; completeE11 = $false; launchAllowed = $false }
 $oldTemp = $env:TEMP; $oldTmp = $env:TMP
 try {
     if ($ExpectedSourceSha -cnotmatch '^[a-f0-9]{40}$' -or [Text.Encoding]::UTF8.GetByteCount($ExpectedPinsJson) -gt 16KB -or
@@ -101,8 +101,10 @@ try {
         . $block
     }
     $value = Invoke-InstalledOwnerQualification -PayloadRoot $root -ScratchRoot $scratch -ExpectedSourceSha $ExpectedSourceSha -Location 'windows11-guest'
-    if (!(Test-InstalledOwnerQualificationReceipt $value $ExpectedSourceSha 'windows11-guest')) { throw 'installed-owner-guest-refused' }
+    # Preserve the bounded trusted producer's refusal/cleanup observations too.
+    # Publication is diagnostic only; the full predicate still controls success.
     $result.corpus = $value
+    if (!(Test-InstalledOwnerQualificationReceipt $value $ExpectedSourceSha 'windows11-guest')) { throw 'installed-owner-guest-refused' }
     $stage = 'held-input-recheck'
     foreach ($at in 0..($pins.Count - 1)) {
         $stream = $held[$at]; $stream.Position = 0
@@ -111,7 +113,12 @@ try {
         if ($stream.Length -ne $pins[$at].bytes -or $actual -cne $pins[$at].sha256) { throw 'installed-owner-guest-refused' }
     }
     $result.inputsHeldThroughClosure = $true; $result.passed = $true
-} catch { $result.failureStage = $stage; $result.passed = $false }
+} catch {
+    $result.failureStage = $stage; $result.passed = $false
+    if ($stage -ceq 'maintained-corpus' -and (Get-Command Get-ProtectedInstallFailure -ErrorAction SilentlyContinue)) {
+        $result.failureDetail = Get-ProtectedInstallFailure $_ 'qualification'
+    }
+}
 finally {
     $env:TEMP = $oldTemp; $env:TMP = $oldTmp
     foreach ($stream in $held) { $stream.Dispose() }
