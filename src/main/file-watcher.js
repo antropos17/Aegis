@@ -636,18 +636,24 @@ function scheduleRootRecovery(rootId, generation) {
       _ownedWatchers.push(watcher);
       _state.watchers.push(watcher);
       if (recovery.unknown) markRootErrored(rootId, 'watch-root-preflight-unavailable');
-      recovery.readyTimer = setTimeout(() => {
-        if (generation !== _watchGeneration || recovery.watcher !== watcher) return;
-        markRootTerminated(rootId, 'watch-root-ready-timeout');
-        applyWatchPlaneHealth(Date.now());
-        retireRootWatcher(rootId, watcher, generation);
-      }, 10000);
+      armRootReadyTimeout(rootId, watcher, generation);
     } catch {
       markRootRegistrationFailed(rootId, 'watch-root-registration-failed');
       scheduleRootRecovery(rootId, generation);
     }
     applyWatchPlaneHealth(Date.now());
   }, 1000);
+}
+
+/** Bound readiness for initial and replacement workers. @returns {void} @since v0.14.0 */
+function armRootReadyTimeout(rootId, watcher, generation) {
+  const recovery = _rootRecovery.get(rootId);
+  recovery.readyTimer = setTimeout(() => {
+    if (generation !== _watchGeneration || recovery.watcher !== watcher) return;
+    markRootTerminated(rootId, 'watch-root-ready-timeout');
+    applyWatchPlaneHealth(Date.now());
+    retireRootWatcher(rootId, watcher, generation);
+  }, 10000);
 }
 
 function handleWatcherEvent(action, filePath) {
@@ -887,6 +893,7 @@ async function setupFileWatchers() {
       _rootRecovery.set(id, { register, watcher: w, attempts: 0, unknown: !!probe?.unknown });
       markRootRegistered(id, w);
       bindWatcherEvents(w, id, generation);
+      armRootReadyTimeout(id, w, generation);
       _ownedWatchers.push(w);
       _state.watchers.push(w);
       if (probe?.unknown) markRootErrored(id, 'watch-root-preflight-unavailable');
