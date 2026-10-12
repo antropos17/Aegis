@@ -27,7 +27,7 @@ foreach ($operation in @('writeDac', 'writeOwner')) {
 }
 # Compile the actual actor but invoke only its kernel access helper on exact
 # disposable scratch objects. Main never executes; no protected ACL is probed.
-Add-Type -Path (Join-Path $PSScriptRoot 'InstalledOwnerMutationActor.cs')
+Add-Type -Path @((Join-Path $PSScriptRoot 'InstalledOwnerMutationActor.cs'), (Join-Path $PSScriptRoot '../../../scripts/qualification/CloudGuestDesktop.cs'))
 $access = [InstalledOwnerMutationActor].GetMethod('Access', [Reflection.BindingFlags]'NonPublic,Static')
 $scratch = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path ('out/acl-control-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $scratch | Out-Null

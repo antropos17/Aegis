@@ -197,9 +197,55 @@ function Open-InstalledOwnerControlPin($Original) {
         return $held
     } catch { if ($null -ne $held) { $held.Dispose() }; throw }
 }
-function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
-    if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
+function Invoke-InstalledOwnerActorRead([string]$Actor, [string]$Sid, [string]$ExpectedSha256, [scriptblock]$Action) {
+    $source = $null; $originalBytes = $null; $originalSddl = $null
+    try {
+        $identity = [Security.Principal.SecurityIdentifier]::new($Sid)
+        if ($identity.AccountDomainSid -eq $null -or $ExpectedSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'installed-mutation-actor-source-refused' }
+        $source = [IO.File]::Open($Actor, 'Open', 'Read', 'Read')
+        if ($source.Length -lt 1 -or $source.Length -gt 4MB) { throw 'installed-mutation-actor-source-refused' }
+        $hash = [Security.Cryptography.SHA256]::Create()
+        try { $actual = [BitConverter]::ToString($hash.ComputeHash($source)).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
+        if ($actual -cne $ExpectedSha256) { throw 'installed-mutation-actor-source-refused' }
+        $originalAcl = Get-Acl -LiteralPath $Actor
+        $originalBytes = $originalAcl.GetSecurityDescriptorBinaryForm(); $originalSddl = $originalAcl.Sddl
+        $acl = [Security.AccessControl.FileSecurity]::new()
+        $acl.SetSecurityDescriptorBinaryForm($originalBytes)
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($identity,
+            [Security.AccessControl.FileSystemRights]::ReadAndExecute, [Security.AccessControl.AccessControlType]::Allow))
+        Set-Acl -LiteralPath $Actor -AclObject $acl
+        return (& $Action)
+    } finally {
+        try {
+            if ($null -ne $originalBytes) {
+                # Get-Acl objects have no pending DACL write. Reconstructing
+                # marks the saved descriptor dirty so Set-Acl actually restores it.
+                $restore = [Security.AccessControl.FileSecurity]::new()
+                $restore.SetSecurityDescriptorBinaryForm($originalBytes)
+                Set-Acl -LiteralPath $Actor -AclObject $restore
+                # Windows may add DACL_AUTO_INHERITED during Set-Acl. Compare
+                # all owners, ACE bytes and remaining control flags exactly.
+                $before = [Security.AccessControl.RawSecurityDescriptor]::new($originalSddl)
+                $after = [Security.AccessControl.RawSecurityDescriptor]::new((Get-Acl -LiteralPath $Actor).Sddl)
+                foreach ($descriptor in @($before, $after)) {
+                    $descriptor.SetFlags($descriptor.ControlFlags -band (-bnot [Security.AccessControl.ControlFlags]::DiscretionaryAclAutoInherited))
+                }
+                if ($before.GetSddlForm([Security.AccessControl.AccessControlSections]::All) -cne $after.GetSddlForm([Security.AccessControl.AccessControlSections]::All)) { throw 'installed-mutation-actor-acl-restore-refused' }
+            }
+        } finally { if ($null -ne $source) { $source.Dispose() } }
+    }
+}
+
+function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256, [bool]$GuestActorRead = $false) {
     Assert-ProtectedInstallation $Association
+    if ($GuestActorRead) {
+        # The guest transfer root stays private. Only this held diagnostic image
+        # receives temporary RX for the exact mutation account, then restores it.
+        return Invoke-InstalledOwnerActorRead $Actor $Association.operatorSid $ExpectedActorSha256 {
+            Invoke-InstalledOwnerMutations $Association $Actor $Scratch $ExpectedActorSha256 $false
+        }
+    }
+    if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     $before = @(@($Association.stage.rows) + @($Association.receiptRows) | ForEach-Object { Read-ProtectedInstallSnapshot $_.path })
     $parent = Read-ProtectedInstallSnapshot $Association.parent.PathName $true; $root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true
     $receipts = Read-ProtectedInstallSnapshot $Association.receipts.PathName $true
@@ -318,7 +364,7 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $association.control = Open-InstalledOwnerControlPin $association.control
         $association.controlReadOnly = $true
         $actorPin = @($payload.files | Where-Object { $_.path -ceq 'native/installed-owner-actor.exe' })[0].sha256
-        try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin }
+        try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin ($Location -ceq 'windows11-guest') }
         catch {
             $report.mutationFailure = Get-ProtectedInstallFailure $_ 'installed-acl-controls'
             if ($association.ContainsKey('mutationDiagnostic')) { $report.mutationAttempt = $association.mutationDiagnostic }
