@@ -92,6 +92,7 @@ namespace Aegis.ProtectedSession
         {
             private readonly CallerMainOperation owner;
             private readonly CallerAdmission.Context native;
+            private bool inspected;
             internal Context(CallerMainOperation operation)
             { owner = operation; native = operation.admission; }
             internal void CheckCurrent()
@@ -120,11 +121,48 @@ namespace Aegis.ProtectedSession
                 {
                     try
                     {
-                        CheckCurrent(); string result = owner.proof.Inspect(native); CheckCurrent(); return result;
+                        CallerNative.Require(!inspected); CheckCurrent(); inspected = true;
+                        string result = owner.proof.Inspect(native); CheckCurrent(); return result;
                     }
                     catch { owner.Close(); throw; }
                 }
             }
+            internal InspectionCompletion InspectInstalledOwned(InstalledOwnerRegistration installed, InstalledOwnerDeadline deadline)
+            {
+                lock (owner.server.Gate)
+                {
+                    CheckInstalledOwner(installed); deadline.Check();
+                    string result = InspectOwned();
+                    var completion = new InspectionCompletion(this, installed, deadline, result);
+                    completion.CheckCurrent(); return completion;
+                }
+            }
+            internal void CheckCompleted(InstalledOwnerRegistration installed)
+            {
+                lock (owner.server.Gate)
+                {
+                    try
+                    {
+                        CallerNative.Require(inspected && Object.ReferenceEquals(owner.installed, installed));
+                        owner.CheckCore(); native.CheckRetained(); owner.proof.CheckSelection(native); installed.CheckCurrent();
+                    }
+                    catch { owner.Close(); throw; }
+                }
+            }
+        }
+        // Terminal read-only result fence. It exposes no dispatch or renewal,
+        // and retains the original supervisor deadline and exact caller/owner.
+        internal sealed class InspectionCompletion
+        {
+            private readonly Context caller;
+            private readonly InstalledOwnerRegistration installed;
+            private readonly InstalledOwnerDeadline deadline;
+            internal readonly string Result;
+            internal InspectionCompletion(Context original, InstalledOwnerRegistration owner, InstalledOwnerDeadline limit, string result)
+            { caller = original; installed = owner; deadline = limit; Result = result; }
+            internal void CheckCurrent() { deadline.Check(); caller.CheckCompleted(installed); deadline.Check(); }
+            internal void CheckInstalledOwner(InstalledOwnerRegistration expected)
+            { CallerNative.Require(Object.ReferenceEquals(installed, expected)); CheckCurrent(); }
         }
         private void CloseResource(IDisposable resource)
         { if (resource != null) try { resource.Dispose(); } catch { cleanupUnknown = true; } }

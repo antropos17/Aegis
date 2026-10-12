@@ -86,12 +86,14 @@ namespace Aegis.ProtectedSession
                                             // Admission reverted its own impersonation; bind only that original caller.
                                             stage = 8; substage = 0; registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
                                             stage = 9;
-                                            if (vm != null) vm.BindCaller(admitted);
-                                            vmCheckpoint.Code = 0; deadline.Check(); string result = admitted.InspectOwned();
+                                            vmCheckpoint.Code = 0;
+                                            var completion = admitted.InspectInstalledOwned(registration, deadline);
+                                            if (vm != null) vm.BindCaller(completion);
+                                            deadline.Check(); string result = completion.Result;
                                             if (vm != null) vm.Inspect();
                                             // Independently persisted actual-dispatch oracle outside the pinned installation root.
                                             stage = 10; InstalledOwnerFiles.WriteNew(true, "inspection-count.txt", "1", registration.Policy);
-                                            registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
+                                            registration.CheckCurrent(); deadline.Check(); completion.CheckCurrent();
                                             if (vm != null) vm.Inspect();
                                             byte[] body = Encoding.UTF8.GetBytes(result); CallerNative.Require(body.Length > 0 && body.Length <= 1024);
                                             stage = 11;

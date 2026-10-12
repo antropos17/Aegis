@@ -17,13 +17,17 @@ the attempt. The unchanged result has `ownershipQualified=false` and
 The native preparation factory accepts the original `InstalledOwnerRegistration`.
 It observes and holds the registered VM/storage before publishing routing that
 releases the fixed main controller. This preparation has no caller dispatch
-authority. After authentication, the retained `CallerMainOperation.Context` binds
-once to that original registration; ordinary inspection is refused before binding.
+authority. After authentication, the fresh `CallerMainOperation.Context` consumes
+the fixed read-only inventory inspection once and returns an `InspectionCompletion`.
+That terminal fence binds once to the original VM registration; ordinary VM
+inspection is refused before binding. It exposes no dispatch or renewal method.
 An ordinary context or admission from another installed owner cannot be combined
 with the registration. Subsequent observations recheck the SCM owner, held processes,
 tokens, Job, pinned installation and caller selection through those original objects.
-The original two-second admission age and owner deadlines remain enforced; expensive
-storage acquisition precedes that admission. The native storage query independently
+The original two-second admission age remains enforced before the one dispatch.
+Completion retains the exact live pipe peer, token, held processes, Job, installation
+and selection under the original supervisor deadline; it cannot authorize a second
+inspection or another operation. Storage acquisition precedes admission. The native storage query independently
 fences the captured VM identity and Off state before and after its topology query.
 An observed failure permanently refuses the lease.
 

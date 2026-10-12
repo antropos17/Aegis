@@ -155,7 +155,7 @@ namespace Aegis.ProtectedSession
             }
         }
 
-        internal void BindCaller(CallerMainOperation.Context admitted)
+        internal void BindCaller(CallerMainOperation.InspectionCompletion admitted)
         {
             if (installed == null || admitted == null) throw new InvalidOperationException("installed-vm-caller-unavailable");
             BindCore(delegate { admitted.CheckInstalledOwner(installed); });

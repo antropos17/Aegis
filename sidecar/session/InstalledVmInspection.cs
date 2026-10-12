@@ -29,7 +29,7 @@ namespace Aegis.ProtectedSession
             if (registration.IsBound) throw new InvalidOperationException("installed-vm-caller-unavailable");
             return InspectCore();
         }
-        internal void BindCaller(CallerMainOperation.Context admitted) { registration.BindCaller(admitted); }
+        internal void BindCaller(CallerMainOperation.InspectionCompletion admitted) { registration.BindCaller(admitted); }
 #if INSTALLED_VM_TEST
         internal void BindForTest(Action caller) { registration.BindForTest(caller); }
 #endif
