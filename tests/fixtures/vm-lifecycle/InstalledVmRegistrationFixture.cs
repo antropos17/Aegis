@@ -61,17 +61,22 @@ internal static class InstalledVmRegistrationFixture
         if (args.Length < 1 || args.Length > 2) return 2;
         string mode = args[0], root = args.Length == 2 ? args[1] : @"C:\contract-only";
         string text = Record();
+        bool? nativeProtected = null;
         if (mode == "native-unprotected")
         {
             string path = Path.Combine(root, "registered-vm.json");
-            System.IO.File.WriteAllText(path, text, new UTF8Encoding(false));
             var acl = new System.Security.AccessControl.FileSecurity();
-            var sid = System.Security.Principal.WindowsIdentity.GetCurrent().User;
-            acl.SetOwner(sid); acl.SetAccessRuleProtection(true, false);
-            acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(sid,
-                System.Security.AccessControl.FileSystemRights.FullControl,
-                System.Security.AccessControl.AccessControlType.Allow));
-            System.IO.File.SetAccessControl(path, acl);
+            using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
+                acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(identity.User,
+                    System.Security.AccessControl.FileSystemRights.FullControl,
+                    System.Security.AccessControl.AccessControlType.Allow));
+            acl.SetAccessRuleProtection(true, false);
+            byte[] bytes = Encoding.UTF8.GetBytes(text);
+            using (var output = new FileStream(path, FileMode.CreateNew,
+                System.Security.AccessControl.FileSystemRights.Write, FileShare.None, 4096, FileOptions.None, acl))
+                output.Write(bytes, 0, bytes.Length);
+            using (var observed = new EnrollmentNative().Open(path, false))
+                nativeProtected = observed.Protected(false);
         }
         if (mode == "stale-install") text = text.Replace(Install, new string('a', 32));
         if (mode == "stale-revision") text = text.Replace("\"revision\":1", "\"revision\":2");
@@ -118,6 +123,7 @@ internal static class InstalledVmRegistrationFixture
         finally { if (owner != null) owner.Dispose(); }
         Console.WriteLine("{\"acquired\":" + Boolean(acquired) + ",\"inspected\":" + Boolean(inspected) + ",\"refusedAgain\":" + Boolean(refusedAgain) +
             ",\"constructed\":" + constructed + ",\"requests\":" + provider.Requests + ",\"jobRequests\":" + provider.JobRequests +
+            ",\"nativeProtected\":" + (nativeProtected.HasValue ? Boolean(nativeProtected.Value) : "null") +
             ",\"observations\":" + provider.Observations + ",\"opened\":" + file.Opens + ",\"fileClosed\":" + Boolean(file.Closed) + ",\"providerClosed\":" + Boolean(provider.Closed) + "}");
         return 0;
     }

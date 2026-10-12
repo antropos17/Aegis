@@ -55,7 +55,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         maxBuffer: 4096,
       });
       expect(result.error).toBeUndefined();
-      expect(result.status).toBe(0);
+      expect(result.status, result.stderr.toString().slice(0, 1024)).toBe(0);
       expect(result.stderr.length).toBe(0);
       return JSON.parse(result.stdout.toString());
     }
@@ -141,6 +141,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       const directory = path.join(root, 'ordinary');
       fs.mkdirSync(directory);
       expect(invoke('native-unprotected', [directory])).toMatchObject({
+        nativeProtected: false,
         acquired: false,
         constructed: 0,
         requests: 0,
