@@ -104,6 +104,59 @@ describe('logger', () => {
     expect(lines.length).toBe(50);
   });
 
+  it('does not restore discarded entries after a failed flush and later success', async () => {
+    logger.init({ userDataPath: tmpDir });
+    logger.info('fixture', 'discarded');
+    const append = vi.spyOn(fs, 'appendFileSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_LOG_PATH_CANARY');
+    });
+    const output = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      logger.flush();
+    } finally {
+      append.mockRestore();
+      output.mockRestore();
+    }
+
+    logger.info('fixture', 'kept');
+    logger.flush();
+    expect(logger.exportAll().map((entry) => entry.message)).toEqual(['kept']);
+    expect(logger.getStats().todayEntries).toBe(1);
+    logger.shutdown();
+    vi.resetModules();
+    logger = (await import('../../src/main/logger.js')).default;
+    logger.init({ userDataPath: tmpDir });
+    await vi.waitFor(() => expect(logger.getStats().todayEntries).toBe(1));
+  });
+
+  it('keeps confirmed chunks in the count when a later rotated append fails', async () => {
+    logger.init({ userDataPath: tmpDir });
+    for (let i = 0; i < 42; i++) logger.info('fixture', `${i}:${'x'.repeat(50_000)}`);
+    const realAppend = fs.appendFileSync;
+    let calls = 0;
+    const append = vi.spyOn(fs, 'appendFileSync').mockImplementation((...args) => {
+      if (++calls === 2) throw new Error('PRIVATE_LOG_PATH_CANARY');
+      return realAppend(...args);
+    });
+    const output = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      logger.flush();
+      expect(calls).toBe(2);
+    } finally {
+      append.mockRestore();
+      output.mockRestore();
+    }
+
+    expect(logger.exportAll()).toHaveLength(41);
+    expect(logger.getStats().todayEntries).toBe(41);
+    logger.info('fixture', 'recovered');
+    logger.shutdown();
+    vi.resetModules();
+    logger = (await import('../../src/main/logger.js')).default;
+    logger.init({ userDataPath: tmpDir });
+    await vi.waitFor(() => expect(logger.getStats().todayEntries).toBe(42));
+  });
+
   it('getStats() returns correct counts (disk + buffer)', () => {
     logger.init({ userDataPath: tmpDir });
     logger.info('m', 'msg1');
@@ -115,6 +168,41 @@ describe('logger', () => {
     expect(stats.todayEntries).toBe(3);
     expect(stats.totalFiles).toBe(1);
     expect(stats.logDir).toBe(path.join(tmpDir, 'logs'));
+  });
+
+  it('rescans uncertain partial writes instead of certifying a later count', async () => {
+    logger.init({ userDataPath: tmpDir });
+    logger.info('fixture', 'existing');
+    logger.flush();
+    logger.info('fixture', 'partial');
+    logger.info('fixture', 'discarded');
+    const realAppend = fs.appendFileSync;
+    const append = vi.spyOn(fs, 'appendFileSync').mockImplementationOnce((file, data) => {
+      const firstLine = String(data).slice(0, String(data).indexOf('\n') + 1);
+      realAppend(file, firstLine, 'utf-8');
+      throw new Error('PRIVATE_LOG_PATH_CANARY');
+    });
+    const output = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      logger.flush();
+    } finally {
+      append.mockRestore();
+      output.mockRestore();
+    }
+
+    logger.info('fixture', 'kept');
+    logger.flush();
+    expect(logger.exportAll().map((entry) => entry.message)).toEqual([
+      'existing',
+      'partial',
+      'kept',
+    ]);
+    expect(fs.readdirSync(logger.getLogDir()).some((file) => file.endsWith('.count'))).toBe(false);
+    logger.shutdown();
+    vi.resetModules();
+    logger = (await import('../../src/main/logger.js')).default;
+    logger.init({ userDataPath: tmpDir });
+    await vi.waitFor(() => expect(logger.getStats().todayEntries).toBe(3));
   });
 
   it('seeds an existing large daily log without reading the whole file synchronously', async () => {

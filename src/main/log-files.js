@@ -72,19 +72,22 @@ function rotate(dir, day) {
   }
 }
 
-/** @param {string} dir Log directory. @param {string} day Day key. @param {string[]} lines Bounded NDJSON lines. @returns {void} Append within the per-file budget. @since v0.17.0-alpha */
-function appendLines(dir, day, lines) {
+/** @param {string} dir Log directory. @param {string} day Day key. @param {string[]} lines Bounded NDJSON lines. @param {(count: number) => void} [onAppend] Confirm entries after each successful chunk. @returns {void} Append within the per-file budget. @since v0.17.0-alpha */
+function appendLines(dir, day, lines, onAppend) {
   if (lines.length === 0) return;
   const active = logPath(dir, day);
   let size = regularFile(active)?.size || 0;
   let chunk = '';
   let chunkBytes = 0;
+  let chunkEntries = 0;
   const writeChunk = () => {
     if (!chunkBytes) return;
     fs.appendFileSync(active, chunk, 'utf-8');
+    if (onAppend) onAppend(chunkEntries);
     size += chunkBytes;
     chunk = '';
     chunkBytes = 0;
+    chunkEntries = 0;
   };
 
   for (const line of lines) {
@@ -97,6 +100,7 @@ function appendLines(dir, day, lines) {
     }
     chunk += `${line}\n`;
     chunkBytes += bytes;
+    chunkEntries++;
   }
   writeChunk();
 }
@@ -130,6 +134,12 @@ function writeCount(dir, day, count) {
   const file = path.join(dir, `aegis-${day}.count`);
   regularFile(file);
   fs.writeFileSync(file, JSON.stringify({ count, bytes: dayBytes(dir, day) }), 'utf-8');
+}
+
+/** @param {string} dir Log directory. @param {string} day Day key. @returns {void} Remove an uncertain derived count after a failed append. @since v0.19.2-beta */
+function invalidateCount(dir, day) {
+  const file = path.join(dir, `aegis-${day}.count`);
+  if (regularFile(file)) fs.unlinkSync(file);
 }
 
 /** @param {string} dir Log directory. @param {string} day Day key. @returns {Promise<number>} Non-empty lines in existing daily files. @since v0.17.0-alpha */
@@ -191,6 +201,7 @@ module.exports = {
   appendLines,
   cleanOldLogs,
   dateKey,
+  invalidateCount,
   listLogFiles,
   readCount,
   scanCount,
