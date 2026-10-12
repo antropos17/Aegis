@@ -225,9 +225,21 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     }
     $Association.control.Recheck()
     $Association.controlRows = @(Get-InstalledOwnerControlRows $Scratch)
+    $Association.mutationDiagnostic = @{ actorExitCode = $observed.exitCode; jobEmpty = $observed.jobEmpty;
+        exactProcessExited = $observed.exactProcessExited; initialActiveProcesses = $observed.initialActiveProcesses;
+        censusQueries = $observed.censusQueries; resultFilePresent = (Test-Path -LiteralPath (Join-Path $Scratch 'actor-result.json')) }
     $path = Join-Path $Scratch 'actor-result.json'; $file = Get-Item -LiteralPath $path -Force
     if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 16KB) { throw 'installed-mutation-output-refused' }
     $actual = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+    $Association.mutationDiagnostic.actualPassed = if ($actual.passed -is [bool]) { $actual.passed } else { $null }
+    $Association.mutationDiagnostic.failedActions = @($actual.attempts | Where-Object { $_.denied -is [bool] -and !$_.denied } | ForEach-Object {
+        $label = if ($_.action -is [string] -and $_.action -cmatch '^(?:aegis-(?:owner|session|main)\.exe|owner-policy\.json|enrollment\.json|inventory\.json|main-registration\.json|operator\.credential|ProtectedSession|AEGIS|Receipts|credential):(?:write|delete|replace|writeDac|writeOwner|rename|read)$') { $_.action } else { 'other' }
+        @{ action = $label; win32Error = $(if (($_.win32Error -is [int] -or $_.win32Error -is [long]) -and $_.win32Error -ge 0 -and $_.win32Error -le 65535) { $_.win32Error } else { $null }) }
+    })
+    $Association.mutationDiagnostic.permitted = @{}
+    foreach ($field in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) {
+        $Association.mutationDiagnostic.permitted[$field] = if ($actual.permitted.$field -is [bool]) { $actual.permitted.$field } else { $null }
+    }
     $permitted = Join-Path $Scratch 'replace-original.txt'
     $permittedHeld = [ProtectedInstallFile]::new($permitted, $false, $false)
     try { $permittedHash = $permittedHeld.Hash(1024); $permittedObserved = $permittedHeld.FileId -cne $originalReplaceId -and [Text.Encoding]::UTF8.GetString($permittedHeld.Read(1024)) -ceq 'allowed-disposable-replacement' }
@@ -253,7 +265,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
 
 function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location) {
     $report = [ordered]@{ schemaVersion = 1; scope = 'protected-installed-owner-qualification'; location = $Location; sourceSha = $ExpectedSourceSha;
-        os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; mutationFailure = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
+        os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; mutationFailure = $null; mutationAttempt = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
         installation = $null; failedAttempt = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
     $association = $null; $stage = 'preflight'; $scratch = $null; $scratchParent = $null; $password = $null
     $installJournal = @{}
@@ -293,6 +305,7 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin }
         catch {
             $report.mutationFailure = Get-ProtectedInstallFailure $_ 'installed-acl-controls'
+            if ($association.ContainsKey('mutationDiagnostic')) { $report.mutationAttempt = $association.mutationDiagnostic }
             throw
         }
         $stage = 'actual-upgrade-rollback'; $before = Read-ProtectedInstallSnapshot $association.stage.root.PathName $true; $oldRows = @($association.stage.rows); $fault = $false
