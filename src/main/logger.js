@@ -26,6 +26,7 @@ let _cleanImmediate = null;
 let _seedGeneration = 0;
 let _logWriteGeneration = 0;
 let _seedDone = true;
+let _countReliable = true;
 const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
@@ -71,6 +72,7 @@ function _seedTodayCount(day = logFiles.dateKey(new Date())) {
   _todayEntries = 0;
   _todayDate = day;
   _seedDone = false;
+  _countReliable = true;
   const generation = ++_seedGeneration;
   const writeGeneration = _logWriteGeneration;
   if (!_logDir) return;
@@ -94,7 +96,7 @@ function _seedTodayCount(day = logFiles.dateKey(new Date())) {
         _seedDone = true;
         // A flush can change the streamed snapshot's files/bytes while it is pending.
         // Leave the index absent or stale so the next startup scans disk again.
-        if (writeGeneration !== _logWriteGeneration) return;
+        if (writeGeneration !== _logWriteGeneration || !_countReliable) return;
         try {
           // Startup entries remain buffered: persist only the scanned disk count.
           logFiles.writeCount(_logDir, day, count);
@@ -182,14 +184,30 @@ function flush() {
     if (!groups.has(entry.day)) groups.set(entry.day, []);
     groups.get(entry.day).push(entry.line);
   }
+  let todayAppended = 0;
   try {
     _logWriteGeneration++;
-    for (const [day, lines] of groups) logFiles.appendLines(_logDir, day, lines);
+    for (const [day, lines] of groups) {
+      logFiles.appendLines(_logDir, day, lines, (count) => {
+        if (day === _todayDate) todayAppended += count;
+      });
+    }
   } catch {
+    _todayEntries -= (groups.get(_todayDate)?.length || 0) - todayAppended;
+    // A throwing append can leave partial bytes. Keep confirmed chunks in memory,
+    // but require a fresh disk scan on startup before certifying another index.
+    _countReliable = false;
+    for (const day of groups.keys()) {
+      try {
+        logFiles.invalidateCount(_logDir, day);
+      } catch {
+        console.error('[logger] count invalidation failed');
+      }
+    }
     console.error('[logger] flush write failed');
     return;
   }
-  if (groups.has(_todayDate) && _seedDone) {
+  if (groups.has(_todayDate) && _seedDone && _countReliable) {
     try {
       logFiles.writeCount(_logDir, _todayDate, _todayEntries);
     } catch {
