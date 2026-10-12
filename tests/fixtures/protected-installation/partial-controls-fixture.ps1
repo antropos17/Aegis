@@ -1,4 +1,4 @@
-param([string]$Root, [ValidateSet('empty', 'seeded', 'foreign', 'replaced', 'loader')][string]$Mode, [string]$GuardSource)
+param([string]$Root, [ValidateSet('empty', 'seeded', 'foreign', 'replaced', 'loader', 'replacement-control')][string]$Mode, [string]$GuardSource)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/qualification/installed-owner-phase.ps1')
@@ -41,7 +41,26 @@ try {
         Move-Item -LiteralPath (Join-Path $path 'replace-original.txt') -Destination (Join-Path $Root 'held-original.txt')
         [IO.File]::WriteAllText((Join-Path $path 'replace-original.txt'), 'seeded-original')
     }
+    $replacementSucceeded = $null
+    if ($Mode -ceq 'replacement-control') {
+        $context.control = Open-InstalledOwnerControlPin $context.control
+        $context.controlReadOnly = $true
+        Add-Type @'
+using System.Runtime.InteropServices;
+public static class PartialReplacement {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    public static extern bool MoveFileEx(string source, string destination, uint flags);
+}
+'@
+        $source = Join-Path $path 'replacement.bin'; $target = Join-Path $path 'replace-original.txt'
+        [IO.File]::WriteAllText($source, 'allowed-disposable-replacement')
+        $replacementSucceeded = [PartialReplacement]::MoveFileEx($source, $target, 1) -and [IO.File]::ReadAllText($target) -ceq 'allowed-disposable-replacement'
+        $context.control.Recheck()
+        $context.controlRows = @(Get-InstalledOwnerControlRows $path)
+    }
     $refused = $false
     try { Remove-ProtectedInstallAncillary $context } catch { $refused = $true }
-    @{ refused = $refused; removed = !(Test-Path -LiteralPath $path); remaining = @((Get-ChildItem -LiteralPath $path -ErrorAction SilentlyContinue)).Count } | ConvertTo-Json -Compress
+    $result = @{ refused = $refused; removed = !(Test-Path -LiteralPath $path); remaining = @((Get-ChildItem -LiteralPath $path -ErrorAction SilentlyContinue)).Count }
+    if ($Mode -ceq 'replacement-control') { $result.replacementSucceeded = $replacementSucceeded }
+    $result | ConvertTo-Json -Compress
 } finally { if ($null -ne $context.control) { $context.control.Dispose() } }

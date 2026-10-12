@@ -92,5 +92,13 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     it('loads held executable bytes and binds each call to its exact assembly', () => {
       expect(invoke('loader')).toEqual({ values: [27, 42], noActorExecuted: true });
     });
+    it('allows same-volume replacement under the retained control pin and deletes only the original directory', () => {
+      expect(invoke('replacement-control')).toEqual({
+        refused: false,
+        removed: true,
+        remaining: 0,
+        replacementSucceeded: true,
+      });
+    });
   },
 );

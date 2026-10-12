@@ -184,6 +184,19 @@ function Get-InstalledOwnerControlRows([string]$Scratch) {
     }).Count) { throw 'protected-control-unknown-child' }
     return @($files | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName $false $false })
 }
+function Open-InstalledOwnerControlPin($Original) {
+    $Original.Recheck()
+    $path = $Original.PathName; $volume = $Original.Volume; $id = $Original.FileId; $sddl = $Original.Sddl
+    # A DELETE-access directory pin blocks even permitted child replacement.
+    # Keep a read-only pin during the actor; the protected parent prevents new
+    # actor-controlled names, and exact native identity/descriptor must survive.
+    $Original.Dispose(); $held = $null
+    try {
+        $held = [ProtectedInstallFile]::new($path, $true, $false)
+        if ($held.Volume -cne $volume -or $held.FileId -cne $id -or $held.Sddl -cne $sddl) { throw 'protected-control-association-refused' }
+        return $held
+    } catch { if ($null -ne $held) { $held.Dispose() }; throw }
+}
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     Assert-ProtectedInstallation $Association
@@ -302,6 +315,8 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         # by the protected installation or receipts. It matches WRITE_DAC/OWNER.
         $scratchAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($association.operatorSid), [Security.AccessControl.FileSystemRights]::FullControl, [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
         $association.control = [ProtectedInstallFile]::CreateDirectory($scratch, $scratchAcl.GetSecurityDescriptorBinaryForm())
+        $association.control = Open-InstalledOwnerControlPin $association.control
+        $association.controlReadOnly = $true
         $actorPin = @($payload.files | Where-Object { $_.path -ceq 'native/installed-owner-actor.exe' })[0].sha256
         try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin }
         catch {

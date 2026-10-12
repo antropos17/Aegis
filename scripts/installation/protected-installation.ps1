@@ -172,7 +172,18 @@ function Remove-ProtectedInstallAncillary($Context) {
             $held = [ProtectedInstallFile]::new($row.path, $false, $true)
             try { if ($held.FileId -cne $row.fileId -or $held.Volume -cne $row.volume -or $held.Sddl -cne $row.sddl -or $held.Hash(16KB) -cne $row.sha256) { throw 'protected-control-association-refused' }; $held.Delete() } finally { $held.Dispose() }
         }
-        $Context.control.Delete(); $Context.control = $null
+        if ($Context.ContainsKey('controlReadOnly') -and $Context.controlReadOnly) {
+            $original = $Context.control
+            $original.Recheck()
+            $path = $original.PathName; $volume = $original.Volume; $id = $original.FileId; $sddl = $original.Sddl
+            $original.Dispose()
+            $directory = [ProtectedInstallFile]::new($path, $true, $true)
+            try {
+                if ($directory.Volume -cne $volume -or $directory.FileId -cne $id -or $directory.Sddl -cne $sddl) { throw 'protected-control-association-refused' }
+                $directory.Delete()
+            } finally { $directory.Dispose() }
+        } else { $Context.control.Delete() }
+        $Context.control = $null
     }
     if ($null -ne $Context.receipts) {
         $files = @(Get-ChildItem -LiteralPath $Context.receipts.PathName -Force)
