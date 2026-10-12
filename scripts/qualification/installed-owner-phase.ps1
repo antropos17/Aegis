@@ -157,7 +157,7 @@ function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
     }
 }
 function Test-InstalledOwnerMutationActions($Rows) {
-    $expected = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential' | ForEach-Object {
+    $expected = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential', 'registered-vm.json' | ForEach-Object {
         $leaf = $_; foreach ($operation in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) { $leaf + ':' + $operation }
     }) + @('ProtectedSession', 'AEGIS', 'Receipts' | ForEach-Object {
         $directory = $_; foreach ($operation in @('rename', 'writeDac', 'writeOwner')) { $directory + ':' + $operation }
@@ -292,7 +292,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $actual = [IO.File]::ReadAllText($path) | ConvertFrom-Json
     $Association.mutationDiagnostic.actualPassed = if ($actual.passed -is [bool]) { $actual.passed } else { $null }
     $Association.mutationDiagnostic.failedActions = @($actual.attempts | Where-Object { $_.denied -is [bool] -and !$_.denied } | ForEach-Object {
-        $label = if ($_.action -is [string] -and $_.action -cmatch '^(?:aegis-(?:owner|session|main)\.exe|owner-policy\.json|enrollment\.json|inventory\.json|main-registration\.json|operator\.credential|ProtectedSession|AEGIS|Receipts|credential):(?:write|delete|replace|writeDac|writeOwner|rename|read)$') { $_.action } else { 'other' }
+        $label = if ($_.action -is [string] -and $_.action -cmatch '^(?:aegis-(?:owner|session|main)\.exe|owner-policy\.json|enrollment\.json|inventory\.json|main-registration\.json|registered-vm\.json|operator\.credential|ProtectedSession|AEGIS|Receipts|credential):(?:write|delete|replace|writeDac|writeOwner|rename|read)$') { $_.action } else { 'other' }
         @{ action = $label; win32Error = $(if (($_.win32Error -is [int] -or $_.win32Error -is [long]) -and $_.win32Error -ge 0 -and $_.win32Error -le 65535) { $_.win32Error } else { $null }) }
     })
     $Association.mutationDiagnostic.permitted = @{}
@@ -323,7 +323,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
         securityRightsOperation = 'CreateFile-requested-access'; protectedFilesAndAncestorsUnchanged = $unchanged; before = @($before) + @($root, $parent, $receipts); after = $after; passed = $true }
 }
 
-function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location) {
+function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location, [string]$RegisteredVmId = '') {
     $report = [ordered]@{ schemaVersion = 1; scope = 'protected-installed-owner-qualification'; location = $Location; sourceSha = $ExpectedSourceSha;
         os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; mutationFailure = $null; mutationAttempt = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
         installation = $null; failedAttempt = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
@@ -331,8 +331,10 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
     $installJournal = @{}
     try {
         Assert-ProtectedInstallAdministrator; Initialize-ProtectedInstallNative
+        if ($RegisteredVmId -cne '' -and ($Location -cne 'fresh-host' -or $RegisteredVmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or $RegisteredVmId -ceq [guid]::Empty.ToString('D'))) { throw 'installed-fresh-host-scope-refused' }
         if ($Location -ceq 'fresh-host') {
-            if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $ScratchRoot -cne ('D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '\installed-owner-control')) { throw 'installed-fresh-host-scope-refused' }
+            $suffix = if ($RegisteredVmId -ceq '') { '\installed-owner-control' } else { '\installed-owner-registered-vm-control' }
+            if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $ScratchRoot -cne ('D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + $suffix)) { throw 'installed-fresh-host-scope-refused' }
         } elseif ($ScratchRoot -cne 'C:\AegisLab\installed-owner') { throw 'installed-fresh-guest-scope-refused' }
         $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 5
         $report.os = @{ caption = $os.Caption; build = $os.BuildNumber; version = $os.Version; architecture = $os.OSArchitecture }
@@ -347,7 +349,8 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         $baselineSources = Join-Path $ScratchRoot 'baseline-inputs'; New-Item -ItemType Directory -Path $baselineSources | Out-Null
         foreach ($name in @('aegis-owner.exe', 'aegis-main.exe')) { Copy-Item -LiteralPath (Join-Path $PayloadRoot ('binaries/' + $name)) -Destination (Join-Path $baselineSources $name) }
         Copy-Item -LiteralPath (Join-Path $PayloadRoot 'baseline/aegis-session.exe') -Destination (Join-Path $baselineSources 'aegis-session.exe')
-        $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal
+        $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal $RegisteredVmId
+        if ($RegisteredVmId -cne '') { $report['registeredVm'] = @{ vmId = $association.vmBinding.vmId; identitySha256 = $association.vmBinding.identitySha256; inspectionOnly = $true } }
         $stage = 'original-program-behavioral-red'; $report.baseline = Invoke-InstalledOwnerAttempt $association $false
         $stage = 'upgrade-to-maintained-native-owner'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
         $stage = 'actual-installed-positive'
@@ -420,7 +423,7 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
     }
     if ($null -eq $report.failure -and $null -eq $report.cleanupFailure) {
         $journal = @{}; $partialAccount = 'AegisOp' + [guid]::NewGuid().ToString('N').Substring(0, 12); $fault = $false
-        try { New-ProtectedInstallation (Join-Path $PayloadRoot 'binaries') $manifest $partialAccount ('Ae!9-' + [guid]::NewGuid().ToString('N')) $true $journal | Out-Null }
+        try { New-ProtectedInstallation (Join-Path $PayloadRoot 'binaries') $manifest $partialAccount ('Ae!9-' + [guid]::NewGuid().ToString('N')) $true $journal $RegisteredVmId | Out-Null }
         catch { $fault = $_.Exception.Message -like '*protected-qualified-partial-fault*' }
         $report.partial = @{ injectedAfterPublication = $fault; journal = Get-ProtectedInstallJournalReceipt $journal; serviceAbsent = [ProtectedInstallService]::Absent(); protectedParentAbsent = !(Test-Path -LiteralPath $script:ProtectedInstallParent);
             accountAbsent = @((Get-LocalUser) | Where-Object { $_.Name -ceq $partialAccount }).Count -eq 0 }

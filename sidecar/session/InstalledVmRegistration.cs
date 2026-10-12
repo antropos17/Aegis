@@ -11,19 +11,22 @@ namespace Aegis.ProtectedSession
     {
         private const string Leaf = "registered-vm.json";
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
-        private static readonly Regex Schema = new Regex(
+        private const string Prefix =
             "\\A\\{\"schemaVersion\":1,\"installId\":\"([a-f0-9]{32})\",\"revision\":([1-9][0-9]{0,9})," +
             "\"epoch\":\"([a-f0-9]{32})\",\"policySha256\":\"([a-f0-9]{64})\"," +
-            "\"selectionId\":\"([a-f0-9]{32})\",\"selectionEpoch\":\"([a-f0-9]{32})\"," +
+            "\"selectionId\":\"([a-f0-9]{32})\",\"selectionEpoch\":\"([a-f0-9]{32})\",";
+        private static readonly Regex Schema = new Regex(Prefix +
             "\"vmId\":\"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\"," +
             "\"identitySha256\":\"([a-f0-9]{64})\",\"status\":\"active\"\\}\\z",
             RegexOptions.CultureInvariant);
+        private static readonly Regex Unconfigured = new Regex(Prefix + "\"status\":\"unconfigured\"\\}\\z", RegexOptions.CultureInvariant);
         private readonly Action checkAuthority;
         private readonly EnrollmentHeld held;
         private readonly byte[] original;
         private bool closed, refused;
         internal readonly Guid VmId;
         private readonly string identityHash;
+        private readonly bool configured;
 
         private InstalledVmRegistration(string root, string installId, uint revision, string epoch,
             string digest, string selection, string selectionEpoch, Action authority, IEnrollmentFiles files)
@@ -38,14 +41,19 @@ namespace Aegis.ProtectedSession
                 EnrollmentInspection.Check(held, path, false, false);
                 original = held.Read(4096);
                 Match record = Schema.Match(Utf8.GetString(original));
+                configured = record.Success;
+                if (!configured) record = Unconfigured.Match(Utf8.GetString(original));
                 uint recordedRevision;
                 if (!record.Success || !UInt32.TryParse(record.Groups[2].Value, out recordedRevision) ||
                     recordedRevision != revision || record.Groups[1].Value != installId ||
                     record.Groups[3].Value != epoch || record.Groups[4].Value != digest ||
-                    record.Groups[5].Value != selection || record.Groups[6].Value != selectionEpoch ||
-                    !Guid.TryParseExact(record.Groups[7].Value, "D", out VmId) || VmId == Guid.Empty)
+                    record.Groups[5].Value != selection || record.Groups[6].Value != selectionEpoch)
                     throw new InvalidDataException();
-                identityHash = record.Groups[8].Value;
+                if (configured)
+                {
+                    if (!Guid.TryParseExact(record.Groups[7].Value, "D", out VmId) || VmId == Guid.Empty) throw new InvalidDataException();
+                    identityHash = record.Groups[8].Value;
+                }
                 CheckCurrent();
             }
             catch { Dispose(); throw new InvalidOperationException("installed-vm-registration-unavailable"); }
@@ -53,6 +61,9 @@ namespace Aegis.ProtectedSession
 
         internal static InstalledVmInspection AcquireInspection(InstalledOwnerRegistration owner,
             CallerMainOperation.Context admitted)
+        { return AcquireCore(owner, admitted, false); }
+        private static InstalledVmInspection AcquireCore(InstalledOwnerRegistration owner,
+            CallerMainOperation.Context admitted, bool allowUnconfigured)
         {
             if (owner == null || admitted == null) throw new InvalidOperationException("installed-vm-registration-unavailable");
             InstalledOwnerPolicy policy = owner.Policy;
@@ -60,7 +71,7 @@ namespace Aegis.ProtectedSession
             var registration = new InstalledVmRegistration(InstalledOwnerPolicy.Root, policy.InstallId,
                 policy.Revision, policy.Epoch, policy.Digest, policy.SelectionId, policy.SelectionEpoch,
                 authority, new EnrollmentNative());
-            return CreateInspection(registration, delegate(Guid id) { return new VmManagementNative(id); });
+            return CreateInspection(registration, delegate(Guid id) { return new VmManagementNative(id); }, allowUnconfigured);
         }
 
         internal static InstalledVmInspection AcquireIfConfigured(InstalledOwnerRegistration owner,
@@ -70,16 +81,22 @@ namespace Aegis.ProtectedSession
             owner.CheckCurrent(); admitted.CheckInstalledOwner(owner);
             try { System.IO.File.GetAttributes(Path.Combine(InstalledOwnerPolicy.Root, Leaf)); }
             catch (FileNotFoundException) { owner.CheckCurrent(); admitted.CheckInstalledOwner(owner); return null; }
-            return AcquireInspection(owner, admitted);
+            return AcquireCore(owner, admitted, true);
         }
 
         private static InstalledVmInspection CreateInspection(InstalledVmRegistration registration,
-            Func<Guid, IVmManagement> create)
+            Func<Guid, IVmManagement> create, bool allowUnconfigured = false)
         {
             IVmManagement native = null; InstalledVmInspection bound = null;
             try
             {
-                registration.CheckCurrent(); native = create(registration.VmId);
+                registration.CheckCurrent();
+                if (!registration.configured)
+                {
+                    if (!allowUnconfigured) throw new InvalidOperationException("installed-vm-registration-unconfigured");
+                    registration.Dispose(); return null;
+                }
+                native = create(registration.VmId);
                 bound = new InstalledVmInspection(registration, native);
                 bound.Inspect(); return bound;
             }
@@ -124,6 +141,19 @@ namespace Aegis.ProtectedSession
             finally { if (original != null) Array.Clear(original, 0, original.Length); }
         }
 
+        // Read-only metadata used by the administrative installer after verifying
+        // the source image bytes. This returns no enrollment or mutation authority.
+        public static string ObserveForInstaller(Guid id)
+        {
+            using (var native = new VmManagementNative(id))
+            {
+                VmObservation value = native.Inspect();
+                if (value == null || value.VmId != id || value.State != 3 || String.IsNullOrEmpty(value.Identity) || value.Identity.Length > 2048)
+                    throw new InvalidOperationException("installed-vm-observation-unavailable");
+                return EnrollmentInspection.ImageHash(Utf8.GetBytes(value.Identity));
+            }
+        }
+
 #if INSTALLED_VM_TEST
         // Compiled only in the contract fixture. Production uses the typed native
         // installed registration/admission above, never an injected authority.
@@ -132,7 +162,7 @@ namespace Aegis.ProtectedSession
             IEnrollmentFiles files, Func<Guid, IVmManagement> create)
         {
             return CreateInspection(new InstalledVmRegistration(root, installId, revision, epoch,
-                digest, selection, selectionEpoch, authority, files), create);
+                digest, selection, selectionEpoch, authority, files), create, true);
         }
 #endif
     }

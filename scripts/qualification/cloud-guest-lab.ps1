@@ -32,7 +32,7 @@ $report = [ordered]@{ schemaVersion = 1; scope = 'cloud-windows11-fixed-standard
     actualHead = $null; sourceObservation = $null; sourceHashes = [ordered]@{}; compilerSha256 = $null; stages = [Collections.Generic.List[object]]::new(); host = $null; disks = [Collections.Generic.List[object]]::new();
     media = $null; runtime = $null; hardware = $null; vmName = $name; vmId = $null; startOperation = $null; stopOperation = $null; guest = $null; keyboard = $null; keyboardWindow = $null;
     ownerLifetimePhase = $null; ownerLifetimeControlsComplete = $false; hostCanariesUnchangedAfterOwnerLifetime = $false;
-    installedOwnerBuild = $null; installedOwnerHost = $null; installedOwnerGuest = $null; installedOwnerControlsComplete = $false; hostCanariesUnchangedAfterInstalledOwner = $false;
+    installedOwnerBuild = $null; installedOwnerHost = $null; installedOwnerGuest = $null; installedOwnerRegisteredVm = $null; installedOwnerControlsComplete = $false; hostCanariesUnchangedAfterInstalledOwner = $false;
     stdioPhase = $null; stdioControlsComplete = $false; hostCanariesUnchangedAfterStdio = $false; cancellationPhase = $null; cancellationControlsComplete = $false; hostCanariesUnchangedAfterCancellation = $false; claudeProvenance = $null; claudePhase = $null; claudeCorpusComplete = $false; claudeAcceptancePassed = $false; E6Qualified = $false;
     hostCanariesUnchangedAfterTask = $false; hostCanariesUnchangedAfterRemoval = $false; offObserved = $false; removedObserved = $false; operationSettlement = 'not-submitted';
     cleanupFailure = $null; failure = $null; hostRouteEarlySnapshot = $null; passed = $false; launchAllowed = $false; A1Qualified = $false; sharedHostRoutesTested = $false; hostGuestVhdMounted = $false }
@@ -330,6 +330,17 @@ try {
     $report.hardware = Stage 'configure-supported-windows11-guest' {
         $script:unknown = $true; $hardware = Invoke-CloudGuestConfiguration $id $name $vmRoot $windowsIso $answerIso; $script:unknown = $false; return $hardware
     }
+    $report.installedOwnerRegisteredVm = Stage 'fixed-host-registered-vm-owner-corpus' {
+        $before = Invoke-CloudHyperVCommand observe $name $vmRoot $id
+        if (!$before.exists -or $before.state -cne 'Off') { throw 'registered-vm-initial-state-refused' }
+        $value = Invoke-InstalledOwnerQualification (Join-Path $OutputRoot 'transfer/installed-owner') (Join-Path $OutputRoot 'installed-owner-registered-vm-control') $report.actualHead 'fresh-host' $id
+        $script:report.installedOwnerRegisteredVm = $value
+        $after = Invoke-CloudHyperVCommand observe $name $vmRoot $id
+        if (!(Test-InstalledOwnerQualificationReceipt $value $report.actualHead 'fresh-host') -or
+            $value.registeredVm.vmId -cne $id -or $value.registeredVm.identitySha256 -cnotmatch '^[a-f0-9]{64}$' -or
+            $value.registeredVm.inspectionOnly -ne $true -or !$after.exists -or $after.state -cne 'Off') { throw 'registered-vm-owner-corpus-refused' }
+        return $value
+    }
     Stage 'native-start-and-firmware-key' {
         $script:owner = [CloudGuestVm]::new($id)
         $running = $owner.Start(); $report.startOperation = $owner.Operation(); $script:unknown = $owner.PendingUnknown
@@ -440,7 +451,7 @@ finally {
     }
     RecordDisk 'after' | Out-Null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
-    $report.passed = $report.installedOwnerControlsComplete -and $report.hostCanariesUnchangedAfterInstalledOwner -and $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
+    $report.passed = $null -ne $report.installedOwnerRegisteredVm -and $report.installedOwnerRegisteredVm.passed -is [bool] -and $report.installedOwnerRegisteredVm.passed -and $report.installedOwnerControlsComplete -and $report.hostCanariesUnchangedAfterInstalledOwner -and $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
     $json = $report | ConvertTo-Json -Depth 16
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 1MB) { throw 'guest-receipt-budget-failed' }
     [IO.File]::WriteAllText((Join-Path $OutputRoot 'evidence\cloud-windows11.json'), $json)

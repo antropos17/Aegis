@@ -9,14 +9,14 @@ function Access([string]$Path, [uint32]$Rights, [bool]$Directory) {
     return $access.Invoke($null, $arguments)
 }
 $rows = @()
-foreach ($leaf in @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential')) {
+foreach ($leaf in @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential', 'registered-vm.json')) {
     foreach ($operation in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) { $rows += @{ action = $leaf + ':' + $operation; denied = $true; win32Error = 5 } }
 }
 foreach ($directory in @('ProtectedSession', 'AEGIS', 'Receipts')) {
     foreach ($operation in @('rename', 'writeDac', 'writeOwner')) { $rows += @{ action = $directory + ':' + $operation; denied = $true; win32Error = 5 } }
 }
 $rows += @{ action = 'credential:read'; denied = $true; win32Error = 5 }
-Require ($rows.Count -eq 50 -and (Test-InstalledOwnerMutationActions $rows))
+Require ($rows.Count -eq 55 -and (Test-InstalledOwnerMutationActions $rows))
 foreach ($operation in @('writeDac', 'writeOwner')) {
     $target = @($rows | Where-Object { $_.action -ceq ('owner-policy.json:' + $operation) })[0]
     Require (!(Test-InstalledOwnerMutationActions @($rows | Where-Object { $_ -ne $target })))

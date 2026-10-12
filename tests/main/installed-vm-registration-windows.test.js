@@ -70,9 +70,53 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         providerClosed: true,
       });
     });
+    it('checks and closes an unconfigured record without constructing VM management', () => {
+      expect(invoke('unconfigured')).toMatchObject({
+        acquired: false,
+        configured: false,
+        constructed: 0,
+        requests: 0,
+        fileClosed: true,
+      });
+    });
+    it('reads the actual installer stage records and rejects unknown runtime leaves', () => {
+      const scratch = path.join(root, 'producer');
+      fs.mkdirSync(scratch);
+      const record = invoke('record');
+      const produced = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(
+            project,
+            'tests/fixtures/protected-installation/vm-record-producer-fixture.ps1',
+          ),
+          scratch,
+          record.vmId,
+          record.identitySha256,
+        ],
+        { timeout: 15000, windowsHide: true, maxBuffer: 8192 },
+      );
+      expect(produced.error).toBeUndefined();
+      expect(produced.status, produced.stderr.toString().slice(0, 1024)).toBe(0);
+      const stages = JSON.parse(produced.stdout.toString()).stages;
+      expect(stages).toHaveLength(2);
+      for (const stage of stages) {
+        expect(stage).toMatchObject({ initialLeaves: 8, runtimeLeaves: 9, unknownRefused: true });
+        expect(invoke('from-producer', [stage.path])).toMatchObject({
+          acquired: stage.configured,
+          constructed: stage.configured ? 1 : 0,
+          requests: 0,
+          fileClosed: true,
+        });
+      }
+    });
     it.each([
       'stale-install',
       'stale-revision',
+      'stale-unconfigured',
       'stale-epoch',
       'stale-policy',
       'stale-selection',

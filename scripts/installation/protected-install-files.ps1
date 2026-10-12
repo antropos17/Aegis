@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $script:ProtectedInstallParent = 'C:\ProgramData\AEGIS'
 $script:ProtectedInstallRoot = 'C:\ProgramData\AEGIS\ProtectedSession'
-$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json')
+$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json')
 
 function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
@@ -61,6 +61,27 @@ function Read-ProtectedInstallInputs([string]$SourceRoot, $Manifest) {
     }
     return $inputs
 }
+function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage) {
+    if ($VmId -ceq '') { return $null }
+    if ($VmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or $VmId -ceq [guid]::Empty.ToString('D')) { throw 'protected-vm-binding-refused' }
+    try {
+        $assembly = [Reflection.Assembly]::Load($VerifiedImage)
+        $type = $assembly.GetType('Aegis.ProtectedSession.InstalledVmRegistration', $true)
+        $method = $type.GetMethod('ObserveForInstaller', [Reflection.BindingFlags]'Public,Static')
+        $arguments = [object[]]::new(1); $arguments[0] = [guid]::ParseExact($VmId, 'D')
+        $hash = $method.Invoke($null, $arguments)
+        if ($hash -isnot [string] -or $hash -cnotmatch '^[a-f0-9]{64}$') { throw 'protected-vm-binding-refused' }
+        return @{ vmId = $VmId; identitySha256 = $hash }
+    } catch { throw 'protected-vm-binding-refused' }
+}
+function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { $digest = [BitConverter]::ToString($hash.ComputeHash($PolicyBytes)).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
+    $record = [ordered]@{ schemaVersion = 1; installId = $Policy.installId; revision = $Policy.revision; epoch = $Policy.epoch; policySha256 = $digest; selectionId = $Policy.selectionId; selectionEpoch = $Policy.selectionEpoch }
+    if ($null -eq $Binding) { $record.status = 'unconfigured' }
+    else { $record.vmId = $Binding.vmId; $record.identitySha256 = $Binding.identitySha256; $record.status = 'active' }
+    return ,([Text.UTF8Encoding]::new($false)).GetBytes(($record | ConvertTo-Json -Compress))
+}
 function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) {
     $path = Join-Path $script:ProtectedInstallParent ('Staging-' + [guid]::NewGuid().ToString('N'))
     $root = New-ProtectedInstallDirectory $path $Context.operatorSid
@@ -75,7 +96,10 @@ function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) 
         $enrollment = [ordered]@{ schemaVersion = 1; installId = $Context.installId; revision = $Revision; epoch = $Epoch; rootVolumeSerial = $root.Volume; rootFileId = $root.FileId; supervisorSha256 = $map['aegis-session.exe'].sha256; status = 'active' }
         $inventory = [ordered]@{ schemaVersion = 1; installId = $Context.installId; revision = $Revision; epoch = $Epoch; selections = @([ordered]@{ id = $Context.selectionId; epoch = $Context.selectionEpoch; operation = 'inspect-owned' }) }
         $utf8 = [Text.UTF8Encoding]::new($false)
-        Write-ProtectedInstallFile (Join-Path $path 'owner-policy.json') $utf8.GetBytes(($policy | ConvertTo-Json -Compress)) $Context.operatorSid
+        $policyBytes = $utf8.GetBytes(($policy | ConvertTo-Json -Compress))
+        Write-ProtectedInstallFile (Join-Path $path 'owner-policy.json') $policyBytes $Context.operatorSid
+        $binding = if ($Context.ContainsKey('vmBinding')) { $Context.vmBinding } else { $null }
+        Write-ProtectedInstallFile (Join-Path $path 'registered-vm.json') (New-ProtectedInstallVmRecord $policy $policyBytes $binding) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'enrollment.json') $utf8.GetBytes(($enrollment | ConvertTo-Json -Compress)) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'inventory.json') $utf8.GetBytes(($inventory | ConvertTo-Json -Compress -Depth 5)) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'operator.credential') $Context.credential $Context.operatorSid $true
@@ -92,7 +116,7 @@ function Assert-ProtectedInstallStage($Stage) {
     $Stage.root.Recheck()
     if (!$Stage.root.Protected($false)) { throw 'protected-stage-acl-refused' }
     $files = @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)
-    if ($files.Count -ne $Stage.rows.Count -or $files.Count -gt 8) { throw 'protected-stage-unknown-child' }
+    if ($files.Count -ne $Stage.rows.Count -or $files.Count -gt 9) { throw 'protected-stage-unknown-child' }
     foreach ($row in $Stage.rows) { Assert-ProtectedInstallSnapshot $row }
 }
 function Move-ProtectedInstallStage($Stage, [string]$Destination) {

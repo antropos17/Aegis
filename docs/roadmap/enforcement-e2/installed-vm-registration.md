@@ -1,7 +1,7 @@
 # Installed VM registration inspection
 
 The installed supervisor can inspect a VM recorded in the fixed protected
-installation. This is a prerequisite for connecting the installed owner to VM
+installation. The administrative installer manages that record. This is a prerequisite for connecting the installed owner to VM
 management. Preparation, agent release, lifecycle dispatch, authenticated guest
 transport and production activation remain unavailable.
 
@@ -22,7 +22,7 @@ rechecks the SCM owner, held processes, tokens, Job, pinned installation and cal
 selection through those original objects, before and after the native query.
 An observed failure permanently refuses that lease.
 
-The canonical UTF-8 record, without a BOM or trailing whitespace, is:
+The canonical active UTF-8 record, without a BOM or trailing whitespace, is:
 
 ```json
 {"schemaVersion":1,"installId":"<32 lowercase hex>","revision":1,"epoch":"<32 lowercase hex>","policySha256":"<64 lowercase hex>","selectionId":"<32 lowercase hex>","selectionEpoch":"<32 lowercase hex>","vmId":"<canonical lowercase nonzero GUID>","identitySha256":"<64 lowercase hex>","status":"active"}
@@ -43,18 +43,47 @@ The mutable native manager remains private. Neither the record nor a matching
 WMI identity qualifies VM storage, image provenance, network isolation, snapshots,
 host integration routes or crash recovery.
 
-The current installer does not create this optional record. A subsequent trusted
-provisioning change must create it from independently observed owned VM/storage
-identities and integrate its upgrade, rollback and uninstall handling before any
-product VM preparation route is enabled. Unknown installation leaves currently
-cause cleanup refusal; do not insert a record manually into an active installation
-and claim supported provisioning or uninstall.
+The installer creates `registered-vm.json` in every new stage. With no VM selection,
+the common installation/policy/selection fields end with `"status":"unconfigured"`
+and contain no VM ID or identity digest. The supervisor validates and closes that
+record without constructing a native VM manager. A missing leaf preserves
+compatibility with the earlier process-only installation; neither state grants VM
+authority. An unconfigured record with active-only fields is refused.
+
+`New-ProtectedInstallation -RegisteredVmId <GUID>` is an administrative, read-only
+registration option. After the existing administrator and binary-input checks,
+the installer loads the exact verified session image bytes and calls its fixed
+native observer. The selected local VM must exist, have an exact realized identity
+and be Off. The returned digest supplies the binding; this step does not start,
+stop, reconfigure or adopt VM storage. There is no new ordinary UI/helper wire
+selector or preparation route.
+
+Each stage creates the record with the existing protected file ACL and binds it to
+that stage's exact policy bytes. Upgrade preserves the original VM ID/identity
+digest and binds the new revision/epoch/policy rather than recapturing a replacement
+VM. Rollback restores the previous stage including its record. Partial-install and
+uninstall removal use the captured file identity, descriptor and hash through the
+existing transaction. Initial stages have eight leaves; the fixed runtime main
+registration makes nine. Other leaves are still refused. The mutation corpus adds
+all five file mutation actions for this record, for 55 actions total.
+
+Trusted preparation still must create the VM and independently seal owned storage,
+image provenance and namespace/network configuration before enabling lifecycle or
+agent release. Registering a GUID/realized identity does not establish that seal.
+Provider outages, installer observation deadlines, reboot/crash and full provisioning
+remain separate qualification requirements.
 
 Windows contract tests compile the actual native sources with a test-only injected
 authority/provider. They check stale tuples, record replacement, ordinary-owned
 files, foreign/replaced VM identities, loss of authority and permanent refusal.
-They prove those contracts and native rejection of an ordinary-owned file, not a
-positive SCM/Hyper-V registration scenario. The existing fixed Windows lab with no
-registration leaf can qualify only compatibility of process-only inspection.
-Real registered-VM service, storage/network and crash qualification is still
-required. No E1/E2/E3 or A1 acceptance follows from these tests.
+The actual stage writer is exercised with substituted filesystem authority; its
+active/unconfigured records enter the compiled reader, and unknown runtime leaves
+are refused. These tests do not establish privileged installation or VM authority.
+
+The fixed Windows lab adds a registered-VM installed corpus after configuring its
+fresh exact VM and before the fixture starts it. It supplies that ID to the
+administrator, exercises baseline refusal, maintained inspection, all 55 mutations,
+upgrade/rollback/partial-install/uninstall and independently observes the VM still
+Off. This scenario needs an exact-source passing receipt before its native positive
+path is qualified. Storage/network, production lifecycle and crash qualification
+remain required. No complete E1/E2/E3 or A1 acceptance follows from this slice.

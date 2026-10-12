@@ -61,6 +61,13 @@ internal static class InstalledVmRegistrationFixture
         if (args.Length < 1 || args.Length > 2) return 2;
         string mode = args[0], root = args.Length == 2 ? args[1] : @"C:\contract-only";
         string text = Record();
+        string expectedDigest = Digest;
+        if (mode == "record") { Console.WriteLine(text); return 0; }
+        if (mode == "from-producer")
+        {
+            text = System.IO.File.ReadAllText(Path.Combine(root, "registered-vm.json"));
+            expectedDigest = EnrollmentInspection.ImageHash(System.IO.File.ReadAllBytes(Path.Combine(root, "owner-policy.json")));
+        }
         bool? nativeProtected = null;
         if (mode == "native-unprotected")
         {
@@ -91,6 +98,11 @@ internal static class InstalledVmRegistrationFixture
         if (mode == "overflow-revision") text = text.Replace("\"revision\":1", "\"revision\":4294967296");
         if (mode == "oversized") text = new string('a', 4097);
         if (mode == "invalid-utf8") text = "bad";
+        if (mode == "unconfigured" || mode == "stale-unconfigured")
+        {
+            text = text.Substring(0, text.IndexOf("\"vmId\"", StringComparison.Ordinal)) + "\"status\":\"unconfigured\"}";
+            if (mode == "stale-unconfigured") text = text.Replace("\"revision\":1", "\"revision\":2");
+        }
         var file = new File(root, text); var provider = new Provider();
         if (mode == "invalid-utf8") file.Bytes = new byte[] { 0xc0, 0xaf };
         if (mode == "unprotected") file.Trusted = false;
@@ -103,17 +115,18 @@ internal static class InstalledVmRegistrationFixture
         try
         {
             IEnrollmentFiles files = mode == "native-unprotected" ? (IEnrollmentFiles)new EnrollmentNative() : file;
-            owner = InstalledVmRegistration.AcquireForTest(root, Install, 1, Epoch, Digest, Selection, SelectionEpoch,
+            owner = InstalledVmRegistration.AcquireForTest(root, Install, 1, Epoch, expectedDigest, Selection, SelectionEpoch,
                 delegate { if (!authority) throw new InvalidOperationException(); }, files,
                 delegate(Guid id) { constructed++; if (id != Id) throw new InvalidOperationException(); return provider; });
-            acquired = true;
+            acquired = owner != null;
+            if (owner == null) return PrintUnconfigured(file, constructed);
             if (mode == "lost-authority") authority = false;
             if (mode == "replaced-vm") provider.Actual = "replacement";
             if (mode == "replaced-file") file.Changed = true;
             if (mode == "changed-bytes") file.Bytes[10] ^= 1;
             if (mode == "lost-after-observation") provider.Dispatched = delegate { authority = false; };
             try { inspected = owner.Inspect() != null; } catch { }
-            if (mode != "positive")
+            if (mode != "positive" && mode != "from-producer")
             {
                 authority = true; file.Changed = false; file.Bytes = Encoding.UTF8.GetBytes(Record()); provider.Actual = Identity;
                 try { owner.Inspect(); } catch { refusedAgain = true; }
@@ -125,6 +138,11 @@ internal static class InstalledVmRegistrationFixture
             ",\"constructed\":" + constructed + ",\"requests\":" + provider.Requests + ",\"jobRequests\":" + provider.JobRequests +
             ",\"nativeProtected\":" + (nativeProtected.HasValue ? Boolean(nativeProtected.Value) : "null") +
             ",\"observations\":" + provider.Observations + ",\"opened\":" + file.Opens + ",\"fileClosed\":" + Boolean(file.Closed) + ",\"providerClosed\":" + Boolean(provider.Closed) + "}");
+        return 0;
+    }
+    private static int PrintUnconfigured(File file, int constructed)
+    {
+        Console.WriteLine("{\"acquired\":false,\"configured\":false,\"constructed\":" + constructed + ",\"requests\":0,\"fileClosed\":" + Boolean(file.Closed) + "}");
         return 0;
     }
 }

@@ -76,7 +76,7 @@ Write-Output ('pure-cancellation-result-controls:' + $resultCount)
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-lab.ps1'), [ref]$null, [ref]$null)
 $assignments = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$report.passed' }, $true))
 if ($assignments.Count -ne 1) { throw 'cancellation-controller-seam-refused' }
-$report = @{ installedOwnerControlsComplete = $true; hostCanariesUnchangedAfterInstalledOwner = $true; ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true; stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true; hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null;
+$report = @{ installedOwnerRegisteredVm = @{ passed = $true }; installedOwnerControlsComplete = $true; hostCanariesUnchangedAfterInstalledOwner = $true; ownerLifetimeControlsComplete = $true; hostCanariesUnchangedAfterOwnerLifetime = $true; stdioControlsComplete = $true; hostCanariesUnchangedAfterStdio = $true; cancellationControlsComplete = $true; hostCanariesUnchangedAfterCancellation = $true; failure = $null; cleanupFailure = $null;
     offObserved = $true; removedObserved = $true; hostCanariesUnchangedAfterTask = $true; hostCanariesUnchangedAfterRemoval = $true }
 if (!(Invoke-Command -ScriptBlock ([scriptblock]::Create($assignments[0].Right.Extent.Text)))) { throw 'cancellation-controller-positive-refused' }
 foreach ($key in @('installedOwnerControlsComplete', 'hostCanariesUnchangedAfterInstalledOwner', 'cancellationControlsComplete', 'hostCanariesUnchangedAfterCancellation')) {
@@ -84,7 +84,12 @@ foreach ($key in @('installedOwnerControlsComplete', 'hostCanariesUnchangedAfter
     if (Invoke-Command -ScriptBlock ([scriptblock]::Create($assignments[0].Right.Extent.Text))) { throw 'cancellation-controller-refusal-lost' }
     $report[$key] = $true
 }
-Write-Output 'pure-cancellation-final-controller-controls:5'
+foreach ($registered in @($null, @{ passed = $false }, @{ passed = 'true' })) {
+    $report.installedOwnerRegisteredVm = $registered
+    if (Invoke-Command -ScriptBlock ([scriptblock]::Create($assignments[0].Right.Extent.Text))) { throw 'registered-vm-controller-refusal-lost' }
+}
+$report.installedOwnerRegisteredVm = @{ passed = $true }
+Write-Output 'pure-cancellation-final-controller-controls:8'
 # Exercise the actual guest ACL construction in memory; applying an ACL is not
 # needed to detect string SIDs being interpreted as account names on Windows.
 $bootstrap = [IO.File]::ReadAllText((Join-Path $ProjectRoot 'scripts/qualification/cloud-guest-cancellation-bootstrap.ps1'))
