@@ -189,6 +189,8 @@ function main() {
         'InstalledJobInventory',
         'InstalledOwnerFiles',
         'InstalledOwnerSession',
+        'InstalledVmRegistration',
+        'InstalledVmInspection',
       ].map((name) => path.join(ROOT, 'sidecar', 'session', `${name}.cs`)),
       '/reference:System.Security.dll',
       path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerExecutable.cs'),
