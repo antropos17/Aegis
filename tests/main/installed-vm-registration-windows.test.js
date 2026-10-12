@@ -140,7 +140,6 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     it('rejects an actual ordinary-owned file without a native VM call', () => {
       const directory = path.join(root, 'ordinary');
       fs.mkdirSync(directory);
-      fs.writeFileSync(path.join(directory, 'registered-vm.json'), '{}');
       expect(invoke('native-unprotected', [directory])).toMatchObject({
         acquired: false,
         constructed: 0,

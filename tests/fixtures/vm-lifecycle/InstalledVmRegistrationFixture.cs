@@ -61,6 +61,18 @@ internal static class InstalledVmRegistrationFixture
         if (args.Length < 1 || args.Length > 2) return 2;
         string mode = args[0], root = args.Length == 2 ? args[1] : @"C:\contract-only";
         string text = Record();
+        if (mode == "native-unprotected")
+        {
+            string path = Path.Combine(root, "registered-vm.json");
+            System.IO.File.WriteAllText(path, text, new UTF8Encoding(false));
+            var acl = new System.Security.AccessControl.FileSecurity();
+            var sid = System.Security.Principal.WindowsIdentity.GetCurrent().User;
+            acl.SetOwner(sid); acl.SetAccessRuleProtection(true, false);
+            acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(sid,
+                System.Security.AccessControl.FileSystemRights.FullControl,
+                System.Security.AccessControl.AccessControlType.Allow));
+            System.IO.File.SetAccessControl(path, acl);
+        }
         if (mode == "stale-install") text = text.Replace(Install, new string('a', 32));
         if (mode == "stale-revision") text = text.Replace("\"revision\":1", "\"revision\":2");
         if (mode == "stale-epoch") text = text.Replace(Epoch, new string('a', 32));
