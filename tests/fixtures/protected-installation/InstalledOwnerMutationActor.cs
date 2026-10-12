@@ -52,7 +52,9 @@ public static class InstalledOwnerMutationActor
             string writeMarker = Path.Combine(scratch, "write-marker.txt"), deleteMarker = Path.Combine(scratch, "delete-original.txt"), replaceMarker = Path.Combine(scratch, "replace-original.txt");
             File.WriteAllText(writeMarker, "allowed-disposable-write"); bool write = File.ReadAllText(writeMarker) == "allowed-disposable-write";
             File.Delete(deleteMarker); bool delete = !File.Exists(deleteMarker);
-            bool replace = MoveFileEx(replacement, replaceMarker, 1) && File.ReadAllText(replaceMarker) == "allowed-disposable-replacement";
+            bool moved = MoveFileEx(replacement, replaceMarker, 1);
+            int replaceError = moved ? 0 : Marshal.GetLastWin32Error();
+            bool replace = moved && File.ReadAllText(replaceMarker) == "allowed-disposable-replacement";
             // Match the kernel access checks above on disposable same-volume
             // objects. Success grants the requested right; no protected ACL is set.
             bool writeDac = Access(replaceMarker, 0x40000, false) == 0 && Access(scratch, 0x40000, true) == 0;
@@ -62,7 +64,7 @@ public static class InstalledOwnerMutationActor
                 ",\"operatorSid\":\"" + identity.User.Value + "\",\"administrator\":false,\"policyReadable\":" + (readable ? "true" : "false") +
                 ",\"permitted\":{\"write\":" + (write ? "true" : "false") + ",\"delete\":" + (delete ? "true" : "false") +
                 ",\"replace\":" + (replace ? "true" : "false") + ",\"writeDac\":" + (writeDac ? "true" : "false") +
-                ",\"writeOwner\":" + (writeOwner ? "true" : "false") + "},\"attempts\":[" + String.Join(",", rows) + "]}";
+                ",\"writeOwner\":" + (writeOwner ? "true" : "false") + ",\"replaceWin32\":" + replaceError + "},\"attempts\":[" + String.Join(",", rows) + "]}";
             File.WriteAllText(output, json, new UTF8Encoding(false)); return passed ? 0 : 1;
         } catch { return 4; }
     }

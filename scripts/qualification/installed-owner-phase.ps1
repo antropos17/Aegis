@@ -240,6 +240,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     foreach ($field in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) {
         $Association.mutationDiagnostic.permitted[$field] = if ($actual.permitted.$field -is [bool]) { $actual.permitted.$field } else { $null }
     }
+    $Association.mutationDiagnostic.permitted.replaceWin32 = if (($actual.permitted.replaceWin32 -is [int] -or $actual.permitted.replaceWin32 -is [long]) -and $actual.permitted.replaceWin32 -ge 0 -and $actual.permitted.replaceWin32 -le 65535) { $actual.permitted.replaceWin32 } else { $null }
     $permitted = Join-Path $Scratch 'replace-original.txt'
     $permittedHeld = [ProtectedInstallFile]::new($permitted, $false, $false)
     try { $permittedHash = $permittedHeld.Hash(1024); $permittedObserved = $permittedHeld.FileId -cne $originalReplaceId -and [Text.Encoding]::UTF8.GetString($permittedHeld.Read(1024)) -ceq 'allowed-disposable-replacement' }
