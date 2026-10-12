@@ -18,7 +18,8 @@ function Build-InstalledOwnerPayload([string]$Project, [string]$PayloadRoot, [st
     }
     $baseline = Join-Path $Project 'tests/fixtures/protected-installation/BaselineProgram.cs'
     $actor = Join-Path $Project 'tests/fixtures/protected-installation/InstalledOwnerMutationActor.cs'
-    foreach ($file in @($baseline, $actor)) { $sourceHashes[$file.Substring($Project.Length + 1).Replace('\', '/')] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() }
+    $desktop = Join-Path $Project 'scripts/qualification/CloudGuestDesktop.cs'
+    foreach ($file in @($baseline, $actor, $desktop)) { $sourceHashes[$file.Substring($Project.Length + 1).Replace('\', '/')] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() }
     # This exact preserved maintained Program contains no installed-owner path.
     # It is an executable behavioral baseline, without native/model test defines.
     $baselineExpected = 'bb319c230c9c06fd2053200fd875c22ee555260e008251dfa1f267d33a9669b2'
@@ -31,7 +32,7 @@ function Build-InstalledOwnerPayload([string]$Project, [string]$PayloadRoot, [st
         @{ leaf = 'binaries/aegis-owner.exe'; main = 'Aegis.InstalledOwner.OwnerProgram'; sources = @($sources.FullName) },
         @{ leaf = 'binaries/aegis-main.exe'; main = 'Aegis.InstalledOwner.InstalledOwnerMain'; sources = @($sources.FullName) },
         @{ leaf = 'baseline/aegis-session.exe'; main = 'Aegis.ProtectedSession.Program'; sources = @($sources | Where-Object { $_.FullName -cne [IO.Path]::GetFullPath((Join-Path $Project 'sidecar/session/Program.cs')) } | ForEach-Object FullName) + @($baseline) },
-        @{ leaf = 'native/installed-owner-actor.exe'; main = 'InstalledOwnerMutationActor'; sources = @($actor) }
+        @{ leaf = 'native/installed-owner-actor.exe'; main = 'InstalledOwnerMutationActor'; sources = @($actor, $desktop) }
     )
     $commands = @()
     foreach ($build in $builds) {

@@ -169,12 +169,17 @@ public static class InstalledOwnerMutationLauncher
         Require(Path.GetFileName(executable) == "installed-owner-actor.exe" && executable.IndexOf('"') < 0 && scratch.IndexOf('"') < 0);
         var evidence = new Dictionary<string,object>(); Startup startup = new Startup(); startup.size = Marshal.SizeOf(typeof(Startup));
         ProcessInfo child = new ProcessInfo(); IntPtr token = IntPtr.Zero, job = IntPtr.Zero, environment = IntPtr.Zero; bool settled = false, assigned = false;
+        CloudGuestDesktop desktop = null;
         string checkpoint = "installed-mutation-job"; Exception originalFailure = null;
         try {
             job = CreateJobObject(IntPtr.Zero, null); RequireNative(job != IntPtr.Zero);
             byte[] limits = new byte[144]; Array.Copy(BitConverter.GetBytes(0x2000U), 0, limits, 16, 4);
             RequireNative(SetInformationJobObject(job, 9, limits, (uint)limits.Length));
             environment = Marshal.StringToHGlobalUni("SystemRoot=C:\\Windows\0TEMP=" + scratch + "\0TMP=" + scratch + "\0WINDIR=C:\\Windows\0\0");
+            checkpoint = "installed-mutation-desktop";
+            desktop = new CloudGuestDesktop(expectedSid, true);
+            Require(desktop.Restored && desktop.ThreadDesktopPreserved);
+            startup.desktop = desktop.Path;
             checkpoint = "installed-mutation-create";
             RequireNative(CreateProcessWithLogonW(user, ".", password, 0, executable, new StringBuilder("\"" + executable + "\" \"" + scratch + "\""), 4 | 0x08000000 | 0x400, environment, scratch, ref startup, out child));
             checkpoint = "installed-mutation-bind";
@@ -229,6 +234,11 @@ public static class InstalledOwnerMutationLauncher
             if (child.thread != IntPtr.Zero) cleanup &= CloseHandle(child.thread);
             if (child.process != IntPtr.Zero) cleanup &= CloseHandle(child.process);
             if (job != IntPtr.Zero) cleanup &= CloseHandle(job);
+            // The borrowed/default desktop is never modified. Release only our
+            // fresh objects after the retained process and Job have closed.
+            if (desktop != null && cleanup) {
+                desktop.Dispose(); cleanup &= desktop.Closed;
+            }
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
             if (originalFailure != null) originalFailure.Data["installedMutationCleanupConfirmed"] = cleanup;
             if (!cleanup) throw new InvalidDataException("installed-mutation-cleanup-unknown", originalFailure);
