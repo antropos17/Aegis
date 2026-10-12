@@ -2,6 +2,8 @@ using System;
 
 namespace Aegis.ProtectedSession
 {
+    // Fixed native failure position only; no paths, provider text or bytes.
+    internal sealed class VmInspectionCheckpoint { internal int Code; }
     // Inspect-owned admission authorizes observations only. No lifecycle method
     // or native manager escapes this retained registration.
     internal sealed class InstalledVmInspection : IDisposable
@@ -10,33 +12,35 @@ namespace Aegis.ProtectedSession
         private readonly IVmManagement native;
         private readonly IEnrollmentFiles storageFiles;
         private VmStorageInspection storage;
+        private readonly VmInspectionCheckpoint checkpoint;
         private bool closed, refused;
-        internal InstalledVmInspection(InstalledVmRegistration record, IVmManagement provider, IEnrollmentFiles files)
+        internal InstalledVmInspection(InstalledVmRegistration record, IVmManagement provider, IEnrollmentFiles files, VmInspectionCheckpoint diagnostic)
         {
             if (record == null || provider == null) throw new InvalidOperationException("installed-vm-manager-unavailable");
-            registration = record; native = provider; storageFiles = files;
+            registration = record; native = provider; storageFiles = files; checkpoint = diagnostic;
         }
         internal VmObservation Inspect()
         {
             if (closed || refused) throw new InvalidOperationException("installed-vm-observation-unavailable");
             try
             {
-                registration.CheckCurrent();
+                checkpoint.Code = 1; registration.CheckCurrent();
                 if (native.VmId != registration.VmId) throw new InvalidOperationException();
-                VmObservation result = native.Inspect();
-                registration.CheckObservation(result);
+                checkpoint.Code = 2; VmObservation result = native.Inspect();
+                checkpoint.Code = 3; registration.CheckObservation(result);
                 if (registration.StorageHash != null)
                 {
-                    if (result.State != 3) throw new InvalidOperationException();
-                    if (storage == null) storage = new VmStorageInspection(native as IVmStorageSource, storageFiles);
+                    checkpoint.Code = 4; if (result.State != 3) throw new InvalidOperationException();
+                    if (storage == null) storage = new VmStorageInspection(native as IVmStorageSource, storageFiles, checkpoint);
                     storage.CheckCurrent();
-                    if (storage.Digest != registration.StorageHash) throw new InvalidOperationException();
-                    VmObservation after = native.Inspect();
+                    checkpoint.Code = 14; if (storage.Digest != registration.StorageHash) throw new InvalidOperationException();
+                    checkpoint.Code = 15; VmObservation after = native.Inspect();
+                    checkpoint.Code = 16;
                     registration.CheckObservation(after);
                     if (after.State != 3) throw new InvalidOperationException();
                     storage.CheckCurrent();
                 }
-                registration.CheckCurrent(); return result;
+                checkpoint.Code = 17; registration.CheckCurrent(); return result;
             }
             catch { refused = true; throw new InvalidOperationException("installed-vm-observation-unavailable"); }
         }

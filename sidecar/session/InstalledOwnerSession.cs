@@ -21,7 +21,7 @@ namespace Aegis.ProtectedSession
         }
         internal static byte[] FailureFrame(int stage, int substage)
         {
-            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && ((stage == 2 && substage <= 44) || (stage == 7 && KnownStageSeven((uint)substage)) || substage == 0));
+            CallerNative.Require(stage >= 1 && stage <= 12 && substage >= 0 && ((stage == 2 && substage <= 44) || (stage == 7 && KnownStageSeven((uint)substage)) || (stage == 9 && substage <= 20) || substage == 0));
             return Encoding.ASCII.GetBytes("AEGISF02" + stage.ToString("x8") + substage.ToString("x8") + new string('0', 80));
         }
         internal static bool TryReadFailureFrame(string frame, out uint stage, out uint substage)
@@ -30,7 +30,7 @@ namespace Aegis.ProtectedSession
             if (!System.Text.RegularExpressions.Regex.IsMatch(frame ?? "", "\\AAEGISF02[a-f0-9]{16}0{80}\\z")) return false;
             uint parsedStage = Convert.ToUInt32(frame.Substring(8, 8), 16);
             uint parsedSubstage = Convert.ToUInt32(frame.Substring(16, 8), 16);
-            if (parsedStage < 1 || parsedStage > 12 || !((parsedStage == 2 && parsedSubstage <= 44) || (parsedStage == 7 && KnownStageSeven(parsedSubstage)) || parsedSubstage == 0)) return false;
+            if (parsedStage < 1 || parsedStage > 12 || !((parsedStage == 2 && parsedSubstage <= 44) || (parsedStage == 7 && KnownStageSeven(parsedSubstage)) || (parsedStage == 9 && parsedSubstage <= 20) || parsedSubstage == 0)) return false;
             stage = parsedStage; substage = parsedSubstage; return true;
         }
         internal static int Run()
@@ -79,19 +79,24 @@ namespace Aegis.ProtectedSession
                                     // Admission reverted its thread token. Recheck installed authority immediately before the fixed observation.
                                     stage = 8; substage = 0; registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
                                     stage = 9;
-                                    using (var vm = InstalledVmRegistration.AcquireIfConfigured(registration, admitted))
+                                    var vmCheckpoint = new VmInspectionCheckpoint();
+                                    try
                                     {
-                                        deadline.Check(); string result = admitted.InspectOwned();
-                                        if (vm != null) vm.Inspect();
-                                        // Independently persisted actual-dispatch oracle outside the pinned installation root.
-                                        stage = 10; InstalledOwnerFiles.WriteNew(true, "inspection-count.txt", "1", registration.Policy);
-                                        registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
-                                        if (vm != null) vm.Inspect();
-                                        byte[] body = Encoding.UTF8.GetBytes(result); CallerNative.Require(body.Length > 0 && body.Length <= 1024);
-                                        stage = 11;
-                                        InstalledOwnerPipe.Send(output, Encoding.ASCII.GetBytes("AEGISR02" + body.Length.ToString("x8")), deadline);
-                                        InstalledOwnerPipe.Send(output, body, deadline); stage = 12; return 0;
+                                        using (var vm = InstalledVmRegistration.AcquireIfConfigured(registration, admitted, vmCheckpoint))
+                                        {
+                                            vmCheckpoint.Code = 0; deadline.Check(); string result = admitted.InspectOwned();
+                                            if (vm != null) vm.Inspect();
+                                            // Independently persisted actual-dispatch oracle outside the pinned installation root.
+                                            stage = 10; InstalledOwnerFiles.WriteNew(true, "inspection-count.txt", "1", registration.Policy);
+                                            registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
+                                            if (vm != null) vm.Inspect();
+                                            byte[] body = Encoding.UTF8.GetBytes(result); CallerNative.Require(body.Length > 0 && body.Length <= 1024);
+                                            stage = 11;
+                                            InstalledOwnerPipe.Send(output, Encoding.ASCII.GetBytes("AEGISR02" + body.Length.ToString("x8")), deadline);
+                                            InstalledOwnerPipe.Send(output, body, deadline); stage = 12; return 0;
+                                        }
                                     }
+                                    catch { if (stage == 9) substage = vmCheckpoint.Code; throw; }
                                 }
                             }
                         }

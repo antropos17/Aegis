@@ -22,15 +22,17 @@ namespace Aegis.ProtectedSession
         private readonly IVmStorageSource source;
         private readonly List<EnrollmentHeld> held = new List<EnrollmentHeld>();
         private readonly string topology;
+        private readonly VmInspectionCheckpoint checkpoint;
         internal readonly string Digest;
         private bool closed, refused;
-        internal VmStorageInspection(IVmStorageSource provider, IEnrollmentFiles files)
+        internal VmStorageInspection(IVmStorageSource provider, IEnrollmentFiles files, VmInspectionCheckpoint diagnostic = null)
         {
-            source = provider;
+            source = provider; checkpoint = diagnostic ?? new VmInspectionCheckpoint();
             try
             {
                 if (source == null || files == null) throw new InvalidDataException();
-                VmStorageAttachment[] rows = Ordered(source.ReadStorage());
+                checkpoint.Code = 5; VmStorageAttachment[] rows = Ordered(source.ReadStorage());
+                checkpoint.Code = 6;
                 topology = Canonical(rows);
                 var identities = new StringBuilder(topology);
                 var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -42,18 +44,18 @@ namespace Aegis.ProtectedSession
                     while (!String.IsNullOrEmpty(cursor))
                     {
                         if (++depth > 32) throw new InvalidDataException();
-                        if (directories.Add(cursor)) Hold(files, cursor, true);
+                        checkpoint.Code = 7; if (directories.Add(cursor)) Hold(files, cursor, true);
                         string parent = System.IO.Path.GetDirectoryName(cursor);
                         if (String.Equals(parent, cursor, StringComparison.OrdinalIgnoreCase)) break;
                         cursor = parent;
                     }
-                    EnrollmentHeld file = Hold(files, row.Path, false);
+                    checkpoint.Code = 8; EnrollmentHeld file = Hold(files, row.Path, false);
                     Field(identities, file.Volume); Field(identities, file.FileId);
-                    string metadata = file.BindingMetadata;
+                    checkpoint.Code = 9; string metadata = file.BindingMetadata;
                     if (metadata == null || !Regex.IsMatch(metadata, "\\A[a-f0-9]{64}\\z")) throw new InvalidDataException();
                     Field(identities, metadata);
                 }
-                Digest = EnrollmentInspection.ImageHash(new UTF8Encoding(false, true).GetBytes(identities.ToString()));
+                checkpoint.Code = 10; Digest = EnrollmentInspection.ImageHash(new UTF8Encoding(false, true).GetBytes(identities.ToString()));
                 CheckCurrent();
             }
             catch { Dispose(); throw new InvalidOperationException("installed-vm-storage-unavailable"); }
@@ -117,9 +119,9 @@ namespace Aegis.ProtectedSession
             if (closed || refused) throw new InvalidOperationException("installed-vm-storage-unavailable");
             try
             {
-                foreach (EnrollmentHeld file in held) file.Recheck(file.Directory);
-                if (Canonical(source.ReadStorage()) != topology) throw new InvalidDataException();
-                foreach (EnrollmentHeld file in held) file.Recheck(file.Directory);
+                checkpoint.Code = 11; foreach (EnrollmentHeld file in held) file.Recheck(file.Directory);
+                checkpoint.Code = 12; if (Canonical(source.ReadStorage()) != topology) throw new InvalidDataException();
+                checkpoint.Code = 13; foreach (EnrollmentHeld file in held) file.Recheck(file.Directory);
             }
             catch { refused = true; throw new InvalidOperationException("installed-vm-storage-unavailable"); }
         }

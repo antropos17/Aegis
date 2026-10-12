@@ -70,29 +70,31 @@ namespace Aegis.ProtectedSession
             CallerMainOperation.Context admitted)
         { return AcquireCore(owner, admitted, false); }
         private static InstalledVmInspection AcquireCore(InstalledOwnerRegistration owner,
-            CallerMainOperation.Context admitted, bool allowUnconfigured)
+            CallerMainOperation.Context admitted, bool allowUnconfigured, VmInspectionCheckpoint checkpoint = null)
         {
             if (owner == null || admitted == null) throw new InvalidOperationException("installed-vm-registration-unavailable");
             InstalledOwnerPolicy policy = owner.Policy;
             Action authority = delegate { owner.CheckCurrent(); admitted.CheckInstalledOwner(owner); };
+            checkpoint = checkpoint ?? new VmInspectionCheckpoint(); checkpoint.Code = 18;
             var registration = new InstalledVmRegistration(InstalledOwnerPolicy.Root, policy.InstallId,
                 policy.Revision, policy.Epoch, policy.Digest, policy.SelectionId, policy.SelectionEpoch,
                 authority, new EnrollmentNative());
-            return CreateInspection(registration, delegate(Guid id) { return new VmManagementNative(id); }, allowUnconfigured);
+            return CreateInspection(registration, delegate(Guid id) { return new VmManagementNative(id); }, allowUnconfigured, null, checkpoint);
         }
 
         internal static InstalledVmInspection AcquireIfConfigured(InstalledOwnerRegistration owner,
-            CallerMainOperation.Context admitted)
+            CallerMainOperation.Context admitted, VmInspectionCheckpoint checkpoint = null)
         {
+            if (checkpoint != null) checkpoint.Code = 20;
             if (owner == null || admitted == null) throw new InvalidOperationException("installed-vm-registration-unavailable");
             owner.CheckCurrent(); admitted.CheckInstalledOwner(owner);
             try { System.IO.File.GetAttributes(Path.Combine(InstalledOwnerPolicy.Root, Leaf)); }
             catch (FileNotFoundException) { owner.CheckCurrent(); admitted.CheckInstalledOwner(owner); return null; }
-            return AcquireCore(owner, admitted, true);
+            return AcquireCore(owner, admitted, true, checkpoint);
         }
 
         private static InstalledVmInspection CreateInspection(InstalledVmRegistration registration,
-            Func<Guid, IVmManagement> create, bool allowUnconfigured = false, IEnrollmentFiles storageFiles = null)
+            Func<Guid, IVmManagement> create, bool allowUnconfigured = false, IEnrollmentFiles storageFiles = null, VmInspectionCheckpoint checkpoint = null)
         {
             IVmManagement native = null; InstalledVmInspection bound = null;
             try
@@ -103,8 +105,9 @@ namespace Aegis.ProtectedSession
                     if (!allowUnconfigured) throw new InvalidOperationException("installed-vm-registration-unconfigured");
                     registration.Dispose(); return null;
                 }
+                if (checkpoint != null) checkpoint.Code = 19;
                 native = create(registration.VmId);
-                bound = new InstalledVmInspection(registration, native, storageFiles ?? new EnrollmentNative());
+                bound = new InstalledVmInspection(registration, native, storageFiles ?? new EnrollmentNative(), checkpoint ?? new VmInspectionCheckpoint());
                 bound.Inspect(); return bound;
             }
             catch

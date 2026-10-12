@@ -77,6 +77,17 @@ The file holds also prevent starting the VM while this observation is retained.
 A production lifecycle needs its own authority, storage design and containment
 qualification; the existing `inspect-owned` grant cannot be reused for that step.
 
+The installed failure frame retains a fixed stage-nine checkpoint (0..20):
+0 ordinary observation/deadline, 1 authority, 2 VM observation, 3 recorded VM
+identity, 4 Off state, 5 storage query, 6 topology validation, 7 ancestor hold,
+8 file hold, 9 file metadata, 10 digest construction, 11 held precheck,
+12 topology recheck, 13 held postcheck, 14 recorded storage digest,
+15 second VM observation, 16 second identity/state check, 17 final authority,
+18 registration acquisition, 19 native manager creation and 20 optional-record
+precheck. The original private channel and bounded numeric host projection retain
+this position without paths, provider exception text or file contents. It supplies
+failure location and does not establish the cause or any successful observation.
+
 `New-ProtectedInstallation -RegisteredVmId <GUID>` is an administrative, read-only
 registration option. After the existing administrator and binary-input checks,
 the installer loads the exact verified session image bytes and calls its fixed

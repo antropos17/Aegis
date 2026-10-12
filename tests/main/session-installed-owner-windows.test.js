@@ -61,7 +61,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(native.writerChecks).toBe(121);
       expect(native.writer).toEqual({ accepted: true, stage: 2, substage: 26 });
       expect(native.parsed).toEqual({ accepted: true, stage: 2, substage: 8 });
-      expect(native.rows).toHaveLength(137);
+      expect(native.rows).toHaveLength(159);
       for (const row of native.rows) {
         for (const boundary of ['whole', 'split']) {
           if (row.kind === 'invalid') expect(row[boundary].accepted).toBe(false);
@@ -192,12 +192,12 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       }
     });
 
-    it('retains only bounded stage-two and stage-seven numeric checkpoints in host observations', () => {
+    it('retains only bounded native numeric checkpoints in host observations', () => {
       const phase = path.join(project, 'scripts/qualification/installed-owner-phase.ps1');
       const command = `
         . '${phase.replaceAll("'", "''")}'
         $rows = @()
-        foreach ($stage in @(2, 5, 7, 8, 10)) {
+        foreach ($stage in @(2, 5, 7, 8, 9, 10)) {
           foreach ($substage in @(-1) + @(0..255) + @('26', $true)) {
             $value = Get-InstalledOwnerAttemptObservation @{ supervisorStage = $stage; supervisorSubstage = $substage; arbitrary = 'excluded' } native
             $rows += @{ stage = $stage; input = $substage; included = $value.ContainsKey('supervisorSubstage'); value = $value['supervisorSubstage']; excluded = !$value.ContainsKey('arbitrary') }
@@ -218,12 +218,13 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(value.status).toBe(0);
       expect(value.stderr.length).toBe(0);
       const rows = JSON.parse(value.stdout.toString('utf8'));
-      expect(rows).toHaveLength(1295);
+      expect(rows).toHaveLength(1554);
       for (const row of rows) {
         const admitted =
           Number.isInteger(row.input) &&
           row.input >= 0 &&
           ((row.stage === 2 && row.input <= 44) ||
+            (row.stage === 9 && row.input <= 20) ||
             (row.stage === 7 &&
               (row.input <= 22 ||
                 (row.input >= 114 && row.input <= 126) ||
