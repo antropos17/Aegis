@@ -14,13 +14,18 @@ errors, malformed or stale records, reparse points and unprotected files refuse
 the attempt. The unchanged result has `ownershipQualified=false` and
 `launchAllowed=false`; it does not claim a VM observation when no record exists.
 
-The native factory accepts the original `InstalledOwnerRegistration` and a
-retained `CallerMainOperation.Context`. The context must have been acquired with
-that exact installed registration object. An ordinary context or admission from
-another installed owner cannot be combined with the registration. Each observation
-rechecks the SCM owner, held processes, tokens, Job, pinned installation and caller
-selection through those original objects, before and after the native query.
-An observed failure permanently refuses that lease.
+The native preparation factory accepts the original `InstalledOwnerRegistration`.
+It observes and holds the registered VM/storage before publishing routing that
+releases the fixed main controller. This preparation has no caller dispatch
+authority. After authentication, the retained `CallerMainOperation.Context` binds
+once to that original registration; ordinary inspection is refused before binding.
+An ordinary context or admission from another installed owner cannot be combined
+with the registration. Subsequent observations recheck the SCM owner, held processes,
+tokens, Job, pinned installation and caller selection through those original objects.
+The original two-second admission age and owner deadlines remain enforced; expensive
+storage acquisition precedes that admission. The native storage query independently
+fences the captured VM identity and Off state before and after its topology query.
+An observed failure permanently refuses the lease.
 
 The legacy version 1 active UTF-8 record, without a BOM or trailing whitespace, is:
 

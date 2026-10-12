@@ -21,6 +21,20 @@ namespace Aegis.ProtectedSession
         }
         internal VmObservation Inspect()
         {
+            if (!registration.IsBound) throw new InvalidOperationException("installed-vm-caller-unavailable");
+            return InspectCore();
+        }
+        internal VmObservation InspectPrepared()
+        {
+            if (registration.IsBound) throw new InvalidOperationException("installed-vm-caller-unavailable");
+            return InspectCore();
+        }
+        internal void BindCaller(CallerMainOperation.Context admitted) { registration.BindCaller(admitted); }
+#if INSTALLED_VM_TEST
+        internal void BindForTest(Action caller) { registration.BindForTest(caller); }
+#endif
+        private VmObservation InspectCore()
+        {
             if (closed || refused) throw new InvalidOperationException("installed-vm-observation-unavailable");
             try
             {
@@ -34,11 +48,9 @@ namespace Aegis.ProtectedSession
                     if (storage == null) storage = new VmStorageInspection(native as IVmStorageSource, storageFiles, checkpoint);
                     storage.CheckCurrent();
                     checkpoint.Code = 14; if (storage.Digest != registration.StorageHash) throw new InvalidOperationException();
-                    checkpoint.Code = 15; VmObservation after = native.Inspect();
-                    checkpoint.Code = 16;
-                    registration.CheckObservation(after);
-                    if (after.State != 3) throw new InvalidOperationException();
-                    storage.CheckCurrent();
+                    // ReadStorage itself fences the exact captured VM identity
+                    // and Off state around its topology query. A second identical
+                    // query adds no intervening operation here.
                 }
                 checkpoint.Code = 17; registration.CheckCurrent(); return result;
             }

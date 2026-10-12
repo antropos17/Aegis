@@ -25,6 +25,10 @@ namespace Aegis.ProtectedSession
             "\"identitySha256\":\"([a-f0-9]{64})\",\"storageSha256\":\"([a-f0-9]{64})\",\"status\":\"active\"\\}\\z",
             RegexOptions.CultureInvariant);
         private readonly Action checkAuthority;
+        private Action checkCaller;
+        private readonly InstalledOwnerRegistration installed;
+        private readonly bool mustBindCaller;
+        internal bool IsBound { get { return !mustBindCaller || checkCaller != null; } }
         private readonly EnrollmentHeld held;
         private readonly byte[] original;
         private bool closed, refused;
@@ -34,9 +38,10 @@ namespace Aegis.ProtectedSession
         private readonly bool configured;
 
         private InstalledVmRegistration(string root, string installId, uint revision, string epoch,
-            string digest, string selection, string selectionEpoch, Action authority, IEnrollmentFiles files)
+            string digest, string selection, string selectionEpoch, Action authority, IEnrollmentFiles files,
+            InstalledOwnerRegistration owner = null, bool requiresCaller = false)
         {
-            checkAuthority = authority;
+            checkAuthority = authority; installed = owner; mustBindCaller = owner != null || requiresCaller;
             try
             {
                 if (authority == null || files == null) throw new InvalidDataException();
@@ -82,19 +87,24 @@ namespace Aegis.ProtectedSession
             return CreateInspection(registration, delegate(Guid id) { return new VmManagementNative(id); }, allowUnconfigured, null, checkpoint);
         }
 
-        internal static InstalledVmInspection AcquireIfConfigured(InstalledOwnerRegistration owner,
-            CallerMainOperation.Context admitted, VmInspectionCheckpoint checkpoint = null)
+        internal static InstalledVmInspection PrepareIfConfigured(InstalledOwnerRegistration owner,
+            VmInspectionCheckpoint checkpoint)
         {
             if (checkpoint != null) checkpoint.Code = 20;
-            if (owner == null || admitted == null) throw new InvalidOperationException("installed-vm-registration-unavailable");
-            owner.CheckCurrent(); admitted.CheckInstalledOwner(owner);
+            if (owner == null) throw new InvalidOperationException("installed-vm-registration-unavailable");
+            owner.CheckCurrent();
             try { System.IO.File.GetAttributes(Path.Combine(InstalledOwnerPolicy.Root, Leaf)); }
-            catch (FileNotFoundException) { owner.CheckCurrent(); admitted.CheckInstalledOwner(owner); return null; }
-            return AcquireCore(owner, admitted, true, checkpoint);
+            catch (FileNotFoundException) { owner.CheckCurrent(); return null; }
+            InstalledOwnerPolicy policy = owner.Policy;
+            checkpoint.Code = 18;
+            var registration = new InstalledVmRegistration(InstalledOwnerPolicy.Root, policy.InstallId,
+                policy.Revision, policy.Epoch, policy.Digest, policy.SelectionId, policy.SelectionEpoch,
+                owner.CheckCurrent, new EnrollmentNative(), owner);
+            return CreateInspection(registration, delegate(Guid id) { return new VmManagementNative(id); }, true, null, checkpoint, true);
         }
 
         private static InstalledVmInspection CreateInspection(InstalledVmRegistration registration,
-            Func<Guid, IVmManagement> create, bool allowUnconfigured = false, IEnrollmentFiles storageFiles = null, VmInspectionCheckpoint checkpoint = null)
+            Func<Guid, IVmManagement> create, bool allowUnconfigured = false, IEnrollmentFiles storageFiles = null, VmInspectionCheckpoint checkpoint = null, bool prepared = false)
         {
             IVmManagement native = null; InstalledVmInspection bound = null;
             try
@@ -108,7 +118,8 @@ namespace Aegis.ProtectedSession
                 if (checkpoint != null) checkpoint.Code = 19;
                 native = create(registration.VmId);
                 bound = new InstalledVmInspection(registration, native, storageFiles ?? new EnrollmentNative(), checkpoint ?? new VmInspectionCheckpoint());
-                bound.Inspect(); return bound;
+                if (prepared) bound.InspectPrepared(); else bound.Inspect();
+                return bound;
             }
             catch
             {
@@ -124,11 +135,11 @@ namespace Aegis.ProtectedSession
             byte[] bytes = null;
             try
             {
-                checkAuthority(); held.Recheck(false); bytes = held.Read(4096);
+                checkAuthority(); if (checkCaller != null) checkCaller(); held.Recheck(false); bytes = held.Read(4096);
                 if (bytes.Length != original.Length) throw new InvalidDataException();
                 for (int index = 0; index < bytes.Length; index++)
                     if (bytes[index] != original[index]) throw new InvalidDataException();
-                checkAuthority();
+                checkAuthority(); if (checkCaller != null) checkCaller();
             }
             catch { refused = true; throw new InvalidOperationException("installed-vm-registration-unavailable"); }
             finally { if (bytes != null) Array.Clear(bytes, 0, bytes.Length); }
@@ -142,6 +153,21 @@ namespace Aegis.ProtectedSession
             {
                 refused = true; throw new InvalidOperationException("installed-vm-identity-unavailable");
             }
+        }
+
+        internal void BindCaller(CallerMainOperation.Context admitted)
+        {
+            if (installed == null || admitted == null) throw new InvalidOperationException("installed-vm-caller-unavailable");
+            BindCore(delegate { admitted.CheckInstalledOwner(installed); });
+        }
+        private void BindCore(Action caller)
+        {
+            try
+            {
+                if (!mustBindCaller || checkCaller != null || caller == null) throw new InvalidOperationException();
+                CheckCurrent(); caller(); checkCaller = caller; CheckCurrent();
+            }
+            catch { refused = true; throw new InvalidOperationException("installed-vm-caller-unavailable"); }
         }
 
         public void Dispose()
@@ -182,6 +208,14 @@ namespace Aegis.ProtectedSession
         }
 
 #if INSTALLED_VM_TEST
+        internal static InstalledVmInspection PrepareForTest(string root, string installId, uint revision,
+            string epoch, string digest, string selection, string selectionEpoch, Action authority,
+            IEnrollmentFiles files, Func<Guid, IVmManagement> create, IEnrollmentFiles storageFiles)
+        {
+            return CreateInspection(new InstalledVmRegistration(root, installId, revision, epoch, digest,
+                selection, selectionEpoch, authority, files, null, true), create, true, storageFiles, null, true);
+        }
+        internal void BindForTest(Action caller) { BindCore(caller); }
         // Compiled only in the contract fixture. Production uses the typed native
         // installed registration/admission above, never an injected authority.
         internal static InstalledVmInspection AcquireForTest(string root, string installId, uint revision,

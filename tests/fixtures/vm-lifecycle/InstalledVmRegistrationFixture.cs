@@ -67,12 +67,28 @@ internal static class InstalledVmRegistrationFixture
         var storageSource = new VmStorageFixture.Source();
         string storageHash;
         using (var storage = new VmStorageInspection(storageSource, storageFiles)) storageHash = storage.Digest;
-        if (mode.StartsWith("storage-", StringComparison.Ordinal))
+        if (mode.StartsWith("storage-", StringComparison.Ordinal) || mode == "prepared-slow")
             text = text.Replace("\"schemaVersion\":1", "\"schemaVersion\":2").Replace("\"status\":\"active\"",
                 "\"storageSha256\":\"" + storageHash + "\",\"status\":\"active\"");
         if (mode == "storage-initial-replacement") storageFiles.FileIdentity = new string('3', 32);
         if (mode == "storage-initial-metadata") storageFiles.Metadata = new string('3', 64);
         if (mode == "storage-malformed") text = text.Replace(storageHash, "invalid");
+        if (mode == "prepared-slow")
+        {
+            var preparedFile = new File(root, text); var preparedProvider = new Provider();
+            bool first = true;
+            preparedProvider.Storage.Queried = delegate { if (first) { first = false; System.Threading.Thread.Sleep(2200); } };
+            using (var prepared = InstalledVmRegistration.PrepareForTest(root, Install, 1, Epoch, Digest, Selection, SelectionEpoch,
+                delegate { }, preparedFile, delegate(Guid id) { return preparedProvider; }, storageFiles))
+            {
+                bool unboundRefused = false; try { prepared.Inspect(); } catch { unboundRefused = true; }
+                var admission = System.Diagnostics.Stopwatch.StartNew();
+                prepared.BindForTest(delegate { if (admission.ElapsedMilliseconds >= 2000) throw new InvalidOperationException(); });
+                bool accepted = prepared.Inspect() != null;
+                Console.WriteLine("{\"unboundRefused\":" + Boolean(unboundRefused) + ",\"accepted\":" + Boolean(accepted) + ",\"requests\":" + preparedProvider.Requests + "}");
+            }
+            return 0;
+        }
         string expectedDigest = Digest;
         if (mode == "record" || mode == "storage-record") { Console.WriteLine(text); return 0; }
         if (mode == "from-producer")

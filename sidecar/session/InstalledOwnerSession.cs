@@ -72,18 +72,21 @@ namespace Aegis.ProtectedSession
                                 {
                                     stage = 5; registration.Policy.CheckTuple(lease.BindServer(server));
                                     registration.CheckCurrent(); deadline.Check();
-                                    string locator = operation.Labels.Locator.Substring("\\\\.\\pipe\\aegis-owned-caller-".Length);
-                                    stage = 6;
-                                    InstalledOwnerPipe.Send(output, Encoding.ASCII.GetBytes("AEGISC02" + locator + operation.Labels.Session + operation.Labels.Generation), deadline);
-                                    stage = 7; substage = 1; CallerMainOperation.Context admitted = operation.Accept(Math.Min(2000, deadline.Remaining), ref substage);
-                                    // Admission reverted its thread token. Recheck installed authority immediately before the fixed observation.
-                                    stage = 8; substage = 0; registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
-                                    stage = 9;
                                     var vmCheckpoint = new VmInspectionCheckpoint();
+                                    stage = 9;
                                     try
                                     {
-                                        using (var vm = InstalledVmRegistration.AcquireIfConfigured(registration, admitted, vmCheckpoint))
+                                        using (var vm = InstalledVmRegistration.PrepareIfConfigured(registration, vmCheckpoint))
                                         {
+                                            deadline.Check();
+                                            string locator = operation.Labels.Locator.Substring("\\\\.\\pipe\\aegis-owned-caller-".Length);
+                                            stage = 6;
+                                            InstalledOwnerPipe.Send(output, Encoding.ASCII.GetBytes("AEGISC02" + locator + operation.Labels.Session + operation.Labels.Generation), deadline);
+                                            stage = 7; substage = 1; CallerMainOperation.Context admitted = operation.Accept(Math.Min(2000, deadline.Remaining), ref substage);
+                                            // Admission reverted its own impersonation; bind only that original caller.
+                                            stage = 8; substage = 0; registration.CheckCurrent(); deadline.Check(); admitted.CheckCurrent();
+                                            stage = 9;
+                                            if (vm != null) vm.BindCaller(admitted);
                                             vmCheckpoint.Code = 0; deadline.Check(); string result = admitted.InspectOwned();
                                             if (vm != null) vm.Inspect();
                                             // Independently persisted actual-dispatch oracle outside the pinned installation root.

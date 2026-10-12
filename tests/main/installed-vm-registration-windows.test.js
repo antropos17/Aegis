@@ -89,6 +89,13 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         providerClosed: true,
       });
     });
+    it('prepares expensive storage observation before the two-second caller admission', () => {
+      expect(invoke('prepared-slow')).toEqual({
+        unboundRefused: true,
+        accepted: true,
+        requests: 0,
+      });
+    });
     it.each(['storage-initial-replacement', 'storage-initial-metadata', 'storage-malformed'])(
       'refuses a stale or malformed disk binding: %s',
       (mode) => {
