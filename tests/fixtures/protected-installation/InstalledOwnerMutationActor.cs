@@ -105,6 +105,13 @@ public static class InstalledOwnerMutationLauncher
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateProcess(IntPtr process, uint code);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetProcessTimes(IntPtr process, out long birth, out long exit, out long kernel, out long user);
     private static void Require(bool value) { if (!value) throw new InvalidDataException("installed-mutation-launch-refused"); }
+    private static void RequireNative(bool value)
+    {
+        if (value) return;
+        int error = Marshal.GetLastWin32Error();
+        var failure = new InvalidDataException("installed-mutation-launch-refused");
+        failure.Data["protectedNativeWin32"] = error; throw failure;
+    }
     private static byte[] Token(IntPtr token, int kind)
     {
         int needed; GetTokenInformation(token, kind, IntPtr.Zero, 0, out needed); Require(needed > 0 && needed < 65536);
@@ -160,32 +167,43 @@ public static class InstalledOwnerMutationLauncher
         Require(Path.GetFileName(executable) == "installed-owner-actor.exe" && executable.IndexOf('"') < 0 && scratch.IndexOf('"') < 0);
         var evidence = new Dictionary<string,object>(); Startup startup = new Startup(); startup.size = Marshal.SizeOf(typeof(Startup));
         ProcessInfo child = new ProcessInfo(); IntPtr token = IntPtr.Zero, job = IntPtr.Zero, environment = IntPtr.Zero; bool settled = false, assigned = false;
+        string checkpoint = "installed-mutation-job";
         try {
-            job = CreateJobObject(IntPtr.Zero, null); Require(job != IntPtr.Zero);
+            job = CreateJobObject(IntPtr.Zero, null); RequireNative(job != IntPtr.Zero);
             byte[] limits = new byte[144]; Array.Copy(BitConverter.GetBytes(0x2000U), 0, limits, 16, 4);
-            Require(SetInformationJobObject(job, 9, limits, (uint)limits.Length));
+            RequireNative(SetInformationJobObject(job, 9, limits, (uint)limits.Length));
             environment = Marshal.StringToHGlobalUni("SystemRoot=C:\\Windows\0TEMP=" + scratch + "\0TMP=" + scratch + "\0WINDIR=C:\\Windows\0\0");
-            Require(CreateProcessWithLogonW(user, ".", password, 0, executable, new StringBuilder("\"" + executable + "\" \"" + scratch + "\""), 4 | 0x08000000 | 0x400, environment, scratch, ref startup, out child));
-            assigned = AssignProcessToJobObject(job, child.process); Require(assigned);
+            checkpoint = "installed-mutation-create";
+            RequireNative(CreateProcessWithLogonW(user, ".", password, 0, executable, new StringBuilder("\"" + executable + "\" \"" + scratch + "\""), 4 | 0x08000000 | 0x400, environment, scratch, ref startup, out child));
+            checkpoint = "installed-mutation-bind";
+            assigned = AssignProcessToJobObject(job, child.process); RequireNative(assigned);
             // A query-only handle observes every group and assigned privilege;
             // no token handle is delivered to the actor.
-            Require(OpenProcessToken(child.process, 8, out token));
+            checkpoint = "installed-mutation-token-query";
+            RequireNative(OpenProcessToken(child.process, 8, out token));
+            checkpoint = "installed-mutation-profile";
             string sid = TokenSid(token, 1), integrity = TokenSid(token, 25);
             byte[] statistics = Token(token, 10), session = Token(token, 12), elevation = Token(token, 20);
             Require(sid == expectedSid && integrity == "S-1-16-8192" && BitConverter.ToUInt32(elevation, 0) == 0);
             Require(BitConverter.ToUInt32(Token(token, 8), 0) == 1 && Token(token, 21)[0] == 0 &&
                 BitConverter.ToUInt32(Token(token, 26), 0) == 0 && BitConverter.ToUInt32(Token(token, 29), 0) == 0 && BitConverter.ToUInt32(Token(token, 11), 0) == 0);
-            evidence["groups"] = StandardGroups(token); evidence["privileges"] = StandardPrivileges(token);
+            checkpoint = "installed-mutation-groups"; evidence["groups"] = StandardGroups(token);
+            checkpoint = "installed-mutation-privileges"; evidence["privileges"] = StandardPrivileges(token);
             evidence["adminCapable"] = false; evidence["powerfulPrivilegesAssigned"] = false; evidence["strictStandardProfile"] = true;
+            checkpoint = "installed-mutation-birth";
             long birth, exit, kernel, cpu; Require(GetProcessTimes(child.process, out birth, out exit, out kernel, out cpu) && birth > 0);
             evidence["pid"] = child.pid; evidence["birthFileTime"] = birth; evidence["operatorSid"] = sid; evidence["integritySid"] = integrity;
             evidence["elevated"] = false; evidence["enabledAdministrator"] = false; evidence["authentication"] = BitConverter.ToUInt64(statistics, 8).ToString("x16"); evidence["session"] = BitConverter.ToUInt32(session, 0);
+            checkpoint = "installed-mutation-release";
             Require(ResumeThread(child.thread) == 1 && WaitForSingleObject(child.process, 10000) == 0);
+            checkpoint = "installed-mutation-exit";
             uint code; Require(GetExitCodeProcess(child.process, out code)); evidence["exitCode"] = code;
+            checkpoint = "installed-mutation-census";
             byte[] census = new byte[48]; uint needed;
             Require(QueryInformationJobObject(job, 1, census, (uint)census.Length, out needed) && BitConverter.ToUInt32(census, 40) == 0);
             evidence["jobEmpty"] = true; evidence["exactProcessExited"] = true; settled = true; return evidence;
-        } finally {
+        } catch (Exception failure) { failure.Data["protectedOperation"] = checkpoint; throw; }
+        finally {
             bool cleanup = true;
             if (!settled && job != IntPtr.Zero) {
                 cleanup = TerminateJobObject(job, 1);

@@ -170,6 +170,12 @@ function Test-InstalledOwnerMutationActions($Rows) {
     }
     return $true
 }
+function Import-InstalledOwnerMutationLauncher($ActorHeld) {
+    # Windows PowerShell Add-Type refuses EXE assemblies. Load the held bytes;
+    # bind the launcher to this exact assembly rather than a cached type name.
+    $assembly = [Reflection.Assembly]::Load([byte[]]$ActorHeld.Read(4MB))
+    return $assembly.GetType('InstalledOwnerMutationLauncher', $true).GetMethod('Run')
+}
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     Assert-ProtectedInstallation $Association
@@ -187,10 +193,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     try {
         $actorHash = $actorHeld.Hash(4MB)
         if ($ExpectedActorSha256 -cnotmatch '^[a-f0-9]{64}$' -or $actorHash -cne $ExpectedActorSha256) { throw 'installed-mutation-actor-source-refused' }
-        # Windows PowerShell Add-Type refuses EXE assemblies. Load the held bytes;
-        # bind the launcher to this exact assembly rather than a cached type name.
-        $assembly = [Reflection.Assembly]::Load([byte[]]$actorHeld.Read(4MB))
-        $launcher = $assembly.GetType('InstalledOwnerMutationLauncher', $true).GetMethod('Run')
+        $launcher = Import-InstalledOwnerMutationLauncher $actorHeld
         try { $observed = $launcher.Invoke($null, @($Actor, $Association.operatorAccount, $Association.password, $Scratch, $Association.operatorSid)) }
         catch {
             $error = $_.Exception
