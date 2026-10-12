@@ -100,5 +100,8 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         replacementSucceeded: true,
       });
     });
+    it('detects a renamed disposable directory and preserves it without deleting through the old path', () => {
+      expect(invoke('renamed-control')).toEqual({ refused: true, removed: false, remaining: 2 });
+    });
   },
 );

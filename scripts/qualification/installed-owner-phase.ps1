@@ -382,7 +382,9 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         if ($journal.cleanup.state -ceq 'unknown') { $report.cleanupFailure = @{ stage = 'qualified-partial-cleanup'; operation = $journal.operation; diagnosticCode = 'protected-installation-cleanup-unknown'; nativeWin32 = $null; hResult = $null } }
     }
     $report.passed = $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $null -ne $report.partial -and $report.partial.passed
-    $json = $report | ConvertTo-Json -Depth 20
+    $pretty = $report | ConvertTo-Json -Depth 20
+    $json = $report | ConvertTo-Json -Depth 20 -Compress
+    Write-Host ('installed-owner-receipt-bytes pretty=' + [Text.Encoding]::UTF8.GetByteCount($pretty) + ' compact=' + [Text.Encoding]::UTF8.GetByteCount($json))
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 64KB) { throw 'installed-owner-subreceipt-budget-refused' }
     return $report
 }

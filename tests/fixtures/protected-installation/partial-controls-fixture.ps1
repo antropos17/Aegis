@@ -1,4 +1,4 @@
-param([string]$Root, [ValidateSet('empty', 'seeded', 'foreign', 'replaced', 'loader', 'replacement-control')][string]$Mode, [string]$GuardSource)
+param([string]$Root, [ValidateSet('empty', 'seeded', 'foreign', 'replaced', 'loader', 'replacement-control', 'renamed-control')][string]$Mode, [string]$GuardSource)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/qualification/installed-owner-phase.ps1')
@@ -42,7 +42,7 @@ try {
         [IO.File]::WriteAllText((Join-Path $path 'replace-original.txt'), 'seeded-original')
     }
     $replacementSucceeded = $null
-    if ($Mode -ceq 'replacement-control') {
+    if ($Mode -cin @('replacement-control', 'renamed-control')) {
         $context.control = Open-InstalledOwnerControlPin $context.control
         $context.controlReadOnly = $true
         Add-Type @'
@@ -52,15 +52,20 @@ public static class PartialReplacement {
     public static extern bool MoveFileEx(string source, string destination, uint flags);
 }
 '@
-        $source = Join-Path $path 'replacement.bin'; $target = Join-Path $path 'replace-original.txt'
-        [IO.File]::WriteAllText($source, 'allowed-disposable-replacement')
-        $replacementSucceeded = [PartialReplacement]::MoveFileEx($source, $target, 1) -and [IO.File]::ReadAllText($target) -ceq 'allowed-disposable-replacement'
-        $context.control.Recheck()
-        $context.controlRows = @(Get-InstalledOwnerControlRows $path)
+        if ($Mode -ceq 'renamed-control') {
+            if (![PartialReplacement]::MoveFileEx($path, ($path + '-renamed'), 0)) { throw 'rename-control-not-executed' }
+        } else {
+            $source = Join-Path $path 'replacement.bin'; $target = Join-Path $path 'replace-original.txt'
+            [IO.File]::WriteAllText($source, 'allowed-disposable-replacement')
+            $replacementSucceeded = [PartialReplacement]::MoveFileEx($source, $target, 1) -and [IO.File]::ReadAllText($target) -ceq 'allowed-disposable-replacement'
+            $context.control.Recheck()
+            $context.controlRows = @(Get-InstalledOwnerControlRows $path)
+        }
     }
     $refused = $false
     try { Remove-ProtectedInstallAncillary $context } catch { $refused = $true }
-    $result = @{ refused = $refused; removed = !(Test-Path -LiteralPath $path); remaining = @((Get-ChildItem -LiteralPath $path -ErrorAction SilentlyContinue)).Count }
+    $observedPath = if ($Mode -ceq 'renamed-control') { $path + '-renamed' } else { $path }
+    $result = @{ refused = $refused; removed = !(Test-Path -LiteralPath $observedPath); remaining = @((Get-ChildItem -LiteralPath $observedPath -ErrorAction SilentlyContinue)).Count }
     if ($Mode -ceq 'replacement-control') { $result.replacementSucceeded = $replacementSucceeded }
     $result | ConvertTo-Json -Compress
 } finally { if ($null -ne $context.control) { $context.control.Dispose() } }
