@@ -176,6 +176,14 @@ function Import-InstalledOwnerMutationLauncher($ActorHeld) {
     $assembly = [Reflection.Assembly]::Load([byte[]]$ActorHeld.Read(4MB))
     return $assembly.GetType('InstalledOwnerMutationLauncher', $true).GetMethod('Run')
 }
+function Get-InstalledOwnerControlRows([string]$Scratch) {
+    $files = @(Get-ChildItem -LiteralPath $Scratch -Force)
+    if ($files.Count -gt 5 -or @($files | Where-Object {
+        $_.Name -cnotin @('delete-original.txt', 'replace-original.txt', 'actor-result.json', 'write-marker.txt', 'replacement.bin') -or
+        $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Length -gt 16KB
+    }).Count) { throw 'protected-control-unknown-child' }
+    return @($files | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName $false $false })
+}
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     Assert-ProtectedInstallation $Association
@@ -197,14 +205,26 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
         try { $observed = $launcher.Invoke($null, @($Actor, $Association.operatorAccount, $Association.password, $Scratch, $Association.operatorSid)) }
         catch {
             $error = $_.Exception
+            $cleanupConfirmed = $false
             for ($depth = 0; $depth -lt 8 -and $null -ne $error; $depth++) {
                 if ($error.Message -like '*installed-mutation-cleanup-unknown*') { $Association.cleanupUnknown = $true }
+                if ($error.Data.Contains('installedMutationCleanupConfirmed') -and
+                    $error.Data['installedMutationCleanupConfirmed'] -is [bool] -and $error.Data['installedMutationCleanupConfirmed']) { $cleanupConfirmed = $true }
                 $error = $error.InnerException
+            }
+            if ($cleanupConfirmed -and !$Association.cleanupUnknown) {
+                $Association.control.Recheck()
+                $Association.controlRows = @(Get-InstalledOwnerControlRows $Scratch)
             }
             throw
         }
         $actorHeld.Recheck()
     } finally { $actorHeld.Dispose() }
+    if ($observed.jobEmpty -isnot [bool] -or !$observed.jobEmpty -or $observed.exactProcessExited -isnot [bool] -or !$observed.exactProcessExited) {
+        $Association.cleanupUnknown = $true; throw 'installed-mutation-cleanup-unknown'
+    }
+    $Association.control.Recheck()
+    $Association.controlRows = @(Get-InstalledOwnerControlRows $Scratch)
     $path = Join-Path $Scratch 'actor-result.json'; $file = Get-Item -LiteralPath $path -Force
     if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 16KB) { throw 'installed-mutation-output-refused' }
     $actual = [IO.File]::ReadAllText($path) | ConvertFrom-Json
@@ -215,7 +235,6 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $writeHeld = [ProtectedInstallFile]::new((Join-Path $Scratch 'write-marker.txt'), $false, $false)
     try { $writeHash = $writeHeld.Hash(1024); $writeObserved = [Text.Encoding]::UTF8.GetString($writeHeld.Read(1024)) -ceq 'allowed-disposable-write' } finally { $writeHeld.Dispose() }
     $deleteObserved = !(Test-Path -LiteralPath (Join-Path $Scratch 'delete-original.txt'))
-    $Association.controlRows = @('actor-result.json', 'write-marker.txt', 'replace-original.txt' | ForEach-Object { Read-ProtectedInstallSnapshot (Join-Path $Scratch $_) $false $false })
     $unchanged = $true
     $after = @()
     foreach ($row in @($before) + @($root, $parent, $receipts)) {

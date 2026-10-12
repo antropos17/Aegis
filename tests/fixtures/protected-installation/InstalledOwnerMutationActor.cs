@@ -167,7 +167,7 @@ public static class InstalledOwnerMutationLauncher
         Require(Path.GetFileName(executable) == "installed-owner-actor.exe" && executable.IndexOf('"') < 0 && scratch.IndexOf('"') < 0);
         var evidence = new Dictionary<string,object>(); Startup startup = new Startup(); startup.size = Marshal.SizeOf(typeof(Startup));
         ProcessInfo child = new ProcessInfo(); IntPtr token = IntPtr.Zero, job = IntPtr.Zero, environment = IntPtr.Zero; bool settled = false, assigned = false;
-        string checkpoint = "installed-mutation-job";
+        string checkpoint = "installed-mutation-job"; Exception originalFailure = null;
         try {
             job = CreateJobObject(IntPtr.Zero, null); RequireNative(job != IntPtr.Zero);
             byte[] limits = new byte[144]; Array.Copy(BitConverter.GetBytes(0x2000U), 0, limits, 16, 4);
@@ -195,14 +195,25 @@ public static class InstalledOwnerMutationLauncher
             evidence["pid"] = child.pid; evidence["birthFileTime"] = birth; evidence["operatorSid"] = sid; evidence["integritySid"] = integrity;
             evidence["elevated"] = false; evidence["enabledAdministrator"] = false; evidence["authentication"] = BitConverter.ToUInt64(statistics, 8).ToString("x16"); evidence["session"] = BitConverter.ToUInt32(session, 0);
             checkpoint = "installed-mutation-release";
+            var completion = System.Diagnostics.Stopwatch.StartNew();
             Require(ResumeThread(child.thread) == 1 && WaitForSingleObject(child.process, 10000) == 0);
             checkpoint = "installed-mutation-exit";
             uint code; Require(GetExitCodeProcess(child.process, out code)); evidence["exitCode"] = code;
             checkpoint = "installed-mutation-census";
             byte[] census = new byte[48]; uint needed;
-            Require(QueryInformationJobObject(job, 1, census, (uint)census.Length, out needed) && BitConverter.ToUInt32(census, 40) == 0);
+            int queries = 0; uint initialActive = 0;
+            while (true) {
+                RequireNative(QueryInformationJobObject(job, 1, census, (uint)census.Length, out needed));
+                Require(needed == census.Length); uint active = BitConverter.ToUInt32(census, 40);
+                if (queries++ == 0) initialActive = active;
+                if (active == 0) break;
+                // Process signaling may precede Job accounting. Share the existing
+                // completion budget; no new wait extends the actor deadline.
+                Require(completion.ElapsedMilliseconds < 10000); System.Threading.Thread.Sleep(2);
+            }
+            evidence["initialActiveProcesses"] = initialActive; evidence["censusQueries"] = queries;
             evidence["jobEmpty"] = true; evidence["exactProcessExited"] = true; settled = true; return evidence;
-        } catch (Exception failure) { failure.Data["protectedOperation"] = checkpoint; throw; }
+        } catch (Exception failure) { originalFailure = failure; failure.Data["protectedOperation"] = checkpoint; throw; }
         finally {
             bool cleanup = true;
             if (!settled && job != IntPtr.Zero) {
@@ -212,12 +223,13 @@ public static class InstalledOwnerMutationLauncher
                 byte[] census = new byte[48]; uint needed;
                 cleanup &= QueryInformationJobObject(job, 1, census, (uint)census.Length, out needed) && BitConverter.ToUInt32(census, 40) == 0;
             }
-            if (token != IntPtr.Zero) CloseHandle(token);
-            if (child.thread != IntPtr.Zero) CloseHandle(child.thread);
-            if (child.process != IntPtr.Zero) CloseHandle(child.process);
-            if (job != IntPtr.Zero) CloseHandle(job);
+            if (token != IntPtr.Zero) cleanup &= CloseHandle(token);
+            if (child.thread != IntPtr.Zero) cleanup &= CloseHandle(child.thread);
+            if (child.process != IntPtr.Zero) cleanup &= CloseHandle(child.process);
+            if (job != IntPtr.Zero) cleanup &= CloseHandle(job);
             if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
-            if (!cleanup) throw new InvalidDataException("installed-mutation-cleanup-unknown");
+            if (originalFailure != null) originalFailure.Data["installedMutationCleanupConfirmed"] = cleanup;
+            if (!cleanup) throw new InvalidDataException("installed-mutation-cleanup-unknown", originalFailure);
         }
     }
 }

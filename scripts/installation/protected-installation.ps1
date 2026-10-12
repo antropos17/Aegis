@@ -153,7 +153,7 @@ function Assert-ProtectedInstallAncillary($Context) {
     if ($Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     if ($null -ne $Context.control) {
         $Context.control.Recheck(); $files = @(Get-ChildItem -LiteralPath $Context.control.PathName -Force)
-        if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 3 -or @($files | Where-Object { $_.FullName -cnotin @($Context.controlRows.path) -or $_.Name -cnotin @('delete-original.txt', 'replace-original.txt', 'actor-result.json', 'write-marker.txt') }).Count) { throw 'protected-control-unknown-child' }
+        if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 5 -or @($files | Where-Object { $_.FullName -cnotin @($Context.controlRows.path) -or $_.Name -cnotin @('delete-original.txt', 'replace-original.txt', 'actor-result.json', 'write-marker.txt', 'replacement.bin') }).Count) { throw 'protected-control-unknown-child' }
         foreach ($row in $Context.controlRows) { Assert-ProtectedInstallSnapshot $row }
     }
     if ($null -ne $Context.receipts) {
@@ -167,7 +167,7 @@ function Remove-ProtectedInstallAncillary($Context) {
     Assert-ProtectedInstallAncillary $Context
     if ($null -ne $Context.control) {
         $Context.control.Recheck(); $files = @(Get-ChildItem -LiteralPath $Context.control.PathName -Force)
-        if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 3 -or @($files | Where-Object { $_.Name -cnotin @('delete-original.txt', 'actor-result.json', 'write-marker.txt', 'replace-original.txt') -or $_.Length -gt 16KB }).Count) { throw 'protected-control-unknown-child' }
+        if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 5 -or @($files | Where-Object { $_.Name -cnotin @('delete-original.txt', 'actor-result.json', 'write-marker.txt', 'replace-original.txt', 'replacement.bin') -or $_.Length -gt 16KB }).Count) { throw 'protected-control-unknown-child' }
         foreach ($row in $Context.controlRows) {
             $held = [ProtectedInstallFile]::new($row.path, $false, $true)
             try { if ($held.FileId -cne $row.fileId -or $held.Volume -cne $row.volume -or $held.Sddl -cne $row.sddl -or $held.Hash(16KB) -cne $row.sha256) { throw 'protected-control-association-refused' }; $held.Delete() } finally { $held.Dispose() }
