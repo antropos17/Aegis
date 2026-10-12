@@ -49,7 +49,7 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
     $expectedTransfer = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '\transfer'
     if (![IO.Path]::GetFullPath($TransferRoot).TrimEnd('\').Equals($expectedTransfer, [StringComparison]::OrdinalIgnoreCase)) { throw 'installed-owner-guest-input-refused' }
     $payload = Join-Path $TransferRoot 'installed-owner'
-    $held = [Collections.Generic.List[IO.FileStream]]::new(); $pins = @(); $total = 0; $job = $null; $value = $null
+    $held = [Collections.Generic.List[IO.FileStream]]::new(); $pins = @(); $total = 0; $job = $null; $value = $null; $values = @(); $checkpoint = 'inputs'
     try {
         foreach ($relative in Get-InstalledOwnerGuestPayloadLeaves) {
             $path = Join-Path $payload ($relative.Replace('/', '\')); $file = Get-Item -LiteralPath $path -Force
@@ -70,7 +70,8 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
         }
         $pinsJson = $pins | ConvertTo-Json -Depth 3 -Compress
         if ([Text.Encoding]::UTF8.GetByteCount($pinsJson) -gt 16KB) { throw 'installed-owner-guest-input-refused' }
-        $invocation = (Get-InstalledOwnerGuestInvocation).ToString()
+        $checkpoint = 'invocation'; $invocation = (Get-InstalledOwnerGuestInvocation).ToString()
+        $checkpoint = 'transfer-and-execution'
         $job = Start-Job -ArgumentList $Id, $Credential, $payload, $pinsJson, $ExpectedSourceSha, $invocation -ScriptBlock {
             param($Id, $Credential, $Payload, $PinsJson, $SourceSha, $Invocation)
             $ErrorActionPreference = 'Stop'; $session = $null
@@ -99,10 +100,13 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
                 Invoke-Command -Session $session -ArgumentList $PinsJson, $SourceSha -ScriptBlock ([scriptblock]::Create($Invocation))
             } finally { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue } }
         }
+        $checkpoint = 'wait'
         if ($null -eq (Wait-Job -Job $job -Timeout 180)) { throw 'installed-owner-guest-observation-unknown' }
+        $checkpoint = 'receive'
         $values = @(Receive-Job -Job $job -ErrorAction Stop)
+        if ($values.Count -eq 1) { $value = $values[0] }
         if ($job.State -cne 'Completed' -or $values.Count -ne 1) { throw 'installed-owner-guest-observation-unknown' }
-        $value = $values[0]
+        $checkpoint = 'result-validation'
         if ([Text.Encoding]::UTF8.GetByteCount(($value | ConvertTo-Json -Depth 18 -Compress)) -gt 96KB -or
             !(Test-InstalledOwnerGuestResult $value $ExpectedSourceSha $FirstPhase.guestResult.guest $pins)) { throw 'installed-owner-guest-result-refused' }
         Get-CloudHostRouteSnapshot $Id $Name $VmRoot | Out-Null
@@ -115,6 +119,8 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
             payloadHeldThroughClosure = $true; ordering = $gate; completeE1 = $false; completeE11 = $false; launchAllowed = $false }
     } catch { return @{ passed = $false; kind = 'installed-owner-guest-phase'; controls = $value;
         failure = 'installed-owner-guest-unavailable-or-refused'; payloadHeldThroughClosure = $false;
+        checkpoint = $checkpoint; resultCount = [Math]::Min($values.Count, 16); detail = (Get-CloudGuestFailureDetails $_.Exception);
+        jobState = $(if ($null -ne $job -and $job.State.ToString() -cin @('Completed','Failed','Stopped','Running','NotStarted','Blocked','Disconnected')) { $job.State.ToString() } else { 'unobserved' });
         completeE1 = $false; completeE11 = $false; launchAllowed = $false } }
     finally {
         if ($null -ne $job) {
