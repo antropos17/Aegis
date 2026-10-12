@@ -155,6 +155,39 @@ function readyAll() {
 describe('chokidar watch-root registry (step B)', () => {
   let state;
 
+  it('retires an initial root that never becomes ready and recovers beside ready survivors', async () => {
+    vi.useFakeTimers();
+    try {
+      await fileWatcher.setupFileWatchers();
+      const initial = [...fakeWatchers];
+      for (const survivor of initial.slice(1)) survivor.emit('ready');
+      await vi.advanceTimersByTimeAsync(9999);
+      expect(initial[0].close).not.toHaveBeenCalled();
+      expect(fileWatcher.getWatchPlan().state).toBe('STARTING');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(initial[0].close).toHaveBeenCalledOnce();
+      expect(state.watchers).toHaveLength(3);
+      expect(root(fileWatcher.getWatchPlan(), ALL_GROUPS[0])).toMatchObject({
+        hasLiveWatcher: false,
+        lastError: 'watch-root-ready-timeout',
+      });
+      expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+      initial[0].emit('ready');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fakeWatchers).toHaveLength(5);
+      fakeWatchers[4].emit('ready');
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+      expect(state.watchers).toHaveLength(4);
+      for (const survivor of [...initial.slice(1), fakeWatchers[4]]) {
+        expect(survivor.close).not.toHaveBeenCalled();
+      }
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
   it('leaves complete plan loss to the main retry without creating a local worker', async () => {
     vi.useFakeTimers();
     try {
