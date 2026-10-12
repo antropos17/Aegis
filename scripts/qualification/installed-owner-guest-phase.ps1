@@ -74,9 +74,10 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
         $checkpoint = 'transfer-and-execution'
         $job = Start-Job -ArgumentList $Id, $Credential, $payload, $pinsJson, $ExpectedSourceSha, $invocation -ScriptBlock {
             param($Id, $Credential, $Payload, $PinsJson, $SourceSha, $Invocation)
-            $ErrorActionPreference = 'Stop'; $session = $null
+            $ErrorActionPreference = 'Stop'; $session = $null; $transferCheckpoint = 'session'; $relative = $null
             try {
                 $session = New-PSSession -VMId ([guid]$Id) -Credential $Credential -ErrorAction Stop
+                $transferCheckpoint = 'protected-root'
                 Invoke-Command -Session $session -ScriptBlock {
                     $ErrorActionPreference = 'Stop'; $root = 'C:\ProgramData\AegisCloudLab\installed-owner-inputs'
                     if (Test-Path -LiteralPath $root) { throw 'installed-owner-guest-transfer-refused' }
@@ -93,11 +94,21 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
                         New-Item -ItemType Directory -Path (Join-Path $root $leaf) | Out-Null
                     }
                 } | Out-Null
+                $transferCheckpoint = 'payload-copy'
                 foreach ($pin in @($PinsJson | ConvertFrom-Json)) {
+                    $relative = $pin.relative
                     Copy-Item -LiteralPath (Join-Path $Payload ($pin.relative.Replace('/', '\'))) -ToSession $session -Destination (
                         Join-Path 'C:\ProgramData\AegisCloudLab\installed-owner-inputs' ($pin.relative.Replace('/', '\')))
                 }
+                $transferCheckpoint = 'bootstrap'; $relative = $null
                 Invoke-Command -Session $session -ArgumentList $PinsJson, $SourceSha -ScriptBlock ([scriptblock]::Create($Invocation))
+            } catch {
+                $leaf = if ($relative -is [string] -and $relative -cmatch '^(?:binaries/aegis-(?:owner|session|main)\.exe|baseline/aegis-session\.exe|native/installed-owner-actor\.exe|scripts/installation/(?:ProtectedInstallFiles\.cs|ProtectedInstallService\.cs|protected-install-(?:files|transaction)\.ps1|protected-installation\.ps1)|scripts/qualification/installed-owner-(?:phase|guest-bootstrap)\.ps1|payload-manifest\.json)$') { $relative } else { $null }
+                $category = $_.CategoryInfo.Category.ToString()
+                if ($category -cnotin @('InvalidArgument','InvalidOperation','ObjectNotFound','PermissionDenied','SecurityError','ResourceUnavailable','OperationStopped','NotSpecified')) { $category = 'other' }
+                return @{ schemaVersion = 1; kind = 'installed-owner-guest-transfer-refusal'; passed = $false;
+                    checkpoint = $transferCheckpoint; payloadLeaf = $leaf; category = $category;
+                    launchAllowed = $false; completeE1 = $false; completeE11 = $false }
             } finally { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue } }
         }
         $checkpoint = 'wait'
