@@ -13,6 +13,7 @@ namespace Aegis.ProtectedSession
         private MainRegistrationEvidence proof;
         private CallerEndpoint endpoint;
         private CallerAdmission.Context admission;
+        private ICallerInstalledEndpoint installed;
         private bool published, closed, cleanupUnknown;
         internal sealed class Routing
         {
@@ -51,6 +52,7 @@ namespace Aegis.ProtectedSession
                     lease.BindServer(server);
                     owner.main = CallerRegistration.RegisterMain(heldMain, server);
                     owner.proof = MainRegistrationEvidence.Acquire(lease, server, owner.main, files);
+                    owner.installed = installed;
                     owner.endpoint = new CallerEndpoint(owner.main, heldMain, installed);
                     owner.CheckCore(); owner.Labels = new Routing(owner.endpoint, owner.main);
                     return owner;
@@ -97,6 +99,18 @@ namespace Aegis.ProtectedSession
                 lock (owner.server.Gate)
                 {
                     try { CallerNative.Require(owner.published); owner.CheckCore(); native.CheckCurrent(); owner.proof.CheckSelection(native); }
+                    catch { owner.Close(); throw; }
+                }
+            }
+            internal void CheckInstalledOwner(InstalledOwnerRegistration expected)
+            {
+                lock (owner.server.Gate)
+                {
+                    try
+                    {
+                        CallerNative.Require(expected != null && Object.ReferenceEquals(owner.installed, expected));
+                        CheckCurrent();
+                    }
                     catch { owner.Close(); throw; }
                 }
             }
