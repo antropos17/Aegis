@@ -46,23 +46,46 @@ namespace Aegis.ProtectedSession
             using (SafeFileHandle self = CallerNative.DuplicateSelf())
             {
                 SafeFileHandle original = null, copy = null;
-                IntPtr descriptor = IntPtr.Zero;
                 try
                 {
                     CallerNative.Require(OpenProcessToken(self, 0xA, out original)); // query + duplicate, original ACL unchanged
                     CallerNative.Require(CallerIdentity.Observe(original).InstalledSystem());
                     CallerNative.Require(DuplicateTokenEx(original, 0xF01FF, IntPtr.Zero, 2, 1, out copy));
-                    uint bytes;
-                    CallerNative.Require(CallerEndpointNative.ConvertStringSecurityDescriptorToSecurityDescriptor(
-                        "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x8;;;" + operatorSid + ")", 1, out descriptor, out bytes));
-                    bool present, defaulted; IntPtr dacl;
-                    CallerNative.Require(GetSecurityDescriptorDacl(descriptor, out present, out dacl, out defaulted) && present && dacl != IntPtr.Zero && !defaulted);
-                    CallerNative.Require(SetSecurityInfo(copy, 6, 4 | 0x80000000, IntPtr.Zero, IntPtr.Zero, dacl, IntPtr.Zero) == 0);
+                    SetSupervisorQueryAccess(copy, operatorSid);
                     CallerEndpointNative.RequireNonInherited(copy); CallerNative.Require(CallerIdentity.Observe(copy).InstalledSystem());
                     SafeFileHandle result = copy; copy = null; return result;
                 }
-                finally { if (descriptor != IntPtr.Zero) CallerEndpointNative.LocalFree(descriptor); if (copy != null) copy.Dispose(); if (original != null) original.Dispose(); }
+                finally { if (copy != null) copy.Dispose(); if (original != null) original.Dispose(); }
             }
+        }
+        // Process creation can assign another primary token object. Apply the query-only
+        // grant to that actual suspended supervisor token, before either child is released.
+        internal static void GrantSupervisorQuery(SafeFileHandle supervisor, string operatorSid)
+        {
+            SafeFileHandle assigned = null;
+            try
+            {
+                CallerNative.Require(OpenProcessToken(supervisor, 0x40008, out assigned)); // WRITE_DAC + TOKEN_QUERY
+                SetSupervisorQueryAccess(assigned, operatorSid);
+            }
+            finally { if (assigned != null) assigned.Dispose(); }
+        }
+        private static void SetSupervisorQueryAccess(SafeFileHandle token, string operatorSid)
+        {
+            CallerNative.Require(CallerIdentity.Observe(token).InstalledSystem());
+            IntPtr descriptor = IntPtr.Zero;
+            try
+            {
+                uint bytes;
+                CallerNative.Require(CallerEndpointNative.ConvertStringSecurityDescriptorToSecurityDescriptor(
+                    "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x8;;;" + operatorSid + ")", 1, out descriptor, out bytes));
+                bool present, defaulted; IntPtr dacl;
+                CallerNative.Require(GetSecurityDescriptorDacl(descriptor, out present, out dacl, out defaulted) && present && dacl != IntPtr.Zero && !defaulted);
+                CallerNative.Require(SetSecurityInfo(token, 6, 4 | 0x80000000, IntPtr.Zero, IntPtr.Zero, dacl, IntPtr.Zero) == 0);
+                CallerEndpointNative.RequireNonInherited(token);
+                CallerNative.Require(CallerIdentity.Observe(token).InstalledSystem());
+            }
+            finally { if (descriptor != IntPtr.Zero) CallerEndpointNative.LocalFree(descriptor); }
         }
         internal static string ChangeNotifyLuid()
         { Luid luid; CallerNative.Require(LookupPrivilegeValue(null, "SeChangeNotifyPrivilege", out luid)); return unchecked((uint)luid.High).ToString("x8") + luid.Low.ToString("x8"); }

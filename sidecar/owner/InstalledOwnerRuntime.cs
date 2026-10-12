@@ -56,6 +56,7 @@ namespace Aegis.InstalledOwner
                     var launcher = new CallerLauncherNative();
                     phase = "create-children";
                     supervisor = launcher.CreateInstalled(Path.Combine(InstalledOwnerPolicy.Root, "aegis-session.exe"), supervisorToken, supervisorInput.Read, supervisorOutput.Write, false);
+                    InstalledOwnerNative.GrantSupervisorQuery(supervisor.Process, policy.OperatorSid);
                     main = launcher.CreateInstalled(Path.Combine(InstalledOwnerPolicy.Root, "aegis-main.exe"), token, mainInput.Read, null, true);
                     // Assignment may duplicate the token object. Pin the actual suspended child's token,
                     // requiring the approved logon tuple/profile before detecting later replacement.
