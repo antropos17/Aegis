@@ -2,6 +2,26 @@ param([Parameter(Mandatory = $true)][string]$ExpectedSourceSha,
     [Parameter(Mandatory = $true)][string]$ExpectedPinsJson)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+function Get-InstalledOwnerPinnedModule([string]$Text, [string]$Path, [string[]]$Dependencies) {
+    # The caller has already held and hashed this exact input. Resolve its known
+    # dependency imports from the same pinned set, retaining lexical file paths.
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseInput($Text, $Path, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'installed-owner-guest-module-refused' }
+    $imports = @($ast.FindAll({ param($node)
+        $node -is [Management.Automation.Language.CommandAst] -and $node.InvocationOperator -eq [Management.Automation.Language.TokenKind]::Dot
+    }, $true))
+    if ($imports.Count -ne $Dependencies.Count) { throw 'installed-owner-guest-module-refused' }
+    foreach ($dependency in $Dependencies) {
+        $expected = '. (Join-Path $PSScriptRoot ' + "'" + $dependency + "')"
+        $matched = @($imports | Where-Object { $_.Extent.Text -ceq $expected })
+        if ($matched.Count -ne 1) { throw 'installed-owner-guest-module-refused' }
+        $Text = $Text.Replace($expected, (' ' * $expected.Length))
+    }
+    $ast = [Management.Automation.Language.Parser]::ParseInput($Text, $Path, [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'installed-owner-guest-module-refused' }
+    return $ast.GetScriptBlock()
+}
 $root = 'C:\ProgramData\AegisCloudLab\installed-owner-inputs'
 $scratch = 'C:\AegisLab\installed-owner'
 $held = [Collections.Generic.List[IO.FileStream]]::new()
@@ -65,7 +85,21 @@ try {
     Set-Acl -LiteralPath $temp -AclObject $acl
     $env:TEMP = $temp; $env:TMP = $temp
     $stage = 'maintained-corpus'
-    . (Join-Path $root 'scripts\qualification\installed-owner-phase.ps1')
+    $modules = @(
+        @{ relative = 'scripts/installation/protected-install-files.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-install-transaction.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-installation.ps1'; dependencies = @('protected-install-files.ps1', 'protected-install-transaction.ps1') },
+        @{ relative = 'scripts/qualification/installed-owner-phase.ps1'; dependencies = @('../installation/protected-installation.ps1') }
+    )
+    foreach ($module in $modules) {
+        $index = @($pins.relative).IndexOf($module.relative)
+        if ($index -lt 0) { throw 'installed-owner-guest-module-refused' }
+        $stream = $held[$index]; $stream.Position = 0
+        $reader = [IO.StreamReader]::new($stream, [Text.UTF8Encoding]::new($false, $true), $false, 1024, $true)
+        try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        $block = Get-InstalledOwnerPinnedModule $text (Join-Path $root $module.relative) $module.dependencies
+        . $block
+    }
     $value = Invoke-InstalledOwnerQualification -PayloadRoot $root -ScratchRoot $scratch -ExpectedSourceSha $ExpectedSourceSha -Location 'windows11-guest'
     if (!(Test-InstalledOwnerQualificationReceipt $value $ExpectedSourceSha 'windows11-guest')) { throw 'installed-owner-guest-refused' }
     $result.corpus = $value
