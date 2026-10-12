@@ -176,15 +176,22 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $before = @(@($Association.stage.rows) + @($Association.receiptRows) | ForEach-Object { Read-ProtectedInstallSnapshot $_.path })
     $parent = Read-ProtectedInstallSnapshot $Association.parent.PathName $true; $root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true
     $receipts = Read-ProtectedInstallSnapshot $Association.receipts.PathName $true
-    foreach ($name in @('delete-original.txt', 'replace-original.txt')) { [IO.File]::WriteAllText((Join-Path $Scratch $name), 'seeded-original', [Text.UTF8Encoding]::new($false)) }
+    foreach ($name in @('delete-original.txt', 'replace-original.txt')) {
+        $seed = Join-Path $Scratch $name
+        [IO.File]::WriteAllText($seed, 'seeded-original', [Text.UTF8Encoding]::new($false))
+        $Association.controlRows += Read-ProtectedInstallSnapshot $seed $false $false
+    }
     $originalReplace = [ProtectedInstallFile]::new((Join-Path $Scratch 'replace-original.txt'), $false, $false)
     try { $originalReplaceId = $originalReplace.FileId; $originalReplaceHash = $originalReplace.Hash(1024) } finally { $originalReplace.Dispose() }
     $actorHeld = [ProtectedInstallFile]::new($Actor, $false, $false)
     try {
         $actorHash = $actorHeld.Hash(4MB)
         if ($ExpectedActorSha256 -cnotmatch '^[a-f0-9]{64}$' -or $actorHash -cne $ExpectedActorSha256) { throw 'installed-mutation-actor-source-refused' }
-        Add-Type -Path $Actor
-        try { $observed = [InstalledOwnerMutationLauncher]::Run($Actor, $Association.operatorAccount, $Association.password, $Scratch, $Association.operatorSid) }
+        # Windows PowerShell Add-Type refuses EXE assemblies. Load the held bytes;
+        # bind the launcher to this exact assembly rather than a cached type name.
+        $assembly = [Reflection.Assembly]::Load([byte[]]$actorHeld.Read(4MB))
+        $launcher = $assembly.GetType('InstalledOwnerMutationLauncher', $true).GetMethod('Run')
+        try { $observed = $launcher.Invoke($null, @($Actor, $Association.operatorAccount, $Association.password, $Scratch, $Association.operatorSid)) }
         catch {
             $error = $_.Exception
             for ($depth = 0; $depth -lt 8 -and $null -ne $error; $depth++) {
