@@ -95,7 +95,10 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
                     }
                 } | Out-Null
                 $transferCheckpoint = 'payload-copy'
-                foreach ($pin in @($PinsJson | ConvertFrom-Json)) {
+                # Windows PowerShell emits a JSON array as one pipeline object.
+                # Assign it directly; @(... | ConvertFrom-Json) nests the array.
+                $transferPins = ConvertFrom-Json -InputObject $PinsJson
+                foreach ($pin in $transferPins) {
                     $relative = $pin.relative
                     Copy-Item -LiteralPath (Join-Path $Payload ($pin.relative.Replace('/', '\'))) -ToSession $session -Destination (
                         Join-Path 'C:\ProgramData\AegisCloudLab\installed-owner-inputs' ($pin.relative.Replace('/', '\')))
@@ -146,7 +149,7 @@ function Get-InstalledOwnerGuestInvocation {
     return {
         param($PinsJson, $SourceSha)
         $ErrorActionPreference = 'Stop'; $root = 'C:\ProgramData\AegisCloudLab\installed-owner-inputs'
-        $pins = @($PinsJson | ConvertFrom-Json)
+        $pins = ConvertFrom-Json -InputObject $PinsJson
         $expected = @($pins | Where-Object relative -CEQ 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
         if ($expected.Count -ne 1 -or $expected[0].sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'installed-owner-guest-bootstrap-refused' }
         $path = Join-Path $root 'scripts\qualification\installed-owner-guest-bootstrap.ps1'

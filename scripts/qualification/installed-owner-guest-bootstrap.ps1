@@ -36,7 +36,7 @@ try {
         $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:RUNNER_OS -cne 'Windows' -or
         !([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(
             [Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'installed-owner-guest-refused' }
-    $pins = @($ExpectedPinsJson | ConvertFrom-Json)
+    $pins = ConvertFrom-Json -InputObject $ExpectedPinsJson
     $leaves = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe',
         'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
         'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs',
