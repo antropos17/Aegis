@@ -170,34 +170,90 @@ function Test-InstalledOwnerMutationActions($Rows) {
     }
     return $true
 }
+function Import-InstalledOwnerMutationLauncher($ActorHeld) {
+    # Windows PowerShell Add-Type refuses EXE assemblies. Load the held bytes;
+    # bind the launcher to this exact assembly rather than a cached type name.
+    $assembly = [Reflection.Assembly]::Load([byte[]]$ActorHeld.Read(4MB))
+    return $assembly.GetType('InstalledOwnerMutationLauncher', $true).GetMethod('Run')
+}
+function Get-InstalledOwnerControlRows([string]$Scratch) {
+    $files = @(Get-ChildItem -LiteralPath $Scratch -Force)
+    if ($files.Count -gt 5 -or @($files | Where-Object {
+        $_.Name -cnotin @('delete-original.txt', 'replace-original.txt', 'actor-result.json', 'write-marker.txt', 'replacement.bin') -or
+        $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Length -gt 16KB
+    }).Count) { throw 'protected-control-unknown-child' }
+    return @($files | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName $false $false })
+}
+function Open-InstalledOwnerControlPin($Original) {
+    $Original.Recheck()
+    $path = $Original.PathName; $volume = $Original.Volume; $id = $Original.FileId; $sddl = $Original.Sddl
+    # A DELETE-access directory pin blocks even permitted child replacement.
+    # Keep a read-only pin during the actor; the protected parent prevents new
+    # actor-controlled names, and exact native identity/descriptor must survive.
+    $Original.Dispose(); $held = $null
+    try {
+        $held = [ProtectedInstallFile]::new($path, $true, $false)
+        if ($held.Volume -cne $volume -or $held.FileId -cne $id -or $held.Sddl -cne $sddl) { throw 'protected-control-association-refused' }
+        return $held
+    } catch { if ($null -ne $held) { $held.Dispose() }; throw }
+}
 function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$Scratch, [string]$ExpectedActorSha256) {
     if ($Association.service.Status()[0] -ne 1) { throw 'installed-mutation-owner-stopped-required' }
     Assert-ProtectedInstallation $Association
     $before = @(@($Association.stage.rows) + @($Association.receiptRows) | ForEach-Object { Read-ProtectedInstallSnapshot $_.path })
     $parent = Read-ProtectedInstallSnapshot $Association.parent.PathName $true; $root = Read-ProtectedInstallSnapshot $Association.stage.root.PathName $true
     $receipts = Read-ProtectedInstallSnapshot $Association.receipts.PathName $true
-    foreach ($name in @('delete-original.txt', 'replace-original.txt')) { [IO.File]::WriteAllText((Join-Path $Scratch $name), 'seeded-original', [Text.UTF8Encoding]::new($false)) }
+    foreach ($name in @('delete-original.txt', 'replace-original.txt')) {
+        $seed = Join-Path $Scratch $name
+        [IO.File]::WriteAllText($seed, 'seeded-original', [Text.UTF8Encoding]::new($false))
+        $Association.controlRows += Read-ProtectedInstallSnapshot $seed $false $false
+    }
     $originalReplace = [ProtectedInstallFile]::new((Join-Path $Scratch 'replace-original.txt'), $false, $false)
     try { $originalReplaceId = $originalReplace.FileId; $originalReplaceHash = $originalReplace.Hash(1024) } finally { $originalReplace.Dispose() }
     $actorHeld = [ProtectedInstallFile]::new($Actor, $false, $false)
     try {
         $actorHash = $actorHeld.Hash(4MB)
         if ($ExpectedActorSha256 -cnotmatch '^[a-f0-9]{64}$' -or $actorHash -cne $ExpectedActorSha256) { throw 'installed-mutation-actor-source-refused' }
-        Add-Type -Path $Actor
-        try { $observed = [InstalledOwnerMutationLauncher]::Run($Actor, $Association.operatorAccount, $Association.password, $Scratch, $Association.operatorSid) }
+        $launcher = Import-InstalledOwnerMutationLauncher $actorHeld
+        try { $observed = $launcher.Invoke($null, @($Actor, $Association.operatorAccount, $Association.password, $Scratch, $Association.operatorSid)) }
         catch {
             $error = $_.Exception
+            $cleanupConfirmed = $false
             for ($depth = 0; $depth -lt 8 -and $null -ne $error; $depth++) {
                 if ($error.Message -like '*installed-mutation-cleanup-unknown*') { $Association.cleanupUnknown = $true }
+                if ($error.Data.Contains('installedMutationCleanupConfirmed') -and
+                    $error.Data['installedMutationCleanupConfirmed'] -is [bool] -and $error.Data['installedMutationCleanupConfirmed']) { $cleanupConfirmed = $true }
                 $error = $error.InnerException
+            }
+            if ($cleanupConfirmed -and !$Association.cleanupUnknown) {
+                $Association.control.Recheck()
+                $Association.controlRows = @(Get-InstalledOwnerControlRows $Scratch)
             }
             throw
         }
         $actorHeld.Recheck()
     } finally { $actorHeld.Dispose() }
+    if ($observed.jobEmpty -isnot [bool] -or !$observed.jobEmpty -or $observed.exactProcessExited -isnot [bool] -or !$observed.exactProcessExited) {
+        $Association.cleanupUnknown = $true; throw 'installed-mutation-cleanup-unknown'
+    }
+    $Association.control.Recheck()
+    $Association.controlRows = @(Get-InstalledOwnerControlRows $Scratch)
+    $Association.mutationDiagnostic = @{ actorExitCode = $observed.exitCode; jobEmpty = $observed.jobEmpty;
+        exactProcessExited = $observed.exactProcessExited; initialActiveProcesses = $observed.initialActiveProcesses;
+        censusQueries = $observed.censusQueries; resultFilePresent = (Test-Path -LiteralPath (Join-Path $Scratch 'actor-result.json')) }
     $path = Join-Path $Scratch 'actor-result.json'; $file = Get-Item -LiteralPath $path -Force
     if ($file.PSIsContainer -or $file.Attributes -band [IO.FileAttributes]::ReparsePoint -or $file.Length -gt 16KB) { throw 'installed-mutation-output-refused' }
     $actual = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+    $Association.mutationDiagnostic.actualPassed = if ($actual.passed -is [bool]) { $actual.passed } else { $null }
+    $Association.mutationDiagnostic.failedActions = @($actual.attempts | Where-Object { $_.denied -is [bool] -and !$_.denied } | ForEach-Object {
+        $label = if ($_.action -is [string] -and $_.action -cmatch '^(?:aegis-(?:owner|session|main)\.exe|owner-policy\.json|enrollment\.json|inventory\.json|main-registration\.json|operator\.credential|ProtectedSession|AEGIS|Receipts|credential):(?:write|delete|replace|writeDac|writeOwner|rename|read)$') { $_.action } else { 'other' }
+        @{ action = $label; win32Error = $(if (($_.win32Error -is [int] -or $_.win32Error -is [long]) -and $_.win32Error -ge 0 -and $_.win32Error -le 65535) { $_.win32Error } else { $null }) }
+    })
+    $Association.mutationDiagnostic.permitted = @{}
+    foreach ($field in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) {
+        $Association.mutationDiagnostic.permitted[$field] = if ($actual.permitted.$field -is [bool]) { $actual.permitted.$field } else { $null }
+    }
+    $Association.mutationDiagnostic.permitted.replaceWin32 = if (($actual.permitted.replaceWin32 -is [int] -or $actual.permitted.replaceWin32 -is [long]) -and $actual.permitted.replaceWin32 -ge 0 -and $actual.permitted.replaceWin32 -le 65535) { $actual.permitted.replaceWin32 } else { $null }
     $permitted = Join-Path $Scratch 'replace-original.txt'
     $permittedHeld = [ProtectedInstallFile]::new($permitted, $false, $false)
     try { $permittedHash = $permittedHeld.Hash(1024); $permittedObserved = $permittedHeld.FileId -cne $originalReplaceId -and [Text.Encoding]::UTF8.GetString($permittedHeld.Read(1024)) -ceq 'allowed-disposable-replacement' }
@@ -205,7 +261,6 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $writeHeld = [ProtectedInstallFile]::new((Join-Path $Scratch 'write-marker.txt'), $false, $false)
     try { $writeHash = $writeHeld.Hash(1024); $writeObserved = [Text.Encoding]::UTF8.GetString($writeHeld.Read(1024)) -ceq 'allowed-disposable-write' } finally { $writeHeld.Dispose() }
     $deleteObserved = !(Test-Path -LiteralPath (Join-Path $Scratch 'delete-original.txt'))
-    $Association.controlRows = @('actor-result.json', 'write-marker.txt', 'replace-original.txt' | ForEach-Object { Read-ProtectedInstallSnapshot (Join-Path $Scratch $_) $false $false })
     $unchanged = $true
     $after = @()
     foreach ($row in @($before) + @($root, $parent, $receipts)) {
@@ -224,7 +279,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
 
 function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$ScratchRoot, [string]$ExpectedSourceSha, [ValidateSet('fresh-host', 'windows11-guest')][string]$Location) {
     $report = [ordered]@{ schemaVersion = 1; scope = 'protected-installed-owner-qualification'; location = $Location; sourceSha = $ExpectedSourceSha;
-        os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; mutationFailure = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
+        os = $null; inputHashes = $null; baseline = $null; positive = $null; mutation = $null; mutationFailure = $null; mutationAttempt = $null; rollback = $null; upgrade = $null; partial = $null; uninstall = $null;
         installation = $null; failedAttempt = $null; failure = $null; cleanupFailure = $null; passed = $false; launchAllowed = $false; completeE1 = $false; completeE11 = $false; interactiveUiQualified = $false }
     $association = $null; $stage = 'preflight'; $scratch = $null; $scratchParent = $null; $password = $null
     $installJournal = @{}
@@ -260,10 +315,13 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         # by the protected installation or receipts. It matches WRITE_DAC/OWNER.
         $scratchAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($association.operatorSid), [Security.AccessControl.FileSystemRights]::FullControl, [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
         $association.control = [ProtectedInstallFile]::CreateDirectory($scratch, $scratchAcl.GetSecurityDescriptorBinaryForm())
+        $association.control = Open-InstalledOwnerControlPin $association.control
+        $association.controlReadOnly = $true
         $actorPin = @($payload.files | Where-Object { $_.path -ceq 'native/installed-owner-actor.exe' })[0].sha256
         try { $report.mutation = Invoke-InstalledOwnerMutations $association (Join-Path $PayloadRoot 'native/installed-owner-actor.exe') $scratch $actorPin }
         catch {
             $report.mutationFailure = Get-ProtectedInstallFailure $_ 'installed-acl-controls'
+            if ($association.ContainsKey('mutationDiagnostic')) { $report.mutationAttempt = $association.mutationDiagnostic }
             throw
         }
         $stage = 'actual-upgrade-rollback'; $before = Read-ProtectedInstallSnapshot $association.stage.root.PathName $true; $oldRows = @($association.stage.rows); $fault = $false
@@ -324,7 +382,9 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         if ($journal.cleanup.state -ceq 'unknown') { $report.cleanupFailure = @{ stage = 'qualified-partial-cleanup'; operation = $journal.operation; diagnosticCode = 'protected-installation-cleanup-unknown'; nativeWin32 = $null; hResult = $null } }
     }
     $report.passed = $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $null -ne $report.partial -and $report.partial.passed
-    $json = $report | ConvertTo-Json -Depth 20
+    $pretty = $report | ConvertTo-Json -Depth 20
+    $json = $report | ConvertTo-Json -Depth 20 -Compress
+    Write-Host ('installed-owner-receipt-bytes pretty=' + [Text.Encoding]::UTF8.GetByteCount($pretty) + ' compact=' + [Text.Encoding]::UTF8.GetByteCount($json))
     if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 64KB) { throw 'installed-owner-subreceipt-budget-refused' }
     return $report
 }

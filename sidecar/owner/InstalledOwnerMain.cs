@@ -28,6 +28,27 @@ namespace Aegis.InstalledOwner
                     string selection = text.Substring(152, 32), epoch = text.Substring(184, 32);
                     uint revision = Convert.ToUInt32(text.Substring(216, 8), 16);
                     CallerNative.Require(Regex.IsMatch(selection + epoch, "\\A[a-f0-9]{64}\\z") && revision > 0);
+                    // Bounded native observations distinguish bootstrap import refusals without emitting token data.
+                    checkpoint = 209;
+                    using (var observed = CallerNative.Duplicate(routing.ServerHandle))
+                    {
+                        CallerEndpointNative.RequireNonInherited(observed);
+                        checkpoint = 210;
+                        long birth, exit, kernel, user;
+                        CallerNative.Require(CallerNative.GetProcessTimes(observed, out birth, out exit, out kernel, out user));
+                        checkpoint = 211;
+                        CallerNative.Require(CallerNative.GetProcessId(observed) == routing.ServerPid && birth == routing.ServerBirth);
+                        checkpoint = 212;
+                        using (var token = CallerNative.ProcessToken(observed))
+                        {
+                            checkpoint = 213;
+                            var identity = CallerIdentity.Observe(token);
+                            checkpoint = 214;
+                            CallerNative.Require(identity.PermittedBroker());
+                        }
+                        checkpoint = 215;
+                        CallerNative.Require(CallerNative.WaitForSingleObject(observed, 0) == 0x102);
+                    }
                     checkpoint = 205;
                     using (var server = routing.ImportServer())
                     {
