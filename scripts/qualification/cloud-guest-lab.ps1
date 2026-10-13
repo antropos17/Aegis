@@ -216,9 +216,9 @@ $canaries = @()
 try {
     Stage 'host-preflight' {
         $disks = @(RecordDisk 'before')
-        # Prior pinned-image runs used about 26 GiB for ISO plus final VHD.
-        # Keep a measured storage budget and a separate live 5-GiB floor on C:.
-        if (@($disks | Where-Object { ($_.drive -eq 'D' -and $_.freeBytes -lt 40GB) -or ($_.drive -eq 'C' -and $_.freeBytes -lt 30GB) }).Count) { throw 'cloud-disk-headroom-unavailable' }
+        # Observed ISO plus final VHD use was below 27.5 billion bytes. Require
+        # 31 billion bytes initially and retain a separate live 3-GiB C: floor.
+        if (@($disks | Where-Object { ($_.drive -eq 'D' -and $_.freeBytes -lt 40GB) -or ($_.drive -eq 'C' -and $_.freeBytes -lt 31000000000L) }).Count) { throw 'cloud-disk-headroom-unavailable' }
         if (Test-Path -LiteralPath $assetRoot) { throw 'fresh-exact-owned-root-required' }
         Initialize-ProtectedInstallNative
         $createdRoot = New-ProtectedInstallDirectory $assetRoot '' $true

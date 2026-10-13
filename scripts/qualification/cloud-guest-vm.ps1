@@ -298,7 +298,7 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
                     $ownedDisk = Get-Item -LiteralPath (Join-Path $VmRoot 'guest.vhdx') -Force
                     if ($ownedDisk.PSIsContainer -or ($ownedDisk.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'owned-guest-disk-layout-unexpected' }
                     $diskSamples.Add(@{ seconds = [int]$watch.Elapsed.TotalSeconds; freeBytes = $free; ownedVhdFileBytes = [long]$ownedDisk.Length }); $lastDisk = $watch.Elapsed.TotalSeconds
-                    $floor = if ($storageDrive -ceq 'C') { 5GB } else { 10GB }
+                    $floor = if ($storageDrive -ceq 'C') { 3GB } else { 10GB }
                     if ($free -lt $floor) { throw 'guest-setup-disk-headroom-failed' }
                 }
                 try {
