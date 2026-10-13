@@ -106,6 +106,10 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
             $failure.uninstallCheckpoint = $cause.Data['protectedUninstallCheckpoint']
         }
         if ($cause.Message -cin $codes) { $failure.diagnosticCode = $cause.Message }
+        if ($cause.Data.Contains('protectedStorageCheckpoint') -and $cause.Data['protectedStorageCheckpoint'] -is [int] -and
+            $cause.Data['protectedStorageCheckpoint'] -ge 0 -and $cause.Data['protectedStorageCheckpoint'] -le 24) {
+            $failure.storageCheckpoint = $cause.Data['protectedStorageCheckpoint']
+        }
         # Classify only known exception types. Never project command names,
         # parameter text, FQIDs or an opaque Win32Exception's ambient last error.
         if ($null -eq $semanticCode) {

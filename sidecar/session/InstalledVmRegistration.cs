@@ -201,12 +201,15 @@ namespace Aegis.ProtectedSession
         { return ObserveStorage(id, true); }
         private static string ObserveStorage(Guid id, bool requireProtection)
         {
+            var checkpoint = new VmInspectionCheckpoint();
+            try
+            {
             using (var native = new VmManagementNative(id))
             {
                 VmObservation before = native.Inspect();
                 if (before == null || before.VmId != id || before.State != 3 || String.IsNullOrEmpty(before.Identity))
                     throw new InvalidOperationException("installed-vm-observation-unavailable");
-                using (var storage = new VmStorageInspection(native, new EnrollmentNative()))
+                using (var storage = new VmStorageInspection(native, new EnrollmentNative(), checkpoint))
                 {
                     if (requireProtection) storage.RequireProtectedStorage(id);
                     VmObservation after = native.Inspect(); storage.CheckCurrent();
@@ -214,6 +217,13 @@ namespace Aegis.ProtectedSession
                         throw new InvalidOperationException("installed-vm-observation-unavailable");
                     return EnrollmentInspection.ImageHash(Utf8.GetBytes(before.Identity)) + "\n" + storage.Digest;
                 }
+            }
+            }
+            catch
+            {
+                var failure = new InvalidOperationException("installed-vm-observation-unavailable");
+                if (checkpoint.Code >= 0 && checkpoint.Code <= 24) failure.Data["protectedStorageCheckpoint"] = checkpoint.Code;
+                throw failure;
             }
         }
 

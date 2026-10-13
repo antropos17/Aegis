@@ -73,7 +73,18 @@ function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage) {
         if ($hash -isnot [string] -or $hash -cnotmatch '\A[a-f0-9]{64}\n[a-f0-9]{64}\z') { throw 'protected-vm-binding-refused' }
         $parts = $hash.Split([char]10)
         return @{ vmId = $VmId; identitySha256 = $parts[0]; storageSha256 = $parts[1]; storageProtection = 'private-vm' }
-    } catch { throw 'protected-vm-binding-refused' }
+    } catch {
+        $failure = [InvalidOperationException]::new('protected-vm-binding-refused')
+        $cause = $_.Exception
+        for ($depth = 0; $null -ne $cause -and $depth -lt 8; $depth++) {
+            if ($cause.Data.Contains('protectedStorageCheckpoint') -and $cause.Data['protectedStorageCheckpoint'] -is [int] -and
+                $cause.Data['protectedStorageCheckpoint'] -ge 0 -and $cause.Data['protectedStorageCheckpoint'] -le 24) {
+                $failure.Data['protectedStorageCheckpoint'] = $cause.Data['protectedStorageCheckpoint']
+            }
+            $cause = $cause.InnerException
+        }
+        throw $failure
+    }
 }
 function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
     $hash = [Security.Cryptography.SHA256]::Create()
