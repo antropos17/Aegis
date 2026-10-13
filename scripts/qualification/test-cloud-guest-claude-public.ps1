@@ -255,3 +255,41 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
 }
 Test-CloudGuestClosedFileCleanup $PSScriptRoot | ConvertTo-Json -Depth 5 -Compress
 Test-CloudGuestClosedFileCleanup $PSScriptRoot '' $true | ConvertTo-Json -Depth 5 -Compress
+
+# Execute the actual preflight in its child scope. A successful root creation
+# must remain visible to the final cleanup even if later preflight work refuses.
+function Test-CloudGuestStorageCreationScope([string]$SupportRoot) {
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $SupportRoot 'cloud-guest-lab.ps1'), [ref]$tokens, [ref]$errors)
+    if ($errors.Count) { throw 'asset-creation-control-parse-refused' }
+    $stage = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Stage' -and $node.CommandElements[1].Extent.Text -ceq "'host-preflight'" }, $true))
+    if ($stage.Count -ne 1) { throw 'asset-creation-control-source-refused' }
+    $operation = [scriptblock]::Create($stage[0].CommandElements[2].ScriptBlock.Extent.Text.Trim('{', '}'))
+    $assetRoot = 'C:\ProgramData\aegis-cloud-assets-123-1'
+    function RecordDisk { return @(@{ drive = 'C'; freeBytes = 40GB }, @{ drive = 'D'; freeBytes = 40GB }) }
+    function Test-Path { param($LiteralPath); return $false }
+    function Initialize-ProtectedInstallNative { }
+    function New-ProtectedInstallDirectory([string]$Path, [string]$OperatorSid, [bool]$Private) {
+        if (!$Private -or $OperatorSid -cne '') { throw 'asset-creation-control-acl-refused' }
+        $script:createdAssetPaths.Add($Path)
+        if (($script:assetCreationMode -ceq 'before-root' -and $script:createdAssetPaths.Count -eq 1) -or
+            ($script:assetCreationMode -ceq 'after-root' -and $script:createdAssetPaths.Count -eq 2)) { throw 'dummy-creation-refusal' }
+        $held = [pscustomobject]@{ }
+        $held | Add-Member ScriptMethod Dispose { $script:createdAssetDisposals++ }
+        return $held
+    }
+    $checks = 0
+    foreach ($mode in @('before-root', 'after-root', 'complete')) {
+        $script:assetCreationMode = $mode; $script:assetRootCreated = $false
+        $script:createdAssetPaths = [Collections.Generic.List[string]]::new(); $script:createdAssetDisposals = 0
+        $report = @{ sourceSha = 'deliberately-invalid' }
+        try { & $operation; throw 'asset-creation-control-refusal-missing' }
+        catch { if ($_.Exception.Message -cnotin @('dummy-creation-refusal', 'expected-source-required')) { throw } }
+        if ($script:assetRootCreated -ne ($mode -cne 'before-root') -or
+            $script:createdAssetDisposals -ne $(switch ($mode) { 'before-root' { 0 } 'after-root' { 1 } 'complete' { 3 } }) -or
+            $script:createdAssetPaths[0] -cne $assetRoot) { throw 'asset-creation-control-scope-refused' }
+        $checks++
+    }
+    return @{ scope = 'actual-preflight-child-scope-root-creation-controls'; passed = $true; checks = $checks; vmEffects = $false; aclEffects = $false }
+}
+Test-CloudGuestStorageCreationScope $PSScriptRoot | ConvertTo-Json -Depth 4 -Compress

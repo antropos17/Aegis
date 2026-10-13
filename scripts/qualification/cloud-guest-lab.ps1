@@ -222,7 +222,7 @@ try {
         if (Test-Path -LiteralPath $assetRoot) { throw 'fresh-exact-owned-root-required' }
         Initialize-ProtectedInstallNative
         $createdRoot = New-ProtectedInstallDirectory $assetRoot '' $true
-        try { $assetRootCreated = $true } finally { $createdRoot.Dispose() }
+        try { $script:assetRootCreated = $true } finally { $createdRoot.Dispose() }
         foreach ($leaf in @('vm', 'media')) {
             $createdDirectory = New-ProtectedInstallDirectory (Join-Path $assetRoot $leaf) '' $true
             $createdDirectory.Dispose()
