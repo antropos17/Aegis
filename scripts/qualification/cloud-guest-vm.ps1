@@ -293,7 +293,8 @@ function Invoke-CloudGuestBootstrap([string]$Id, [string]$Name, [string]$VmRoot,
             while ($watch.Elapsed.TotalSeconds -lt 1080) {
                 Step-CloudGuestReadinessAttempt $progress.psDirectReadiness
                 if ($watch.Elapsed.TotalSeconds - $lastDisk -ge 60) {
-                    $free = [long](Get-PSDrive -Name D).Free
+                    $storageDrive = [IO.Path]::GetPathRoot($VmRoot).TrimEnd(':\')
+                    $free = [long](Get-PSDrive -Name $storageDrive).Free
                     $ownedDisk = Get-Item -LiteralPath (Join-Path $VmRoot 'guest.vhdx') -Force
                     if ($ownedDisk.PSIsContainer -or ($ownedDisk.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'owned-guest-disk-layout-unexpected' }
                     $diskSamples.Add(@{ seconds = [int]$watch.Elapsed.TotalSeconds; freeBytes = $free; ownedVhdFileBytes = [long]$ownedDisk.Length }); $lastDisk = $watch.Elapsed.TotalSeconds

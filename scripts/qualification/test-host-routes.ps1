@@ -56,6 +56,7 @@ function Assignment([string]$Variable) {
 # avoids requiring or creating a local D: drive for Join-Path.
 function Join-Path([string]$Path, [string]$ChildPath) { return [IO.Path]::Combine($Path, $ChildPath) }
 $OutputRoot = & ([scriptblock]::Create((Assignment 'expectedRoot')))
+$assetRoot = & ([scriptblock]::Create((Assignment 'assetRoot')))
 $generatedName = & ([scriptblock]::Create((Assignment 'name')))
 $generatedRoot = & ([scriptblock]::Create((Assignment 'vmRoot')))
 $generatedConfig = [IO.Path]::Combine($generatedRoot, $generatedName)

@@ -97,7 +97,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         . ([scriptblock]::Create($function.Extent.Text))
         $env:GITHUB_ACTIONS='true'; $env:RUNNER_ENVIRONMENT='github-hosted'; $env:GITHUB_RUN_ID='123'; $env:GITHUB_RUN_ATTEMPT='1'
         $rows=@()
-        foreach($case in @(@{root='D:\\foreign';id='11111111-1111-1111-1111-111111111111'},@{root='D:\\aegis-cloud-guest-123-1';id='invalid'},@{root='D:\\aegis-cloud-guest-123-1';id='00000000-0000-0000-0000-000000000000'})){
+        foreach($case in @(@{root='D:\\foreign';id='11111111-1111-1111-1111-111111111111'},@{root='C:\\ProgramData\\aegis-cloud-assets-123-1';id='invalid'},@{root='C:\\ProgramData\\aegis-cloud-assets-123-1';id='00000000-0000-0000-0000-000000000000'})){
           try{Protect-OwnedCloudGuestStorage $case.root $case.id | Out-Null; $rows += $false}
           catch{$rows += $_.Exception.Message -ceq 'registered-vm-owner-corpus-refused'}
         }

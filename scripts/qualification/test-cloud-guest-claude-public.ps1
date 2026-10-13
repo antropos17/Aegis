@@ -152,7 +152,7 @@ function Test-CloudGuestStagingDiagnostics([string]$SupportRoot, [string]$Source
 Test-CloudGuestStagingDiagnostics $PSScriptRoot $ProjectRoot | ConvertTo-Json -Depth 5 -Compress
 
 # Actual closed-file helper/caller controls over small disposable files only.
-function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$BaselineLab = '') {
+function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$BaselineLab = '', [bool]$PrivateAssets = $false) {
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $SupportRoot 'cloud-guest-lab.ps1'), [ref]$tokens, [ref]$errors)
     if ($errors.Count) { throw 'closed-cleanup-control-parse-refused' }
@@ -160,11 +160,13 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
     if ($helper.Count -ne 1) { throw 'closed-cleanup-control-source-refused' }
     $owned = Join-Path ([IO.Path]::GetFullPath($env:TEMP)) ('aegis-closed-controls-' + [guid]::NewGuid().ToString('N'))
     [IO.Directory]::CreateDirectory($owned) | Out-Null
-    $prefix = Join-Path $owned 'aegis-cloud-guest-'
+    $rootLeaf = if ($PrivateAssets) { 'aegis-cloud-assets-' } else { 'aegis-cloud-guest-' }
+    $literal = if ($PrivateAssets) { "'C:\ProgramData\aegis-cloud-assets-'" } else { "'D:\aegis-cloud-guest-'" }
+    $prefix = Join-Path $owned $rootLeaf
     $source = $helper[0].Extent.Text
-    if ($source.Split(@("'D:\aegis-cloud-guest-'"), [StringSplitOptions]::None).Count -ne 2) { throw 'closed-cleanup-control-root-seam' }
+    if ($source.Split(@($literal), [StringSplitOptions]::None).Count -ne $(if ($PrivateAssets) { 3 } else { 2 })) { throw 'closed-cleanup-control-root-seam' }
     # Only the fixed production drive prefix is translated to the exact test root.
-    . ([scriptblock]::Create($source.Replace("'D:\aegis-cloud-guest-'", "'$($prefix.Replace("'", "''"))'")))
+    . ([scriptblock]::Create($source.Replace($literal, "'$($prefix.Replace("'", "''"))'")))
     $imageMode = 'closed'; $imageQueries = 0
     function Get-DiskImage([string]$ImagePath, [string]$ErrorAction) {
         $script:closedImageQueries++
@@ -202,10 +204,10 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
             $link = Join-Path $owned 'linked-cloud-root'; New-Item -ItemType Junction -Path $link -Target $Root | Out-Null
             # Name mismatch rejects first; the matching child through a linked parent
             # must independently reject its ancestor before examining media.
-            $linkPrefix = Join-Path $link 'aegis-cloud-guest-'
+            $linkPrefix = Join-Path $link $rootLeaf
             $linkedRoot = $linkPrefix + $run + '-' + $attempt
             [IO.Directory]::CreateDirectory($linkedRoot) | Out-Null
-            . ([scriptblock]::Create($source.Replace("'D:\aegis-cloud-guest-'", "'$($linkPrefix.Replace("'", "''"))'")))
+            . ([scriptblock]::Create($source.Replace($literal, "'$($linkPrefix.Replace("'", "''"))'")))
             $Root = $linkedRoot
         }
         try {
@@ -224,7 +226,7 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
         if (![IO.File]::Exists($receipt) -or ![IO.File]::Exists($extra) -or [IO.File]::ReadAllText($foreignCanary) -cne 'foreign-control' -or ($value | ConvertTo-Json -Depth 5) -match 'dummy-credential|preserved.txt') { throw 'closed-cleanup-control-retained-files-invalid' }
         if ($mode -in @('unknown', 'create-uncertain', 'mounted', 'foreign-root', 'reparse-parent', 'reparse-root') -and $script:closedImageQueries -ne 0) { throw 'closed-cleanup-control-refusal-query-reached' }
         $checks++
-        . ([scriptblock]::Create($source.Replace("'D:\aegis-cloud-guest-'", "'$($prefix.Replace("'", "''"))'")))
+        . ([scriptblock]::Create($source.Replace($literal, "'$($prefix.Replace("'", "''"))'")))
     }
     # Typed unknown observation is not accepted as a no-create witness.
     $invalid = Remove-CloudGuestClosedFiles ($prefix + $run + '-1') $run '1' $null $false $false $false $false $false
@@ -234,6 +236,7 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
     $assignment = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq "`$report['closedOwnedFilesCleanup']" }, $true))
     if ($assignment.Count -ne 1) { throw 'closed-cleanup-control-caller-refused' }
     $attempt++; $OutputRoot = $prefix + $run + '-' + $attempt
+    $assetRoot = $OutputRoot; $assetRootCreated = $true
     [IO.Directory]::CreateDirectory((Join-Path $OutputRoot 'media')) | Out-Null
     $callerIso = Join-Path $OutputRoot 'media/windows.iso'; [IO.File]::WriteAllText($callerIso, 'dummy-caller-control')
     $createAttempted=$false; $id=$null; $owner=$null; $unknown=$false; $mounted=$false; $imageMode='closed'
@@ -245,6 +248,10 @@ function Test-CloudGuestClosedFileCleanup([string]$SupportRoot, [string]$Baselin
     }
     finally { $env:GITHUB_RUN_ID=$oldRun; $env:GITHUB_RUN_ATTEMPT=$oldAttempt }
     if (!$report.closedOwnedFilesCleanup.completed -or $report.removedObserved -or $report.failure.code -cne 'original-primary-refusal' -or [IO.File]::Exists($callerIso)) { throw 'closed-cleanup-control-caller-failed' }; $checks++
-    return @{ scope = 'actual-source-helper-small-file-cleanup-controls'; passed = $true; checks = $checks; shellVersion = $PSVersionTable.PSVersion.ToString(); baseline = $baseline; fixtureRoot = $owned; diskImageQuery = 'test-double'; vmEffects = $false; recursiveDeletion = $false }
+    [IO.File]::WriteAllText($callerIso, 'dummy-unowned-control'); $assetRootCreated = $false
+    & ([scriptblock]::Create($assignment[0].Extent.Text))
+    if (!$report.closedOwnedFilesCleanup.completed -or $report.closedOwnedFilesCleanup.mode -cne 'assets-never-created' -or ![IO.File]::Exists($callerIso)) { throw 'closed-cleanup-control-unowned-caller-failed' }; $checks++
+    return @{ scope = 'actual-source-helper-small-file-cleanup-controls'; passed = $true; checks = $checks; privateAssets = $PrivateAssets; shellVersion = $PSVersionTable.PSVersion.ToString(); baseline = $baseline; fixtureRoot = $owned; diskImageQuery = 'test-double'; vmEffects = $false; recursiveDeletion = $false }
 }
 Test-CloudGuestClosedFileCleanup $PSScriptRoot | ConvertTo-Json -Depth 5 -Compress
+Test-CloudGuestClosedFileCleanup $PSScriptRoot '' $true | ConvertTo-Json -Depth 5 -Compress
