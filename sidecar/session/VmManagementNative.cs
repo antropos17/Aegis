@@ -6,7 +6,7 @@ namespace Aegis.ProtectedSession
 {
     // Local VMMS operations only. Native fixture construction supplies the selected
     // newly-created VM. Protected inventory/caller admission is not implemented here.
-    internal sealed class VmManagementNative : IVmManagement
+    internal sealed partial class VmManagementNative : IVmManagement
     {
         private const string Namespace = @"root\virtualization\v2";
         private readonly ManagementScope scope;

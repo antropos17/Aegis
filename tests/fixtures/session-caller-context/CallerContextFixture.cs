@@ -73,7 +73,7 @@ internal static class CallerContextFixture
     private static int Main(string[] args)
     {
         if (args.Length == 1 && args[0] == "child") return Child();
-        if (args.Length != 1 || (args[0] != "clean" && args[0] != "impersonated")) return 2;
+        if (args.Length != 1 || (args[0] != "clean" && args[0] != "impersonated" && args[0] != "expired")) return 2;
         Process child = null;
         try
         {
@@ -98,6 +98,18 @@ internal static class CallerContextFixture
                     CallerNative.Require(!ThreadTokenObserved());
                     int initialEffects = 0, impersonatedEffects = 0, revertedEffects = 0;
                     context.CheckCurrent(); initialEffects++;
+                    if (args[0] == "expired")
+                    {
+                        System.Threading.Thread.Sleep(2200);
+                        bool freshRefused = false, closedRefused = false;
+                        try { context.CheckCurrent(); } catch (InvalidOperationException) { freshRefused = true; }
+                        context.CheckRetained();
+                        child.StandardInput.WriteLine("release"); child.StandardInput.Flush();
+                        CallerNative.Require(child.WaitForExit(2000) && child.ExitCode == 0);
+                        try { context.CheckRetained(); } catch (InvalidOperationException) { closedRefused = true; }
+                        Console.WriteLine("{\"freshRefused\":" + Flag(freshRefused) + ",\"liveRetained\":true,\"closedRefused\":" + Flag(closedRefused) + ",\"childExited\":true}");
+                        return 0;
+                    }
                     bool observed = false, rejected = false;
                     if (args[0] == "impersonated")
                     {

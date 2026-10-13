@@ -2,34 +2,65 @@ using System;
 
 namespace Aegis.ProtectedSession
 {
+    // Fixed native failure position only; no paths, provider text or bytes.
+    internal sealed class VmInspectionCheckpoint { internal int Code; }
     // Inspect-owned admission authorizes observations only. No lifecycle method
     // or native manager escapes this retained registration.
     internal sealed class InstalledVmInspection : IDisposable
     {
         private readonly InstalledVmRegistration registration;
         private readonly IVmManagement native;
+        private readonly IEnrollmentFiles storageFiles;
+        private VmStorageInspection storage;
+        private readonly VmInspectionCheckpoint checkpoint;
         private bool closed, refused;
-        internal InstalledVmInspection(InstalledVmRegistration record, IVmManagement provider)
+        internal InstalledVmInspection(InstalledVmRegistration record, IVmManagement provider, IEnrollmentFiles files, VmInspectionCheckpoint diagnostic)
         {
             if (record == null || provider == null) throw new InvalidOperationException("installed-vm-manager-unavailable");
-            registration = record; native = provider;
+            registration = record; native = provider; storageFiles = files; checkpoint = diagnostic;
         }
         internal VmObservation Inspect()
+        {
+            if (!registration.IsBound) throw new InvalidOperationException("installed-vm-caller-unavailable");
+            return InspectCore();
+        }
+        internal VmObservation InspectPrepared()
+        {
+            if (registration.IsBound) throw new InvalidOperationException("installed-vm-caller-unavailable");
+            return InspectCore();
+        }
+        internal void BindCaller(CallerMainOperation.InspectionCompletion admitted) { registration.BindCaller(admitted); }
+#if INSTALLED_VM_TEST
+        internal void BindForTest(Action caller) { registration.BindForTest(caller); }
+#endif
+        private VmObservation InspectCore()
         {
             if (closed || refused) throw new InvalidOperationException("installed-vm-observation-unavailable");
             try
             {
-                registration.CheckCurrent();
+                checkpoint.Code = 1; registration.CheckCurrent();
                 if (native.VmId != registration.VmId) throw new InvalidOperationException();
-                VmObservation result = native.Inspect();
-                registration.CheckObservation(result); registration.CheckCurrent(); return result;
+                checkpoint.Code = 2; VmObservation result = native.Inspect();
+                checkpoint.Code = 3; registration.CheckObservation(result);
+                if (registration.StorageHash != null)
+                {
+                    checkpoint.Code = 4; if (result.State != 3) throw new InvalidOperationException();
+                    if (storage == null) storage = new VmStorageInspection(native as IVmStorageSource, storageFiles, checkpoint);
+                    storage.CheckCurrent();
+                    checkpoint.Code = 14; if (storage.Digest != registration.StorageHash) throw new InvalidOperationException();
+                    // ReadStorage itself fences the exact captured VM identity
+                    // and Off state around its topology query. A second identical
+                    // query adds no intervening operation here.
+                }
+                checkpoint.Code = 17; registration.CheckCurrent(); return result;
             }
             catch { refused = true; throw new InvalidOperationException("installed-vm-observation-unavailable"); }
         }
         public void Dispose()
         {
             if (closed) return; closed = true;
-            try { native.Dispose(); } finally { registration.Dispose(); }
+            try { if (storage != null) storage.Dispose(); }
+            finally { try { native.Dispose(); } finally { registration.Dispose(); } }
         }
     }
 }

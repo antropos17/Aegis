@@ -45,13 +45,19 @@ namespace Aegis.ProtectedSession
             }
             // No serialized context or booleans can substitute for this live fence.
             internal void CheckCurrent()
+            { CheckCore(true); }
+            // Completion can retain a live peer after its already-consumed
+            // request ages out. This method grants no dispatch operation.
+            internal void CheckRetained()
+            { CheckCore(false); }
+            private void CheckCore(bool requireFresh)
             {
                 lock (registration.Gate)
                 {
                     // Admission reverts its own impersonation, but the invoking
                     // thread may have acquired another token before this fence.
                     CallerNative.Require(!CallerNative.HasThreadToken());
-                    CallerNative.Require(!pipe.IsClosed && lease.ElapsedMilliseconds < 2000);
+                    CallerNative.Require(!pipe.IsClosed && (!requireFresh || lease.ElapsedMilliseconds < 2000));
                     uint peer, available, left;
                     CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(pipe, out peer));
                     registration.CheckLive(peer);

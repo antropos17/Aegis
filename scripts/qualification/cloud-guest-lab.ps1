@@ -338,6 +338,7 @@ try {
         $after = Invoke-CloudHyperVCommand observe $name $vmRoot $id
         if (!(Test-InstalledOwnerQualificationReceipt $value $report.actualHead 'fresh-host') -or
             $value.registeredVm.vmId -cne $id -or $value.registeredVm.identitySha256 -cnotmatch '^[a-f0-9]{64}$' -or
+            $value.registeredVm.storageSha256 -cnotmatch '^[a-f0-9]{64}$' -or
             $value.registeredVm.inspectionOnly -ne $true -or !$after.exists -or $after.state -cne 'Off') { throw 'registered-vm-owner-corpus-refused' }
         return $value
     }

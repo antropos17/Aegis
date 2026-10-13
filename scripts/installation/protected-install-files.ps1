@@ -67,11 +67,12 @@ function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage) {
     try {
         $assembly = [Reflection.Assembly]::Load($VerifiedImage)
         $type = $assembly.GetType('Aegis.ProtectedSession.InstalledVmRegistration', $true)
-        $method = $type.GetMethod('ObserveForInstaller', [Reflection.BindingFlags]'Public,Static')
+        $method = $type.GetMethod('ObserveStorageForInstaller', [Reflection.BindingFlags]'Public,Static')
         $arguments = [object[]]::new(1); $arguments[0] = [guid]::ParseExact($VmId, 'D')
         $hash = $method.Invoke($null, $arguments)
-        if ($hash -isnot [string] -or $hash -cnotmatch '^[a-f0-9]{64}$') { throw 'protected-vm-binding-refused' }
-        return @{ vmId = $VmId; identitySha256 = $hash }
+        if ($hash -isnot [string] -or $hash -cnotmatch '\A[a-f0-9]{64}\n[a-f0-9]{64}\z') { throw 'protected-vm-binding-refused' }
+        $parts = $hash.Split([char]10)
+        return @{ vmId = $VmId; identitySha256 = $parts[0]; storageSha256 = $parts[1] }
     } catch { throw 'protected-vm-binding-refused' }
 }
 function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
@@ -79,7 +80,11 @@ function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
     try { $digest = [BitConverter]::ToString($hash.ComputeHash($PolicyBytes)).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
     $record = [ordered]@{ schemaVersion = 1; installId = $Policy.installId; revision = $Policy.revision; epoch = $Policy.epoch; policySha256 = $digest; selectionId = $Policy.selectionId; selectionEpoch = $Policy.selectionEpoch }
     if ($null -eq $Binding) { $record.status = 'unconfigured' }
-    else { $record.vmId = $Binding.vmId; $record.identitySha256 = $Binding.identitySha256; $record.status = 'active' }
+    else {
+        $record.vmId = $Binding.vmId; $record.identitySha256 = $Binding.identitySha256
+        if ($Binding.ContainsKey('storageSha256')) { $record.schemaVersion = 2; $record.storageSha256 = $Binding.storageSha256 }
+        $record.status = 'active'
+    }
     return ,([Text.UTF8Encoding]::new($false)).GetBytes(($record | ConvertTo-Json -Compress))
 }
 function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) {

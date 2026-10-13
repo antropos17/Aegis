@@ -83,5 +83,13 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         childExited: true,
       });
     });
+    it('denies aged dispatch while retaining only a live peer and refuses its later closure', () => {
+      expect(invoke('expired')).toEqual({
+        freshRefused: true,
+        liveRetained: true,
+        closedRefused: true,
+        childExited: true,
+      });
+    });
   },
 );

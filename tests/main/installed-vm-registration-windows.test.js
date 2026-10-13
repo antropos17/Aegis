@@ -38,6 +38,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           ...sources,
           path.join(project, 'sidecar/mcpjob/AppContainerExecutable.cs'),
           path.join(project, 'tests/fixtures/vm-lifecycle/InstalledVmRegistrationFixture.cs'),
+          path.join(project, 'tests/fixtures/vm-lifecycle/VmStorageFixture.cs'),
         ],
         { timeout: 30000, windowsHide: true, stdio: 'pipe' },
       );
@@ -79,10 +80,45 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         fileClosed: true,
       });
     });
+    it('checks a version-two disk binding without granting state dispatch', () => {
+      expect(invoke('storage-positive')).toMatchObject({
+        acquired: true,
+        inspected: true,
+        requests: 0,
+        fileClosed: true,
+        providerClosed: true,
+      });
+    });
+    it('prepares expensive storage observation before the two-second caller admission', () => {
+      expect(invoke('prepared-slow')).toEqual({
+        unboundRefused: true,
+        accepted: true,
+        requests: 0,
+      });
+    });
+    it.each(['storage-initial-replacement', 'storage-initial-metadata', 'storage-malformed'])(
+      'refuses a stale or malformed disk binding: %s',
+      (mode) => {
+        expect(invoke(mode)).toMatchObject({ acquired: false, requests: 0, fileClosed: true });
+      },
+    );
+    it.each(['storage-changed-file', 'storage-reconnected', 'storage-outage', 'storage-running'])(
+      'permanently refuses %s after registration admission',
+      (mode) => {
+        expect(invoke(mode)).toMatchObject({
+          acquired: true,
+          inspected: false,
+          refusedAgain: true,
+          requests: 0,
+          fileClosed: true,
+          providerClosed: true,
+        });
+      },
+    );
     it('reads the actual installer stage records and rejects unknown runtime leaves', () => {
       const scratch = path.join(root, 'producer');
       fs.mkdirSync(scratch);
-      const record = invoke('record');
+      const record = invoke('storage-record');
       const produced = spawnSync(
         'powershell.exe',
         [
@@ -96,13 +132,15 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           scratch,
           record.vmId,
           record.identitySha256,
+          record.storageSha256,
         ],
         { timeout: 15000, windowsHide: true, maxBuffer: 8192 },
       );
       expect(produced.error).toBeUndefined();
       expect(produced.status, produced.stderr.toString().slice(0, 1024)).toBe(0);
       const stages = JSON.parse(produced.stdout.toString()).stages;
-      expect(stages).toHaveLength(2);
+      expect(stages).toHaveLength(3);
+      expect(stages.filter((stage) => stage.storageBound)).toHaveLength(1);
       for (const stage of stages) {
         expect(stage).toMatchObject({ initialLeaves: 8, runtimeLeaves: 9, unknownRefused: true });
         expect(invoke('from-producer', [stage.path])).toMatchObject({
