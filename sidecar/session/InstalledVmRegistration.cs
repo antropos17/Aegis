@@ -24,6 +24,9 @@ namespace Aegis.ProtectedSession
             "\"vmId\":\"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\"," +
             "\"identitySha256\":\"([a-f0-9]{64})\",\"storageSha256\":\"([a-f0-9]{64})\",\"status\":\"active\"\\}\\z",
             RegexOptions.CultureInvariant);
+        private static readonly Regex ProtectedStorageSchema = new Regex(StorageSchema.ToString()
+            .Replace("schemaVersion\":2", "schemaVersion\":3")
+            .Replace("\"status\":\"active\"", "\"storageProtection\":\"private-vm\",\"status\":\"active\""), RegexOptions.CultureInvariant);
         private readonly Action checkAuthority;
         private Action checkCaller;
         private readonly InstalledOwnerRegistration installed;
@@ -35,6 +38,7 @@ namespace Aegis.ProtectedSession
         internal readonly Guid VmId;
         private readonly string identityHash;
         internal readonly string StorageHash;
+        internal readonly bool PrivateStorage;
         private readonly bool configured;
 
         private InstalledVmRegistration(string root, string installId, uint revision, string epoch,
@@ -52,6 +56,7 @@ namespace Aegis.ProtectedSession
                 original = held.Read(4096);
                 Match record = Schema.Match(Utf8.GetString(original));
                 if (!record.Success) record = StorageSchema.Match(Utf8.GetString(original));
+                if (!record.Success) { record = ProtectedStorageSchema.Match(Utf8.GetString(original)); PrivateStorage = record.Success; }
                 configured = record.Success;
                 if (!configured) record = Unconfigured.Match(Utf8.GetString(original));
                 uint recordedRevision;
@@ -191,19 +196,34 @@ namespace Aegis.ProtectedSession
         }
 
         public static string ObserveStorageForInstaller(Guid id)
+        { return ObserveStorage(id, false); }
+        public static string ObserveProtectedStorageForInstaller(Guid id)
+        { return ObserveStorage(id, true); }
+        private static string ObserveStorage(Guid id, bool requireProtection)
         {
+            var checkpoint = new VmInspectionCheckpoint();
+            try
+            {
             using (var native = new VmManagementNative(id))
             {
                 VmObservation before = native.Inspect();
                 if (before == null || before.VmId != id || before.State != 3 || String.IsNullOrEmpty(before.Identity))
                     throw new InvalidOperationException("installed-vm-observation-unavailable");
-                using (var storage = new VmStorageInspection(native, new EnrollmentNative()))
+                using (var storage = new VmStorageInspection(native, new EnrollmentNative(), checkpoint))
                 {
+                    if (requireProtection) storage.RequireProtectedStorage(id);
                     VmObservation after = native.Inspect(); storage.CheckCurrent();
                     if (after == null || after.VmId != id || after.State != 3 || after.Identity != before.Identity)
                         throw new InvalidOperationException("installed-vm-observation-unavailable");
                     return EnrollmentInspection.ImageHash(Utf8.GetBytes(before.Identity)) + "\n" + storage.Digest;
                 }
+            }
+            }
+            catch
+            {
+                var failure = new InvalidOperationException("installed-vm-observation-unavailable");
+                if (checkpoint.Code >= 0 && checkpoint.Code <= 24) failure.Data["protectedStorageCheckpoint"] = checkpoint.Code;
+                throw failure;
             }
         }
 

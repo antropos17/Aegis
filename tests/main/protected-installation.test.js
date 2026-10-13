@@ -103,6 +103,49 @@ describe.skipIf(process.platform !== 'win32')(
         diagnosticCode: 'protected-receipt-unknown-child',
       });
     });
+    it('projects only bounded integer storage checkpoints without private exception text', () => {
+      const script = `
+        . './scripts/installation/protected-install-transaction.ps1'
+        $rows=@()
+        foreach($code in @(-1,0,21,22,23,24,25,'22',$true,[uint32]22)){
+          $checkpointFailure=[InvalidOperationException]::new('private-path-password-command')
+          $checkpointFailure.Data['protectedStorageCheckpoint']=$code
+          try{throw $checkpointFailure}catch{$failure=Get-ProtectedInstallFailure $_ 'input'}
+          $rows += @{included=$failure.ContainsKey('storageCheckpoint');value=$failure['storageCheckpoint']}
+        }
+        ConvertTo-Json -InputObject $rows -Compress
+      `;
+      const result = spawnSync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        {
+          cwd: project,
+          windowsHide: true,
+          timeout: 10000,
+          maxBuffer: 4096,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      expect(result.stderr.length).toBe(0);
+      expect(result.stdout.toString()).not.toContain('private-path-password-command');
+      const rows = JSON.parse(result.stdout.toString('utf8'));
+      expect(rows.map((row) => row.included)).toEqual([
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+      ]);
+      expect(rows.filter((row) => row.included).map((row) => row.value)).toEqual([
+        0, 21, 22, 23, 24,
+      ]);
+    });
     it('refuses an unrelated service before any stop, file deletion or account removal', () => {
       expect(invoke('uninstall-foreign')).toMatchObject({ refused: true, events: ['validate'] });
     });

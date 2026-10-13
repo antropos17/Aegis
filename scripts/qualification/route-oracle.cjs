@@ -41,7 +41,10 @@ function evaluate(value, localControl = false) {
       assert.ok(typeof snapshot.runId === "string" && /^[0-9]+$/.test(snapshot.runId));
       assert.ok(typeof snapshot.runAttempt === "string" && /^[0-9]+$/.test(snapshot.runAttempt));
       assert.ok(new RegExp(`^aegis-cloud-${snapshot.runId}-${snapshot.runAttempt}-[a-f0-9]{32}$`).test(snapshot.name));
-      assert.equal(snapshot.vmRoot, `D:\\aegis-cloud-guest-${snapshot.runId}-${snapshot.runAttempt}\\vm`);
+      assert.ok([
+        `C:\\ProgramData\\aegis-cloud-assets-${snapshot.runId}-${snapshot.runAttempt}\\vm`,
+        `D:\\aegis-cloud-guest-${snapshot.runId}-${snapshot.runAttempt}\\vm`,
+      ].includes(snapshot.vmRoot));
     }
     assert.deepEqual(value.before, value.after);
     const expected = protocol.cases(endpoint); assert.equal(client.cases.length, 6); assert.equal(receiver.cases.length, 6);

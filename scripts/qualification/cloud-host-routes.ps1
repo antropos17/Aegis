@@ -7,7 +7,9 @@ function Get-CloudHostRouteSnapshot([string]$Id, [string]$Name, [string]$VmRoot,
         state = $null; nics = $null; nameType = 'unobserved'; configType = 'unobserved'; vmType = 'unobserved' }
     if ($null -ne $Diagnostic) { $Diagnostic.Value = $observation }
     $expectedName = '^aegis-cloud-' + [regex]::Escape($env:GITHUB_RUN_ID) + '-' + [regex]::Escape($env:GITHUB_RUN_ATTEMPT) + '-[a-f0-9]{32}$'
-    $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '\vm'
+    $expectedRoot = if ($VmRoot.StartsWith('C:\ProgramData\aegis-cloud-assets-', [StringComparison]::OrdinalIgnoreCase)) {
+        'C:\ProgramData\aegis-cloud-assets-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '\vm'
+    } else { 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '\vm' }
     if ($Id -notmatch '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$' -or
         $Name -cnotmatch $expectedName -or
         ![IO.Path]::GetFullPath($VmRoot).TrimEnd('\').Equals($expectedRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'host-route-owned-vm-refused' }

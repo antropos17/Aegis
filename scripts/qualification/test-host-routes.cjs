@@ -35,6 +35,9 @@ test("actual IPv4/IPv6 host positives are received and closed; identity in this 
   assert.equal(receipt.positivePassed, true); assert.equal(receipt.socketsClosed, true); assert.equal(receipt.openConnections, 0);
   assert.deepEqual(receipt.cases.map(item => item.positive), [1, 1, 1, 1, 1, 1]);
   const model = evidence(running.endpoint, receipt); assert.equal(oracle.evaluate(model, true).passed, true);
+  const legacy = JSON.parse(JSON.stringify(model));
+  legacy.before.vmRoot = legacy.after.vmRoot = `D:\\aegis-cloud-guest-${legacy.before.runId}-${legacy.before.runAttempt}\\vm`;
+  assert.equal(oracle.evaluate(legacy, true).passed, true);
   for (const field of ["runtimeCallerAuthenticated", "runtimeInitializedBeforeProject", "heldIdentityBeforeRelease", "jobClosureConfirmed", "exitCodeObserved", "passed"]) {
     const copy = JSON.parse(JSON.stringify(model)); copy.identity[field] = false; assert.equal(oracle.evaluate(copy, true).passed, false, field);
   }
@@ -51,6 +54,8 @@ test("actual IPv4/IPv6 host positives are received and closed; identity in this 
     value => { value.after.state = "Off"; },
     value => { value.after.name = "aegis-cloud-guest-123-1"; },
     value => { value.after.vmRoot = "D:\\" + value.after.name + "\\vm"; },
+    value => { value.before.vmRoot = value.after.vmRoot = `C:\\ProgramData\\aegis-cloud-assets-${value.before.runId}-${value.before.runAttempt}-sibling\\vm`; },
+    value => { value.before.vmRoot = value.after.vmRoot = `C:\\ProgramData\\aegis-cloud-assets-${value.before.runId}-${value.before.runAttempt}\\vm\\..\\foreign`; },
     value => { value.after.runId = "999"; },
     value => { value.client.cases[0].id = "other"; }, value => { value.client.cases[0].available = false; },
     value => { value.client.cases[0].code = "UNKNOWN"; },

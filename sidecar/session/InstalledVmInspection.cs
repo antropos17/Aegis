@@ -46,6 +46,7 @@ namespace Aegis.ProtectedSession
                 {
                     checkpoint.Code = 4; if (result.State != 3) throw new InvalidOperationException();
                     if (storage == null) storage = new VmStorageInspection(native as IVmStorageSource, storageFiles, checkpoint);
+                    if (registration.PrivateStorage) storage.RequireProtectedStorage(registration.VmId);
                     storage.CheckCurrent();
                     checkpoint.Code = 14; if (storage.Digest != registration.StorageHash) throw new InvalidOperationException();
                     // ReadStorage itself fences the exact captured VM identity

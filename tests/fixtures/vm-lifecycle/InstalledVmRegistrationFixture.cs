@@ -67,9 +67,21 @@ internal static class InstalledVmRegistrationFixture
         var storageSource = new VmStorageFixture.Source();
         string storageHash;
         using (var storage = new VmStorageInspection(storageSource, storageFiles)) storageHash = storage.Digest;
-        if (mode.StartsWith("storage-", StringComparison.Ordinal) || mode == "prepared-slow")
+        if (mode.StartsWith("storage-", StringComparison.Ordinal) || mode.StartsWith("protected-", StringComparison.Ordinal) || mode == "prepared-slow")
             text = text.Replace("\"schemaVersion\":1", "\"schemaVersion\":2").Replace("\"status\":\"active\"",
                 "\"storageSha256\":\"" + storageHash + "\",\"status\":\"active\"");
+        if (mode.StartsWith("protected-", StringComparison.Ordinal))
+        {
+            VmStorageProtection.ResolveForTest = delegate(Guid vm) { if (vm != Id) throw new InvalidOperationException(); return VmStorageFixture.Files.VmSid; };
+            text = text.Replace("\"schemaVersion\":2", "\"schemaVersion\":3")
+                .Replace("\"status\":\"active\"", "\"storageProtection\":\"private-vm\",\"status\":\"active\"");
+            if (mode == "protected-world") storageFiles.SecuritySddl += "(A;;FR;;;WD)";
+            if (mode == "protected-foreign-vm") storageFiles.SecuritySddl += "(A;;FA;;;S-1-5-83-0-5-6-7-8)";
+            if (mode == "protected-owner") storageFiles.SecuritySddl = storageFiles.SecuritySddl.Replace("O:BA", "O:BU");
+            if (mode == "protected-directory") storageFiles.DirectoryProtected = false;
+            if (mode == "protected-missing-sid") storageFiles.SecuritySddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)";
+            if (mode == "protected-malformed") text = text.Replace("private-vm", "trusted");
+        }
         if (mode == "storage-initial-replacement") storageFiles.FileIdentity = new string('3', 32);
         if (mode == "storage-initial-metadata") storageFiles.Metadata = new string('3', 64);
         if (mode == "storage-malformed") text = text.Replace(storageHash, "invalid");
@@ -94,6 +106,8 @@ internal static class InstalledVmRegistrationFixture
         if (mode == "from-producer")
         {
             text = System.IO.File.ReadAllText(Path.Combine(root, "registered-vm.json"));
+            if (text.StartsWith("{\"schemaVersion\":3,", StringComparison.Ordinal))
+                VmStorageProtection.ResolveForTest = delegate(Guid vm) { if (vm != Id) throw new InvalidOperationException(); return VmStorageFixture.Files.VmSid; };
             expectedDigest = EnrollmentInspection.ImageHash(System.IO.File.ReadAllBytes(Path.Combine(root, "owner-policy.json")));
         }
         bool? nativeProtected = null;
@@ -157,11 +171,13 @@ internal static class InstalledVmRegistrationFixture
             if (mode == "storage-reconnected") provider.Storage.Mode = "reconnected";
             if (mode == "storage-outage") provider.Storage.Fail = true;
             if (mode == "storage-running") provider.State = 2;
+            if (mode == "protected-changed-acl") storageFiles.SecuritySddl += "(A;;FR;;;WD)";
             try { inspected = owner.Inspect() != null; } catch { }
             if (mode != "positive" && mode != "from-producer" && mode != "storage-positive")
             {
-                authority = true; file.Changed = false; file.Bytes = Encoding.UTF8.GetBytes(Record()); provider.Actual = Identity;
+                authority = true; file.Changed = false; file.Bytes = Encoding.UTF8.GetBytes(text); provider.Actual = Identity;
                 storageFiles.Changed = false; provider.Storage.Mode = "positive"; provider.Storage.Fail = false; provider.State = 3;
+                storageFiles.SecuritySddl = new VmStorageFixture.Files().SecuritySddl;
                 try { owner.Inspect(); } catch { refusedAgain = true; }
             }
         }

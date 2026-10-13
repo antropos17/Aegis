@@ -58,6 +58,65 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(result.stderr.length).toBe(0);
       return JSON.parse(result.stdout.toString());
     }
+    it.each(['positive', 'dvd-read', 'inherit-only'])('accepts private ACL policy: %s', (mode) => {
+      expect(invoke(`acl-${mode}`)).toEqual({ accepted: true });
+    });
+    it.each([
+      'public-read',
+      'foreign-vm',
+      'ordinary-owner',
+      'vm-owner',
+      'inherited',
+      'missing-vm',
+      'empty',
+      'null-dacl',
+      'deny',
+      'callback',
+      'truncated',
+      'disk-read-only',
+      'dvd-write',
+    ])('refuses unsafe or unusable private ACL policy: %s', (mode) => {
+      expect(invoke(`acl-${mode}`)).toEqual({ accepted: false });
+    });
+    it('returns an isolated native descriptor snapshot and observes later ACL changes', () => {
+      const scratch = path.join(root, 'acl-native');
+      fs.mkdirSync(scratch);
+      expect(invoke('native-acl-snapshot', [scratch])).toEqual({
+        isolated: true,
+        changedAclRefused: true,
+        cleanup: true,
+      });
+    });
+    it('refuses foreign qualification roots and invalid VM IDs before ACL effects', () => {
+      const driver = path.join(project, 'scripts/qualification/cloud-guest-lab.ps1');
+      const command = `
+        $tokens=$null; $errors=$null
+        $ast=[Management.Automation.Language.Parser]::ParseFile('${driver.replaceAll("'", "''")}',[ref]$tokens,[ref]$errors)
+        if($errors.Count){throw 'source-parse-refused'}
+        $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Protect-OwnedCloudGuestStorage'},$true)
+        . ([scriptblock]::Create($function.Extent.Text))
+        $env:GITHUB_ACTIONS='true'; $env:RUNNER_ENVIRONMENT='github-hosted'; $env:GITHUB_RUN_ID='123'; $env:GITHUB_RUN_ATTEMPT='1'
+        $rows=@()
+        foreach($case in @(@{root='D:\\foreign';id='11111111-1111-1111-1111-111111111111'},@{root='C:\\ProgramData\\aegis-cloud-assets-123-1';id='invalid'},@{root='C:\\ProgramData\\aegis-cloud-assets-123-1';id='00000000-0000-0000-0000-000000000000'})){
+          try{Protect-OwnedCloudGuestStorage $case.root $case.id | Out-Null; $rows += $false}
+          catch{$rows += $_.Exception.Message -ceq 'registered-vm-owner-corpus-refused'}
+        }
+        ConvertTo-Json -InputObject $rows -Compress
+      `;
+      const result = spawnSync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', command],
+        {
+          timeout: 10000,
+          windowsHide: true,
+          maxBuffer: 4096,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      expect(result.stderr.length).toBe(0);
+      expect(JSON.parse(result.stdout.toString('utf8'))).toEqual([true, true, true]);
+    });
     it.each(['positive', 'reordered'])('accepts unchanged attachments: %s', (mode) => {
       const result = invoke(mode);
       expect(result).toMatchObject({ acquired: true, checked: true, refusedAgain: false });
