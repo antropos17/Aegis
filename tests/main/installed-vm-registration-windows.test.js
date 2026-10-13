@@ -89,6 +89,35 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         providerClosed: true,
       });
     });
+    it('accepts version-three private storage for the original VM without state dispatch', () => {
+      expect(invoke('protected-positive')).toMatchObject({
+        acquired: true,
+        inspected: true,
+        requests: 0,
+        fileClosed: true,
+        providerClosed: true,
+      });
+    });
+    it.each([
+      'protected-world',
+      'protected-foreign-vm',
+      'protected-owner',
+      'protected-directory',
+      'protected-missing-sid',
+      'protected-malformed',
+    ])('refuses protected registration when ownership or ACL provenance fails: %s', (mode) => {
+      expect(invoke(mode)).toMatchObject({ acquired: false, requests: 0, fileClosed: true });
+    });
+    it('latches protection loss even when the original ACL is subsequently restored', () => {
+      expect(invoke('protected-changed-acl')).toMatchObject({
+        acquired: true,
+        inspected: false,
+        refusedAgain: true,
+        requests: 0,
+        fileClosed: true,
+        providerClosed: true,
+      });
+    });
     it('prepares expensive storage observation before the two-second caller admission', () => {
       expect(invoke('prepared-slow')).toEqual({
         unboundRefused: true,
@@ -139,8 +168,9 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(produced.error).toBeUndefined();
       expect(produced.status, produced.stderr.toString().slice(0, 1024)).toBe(0);
       const stages = JSON.parse(produced.stdout.toString()).stages;
-      expect(stages).toHaveLength(3);
-      expect(stages.filter((stage) => stage.storageBound)).toHaveLength(1);
+      expect(stages).toHaveLength(4);
+      expect(stages.filter((stage) => stage.storageBound)).toHaveLength(2);
+      expect(stages.filter((stage) => stage.privateStorage)).toHaveLength(1);
       for (const stage of stages) {
         expect(stage).toMatchObject({ initialLeaves: 8, runtimeLeaves: 9, unknownRefused: true });
         expect(invoke('from-producer', [stage.path])).toMatchObject({

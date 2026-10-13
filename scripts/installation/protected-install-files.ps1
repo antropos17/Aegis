@@ -67,12 +67,12 @@ function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage) {
     try {
         $assembly = [Reflection.Assembly]::Load($VerifiedImage)
         $type = $assembly.GetType('Aegis.ProtectedSession.InstalledVmRegistration', $true)
-        $method = $type.GetMethod('ObserveStorageForInstaller', [Reflection.BindingFlags]'Public,Static')
+        $method = $type.GetMethod('ObserveProtectedStorageForInstaller', [Reflection.BindingFlags]'Public,Static')
         $arguments = [object[]]::new(1); $arguments[0] = [guid]::ParseExact($VmId, 'D')
         $hash = $method.Invoke($null, $arguments)
         if ($hash -isnot [string] -or $hash -cnotmatch '\A[a-f0-9]{64}\n[a-f0-9]{64}\z') { throw 'protected-vm-binding-refused' }
         $parts = $hash.Split([char]10)
-        return @{ vmId = $VmId; identitySha256 = $parts[0]; storageSha256 = $parts[1] }
+        return @{ vmId = $VmId; identitySha256 = $parts[0]; storageSha256 = $parts[1]; storageProtection = 'private-vm' }
     } catch { throw 'protected-vm-binding-refused' }
 }
 function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
@@ -83,6 +83,10 @@ function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
     else {
         $record.vmId = $Binding.vmId; $record.identitySha256 = $Binding.identitySha256
         if ($Binding.ContainsKey('storageSha256')) { $record.schemaVersion = 2; $record.storageSha256 = $Binding.storageSha256 }
+        if ($Binding.ContainsKey('storageProtection')) {
+            if ($Binding.storageProtection -cne 'private-vm' -or !$Binding.ContainsKey('storageSha256')) { throw 'protected-vm-binding-refused' }
+            $record.schemaVersion = 3; $record.storageProtection = 'private-vm'
+        }
         $record.status = 'active'
     }
     return ,([Text.UTF8Encoding]::new($false)).GetBytes(($record | ConvertTo-Json -Compress))

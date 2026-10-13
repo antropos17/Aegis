@@ -1,5 +1,39 @@
 # Installed VM registration inspection
 
+## Private storage ACL eligibility
+
+New administrative registrations use version 3. Its version-two fields are
+followed by `"storageProtection":"private-vm"` before `status`. The installer
+calls `ObserveProtectedStorageForInstaller` on the verified native image and
+refuses unprotected storage. It does not change ACLs on a selected existing VM.
+Versions 1 and 2 retain their read-only compatibility paths and supply no private
+storage claim.
+
+The native lease resolves the exact VM principal locally from
+`NT VIRTUAL MACHINE\<registered GUID>`. Every attached file must have a protected
+allow-only DACL, a SYSTEM/Administrators owner, no effective grants to other
+principals, and the required VM read access. Writable disks require VM write
+access; DVD images permit that VM only read/execute/query rights. Disks support
+the exact VM's full-control grant used in Microsoft's
+[Hyper-V VHD permission guidance](https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/hyper-v-virtual-machine-not-start-0x80070005).
+Every held ancestor must retain the existing protected-branch policy. Descriptor
+snapshots are private copies; native rechecks observe later ACL changes. Loss of
+eligibility is latched through the original observation lease.
+
+This proves observed ACL eligibility while the files and ancestors are held. It
+does not prove trusted fresh creation, the absence of earlier mapped writers,
+image-content provenance, VHD parent-chain closure, configuration/network seals,
+running-VM containment, lifecycle permission consumption or guest authentication.
+All results remain read-only with `ownershipQualified=false` and `launchAllowed=false`.
+The fixed qualification driver applies ACLs only to its finite newly created
+files and directories after validating their exact scope; it leaves global
+ancestors and unrelated VMs unchanged.
+
+Stage-nine numeric checkpoints 21-24 identify VM-principal resolution, ancestor
+protection, attached-file ACL eligibility and original VM association respectively.
+The existing fixed-size private failure channel carries no descriptor, path or
+provider text.
+
 The installed supervisor can inspect a VM recorded in the fixed protected
 installation. The administrative installer manages that record. This is a prerequisite for connecting the installed owner to VM
 management. Preparation, agent release, lifecycle dispatch, authenticated guest
@@ -59,7 +93,7 @@ record without constructing a native VM manager. A missing leaf preserves
 compatibility with the earlier process-only installation; neither state grants VM
 authority. An unconfigured record with active-only fields is refused.
 
-New administrative registrations use version 2. Its common fields have the same
+Version 2 records have common fields in the same
 order and binding, with `"schemaVersion":2`; after `identitySha256` it adds
 `"storageSha256":"<64 lowercase hex>"` before `status`. Version 1 active records
 retain their identity-only read-only compatibility path. Unconfigured records

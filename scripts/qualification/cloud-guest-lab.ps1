@@ -123,6 +123,53 @@ function Stage([string]$StageName, [scriptblock]$Operation) {
     }
     finally { $watch.Stop(); Write-Host ('stage-end ' + $StageName + ' ' + [DateTime]::UtcNow.ToString('o')) }
 }
+
+function Protect-OwnedCloudGuestStorage([string]$Root, [string]$VmId) {
+    # Qualification-only: validate the finite freshly created set before changing
+    # any ACL. No global ancestor, existing VM or unrelated file is repaired.
+    $expected = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
+    if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or
+        $Root -cne $expected -or $VmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or
+        $VmId -ceq [guid]::Empty.ToString('D')) { throw 'registered-vm-owner-corpus-refused' }
+    $sid = ([Security.Principal.NTAccount]::new('NT VIRTUAL MACHINE', $VmId)).Translate([Security.Principal.SecurityIdentifier])
+    $directories = @($Root, (Join-Path $Root 'vm'), (Join-Path $Root 'media'), (Join-Path $Root 'media/answer'))
+    $files = @(@{ path = (Join-Path $Root 'vm/guest.vhdx'); disk = $true; vm = $true },
+        @{ path = (Join-Path $Root 'media/windows.iso'); disk = $false; vm = $true },
+        @{ path = (Join-Path $Root 'media/answer.iso'); disk = $false; vm = $true },
+        @{ path = (Join-Path $Root 'media/answer/Autounattend.xml'); disk = $false; vm = $false })
+    foreach ($path in $directories + @($files | ForEach-Object { $_.path })) {
+        $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint -or
+            ![IO.Path]::GetFullPath($path).StartsWith($expected, [StringComparison]::OrdinalIgnoreCase) -or
+            (($path -cin $directories) -ne ($item -is [IO.DirectoryInfo]))) { throw 'registered-vm-owner-corpus-refused' }
+        $parent = if ($item -is [IO.FileInfo]) { $item.Directory } else { $item.Parent }
+        while ($null -ne $parent) {
+            if ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'registered-vm-owner-corpus-refused' }
+            $parent = $parent.Parent
+        }
+    }
+    function New-OwnedStorageAcl([bool]$Directory, [bool]$Public, [bool]$Vm, [bool]$Disk) {
+        $acl = if ($Directory) { [Security.AccessControl.DirectorySecurity]::new() } else { [Security.AccessControl.FileSecurity]::new() }
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
+        $inherit = if ($Directory) { [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit' } else { [Security.AccessControl.InheritanceFlags]::None }
+        foreach ($hostSid in @('S-1-5-18', 'S-1-5-32-544')) {
+            $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($hostSid),
+                [Security.AccessControl.FileSystemRights]::FullControl, $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+        }
+        if ($Public) { $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'),
+            [Security.AccessControl.FileSystemRights]::ReadAndExecute, $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow)) }
+        if ($Vm) {
+            $rights = if ($Disk) { [Security.AccessControl.FileSystemRights]::FullControl } else { [Security.AccessControl.FileSystemRights]::ReadAndExecute }
+            $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, $rights, $inherit,
+                [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+        }
+        return $acl
+    }
+    foreach ($path in $directories) { [IO.Directory]::SetAccessControl($path, (New-OwnedStorageAcl $true ($path -ceq $Root) ($path -cne $Root -and $path -cne $directories[3]) $false)) }
+    foreach ($file in $files) { [IO.File]::SetAccessControl($file.path, (New-OwnedStorageAcl $false $false $file.vm $file.disk)) }
+    return @{ scope = 'fresh-owned-qualification-files'; directories = $directories.Count; files = $files.Count; inspectionOnly = $true }
+}
 function Compile([string]$Leaf, [string[]]$Sources, [string[]]$References) {
     $output = Join-Path $OutputRoot ('native\' + $Leaf)
     $arguments = @('/nologo', '/target:library', '/platform:x64', '/optimize+', '/warnaserror+', ('/out:"' + $output + '"'))
@@ -333,12 +380,14 @@ try {
     $report.installedOwnerRegisteredVm = Stage 'fixed-host-registered-vm-owner-corpus' {
         $before = Invoke-CloudHyperVCommand observe $name $vmRoot $id
         if (!$before.exists -or $before.state -cne 'Off') { throw 'registered-vm-initial-state-refused' }
+        $report['storageAclPreparation'] = Protect-OwnedCloudGuestStorage $OutputRoot $id
         $value = Invoke-InstalledOwnerQualification (Join-Path $OutputRoot 'transfer/installed-owner') (Join-Path $OutputRoot 'installed-owner-registered-vm-control') $report.actualHead 'fresh-host' $id
         $script:report.installedOwnerRegisteredVm = $value
         $after = Invoke-CloudHyperVCommand observe $name $vmRoot $id
         if (!(Test-InstalledOwnerQualificationReceipt $value $report.actualHead 'fresh-host') -or
             $value.registeredVm.vmId -cne $id -or $value.registeredVm.identitySha256 -cnotmatch '^[a-f0-9]{64}$' -or
             $value.registeredVm.storageSha256 -cnotmatch '^[a-f0-9]{64}$' -or
+            $value.registeredVm.storageProtection -cne 'private-vm' -or
             $value.registeredVm.inspectionOnly -ne $true -or !$after.exists -or $after.state -cne 'Off') { throw 'registered-vm-owner-corpus-refused' }
         return $value
     }

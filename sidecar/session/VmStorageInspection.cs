@@ -21,6 +21,9 @@ namespace Aegis.ProtectedSession
     {
         private readonly IVmStorageSource source;
         private readonly List<EnrollmentHeld> held = new List<EnrollmentHeld>();
+        private readonly HashSet<string> disks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private Guid protectedVmId;
+        private string protectedVmSid;
         private readonly string topology;
         private readonly VmInspectionCheckpoint checkpoint;
         internal readonly string Digest;
@@ -39,6 +42,7 @@ namespace Aegis.ProtectedSession
                 foreach (VmStorageAttachment row in rows)
                 {
                     if (row.Path == "") continue; // Empty virtual DVD tray.
+                    if (row.Kind == "disk") disks.Add(row.Path);
                     string cursor = System.IO.Path.GetDirectoryName(row.Path);
                     int depth = 0;
                     while (!String.IsNullOrEmpty(cursor))
@@ -122,8 +126,36 @@ namespace Aegis.ProtectedSession
                 checkpoint.Code = 11; foreach (EnrollmentHeld file in held) file.Recheck(file.Directory);
                 checkpoint.Code = 12; if (Canonical(source.ReadStorage()) != topology) throw new InvalidDataException();
                 checkpoint.Code = 13; foreach (EnrollmentHeld file in held) file.Recheck(file.Directory);
+                if (protectedVmSid != null) CheckProtection();
             }
             catch { refused = true; throw new InvalidOperationException("installed-vm-storage-unavailable"); }
+        }
+        internal void RequireProtectedStorage(Guid id)
+        {
+            if (closed || refused) throw new InvalidOperationException("installed-vm-storage-unavailable");
+            try
+            {
+                CheckCurrent();
+                if (protectedVmSid == null)
+                { checkpoint.Code = 21; protectedVmId = id; protectedVmSid = VmStorageProtection.Resolve(id); }
+                checkpoint.Code = 24;
+                if (id != protectedVmId || String.IsNullOrEmpty(protectedVmSid)) throw new InvalidOperationException();
+                CheckProtection(); CheckCurrent();
+            }
+            catch { refused = true; throw new InvalidOperationException("installed-vm-storage-protection-unavailable"); }
+        }
+        private void CheckProtection()
+        {
+            foreach (EnrollmentHeld file in held)
+            {
+                if (file.Directory)
+                { checkpoint.Code = 22; if (!file.Protected(true)) throw new InvalidOperationException(); }
+                else {
+                    checkpoint.Code = 23;
+                    if (!VmStorageProtection.PrivateFile(file.SecurityDescriptor, protectedVmSid, disks.Contains(file.PathName)))
+                        throw new InvalidOperationException();
+                }
+            }
         }
         public void Dispose()
         {

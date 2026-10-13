@@ -24,6 +24,9 @@ namespace Aegis.ProtectedSession
             "\"vmId\":\"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\"," +
             "\"identitySha256\":\"([a-f0-9]{64})\",\"storageSha256\":\"([a-f0-9]{64})\",\"status\":\"active\"\\}\\z",
             RegexOptions.CultureInvariant);
+        private static readonly Regex ProtectedStorageSchema = new Regex(StorageSchema.ToString()
+            .Replace("schemaVersion\":2", "schemaVersion\":3")
+            .Replace("\"status\":\"active\"", "\"storageProtection\":\"private-vm\",\"status\":\"active\""), RegexOptions.CultureInvariant);
         private readonly Action checkAuthority;
         private Action checkCaller;
         private readonly InstalledOwnerRegistration installed;
@@ -35,6 +38,7 @@ namespace Aegis.ProtectedSession
         internal readonly Guid VmId;
         private readonly string identityHash;
         internal readonly string StorageHash;
+        internal readonly bool PrivateStorage;
         private readonly bool configured;
 
         private InstalledVmRegistration(string root, string installId, uint revision, string epoch,
@@ -52,6 +56,7 @@ namespace Aegis.ProtectedSession
                 original = held.Read(4096);
                 Match record = Schema.Match(Utf8.GetString(original));
                 if (!record.Success) record = StorageSchema.Match(Utf8.GetString(original));
+                if (!record.Success) { record = ProtectedStorageSchema.Match(Utf8.GetString(original)); PrivateStorage = record.Success; }
                 configured = record.Success;
                 if (!configured) record = Unconfigured.Match(Utf8.GetString(original));
                 uint recordedRevision;
@@ -191,6 +196,10 @@ namespace Aegis.ProtectedSession
         }
 
         public static string ObserveStorageForInstaller(Guid id)
+        { return ObserveStorage(id, false); }
+        public static string ObserveProtectedStorageForInstaller(Guid id)
+        { return ObserveStorage(id, true); }
+        private static string ObserveStorage(Guid id, bool requireProtection)
         {
             using (var native = new VmManagementNative(id))
             {
@@ -199,6 +208,7 @@ namespace Aegis.ProtectedSession
                     throw new InvalidOperationException("installed-vm-observation-unavailable");
                 using (var storage = new VmStorageInspection(native, new EnrollmentNative()))
                 {
+                    if (requireProtection) storage.RequireProtectedStorage(id);
                     VmObservation after = native.Inspect(); storage.CheckCurrent();
                     if (after == null || after.VmId != id || after.State != 3 || after.Identity != before.Identity)
                         throw new InvalidOperationException("installed-vm-observation-unavailable");

@@ -17,6 +17,7 @@ namespace Aegis.ProtectedSession
         internal abstract bool Reparse { get; }
         internal abstract bool Protected(bool ancestor);
         internal virtual string BindingMetadata { get { return null; } }
+        internal virtual byte[] SecurityDescriptor { get { return null; } }
         internal abstract byte[] Read(int maximum);
         internal abstract void Recheck(bool ancestor);
         public abstract void Dispose();
@@ -134,6 +135,7 @@ namespace Aegis.ProtectedSession
             internal override string FileId { get { return id; } }
             internal override bool Directory { get { return directory; } }
             internal override bool Reparse { get { return reparse; } }
+            internal override byte[] SecurityDescriptor { get { Require(!disposed); return (byte[])security.Clone(); } }
             internal override string BindingMetadata
             {
                 get {

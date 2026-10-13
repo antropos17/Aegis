@@ -176,9 +176,9 @@ internal static class InstalledOwnerFixture
             236, 237, 238, 239, 240, 241, 242, 243, 244 };
         foreach (uint substage in stageSeven)
             rows.Add("{\"kind\":\"stage7\",\"expectedStage\":7,\"expectedSubstage\":" + substage + ",\"whole\":" + Parsed(Frame(7, substage), false) + ",\"split\":" + Parsed(Frame(7, substage), true) + "}");
-        for (uint checkpoint = 1; checkpoint <= 20; checkpoint++)
+        for (uint checkpoint = 1; checkpoint <= 24; checkpoint++)
             rows.Add("{\"kind\":\"stage9\",\"expectedStage\":9,\"expectedSubstage\":" + checkpoint + ",\"whole\":" + Parsed(Frame(9, checkpoint), false) + ",\"split\":" + Parsed(Frame(9, checkpoint), true) + "}");
-        string[] invalid = { Frame(9, 21), Frame(9, UInt32.MaxValue), Frame(7, 23), Frame(7, UInt32.MaxValue), Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
+        string[] invalid = { Frame(9, 25), Frame(9, UInt32.MaxValue), Frame(7, 23), Frame(7, UInt32.MaxValue), Frame(0, 0), Frame(13, 0), Frame(2, 45), Frame(1, 1), Frame(3, 13),
             Frame(1, 14), Frame(3, 26), Frame(12, 26),
             Frame(2, 8).Substring(0, 103) + "1", Frame(2, 8).Replace("00000008", "0000000A"),
             "AEGISF03" + Frame(2, 8).Substring(8), Frame(2, 8).Substring(0, 103), Frame(2, 8) + "0" };

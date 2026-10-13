@@ -36,6 +36,9 @@ internal static class VmStorageFixture
     }
     internal sealed class Files : IEnrollmentFiles
     {
+        internal const string VmSid = "S-1-5-83-0-1-2-3-4";
+        internal bool DirectoryProtected = true;
+        internal string SecuritySddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;" + VmSid + ")";
         internal bool Changed, Link, Fail, Zero;
         internal string FileIdentity = new string('1', 32), Metadata = new string('2', 64);
         internal int Opened, Closed;
@@ -56,17 +59,71 @@ internal static class VmStorageFixture
             internal override string Volume { get { return files.Zero ? new string('0', 16) : new string('1', 16); } }
             internal override string FileId { get { return files.FileIdentity; } }
             internal override string BindingMetadata { get { return files.Metadata; } }
-            internal override bool Protected(bool ancestor) { return false; }
+            internal override byte[] SecurityDescriptor {
+                get {
+                    if (files.SecuritySddl == null) return null;
+                    var value = new System.Security.AccessControl.RawSecurityDescriptor(files.SecuritySddl);
+                    var bytes = new byte[value.BinaryLength]; value.GetBinaryForm(bytes, 0); return bytes;
+                }
+            }
+            internal override bool Protected(bool ancestor) { return files.DirectoryProtected; }
             internal override byte[] Read(int limit) { throw new InvalidOperationException(); }
             internal override void Recheck(bool ancestor) { if (closed || files.Changed) throw new InvalidDataException(); }
             public override void Dispose() { if (!closed) { closed = true; files.Closed++; } }
         }
     }
     private static string Bool(bool value) { return value ? "true" : "false"; }
+    private static int Acl(string mode)
+    {
+        bool disk = mode != "dvd-read" && mode != "dvd-write";
+        string text = new Files().SecuritySddl;
+        if (mode == "dvd-read" || mode == "disk-read-only") text = text.Replace("FA;;;" + Files.VmSid, "0x1200a9;;;" + Files.VmSid);
+        if (mode == "public-read") text += "(A;;FR;;;WD)";
+        if (mode == "foreign-vm") text += "(A;;FA;;;S-1-5-83-0-5-6-7-8)";
+        if (mode == "vm-owner") text = text.Replace("O:BA", "O:" + Files.VmSid);
+        if (mode == "ordinary-owner") text = text.Replace("O:BA", "O:BU");
+        if (mode == "inherited") text = text.Replace("D:P", "D:AI");
+        if (mode == "missing-vm") text = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)";
+        if (mode == "empty") text = "O:BAG:BAD:P";
+        if (mode == "deny") text += "(D;;FR;;;WD)";
+        if (mode == "inherit-only") text += "(A;OIIO;FA;;;WD)";
+        var descriptor = new System.Security.AccessControl.RawSecurityDescriptor(text);
+        if (mode == "null-dacl") descriptor = new System.Security.AccessControl.RawSecurityDescriptor(
+            System.Security.AccessControl.ControlFlags.DiscretionaryAclPresent | System.Security.AccessControl.ControlFlags.DiscretionaryAclProtected,
+            new System.Security.Principal.SecurityIdentifier("S-1-5-32-544"), null, null, null);
+        if (mode == "callback") descriptor.DiscretionaryAcl.InsertAce(0, new System.Security.AccessControl.CommonAce(
+            System.Security.AccessControl.AceFlags.None, System.Security.AccessControl.AceQualifier.AccessAllowed,
+            1, new System.Security.Principal.SecurityIdentifier(Files.VmSid), true, new byte[0]));
+        byte[] bytes = new byte[descriptor.BinaryLength]; descriptor.GetBinaryForm(bytes, 0);
+        if (mode == "truncated") Array.Resize(ref bytes, 8);
+        Console.WriteLine("{\"accepted\":" + Bool(VmStorageProtection.PrivateFile(bytes, Files.VmSid, disk)) + "}");
+        return 0;
+    }
+    private static int NativeAcl(string root)
+    {
+        string path = System.IO.Path.Combine(root, "acl-snapshot.bin");
+        System.IO.File.WriteAllText(path, "disposable ACL observation");
+        bool isolated, refused = false;
+        using (var held = new EnrollmentNative().Open(path, false))
+        {
+            byte[] first = held.SecurityDescriptor; first[0] ^= 1;
+            isolated = first[0] != held.SecurityDescriptor[0]; held.Recheck(false);
+            var acl = new System.Security.AccessControl.FileSecurity(); acl.SetAccessRuleProtection(true, false);
+            using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
+                acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(identity.User,
+                    System.Security.AccessControl.FileSystemRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
+            System.IO.File.SetAccessControl(path, acl);
+            try { held.Recheck(false); } catch (InvalidDataException) { refused = true; }
+        }
+        System.IO.File.Delete(path);
+        Console.WriteLine("{\"isolated\":" + Bool(isolated) + ",\"changedAclRefused\":" + Bool(refused) + ",\"cleanup\":true}");
+        return 0;
+    }
     private static int Main(string[] args)
     {
         if (args.Length < 1 || args.Length > 2) return 2;
         string mode = args[0];
+        if (mode.StartsWith("acl-", StringComparison.Ordinal)) return Acl(mode.Substring(4));
         if (mode.StartsWith("native", StringComparison.Ordinal)) return Native(args[1], mode);
         var source = new Source(); var files = new Files();
         bool acquired = false, checkedAgain = false, refusedAgain = false, changedDigest = false;
@@ -105,6 +162,7 @@ internal static class VmStorageFixture
     }
     private static int Native(string root, string mode)
     {
+        if (mode == "native-acl-snapshot") return NativeAcl(root);
         string path = System.IO.Path.Combine(root, "disk.vhdx");
         System.IO.File.WriteAllText(path, "fixture bytes; not an actual virtual disk");
         var source = new Source(); source.PathName = path;

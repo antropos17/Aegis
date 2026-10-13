@@ -32,11 +32,12 @@ $context = @{ installId = '11111111111111111111111111111111'; selectionId = '444
     operatorSid = 'S-1-5-21-1-2-3-400'; operatorAccount = 'FixtureOnly'; credential = $blob; parent = @{}; manifest = @{ files = $files };
     inputs = @{ 'aegis-owner.exe' = $blob; 'aegis-session.exe' = $blob; 'aegis-main.exe' = $blob }; vmBinding = $null }
 $results = @()
-foreach ($version in @(0, 1, 2)) {
+foreach ($version in @(0, 1, 2, 3)) {
     $configured = $version -ne 0
     if ($configured) { $context.vmBinding = @{ vmId = $VmId; identitySha256 = $IdentityHash } }
     else { $context.Remove('vmBinding') } # Earlier process-only associations have no binding key.
-    if ($version -eq 2) { $context.vmBinding.storageSha256 = $StorageHash }
+    if ($version -ge 2) { $context.vmBinding.storageSha256 = $StorageHash }
+    if ($version -eq 3) { $context.vmBinding.storageProtection = 'private-vm' }
     $stage = New-ProtectedInstallStage $context 1 '22222222222222222222222222222222'
     if ($stage.rows.Count -ne 8) { throw 'fixture-initial-leaf-count' }
     Assert-ProtectedInstallStage $stage
@@ -48,6 +49,6 @@ foreach ($version in @(0, 1, 2)) {
     try { Update-ProtectedInstallRuntimeRows $stage } catch { $refused = $_.Exception.Message -ceq 'protected-runtime-unknown-child' }
     [IO.File]::Delete($foreign)
     if (!$refused) { throw 'fixture-unknown-leaf-not-refused' }
-    $results += @{ path = $stage.path; configured = $configured; storageBound = $version -eq 2; initialLeaves = 8; runtimeLeaves = 9; unknownRefused = $refused }
+    $results += @{ path = $stage.path; configured = $configured; storageBound = $version -ge 2; privateStorage = $version -eq 3; initialLeaves = 8; runtimeLeaves = 9; unknownRefused = $refused }
 }
 @{ stages = $results } | ConvertTo-Json -Depth 4 -Compress

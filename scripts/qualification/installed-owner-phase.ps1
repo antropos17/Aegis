@@ -64,7 +64,7 @@ function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'nat
         $v = Get-InstalledOwnerObservedField $Value 'supervisorSubstage'
         if ($result.ContainsKey('supervisorStage') -and
             ($v -is [int] -or $v -is [long] -or $v -is [uint32]) -and $v -ge 0 -and
-            (($result.supervisorStage -eq 2 -and $v -le 44) -or ($result.supervisorStage -eq 9 -and $v -le 20) -or ($result.supervisorStage -eq 7 -and
+            (($result.supervisorStage -eq 2 -and $v -le 44) -or ($result.supervisorStage -eq 9 -and $v -le 24) -or ($result.supervisorStage -eq 7 -and
                 ($v -le 22 -or ($v -ge 114 -and $v -le 126) -or ($v -ge 136 -and $v -le 144) -or
                     ($v -ge 214 -and $v -le 226) -or ($v -ge 236 -and $v -le 244))))) { $result.supervisorSubstage = $v }
         $v = Get-InstalledOwnerObservedField $Value 'scope'; if ($v -is [string] -and $v -ceq 'installed-owner-inspection') { $result.scope = $v }
@@ -350,7 +350,7 @@ function Invoke-InstalledOwnerQualification([string]$PayloadRoot, [string]$Scrat
         foreach ($name in @('aegis-owner.exe', 'aegis-main.exe')) { Copy-Item -LiteralPath (Join-Path $PayloadRoot ('binaries/' + $name)) -Destination (Join-Path $baselineSources $name) }
         Copy-Item -LiteralPath (Join-Path $PayloadRoot 'baseline/aegis-session.exe') -Destination (Join-Path $baselineSources 'aegis-session.exe')
         $stage = 'baseline-install'; $association = New-ProtectedInstallation $baselineSources $baselineManifest $account $password $false $installJournal $RegisteredVmId
-        if ($RegisteredVmId -cne '') { $report['registeredVm'] = @{ vmId = $association.vmBinding.vmId; identitySha256 = $association.vmBinding.identitySha256; storageSha256 = $association.vmBinding.storageSha256; inspectionOnly = $true } }
+        if ($RegisteredVmId -cne '') { $report['registeredVm'] = @{ vmId = $association.vmBinding.vmId; identitySha256 = $association.vmBinding.identitySha256; storageSha256 = $association.vmBinding.storageSha256; storageProtection = $association.vmBinding.storageProtection; inspectionOnly = $true } }
         $stage = 'original-program-behavioral-red'; $report.baseline = Invoke-InstalledOwnerAttempt $association $false
         $stage = 'upgrade-to-maintained-native-owner'; Update-ProtectedInstallation $association (Join-Path $PayloadRoot 'binaries') $manifest | Out-Null
         $stage = 'actual-installed-positive'
