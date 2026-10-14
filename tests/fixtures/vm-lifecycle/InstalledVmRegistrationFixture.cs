@@ -81,6 +81,7 @@ internal static class InstalledVmRegistrationFixture
             if (mode == "protected-directory") storageFiles.DirectoryProtected = false;
             if (mode == "protected-missing-sid") storageFiles.SecuritySddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)";
             if (mode == "protected-malformed") text = text.Replace("private-vm", "trusted");
+            if (mode == "protected-parent-disk") storageFiles.Standalone = false;
         }
         if (mode == "storage-initial-replacement") storageFiles.FileIdentity = new string('3', 32);
         if (mode == "storage-initial-metadata") storageFiles.Metadata = new string('3', 64);
@@ -172,12 +173,14 @@ internal static class InstalledVmRegistrationFixture
             if (mode == "storage-outage") provider.Storage.Fail = true;
             if (mode == "storage-running") provider.State = 2;
             if (mode == "protected-changed-acl") storageFiles.SecuritySddl += "(A;;FR;;;WD)";
+            if (mode == "protected-lost-disk-observation") storageFiles.Standalone = false;
             try { inspected = owner.Inspect() != null; } catch { }
             if (mode != "positive" && mode != "from-producer" && mode != "storage-positive")
             {
                 authority = true; file.Changed = false; file.Bytes = Encoding.UTF8.GetBytes(text); provider.Actual = Identity;
                 storageFiles.Changed = false; provider.Storage.Mode = "positive"; provider.Storage.Fail = false; provider.State = 3;
                 storageFiles.SecuritySddl = new VmStorageFixture.Files().SecuritySddl;
+                storageFiles.Standalone = true;
                 try { owner.Inspect(); } catch { refusedAgain = true; }
             }
         }

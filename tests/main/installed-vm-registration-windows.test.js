@@ -39,6 +39,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           path.join(project, 'sidecar/mcpjob/AppContainerExecutable.cs'),
           path.join(project, 'tests/fixtures/vm-lifecycle/InstalledVmRegistrationFixture.cs'),
           path.join(project, 'tests/fixtures/vm-lifecycle/VmStorageFixture.cs'),
+          path.join(project, 'tests/fixtures/vm-lifecycle/VmDiskImageFixture.cs'),
         ],
         { timeout: 30000, windowsHide: true, stdio: 'pipe' },
       );
@@ -105,11 +106,22 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       'protected-directory',
       'protected-missing-sid',
       'protected-malformed',
+      'protected-parent-disk',
     ])('refuses protected registration when ownership or ACL provenance fails: %s', (mode) => {
       expect(invoke(mode)).toMatchObject({ acquired: false, requests: 0, fileClosed: true });
     });
     it('latches protection loss even when the original ACL is subsequently restored', () => {
       expect(invoke('protected-changed-acl')).toMatchObject({
+        acquired: true,
+        inspected: false,
+        refusedAgain: true,
+        requests: 0,
+        fileClosed: true,
+        providerClosed: true,
+      });
+    });
+    it('latches loss of standalone disk observation even after it recovers', () => {
+      expect(invoke('protected-lost-disk-observation')).toMatchObject({
         acquired: true,
         inspected: false,
         refusedAgain: true,

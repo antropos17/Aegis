@@ -193,6 +193,7 @@ function main() {
         'InstalledVmInspection',
         'VmStorageInspection',
         'VmStorageProtection',
+        'VmDiskImageNative',
         'VmStorageNative',
       ].map((name) => path.join(ROOT, 'sidecar', 'session', `${name}.cs`)),
       '/reference:System.Security.dll',

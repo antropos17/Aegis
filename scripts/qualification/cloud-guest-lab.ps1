@@ -261,6 +261,11 @@ try {
         }
     } | Out-Null
     Stage 'compile-fixed-native-helpers' {
+        $report['standaloneDiskImages'] = @{}
+        & (Join-Path $PSScriptRoot 'vm-disk-image-controls.ps1') -OutputRoot (Join-Path $OutputRoot 'standalone-disk-images') -Observation $report.standaloneDiskImages | Out-Null
+        foreach ($relative in $report.standaloneDiskImages.sourceHashes.Keys) {
+            $report.sourceHashes[$relative] = $report.standaloneDiskImages.sourceHashes[$relative]
+        }
         $ownerLifetimeBuild = Build-CloudGuestOwnerLifetime $project $PSScriptRoot (Join-Path $OutputRoot 'native')
         $report['ownerLifetimeBuild'] = $ownerLifetimeBuild
         foreach ($path in $ownerLifetimeBuild.sourceHashes.Keys) {
