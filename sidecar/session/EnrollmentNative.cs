@@ -18,13 +18,14 @@ namespace Aegis.ProtectedSession
         internal abstract bool Protected(bool ancestor);
         internal virtual string BindingMetadata { get { return null; } }
         internal virtual byte[] SecurityDescriptor { get { return null; } }
+        internal virtual void RequireStandaloneDisk() { throw new InvalidDataException(); }
         internal abstract byte[] Read(int maximum);
         internal abstract void Recheck(bool ancestor);
         public abstract void Dispose();
     }
 
     // Read-only: no privilege changes, ACL writes, path creation or VM calls.
-    internal sealed class EnrollmentNative : IEnrollmentFiles
+    internal sealed partial class EnrollmentNative : IEnrollmentFiles
     {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern SafeFileHandle CreateFile(string name, uint access, uint share,
@@ -111,7 +112,7 @@ namespace Aegis.ProtectedSession
             }
             catch { if (file != null) file.Dispose(); throw; }
         }
-        private sealed class Held : EnrollmentHeld
+        private sealed partial class Held : EnrollmentHeld
         {
             private readonly SafeFileHandle file;
             private readonly string name, volume, id;

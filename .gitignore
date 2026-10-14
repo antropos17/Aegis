@@ -29,6 +29,7 @@ src/main/.mutants/
 .DS_Store
 Thumbs.db
 *.ps1
+!scripts/qualification/vm-disk-image-controls.ps1
 !/scripts/qualify-windows-installer.ps1
 !/scripts/qualification/cloud-hyperv-operations.ps1
 !/scripts/qualification/qualify-cloud-hyperv.ps1

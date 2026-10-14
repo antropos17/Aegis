@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const project = fileURLToPath(new URL('../../', import.meta.url));
-let root, executable;
+let root, executable, nativeDiskCreation;
 describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
   'offline VM storage observation',
   () => {
@@ -37,9 +37,11 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           ...sources,
           path.join(project, 'sidecar/mcpjob/AppContainerExecutable.cs'),
           path.join(project, 'tests/fixtures/vm-lifecycle/VmStorageFixture.cs'),
+          path.join(project, 'tests/fixtures/vm-lifecycle/VmDiskImageFixture.cs'),
         ],
         { timeout: 30000, windowsHide: true, stdio: 'pipe' },
       );
+      nativeDiskCreation = invoke('image-capability', [root]).elevated;
     }, 35000);
     afterAll(() => {
       if (!root) return;
@@ -58,6 +60,39 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(result.stderr.length).toBe(0);
       return JSON.parse(result.stdout.toString());
     }
+    it.for(['vhd-fixed', 'vhd-dynamic', 'vhdx-fixed', 'vhdx-dynamic'])(
+      'accepts a native standalone %s while retaining the original file hold',
+      (mode, { skip }) => {
+        if (!nativeDiskCreation) skip();
+        const scratch = path.join(root, mode);
+        fs.mkdirSync(scratch);
+        expect(invoke(`image-${mode}`, [scratch])).toEqual({
+          accepted: true,
+          writeDenied: true,
+          cleanup: true,
+        });
+        expect(fs.readdirSync(scratch)).toEqual([]);
+      },
+    );
+    it.for([
+      'vhd-child',
+      'vhdx-child',
+      'vhd-missing-parent',
+      'vhdx-missing-parent',
+      'corrupt',
+      'mislabel',
+      'disposed',
+    ])('refuses a native %s image and releases its handles', (mode, { skip }) => {
+      if (!nativeDiskCreation && mode !== 'corrupt') skip();
+      const scratch = path.join(root, mode);
+      fs.mkdirSync(scratch);
+      expect(invoke(`image-${mode}`, [scratch])).toEqual({
+        accepted: false,
+        writeDenied: mode !== 'disposed',
+        cleanup: true,
+      });
+      expect(fs.readdirSync(scratch)).toEqual([]);
+    });
     it.each(['positive', 'dvd-read', 'inherit-only'])('accepts private ACL policy: %s', (mode) => {
       expect(invoke(`acl-${mode}`)).toEqual({ accepted: true });
     });

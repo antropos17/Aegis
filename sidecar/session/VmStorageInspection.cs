@@ -16,7 +16,8 @@ namespace Aegis.ProtectedSession
 
     // Offline observation only. Handles deny write/delete sharing until disposal.
     // This binds attached file identities and metadata, not image provenance,
-    // VHD parent chains, storage ownership, snapshots or live VM containment.
+    // storage provenance, snapshots or live VM containment. Private eligibility
+    // additionally refuses attached disks that depend on a parent image.
     internal sealed class VmStorageInspection : IDisposable
     {
         private readonly IVmStorageSource source;
@@ -154,6 +155,7 @@ namespace Aegis.ProtectedSession
                     checkpoint.Code = 23;
                     if (!VmStorageProtection.PrivateFile(file.SecurityDescriptor, protectedVmSid, disks.Contains(file.PathName)))
                         throw new InvalidOperationException();
+                    if (disks.Contains(file.PathName)) file.RequireStandaloneDisk();
                 }
             }
         }

@@ -38,6 +38,7 @@ internal static class VmStorageFixture
     {
         internal const string VmSid = "S-1-5-83-0-1-2-3-4";
         internal bool DirectoryProtected = true;
+        internal bool Standalone = true;
         internal string SecuritySddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;" + VmSid + ")";
         internal bool Changed, Link, Fail, Zero;
         internal string FileIdentity = new string('1', 32), Metadata = new string('2', 64);
@@ -67,6 +68,7 @@ internal static class VmStorageFixture
                 }
             }
             internal override bool Protected(bool ancestor) { return files.DirectoryProtected; }
+            internal override void RequireStandaloneDisk() { if (closed || directory || !files.Standalone) throw new InvalidDataException(); }
             internal override byte[] Read(int limit) { throw new InvalidOperationException(); }
             internal override void Recheck(bool ancestor) { if (closed || files.Changed) throw new InvalidDataException(); }
             public override void Dispose() { if (!closed) { closed = true; files.Closed++; } }
@@ -123,6 +125,7 @@ internal static class VmStorageFixture
     {
         if (args.Length < 1 || args.Length > 2) return 2;
         string mode = args[0];
+        if (mode.StartsWith("image-", StringComparison.Ordinal)) return VmDiskImageFixture.Run(args[1], mode.Substring(6));
         if (mode.StartsWith("acl-", StringComparison.Ordinal)) return Acl(mode.Substring(4));
         if (mode.StartsWith("native", StringComparison.Ordinal)) return Native(args[1], mode);
         var source = new Source(); var files = new Files();

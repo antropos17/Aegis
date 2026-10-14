@@ -9,6 +9,20 @@ refuses unprotected storage. It does not change ACLs on a selected existing VM.
 Versions 1 and 2 retain their read-only compatibility paths and supply no private
 storage claim.
 
+Version-three private eligibility also requires every disk to be a standalone
+Microsoft VHD or VHDX, with a fixed or dynamically expandable provider subtype.
+While retaining the original file and ancestor handles, the native adapter opens
+the image for information only, with zero read/write depth and
+[`OPEN_VIRTUAL_DISK_FLAG_NO_PARENTS`](https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/ne-virtdisk-open_virtual_disk_flag).
+It verifies the returned storage provider/format and
+[`ProviderSubtype`](https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/ns-virtdisk-get_virtual_disk_info).
+Differencing disks, missing parents, corrupt images, mismatched formats and
+unavailable observations refuse the lease. Every protection recheck repeats this
+observation between native file-identity, metadata and descriptor checks. DVD
+attachments retain their existing ACL checks. Versions 1 and 2 remain read-only
+compatibility paths without this eligibility claim. Numeric checkpoint 23 covers
+both attached-file ACL and standalone-image eligibility failures.
+
 The native lease resolves the exact VM principal locally from
 `NT VIRTUAL MACHINE\<registered GUID>`. Every attached file must have a protected
 allow-only DACL, a SYSTEM/Administrators owner, no effective grants to other
@@ -22,9 +36,10 @@ eligibility is latched through the original observation lease.
 
 This proves observed ACL eligibility while the files and ancestors are held. It
 does not prove trusted fresh creation, the absence of earlier mapped writers,
-image-content provenance, VHD parent-chain closure, configuration/network seals,
+image-content provenance, configuration/network seals,
 running-VM containment, lifecycle permission consumption or guest authentication.
-All results remain read-only with `ownershipQualified=false` and `launchAllowed=false`.
+The supported disk policy excludes parent chains; it does not qualify creating or
+operating them. All results remain read-only with `ownershipQualified=false` and `launchAllowed=false`.
 The fixed qualification driver applies ACLs only to its finite newly created
 files and directories after validating their exact scope; it leaves global
 ancestors and unrelated VMs unchanged.
@@ -114,8 +129,9 @@ the held metadata and current attachment topology before and after observations;
 any observed failure permanently refuses the lease. Disposal releases the holds.
 
 This offline binding detects a replaced attached file or changed metadata/topology.
-It does not hash image contents, validate VHD parent chains or seal storage ACLs,
-image provenance, checkpoints, firmware, network or integration configuration.
+Version-three private eligibility additionally excludes parent-backed disks.
+The binding does not hash image contents or establish trusted creation, content
+provenance, checkpoints, firmware, network or integration configuration.
 The file holds also prevent starting the VM while this observation is retained.
 A production lifecycle needs its own authority, storage design and containment
 qualification; the existing `inspect-owned` grant cannot be reused for that step.
@@ -155,6 +171,16 @@ Provider outages, installer observation deadlines, reboot/crash and full provisi
 remain separate qualification requirements.
 
 Windows contract tests compile the actual native sources with a test-only injected
+authority/provider. Standalone eligibility refusal and permanent loss are checked
+through the installed registration. Elevated Windows image controls additionally
+create unattached disposable 8 MiB fixed/dynamic VHD/VHDX images, refuse child
+images with present or missing parents, corruption, a mismatched extension and a
+disposed original handle, and verify retained write denial and handle cleanup.
+The cloud driver requires all eleven image cases before creating its VM and
+records their source hashes. Local non-elevated runs explicitly skip ten image
+creation cases; the corrupt-image refusal still executes.
+
+Windows contract tests also compile the actual native sources with a test-only injected
 authority/provider. They check stale tuples, record replacement, ordinary-owned
 files, foreign/replaced VM identities, loss of authority and permanent refusal.
 The actual stage writer is exercised with substituted filesystem authority; its
