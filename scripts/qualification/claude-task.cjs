@@ -56,33 +56,51 @@ function pinBinary() {
 }
 function scratchBudget() {
   if (result.scratchObservation && result.scratchObservation.reason !== 'within-budget') refuse('scratch-limit');
-  const observation = { reason: 'within-budget', entries: 0, bytes: 0, depth: 0, error: null };
-  function stop(reason) { observation.reason = reason; refuse('scratch-limit'); }
-  function walk(selected, depth) {
-    observation.depth = Math.max(observation.depth, depth);
-    if (depth > 8) stop('depth');
-    for (const name of fs.readdirSync(selected)) {
-      if (++observation.entries > 256) stop('entries');
-      const child = path.join(selected, name), st = fs.lstatSync(child);
-      if (st.isSymbolicLink()) stop('symlink');
-      if (st.isDirectory()) walk(child, depth + 1);
-      else if (st.isFile()) {
-        if (!Number.isSafeInteger(st.size) || st.size < 0) throw new Error('invalid-stat');
-        observation.bytes = Math.min(16777217, observation.bytes + st.size);
-        if (observation.bytes > 16777216) stop('bytes');
-      } else stop('type');
+  let retries = result.scratchObservation?.retries || 0, recoveries = result.scratchObservation?.recoveries || 0;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const observation = { reason: 'within-budget', entries: 0, bytes: 0, depth: 0, error: null, retries, recoveries };
+    let missingChild = false;
+    function stop(reason) { observation.reason = reason; refuse('scratch-limit'); }
+    function walk(selected, depth) {
+      observation.depth = Math.max(observation.depth, depth);
+      if (depth > 8) stop('depth');
+      let names;
+      try { names = fs.readdirSync(selected); }
+      catch (error) { missingChild = depth > 0 && error?.code === 'ENOENT'; throw error; }
+      for (const name of names) {
+        if (++observation.entries > 256) stop('entries');
+        const child = path.join(selected, name);
+        let st;
+        try { st = fs.lstatSync(child); }
+        catch (error) { missingChild = error?.code === 'ENOENT'; throw error; }
+        if (st.isSymbolicLink()) stop('symlink');
+        if (st.isDirectory()) walk(child, depth + 1);
+        else if (st.isFile()) {
+          if (!Number.isSafeInteger(st.size) || st.size < 0) throw new Error('invalid-stat');
+          observation.bytes = Math.min(16777217, observation.bytes + st.size);
+          if (observation.bytes > 16777216) stop('bytes');
+        } else stop('type');
+      }
     }
-  }
-  try { walk(p.ROOT, 0); }
-  catch (error) {
-    if (observation.reason === 'within-budget') {
-      observation.reason = 'unavailable';
-      observation.error = ['ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOTDIR'].includes(error?.code) ? error.code : 'other';
+    try { walk(p.ROOT, 0); }
+    catch (error) {
+      // A short-lived child can disappear between readdir and lstat. Admit only
+      // a complete fresh scan, with one immediate retry and the original quotas.
+      if (attempt === 0 && missingChild && error?.code === 'ENOENT') {
+        retries = Math.min(255, retries + 1); continue;
+      }
+      if (observation.reason === 'within-budget') {
+        observation.reason = 'unavailable';
+        observation.error = ['ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOTDIR'].includes(error?.code) ? error.code : 'other';
+      }
+      result.scratchObservation = observation;
+      refuse('scratch-limit');
     }
+    if (attempt === 1) recoveries = Math.min(255, recoveries + 1);
+    observation.recoveries = recoveries;
     result.scratchObservation = observation;
-    refuse('scratch-limit');
+    return;
   }
-  result.scratchObservation = observation;
 }
 function client(args, env) {
   return new Promise(resolve => {

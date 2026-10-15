@@ -40,9 +40,11 @@ function Read-CloudGuestClaudeResult($Identity) {
         if ($null -eq $task.scratchObservation) { Need (!$task.passed -and $task.failure -cne 'scratch-limit') }
         else {
             $scratch = $task.scratchObservation
-            Need (Fields $scratch 'bytes,depth,entries,error,reason')
+            Need (Fields $scratch 'bytes,depth,entries,error,reason,recoveries,retries')
             Need ($scratch.reason -cin @('within-budget', 'bytes', 'entries', 'depth', 'symlink', 'type', 'unavailable'))
             Need ((Number $scratch.entries 257) -and (Number $scratch.bytes 16777217) -and (Number $scratch.depth 9))
+            Need ((Number $scratch.retries 255) -and (Number $scratch.recoveries 255) -and $scratch.recoveries -le $scratch.retries)
+            if ($scratch.reason -ceq 'within-budget') { Need ($scratch.retries -eq $scratch.recoveries) }
             if ($scratch.reason -ceq 'unavailable') { Need ($scratch.error -cin @('ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOTDIR', 'other')) }
             else { Need ($null -eq $scratch.error) }
             if ($scratch.reason -ceq 'bytes') { Need ($scratch.bytes -eq 16777217) }
