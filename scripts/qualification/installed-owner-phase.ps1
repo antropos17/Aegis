@@ -64,7 +64,7 @@ function Get-InstalledOwnerAttemptObservation($Value, [ValidateSet('owner', 'nat
         $v = Get-InstalledOwnerObservedField $Value 'supervisorSubstage'
         if ($result.ContainsKey('supervisorStage') -and
             ($v -is [int] -or $v -is [long] -or $v -is [uint32]) -and $v -ge 0 -and
-            (($result.supervisorStage -eq 2 -and $v -le 44) -or ($result.supervisorStage -eq 9 -and $v -le 24) -or ($result.supervisorStage -eq 7 -and
+            (($result.supervisorStage -eq 2 -and $v -le 44) -or ($result.supervisorStage -eq 9 -and $v -le 24) -or ($result.supervisorStage -eq 10 -and $v -le 6) -or ($result.supervisorStage -eq 7 -and
                 ($v -le 22 -or ($v -ge 114 -and $v -le 126) -or ($v -ge 136 -and $v -le 144) -or
                     ($v -ge 214 -and $v -le 226) -or ($v -ge 236 -and $v -le 244))))) { $result.supervisorSubstage = $v }
         $v = Get-InstalledOwnerObservedField $Value 'scope'; if ($v -is [string] -and $v -ceq 'installed-owner-inspection') { $result.scope = $v }
