@@ -31,9 +31,15 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
         function AddStorage($Settings, $Service, [string]$Subtype, [string]$Parent, [string]$Address, [string]$HostPath) {
             # Use VMMS resource settings directly. The attachment cmdlet's broad
             # host-directory permission grants are outside this private contract.
-            $defaults = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_ResourceAllocationSettingData -Filter "ResourceSubType='$Subtype' AND InstanceID LIKE '%Default'")
+            $pools = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_ResourcePool -Filter "ResourceSubType='$Subtype' AND Primordial=True")
+            if ($pools.Count -ne 1) { throw 'protected-vm-resource-pool-refused' }
+            $capabilities = @($pools[0].GetRelated('Msvm_AllocationCapabilities'))
+            if ($capabilities.Count -ne 1) { throw 'protected-vm-resource-capability-refused' }
+            $defaults = @($capabilities[0].GetRelationships('Msvm_SettingsDefineCapabilities') | Where-Object { $_.ValueRole -eq 0 -and $_.ValueRange -eq 0 })
             if ($defaults.Count -ne 1) { throw 'protected-vm-resource-default-refused' }
-            $resource = $defaults[0].PSBase.Clone()
+            $definition = [wmi]$defaults[0].PartComponent
+            if ($definition.ResourceSubType -cne $Subtype) { throw 'protected-vm-resource-definition-refused' }
+            $resource = $definition.PSBase.Clone()
             $resource['Parent'] = $Parent
             if ($HostPath) { $resource['HostResource'] = [string[]]@($HostPath) } else { $resource['AddressOnParent'] = $Address }
             $inputParameters = $Service.PSBase.GetMethodParameters('AddResourceSettings')
