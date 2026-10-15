@@ -3,7 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-// Administrative installer only. No parent/source image is accepted. Unlike
+// Administrative installer only. No parent/source image is accepted.
 // The supplied descriptor is applied at file creation. This creator leaves the
 // containing directory's permissions unchanged; the caller checks its pin.
 public static class ProtectedInstallDisk
