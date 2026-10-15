@@ -43,6 +43,7 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
     private string rootImage;
     private long rootBirth;
     private bool captured, executed, exchangePassed;
+    private int censusCheckpoint, startupCensusRetries;
     private const string helper = @"C:\ProgramData\AegisCloudLab\trusted\guest-stdio.exe";
     public CloudGuestStdioPhase(string expectedSid, int selectedKind)
     {
@@ -64,17 +65,35 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
         }
         finally { foreach (var member in members) member.Dispose(); }
     }
-    private List<Member> Census()
+    private List<Member> Census(bool startup = false)
     {
+        censusCheckpoint = 1;
         var before = GuestJobNative.Counts(job); uint[] pids = GuestJobNative.Members(job); var members = new List<Member>();
         try
         {
-            Need(before.Total == before.Active && pids.Length == before.Active);
+            censusCheckpoint = 2;
+            Need(before.Total == before.Active && (startup || pids.Length == before.Active));
+            censusCheckpoint = 3;
             foreach (uint pid in pids) members.Add(new Member(pid, job, sid, session));
+            censusCheckpoint = 4;
             var after = GuestJobNative.Counts(job); uint[] again = GuestJobNative.Members(job);
-            Need(before.Total == after.Total && before.Active == after.Active && pids.Length == again.Length);
-            for (int at = 0; at < pids.Length; at++) Need(pids[at] == again[at]);
+            censusCheckpoint = 5;
             foreach (var member in members) member.Check();
+            bool stable = before.Total == after.Total && before.Active == after.Active && pids.Length == before.Active && pids.Length == again.Length;
+            for (int at = 0; stable && at < pids.Length; at++) stable &= pids[at] == again[at];
+            if (startup && !stable)
+            {
+                censusCheckpoint = 6;
+                var end = GuestJobNative.Counts(job);
+                // Discovery grants no authority from this changing sample. Retry only
+                // monotonic additions with no exit history or vanished retained member.
+                Need(after.Total == after.Active && end.Total == end.Active && end.Total > before.Total &&
+                    before.Active <= pids.Length && pids.Length <= after.Active && after.Active <= again.Length && again.Length <= end.Active);
+                foreach (uint pid in pids) Need(Array.BinarySearch(again, pid) >= 0);
+                foreach (var member in members) member.Dispose();
+                members.Clear(); startupCensusRetries++; return null;
+            }
+            Need(stable); censusCheckpoint = 7;
             return members;
         }
         catch { foreach (var member in members) member.Dispose(); throw; }
@@ -90,7 +109,8 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
         var watch = Stopwatch.StartNew();
         while (watch.ElapsedMilliseconds < 3000)
         {
-            OriginalLive(); var members = Census(); Member found = null; int nodes = 0, helpers = 0;
+            OriginalLive(); var members = Census(true); Member found = null; int nodes = 0, helpers = 0;
+            if (members == null) { Thread.Sleep(2); continue; }
             try
             {
                 foreach (var member in members)
@@ -103,6 +123,7 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
                 if (found != null)
                 {
                     Need(!original.Exists(delegate(Member member) { return member.Pid == found.Pid; }));
+                    Need(watch.ElapsedMilliseconds < 3000);
                     observed.AddRange(members); members.Clear(); OriginalLive(); return found;
                 }
             }
@@ -198,6 +219,8 @@ public sealed class CloudGuestStdioPhase : ICloudGuestStdioPhase
     }
     public void ObserveClosure(bool confirmed, Dictionary<string, object> receipt, Stopwatch ownerClosureClock)
     {
+        receipt["stdioCensusCheckpoint"] = censusCheckpoint;
+        receipt["stdioStartupCensusRetries"] = startupCensusRetries;
         var waits = new List<Dictionary<string, object>>();
         receipt["stdioClosureMemberWaits"] = waits;
         bool exited = confirmed && ObserveMemberClosure(ownerClosureClock, waits);
