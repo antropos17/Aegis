@@ -58,10 +58,10 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       const native = JSON.parse(parsed.stdout.toString('utf8'));
       expect(native.frameBytes).toBe(104);
       expect(native.entryChecks).toBe(2);
-      expect(native.writerChecks).toBe(121);
+      expect(native.writerChecks).toBe(130);
       expect(native.writer).toEqual({ accepted: true, stage: 2, substage: 26 });
       expect(native.parsed).toEqual({ accepted: true, stage: 2, substage: 8 });
-      expect(native.rows).toHaveLength(163);
+      expect(native.rows).toHaveLength(171);
       for (const row of native.rows) {
         for (const boundary of ['whole', 'split']) {
           if (row.kind === 'invalid') expect(row[boundary].accepted).toBe(false);
@@ -225,6 +225,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           row.input >= 0 &&
           ((row.stage === 2 && row.input <= 44) ||
             (row.stage === 9 && row.input <= 24) ||
+            (row.stage === 10 && row.input <= 6) ||
             (row.stage === 7 &&
               (row.input <= 22 ||
                 (row.input >= 114 && row.input <= 126) ||
