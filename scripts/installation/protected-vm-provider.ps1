@@ -9,6 +9,7 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
         Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
         $checkpoint = 1
         try {
+        $env:PSModulePath = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\Modules'
         Import-Module Hyper-V -ErrorAction Stop
         $machine = Join-Path $Root 'Machine'; $disk = Join-Path $Root 'Disks\system.vhdx'; $image = Join-Path $Root 'Images\boot.iso'
         function FindExact {
