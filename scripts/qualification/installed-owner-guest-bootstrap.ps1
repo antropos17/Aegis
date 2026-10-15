@@ -39,7 +39,7 @@ try {
     $pins = ConvertFrom-Json -InputObject $ExpectedPinsJson
     $leaves = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe',
         'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
-        'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs',
+        'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/ProtectedInstallDisk.cs',
         'scripts/installation/protected-install-files.ps1', 'scripts/installation/protected-install-transaction.ps1',
         'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
         'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1',

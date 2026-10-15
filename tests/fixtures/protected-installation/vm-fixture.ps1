@@ -87,6 +87,7 @@ public static class VmDirectoryProbe {
         $events.Add($Name)
         if ($Mode -ceq 'journal-failed' -and $Name -ceq 'pending-create.json') { throw 'fixture-journal' }
     }
+    function New-ProtectedVmDisk($Owned) { $events.Add('provider-disk'); throw 'fixture-disk-create-unknown' }
     function Invoke-ProtectedVmProvider($Owned, [string]$Action) {
         $events.Add('provider-' + $Action)
         if ($Mode -ceq 'timeout' -or ($Mode -ceq 'disk-failed' -and $Action -ceq 'disk')) { throw 'fixture-provider-accepted-outcome-unknown' }

@@ -5,7 +5,7 @@ $script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegi
 
 function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
-        Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'))
+        Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallDisk.cs'))
     }
 }
 function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$Private = $false) {

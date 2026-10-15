@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 
 # Only the elevated installer calls this adapter. A timed-out worker is not a
 # cancelled VMMS operation; its caller must retain the pending ownership journal.
-function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'configure', 'observe', 'remove')][string]$Action) {
+function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 'observe', 'remove')][string]$Action) {
     Assert-ProtectedInstallAdministrator
     $job = Start-Job -ArgumentList $Action, $Owned.name, $Owned.root.PathName, $Owned.vmId -ScriptBlock {
         param($Action, $Name, $Root, $Id)
@@ -42,12 +42,6 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'conf
         if ($Action -ceq 'observe') { return (Observe $vm) }
         if ($null -eq $vm) { throw 'protected-vm-owned-instance-absent' }
         Observe $vm | Out-Null
-        if ($Action -ceq 'disk') {
-            $checkpoint = 6
-            if (Test-Path -LiteralPath $disk) { throw 'protected-vm-fresh-disk-required' }
-            $vhd = New-VHD -Path $disk -Dynamic -SizeBytes 64GB
-            if ($vhd.Path -cne $disk -or $vhd.VhdType.ToString() -cne 'Dynamic' -or $vhd.VhdFormat.ToString() -cne 'VHDX' -or $vhd.ParentPath -or $vhd.Size -ne 64GB -or $vhd.Attached) { throw 'protected-vm-disk-result-refused' }
-        }
         if ($Action -ceq 'configure') {
             $checkpoint = 7
             Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -AutomaticCheckpointsEnabled $false -CheckpointType Disabled

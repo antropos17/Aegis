@@ -14,10 +14,19 @@ function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) {
     $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($Record | ConvertTo-Json -Depth 5 -Compress))
     Write-ProtectedInstallFile (Join-Path $Owned.root.PathName $Name) $bytes '' $true
 }
+function New-ProtectedVmDisk($Owned) {
+    Assert-ProtectedInstallAdministrator
+    $acl = New-ProtectedInstallAcl $false '' $true
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Write, [Security.AccessControl.AccessControlType]::Allow))
+    [ProtectedInstallDisk]::Create((Join-Path $Owned.disks.PathName 'system.vhdx'), $acl.GetSecurityDescriptorBinaryForm())
+}
 function Invoke-ProtectedVmEffect($Owned, [string]$Action) {
     $Owned.unknown = $true
     Write-ProtectedVmJournal $Owned ('pending-' + $Action + '.json') @{ schemaVersion = 1; operation = $Action; installId = $Owned.installId; vmId = $Owned.vmId; name = $Owned.name }
-    $value = Invoke-ProtectedVmProvider $Owned $Action
+    if ($Action -ceq 'disk') {
+        New-ProtectedVmDisk $Owned
+        $value = Invoke-ProtectedVmProvider $Owned 'observe'
+    } else { $value = Invoke-ProtectedVmProvider $Owned $Action }
     if ($Action -ceq 'create') {
         if ($value.vmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or $value.vmId -ceq [guid]::Empty.ToString('D')) { throw 'protected-vm-create-identity-unknown' }
         $Owned.vmId = $value.vmId
@@ -114,10 +123,9 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     $owned.checkpoint = 5
     try {
         $volume = $before.Volume; $fileId = $before.FileId; $before.Recheck()
-        if (!$before.Protected($false)) { throw 'protected-vm-new-disk-acl-refused' }
         $diskAcl = New-ProtectedInstallAcl $false '' $true
         $diskAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Write, [Security.AccessControl.AccessControlType]::Allow))
-        [IO.File]::SetAccessControl($diskPath, $diskAcl)
+        if ($before.Sddl -cne $diskAcl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access')) { throw 'protected-vm-new-disk-acl-refused' }
     } finally { $before.Dispose() }
     $owned.checkpoint = 6
     Invoke-ProtectedVmEffect $owned 'configure'
