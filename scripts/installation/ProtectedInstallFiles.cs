@@ -144,12 +144,14 @@ public sealed class ProtectedInstallFile : IDisposable
         } finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
     }
     public ProtectedInstallFile(string path, bool directory, bool mutate)
+        : this(path, directory, mutate, 1) { }
+    private ProtectedInstallFile(string path, bool directory, bool mutate, uint sharing)
     {
         Require(path.Length <= 2048 && Path.IsPathRooted(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) &&
             path.IndexOf(':', 2) < 0 && String.Equals(path, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
         // A held parent/leaf refuses foreign delete/rename while identities are checked.
         held = CreateFile(path, (directory ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0),
-            1, IntPtr.Zero, 3, 0x00200000U | (directory ? 0x02000000U : 0), IntPtr.Zero);
+            sharing, IntPtr.Zero, 3, 0x00200000U | (directory ? 0x02000000U : 0), IntPtr.Zero);
         try {
             RequireNative(held != null && !held.IsInvalid,
                 directory ? "protected-file-open-directory" : "protected-file-open-leaf");
@@ -166,6 +168,27 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         Require(!closed && Hex(Query(18, 24)) == Hex(identity) && Hex(Security()) == Hex(security) &&
             String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
+    }
+    // VMMS may open its parent directories with read/write sharing, without
+    // sharing DELETE. Retain query-only identity/ACL pins during provider work.
+    // Namespace replacement is still excluded by the private parent and by
+    // withholding delete sharing. This never relaxes file attachment holds.
+    public ProtectedInstallFile PinForProvider()
+    {
+        Recheck(); Require(Directory); Dispose();
+        ProtectedInstallFile next = null;
+        try {
+            next = new ProtectedInstallFile(PathName, true, false, 3);
+            Require(next.Volume == Volume && next.FileId == FileId && next.Sddl == Sddl);
+            return next;
+        } catch (Exception failure) { if (next != null) next.Dispose(); throw HandoffUnknown(failure); }
+    }
+    public void DeleteAfterProvider()
+    {
+        Recheck(); Require(Directory); Dispose();
+        using (var next = new ProtectedInstallFile(PathName, true, true)) {
+            Require(next.Volume == Volume && next.FileId == FileId && next.Sddl == Sddl); next.Delete();
+        }
     }
     public bool Protected(bool ancestor)
     {

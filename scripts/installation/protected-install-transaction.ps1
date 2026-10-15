@@ -118,6 +118,7 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         foreach ($key in @('checkpoint', 'category', 'hResult', 'line')) {
             if ($cause.Data.Contains('vmProvider-' + $key) -and $cause.Data['vmProvider-' + $key] -is [int]) { $failure['vmProvider-' + $key] = $cause.Data['vmProvider-' + $key] }
         }
+        if ($cause.Data.Contains('vmProvider-codes')) { $failure['vmProvider-codes'] = @($cause.Data['vmProvider-codes'] | Where-Object { $_ -is [string] -and $_ -cmatch '^0x[0-9a-f]{8}$' } | Select-Object -First 8) }
         if ($cause.Data.Contains('protectedStorageCheckpoint') -and $cause.Data['protectedStorageCheckpoint'] -is [int] -and
             $cause.Data['protectedStorageCheckpoint'] -ge 0 -and $cause.Data['protectedStorageCheckpoint'] -le 24) {
             $failure.storageCheckpoint = $cause.Data['protectedStorageCheckpoint']

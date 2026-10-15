@@ -36,6 +36,10 @@ describe.skipIf(process.platform !== 'win32')('protected VM provisioning', () =>
         existingRefused: true,
         badDigestNoEffects: true,
         descriptorRetained: true,
+        providerOpenBefore: 32,
+        providerOpenAfter: 0,
+        providerPinPreservesIdentity: true,
+        pinBlocksRename: true,
       });
     } finally {
       if (readdirSync(parent).length === 0) rmdirSync(parent);
@@ -47,6 +51,16 @@ describe.skipIf(process.platform !== 'win32')('protected VM provisioning', () =>
       unknown: false,
       vmId: '11111111-2222-3333-4444-555555555555',
       events: ['pending-create.json', 'provider-create', 'settled-create.json'],
+    });
+  });
+  it('runs the actual provider adapter against synthetic commands without host effects', () => {
+    expect(invoke('adapter-create')).toEqual({
+      vmId: '11111111-2222-3333-4444-555555555555',
+      off: true,
+    });
+    expect(invoke('adapter-error').failure).toMatchObject({
+      diagnosticCode: 'protected-vm-provider-result-unknown',
+      'vmProvider-checkpoint': 3,
     });
   });
   it.each([

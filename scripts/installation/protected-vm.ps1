@@ -64,8 +64,11 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
         name = 'aegis-protected-' + [guid]::NewGuid().ToString('N'); installId = $Context.installId; rows = @(); binding = $null; verifier = $Context.inputs['aegis-session.exe'].Clone(); checkpoint = 1 }
     $Context.vmProvision = $owned
     $owned.root = New-ProtectedInstallDirectory (Join-Path $Context.parent.PathName 'Vm') '' $true
+    $owned.root = $owned.root.PinForProvider()
     $owned.images = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Images') '' $true
+    $owned.images = $owned.images.PinForProvider()
     $owned.disks = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Disks') '' $true
+    $owned.disks = $owned.disks.PinForProvider()
     $owned.checkpoint = 2
     Write-ProtectedVmJournal $owned 'intent.json' @{ schemaVersion = 1; installId = $owned.installId; name = $owned.name; imageBytes = $Request.bytes; imageSha256 = $Request.sha256; diskBytes = 64GB; guestStartAuthorized = $false }
     Invoke-ProtectedVmEffect $owned 'create'
@@ -144,5 +147,5 @@ function Remove-ProtectedInstallVm($Context) {
         foreach ($held in $pins) { $held.Delete() }
     } finally { foreach ($held in $pins) { $held.Dispose() } }
     if (@(Get-ChildItem -LiteralPath $owned.root.PathName -Force).Count -ne 0) { throw 'protected-vm-delete-unknown-child' }
-    $owned.root.Delete(); [Array]::Clear($owned.verifier, 0, $owned.verifier.Length); $Context.vmProvision = $null
+    $owned.root.DeleteAfterProvider(); [Array]::Clear($owned.verifier, 0, $owned.verifier.Length); $Context.vmProvision = $null
 }

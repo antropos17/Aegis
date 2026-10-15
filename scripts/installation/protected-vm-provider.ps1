@@ -73,8 +73,9 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'conf
         }
         return (Observe (FindExact))
         } catch {
+            $codes = @([regex]::Matches($_.Exception.ToString(), '0x[0-9a-fA-F]{8}') | Select-Object -First 8 | ForEach-Object { $_.Value.ToLowerInvariant() })
             return @{ providerFailure = $true; checkpoint = [int]$checkpoint; category = [int]$_.CategoryInfo.Category;
-                hResult = [int]$_.Exception.HResult; line = [int]$_.InvocationInfo.ScriptLineNumber }
+                hResult = [int]$_.Exception.HResult; line = [int]$_.InvocationInfo.ScriptLineNumber; codes = $codes }
         }
     }
     try {
@@ -84,6 +85,7 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'conf
         if ($rows[0].ContainsKey('providerFailure')) {
             $failure = [InvalidOperationException]::new('protected-vm-provider-result-unknown')
             foreach ($key in @('checkpoint', 'category', 'hResult', 'line')) { $failure.Data['vmProvider-' + $key] = [int]$rows[0][$key] }
+            $failure.Data['vmProvider-codes'] = [string[]]@($rows[0].codes)
             throw $failure
         }
         return $rows[0]

@@ -32,9 +32,55 @@ if ($Mode -ceq 'image') {
         $result.badDigestNoEffects = $blocked -and !(Test-Path -LiteralPath $destination)
         $held = [ProtectedInstallFile]::new($output, $false, $false)
         try { $result.descriptorRetained = $held.Sddl -ceq $acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') } finally { $held.Dispose() }
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+public static class VmDirectoryProbe {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    private static extern SafeFileHandle CreateFile(string p, uint a, uint s, IntPtr d, uint c, uint f, IntPtr t);
+    public static int Open(string path) {
+        using(var h=CreateFile(path,0x20080,3,IntPtr.Zero,3,0x02000000,IntPtr.Zero))
+            return h.IsInvalid ? Marshal.GetLastWin32Error() : 0;
+    }
+}
+'@
+        $directoryPath = Join-Path $Scratch 'provider'
+        $directoryAcl = [Security.AccessControl.DirectorySecurity]::new(); $directoryAcl.SetAccessRuleProtection($true, $false); $directoryAcl.SetOwner($self)
+        $directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($self, [Security.AccessControl.FileSystemRights]::FullControl, [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+        $directory = [ProtectedInstallFile]::CreateDirectory($directoryPath, $directoryAcl.GetSecurityDescriptorBinaryForm())
+        $originalId = $directory.FileId
+        $result.providerOpenBefore = [VmDirectoryProbe]::Open($directoryPath)
+        $directory = $directory.PinForProvider()
+        $result.providerPinPreservesIdentity = $directory.FileId -ceq $originalId
+        $result.providerOpenAfter = [VmDirectoryProbe]::Open($directoryPath)
+        $blocked = $false
+        try { [IO.Directory]::Move($directoryPath, $directoryPath + '-changed') } catch { $blocked = $true }
+        $result.pinBlocksRename = $blocked
+        $directory.DeleteAfterProvider()
     } finally { $image.Dispose() }
     foreach ($path in @($source, $output)) { Remove-Item -LiteralPath $path }
     Remove-Item -LiteralPath $Scratch
+} elseif ($Mode -cin @('adapter-create', 'adapter-error')) {
+    function Assert-ProtectedInstallAdministrator { }
+    function Import-Module { param($Name, $ErrorAction) }
+    function Get-CimInstance { param($Namespace, $ClassName, $Filter, $OperationTimeoutSec); return @() }
+    function New-VM {
+        param($Name, $Path, $Generation, $MemoryStartupBytes, [switch]$NoVHD)
+        if ($Mode -ceq 'adapter-error') { throw 'fixture-provider-error' }
+        return [pscustomobject]@{ Id = [guid]'11111111-2222-3333-4444-555555555555'; Name = $Name; State = 'Off' }
+    }
+    function Start-Job {
+        param($ArgumentList, $ScriptBlock)
+        $script:adapterRows = @(& $ScriptBlock @ArgumentList)
+        return [pscustomobject]@{ State = 'Completed' }
+    }
+    function Wait-Job { param($Job, $Timeout); return $Job }
+    function Receive-Job { param($Job, $ErrorAction); return $script:adapterRows }
+    function Remove-Job { param($Job, [switch]$Force) }
+    $owned.root = @{ PathName = 'C:\fixture\owned' }
+    try { $value = Invoke-ProtectedVmProvider $owned 'create'; $result = @{ vmId = $value.vmId; off = $value.off } }
+    catch { $result = @{ failure = Get-ProtectedInstallFailure $_ 'qualification' } }
 } else {
     # Synthetic provider errors never call Hyper-V, create accounts or services.
     function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) {
