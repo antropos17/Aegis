@@ -46,7 +46,7 @@ function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
         $parent = $queue.Dequeue()
         foreach ($item in @(Get-ChildItem -LiteralPath $parent -Force)) {
             if ($rows.Count -ge 128 -or $item.FullName.Length -gt $Owned.root.PathName.Length + 512 -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'protected-vm-tree-budget-refused' }
-            $held = [ProtectedInstallFile]::new($item.FullName, $item.PSIsContainer, $false)
+            $held = [ProtectedInstallFile]::OpenMetadata($item.FullName, $item.PSIsContainer)
             try {
                 $held.RequireHighIntegrity()
                 $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
@@ -61,7 +61,7 @@ function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
                     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute, $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
                     if ($item.PSIsContainer) { [IO.Directory]::SetAccessControl($held.PathName, $acl) } else { [IO.File]::SetAccessControl($held.PathName, $acl) }
                     $held.RecheckIdentity(); $held.Dispose()
-                    $held = [ProtectedInstallFile]::new($item.FullName, $item.PSIsContainer, $false)
+                    $held = [ProtectedInstallFile]::OpenMetadata($item.FullName, $item.PSIsContainer)
                     if ($held.FileId -cne $id -or $held.Volume -cne $volume) { throw 'protected-vm-tree-changed' }
                     $held.RequireHighIntegrity(); $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
                 }

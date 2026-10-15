@@ -153,12 +153,12 @@ public sealed class ProtectedInstallFile : IDisposable
     }
     public ProtectedInstallFile(string path, bool directory, bool mutate)
         : this(path, directory, mutate, 1) { }
-    private ProtectedInstallFile(string path, bool directory, bool mutate, uint sharing)
+    private ProtectedInstallFile(string path, bool directory, bool mutate, uint sharing, bool metadataOnly = false)
     {
         Require(path.Length <= 2048 && Path.IsPathRooted(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) &&
             path.IndexOf(':', 2) < 0 && String.Equals(path, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
         // A held parent/leaf refuses foreign delete/rename while identities are checked.
-        held = CreateFile(path, (directory ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0) | (directory && sharing == 3 ? 1U : 0),
+        held = CreateFile(path, (directory || metadataOnly ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0) | (directory && sharing == 3 ? 1U : 0),
             sharing, IntPtr.Zero, 3, 0x00200000U | (directory ? 0x02000000U : 0), IntPtr.Zero);
         try {
             RequireNative(held != null && !held.IsInvalid,
@@ -182,6 +182,12 @@ public sealed class ProtectedInstallFile : IDisposable
         Require(!closed && Hex(Query(18, 24)) == Hex(identity) &&
             String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
     }
+    // VMMS may retain writable configuration mappings while Off. Inspection of
+    // their owner, DACL, label and file ID needs no data access. This factory is
+    // used only inside the freshly created high-integrity namespace; media use
+    // their separate retained read/data handles with write/delete exclusion.
+    public static ProtectedInstallFile OpenMetadata(string path, bool directory)
+    { return new ProtectedInstallFile(path, directory, false, 3, true); }
     // High-integrity creation also prevents ordinary medium/low callers from
     // retaining WRITE_DAC/OWNER handles during VMMS's directory ACL updates.
     // LABEL_SECURITY_INFORMATION is readable with READ_CONTROL; no audit-SACL
