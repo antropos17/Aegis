@@ -21,9 +21,11 @@ function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$
     }
     return $acl
 }
-function New-ProtectedInstallDirectory([string]$Path, [string]$OperatorSid, [bool]$Private = $false) {
+function New-ProtectedInstallDirectory([string]$Path, [string]$OperatorSid, [bool]$Private = $false, [bool]$HighIntegrity = $false) {
     if (Test-Path -LiteralPath $Path) { throw 'protected-new-directory-required' }
-    $held = [ProtectedInstallFile]::CreateDirectory($Path, (New-ProtectedInstallAcl $true $OperatorSid $Private).GetSecurityDescriptorBinaryForm())
+    $acl = New-ProtectedInstallAcl $true $OperatorSid $Private
+    if ($HighIntegrity) { $acl.SetSecurityDescriptorSddlForm($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;OICI;NW;;;HI)') }
+    $held = [ProtectedInstallFile]::CreateDirectory($Path, $acl.GetSecurityDescriptorBinaryForm())
     if (!$held.Protected($false)) { $held.Dispose(); throw 'protected-new-directory-acl-refused' }
     return $held
 }

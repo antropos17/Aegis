@@ -18,6 +18,7 @@ function New-ProtectedVmDisk($Owned) {
     Assert-ProtectedInstallAdministrator
     $acl = New-ProtectedInstallAcl $false '' $true
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Write, [Security.AccessControl.AccessControlType]::Allow))
+    $acl.SetSecurityDescriptorSddlForm($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;;NW;;;HI)')
     [ProtectedInstallDisk]::Create((Join-Path $Owned.disks.PathName 'system.vhdx'), $acl.GetSecurityDescriptorBinaryForm())
     $Owned.disks.Recheck()
 }
@@ -120,13 +121,13 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     $owned = @{ root = $null; images = $null; disks = $null; image = $null; disk = $null; vmId = ''; vmSid = ''; unknown = $true;
         name = 'aegis-protected-' + [guid]::NewGuid().ToString('N'); installId = $Context.installId; rows = @(); binding = $null; verifier = $Context.inputs['aegis-session.exe'].Clone(); checkpoint = 1 }
     $Context.vmProvision = $owned
-    $owned.root = New-ProtectedInstallDirectory (Join-Path $Context.parent.PathName 'Vm') '' $true
+    $owned.root = New-ProtectedInstallDirectory (Join-Path $Context.parent.PathName 'Vm') '' $true $true
     $owned.root.RequireHighIntegrity()
     $owned.root = $owned.root.PinForProvider()
-    $owned.images = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Images') '' $true
+    $owned.images = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Images') '' $true $true
     $owned.images.RequireHighIntegrity()
     $owned.images = $owned.images.PinForProvider()
-    $owned.disks = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Disks') '' $true
+    $owned.disks = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Disks') '' $true $true
     $owned.disks.RequireHighIntegrity()
     $owned.disks = $owned.disks.PinForProvider()
     $owned.checkpoint = 2
@@ -138,6 +139,7 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     # Only these new private assets receive this freshly returned VM principal.
     $acl = New-ProtectedInstallAcl $false '' $true
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute, [Security.AccessControl.AccessControlType]::Allow))
+    $acl.SetSecurityDescriptorSddlForm($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;;NW;;;HI)')
     $imagePath = Join-Path $owned.images.PathName 'boot.iso'
     $owned.unknown = $true
     $SourceImage.CopyImage($imagePath, $Request.bytes, $Request.sha256, $acl.GetSecurityDescriptorBinaryForm())
@@ -169,7 +171,9 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
             if ($held.Volume -cne $row.volume -or $held.FileId -cne $row.id) { throw 'protected-vm-asset-handoff-refused' }
             $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
             if ($sd.Owner.Value -cnotin @('S-1-5-18', 'S-1-5-32-544') -or $null -eq $sd.DiscretionaryAcl) { throw 'protected-vm-tree-acl-refused' }
-            [IO.File]::SetAccessControl($row.path, $row.acl); $held.RecheckIdentity()
+            $finalAcl = [Security.AccessControl.FileSecurity]::new()
+            $finalAcl.SetSecurityDescriptorSddlForm($row.acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access'))
+            [IO.File]::SetAccessControl($row.path, $finalAcl); $held.RecheckIdentity(); $held.RequireHighIntegrity()
         } finally { $held.Dispose() }
     }
     foreach ($role in @('image', 'disk')) {
