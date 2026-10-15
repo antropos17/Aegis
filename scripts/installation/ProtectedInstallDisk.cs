@@ -43,8 +43,10 @@ public static class ProtectedInstallDisk
         try {
             IntPtr raw;
             // Synchronous, dynamic, no parents/source, V2 requires ACCESS_NONE.
-            uint code = CreateVirtualDisk(ref type, path, 0, pinned.AddrOfPinnedObject(), 0, 0,
-                ref parameters, IntPtr.Zero, out raw);
+            uint code;
+            using (ProtectedCreationSecurity.Enter(descriptor))
+                code = CreateVirtualDisk(ref type, path, 0, pinned.AddrOfPinnedObject(), 0, 0,
+                    ref parameters, IntPtr.Zero, out raw);
             // Failure leaves the output handle undefined; never close it.
             if (code != 0) {
                 var failure = new InvalidOperationException("protected-vm-native-disk-create-refused");

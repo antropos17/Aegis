@@ -110,7 +110,8 @@ public sealed class ProtectedInstallFile : IDisposable
         try {
             var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
             // Unlike .NET CreateDirectory, an existing directory is never success.
-            RequireNative(CreateDirectoryNative(path, ref attributes), "protected-file-create-directory");
+            using (ProtectedCreationSecurity.Enter(descriptor))
+                RequireNative(CreateDirectoryNative(path, ref attributes), "protected-file-create-directory");
             try { return new ProtectedInstallFile(path, true, true); }
             catch (Exception failure) {
                 var unknown = new InvalidDataException("protected-directory-creation-cleanup-unknown", failure);
@@ -264,8 +265,11 @@ public sealed class ProtectedInstallFile : IDisposable
         var acl = new FileSecurity(); acl.SetSecurityDescriptorBinaryForm(descriptor);
         // CreateNew with the private DACL at creation: an existing leaf is never
         // truncated or adopted, even if it happens to contain the expected image.
-        using (var output = new FileStream(destination, FileMode.CreateNew, FileSystemRights.Write,
-            FileShare.None, 65536, FileOptions.WriteThrough, acl))
+        FileStream created;
+        using (ProtectedCreationSecurity.Enter(descriptor))
+            created = new FileStream(destination, FileMode.CreateNew, FileSystemRights.Write,
+                FileShare.None, 65536, FileOptions.WriteThrough, acl);
+        using (var output = created)
         using (SHA256 hash = SHA256.Create()) {
             stream.Position = 0; byte[] buffer = new byte[65536]; long total = 0;
             try {
@@ -326,5 +330,56 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         if (closed) return; closed = true;
         try { if (stream != null) stream.Dispose(); } finally { held.Dispose(); }
+    }
+}
+
+// Enable only the already-assigned audit-security privilege while passing a SACL
+// at creation. Restore the exact previous token state before provider work; no
+// account rights, system policy or persistent process privileges are granted.
+internal sealed class ProtectedCreationSecurity : IDisposable
+{
+    [StructLayout(LayoutKind.Sequential)] private struct Luid { internal uint Low; internal int High; }
+    [StructLayout(LayoutKind.Sequential)] private struct Privileges { internal uint Count; internal Luid Id; internal uint Attributes; }
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool LookupPrivilegeValue(string system, string name, out Luid id);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(SafeFileHandle token, bool all, ref Privileges state,
+        uint size, out Privileges previous, out uint required);
+    [DllImport("advapi32.dll", EntryPoint = "AdjustTokenPrivileges", SetLastError = true)]
+    private static extern bool RestorePrivileges(SafeFileHandle token, bool all, ref Privileges state,
+        uint size, IntPtr previous, IntPtr required);
+    private SafeFileHandle token;
+    private Privileges previous;
+    private bool changed;
+    internal static IDisposable Enter(byte[] descriptor)
+    {
+        var security = new RawSecurityDescriptor(descriptor, 0);
+        return security.SystemAcl == null ? null : new ProtectedCreationSecurity();
+    }
+    private ProtectedCreationSecurity()
+    {
+        try {
+            if (!OpenProcessToken(GetCurrentProcess(), 0x28, out token)) throw new InvalidOperationException("protected-creation-privilege-refused");
+            Luid id;
+            if (!LookupPrivilegeValue(null, "SeSecurityPrivilege", out id)) throw new InvalidOperationException("protected-creation-privilege-refused");
+            var state = new Privileges { Count = 1, Id = id, Attributes = 2 }; uint required;
+            bool success = AdjustTokenPrivileges(token, false, ref state, (uint)Marshal.SizeOf(typeof(Privileges)), out previous, out required);
+            int error = Marshal.GetLastWin32Error(); changed = success && previous.Count != 0;
+            if (!success || error != 0) throw new InvalidOperationException("protected-creation-privilege-refused");
+        } catch { Dispose(); throw; }
+    }
+    public void Dispose()
+    {
+        if (token == null) return;
+        try {
+            if (changed) {
+                bool success = RestorePrivileges(token, false, ref previous, 0, IntPtr.Zero, IntPtr.Zero);
+                int error = Marshal.GetLastWin32Error(); changed = false;
+                if (!success || error != 0) throw new InvalidOperationException("protected-creation-privilege-restore-unknown");
+            }
+        } finally { token.Dispose(); token = null; }
     }
 }
