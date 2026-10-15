@@ -39,8 +39,9 @@ try {
     $pins = ConvertFrom-Json -InputObject $ExpectedPinsJson
     $leaves = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe',
         'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
-        'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs',
+        'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/ProtectedInstallDisk.cs',
         'scripts/installation/protected-install-files.ps1', 'scripts/installation/protected-install-transaction.ps1',
+        'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
         'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1',
         'scripts/qualification/installed-owner-guest-bootstrap.ps1', 'payload-manifest.json')
     if ($pins.Count -ne $leaves.Count -or @($pins.relative | Select-Object -Unique).Count -ne $pins.Count) { throw 'installed-owner-guest-refused' }
@@ -88,7 +89,9 @@ try {
     $modules = @(
         @{ relative = 'scripts/installation/protected-install-files.ps1'; dependencies = @() },
         @{ relative = 'scripts/installation/protected-install-transaction.ps1'; dependencies = @() },
-        @{ relative = 'scripts/installation/protected-installation.ps1'; dependencies = @('protected-install-files.ps1', 'protected-install-transaction.ps1') },
+        @{ relative = 'scripts/installation/protected-vm-provider.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-vm.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-installation.ps1'; dependencies = @('protected-install-files.ps1', 'protected-install-transaction.ps1', 'protected-vm-provider.ps1', 'protected-vm.ps1') },
         @{ relative = 'scripts/qualification/installed-owner-phase.ps1'; dependencies = @('../installation/protected-installation.ps1') }
     )
     foreach ($module in $modules) {

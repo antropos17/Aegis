@@ -16,6 +16,9 @@ public sealed class ProtectedInstallFile : IDisposable
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(string path, uint access, uint share,
         IntPtr security, uint create, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateImageFile(string path, uint access, uint share,
+        ref SecurityAttributes security, uint create, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, byte[] value, uint length);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -31,6 +34,10 @@ public sealed class ProtectedInstallFile : IDisposable
     private static extern uint GetSecurityInfo(SafeFileHandle file, int type, uint information,
         out IntPtr owner, out IntPtr group, out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
     [DllImport("advapi32.dll")] private static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetAce(IntPtr acl, uint index, out IntPtr ace);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetSecurityDescriptorSacl(IntPtr descriptor, out bool present, out IntPtr sacl, out bool defaulted);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr value);
     private readonly SafeFileHandle held;
     private static readonly object RenameGate = new object();
@@ -108,7 +115,8 @@ public sealed class ProtectedInstallFile : IDisposable
         try {
             var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
             // Unlike .NET CreateDirectory, an existing directory is never success.
-            RequireNative(CreateDirectoryNative(path, ref attributes), "protected-file-create-directory");
+            using (ProtectedCreationSecurity.Enter(descriptor))
+                RequireNative(CreateDirectoryNative(path, ref attributes), "protected-file-create-directory");
             try { return new ProtectedInstallFile(path, true, true); }
             catch (Exception failure) {
                 var unknown = new InvalidDataException("protected-directory-creation-cleanup-unknown", failure);
@@ -144,12 +152,14 @@ public sealed class ProtectedInstallFile : IDisposable
         } finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
     }
     public ProtectedInstallFile(string path, bool directory, bool mutate)
+        : this(path, directory, mutate, 1) { }
+    private ProtectedInstallFile(string path, bool directory, bool mutate, uint sharing, bool metadataOnly = false)
     {
         Require(path.Length <= 2048 && Path.IsPathRooted(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) &&
             path.IndexOf(':', 2) < 0 && String.Equals(path, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
         // A held parent/leaf refuses foreign delete/rename while identities are checked.
-        held = CreateFile(path, (directory ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0),
-            1, IntPtr.Zero, 3, 0x00200000U | (directory ? 0x02000000U : 0), IntPtr.Zero);
+        held = CreateFile(path, (directory || metadataOnly ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0) | (directory && sharing == 3 ? 1U : 0),
+            sharing, IntPtr.Zero, 3, 0x00200000U | (directory ? 0x02000000U : 0), IntPtr.Zero);
         try {
             RequireNative(held != null && !held.IsInvalid,
                 directory ? "protected-file-open-directory" : "protected-file-open-leaf");
@@ -166,6 +176,57 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         Require(!closed && Hex(Query(18, 24)) == Hex(identity) && Hex(Security()) == Hex(security) &&
             String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
+    }
+    public void RecheckIdentity()
+    {
+        Require(!closed && Hex(Query(18, 24)) == Hex(identity) &&
+            String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
+    }
+    // VMMS may retain writable configuration mappings while Off. Inspection of
+    // their owner, DACL, label and file ID needs no data access. This factory is
+    // used only inside the freshly created high-integrity namespace; media use
+    // their separate retained read/data handles with write/delete exclusion.
+    public static ProtectedInstallFile OpenMetadata(string path, bool directory)
+    { return new ProtectedInstallFile(path, directory, false, 3, true); }
+    // High-integrity creation also prevents ordinary medium/low callers from
+    // retaining WRITE_DAC/OWNER handles during VMMS's directory ACL updates.
+    // LABEL_SECURITY_INFORMATION is readable with READ_CONTROL; no audit-SACL
+    // privilege or global integrity-policy change is requested.
+    public void RequireHighIntegrity()
+    {
+        RecheckIdentity(); IntPtr owner, group, dacl, sacl, descriptor;
+        uint result = GetSecurityInfo(held, 1, 0x10, out owner, out group, out dacl, out sacl, out descriptor);
+        try {
+            bool present, defaulted;
+            Require(result == 0 && descriptor != IntPtr.Zero && GetSecurityDescriptorSacl(descriptor, out present, out sacl, out defaulted) && present && sacl != IntPtr.Zero &&
+                GetSecurityDescriptorLength(descriptor) <= 65536 && Marshal.ReadInt16(sacl, 4) == 1);
+            IntPtr ace; Require(GetAce(sacl, 0, out ace) && ace != IntPtr.Zero &&
+                Marshal.ReadByte(ace) == 0x11 && Marshal.ReadInt16(ace, 2) >= 20 &&
+                (Marshal.ReadInt32(ace, 4) & 1) != 0);
+            string sid = new System.Security.Principal.SecurityIdentifier(IntPtr.Add(ace, 8)).Value;
+            Require(sid == "S-1-16-12288" || sid == "S-1-16-16384");
+        } finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
+    }
+    // VMMS may open its parent directories with read/write sharing, without
+    // sharing DELETE. Retain read/list identity/ACL pins during provider work.
+    // Namespace replacement is still excluded by the private parent and by
+    // withholding delete sharing. This never relaxes file attachment holds.
+    public ProtectedInstallFile PinForProvider()
+    {
+        Recheck(); Require(Directory); Dispose();
+        ProtectedInstallFile next = null;
+        try {
+            next = new ProtectedInstallFile(PathName, true, false, 3);
+            Require(next.Volume == Volume && next.FileId == FileId && next.Sddl == Sddl);
+            return next;
+        } catch (Exception failure) { if (next != null) next.Dispose(); throw HandoffUnknown(failure); }
+    }
+    public void DeleteAfterProvider()
+    {
+        Recheck(); Require(Directory); Dispose();
+        using (var next = new ProtectedInstallFile(PathName, true, true)) {
+            Require(next.Volume == Volume && next.FileId == FileId && next.Sddl == Sddl); next.Delete();
+        }
     }
     public bool Protected(bool ancestor)
     {
@@ -198,6 +259,50 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         byte[] bytes = Read(cap); try { using (SHA256 hash = SHA256.Create()) return Hex(hash.ComputeHash(bytes)); }
         finally { Array.Clear(bytes, 0, bytes.Length); }
+    }
+    // Streaming image admission never allocates the image size. The caller holds
+    // this exact source without write/delete sharing throughout both passes.
+    public string HashImage(long expectedBytes)
+    {
+        Recheck(); Require(!Directory && expectedBytes > 0 && expectedBytes <= 16L * 1024 * 1024 * 1024);
+        if (stream == null) stream = new FileStream(held, FileAccess.Read, 65536, false);
+        Require(stream.Length == expectedBytes); stream.Position = 0;
+        string result;
+        using (SHA256 hash = SHA256.Create()) result = Hex(hash.ComputeHash(stream));
+        Require(stream.Position == expectedBytes && stream.Length == expectedBytes); Recheck(); return result;
+    }
+    public void CopyImage(string destination, long expectedBytes, string expectedHash, byte[] descriptor)
+    {
+        Require(expectedHash != null && expectedHash.Length == 64 && HashImage(expectedBytes) == expectedHash);
+        // CreateNew with the private DACL at creation: an existing leaf is never
+        // truncated or adopted, even if it happens to contain the expected image.
+        SafeFileHandle outputHandle;
+        GCHandle pinned = GCHandle.Alloc(descriptor, GCHandleType.Pinned);
+        try {
+            var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
+            using (ProtectedCreationSecurity.Enter(descriptor)) {
+                outputHandle = CreateImageFile(destination, 0x40000000, 0, ref attributes, 1, 0x80200000, IntPtr.Zero);
+                if (outputHandle == null || outputHandle.IsInvalid) {
+                    int error = Marshal.GetLastWin32Error(); if (outputHandle != null) outputHandle.Dispose();
+                    throw NativeFailure("protected-file-create-image", error);
+                }
+            }
+        } finally { pinned.Free(); }
+        var created = new FileStream(outputHandle, FileAccess.Write, 65536, false);
+        using (var output = created)
+        using (SHA256 hash = SHA256.Create()) {
+            stream.Position = 0; byte[] buffer = new byte[65536]; long total = 0;
+            try {
+                int count;
+                while ((count = stream.Read(buffer, 0, buffer.Length)) != 0) {
+                    total += count; Require(total <= expectedBytes);
+                    output.Write(buffer, 0, count); hash.TransformBlock(buffer, 0, count, buffer, 0);
+                }
+                hash.TransformFinalBlock(new byte[0], 0, 0);
+                Require(total == expectedBytes && Hex(hash.Hash) == expectedHash);
+                output.Flush(true); Recheck();
+            } finally { Array.Clear(buffer, 0, buffer.Length); }
+        }
     }
     public void Rename(string destination, ProtectedInstallFile parent)
     {
@@ -245,5 +350,56 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         if (closed) return; closed = true;
         try { if (stream != null) stream.Dispose(); } finally { held.Dispose(); }
+    }
+}
+
+// Enable only the already-assigned audit-security privilege while passing a SACL
+// at creation. Restore the exact previous token state before provider work; no
+// account rights, system policy or persistent process privileges are granted.
+internal sealed class ProtectedCreationSecurity : IDisposable
+{
+    [StructLayout(LayoutKind.Sequential)] private struct Luid { internal uint Low; internal int High; }
+    [StructLayout(LayoutKind.Sequential)] private struct Privileges { internal uint Count; internal Luid Id; internal uint Attributes; }
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool LookupPrivilegeValue(string system, string name, out Luid id);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(SafeFileHandle token, bool all, ref Privileges state,
+        uint size, out Privileges previous, out uint required);
+    [DllImport("advapi32.dll", EntryPoint = "AdjustTokenPrivileges", SetLastError = true)]
+    private static extern bool RestorePrivileges(SafeFileHandle token, bool all, ref Privileges state,
+        uint size, IntPtr previous, IntPtr required);
+    private SafeFileHandle token;
+    private Privileges previous;
+    private bool changed;
+    internal static IDisposable Enter(byte[] descriptor)
+    {
+        var security = new RawSecurityDescriptor(descriptor, 0);
+        return security.SystemAcl == null ? null : new ProtectedCreationSecurity();
+    }
+    private ProtectedCreationSecurity()
+    {
+        try {
+            if (!OpenProcessToken(GetCurrentProcess(), 0x28, out token)) throw new InvalidOperationException("protected-creation-privilege-refused");
+            Luid id;
+            if (!LookupPrivilegeValue(null, "SeSecurityPrivilege", out id)) throw new InvalidOperationException("protected-creation-privilege-refused");
+            var state = new Privileges { Count = 1, Id = id, Attributes = 2 }; uint required;
+            bool success = AdjustTokenPrivileges(token, false, ref state, (uint)Marshal.SizeOf(typeof(Privileges)), out previous, out required);
+            int error = Marshal.GetLastWin32Error(); changed = success && previous.Count != 0;
+            if (!success || error != 0) throw new InvalidOperationException("protected-creation-privilege-refused");
+        } catch { Dispose(); throw; }
+    }
+    public void Dispose()
+    {
+        if (token == null) return;
+        try {
+            if (changed) {
+                bool success = RestorePrivileges(token, false, ref previous, 0, IntPtr.Zero, IntPtr.Zero);
+                int error = Marshal.GetLastWin32Error(); changed = false;
+                if (!success || error != 0) throw new InvalidOperationException("protected-creation-privilege-restore-unknown");
+            }
+        } finally { token.Dispose(); token = null; }
     }
 }

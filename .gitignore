@@ -197,3 +197,8 @@ aegis_landing.html
 !/scripts/qualification/cloud-guest-stdio.ps1
 !/scripts/qualification/cloud-guest-stdio-bootstrap.ps1
 !/scripts/qualification/test-cloud-guest-stdio-cloud.ps1
+
+!/scripts/installation/protected-vm.ps1
+!/scripts/installation/protected-vm-provider.ps1
+!/scripts/qualification/protected-vm-controls.ps1
+!/tests/fixtures/protected-installation/vm-fixture.ps1

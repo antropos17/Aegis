@@ -59,7 +59,7 @@ try {
     if ($git.ExitCode -ne 0 -or (Get-Item -LiteralPath $headFile).Length -gt 128) { throw 'source-observation-failed' }
     $report.actualHead = (Get-Content -LiteralPath $headFile -Raw).Trim()
     if ($report.actualHead -cne $report.sourceSha) { throw 'Source revision mismatch' }
-    foreach ($file in @('qualify-cloud-hyperv.ps1', 'cloud-hyperv-operations.ps1', 'test-cloud-hyperv.ps1')) {
+    foreach ($file in @('qualify-cloud-hyperv.ps1', 'cloud-hyperv-operations.ps1', 'test-cloud-hyperv.ps1', 'protected-vm-controls.ps1', 'cloud-guest-media.ps1', 'installed-owner-build.ps1', 'installed-owner-phase.ps1')) {
         $selected = Get-Item -LiteralPath (Join-Path $PSScriptRoot $file)
         if ($selected.Attributes -band [IO.FileAttributes]::ReparsePoint -or $selected.Length -gt 64KB) { throw 'Invalid script input' }
         $report.scriptSha256[$file] = (Get-FileHash -LiteralPath $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -90,6 +90,24 @@ try {
         $report.nativeArtifacts = @{ sources = $hashes; compilerSha256 = (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant(); executableSha256 = (Get-FileHash -LiteralPath $nativeExe -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $report.lifecycle = Invoke-OwnedHyperVSequence -Name $name -VmRoot $vmRoot -Command ${function:Invoke-CloudHyperVCommand} -NativeExe $nativeExe
+    if ($NativeLifecycle -and $report.lifecycle.passed) {
+        # A separate PS 5.1 administrative transaction creates a fresh private VM,
+        # image copy and standalone disk through the actual installer API.
+        $arguments = @('-NoProfile', '-NonInteractive', '-File', ('"' + (Join-Path $PSScriptRoot 'protected-vm-controls.ps1') + '"'), '-OutputRoot', ('"' + $OutputRoot + '"'))
+        $priorModulePath = $env:PSModulePath
+        try {
+            $env:PSModulePath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\Modules'
+            $child = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $OutputRoot 'provision.out') -RedirectStandardError (Join-Path $OutputRoot 'provision.err')
+        } finally { $env:PSModulePath = $priorModulePath }
+        try {
+            if (!$child.WaitForExit(300000)) { $child.Kill(); throw 'protected-vm-controls-deadline-unknown' }
+            $receipt = Get-Item -LiteralPath (Join-Path $OutputRoot 'provision.json') -Force
+            if ($receipt.Length -gt 192KB -or ($receipt.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'protected-vm-controls-receipt-refused' }
+            $report['provisioning'] = [IO.File]::ReadAllText($receipt.FullName) | ConvertFrom-Json
+            foreach ($log in @('provision.out', 'provision.err')) { if ((Get-Item -LiteralPath (Join-Path $OutputRoot $log)).Length -gt 64KB) { throw 'protected-vm-controls-output-budget' } }
+            if ($child.ExitCode -ne 0 -or !$report.provisioning.passed -or $report.provisioning.sourceSha -cne $report.actualHead) { throw 'protected-vm-controls-refused' }
+        } finally { $child.Dispose() }
+    }
 }
 catch {
     $text = $_.Exception.Message -replace '[\r\n]', ' '

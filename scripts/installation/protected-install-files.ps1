@@ -5,7 +5,7 @@ $script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegi
 
 function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
-        Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'))
+        Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallDisk.cs'))
     }
 }
 function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$Private = $false) {
@@ -21,9 +21,15 @@ function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$
     }
     return $acl
 }
-function New-ProtectedInstallDirectory([string]$Path, [string]$OperatorSid, [bool]$Private = $false) {
+function New-ProtectedInstallDirectory([string]$Path, [string]$OperatorSid, [bool]$Private = $false, [bool]$HighIntegrity = $false) {
     if (Test-Path -LiteralPath $Path) { throw 'protected-new-directory-required' }
-    $held = [ProtectedInstallFile]::CreateDirectory($Path, (New-ProtectedInstallAcl $true $OperatorSid $Private).GetSecurityDescriptorBinaryForm())
+    $acl = New-ProtectedInstallAcl $true $OperatorSid $Private
+    $descriptor = $acl.GetSecurityDescriptorBinaryForm()
+    if ($HighIntegrity) {
+        $raw = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;OICI;NW;;;HI)')
+        $descriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($descriptor, 0)
+    }
+    $held = [ProtectedInstallFile]::CreateDirectory($Path, $descriptor)
     if (!$held.Protected($false)) { $held.Dispose(); throw 'protected-new-directory-acl-refused' }
     return $held
 }

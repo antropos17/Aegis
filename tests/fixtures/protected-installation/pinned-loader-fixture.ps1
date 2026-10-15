@@ -11,7 +11,9 @@ $fn = $ast.Find({ param($n) $n -is [Management.Automation.Language.FunctionDefin
 $modules = @(
     @{ path = 'scripts/installation/protected-install-files.ps1'; deps = @() },
     @{ path = 'scripts/installation/protected-install-transaction.ps1'; deps = @() },
-    @{ path = 'scripts/installation/protected-installation.ps1'; deps = @('protected-install-files.ps1', 'protected-install-transaction.ps1') },
+    @{ path = 'scripts/installation/protected-vm-provider.ps1'; deps = @() },
+    @{ path = 'scripts/installation/protected-vm.ps1'; deps = @() },
+    @{ path = 'scripts/installation/protected-installation.ps1'; deps = @('protected-install-files.ps1', 'protected-install-transaction.ps1', 'protected-vm-provider.ps1', 'protected-vm.ps1') },
     @{ path = 'scripts/qualification/installed-owner-phase.ps1'; deps = @('../installation/protected-installation.ps1') }
 )
 foreach ($module in $modules) {
