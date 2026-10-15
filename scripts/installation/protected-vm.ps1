@@ -217,16 +217,25 @@ function Remove-ProtectedInstallVm($Context) {
         $held = [ProtectedInstallFile]::new((Join-Path $owned.root.PathName $name), $false, $false)
         try { $owned.rows += @{ path = $held.PathName; volume = $held.Volume; fileId = $held.FileId; sddl = $held.Sddl; directory = $false } } finally { $held.Dispose() }
     }
-    Assert-ProtectedVmTree $owned $true
-    $owned.image.Dispose(); $owned.disk.Dispose(); $owned.images.Dispose(); $owned.disks.Dispose()
     $remaining = Read-ProtectedVmTree $owned
+    # VMMS may remove its VM ACEs while deleting the registered VM. Only after
+    # exact absence is confirmed may that private ACL change be accepted. Every
+    # remaining item must still have its original captured identity and a high,
+    # host/this-VM-only descriptor (enforced by Read-ProtectedVmTree).
+    foreach ($row in $remaining) {
+        $prior = @($owned.rows | Where-Object { $_.path -ceq $row.path })
+        if ($prior.Count -ne 1) { throw 'protected-vm-unowned-child' }
+        foreach ($key in @('volume', 'fileId', 'directory')) { if ($prior[0][$key] -cne $row[$key]) { throw 'protected-vm-tree-changed' } }
+    }
+    $owned.image.Dispose(); $owned.disk.Dispose(); $owned.images.Dispose(); $owned.disks.Dispose()
     $pins = [Collections.Generic.List[object]]::new()
     try {
         foreach ($row in @($remaining | Sort-Object { $_.path.Length } -Descending)) {
             $prior = @($owned.rows | Where-Object { $_.path -ceq $row.path })
             if ($prior.Count -ne 1) { throw 'protected-vm-unowned-child' }
             $held = [ProtectedInstallFile]::new($row.path, $row.directory, $true); $pins.Add($held)
-            if ($held.Volume -cne $prior[0].volume -or $held.FileId -cne $prior[0].fileId -or $held.Sddl -cne $prior[0].sddl -or $held.Directory -cne $prior[0].directory) { throw 'protected-vm-delete-identity-refused' }
+            if ($held.Volume -cne $prior[0].volume -or $held.FileId -cne $prior[0].fileId -or $held.Sddl -cne $row.sddl -or $held.Directory -cne $prior[0].directory) { throw 'protected-vm-delete-identity-refused' }
+            $held.RequireHighIntegrity()
         }
         # Validate the complete finite set against creation-time identities before
         # deleting its first leaf. A later unexpected child can only block removal.
