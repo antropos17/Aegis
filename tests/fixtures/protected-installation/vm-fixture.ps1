@@ -40,7 +40,7 @@ public static class VmDirectoryProbe {
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
     private static extern SafeFileHandle CreateFile(string p, uint a, uint s, IntPtr d, uint c, uint f, IntPtr t);
     public static int Open(string path) {
-        using(var h=CreateFile(path,0x20080,3,IntPtr.Zero,3,0x02000000,IntPtr.Zero))
+        using(var h=CreateFile(path,0x80020000,3,IntPtr.Zero,3,0x02000000,IntPtr.Zero))
             return h.IsInvalid ? Marshal.GetLastWin32Error() : 0;
     }
 }
