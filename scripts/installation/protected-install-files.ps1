@@ -24,8 +24,12 @@ function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$
 function New-ProtectedInstallDirectory([string]$Path, [string]$OperatorSid, [bool]$Private = $false, [bool]$HighIntegrity = $false) {
     if (Test-Path -LiteralPath $Path) { throw 'protected-new-directory-required' }
     $acl = New-ProtectedInstallAcl $true $OperatorSid $Private
-    if ($HighIntegrity) { $acl.SetSecurityDescriptorSddlForm($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;OICI;NW;;;HI)') }
-    $held = [ProtectedInstallFile]::CreateDirectory($Path, $acl.GetSecurityDescriptorBinaryForm())
+    $descriptor = $acl.GetSecurityDescriptorBinaryForm()
+    if ($HighIntegrity) {
+        $raw = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;OICI;NW;;;HI)')
+        $descriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($descriptor, 0)
+    }
+    $held = [ProtectedInstallFile]::CreateDirectory($Path, $descriptor)
     if (!$held.Protected($false)) { $held.Dispose(); throw 'protected-new-directory-acl-refused' }
     return $held
 }

@@ -16,6 +16,9 @@ public sealed class ProtectedInstallFile : IDisposable
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(string path, uint access, uint share,
         IntPtr security, uint create, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateImageFile(string path, uint access, uint share,
+        ref SecurityAttributes security, uint create, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, byte[] value, uint length);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -33,6 +36,8 @@ public sealed class ProtectedInstallFile : IDisposable
     [DllImport("advapi32.dll")] private static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool GetAce(IntPtr acl, uint index, out IntPtr ace);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetSecurityDescriptorSacl(IntPtr descriptor, out bool present, out IntPtr sacl, out bool defaulted);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr value);
     private readonly SafeFileHandle held;
     private static readonly object RenameGate = new object();
@@ -186,7 +191,8 @@ public sealed class ProtectedInstallFile : IDisposable
         RecheckIdentity(); IntPtr owner, group, dacl, sacl, descriptor;
         uint result = GetSecurityInfo(held, 1, 0x10, out owner, out group, out dacl, out sacl, out descriptor);
         try {
-            Require(result == 0 && descriptor != IntPtr.Zero && sacl != IntPtr.Zero &&
+            bool present, defaulted;
+            Require(result == 0 && descriptor != IntPtr.Zero && GetSecurityDescriptorSacl(descriptor, out present, out sacl, out defaulted) && present && sacl != IntPtr.Zero &&
                 GetSecurityDescriptorLength(descriptor) <= 65536 && Marshal.ReadInt16(sacl, 4) == 1);
             IntPtr ace; Require(GetAce(sacl, 0, out ace) && ace != IntPtr.Zero &&
                 Marshal.ReadByte(ace) == 0x11 && Marshal.ReadInt16(ace, 2) >= 20 &&
@@ -262,13 +268,21 @@ public sealed class ProtectedInstallFile : IDisposable
     public void CopyImage(string destination, long expectedBytes, string expectedHash, byte[] descriptor)
     {
         Require(expectedHash != null && expectedHash.Length == 64 && HashImage(expectedBytes) == expectedHash);
-        var acl = new FileSecurity(); acl.SetSecurityDescriptorBinaryForm(descriptor);
         // CreateNew with the private DACL at creation: an existing leaf is never
         // truncated or adopted, even if it happens to contain the expected image.
-        FileStream created;
-        using (ProtectedCreationSecurity.Enter(descriptor))
-            created = new FileStream(destination, FileMode.CreateNew, FileSystemRights.Write,
-                FileShare.None, 65536, FileOptions.WriteThrough, acl);
+        SafeFileHandle outputHandle;
+        GCHandle pinned = GCHandle.Alloc(descriptor, GCHandleType.Pinned);
+        try {
+            var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
+            using (ProtectedCreationSecurity.Enter(descriptor)) {
+                outputHandle = CreateImageFile(destination, 0x40000000, 0, ref attributes, 1, 0x80200000, IntPtr.Zero);
+                if (outputHandle == null || outputHandle.IsInvalid) {
+                    int error = Marshal.GetLastWin32Error(); if (outputHandle != null) outputHandle.Dispose();
+                    throw NativeFailure("protected-file-create-image", error);
+                }
+            }
+        } finally { pinned.Free(); }
+        var created = new FileStream(outputHandle, FileAccess.Write, 65536, false);
         using (var output = created)
         using (SHA256 hash = SHA256.Create()) {
             stream.Position = 0; byte[] buffer = new byte[65536]; long total = 0;

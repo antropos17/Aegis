@@ -18,8 +18,9 @@ function New-ProtectedVmDisk($Owned) {
     Assert-ProtectedInstallAdministrator
     $acl = New-ProtectedInstallAcl $false '' $true
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Write, [Security.AccessControl.AccessControlType]::Allow))
-    $acl.SetSecurityDescriptorSddlForm($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;;NW;;;HI)')
-    [ProtectedInstallDisk]::Create((Join-Path $Owned.disks.PathName 'system.vhdx'), $acl.GetSecurityDescriptorBinaryForm())
+    $raw = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;;NW;;;HI)')
+    $descriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($descriptor, 0)
+    [ProtectedInstallDisk]::Create((Join-Path $Owned.disks.PathName 'system.vhdx'), $descriptor)
     $Owned.disks.Recheck()
 }
 function Invoke-ProtectedVmEffect($Owned, [string]$Action) {
@@ -139,10 +140,11 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     # Only these new private assets receive this freshly returned VM principal.
     $acl = New-ProtectedInstallAcl $false '' $true
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute, [Security.AccessControl.AccessControlType]::Allow))
-    $acl.SetSecurityDescriptorSddlForm($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;;NW;;;HI)')
+    $raw = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]'Owner,Access') + 'S:(ML;;NW;;;HI)')
+    $imageDescriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($imageDescriptor, 0)
     $imagePath = Join-Path $owned.images.PathName 'boot.iso'
     $owned.unknown = $true
-    $SourceImage.CopyImage($imagePath, $Request.bytes, $Request.sha256, $acl.GetSecurityDescriptorBinaryForm())
+    $SourceImage.CopyImage($imagePath, $Request.bytes, $Request.sha256, $imageDescriptor)
     $owned.image = [ProtectedInstallFile]::new($imagePath, $false, $false)
     $owned.image.RequireHighIntegrity()
     $imageVolume = $owned.image.Volume; $imageId = $owned.image.FileId
