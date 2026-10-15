@@ -264,7 +264,7 @@ public sealed class ProtectedInstallFile : IDisposable
     // this exact source without write/delete sharing throughout both passes.
     public string HashImage(long expectedBytes)
     {
-        Recheck(); Require(!Directory && expectedBytes > 0 && expectedBytes <= 16L * 1024 * 1024 * 1024);
+        Recheck(); Require(!Directory && expectedBytes > 0 && expectedBytes <= 64L * 1024 * 1024 * 1024);
         if (stream == null) stream = new FileStream(held, FileAccess.Read, 65536, false);
         Require(stream.Length == expectedBytes); stream.Position = 0;
         string result;
@@ -302,6 +302,32 @@ public sealed class ProtectedInstallFile : IDisposable
                 Require(total == expectedBytes && Hex(hash.Hash) == expectedHash);
                 output.Flush(true); Recheck();
             } finally { Array.Clear(buffer, 0, buffer.Length); }
+        }
+    }
+    // Only a provisioner's original metadata pin may hydrate its fresh disk.
+    // It continues to exclude delete/rename while the separate write handle is open.
+    public void HydrateDisk(ProtectedInstallFile source, long bytes, string digest)
+    {
+        Recheck(); RequireHighIntegrity(); Require(!Directory && source != null &&
+            !String.Equals(PathName, source.PathName, StringComparison.OrdinalIgnoreCase) &&
+            bytes >= 1024 * 1024 && source.HashImage(bytes) == digest);
+        using (SafeFileHandle writer = CreateFile(PathName, 0x40000000, 3, IntPtr.Zero, 3, 0x80200000, IntPtr.Zero)) {
+            RequireNative(writer != null && !writer.IsInvalid, "protected-disk-write-open");
+            using (var output = new FileStream(writer, FileAccess.Write, 65536, false))
+            using (SHA256 hash = SHA256.Create()) {
+                source.stream.Position = 0; byte[] buffer = new byte[65536]; long total = 0;
+                try {
+                    int count;
+                    while ((count = source.stream.Read(buffer, 0, buffer.Length)) != 0) {
+                        if (total == 0) Require(count >= 8 && Encoding.ASCII.GetString(buffer, 0, 8) == "vhdxfile");
+                        total += count; Require(total <= bytes);
+                        output.Write(buffer, 0, count); hash.TransformBlock(buffer, 0, count, buffer, 0);
+                    }
+                    hash.TransformFinalBlock(new byte[0], 0, 0);
+                    Require(total == bytes && Hex(hash.Hash) == digest);
+                    output.SetLength(bytes); output.Flush(true); source.Recheck(); Recheck();
+                } finally { Array.Clear(buffer, 0, buffer.Length); }
+            }
         }
     }
     public void Rename(string destination, ProtectedInstallFile parent)

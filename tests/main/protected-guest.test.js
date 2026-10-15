@@ -1,0 +1,70 @@
+import { spawnSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
+
+describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
+  function invoke(mode) {
+    const result = spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        'tests/fixtures/protected-installation/guest-fixture.ps1',
+        mode,
+      ],
+      {
+        windowsHide: true,
+        timeout: 20000,
+        maxBuffer: 16384,
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.stderr.toString()).toBe('');
+    expect(result.status).toBe(0);
+    return JSON.parse(result.stdout.toString());
+  }
+  it('flushes a consumed start intent before releasing the offline disk and refuses a second start', () => {
+    expect(invoke('positive')).toEqual({
+      refused: false,
+      unknown: false,
+      priorClosed: true,
+      replayRefused: true,
+      events: [
+        'configuration-Off',
+        'pending-start.json',
+        'configuration-Running',
+        'settled-start.json',
+      ],
+    });
+  });
+  it('refuses changed configuration before consuming start or releasing media', () => {
+    expect(invoke('configuration')).toMatchObject({
+      refused: true,
+      unknown: false,
+      priorClosed: false,
+      events: ['configuration-Off'],
+    });
+  });
+  it('preserves the offline pin if durable intent cannot be written', () => {
+    expect(invoke('journal')).toMatchObject({
+      refused: true,
+      unknown: true,
+      priorClosed: false,
+      events: ['configuration-Off', 'pending-start.json'],
+    });
+  });
+  it('retains an unresolved provider transition without publishing a running result', () => {
+    expect(invoke('provider')).toMatchObject({
+      refused: true,
+      unknown: true,
+      priorClosed: true,
+      events: ['configuration-Off', 'pending-start.json'],
+    });
+  });
+  it('preserves empty, spaced, quoted and trailing slash arguments and refuses embedded NUL', () => {
+    expect(invoke('quote')).toEqual({
+      quotes: ['""', '"a b"', '"c\\"d\\\\"', '"back\\slash"', '"\\""'],
+      nulRefused: true,
+    });
+  });
+});

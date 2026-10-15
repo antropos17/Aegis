@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 
 # Only the elevated installer calls this adapter. A timed-out worker is not a
 # cancelled VMMS operation; its caller must retain the pending ownership journal.
-function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 'observe', 'remove')][string]$Action) {
+function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 'bootdisk', 'observe', 'remove')][string]$Action) {
     Assert-ProtectedInstallAdministrator
     $job = Start-Job -ArgumentList $Action, $Owned.name, $Owned.root.PathName, $Owned.vmId -ScriptBlock {
         param($Action, $Name, $Root, $Id)
@@ -79,6 +79,13 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
         if ($Action -ceq 'observe') { return (Observe $vm) }
         if ($null -eq $vm) { throw 'protected-vm-owned-instance-absent' }
         Observe $vm | Out-Null
+        if ($Action -ceq 'bootdisk') {
+            $drives = @(Get-VMHardDiskDrive -VM $vm)
+            if ($drives.Count -ne 1 -or $drives[0].Path -cne $disk) { throw 'protected-vm-boot-disk-refused' }
+            Set-VMFirmware -VM $vm -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice $drives[0]
+            Set-VMKeyProtector -VM $vm -NewLocalKeyProtector
+            Enable-VMTPM -VM $vm
+        }
         if ($Action -ceq 'configure') {
             $checkpoint = 7
             Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -AutomaticCheckpointsEnabled $false -CheckpointType Disabled

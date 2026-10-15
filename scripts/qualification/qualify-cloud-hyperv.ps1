@@ -64,6 +64,9 @@ try {
         if ($selected.Attributes -band [IO.FileAttributes]::ReparsePoint -or $selected.Length -gt 64KB) { throw 'Invalid script input' }
         $report.scriptSha256[$file] = (Get-FileHash -LiteralPath $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
+    foreach ($file in @('protected-guest.ps1', 'protected-guest-agent.ps1', 'ProtectedGuestVm.cs', 'ProtectedGuestAgent.cs', 'ProtectedGuestDesktop.cs')) {
+        $report.scriptSha256['../installation/' + $file] = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot ('../installation/' + $file))).Hash.ToLowerInvariant()
+    }
     $report.host = HostFacts
     if (!$report.host.admin -or $report.host.vmms -ne 'Running' -or !$report.host.hyperVModule) { throw 'Hyper-V administration prerequisite unavailable' }
     . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
