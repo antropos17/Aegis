@@ -58,6 +58,30 @@ function Assert-ProtectedVmTree($Owned, [bool]$Subset = $false) {
         foreach ($key in @('volume', 'fileId', 'sddl', 'directory')) { if ($prior[0][$key] -cne $row[$key]) { throw 'protected-vm-tree-changed' } }
     }
 }
+function Seal-ProtectedVmDirectory($Owned, [string]$Role) {
+    # Hyper-V's attachment cmdlets may grant the VM directory control for future
+    # checkpoints. Reduce only our freshly created, still-pinned exact directory.
+    $prior = $Owned[$Role]; $prior.RecheckIdentity()
+    $current = [ProtectedInstallFile]::new($prior.PathName, $true, $false)
+    try {
+        if ($current.FileId -cne $prior.FileId -or $current.Volume -cne $prior.Volume) { throw 'protected-vm-directory-handoff-refused' }
+        $sd = [Security.AccessControl.RawSecurityDescriptor]::new($current.Sddl)
+        if ($sd.Owner.Value -cnotin @('S-1-5-18', 'S-1-5-32-544') -or $null -eq $sd.DiscretionaryAcl) { throw 'protected-vm-tree-acl-refused' }
+        foreach ($ace in $sd.DiscretionaryAcl) {
+            if ($ace -isnot [Security.AccessControl.CommonAce] -or $ace.IsCallback -or $ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid)) { throw 'protected-vm-tree-acl-refused' }
+        }
+        $acl = New-ProtectedInstallAcl $true '' $true
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute, [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+        [IO.Directory]::SetAccessControl($prior.PathName, $acl)
+        $prior.RecheckIdentity()
+    } finally { $current.Dispose() }
+    $prior.Dispose()
+    $next = [ProtectedInstallFile]::new($prior.PathName, $true, $false)
+    try {
+        if ($next.FileId -cne $prior.FileId -or $next.Volume -cne $prior.Volume -or !$next.Protected($true)) { throw 'protected-vm-directory-handoff-refused' }
+        $Owned[$Role] = $next.PinForProvider()
+    } catch { $next.Dispose(); throw }
+}
 function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     Assert-ProtectedInstallAdministrator
     $owned = @{ root = $null; images = $null; disks = $null; image = $null; disk = $null; vmId = ''; vmSid = ''; unknown = $true;
@@ -81,6 +105,8 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     $imagePath = Join-Path $owned.images.PathName 'boot.iso'
     $owned.unknown = $true
     $SourceImage.CopyImage($imagePath, $Request.bytes, $Request.sha256, $acl.GetSecurityDescriptorBinaryForm())
+    $imageBefore = [ProtectedInstallFile]::new($imagePath, $false, $false)
+    try { $imageVolume = $imageBefore.Volume; $imageId = $imageBefore.FileId } finally { $imageBefore.Dispose() }
     $owned.checkpoint = 4
     Invoke-ProtectedVmEffect $owned 'disk'
     $diskPath = Join-Path $owned.disks.PathName 'system.vhdx'
@@ -96,10 +122,25 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     $owned.checkpoint = 6
     Invoke-ProtectedVmEffect $owned 'configure'
     $owned.unknown = $true
+    foreach ($role in @('root', 'images', 'disks')) { Seal-ProtectedVmDirectory $owned $role }
+    # Keep the originally captured leaf IDs; attachment ACL changes grant no
+    # permission to adopt a replaced file or a caller-selected existing asset.
+    foreach ($row in @(@{ path = $diskPath; volume = $volume; id = $fileId; acl = $diskAcl }, @{ path = $imagePath; volume = $imageVolume; id = $imageId; acl = $acl })) {
+        $held = [ProtectedInstallFile]::new($row.path, $false, $false)
+        try {
+            if ($held.Volume -cne $row.volume -or $held.FileId -cne $row.id) { throw 'protected-vm-asset-handoff-refused' }
+            $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
+            if ($sd.Owner.Value -cnotin @('S-1-5-18', 'S-1-5-32-544') -or $null -eq $sd.DiscretionaryAcl) { throw 'protected-vm-tree-acl-refused' }
+            foreach ($ace in $sd.DiscretionaryAcl) {
+                if ($ace -isnot [Security.AccessControl.CommonAce] -or $ace.IsCallback -or $ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $owned.vmSid)) { throw 'protected-vm-tree-acl-refused' }
+            }
+            [IO.File]::SetAccessControl($row.path, $row.acl); $held.RecheckIdentity()
+        } finally { $held.Dispose() }
+    }
     $owned.image = [ProtectedInstallFile]::new($imagePath, $false, $false)
     $owned.disk = [ProtectedInstallFile]::new($diskPath, $false, $false)
     $owned.checkpoint = 7
-    if ($owned.disk.Volume -cne $volume -or $owned.disk.FileId -cne $fileId -or $owned.image.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-vm-asset-handoff-refused' }
+    if ($owned.disk.Volume -cne $volume -or $owned.disk.FileId -cne $fileId -or $owned.image.Volume -cne $imageVolume -or $owned.image.FileId -cne $imageId -or $owned.image.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-vm-asset-handoff-refused' }
     $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $Context.inputs['aegis-session.exe']
     $owned.checkpoint = 8
     $owned.rows = Read-ProtectedVmTree $owned

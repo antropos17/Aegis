@@ -169,6 +169,11 @@ public sealed class ProtectedInstallFile : IDisposable
         Require(!closed && Hex(Query(18, 24)) == Hex(identity) && Hex(Security()) == Hex(security) &&
             String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
     }
+    public void RecheckIdentity()
+    {
+        Require(!closed && Hex(Query(18, 24)) == Hex(identity) &&
+            String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
+    }
     // VMMS may open its parent directories with read/write sharing, without
     // sharing DELETE. Retain read/list identity/ACL pins during provider work.
     // Namespace replacement is still excluded by the private parent and by

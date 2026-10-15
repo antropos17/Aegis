@@ -68,6 +68,15 @@ try {
     if ($journal.ContainsKey('association') -and $journal.association.ContainsKey('vmProvision') -and $null -ne $journal.association.vmProvision) {
         $owned = $journal.association.vmProvision
         $report.failure.provision = @{ checkpoint = $owned.checkpoint; unknown = $owned.unknown; vmIdReturned = ($owned.vmId -cne '') }
+        $report.failure.provision.directories = @()
+        foreach ($role in @('root', 'images', 'disks')) {
+            if ($null -ne $owned[$role]) {
+                try {
+                    $current = [ProtectedInstallFile]::new($owned[$role].PathName, $true, $false)
+                    try { $report.failure.provision.directories += @{ role = $role; sameId = ($current.FileId -ceq $owned[$role].FileId -and $current.Volume -ceq $owned[$role].Volume); protectedAncestor = $current.Protected($true); sddl = $current.Sddl } } finally { $current.Dispose() }
+                } catch { $report.failure.provision.directories += @{ role = $role; observed = $false } }
+            }
+        }
         $cause = $_.Exception
         $rows = @()
         for ($depth = 0; $null -ne $cause -and $depth -lt 8; $depth++) {
