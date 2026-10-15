@@ -30,7 +30,7 @@ try {
     $stage = 'create-install'; $association = New-ProtectedInstallation (Join-Path $payloadRoot 'binaries') $manifest $account $password $false $journal '' $request
     $owned = $association.vmProvision; $id = $owned.vmId
     $report.fresh = @{ vmId = $id; identitySha256 = $association.vmBinding.identitySha256; storageSha256 = $association.vmBinding.storageSha256;
-        storageProtection = $association.vmBinding.storageProtection; imageSha256 = $request.sha256; fileCount = $owned.rows.Count; off = $true; privateNamespace = $owned.root.Protected($false) }
+        storageProtection = $association.vmBinding.storageProtection; imageSha256 = $request.sha256; fileCount = $owned.rows.Count; off = $true; privateNamespace = $owned.root.Protected($false); highIntegrity = $true }
     $stage = 'offline-holds'
     foreach ($kind in @('image', 'disk')) {
         $blocked = $false

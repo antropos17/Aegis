@@ -29,8 +29,8 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
             return @{ vmId = $Vm.Id.ToString('D'); name = $Vm.Name; off = $true }
         }
         function AddStorage($Settings, $Service, [string]$Subtype, [string]$Parent, [string]$Address, [string]$HostPath) {
-            # Use VMMS resource settings directly. The attachment cmdlet's broad
-            # host-directory permission grants are outside this private contract.
+            # Keep resource identities and returned jobs under the transaction.
+            # The coordinator holds media and seals VMMS directory ACL updates.
             $pools = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_ResourcePool -Filter "ResourceSubType='$Subtype' AND Primordial=True")
             if ($pools.Count -ne 1) { throw 'protected-vm-resource-pool-refused' }
             $capabilities = @($pools[0].GetRelated('Msvm_AllocationCapabilities'))

@@ -4,8 +4,8 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
 // Administrative installer only. No parent/source image is accepted. Unlike
-// New-VHD this API applies the supplied private DACL at file creation without
-// granting capability or all-VM access to the containing directory.
+// The supplied descriptor is applied at file creation. This creator leaves the
+// containing directory's permissions unchanged; the caller checks its pin.
 public static class ProtectedInstallDisk
 {
     [StructLayout(LayoutKind.Sequential)]

@@ -18,9 +18,16 @@ the private installation namespace. The returned VM's SID receives read access
 to the immutable image and read/write access to its new standalone VHDX. VHDX
 creation uses `CreateVirtualDisk` with an explicit private descriptor, no source
 or parent and fixed 64 GiB dynamic parameters. Attachment uses VMMS WMI resource
-settings directly. The high-level disk attachment cmdlet broadens directory
-permissions on the tested host and is excluded from this transaction. Only
-creation-bound IDs may have their final ACL sealed, before any guest startup.
+settings directly, with defaults obtained through provider capability associations.
+VMMS broadens storage-directory permissions during attachment on the tested host.
+Both original media files already deny write/delete sharing at that point. The
+new namespace and media receive a raw High-integrity/no-write-up label at kernel
+creation, preventing ordinary medium/low callers from retaining mutation or
+security-descriptor handles during that update. The installer verifies the labels
+and seals only creation-bound IDs before publication. Passing a SACL at creation
+temporarily enables the administrator's already-assigned `SeSecurityPrivilege`;
+the exact previous token state is restored before provider work. No account right
+or system policy is granted.
 
 Within `C:\ProgramData\AEGIS\Vm`, the installer creates an append-only sequence
 of bounded intent, pending, settlement and ready records. Every provider mutation
@@ -48,6 +55,15 @@ Off state and confirmed exact-GUID absence after removal, then deletes only
 identity-checked closed descendants. Unknown children or changed identities stop
 cleanup. It never recursively deletes a pathname selected by a caller.
 
+VMMS may retain writable configuration mappings while the VM is Off. Configuration
+inventory therefore reads file IDs, owners, DACLs and mandatory labels through
+metadata handles; it does not hash or consume configuration contents. Provider
+configuration is sealed inside the fresh high-integrity namespace. Media keep
+their separate data-read holds throughout attachment and registration. After
+confirmed VM removal, remaining items must retain their original IDs and high,
+private descriptors; VMMS's removal of VM access rules does not authorize adopting
+replacement files.
+
 Local Windows fixtures exercise streaming admission, ACL retention, CreateNew,
 source write exclusion, pending-record ordering, refused provider results and
 unknown settlement without VM/service/account effects. The existing
@@ -66,3 +82,6 @@ The provider adapter uses the documented Microsoft Hyper-V
 [Set-VM](https://learn.microsoft.com/en-us/powershell/module/hyper-v/set-vm) and
 [Set-VMFirmware](https://learn.microsoft.com/en-us/powershell/module/hyper-v/set-vmfirmware)
 interfaces. Worker termination does not establish cancellation of accepted VMMS work.
+The mandatory-label guard follows Microsoft's
+[Mandatory Integrity Control](https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control)
+model. A passing inert-media corpus supplies no boot or live-runtime acceptance.
