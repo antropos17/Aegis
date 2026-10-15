@@ -67,4 +67,12 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
       nulRefused: true,
     });
   });
+  it('keeps the original file ID and deletion exclusion while handing a disk from offline to live and back', () => {
+    expect(invoke('pin')).toEqual({
+      offlineWriteBlocked: true,
+      liveWriteSucceeded: true,
+      liveDeleteBlocked: true,
+      originalId: true,
+    });
+  });
 });

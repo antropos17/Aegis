@@ -83,18 +83,21 @@ public static class ProtectedGuestAgent
                     uint exit; Require(GetExitCodeProcess(child.Process, out exit)); return exit;
                 } finally {
                     bool closed = true;
-                    if (job != IntPtr.Zero && assigned) {
-                        closed = TerminateJobObject(job, 125);
-                        var timer = Stopwatch.StartNew();
-                        while (closed && GuestJobNative.Counts(job).Active != 0 && timer.ElapsedMilliseconds < 5000)
-                            System.Threading.Thread.Sleep(20);
-                        closed = closed && GuestJobNative.Counts(job).Active == 0;
-                    } else if (child.Process != IntPtr.Zero) closed = TerminateProcess(child.Process, 125);
-                    if (child.Process != IntPtr.Zero) closed = GuestJobNative.WaitForSingleObject(child.Process, 5000) == 0 && closed;
-                    if (child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);
-                    if (child.Process != IntPtr.Zero) GuestJobNative.CloseHandle(child.Process);
-                    if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
-                    if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
+                    try {
+                        if (job != IntPtr.Zero && assigned) {
+                            closed = TerminateJobObject(job, 125);
+                            var timer = Stopwatch.StartNew();
+                            while (closed && GuestJobNative.Counts(job).Active != 0 && timer.ElapsedMilliseconds < 5000)
+                                System.Threading.Thread.Sleep(20);
+                            closed = closed && GuestJobNative.Counts(job).Active == 0;
+                        } else if (child.Process != IntPtr.Zero) closed = TerminateProcess(child.Process, 125);
+                        if (child.Process != IntPtr.Zero) closed = GuestJobNative.WaitForSingleObject(child.Process, 5000) == 0 && closed;
+                    } finally {
+                        if (child.Thread != IntPtr.Zero) GuestJobNative.CloseHandle(child.Thread);
+                        if (child.Process != IntPtr.Zero) GuestJobNative.CloseHandle(child.Process);
+                        if (job != IntPtr.Zero) GuestJobNative.CloseHandle(job);
+                        if (environment != IntPtr.Zero) Marshal.FreeHGlobal(environment);
+                    }
                     Require(closed);
                 }
             }

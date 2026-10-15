@@ -1,6 +1,23 @@
 param([string]$Mode)
 Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-guest.ps1')
+if ($Mode -ceq 'pin') {
+    Add-Type -Path (Join-Path $PSScriptRoot '../../../scripts/installation/ProtectedInstallFiles.cs')
+    $path = Join-Path $env:TEMP ('guest-live-pin-' + [guid]::NewGuid().ToString('N'))
+    [IO.File]::WriteAllText($path, 'before')
+    $offline = [ProtectedInstallFile]::new($path, $false, $false); $live = $null; $blocked = $false; $deleteBlocked = $false
+    try {
+        $live = [ProtectedInstallFile]::OpenLiveDisk($path)
+        try { $f = [IO.File]::Open($path, 'Open', 'Write', 'ReadWrite'); $f.Dispose() } catch { $blocked = $true }
+        $id = $offline.FileId; $offline.Dispose()
+        [IO.File]::WriteAllText($path, 'after')
+        try { [IO.File]::Delete($path) } catch { $deleteBlocked = $true }
+        $live.Recheck()
+        $offline = [ProtectedInstallFile]::new($path, $false, $false)
+        $sameId = $offline.FileId -ceq $id -and $live.FileId -ceq $id
+        return (@{ offlineWriteBlocked = $blocked; liveWriteSucceeded = ([IO.File]::ReadAllText($path) -ceq 'after'); liveDeleteBlocked = $deleteBlocked; originalId = $sameId } | ConvertTo-Json -Compress)
+    } finally { if ($null -ne $live) { $live.Dispose() }; $offline.Dispose(); [IO.File]::Delete($path) }
+}
 if ($Mode -ceq 'quote') {
     Add-Type -Path @((Join-Path $PSScriptRoot '../../../scripts/installation/ProtectedGuestAgent.cs'),
         (Join-Path $PSScriptRoot '../../../scripts/installation/ProtectedGuestDesktop.cs'), (Join-Path $PSScriptRoot '../../../sidecar/session/GuestJobNative.cs'))
@@ -22,7 +39,7 @@ public sealed class ProtectedGuestVm : IDisposable {
 public sealed class ProtectedInstallFile {
  public string PathName = "C:\\private\\disk.vhdx", FileId = "original", Volume = "volume", Sddl = "private";
  public bool Closed;
- public static ProtectedInstallFile OpenMetadata(string path, bool directory) { return new ProtectedInstallFile(); }
+ public static ProtectedInstallFile OpenLiveDisk(string path) { return new ProtectedInstallFile(); }
  public void Dispose() { Closed = true; }
 }
 '@

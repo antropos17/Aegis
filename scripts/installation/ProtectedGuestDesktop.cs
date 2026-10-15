@@ -88,5 +88,6 @@ internal sealed class ProtectedGuestDesktop : IDisposable
         if (desktopClosed) desktop = IntPtr.Zero;
         if (stationClosed) station = IntPtr.Zero;
         Closed = desktopClosed && stationClosed;
+        if (!Closed) throw new InvalidOperationException("protected-guest-desktop-close-refused");
     }
 }

@@ -23,7 +23,7 @@ function Set-ProtectedGuestDisk($Context, $Request) {
         if ($source.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-guest-disk-digest-refused' }
         $owned.unknown = $true; $owned.hydrated = $true
         Write-ProtectedVmJournal $owned 'pending-hydrate.json' @{ schemaVersion = 1; vmId = $owned.vmId; bytes = $Request.bytes; sha256 = $Request.sha256 }
-        $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenMetadata($prior.PathName, $false)
+        $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenLiveDisk($prior.PathName)
         if ($live.FileId -cne $prior.FileId -or $live.Volume -cne $prior.Volume -or $live.Sddl -cne $prior.Sddl) { $live.Dispose(); throw 'protected-guest-disk-handoff-refused' }
         $owned.disk = $live; $prior.Dispose()
         $live.HydrateDisk($source, $Request.bytes, $Request.sha256)
@@ -65,7 +65,7 @@ function Start-ProtectedGuest($Context) {
     $owned.unknown = $true
     Write-ProtectedVmJournal $owned 'pending-start.json' @{ schemaVersion = 1; vmId = $owned.vmId; identitySha256 = $owned.binding.identitySha256 }
     $owned.guest.owner = [ProtectedGuestVm]::new($owned.vmId, $owned.binding.identitySha256)
-    $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenMetadata($prior.PathName, $false)
+    $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenLiveDisk($prior.PathName)
     if ($live.FileId -cne $prior.FileId -or $live.Volume -cne $prior.Volume -or $live.Sddl -cne $prior.Sddl) { $live.Dispose(); throw 'protected-guest-disk-handoff-refused' }
     $owned.disk = $live; $prior.Dispose()
     if (!$owned.guest.owner.Start() -or $owned.guest.owner.PendingUnknown) { throw 'protected-guest-start-settlement-unknown' }
