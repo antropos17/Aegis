@@ -38,7 +38,7 @@ function Invoke-ProtectedVmEffect($Owned, [string]$Action) {
     Write-ProtectedVmJournal $Owned ('settled-' + $Action + '.json') @{ schemaVersion = 1; operation = $Action; vmId = $Owned.vmId; off = ($Action -cne 'remove'); absent = ($Action -ceq 'remove') }
     $Owned.unknown = $false
 }
-function Read-ProtectedVmTree($Owned) {
+function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
     $Owned.root.Recheck(); $rows = @(); $queue = [Collections.Generic.Queue[string]]::new(); $queue.Enqueue($Owned.root.PathName)
     while ($queue.Count -ne 0) {
         $parent = $queue.Dequeue()
@@ -46,9 +46,25 @@ function Read-ProtectedVmTree($Owned) {
             if ($rows.Count -ge 128 -or $item.FullName.Length -gt $Owned.root.PathName.Length + 512 -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'protected-vm-tree-budget-refused' }
             $held = [ProtectedInstallFile]::new($item.FullName, $item.PSIsContainer, $false)
             try {
+                $held.RequireHighIntegrity()
                 $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
                 if ($sd.Owner.Value -cnotin @('S-1-5-18', 'S-1-5-32-544') -or $null -eq $sd.DiscretionaryAcl) { throw 'protected-vm-tree-acl-refused' }
+                if ($SealConfiguration -and ($item.FullName -ceq (Join-Path $Owned.root.PathName 'Machine') -or $item.FullName.StartsWith((Join-Path $Owned.root.PathName 'Machine\'), [StringComparison]::OrdinalIgnoreCase))) {
+                    # The new high-integrity namespace predates VM creation; no
+                    # ordinary caller could have created or opened these files
+                    # for mutation. Seal only this provider-created subtree.
+                    $volume = $held.Volume; $id = $held.FileId
+                    $acl = New-ProtectedInstallAcl $item.PSIsContainer '' $true
+                    $inherit = if ($item.PSIsContainer) { [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit' } else { [Security.AccessControl.InheritanceFlags]::None }
+                    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute, $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+                    if ($item.PSIsContainer) { [IO.Directory]::SetAccessControl($held.PathName, $acl) } else { [IO.File]::SetAccessControl($held.PathName, $acl) }
+                    $held.RecheckIdentity(); $held.Dispose()
+                    $held = [ProtectedInstallFile]::new($item.FullName, $item.PSIsContainer, $false)
+                    if ($held.FileId -cne $id -or $held.Volume -cne $volume) { throw 'protected-vm-tree-changed' }
+                    $held.RequireHighIntegrity(); $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
+                }
                 foreach ($ace in $sd.DiscretionaryAcl) {
+                    if (($ace.AceFlags -band [Security.AccessControl.AceFlags]::InheritOnly) -ne 0) { continue }
                     if ($ace -isnot [Security.AccessControl.CommonAce] -or $ace.IsCallback -or $ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or
                         $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid)) { throw 'protected-vm-tree-acl-refused' }
                 }
@@ -72,6 +88,7 @@ function Seal-ProtectedVmDirectory($Owned, [string]$Role) {
     # Hyper-V's attachment cmdlets may grant the VM directory control for future
     # checkpoints. Reduce only our freshly created, still-pinned exact directory.
     $prior = $Owned[$Role]; $prior.RecheckIdentity()
+    $prior.RequireHighIntegrity()
     $current = [ProtectedInstallFile]::new($prior.PathName, $true, $false)
     try {
         if ($current.FileId -cne $prior.FileId -or $current.Volume -cne $prior.Volume) { throw 'protected-vm-directory-handoff-refused' }
@@ -81,7 +98,7 @@ function Seal-ProtectedVmDirectory($Owned, [string]$Role) {
         # original media files must already deny write/delete sharing, and the
         # directory must still be our exact pinned identity. No preexisting or
         # later discovered file can acquire ownership through this sealing step.
-        $Owned.image.RecheckIdentity(); $Owned.disk.RecheckIdentity()
+        $Owned.image.RequireHighIntegrity(); $Owned.disk.RequireHighIntegrity()
         foreach ($pair in @(@{ root = $Owned.images; file = $Owned.image }, @{ root = $Owned.disks; file = $Owned.disk })) {
             $children = @(Get-ChildItem -LiteralPath $pair.root.PathName -Force)
             if ($children.Count -ne 1 -or $children[0].FullName -cne $pair.file.PathName) { throw 'protected-vm-unowned-child' }
@@ -104,10 +121,13 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
         name = 'aegis-protected-' + [guid]::NewGuid().ToString('N'); installId = $Context.installId; rows = @(); binding = $null; verifier = $Context.inputs['aegis-session.exe'].Clone(); checkpoint = 1 }
     $Context.vmProvision = $owned
     $owned.root = New-ProtectedInstallDirectory (Join-Path $Context.parent.PathName 'Vm') '' $true
+    $owned.root.RequireHighIntegrity()
     $owned.root = $owned.root.PinForProvider()
     $owned.images = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Images') '' $true
+    $owned.images.RequireHighIntegrity()
     $owned.images = $owned.images.PinForProvider()
     $owned.disks = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Disks') '' $true
+    $owned.disks.RequireHighIntegrity()
     $owned.disks = $owned.disks.PinForProvider()
     $owned.checkpoint = 2
     Write-ProtectedVmJournal $owned 'intent.json' @{ schemaVersion = 1; installId = $owned.installId; name = $owned.name; imageBytes = $Request.bytes; imageSha256 = $Request.sha256; diskBytes = 64GB; guestStartAuthorized = $false }
@@ -122,11 +142,13 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     $owned.unknown = $true
     $SourceImage.CopyImage($imagePath, $Request.bytes, $Request.sha256, $acl.GetSecurityDescriptorBinaryForm())
     $owned.image = [ProtectedInstallFile]::new($imagePath, $false, $false)
+    $owned.image.RequireHighIntegrity()
     $imageVolume = $owned.image.Volume; $imageId = $owned.image.FileId
     $owned.checkpoint = 4
     Invoke-ProtectedVmEffect $owned 'disk'
     $diskPath = Join-Path $owned.disks.PathName 'system.vhdx'
     $before = [ProtectedInstallFile]::new($diskPath, $false, $false)
+    $before.RequireHighIntegrity()
     $owned.checkpoint = 5
     try {
         $volume = $before.Volume; $fileId = $before.FileId; $before.Recheck()
@@ -160,7 +182,7 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     if ($owned.disk.Volume -cne $volume -or $owned.disk.FileId -cne $fileId -or $owned.image.Volume -cne $imageVolume -or $owned.image.FileId -cne $imageId -or $owned.image.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-vm-asset-handoff-refused' }
     $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $Context.inputs['aegis-session.exe']
     $owned.checkpoint = 8
-    $owned.rows = Read-ProtectedVmTree $owned
+    $owned.rows = Read-ProtectedVmTree $owned $true
     $owned.checkpoint = 9
     Write-ProtectedVmJournal $owned 'ready.json' @{ schemaVersion = 1; installId = $owned.installId; binding = $owned.binding; imageBytes = $Request.bytes; imageSha256 = $Request.sha256; resources = $owned.rows; guestStartAuthorized = $false }
     $owned.rows = Read-ProtectedVmTree $owned

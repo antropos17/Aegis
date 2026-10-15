@@ -31,6 +31,8 @@ public sealed class ProtectedInstallFile : IDisposable
     private static extern uint GetSecurityInfo(SafeFileHandle file, int type, uint information,
         out IntPtr owner, out IntPtr group, out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
     [DllImport("advapi32.dll")] private static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetAce(IntPtr acl, uint index, out IntPtr ace);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr value);
     private readonly SafeFileHandle held;
     private static readonly object RenameGate = new object();
@@ -173,6 +175,24 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         Require(!closed && Hex(Query(18, 24)) == Hex(identity) &&
             String.Equals(Name(), PathName, StringComparison.OrdinalIgnoreCase));
+    }
+    // High-integrity creation also prevents ordinary medium/low callers from
+    // retaining WRITE_DAC/OWNER handles during VMMS's directory ACL updates.
+    // LABEL_SECURITY_INFORMATION is readable with READ_CONTROL; no audit-SACL
+    // privilege or global integrity-policy change is requested.
+    public void RequireHighIntegrity()
+    {
+        RecheckIdentity(); IntPtr owner, group, dacl, sacl, descriptor;
+        uint result = GetSecurityInfo(held, 1, 0x10, out owner, out group, out dacl, out sacl, out descriptor);
+        try {
+            Require(result == 0 && descriptor != IntPtr.Zero && sacl != IntPtr.Zero &&
+                GetSecurityDescriptorLength(descriptor) <= 65536 && Marshal.ReadInt16(sacl, 4) == 1);
+            IntPtr ace; Require(GetAce(sacl, 0, out ace) && ace != IntPtr.Zero &&
+                Marshal.ReadByte(ace) == 0x11 && Marshal.ReadInt16(ace, 2) >= 20 &&
+                (Marshal.ReadInt32(ace, 4) & 1) != 0);
+            string sid = new System.Security.Principal.SecurityIdentifier(IntPtr.Add(ace, 8)).Value;
+            Require(sid == "S-1-16-12288" || sid == "S-1-16-16384");
+        } finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
     }
     // VMMS may open its parent directories with read/write sharing, without
     // sharing DELETE. Retain read/list identity/ACL pins during provider work.
