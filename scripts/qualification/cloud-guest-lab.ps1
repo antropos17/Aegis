@@ -548,7 +548,7 @@ finally {
     }
     if ($null -ne $readyDisk -and $null -eq $report.cleanupFailure) {
         RecordDisk 'before-protected-guest' | Out-Null
-        $agentCredential = [pscredential]::new('AegisTask', (ConvertTo-SecureString $taskPassword -AsPlainText -Force))
+        $agentCredential = [pscredential]::new(('AegisAg' + [guid]::NewGuid().ToString('N').Substring(0, 12)), (ConvertTo-SecureString ('Ae!9-' + [guid]::NewGuid().ToString('N')) -AsPlainText -Force))
         $report['protectedGuest'] = Invoke-ProtectedGuestQualification $OutputRoot $readyDisk $adminCredential $agentCredential $report.actualHead
         if (!$report.protectedGuest.passed) { $report.cleanupFailure = @{ stage = 'protected-guest'; hResult = 0 } }
         else {

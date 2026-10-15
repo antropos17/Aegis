@@ -39,14 +39,17 @@ function Invoke-ProtectedGuestAgent($Context, [pscredential]$Administrator, [psc
                 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
                 $env:PSModulePath = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\Modules'
                 if (!(Get-CimInstance Win32_ComputerSystem).HypervisorPresent -or (Get-ItemProperty 'HKLM:\SYSTEM\Setup').SystemSetupInProgress -ne 0 -or
-                    !$Agent.UserName -or $Agent.UserName -cnotmatch '^[A-Za-z][A-Za-z0-9]{0,19}$') { throw 'protected-guest-readiness-refused' }
+                    $Agent.UserName -cnotmatch '^AegisAg[a-f0-9]{12}$') { throw 'protected-guest-readiness-refused' }
+                if (@(Get-LocalUser | Where-Object Name -CEQ $Agent.UserName).Count -ne 0) { throw 'protected-guest-fresh-account-required' }
+                New-LocalUser -Name $Agent.UserName -Password $Agent.Password -AccountNeverExpires -PasswordNeverExpires | Out-Null
+                Add-LocalGroupMember -SID S-1-5-32-545 -Member $Agent.UserName
                 $users = @(Get-LocalUser -Name $Agent.UserName -ErrorAction Stop)
                 if ($users.Count -ne 1 -or !$users[0].Enabled -or @((Get-LocalGroupMember -SID S-1-5-32-544) | Where-Object { $_.SID.Value -ceq $users[0].SID.Value }).Count -ne 0) { throw 'protected-guest-account-refused' }
                 $sid = $users[0].SID.Value
                 # Enforce the guest principal's entire writable NTFS volume,
                 # including descendants and alternate directories, before release.
                 # This changes only the explicitly provisioned guest, never the host.
-                $quota = New-Object -ComObject Microsoft.DiskQuota
+                $quota = New-Object -ComObject Microsoft.DiskQuota; $entry = $null
                 try {
                     $quota.Initialize('C:\', $true); $quota.QuotaState = 2
                     $entry = $quota.AddUser($env:COMPUTERNAME + '\' + $Agent.UserName)
@@ -55,14 +58,31 @@ function Invoke-ProtectedGuestAgent($Context, [pscredential]$Administrator, [psc
                 } finally { if ($null -ne $entry) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($entry) }; [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($quota) }
                 # Fresh private roots only. Existing roots are never repaired or adopted.
                 if (Test-Path -LiteralPath C:\ProgramData\AEGIS) { throw 'protected-guest-fresh-root-required' }
-                $acl = [Security.AccessControl.DirectorySecurity]::new()
-                $acl.SetSecurityDescriptorSddlForm('O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;' + $sid + ')')
-                [IO.DirectoryInfo]::new('C:\ProgramData\AEGIS').Create($acl)
+                Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class ProtectedGuestDirectory {
+ [StructLayout(LayoutKind.Sequential)] private struct Attributes { public int Size; public IntPtr Descriptor; public int Inherit; }
+ [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] private static extern bool CreateDirectoryW(string path, ref Attributes attributes);
+ [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptorW(string sddl, uint revision, out IntPtr descriptor, out uint bytes);
+ [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr pointer);
+ public static void Create(string path, string sddl) {
+  IntPtr descriptor = IntPtr.Zero; uint bytes;
+  try {
+   if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out descriptor, out bytes)) throw new InvalidOperationException("protected-guest-directory-refused");
+   var attributes = new Attributes(); attributes.Size = Marshal.SizeOf(typeof(Attributes)); attributes.Descriptor = descriptor;
+   if (!CreateDirectoryW(path, ref attributes)) throw new InvalidOperationException("protected-guest-fresh-directory-refused");
+  } finally { if(descriptor != IntPtr.Zero) LocalFree(descriptor); }
+ }
+}
+'@
+                $sddl = 'O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;' + $sid + ')'
+                [ProtectedGuestDirectory]::Create('C:\ProgramData\AEGIS', $sddl)
+                [ProtectedGuestDirectory]::Create('C:\ProgramData\AEGIS\Guest', $sddl)
                 $root = 'C:\ProgramData\AEGIS\Guest\' + $Nonce
-                [IO.DirectoryInfo]::new($root).Create($acl)
-                $work = Join-Path $root 'work'; $workAcl = [Security.AccessControl.DirectorySecurity]::new()
-                $workAcl.SetSecurityDescriptorSddlForm('O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;' + $sid + ')')
-                [IO.DirectoryInfo]::new($work).Create($workAcl)
+                [ProtectedGuestDirectory]::Create($root, $sddl)
+                $work = Join-Path $root 'work'
+                [ProtectedGuestDirectory]::Create($work, ('O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;' + $sid + ')'))
                 $env:TEMP = $root; $env:TMP = $root
                 $pins = [Collections.Generic.List[object]]::new()
                 try {
