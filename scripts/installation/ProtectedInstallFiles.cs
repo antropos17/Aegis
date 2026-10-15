@@ -199,6 +199,39 @@ public sealed class ProtectedInstallFile : IDisposable
         byte[] bytes = Read(cap); try { using (SHA256 hash = SHA256.Create()) return Hex(hash.ComputeHash(bytes)); }
         finally { Array.Clear(bytes, 0, bytes.Length); }
     }
+    // Streaming image admission never allocates the image size. The caller holds
+    // this exact source without write/delete sharing throughout both passes.
+    public string HashImage(long expectedBytes)
+    {
+        Recheck(); Require(!Directory && expectedBytes > 0 && expectedBytes <= 16L * 1024 * 1024 * 1024);
+        if (stream == null) stream = new FileStream(held, FileAccess.Read, 65536, false);
+        Require(stream.Length == expectedBytes); stream.Position = 0;
+        string result;
+        using (SHA256 hash = SHA256.Create()) result = Hex(hash.ComputeHash(stream));
+        Require(stream.Position == expectedBytes && stream.Length == expectedBytes); Recheck(); return result;
+    }
+    public void CopyImage(string destination, long expectedBytes, string expectedHash, byte[] descriptor)
+    {
+        Require(expectedHash != null && expectedHash.Length == 64 && HashImage(expectedBytes) == expectedHash);
+        var acl = new FileSecurity(); acl.SetSecurityDescriptorBinaryForm(descriptor);
+        // CreateNew with the private DACL at creation: an existing leaf is never
+        // truncated or adopted, even if it happens to contain the expected image.
+        using (var output = new FileStream(destination, FileMode.CreateNew, FileSystemRights.Write,
+            FileShare.None, 65536, FileOptions.WriteThrough, acl))
+        using (SHA256 hash = SHA256.Create()) {
+            stream.Position = 0; byte[] buffer = new byte[65536]; long total = 0;
+            try {
+                int count;
+                while ((count = stream.Read(buffer, 0, buffer.Length)) != 0) {
+                    total += count; Require(total <= expectedBytes);
+                    output.Write(buffer, 0, count); hash.TransformBlock(buffer, 0, count, buffer, 0);
+                }
+                hash.TransformFinalBlock(new byte[0], 0, 0);
+                Require(total == expectedBytes && Hex(hash.Hash) == expectedHash);
+                output.Flush(true); Recheck();
+            } finally { Array.Clear(buffer, 0, buffer.Length); }
+        }
+    }
     public void Rename(string destination, ProtectedInstallFile parent)
     {
       lock (RenameGate) {

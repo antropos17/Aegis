@@ -5,6 +5,7 @@ function Get-InstalledOwnerGuestPayloadLeaves {
         'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
         'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs',
         'scripts/installation/protected-install-files.ps1', 'scripts/installation/protected-install-transaction.ps1',
+        'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
         'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1',
         'scripts/qualification/installed-owner-guest-bootstrap.ps1', 'payload-manifest.json')
 }
@@ -106,7 +107,7 @@ function Invoke-InstalledOwnerGuestPhase([string]$Id, [string]$Name, [string]$Vm
                 $transferCheckpoint = 'bootstrap'; $relative = $null
                 Invoke-Command -Session $session -ArgumentList $PinsJson, $SourceSha -ScriptBlock ([scriptblock]::Create($Invocation))
             } catch {
-                $leaf = if ($relative -is [string] -and $relative -cmatch '^(?:binaries/aegis-(?:owner|session|main)\.exe|baseline/aegis-session\.exe|native/installed-owner-actor\.exe|scripts/installation/(?:ProtectedInstallFiles\.cs|ProtectedInstallService\.cs|protected-install-(?:files|transaction)\.ps1|protected-installation\.ps1)|scripts/qualification/installed-owner-(?:phase|guest-bootstrap)\.ps1|payload-manifest\.json)$') { $relative } else { $null }
+                $leaf = if ($relative -is [string] -and $relative -cmatch '^(?:binaries/aegis-(?:owner|session|main)\.exe|baseline/aegis-session\.exe|native/installed-owner-actor\.exe|scripts/installation/(?:ProtectedInstallFiles\.cs|ProtectedInstallService\.cs|protected-install-(?:files|transaction)\.ps1|protected-installation\.ps1|protected-vm(?:-provider)?\.ps1)|scripts/qualification/installed-owner-(?:phase|guest-bootstrap)\.ps1|payload-manifest\.json)$') { $relative } else { $null }
                 $category = $_.CategoryInfo.Category.ToString()
                 if ($category -cnotin @('InvalidArgument','InvalidOperation','ObjectNotFound','PermissionDenied','SecurityError','ResourceUnavailable','OperationStopped','NotSpecified')) { $category = 'other' }
                 return @{ schemaVersion = 1; kind = 'installed-owner-guest-transfer-refusal'; passed = $false;

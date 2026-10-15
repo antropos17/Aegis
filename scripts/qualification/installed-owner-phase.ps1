@@ -5,7 +5,8 @@ $ErrorActionPreference = 'Stop'
 function Test-InstalledOwnerPayload([string]$PayloadRoot, [string]$ExpectedSourceSha) {
     $names = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe', 'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
         'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/protected-install-files.ps1',
-        'scripts/installation/protected-install-transaction.ps1', 'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1', 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
+        'scripts/installation/protected-install-transaction.ps1', 'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
+        'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1', 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
     $manifestPath = Join-Path $PayloadRoot 'payload-manifest.json'
     $manifestFile = Get-Item -LiteralPath $manifestPath -Force
     if ($manifestFile.PSIsContainer -or $manifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint -or $manifestFile.Length -gt 16KB) { throw 'installed-payload-manifest-refused' }
@@ -454,7 +455,8 @@ function Test-InstalledOwnerQualificationReceipt($Value, [string]$ExpectedSource
         foreach ($group in $typed) { foreach ($field in $group.fields) { if ($group.value.$field -isnot [bool]) { return $false } } }
         $leafNames = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe', 'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
             'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/protected-install-files.ps1', 'scripts/installation/protected-install-transaction.ps1',
-            'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1', 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
+            'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
+        'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1', 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
         if ($ExpectedSourceSha -cnotmatch '^[a-f0-9]{40}$' -or @($Value.inputHashes).Count -ne $leafNames.Count) { return $false }
         $pins = @{}
         foreach ($leaf in $leafNames) {

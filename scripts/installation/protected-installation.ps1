@@ -2,6 +2,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'protected-install-files.ps1')
 . (Join-Path $PSScriptRoot 'protected-install-transaction.ps1')
+. (Join-Path $PSScriptRoot 'protected-vm-provider.ps1')
+. (Join-Path $PSScriptRoot 'protected-vm.ps1')
 
 function Assert-ProtectedInstallAdministrator {
     $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -23,10 +25,12 @@ function Assert-ProtectedInstallation($Association) {
     Assert-ProtectedInstallAccount $Association
     $Association.parent.Recheck(); $Association.receipts.Recheck(); $Association.service.Recheck()
     Update-ProtectedInstallRuntimeRows $Association.stage
+    Assert-ProtectedInstallVm $Association
     $children = @(Get-ChildItem -LiteralPath $script:ProtectedInstallParent -Force)
     $allowed = @($Association.stage.root.PathName, $Association.receipts.PathName)
     if ($Association.ContainsKey('rollback') -and $null -ne $Association.rollback) { $allowed += $Association.rollback.root.PathName }
     if ($null -ne $Association.control) { $allowed += $Association.control.PathName }
+    if ($Association.ContainsKey('vmProvision') -and $null -ne $Association.vmProvision) { $allowed += $Association.vmProvision.root.PathName }
     foreach ($child in $children) { if ($child.FullName -cnotin $allowed) { throw 'protected-owned-parent-unknown-child' } }
 }
 
@@ -40,12 +44,13 @@ function Set-ProtectedInstallCredential($Context) {
     try { $Context.credential = [Security.Cryptography.ProtectedData]::Protect($secret, [Text.Encoding]::ASCII.GetBytes('AEGIS-installed-owner-credential-v1'), [Security.Cryptography.DataProtectionScope]::LocalMachine) }
     finally { [Array]::Clear($secret, 0, $secret.Length) }
 }
-function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$OperatorAccount, [string]$Password, [bool]$FailAfterPublish = $false, [hashtable]$Journal = @{}, [string]$RegisteredVmId = '') {
+function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$OperatorAccount, [string]$Password, [bool]$FailAfterPublish = $false, [hashtable]$Journal = @{}, [string]$RegisteredVmId = '', $VmImage = $null) {
     $Journal.operation = 'administrator'; $Journal.failure = $null; $Journal.createdSid = $null; $Journal.createdRoots = @(); $Journal.published = $false
     $Journal.service = @{ name = 'AegisProtectedSessionOwner'; creationAttempted = $false; created = $false }
     $Journal.cleanup = @{ state = 'pending'; serviceAbsent = $null; protectedParentAbsent = $null; exactAccountSidAbsent = $null; failure = $null }
     $Journal.accountCreationAttempted = $false; $Journal.association = $null
     $inputs = @{}
+    $sourceImage = $null
     $installParent = $script:ProtectedInstallParent; $installRoot = $script:ProtectedInstallRoot
     $context = @{ manifest = $Manifest; inputs = $inputs; operatorAccount = $OperatorAccount; password = $Password; operatorSid = $null;
         installId = [guid]::NewGuid().ToString('N'); selectionId = [guid]::NewGuid().ToString('N'); selectionEpoch = [guid]::NewGuid().ToString('N');
@@ -56,6 +61,10 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
         $Journal.operation = 'input'
         if ($OperatorAccount -cnotmatch '^AegisOp[a-f0-9]{12}$' -or $Password.Length -lt 24 -or $Password.Length -gt 64) { throw 'protected-install-input-refused' }
         $inputs = Read-ProtectedInstallInputs $SourceRoot $Manifest; $context.inputs = $inputs
+        if ($null -ne $VmImage) {
+            if ($RegisteredVmId -cne '') { throw 'protected-vm-create-and-adopt-refused' }
+            $sourceImage = Open-ProtectedVmImage $VmImage
+        }
         $context.vmBinding = Read-ProtectedInstallVmBinding $RegisteredVmId $inputs['aegis-session.exe']
         $Journal.operation = 'ancestor'
         foreach ($path in @('C:\', 'C:\ProgramData')) {
@@ -86,6 +95,9 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
                 $Journal.createdRoots += @{ role = 'parent'; volume = $context.parent.Volume; fileId = $context.parent.FileId }
                 $Journal.operation = 'receipts-create'; $context.receipts = New-ProtectedInstallDirectory (Join-Path $installParent 'Receipts') $context.operatorSid $true
                 $Journal.createdRoots += @{ role = 'receipts'; volume = $context.receipts.Volume; fileId = $context.receipts.FileId }
+                if ($null -ne $sourceImage) {
+                    $Journal.operation = 'vm-create'; New-ProtectedInstallVm $context $VmImage $sourceImage
+                }
                 $Journal.operation = 'credential-protect'
                 Set-ProtectedInstallCredential $context
                 $Journal.operation = 'stage-create'; $context.stage = New-ProtectedInstallStage $context 1 ([guid]::NewGuid().ToString('N'))
@@ -147,11 +159,12 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
         }
         throw $original
     }
-    finally { foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) } }
+    finally { if ($null -ne $sourceImage) { $sourceImage.Dispose() }; foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) } }
 }
 
 function Assert-ProtectedInstallAncillary($Context) {
     if ($Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
+    Assert-ProtectedInstallVm $Context
     if ($null -ne $Context.control) {
         $Context.control.Recheck(); $files = @(Get-ChildItem -LiteralPath $Context.control.PathName -Force)
         if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 5 -or @($files | Where-Object { $_.FullName -cnotin @($Context.controlRows.path) -or $_.Name -cnotin @('delete-original.txt', 'replace-original.txt', 'actor-result.json', 'write-marker.txt', 'replacement.bin') }).Count) { throw 'protected-control-unknown-child' }
@@ -166,6 +179,7 @@ function Assert-ProtectedInstallAncillary($Context) {
 function Remove-ProtectedInstallAncillary($Context) {
     if ($Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     Assert-ProtectedInstallAncillary $Context
+    Remove-ProtectedInstallVm $Context
     if ($null -ne $Context.control) {
         $Context.control.Recheck(); $files = @(Get-ChildItem -LiteralPath $Context.control.PathName -Force)
         if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 5 -or @($files | Where-Object { $_.Name -cnotin @('delete-original.txt', 'actor-result.json', 'write-marker.txt', 'replace-original.txt', 'replacement.bin') -or $_.Length -gt 16KB }).Count) { throw 'protected-control-unknown-child' }
