@@ -67,6 +67,7 @@ public static class ProtectedGuestControl {
         $report.stage = 'complete'
     } catch {
         $report.failure = Get-ProtectedInstallFailure $_ 'protected-guest'; $report.failure.stage = $report.stage
+        if ($null -ne $context -and $context.vmProvision.ContainsKey('guest')) { $report.failure.checkpoint = $context.vmProvision.guest.checkpoint }
     } finally {
         if ($null -ne $context) {
             try {

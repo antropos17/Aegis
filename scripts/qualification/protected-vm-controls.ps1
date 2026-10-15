@@ -86,6 +86,12 @@ try {
     if ($journal.ContainsKey('association') -and $journal.association.ContainsKey('vmProvision') -and $null -ne $journal.association.vmProvision) {
         $owned = $journal.association.vmProvision
         $report.failure.provision = @{ checkpoint = $owned.checkpoint; unknown = $owned.unknown; vmIdReturned = ($owned.vmId -cne '') }
+        if ($owned.ContainsKey('guest')) {
+            $report.failure.provision.guestCheckpoint = $owned.guest.checkpoint
+            if ($null -ne $owned.guest.owner) {
+                $report.failure.provision.lifecycle = @{ returnCode = $owned.guest.owner.ReturnCode; jobState = $owned.guest.owner.JobState; jobError = $owned.guest.owner.JobError; hResult = $owned.guest.owner.FailureHResult }
+            }
+        }
         $report.failure.provision.directories = @()
         foreach ($role in @('root', 'images', 'disks')) {
             if ($null -ne $owned[$role]) {

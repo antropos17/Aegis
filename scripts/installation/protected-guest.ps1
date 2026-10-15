@@ -61,15 +61,19 @@ function Start-ProtectedGuest($Context) {
     $owned = $Context.vmProvision
     if ($null -eq $owned -or !$owned.ContainsKey('hydrated') -or $owned.ContainsKey('guest')) { throw 'protected-guest-start-refused' }
     Assert-ProtectedGuestConfiguration $owned 'Off'
-    $owned.guest = @{ consumed = $true; owner = $null; state = 'pending'; agentConsumed = $false }
+    $owned.guest = @{ consumed = $true; owner = $null; state = 'pending'; agentConsumed = $false; checkpoint = 1 }
     $owned.unknown = $true
     Write-ProtectedVmJournal $owned 'pending-start.json' @{ schemaVersion = 1; vmId = $owned.vmId; identitySha256 = $owned.binding.identitySha256 }
     $owned.guest.owner = [ProtectedGuestVm]::new($owned.vmId, $owned.binding.identitySha256)
+    $owned.guest.checkpoint = 2
     $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenLiveDisk($prior.PathName)
     if ($live.FileId -cne $prior.FileId -or $live.Volume -cne $prior.Volume -or $live.Sddl -cne $prior.Sddl) { $live.Dispose(); throw 'protected-guest-disk-handoff-refused' }
     $owned.disk = $live; $prior.Dispose()
+    $owned.guest.checkpoint = 3
     if (!$owned.guest.owner.Start() -or $owned.guest.owner.PendingUnknown) { throw 'protected-guest-start-settlement-unknown' }
+    $owned.guest.checkpoint = 4
     Assert-ProtectedGuestConfiguration $owned 'Running'
+    $owned.guest.checkpoint = 5
     Write-ProtectedVmJournal $owned 'settled-start.json' @{ schemaVersion = 1; vmId = $owned.vmId; running = $true }
     $owned.guest.state = 'running'; $owned.unknown = $false
 }
