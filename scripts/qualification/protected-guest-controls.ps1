@@ -19,7 +19,8 @@ function Invoke-ProtectedGuestQualification([string]$OutputRoot, $DiskRequest, [
         }
         $payloadRoot = Join-Path $OutputRoot 'transfer/installed-owner'
         $manifest = Get-InstalledOwnerBinaryManifest (Test-InstalledOwnerPayload $payloadRoot $SourceSha) $false
-        $iso = Join-Path $OutputRoot 'protected-inert.iso'; [IO.File]::WriteAllText($iso, 'AEGIS-ready-disk-boot')
+        $iso = Join-Path $OutputRoot 'protected-inert.iso'
+        New-CloudGuestAnswerIso (Join-Path $OutputRoot 'protected-iso-content') $iso '<AEGISFixture />' | Out-Null
         $image = @{ path = $iso; bytes = [long](Get-Item -LiteralPath $iso).Length; sha256 = (Get-FileHash -LiteralPath $iso).Hash.ToLowerInvariant() }
         $report.stage = 'private-create'
         $context = New-ProtectedInstallation (Join-Path $payloadRoot 'binaries') $manifest ('AegisOp' + [guid]::NewGuid().ToString('N').Substring(0, 12)) ('Ae!9-' + [guid]::NewGuid().ToString('N')) $false $journal '' $image

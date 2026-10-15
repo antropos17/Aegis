@@ -19,8 +19,11 @@ try {
     $stage = 'build'; $report.build = Build-InstalledOwnerPayload $project $payloadRoot $native $env:EXPECTED_SOURCE_SHA
     $payload = Test-InstalledOwnerPayload $payloadRoot $env:EXPECTED_SOURCE_SHA
     $manifest = Get-InstalledOwnerBinaryManifest $payload $false
-    # A fixed inert boot-media fixture exercises fresh copying/attachment, not OS boot.
-    $source = Join-Path $OutputRoot 'provision-source.iso'; [IO.File]::WriteAllText($source, 'AEGIS-fixed-offline-image-control-v1')
+    # Valid nonbootable media permits firmware startup. Plain text renamed to
+    # .iso is refused by VMMS with ERROR_FILE_CORRUPT before firmware executes.
+    Add-Type -ReferencedAssemblies System.Net.Http -Path (Join-Path $PSScriptRoot 'CloudGuestMetadata.cs')
+    $source = Join-Path $OutputRoot 'provision-source.iso'
+    New-CloudGuestAnswerIso (Join-Path $OutputRoot 'provision-iso-content') $source '<AEGISFixture />' | Out-Null
     $request = @{ path = $source; bytes = [long](Get-Item -LiteralPath $source).Length; sha256 = (Get-FileHash -LiteralPath $source).Hash.ToLowerInvariant() }
     $account = 'AegisOp' + [guid]::NewGuid().ToString('N').Substring(0, 12); $password = 'Ae!9-' + [guid]::NewGuid().ToString('N')
     $stage = 'bad-image'; $bad = $request.Clone(); $bad.sha256 = '0' * 64

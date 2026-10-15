@@ -59,7 +59,7 @@ try {
     if ($git.ExitCode -ne 0 -or (Get-Item -LiteralPath $headFile).Length -gt 128) { throw 'source-observation-failed' }
     $report.actualHead = (Get-Content -LiteralPath $headFile -Raw).Trim()
     if ($report.actualHead -cne $report.sourceSha) { throw 'Source revision mismatch' }
-    foreach ($file in @('qualify-cloud-hyperv.ps1', 'cloud-hyperv-operations.ps1', 'test-cloud-hyperv.ps1', 'protected-vm-controls.ps1', 'cloud-guest-media.ps1', 'installed-owner-build.ps1', 'installed-owner-phase.ps1')) {
+    foreach ($file in @('qualify-cloud-hyperv.ps1', 'cloud-hyperv-operations.ps1', 'test-cloud-hyperv.ps1', 'protected-vm-controls.ps1', 'cloud-guest-media.ps1', 'CloudGuestMetadata.cs', 'installed-owner-build.ps1', 'installed-owner-phase.ps1')) {
         $selected = Get-Item -LiteralPath (Join-Path $PSScriptRoot $file)
         if ($selected.Attributes -band [IO.FileAttributes]::ReparsePoint -or $selected.Length -gt 64KB) { throw 'Invalid script input' }
         $report.scriptSha256[$file] = (Get-FileHash -LiteralPath $selected.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
