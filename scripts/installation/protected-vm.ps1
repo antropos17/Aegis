@@ -66,7 +66,7 @@ function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
                     $held.RequireHighIntegrity(); $sd = [Security.AccessControl.RawSecurityDescriptor]::new($held.Sddl)
                 }
                 foreach ($ace in $sd.DiscretionaryAcl) {
-                    if (($ace.AceFlags -band [Security.AccessControl.AceFlags]::InheritOnly) -ne 0) { continue }
+                    if (([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) -ne 0) { continue }
                     if ($ace -isnot [Security.AccessControl.CommonAce] -or $ace.IsCallback -or $ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or
                         $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid)) { throw 'protected-vm-tree-acl-refused' }
                 }
