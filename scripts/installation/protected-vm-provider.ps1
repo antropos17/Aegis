@@ -7,6 +7,8 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'conf
     $job = Start-Job -ArgumentList $Action, $Owned.name, $Owned.root.PathName, $Owned.vmId -ScriptBlock {
         param($Action, $Name, $Root, $Id)
         Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
+        $checkpoint = 1
+        try {
         Import-Module Hyper-V -ErrorAction Stop
         $machine = Join-Path $Root 'Machine'; $disk = Join-Path $Root 'Disks\system.vhdx'; $image = Join-Path $Root 'Images\boot.iso'
         function FindExact {
@@ -26,22 +28,28 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'conf
             return @{ vmId = $Vm.Id.ToString('D'); name = $Vm.Name; off = $true }
         }
         if ($Action -ceq 'create') {
+            $checkpoint = 2
             if (@(Get-CimInstance -Namespace root/virtualization/v2 -ClassName Msvm_ComputerSystem -Filter "ElementName='$Name'" -OperationTimeoutSec 5).Count -ne 0 -or (Test-Path -LiteralPath $machine)) { throw 'protected-vm-fresh-required' }
+            $checkpoint = 3
             $vm = New-VM -Name $Name -Path $machine -Generation 2 -MemoryStartupBytes 4GB -NoVHD
+            $checkpoint = 4
             if ($vm.Name -cne $Name -or $vm.Id -eq [guid]::Empty) { throw 'protected-vm-create-result-refused' }
             # This returned identity is the sole source of mutation ownership.
             return (Observe $vm)
         }
         $vm = FindExact
+        $checkpoint = 5
         if ($Action -ceq 'observe') { return (Observe $vm) }
         if ($null -eq $vm) { throw 'protected-vm-owned-instance-absent' }
         Observe $vm | Out-Null
         if ($Action -ceq 'disk') {
+            $checkpoint = 6
             if (Test-Path -LiteralPath $disk) { throw 'protected-vm-fresh-disk-required' }
             $vhd = New-VHD -Path $disk -Dynamic -SizeBytes 64GB
             if ($vhd.Path -cne $disk -or $vhd.VhdType.ToString() -cne 'Dynamic' -or $vhd.VhdFormat.ToString() -cne 'VHDX' -or $vhd.ParentPath -or $vhd.Size -ne 64GB -or $vhd.Attached) { throw 'protected-vm-disk-result-refused' }
         }
         if ($Action -ceq 'configure') {
+            $checkpoint = 7
             Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -AutomaticCheckpointsEnabled $false -CheckpointType Disabled
             Set-VMMemory -VM $vm -DynamicMemoryEnabled $false -StartupBytes 4GB
             Set-VMProcessor -VM $vm -Count 2
@@ -58,16 +66,26 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'disk', 'conf
                 $dvd.Count -ne 1 -or $dvd[0].Path -cne $image -or (Get-VMFirmware -VM $vm).SecureBoot.ToString() -cne 'On') { throw 'protected-vm-configuration-refused' }
         }
         if ($Action -ceq 'remove') {
+            $checkpoint = 8
             Remove-VM -VM $vm -Force
             if ($null -ne (FindExact)) { throw 'protected-vm-removal-unconfirmed' }
             return @{ absent = $true }
         }
         return (Observe (FindExact))
+        } catch {
+            return @{ providerFailure = $true; checkpoint = [int]$checkpoint; category = [int]$_.CategoryInfo.Category;
+                hResult = [int]$_.Exception.HResult; line = [int]$_.InvocationInfo.ScriptLineNumber }
+        }
     }
     try {
         if ($null -eq (Wait-Job -Job $job -Timeout 60)) { throw 'protected-vm-provider-settlement-unknown' }
         $rows = @(Receive-Job -Job $job -ErrorAction Stop)
         if ($job.State -cne 'Completed' -or $rows.Count -ne 1) { throw 'protected-vm-provider-result-unknown' }
+        if ($rows[0].ContainsKey('providerFailure')) {
+            $failure = [InvalidOperationException]::new('protected-vm-provider-result-unknown')
+            foreach ($key in @('checkpoint', 'category', 'hResult', 'line')) { $failure.Data['vmProvider-' + $key] = [int]$rows[0][$key] }
+            throw $failure
+        }
         return $rows[0]
     } finally {
         if ($job.State -eq 'Running') { Stop-Job -Job $job }

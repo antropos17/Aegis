@@ -104,6 +104,9 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
     $codes += @('installed-mutation-launch-refused', 'installed-mutation-cleanup-unknown')
     $codes += @('installed-mutation-actor-source-refused', 'installed-mutation-actor-acl-restore-refused')
     $failure = @{ operation = $(if ($Operation -cin $operations) { $Operation } else { 'qualification' }); diagnosticCode = 'protected-operation-refused'; nativeWin32 = $null; hResult = $ErrorRecord.Exception.HResult }
+    if ($null -ne $ErrorRecord.InvocationInfo -and [IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName) -cin @('protected-vm.ps1', 'protected-vm-provider.ps1')) {
+        $failure.vmSourceLine = [int]$ErrorRecord.InvocationInfo.ScriptLineNumber
+    }
     $cause = $ErrorRecord.Exception; $semanticCode = $null
     for ($depth = 0; $depth -lt 8 -and $null -ne $cause; $depth++) {
         if (!$failure.ContainsKey('uninstallCheckpoint') -and $cause.Data.Contains('protectedUninstallCheckpoint') -and
@@ -112,6 +115,9 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
             $failure.uninstallCheckpoint = $cause.Data['protectedUninstallCheckpoint']
         }
         if ($cause.Message -cin $codes) { $failure.diagnosticCode = $cause.Message }
+        foreach ($key in @('checkpoint', 'category', 'hResult', 'line')) {
+            if ($cause.Data.Contains('vmProvider-' + $key) -and $cause.Data['vmProvider-' + $key] -is [int]) { $failure['vmProvider-' + $key] = $cause.Data['vmProvider-' + $key] }
+        }
         if ($cause.Data.Contains('protectedStorageCheckpoint') -and $cause.Data['protectedStorageCheckpoint'] -is [int] -and
             $cause.Data['protectedStorageCheckpoint'] -ge 0 -and $cause.Data['protectedStorageCheckpoint'] -le 24) {
             $failure.storageCheckpoint = $cause.Data['protectedStorageCheckpoint']
