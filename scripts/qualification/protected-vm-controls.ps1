@@ -65,6 +65,17 @@ try {
 } catch {
     $report.failure = Get-ProtectedInstallFailure $_ 'qualification'; $report.failure.stage = $stage
     if ($journal.ContainsKey('failure') -and $null -ne $journal.failure) { $report.failure.installation = $journal.failure }
+    if ($journal.ContainsKey('association') -and $journal.association.ContainsKey('vmProvision') -and $null -ne $journal.association.vmProvision) {
+        $owned = $journal.association.vmProvision
+        $report.failure.provision = @{ checkpoint = $owned.checkpoint; unknown = $owned.unknown; vmIdReturned = ($owned.vmId -cne '') }
+        $cause = $_.Exception
+        $rows = @()
+        for ($depth = 0; $null -ne $cause -and $depth -lt 8; $depth++) {
+            $rows += @{ type = $cause.GetType().Name; hResult = $cause.HResult }
+            $cause = $cause.InnerException
+        }
+        $report.failure.types = $rows
+    }
 } finally {
     if ($null -eq $association -and $journal.ContainsKey('association')) { $association = $journal.association }
     if ($null -ne $association -and $null -ne $association.parent) {

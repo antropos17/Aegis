@@ -61,13 +61,15 @@ function Assert-ProtectedVmTree($Owned, [bool]$Subset = $false) {
 function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     Assert-ProtectedInstallAdministrator
     $owned = @{ root = $null; images = $null; disks = $null; image = $null; disk = $null; vmId = ''; vmSid = ''; unknown = $true;
-        name = 'aegis-protected-' + [guid]::NewGuid().ToString('N'); installId = $Context.installId; rows = @(); binding = $null; verifier = $Context.inputs['aegis-session.exe'].Clone() }
+        name = 'aegis-protected-' + [guid]::NewGuid().ToString('N'); installId = $Context.installId; rows = @(); binding = $null; verifier = $Context.inputs['aegis-session.exe'].Clone(); checkpoint = 1 }
     $Context.vmProvision = $owned
     $owned.root = New-ProtectedInstallDirectory (Join-Path $Context.parent.PathName 'Vm') '' $true
     $owned.images = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Images') '' $true
     $owned.disks = New-ProtectedInstallDirectory (Join-Path $owned.root.PathName 'Disks') '' $true
+    $owned.checkpoint = 2
     Write-ProtectedVmJournal $owned 'intent.json' @{ schemaVersion = 1; installId = $owned.installId; name = $owned.name; imageBytes = $Request.bytes; imageSha256 = $Request.sha256; diskBytes = 64GB; guestStartAuthorized = $false }
     Invoke-ProtectedVmEffect $owned 'create'
+    $owned.checkpoint = 3
     $owned.vmSid = ([Security.Principal.NTAccount]::new('NT VIRTUAL MACHINE', $owned.vmId)).Translate([Security.Principal.SecurityIdentifier]).Value
     if ($owned.vmSid -cnotmatch '^S-1-5-83-[0-9-]+$' -or $owned.vmSid -ceq 'S-1-5-83-0') { throw 'protected-vm-principal-refused' }
     # Only these new private assets receive this freshly returned VM principal.
@@ -76,9 +78,11 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
     $imagePath = Join-Path $owned.images.PathName 'boot.iso'
     $owned.unknown = $true
     $SourceImage.CopyImage($imagePath, $Request.bytes, $Request.sha256, $acl.GetSecurityDescriptorBinaryForm())
+    $owned.checkpoint = 4
     Invoke-ProtectedVmEffect $owned 'disk'
     $diskPath = Join-Path $owned.disks.PathName 'system.vhdx'
     $before = [ProtectedInstallFile]::new($diskPath, $false, $false)
+    $owned.checkpoint = 5
     try {
         $volume = $before.Volume; $fileId = $before.FileId; $before.Recheck()
         if (!$before.Protected($false)) { throw 'protected-vm-new-disk-acl-refused' }
@@ -86,16 +90,21 @@ function New-ProtectedInstallVm($Context, $Request, $SourceImage) {
         $diskAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Write, [Security.AccessControl.AccessControlType]::Allow))
         [IO.File]::SetAccessControl($diskPath, $diskAcl)
     } finally { $before.Dispose() }
+    $owned.checkpoint = 6
     Invoke-ProtectedVmEffect $owned 'configure'
     $owned.unknown = $true
     $owned.image = [ProtectedInstallFile]::new($imagePath, $false, $false)
     $owned.disk = [ProtectedInstallFile]::new($diskPath, $false, $false)
+    $owned.checkpoint = 7
     if ($owned.disk.Volume -cne $volume -or $owned.disk.FileId -cne $fileId -or $owned.image.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-vm-asset-handoff-refused' }
     $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $Context.inputs['aegis-session.exe']
+    $owned.checkpoint = 8
     $owned.rows = Read-ProtectedVmTree $owned
+    $owned.checkpoint = 9
     Write-ProtectedVmJournal $owned 'ready.json' @{ schemaVersion = 1; installId = $owned.installId; binding = $owned.binding; imageBytes = $Request.bytes; imageSha256 = $Request.sha256; resources = $owned.rows; guestStartAuthorized = $false }
     $owned.rows = Read-ProtectedVmTree $owned
     $owned.unknown = $false; $Context.vmBinding = $owned.binding
+    $owned.checkpoint = 10
 }
 function Assert-ProtectedInstallVm($Context) {
     if (!$Context.ContainsKey('vmProvision') -or $null -eq $Context.vmProvision) { return }
