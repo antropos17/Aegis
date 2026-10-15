@@ -34,11 +34,30 @@ try {
     foreach ($name in @('claudeReceiverForced', 'claudeReceiverDisposalUnknown', 'claudeReceiverExpiredBeforeStop', 'elevated', 'administratorEnabled')) { $identity[$name] = $false }
     $identity.exitCode = 0; $identity.claudeReceiverExitCode = 0; $identity.claudeReceiverStopMilliseconds = 10000; $identity.claudeReceiverStopSubmittedMilliseconds = 10001; $identity.claudeReceiverExitMilliseconds = 10100
     $task = @{ schemaVersion = 1; task = 'fixed-claude-read-edit-test'; passed = $true; stage = 'complete'; failure = $null; version = '2.1.292'; cliSha256 = 'eb95bb65955f8b1702e800815f9a2c0388a5de0f196c354c7ee1dd5cb9a2ba23'; cliExitCode = 0; cliExitObserved = $true; deadlineExpired = $false; outputLimit = $false; stdoutBytes = 123; stderrBytes = 0; clientResultValid = $true; taskObservedReadEditTestPassed = $true; taskObservedEditedBytesMatch = $true; taskObservedTestExitCode = 0; trustedTestProcessObservation = 'unknown'; acceptancePassed = $false; clientMilliseconds = 100; elapsedMilliseconds = 200 }
+    $task.scratchObservation = @{ reason = 'within-budget'; entries = 5; bytes = 1024; depth = 1; error = $null }
     $receiver = @{ schemaVersion = 1; kind = 'claude-receiver'; passed = $true; closed = $true; stopObserved = $true; expired = $false; requests = 4; completedResponses = 4; toolResults = @($true, $true, $true); steps = @('read', 'edit', 'test', 'finish'); connectionCount = 1; connectionClosed = 1; clientEofCount = 1; completedResetCount = 0; forcedClosed = 0; elapsedMilliseconds = 100; failure = $null }
     function WriteFixtures { foreach ($item in @(@('task.json', $task), @('receiver.json', $receiver))) { [IO.File]::WriteAllText((Join-Path $fixture $item[0]), ($item[1] | ConvertTo-Json -Compress -Depth 5), [Text.UTF8Encoding]::new($false)) } }
     WriteFixtures; $result = Read-CloudGuestClaudeResult $identity
     if (!$result.passed -or $result.acceptancePassed -or $result.e6Qualified -or $result.trustedTestProcessObservation -cne 'unknown') { throw 'claude-positive-controls-refused' }
     $count = 4
+    $originalScratch = $task.scratchObservation
+    foreach ($invalid in @(
+        @{ reason = 'within-budget'; entries = 257; bytes = 1; depth = 0; error = $null },
+        @{ reason = 'within-budget'; entries = 1; bytes = 16777217; depth = 0; error = $null },
+        @{ reason = 'within-budget'; entries = 1; bytes = 1; depth = 9; error = $null },
+        @{ reason = 'within-budget'; entries = -1; bytes = 1; depth = 0; error = $null },
+        @{ reason = 'unavailable'; entries = 1; bytes = 1; depth = 0; error = 'private path' },
+        @{ reason = 'bytes'; entries = 1; bytes = 1; depth = 0; error = $null },
+        @{ reason = 'within-budget'; entries = 1; bytes = 1; depth = 0; error = $null; path = 'private' },
+        $null)) {
+        $task.scratchObservation = $invalid; WriteFixtures
+        if ((Read-CloudGuestClaudeResult $identity).passed) { throw 'claude-invalid-scratch-accepted' }; $count++
+    }
+    $task.scratchObservation = @{ reason = 'unavailable'; entries = 2; bytes = 1; depth = 1; error = 'ENOENT' }
+    $task.failure = 'scratch-limit'; $task.passed = $false; WriteFixtures
+    $failedScratch = Read-CloudGuestClaudeResult $identity
+    if ($failedScratch.passed -or $null -eq $failedScratch.task -or $failedScratch.task.scratchObservation.error -cne 'ENOENT') { throw 'claude-scratch-refusal-not-retained' }; $count++
+    $task.scratchObservation = $originalScratch; $task.failure = $null; $task.passed = $true
     $receiver.clientEofCount = 0; $receiver.completedResetCount = 1
     WriteFixtures
     if (!(Read-CloudGuestClaudeResult $identity).passed) { throw 'claude-completed-reset-controls-refused' }; $count++

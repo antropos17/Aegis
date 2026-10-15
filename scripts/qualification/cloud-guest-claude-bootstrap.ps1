@@ -30,13 +30,27 @@ function Read-CloudGuestClaudeResult($Identity) {
         Need (Boolean $Identity.jobClosureConfirmed $true)
         $result.taskStatus = 'unavailable-or-refused'
         $task = ReadFixed 'C:\AegisLab\work\claude-result.json'
-        Need (Fields $task 'acceptancePassed,cliExitCode,cliExitObserved,cliSha256,clientMilliseconds,clientResultValid,deadlineExpired,elapsedMilliseconds,failure,outputLimit,passed,schemaVersion,stage,stderrBytes,stdoutBytes,task,taskObservedEditedBytesMatch,taskObservedReadEditTestPassed,taskObservedTestExitCode,trustedTestProcessObservation,version')
+        Need (Fields $task 'acceptancePassed,cliExitCode,cliExitObserved,cliSha256,clientMilliseconds,clientResultValid,deadlineExpired,elapsedMilliseconds,failure,outputLimit,passed,schemaVersion,scratchObservation,stage,stderrBytes,stdoutBytes,task,taskObservedEditedBytesMatch,taskObservedReadEditTestPassed,taskObservedTestExitCode,trustedTestProcessObservation,version')
         Need ((Number $task.schemaVersion 1) -and $task.schemaVersion -eq 1 -and $task.task -ceq 'fixed-claude-read-edit-test' -and
             $task.version -ceq '2.1.292' -and $task.stage -cin @('prepare', 'client', 'result', 'verify', 'complete') -and
             $task.trustedTestProcessObservation -ceq 'unknown' -and (Boolean $task.acceptancePassed $false))
         foreach ($name in @('passed', 'cliExitObserved', 'deadlineExpired', 'outputLimit', 'clientResultValid', 'taskObservedEditedBytesMatch', 'taskObservedReadEditTestPassed')) { Need ($task.$name -is [bool]) }
         Need ($null -eq $task.cliSha256 -or $task.cliSha256 -ceq 'eb95bb65955f8b1702e800815f9a2c0388a5de0f196c354c7ee1dd5cb9a2ba23')
         Need ($null -eq $task.failure -or $task.failure -cin @('prepare-refused', 'binary-refused', 'binary-changed', 'endpoint-refused', 'client-failed', 'client-timeout', 'client-output-limit', 'scratch-limit', 'result-refused', 'edit-refused', 'test-refused', 'phase-deadline'))
+        if ($null -eq $task.scratchObservation) { Need (!$task.passed -and $task.failure -cne 'scratch-limit') }
+        else {
+            $scratch = $task.scratchObservation
+            Need (Fields $scratch 'bytes,depth,entries,error,reason')
+            Need ($scratch.reason -cin @('within-budget', 'bytes', 'entries', 'depth', 'symlink', 'type', 'unavailable'))
+            Need ((Number $scratch.entries 257) -and (Number $scratch.bytes 16777217) -and (Number $scratch.depth 9))
+            if ($scratch.reason -ceq 'unavailable') { Need ($scratch.error -cin @('ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOTDIR', 'other')) }
+            else { Need ($null -eq $scratch.error) }
+            if ($scratch.reason -ceq 'bytes') { Need ($scratch.bytes -eq 16777217) }
+            if ($scratch.reason -ceq 'entries') { Need ($scratch.entries -eq 257) }
+            if ($scratch.reason -ceq 'depth') { Need ($scratch.depth -eq 9) }
+            if ($task.passed) { Need ($scratch.reason -ceq 'within-budget' -and $scratch.entries -le 256 -and $scratch.bytes -le 16777216 -and $scratch.depth -le 8) }
+            if ($task.failure -ceq 'scratch-limit') { Need ($scratch.reason -cne 'within-budget') }
+        }
         foreach ($name in @('cliExitCode', 'taskObservedTestExitCode')) { Need ($null -eq $task.$name -or (Number $task.$name 4294967295)) }
         Need ((Number $task.stdoutBytes 65536) -and (Number $task.stderrBytes 4096) -and (Number $task.elapsedMilliseconds 60000) -and
             ($null -eq $task.clientMilliseconds -or (Number $task.clientMilliseconds 60000)))

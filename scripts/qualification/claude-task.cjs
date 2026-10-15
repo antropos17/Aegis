@@ -15,7 +15,7 @@ const result = { schemaVersion: 1, task: 'fixed-claude-read-edit-test', passed: 
   version: '2.1.292', cliSha256: null, cliExitCode: null, cliExitObserved: false, deadlineExpired: false,
   outputLimit: false, stdoutBytes: 0, stderrBytes: 0, clientResultValid: false, taskObservedReadEditTestPassed: false,
   taskObservedEditedBytesMatch: false, taskObservedTestExitCode: null, trustedTestProcessObservation: 'unknown',
-  acceptancePassed: false, clientMilliseconds: null, elapsedMilliseconds: 0 };
+  acceptancePassed: false, clientMilliseconds: null, elapsedMilliseconds: 0, scratchObservation: null };
 let currentChild = null, monitor = null;
 const codes = new Set(['prepare-refused', 'binary-refused', 'binary-changed', 'endpoint-refused', 'client-failed',
   'client-timeout', 'client-output-limit', 'scratch-limit', 'result-refused', 'edit-refused', 'test-refused', 'phase-deadline']);
@@ -55,19 +55,34 @@ function pinBinary() {
   } finally { fs.closeSync(fd); }
 }
 function scratchBudget() {
-  let files = 0, bytes = 0;
+  if (result.scratchObservation && result.scratchObservation.reason !== 'within-budget') refuse('scratch-limit');
+  const observation = { reason: 'within-budget', entries: 0, bytes: 0, depth: 0, error: null };
+  function stop(reason) { observation.reason = reason; refuse('scratch-limit'); }
   function walk(selected, depth) {
-    if (depth > 8) refuse('scratch-limit');
+    observation.depth = Math.max(observation.depth, depth);
+    if (depth > 8) stop('depth');
     for (const name of fs.readdirSync(selected)) {
-      if (++files > 256) refuse('scratch-limit');
+      if (++observation.entries > 256) stop('entries');
       const child = path.join(selected, name), st = fs.lstatSync(child);
-      if (st.isSymbolicLink()) refuse('scratch-limit');
+      if (st.isSymbolicLink()) stop('symlink');
       if (st.isDirectory()) walk(child, depth + 1);
-      else if (st.isFile()) { bytes += st.size; if (bytes > 16777216) refuse('scratch-limit'); }
-      else refuse('scratch-limit');
+      else if (st.isFile()) {
+        if (!Number.isSafeInteger(st.size) || st.size < 0) throw new Error('invalid-stat');
+        observation.bytes = Math.min(16777217, observation.bytes + st.size);
+        if (observation.bytes > 16777216) stop('bytes');
+      } else stop('type');
     }
   }
-  walk(p.ROOT, 0);
+  try { walk(p.ROOT, 0); }
+  catch (error) {
+    if (observation.reason === 'within-budget') {
+      observation.reason = 'unavailable';
+      observation.error = ['ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOTDIR'].includes(error?.code) ? error.code : 'other';
+    }
+    result.scratchObservation = observation;
+    refuse('scratch-limit');
+  }
+  result.scratchObservation = observation;
 }
 function client(args, env) {
   return new Promise(resolve => {
