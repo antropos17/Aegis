@@ -89,7 +89,7 @@ try {
         if ($owned.ContainsKey('guest')) {
             $report.failure.provision.guestCheckpoint = $owned.guest.checkpoint
             if ($null -ne $owned.guest.owner) {
-                $report.failure.provision.lifecycle = @{ returnCode = $owned.guest.owner.ReturnCode; jobState = $owned.guest.owner.JobState; jobError = $owned.guest.owner.JobError; hResult = $owned.guest.owner.FailureHResult }
+                $report.failure.provision.lifecycle = @{ returnCode = $owned.guest.owner.ReturnCode; jobState = $owned.guest.owner.JobState; jobError = $owned.guest.owner.JobError; hResult = $owned.guest.owner.FailureHResult; errorCodes = $owned.guest.owner.ErrorCodes }
             }
         }
         $report.failure.provision.directories = @()

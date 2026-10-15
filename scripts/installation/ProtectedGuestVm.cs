@@ -2,6 +2,8 @@ using System;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
+using System.Management;
+using System.Text.RegularExpressions;
 using Aegis.ProtectedSession;
 
 // Administrative, in-process authority only. Never wired to the caller dispatcher.
@@ -14,6 +16,7 @@ public sealed class ProtectedGuestVm : IDisposable
     public ushort? JobState { get; private set; }
     public ushort? JobError { get; private set; }
     public int? FailureHResult { get { return owner.FailureHResult; } }
+    public string ErrorCodes { get; private set; }
     public ProtectedGuestVm(string id, string expectedIdentity)
     {
         if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator))
@@ -37,7 +40,18 @@ public sealed class ProtectedGuestVm : IDisposable
         VmOperationRecord operation = owner.LastOperation;
         ReturnCode = operation == null ? null : operation.ReturnCode;
         if (!result && operation != null && operation.JobPath != null) {
-            try { VmJobObservation job = management.InspectJob(operation.JobPath); JobState = job.State; JobError = job.ErrorCode; }
+            try {
+                VmJobObservation job = management.InspectJob(operation.JobPath); JobState = job.State; JobError = job.ErrorCode;
+                var options = new ObjectGetOptions(); options.Timeout = TimeSpan.FromSeconds(3);
+                using (var observed = new ManagementObject(null, VmManagementNative.ValidatePath(operation.JobPath, "Msvm_ConcreteJob"), options)) {
+                    observed.Get(); var codes = new StringBuilder();
+                    foreach (Match match in Regex.Matches(observed["ErrorDescription"] as string ?? "", "0x[0-9a-fA-F]{8}")) {
+                        if (codes.Length >= 88) break;
+                        if (codes.Length > 0) codes.Append(','); codes.Append(match.Value.ToLowerInvariant());
+                    }
+                    ErrorCodes = codes.ToString();
+                }
+            }
             catch { /* An unavailable diagnostic cannot change operation settlement. */ }
         }
         return result;

@@ -43,6 +43,16 @@ function Invoke-ProtectedGuestAgent($Context, [pscredential]$Administrator, [psc
                 $users = @(Get-LocalUser -Name $Agent.UserName -ErrorAction Stop)
                 if ($users.Count -ne 1 -or !$users[0].Enabled -or @((Get-LocalGroupMember -SID S-1-5-32-544) | Where-Object { $_.SID.Value -ceq $users[0].SID.Value }).Count -ne 0) { throw 'protected-guest-account-refused' }
                 $sid = $users[0].SID.Value
+                # Enforce the guest principal's entire writable NTFS volume,
+                # including descendants and alternate directories, before release.
+                # This changes only the explicitly provisioned guest, never the host.
+                $quota = New-Object -ComObject Microsoft.DiskQuota
+                try {
+                    $quota.Initialize('C:\', $true); $quota.QuotaState = 2
+                    $entry = $quota.AddUser($env:COMPUTERNAME + '\' + $Agent.UserName)
+                    $entry.QuotaThreshold = 256MB; $entry.QuotaLimit = 512MB
+                    if ($quota.QuotaState -ne 2 -or [long]$entry.QuotaLimit -ne 512MB -or [long]$entry.QuotaUsed -ge 512MB) { throw 'protected-guest-quota-refused' }
+                } finally { if ($null -ne $entry) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($entry) }; [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($quota) }
                 # Fresh private roots only. Existing roots are never repaired or adopted.
                 if (Test-Path -LiteralPath C:\ProgramData\AEGIS) { throw 'protected-guest-fresh-root-required' }
                 $acl = [Security.AccessControl.DirectorySecurity]::new()
@@ -70,17 +80,23 @@ function Invoke-ProtectedGuestAgent($Context, [pscredential]$Administrator, [psc
                     $password = $Agent.GetNetworkCredential().Password
                     try { $exit = [ProtectedGuestAgent]::Run($executable, $Digest, $Arguments, $work, $Agent.UserName, $password, $sid, $Milliseconds) }
                     finally { $password = $null }
-                    return @{ schemaVersion = 1; vmId = $Id; nonce = $Nonce; executableSha256 = $Digest; exitCode = [long]$exit; jobClosed = $true; standardToken = $true }
+                    return @{ schemaVersion = 1; vmId = $Id; nonce = $Nonce; executableSha256 = $Digest; exitCode = [long]$exit; jobClosed = $true; standardToken = $true; diskQuotaBytes = [long]512MB }
                 } finally { foreach ($pin in $pins) { $pin.Dispose() }; [Array]::Clear($Payload, 0, $Payload.Length) }
             }
         } finally { if ($null -ne $session) { Remove-PSSession -Session $session -ErrorAction SilentlyContinue } }
     }
     try {
-        if ($null -eq (Wait-Job -Job $worker -Timeout ([int]([Math]::Ceiling($Milliseconds / 1000) + 120)))) { throw 'protected-guest-agent-settlement-unknown' }
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        $deadline = $Milliseconds + 120000
+        while ($worker.State -cin @('Running', 'NotStarted') -and $watch.ElapsedMilliseconds -lt $deadline) {
+            if ([long](Get-PSDrive -Name ([IO.Path]::GetPathRoot($owned.root.PathName).Substring(0, 1))).Free -lt 4GB) { throw 'protected-guest-host-headroom-refused' }
+            Wait-Job -Job $worker -Timeout 1 | Out-Null
+        }
+        if ($worker.State -cin @('Running', 'NotStarted')) { throw 'protected-guest-agent-settlement-unknown' }
         $rows = @(Receive-Job -Job $worker -ErrorAction Stop)
         if ($worker.State -cne 'Completed' -or $rows.Count -ne 1 -or $rows[0].schemaVersion -ne 1 -or $rows[0].vmId -cne $owned.vmId -or
             $rows[0].nonce -cne $nonce -or $rows[0].executableSha256 -cne $Package.sha256 -or $rows[0].jobClosed -isnot [bool] -or !$rows[0].jobClosed -or
-            $rows[0].standardToken -isnot [bool] -or !$rows[0].standardToken -or $rows[0].exitCode -isnot [long] -or $rows[0].exitCode -lt 0 -or $rows[0].exitCode -gt [uint32]::MaxValue) { throw 'protected-guest-agent-result-refused' }
+            $rows[0].standardToken -isnot [bool] -or !$rows[0].standardToken -or $rows[0].diskQuotaBytes -isnot [long] -or $rows[0].diskQuotaBytes -ne 512MB -or $rows[0].exitCode -isnot [long] -or $rows[0].exitCode -lt 0 -or $rows[0].exitCode -gt [uint32]::MaxValue) { throw 'protected-guest-agent-result-refused' }
         Assert-ProtectedGuestConfiguration $owned 'Running'
         Write-ProtectedVmJournal $owned 'settled-agent.json' $rows[0]
         return $rows[0]

@@ -40,6 +40,7 @@ public sealed class ProtectedInstallFile {
  public string PathName = "C:\\private\\disk.vhdx", FileId = "original", Volume = "volume", Sddl = "private";
  public bool Closed;
  public static ProtectedInstallFile OpenLiveDisk(string path) { return new ProtectedInstallFile(); }
+ public static ProtectedInstallFile OpenMetadata(string path, bool directory) { return new ProtectedInstallFile(); }
  public void Dispose() { Closed = true; }
 }
 '@

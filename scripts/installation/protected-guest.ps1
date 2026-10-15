@@ -66,7 +66,10 @@ function Start-ProtectedGuest($Context) {
     Write-ProtectedVmJournal $owned 'pending-start.json' @{ schemaVersion = 1; vmId = $owned.vmId; identitySha256 = $owned.binding.identitySha256 }
     $owned.guest.owner = [ProtectedGuestVm]::new($owned.vmId, $owned.binding.identitySha256)
     $owned.guest.checkpoint = 2
-    $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenLiveDisk($prior.PathName)
+    # VMMS requires exclusive data access while running. The live metadata pin
+    # observes original identity; private High-integrity file/ancestor ACLs deny
+    # ordinary mutation. Restore the offline data pin only after confirmed Off.
+    $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenMetadata($prior.PathName, $false)
     if ($live.FileId -cne $prior.FileId -or $live.Volume -cne $prior.Volume -or $live.Sddl -cne $prior.Sddl) { $live.Dispose(); throw 'protected-guest-disk-handoff-refused' }
     $owned.disk = $live; $prior.Dispose()
     $owned.guest.checkpoint = 3
