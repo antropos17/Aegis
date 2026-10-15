@@ -94,7 +94,11 @@ try {
         # A separate PS 5.1 administrative transaction creates a fresh private VM,
         # image copy and standalone disk through the actual installer API.
         $arguments = @('-NoProfile', '-NonInteractive', '-File', ('"' + (Join-Path $PSScriptRoot 'protected-vm-controls.ps1') + '"'), '-OutputRoot', ('"' + $OutputRoot + '"'))
-        $child = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $OutputRoot 'provision.out') -RedirectStandardError (Join-Path $OutputRoot 'provision.err')
+        $priorModulePath = $env:PSModulePath
+        try {
+            $env:PSModulePath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\Modules'
+            $child = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $OutputRoot 'provision.out') -RedirectStandardError (Join-Path $OutputRoot 'provision.err')
+        } finally { $env:PSModulePath = $priorModulePath }
         try {
             if (!$child.WaitForExit(300000)) { $child.Kill(); throw 'protected-vm-controls-deadline-unknown' }
             $receipt = Get-Item -LiteralPath (Join-Path $OutputRoot 'provision.json') -Force
