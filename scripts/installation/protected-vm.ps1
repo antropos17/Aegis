@@ -19,6 +19,7 @@ function New-ProtectedVmDisk($Owned) {
     $acl = New-ProtectedInstallAcl $false '' $true
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($Owned.vmSid), [Security.AccessControl.FileSystemRights]::ReadAndExecute -bor [Security.AccessControl.FileSystemRights]::Write, [Security.AccessControl.AccessControlType]::Allow))
     [ProtectedInstallDisk]::Create((Join-Path $Owned.disks.PathName 'system.vhdx'), $acl.GetSecurityDescriptorBinaryForm())
+    $Owned.disks.Recheck()
 }
 function Invoke-ProtectedVmEffect($Owned, [string]$Action) {
     $Owned.unknown = $true

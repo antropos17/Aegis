@@ -27,6 +27,35 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
             if ($Vm.State.ToString() -cne 'Off') { throw 'protected-vm-off-required' }
             return @{ vmId = $Vm.Id.ToString('D'); name = $Vm.Name; off = $true }
         }
+        function AddStorage($Settings, $Service, [string]$Subtype, [string]$Parent, [string]$Address, [string]$HostPath) {
+            # Use VMMS resource settings directly. The attachment cmdlet's broad
+            # host-directory permission grants are outside this private contract.
+            $defaults = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_ResourceAllocationSettingData -Filter "ResourceSubType='$Subtype' AND InstanceID LIKE '%Default'")
+            if ($defaults.Count -ne 1) { throw 'protected-vm-resource-default-refused' }
+            $resource = $defaults[0].PSBase.Clone()
+            $resource['Parent'] = $Parent
+            if ($HostPath) { $resource['HostResource'] = [string[]]@($HostPath) } else { $resource['AddressOnParent'] = $Address }
+            $inputParameters = $Service.PSBase.GetMethodParameters('AddResourceSettings')
+            $inputParameters['AffectedConfiguration'] = $Settings.__PATH
+            $inputParameters['ResourceSettings'] = [string[]]@($resource.GetText([Management.TextFormat]::CimDtd20))
+            $options = [Management.InvokeMethodOptions]::new(); $options.Timeout = [TimeSpan]::FromSeconds(3)
+            $outputParameters = $Service.PSBase.InvokeMethod('AddResourceSettings', $inputParameters, $options)
+            $code = [uint32]$outputParameters['ReturnValue']
+            if ($code -eq 4096) {
+                $path = [Management.ManagementPath]::new([string]$outputParameters['Job'])
+                if (!$path.IsInstance -or $path.ClassName -cne 'Msvm_ConcreteJob' -or $path.NamespacePath -cne 'root\virtualization\v2' -or $path.Server -cnotin @('.', [Environment]::MachineName)) { throw 'protected-vm-resource-job-refused' }
+                $watch = [Diagnostics.Stopwatch]::StartNew()
+                while ($true) {
+                    $jobObject = [wmi]$path.Path
+                    if ($jobObject.JobState -eq 7 -and $jobObject.ErrorCode -eq 0) { break }
+                    if ($jobObject.JobState -notin @(2, 3, 4, 5, 6, 11) -or $watch.ElapsedMilliseconds -ge 30000) { throw 'protected-vm-resource-settlement-unknown' }
+                    Start-Sleep -Milliseconds 50
+                }
+            } elseif ($code -ne 0) { throw 'protected-vm-resource-add-refused' }
+            $paths = @($outputParameters['ResultingResourceSettings'])
+            if ($paths.Count -ne 1 -or $paths[0] -isnot [string]) { throw 'protected-vm-resource-result-refused' }
+            return $paths[0]
+        }
         if ($Action -ceq 'create') {
             $checkpoint = 2
             if (@(Get-CimInstance -Namespace root/virtualization/v2 -ClassName Msvm_ComputerSystem -Filter "ElementName='$Name'" -OperationTimeoutSec 5).Count -ne 0 -or (Test-Path -LiteralPath $machine)) { throw 'protected-vm-fresh-required' }
@@ -48,8 +77,17 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
             Set-VMMemory -VM $vm -DynamicMemoryEnabled $false -StartupBytes 4GB
             Set-VMProcessor -VM $vm -Count 2
             Get-VMNetworkAdapter -VM $vm | Remove-VMNetworkAdapter
-            Add-VMHardDiskDrive -VM $vm -Path $disk -ControllerType SCSI -ControllerNumber 0 -ControllerLocation 0
-            Add-VMDvdDrive -VM $vm -Path $image -ControllerNumber 0 -ControllerLocation 1
+            $systems = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_ComputerSystem -Filter "Name='$Id'")
+            if ($systems.Count -ne 1 -or $systems[0].EnabledState -ne 3) { throw 'protected-vm-resource-owner-refused' }
+            $settings = @($systems[0].GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -ceq 'Microsoft:Hyper-V:System:Realized' -and $_.VirtualSystemIdentifier -ceq $Id })
+            if ($settings.Count -ne 1) { throw 'protected-vm-resource-owner-refused' }
+            $controllers = @($settings[0].GetRelated('Msvm_ResourceAllocationSettingData') | Where-Object ResourceSubType -CEQ 'Microsoft:Hyper-V:Synthetic SCSI Controller')
+            $services = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_VirtualSystemManagementService)
+            if ($controllers.Count -ne 1 -or $services.Count -ne 1) { throw 'protected-vm-resource-controller-refused' }
+            $drivePath = AddStorage $settings[0] $services[0] 'Microsoft:Hyper-V:Synthetic Disk Drive' $controllers[0].__PATH '0' ''
+            AddStorage $settings[0] $services[0] 'Microsoft:Hyper-V:Virtual Hard Disk' $drivePath '' $disk | Out-Null
+            $dvdPath = AddStorage $settings[0] $services[0] 'Microsoft:Hyper-V:Synthetic DVD Drive' $controllers[0].__PATH '1' ''
+            AddStorage $settings[0] $services[0] 'Microsoft:Hyper-V:Virtual CD/DVD Disk' $dvdPath '' $image | Out-Null
             $dvd = @(Get-VMDvdDrive -VM $vm)
             Set-VMFirmware -VM $vm -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice $dvd[0]
             $vm = FindExact; $disks = @(Get-VMHardDiskDrive -VM $vm); $dvd = @(Get-VMDvdDrive -VM $vm)
