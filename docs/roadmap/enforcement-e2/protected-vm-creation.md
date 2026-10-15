@@ -15,7 +15,12 @@ account, installation root or VM. The copy uses CreateNew with its final private
 DACL, hashes the copied stream, flushes it, and verifies the private destination.
 It never adopts an existing destination or disk. System and Administrators own
 the private installation namespace. The returned VM's SID receives read access
-to the immutable image and read/write access to its new standalone VHDX.
+to the immutable image and read/write access to its new standalone VHDX. VHDX
+creation uses `CreateVirtualDisk` with an explicit private descriptor, no source
+or parent and fixed 64 GiB dynamic parameters. Attachment uses VMMS WMI resource
+settings directly. The high-level disk attachment cmdlet broadens directory
+permissions on the tested host and is excluded from this transaction. Only
+creation-bound IDs may have their final ACL sealed, before any guest startup.
 
 Within `C:\ProgramData\AEGIS\Vm`, the installer creates an append-only sequence
 of bounded intent, pending, settlement and ready records. Every provider mutation
@@ -56,7 +61,8 @@ A1–A4, E1–E11 or production acceptance; `launchAllowed` remains false.
 
 The provider adapter uses the documented Microsoft Hyper-V
 [New-VM](https://learn.microsoft.com/en-us/powershell/module/hyper-v/new-vm),
-[New-VHD](https://learn.microsoft.com/en-us/powershell/module/hyper-v/new-vhd),
+[CreateVirtualDisk](https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/nf-virtdisk-createvirtualdisk),
+[AddResourceSettings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/addresourcesettings-msvm-virtualsystemmanagementservice),
 [Set-VM](https://learn.microsoft.com/en-us/powershell/module/hyper-v/set-vm) and
 [Set-VMFirmware](https://learn.microsoft.com/en-us/powershell/module/hyper-v/set-vmfirmware)
 interfaces. Worker termination does not establish cancellation of accepted VMMS work.

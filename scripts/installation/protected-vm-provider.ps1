@@ -43,7 +43,8 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
             $code = [uint32]$outputParameters['ReturnValue']
             if ($code -eq 4096) {
                 $path = [Management.ManagementPath]::new([string]$outputParameters['Job'])
-                if (!$path.IsInstance -or $path.ClassName -cne 'Msvm_ConcreteJob' -or $path.NamespacePath -cne 'root\virtualization\v2' -or $path.Server -cnotin @('.', [Environment]::MachineName)) { throw 'protected-vm-resource-job-refused' }
+                if (!$path.IsInstance -or $path.ClassName -ine 'Msvm_ConcreteJob' -or $path.NamespacePath -ine 'root\virtualization\v2' -or
+                    ($path.Server -cne '.' -and ![string]::Equals($path.Server, [Environment]::MachineName, [StringComparison]::OrdinalIgnoreCase))) { throw 'protected-vm-resource-job-refused' }
                 $watch = [Diagnostics.Stopwatch]::StartNew()
                 while ($true) {
                     $jobObject = [wmi]$path.Path
@@ -79,7 +80,7 @@ function Invoke-ProtectedVmProvider($Owned, [ValidateSet('create', 'configure', 
             Get-VMNetworkAdapter -VM $vm | Remove-VMNetworkAdapter
             $systems = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_ComputerSystem -Filter "Name='$Id'")
             if ($systems.Count -ne 1 -or $systems[0].EnabledState -ne 3) { throw 'protected-vm-resource-owner-refused' }
-            $settings = @($systems[0].GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -ceq 'Microsoft:Hyper-V:System:Realized' -and $_.VirtualSystemIdentifier -ceq $Id })
+            $settings = @($systems[0].GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -ceq 'Microsoft:Hyper-V:System:Realized' -and [guid]$_.VirtualSystemIdentifier -eq [guid]$Id })
             if ($settings.Count -ne 1) { throw 'protected-vm-resource-owner-refused' }
             $controllers = @($settings[0].GetRelated('Msvm_ResourceAllocationSettingData') | Where-Object ResourceSubType -CEQ 'Microsoft:Hyper-V:Synthetic SCSI Controller')
             $services = @(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_VirtualSystemManagementService)
