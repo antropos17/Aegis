@@ -68,7 +68,16 @@ function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
                 foreach ($ace in $sd.DiscretionaryAcl) {
                     if (([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) -ne 0) { continue }
                     if ($ace -isnot [Security.AccessControl.CommonAce] -or $ace.IsCallback -or $ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or
-                        $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid)) { throw 'protected-vm-tree-acl-refused' }
+                        $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid)) {
+                        $failure = [InvalidOperationException]::new('protected-vm-tree-acl-refused')
+                        $kind = if ($item.PSIsContainer) { 'directory' } elseif ($item.Extension -cin @('.vmcx', '.vmrs', '.vmgs')) { $item.Extension.Substring(1) } else { 'other' }
+                        $failure.Data['vmTreeKind'] = $kind
+                        if ($ace -is [Security.AccessControl.CommonAce] -and $null -ne $ace.SecurityIdentifier) {
+                            $failure.Data['vmTreeSid'] = $ace.SecurityIdentifier.Value
+                            $failure.Data['vmTreeMask'] = [int]$ace.AccessMask
+                        }
+                        throw $failure
+                    }
                 }
                 $rows += @{ path = $held.PathName; volume = $held.Volume; fileId = $held.FileId; sddl = $held.Sddl; directory = $item.PSIsContainer }
                 if ($item.PSIsContainer) { $queue.Enqueue($item.FullName) }

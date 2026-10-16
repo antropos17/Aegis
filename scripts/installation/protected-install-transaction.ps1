@@ -140,6 +140,11 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
             $failure.operation = $cause.Data['protectedOperation']; $failure.nativeWin32 = $null
             if ($cause.Data.Contains('protectedNativeWin32') -and $cause.Data['protectedNativeWin32'] -is [int] -and $cause.Data['protectedNativeWin32'] -ge 0) { $failure.nativeWin32 = $cause.Data['protectedNativeWin32'] }
         }
+        if ($cause.Data.Contains('vmTreeKind') -and $cause.Data['vmTreeKind'] -cin @('directory', 'vmcx', 'vmrs', 'vmgs', 'other')) {
+            $failure.vmTreeKind = $cause.Data['vmTreeKind']
+            if ($cause.Data.Contains('vmTreeSid') -and $cause.Data['vmTreeSid'] -is [string] -and $cause.Data['vmTreeSid'] -cmatch '^S-[0-9]+(-[0-9]+){1,16}$') { $failure.vmTreeSid = $cause.Data['vmTreeSid'] }
+            if ($cause.Data.Contains('vmTreeMask') -and $cause.Data['vmTreeMask'] -is [int]) { $failure.vmTreeMask = $cause.Data['vmTreeMask'] }
+        }
         $cause = $cause.InnerException
     }
     if ($failure.diagnosticCode -ceq 'protected-operation-refused' -and $null -ne $semanticCode) { $failure.diagnosticCode = $semanticCode }
