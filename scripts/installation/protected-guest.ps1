@@ -23,7 +23,7 @@ function Set-ProtectedGuestDisk($Context, $Request) {
         if ($source.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-guest-disk-digest-refused' }
         $owned.unknown = $true; $owned.hydrated = $true
         Write-ProtectedVmJournal $owned 'pending-hydrate.json' @{ schemaVersion = 1; vmId = $owned.vmId; bytes = $Request.bytes; sha256 = $Request.sha256 }
-        $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenLiveDisk($prior.PathName)
+        $prior = $owned.disk; $live = [ProtectedInstallFile]::OpenWritableDisk($prior.PathName)
         if ($live.FileId -cne $prior.FileId -or $live.Volume -cne $prior.Volume -or $live.Sddl -cne $prior.Sddl) { $live.Dispose(); throw 'protected-guest-disk-handoff-refused' }
         $owned.disk = $live; $prior.Dispose()
         $live.HydrateDisk($source, $Request.bytes, $Request.sha256)
@@ -45,15 +45,22 @@ function Assert-ProtectedGuestConfiguration($Owned, [string]$State) {
     $location = [IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\')
     $expected = Join-Path $Owned.root.PathName 'Machine'
     $disks = @(Get-VMHardDiskDrive -VM $vm); $dvd = @(Get-VMDvdDrive -VM $vm)
-    if ($vm.Id.ToString('D') -cne $Owned.vmId -or $vm.Name -cne $Owned.name -or $vm.State.ToString() -cne $State -or
-        ($location -cne $expected -and !$location.StartsWith($expected + '\', [StringComparison]::OrdinalIgnoreCase)) -or
-        $vm.Generation -ne 2 -or $vm.DynamicMemoryEnabled -or $vm.MemoryStartup -ne 4GB -or $vm.ProcessorCount -ne 2 -or
-        $vm.AutomaticStartAction.ToString() -cne 'Nothing' -or $vm.AutomaticStopAction.ToString() -cne 'TurnOff' -or
-        $vm.AutomaticCheckpointsEnabled -or $vm.CheckpointType.ToString() -cne 'Disabled' -or
-        @(Get-VMSnapshot -VM $vm).Count -ne 0 -or @(Get-VMNetworkAdapter -VM $vm).Count -ne 0 -or
-        $disks.Count -ne 1 -or $disks[0].Path -cne $Owned.disk.PathName -or $disks[0].ControllerType.ToString() -cne 'SCSI' -or
-        $disks[0].ControllerNumber -ne 0 -or $disks[0].ControllerLocation -ne 0 -or $dvd.Count -ne 1 -or $dvd[0].Path -cne $Owned.image.PathName -or
-        (Get-VMFirmware -VM $vm).SecureBoot.ToString() -cne 'On') { throw 'protected-guest-configuration-refused' }
+    $checks = [ordered]@{
+        vmId = ($vm.Id.ToString('D') -ceq $Owned.vmId); name = ($vm.Name -ceq $Owned.name); state = ($vm.State.ToString() -ceq $State)
+        location = ($location -ieq $expected -or $location.StartsWith($expected + '\', [StringComparison]::OrdinalIgnoreCase))
+        generation = ($vm.Generation -eq 2); fixedMemory = (!$vm.DynamicMemoryEnabled); memory = ($vm.MemoryStartup -eq 4GB); processors = ($vm.ProcessorCount -eq 2)
+        autoStart = ($vm.AutomaticStartAction.ToString() -ceq 'Nothing'); autoStop = ($vm.AutomaticStopAction.ToString() -ceq 'TurnOff')
+        autoCheckpoints = (!$vm.AutomaticCheckpointsEnabled); checkpointType = ($vm.CheckpointType.ToString() -ceq 'Disabled')
+        snapshots = (@(Get-VMSnapshot -VM $vm).Count -eq 0); networking = (@(Get-VMNetworkAdapter -VM $vm).Count -eq 0)
+        diskCount = ($disks.Count -eq 1); dvdCount = ($dvd.Count -eq 1); secureBoot = ((Get-VMFirmware -VM $vm).SecureBoot.ToString() -ceq 'On')
+    }
+    if ($disks.Count -eq 1) {
+        $checks.diskPath = ($disks[0].Path -ieq $Owned.disk.PathName); $checks.diskController = ($disks[0].ControllerType.ToString() -ceq 'SCSI')
+        $checks.diskSlot = ($disks[0].ControllerNumber -eq 0 -and $disks[0].ControllerLocation -eq 0)
+    }
+    if ($dvd.Count -eq 1) { $checks.dvdPath = ($dvd[0].Path -ieq $Owned.image.PathName) }
+    $Owned.configurationRefusals = @($checks.Keys | Where-Object { !$checks[$_] })
+    if ($Owned.configurationRefusals.Count -ne 0) { throw 'protected-guest-configuration-refused' }
     $Owned.configurationCheckpoint = 2
     foreach ($role in @('root', 'images', 'disks', 'image', 'disk')) { $Owned.configurationCheckpoint++; $Owned[$role].Recheck(); $Owned[$role].RequireHighIntegrity() }
     $Owned.configurationCheckpoint = 8

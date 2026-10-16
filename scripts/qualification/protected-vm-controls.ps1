@@ -92,6 +92,7 @@ try {
         if ($owned.ContainsKey('guest')) {
             $report.failure.provision.guestCheckpoint = $owned.guest.checkpoint
             $report.failure.provision.configurationCheckpoint = $owned.configurationCheckpoint
+            if ($owned.ContainsKey('configurationRefusals')) { $report.failure.provision.configurationRefusals = $owned.configurationRefusals }
             if ($null -ne $owned.guest.owner) {
                 $report.failure.provision.lifecycle = @{ returnCode = $owned.guest.owner.ReturnCode; jobState = $owned.guest.owner.JobState; jobError = $owned.guest.owner.JobError; hResult = $owned.guest.owner.FailureHResult; errorCodes = $owned.guest.owner.ErrorCodes }
             }

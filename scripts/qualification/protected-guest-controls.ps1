@@ -45,9 +45,9 @@ public static class ProtectedGuestControl {
   try { using (var f = File.Open(image, FileMode.Open, FileAccess.Write, FileShare.ReadWrite)) {} return 13; } catch (UnauthorizedAccessException) {} catch (IOException) {}
   File.WriteAllText(Path.Combine(Environment.GetEnvironmentVariable("TEMP"), "standard-write.txt"), "bounded-control");
   string quotaFile = Path.Combine(Environment.GetEnvironmentVariable("TEMP"), "quota-control.bin");
-  bool quotaRefused = false;
-  try { using (var f = File.Create(quotaFile)) { byte[] block = new byte[1048576]; for (int i = 0; i < 600; i++) f.Write(block, 0, block.Length); f.Flush(true); } }
-  catch (IOException) { quotaRefused = true; }
+  bool quotaRefused = false; long written = 0;
+  try { using (var f = File.Create(quotaFile)) { byte[] block = new byte[1048576]; for (int i = 0; i < 600; i++) { f.Write(block, 0, block.Length); written += block.Length; } f.Flush(true); } }
+  catch (IOException) { quotaRefused = written >= 400L * 1048576 && written <= 512L * 1048576; }
   finally { File.Delete(quotaFile); }
   if (!quotaRefused) return 15;
   var child = Process.Start(new ProcessStartInfo(image, "child") { UseShellExecute = false, CreateNoWindow = true });

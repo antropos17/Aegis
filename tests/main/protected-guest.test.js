@@ -67,12 +67,52 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
       nulRefused: true,
     });
   });
-  it('keeps the original file ID and deletion exclusion while handing a disk from offline to live and back', () => {
+  it('permits hydration writes while preserving the original file ID and delete sharing exclusion', () => {
     expect(invoke('pin')).toEqual({
       offlineWriteBlocked: true,
       liveWriteSucceeded: true,
       liveDeleteBlocked: true,
       originalId: true,
+    });
+  });
+  it('refuses an altered executable before consuming the agent operation', () => {
+    expect(invoke('agent-digest')).toMatchObject({
+      refused: true,
+      consumed: false,
+      workerRemoved: false,
+      events: ['configuration-Running'],
+    });
+  });
+  it('refuses a repeated agent operation before accessing its package', () => {
+    expect(invoke('agent-replay')).toMatchObject({
+      refused: true,
+      consumed: true,
+      workerRemoved: false,
+      events: [],
+    });
+  });
+  it.each(['agent-nonce', 'agent-open-job', 'agent-admin'])(
+    'refuses an unauthenticated or unclosed guest result without publishing success: %s',
+    (mode) => {
+      expect(invoke(mode)).toMatchObject({
+        refused: true,
+        consumed: true,
+        workerRemoved: true,
+        events: ['configuration-Running', 'pending-agent.json'],
+      });
+    },
+  );
+  it('publishes agent settlement only after exact channel result and fresh VM configuration checks', () => {
+    expect(invoke('agent-positive')).toMatchObject({
+      refused: false,
+      consumed: true,
+      workerRemoved: true,
+      events: [
+        'configuration-Running',
+        'pending-agent.json',
+        'configuration-Running',
+        'settled-agent.json',
+      ],
     });
   });
 });

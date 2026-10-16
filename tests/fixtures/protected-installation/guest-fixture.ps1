@@ -7,7 +7,7 @@ if ($Mode -ceq 'pin') {
     [IO.File]::WriteAllText($path, 'before')
     $offline = [ProtectedInstallFile]::new($path, $false, $false); $live = $null; $blocked = $false; $deleteBlocked = $false
     try {
-        $live = [ProtectedInstallFile]::OpenLiveDisk($path)
+        $live = [ProtectedInstallFile]::OpenWritableDisk($path)
         try { $f = [IO.File]::Open($path, 'Open', 'Write', 'ReadWrite'); $f.Dispose() } catch { $blocked = $true }
         $id = $offline.FileId; $offline.Dispose()
         [IO.File]::WriteAllText($path, 'after')
@@ -39,7 +39,11 @@ public sealed class ProtectedGuestVm : IDisposable {
 public sealed class ProtectedInstallFile {
  public string PathName = "C:\\private\\disk.vhdx", FileId = "original", Volume = "volume", Sddl = "private";
  public bool Closed;
- public static ProtectedInstallFile OpenLiveDisk(string path) { return new ProtectedInstallFile(); }
+ public ProtectedInstallFile() {}
+ public ProtectedInstallFile(string path, bool directory, bool mutate) {}
+ public string Hash(int cap) { return new string('a', 64); }
+ public byte[] Read(int cap) { return new byte[] { 1, 2 }; }
+ public static ProtectedInstallFile OpenWritableDisk(string path) { return new ProtectedInstallFile(); }
  public static ProtectedInstallFile OpenMetadata(string path, bool directory) { return new ProtectedInstallFile(); }
  public void Dispose() { Closed = true; }
 }
@@ -60,6 +64,23 @@ function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) {
 $prior = [ProtectedInstallFile]::new()
 $owned = @{ hydrated = $true; unknown = $false; disk = $prior; vmId = '11111111-2222-3333-4444-555555555555'; binding = @{ identitySha256 = 'a' * 64 } }
 $context = @{ vmProvision = $owned }
+if ($Mode.StartsWith('agent-', [StringComparison]::Ordinal)) {
+    $owned.guest = @{ state = 'running'; agentConsumed = ($Mode -ceq 'agent-replay') }
+    $script:workerRemoved = $false; $script:arguments = $null
+    function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) { $script:events.Add($Name) }
+    function Start-Job($ArgumentList, $ScriptBlock) { $script:arguments = $ArgumentList; return [pscustomobject]@{ State = 'Completed' } }
+    function Remove-Job($Job, [switch]$Force) { $script:workerRemoved = $true }
+    function Receive-Job($Job) {
+        return @{ schemaVersion = 1; vmId = $script:arguments[0]; nonce = $(if ($Mode -ceq 'agent-nonce') { 'wrong' } else { $script:arguments[8] });
+            executableSha256 = $script:arguments[4]; exitCode = [long]0; jobClosed = ($Mode -cne 'agent-open-job'); standardToken = ($Mode -cne 'agent-admin'); diskQuotaBytes = [long]512MB }
+    }
+    $secret = ConvertTo-SecureString 'synthetic-fixture-credential' -AsPlainText -Force
+    $credential = [pscredential]::new('AegisAg111111111111', $secret)
+    $package = @{ path = 'C:\private\agent.exe'; bytes = [long]2; sha256 = $(if ($Mode -ceq 'agent-digest') { '0' * 64 } else { 'a' * 64 }) }
+    $refused = $false
+    try { Invoke-ProtectedGuestAgent $context $credential $credential $package | Out-Null } catch { $refused = $true }
+    return (@{ refused = $refused; consumed = $owned.guest.agentConsumed; workerRemoved = $script:workerRemoved; events = @($script:events) } | ConvertTo-Json -Compress)
+}
 [ProtectedGuestVm]::Unknown = $Mode -ceq 'provider'
 $refused = $false; $replay = $false
 try { Start-ProtectedGuest $context } catch { $refused = $true }

@@ -188,9 +188,9 @@ public sealed class ProtectedInstallFile : IDisposable
     // their separate retained read/data handles with write/delete exclusion.
     public static ProtectedInstallFile OpenMetadata(string path, bool directory)
     { return new ProtectedInstallFile(path, directory, false, 3, true); }
-    // Actual data access makes NT sharing exclude deletion. Query-only handles
-    // do not provide that guarantee. Live disks allow VMMS writes, never delete.
-    public static ProtectedInstallFile OpenLiveDisk(string path)
+    // Actual data access makes NT sharing exclude deletion. This pin permits
+    // hydration writes while Off; a running VMMS disk requires metadata-only access.
+    public static ProtectedInstallFile OpenWritableDisk(string path)
     { return new ProtectedInstallFile(path, false, false, 3); }
     // High-integrity creation also prevents ordinary medium/low callers from
     // retaining WRITE_DAC/OWNER handles during VMMS's directory ACL updates.
