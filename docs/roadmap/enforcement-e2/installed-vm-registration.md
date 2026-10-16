@@ -49,7 +49,7 @@ consumer, including v4, invalid configuration observations, permanent refusal an
 legacy compatibility. The deadline control uses an actual elapsed two-second
 fixture fence. These modeled controls do not qualify Hyper-V provider behavior,
 privileged installation, guest execution or production authority. The permitted
-operation remains `inspect-owned`, acceptance remains 30/60,
+operation remains `inspect-owned`, checklist remains 30/60,
 A1-A4 remain `UNREVIEWED`, and `launchAllowed=false`.
 
 ## Private storage ACL eligibility
