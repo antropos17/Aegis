@@ -262,6 +262,79 @@ describe.skipIf(process.platform !== 'win32')(
         failure: null,
       });
     });
+    it('stages the optional original GUI bundle through the real stage serializer without changing inspection bytes', () => {
+      expect(orchestration('gui-stage-hook')).toEqual({
+        guiStaged: true,
+        candidateWritten: true,
+        originalInventoryPreserved: true,
+        originalFixedFixturePreserved: true,
+        genericDirectorySnapshots: 0,
+        headlessRows: 11,
+        guiRows: 12,
+      });
+    });
+    it('rejects malformed optional GUI inputs before capture or account creation', () => {
+      expect(orchestration('gui-invalid-options')).toEqual({
+        refused: 9,
+        noEffects: true,
+        captures: 0,
+        roots: 0,
+      });
+    });
+    it('preserves the original GUI principal and clones retained bundles through actual upgrade and rollback callbacks', () => {
+      const value = orchestration('gui-lifecycle');
+      expect(value).toMatchObject({
+        installed: true,
+        originalExact: true,
+        firstUpgradeExact: true,
+        secondUpgradeExact: true,
+        rollbackExact: true,
+        uninstalled: true,
+        failure: null,
+        unknownPreserved: true,
+        captures: 1,
+        sourceCloses: 1,
+        principalCloses: 1,
+        allBundlesClosed: true,
+        removed: [0, 1, 3, 2],
+      });
+      expect(value.events.indexOf('source-close')).toBeLessThan(value.events.indexOf('stage-1'));
+      expect(value.events.indexOf('stage-1')).toBeLessThan(value.events.indexOf('remove-0'));
+      expect(value.events.indexOf('stage-2')).toBeLessThan(value.events.indexOf('remove-1'));
+      expect(value.events.indexOf('remove-2')).toBeLessThan(
+        value.events.indexOf('principal-close'),
+      );
+      expect(value.events.filter((event) => event === 'capture')).toHaveLength(1);
+    });
+    it('retires only the original staged GUI on a confirmed install rollback and then releases its captures', () => {
+      const value = orchestration('gui-clean-failure');
+      expect(value).toMatchObject({
+        refused: true,
+        cleanup: 'confirmed',
+        sourceCloses: 1,
+        principalCloses: 1,
+        bundleRemoved: true,
+        bundleDisposed: true,
+        originalRetained: false,
+      });
+      expect(value.events.indexOf('remove-0')).toBeLessThan(
+        value.events.indexOf('principal-close'),
+      );
+      expect(value.events.indexOf('principal-close')).toBeLessThan(
+        value.events.indexOf('source-close'),
+      );
+    });
+    it('retains original staged GUI ownership and principal when service creation cleanup is unknown', () => {
+      expect(orchestration('gui-unknown-failure')).toMatchObject({
+        refused: true,
+        cleanup: 'unknown',
+        sourceCloses: 1,
+        principalCloses: 0,
+        bundleRemoved: false,
+        bundleDisposed: false,
+        originalRetained: true,
+      });
+    });
     it('identifies each refused membership boundary and cleans only the exact created account', () => {
       for (const [mode, operation] of [
         ['membership-users-query', 'account-users-query'],

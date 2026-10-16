@@ -16,7 +16,7 @@ internal static class InstalledCompletionFixture
         {
             if (name == "aegis-session.exe") InstalledCompletionServer.Run(root);
             else if (name == "aegis-main.exe") InstalledCompletionClient.Run(root);
-            else Run(args[0], args[1]);
+            else Run(args[0], args[1], args);
             return 0;
         }
         catch (Exception error)
@@ -27,7 +27,40 @@ internal static class InstalledCompletionFixture
             return 1;
         }
     }
-    private static void Run(string mode, string directory)
+    private static string Quote(string argument)
+    {
+        CallerNative.Require(argument.IndexOf('"') < 0 && !argument.EndsWith("\\", StringComparison.Ordinal));
+        return "\"" + argument + "\"";
+    }
+    private static void ProduceGui(string root, string[] args)
+    {
+        CallerNative.Require(args.Length == 6);
+        string policyPath = Path.Combine(root, "owner-policy.json"), operationPath = Path.Combine(root, "registered-operation.json");
+        string priorHash = CompositionFiles.Hash(policyPath), policy = FixedOperationRecords.Text(policyPath);
+        using (var original = new EnrollmentNative().Open(root, true))
+            FixedOperationRecords.Save(policyPath, policy.Substring(0, policy.Length - 1) +
+                ",\"rootVolumeSerial\":\"" + original.Volume + "\",\"rootFileId\":\"" + original.FileId + "\"}");
+        FixedOperationRecords.Save(operationPath, FixedOperationRecords.Text(operationPath).Replace(priorHash, CompositionFiles.Hash(policyPath)));
+        string[] records = { "enrollment.json", "main-registration.json", "owner-policy.json", "registered-operation.json", "inventory.json", "fixed-fixture.json" };
+        string[] before = Array.ConvertAll(records, name => CompositionFiles.Hash(Path.Combine(root, name)));
+        string script = Path.Combine(args[2], "tests", "fixtures", "protected-installation", "vm-record-producer-fixture.ps1");
+        var start = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -File " + Quote(script) +
+            " -Scratch " + Quote(root) + " -VmId 11111111-2222-4333-8444-555555555555 -IdentityHash " + new string('a', 64) +
+            " -StorageHash " + new string('b', 64) + " -CompatibilityMode gui-inspection -GuiAssembly " + Quote(args[3]) +
+            " -GuiSource " + Quote(args[4]) + " -GuiManifest " + Quote(args[5]));
+        start.UseShellExecute = false; start.CreateNoWindow = true; start.RedirectStandardOutput = true; start.RedirectStandardError = true;
+        using (var producer = Process.Start(start))
+        {
+            var output = producer.StandardOutput.ReadToEndAsync(); var error = producer.StandardError.ReadToEndAsync();
+            if (!producer.WaitForExit(10000)) { producer.Kill(); producer.WaitForExit(); throw new Exception("gui-producer-deadline"); }
+            if (producer.ExitCode != 0 || error.Result.Length != 0) throw new Exception("gui-producer-failed: " + output.Result + error.Result);
+            CallerNative.Require(output.Result.Contains("\"produced\":true"));
+        }
+        for (int index = 0; index < records.Length; index++)
+            CallerNative.Require(before[index] == CompositionFiles.Hash(Path.Combine(root, records[index])));
+        CallerNative.Require(Directory.Exists(Path.Combine(root, "GuiBundle")) && File.Exists(Path.Combine(root, "registered-gui-candidate.json")));
+    }
+    private static void Run(string mode, string directory, string[] args)
     {
         string root = Path.Combine(directory, "installed"), control = Path.Combine(directory, "control");
         Directory.CreateDirectory(root); Directory.CreateDirectory(control);
@@ -45,7 +78,12 @@ internal static class InstalledCompletionFixture
             File.WriteAllText(role, original.Substring(0, at) + CompositionFiles.Hash(inventory) + original.Substring(at + 64));
         }
         FixedOperationRecords.Write(root, mode);
-        File.WriteAllLines(Path.Combine(root, "fixture-config.txt"), new[] { mode, control });
+        bool gui = mode == "gui-present";
+        if (gui) ProduceGui(root, args);
+        string guiRecordHash = gui ? CompositionFiles.Hash(Path.Combine(root, "registered-gui-candidate.json")) : null;
+        string[] guiFiles = gui ? Directory.GetFiles(Path.Combine(root, "GuiBundle"), "*", SearchOption.AllDirectories) : new string[0];
+        string[] guiHashes = Array.ConvertAll(guiFiles, CompositionFiles.Hash);
+        File.WriteAllLines(Path.Combine(root, "fixture-config.txt"), new[] { gui ? "positive" : mode, control });
         File.WriteAllText(Path.Combine(root, "fixture-route.txt"), "");
         using (var created = new CallerLauncherNative().Create(Path.Combine(root, "aegis-session.exe")))
         {
@@ -56,7 +94,15 @@ internal static class InstalledCompletionFixture
                 CallerNative.Require(CallerLauncherNative.ResumeThread(created.Thread) == 1);
                 MainFixtureTransport.Until(() => File.Exists(Path.Combine(control, "server-observation.json")) || File.Exists(Path.Combine(root, "server-error.txt")));
                 if (File.Exists(Path.Combine(root, "server-error.txt"))) throw new Exception(File.ReadAllText(Path.Combine(root, "server-error.txt")));
-                Console.WriteLine(File.ReadAllText(Path.Combine(control, "server-observation.json")));
+                string observed = File.ReadAllText(Path.Combine(control, "server-observation.json"));
+                if (gui)
+                {
+                    CallerNative.Require(guiRecordHash == CompositionFiles.Hash(Path.Combine(root, "registered-gui-candidate.json")));
+                    CallerNative.Require(Directory.GetFiles(Path.Combine(root, "GuiBundle"), "*", SearchOption.AllDirectories).Length == guiFiles.Length);
+                    for (int index = 0; index < guiFiles.Length; index++) CallerNative.Require(guiHashes[index] == CompositionFiles.Hash(guiFiles[index]));
+                    observed = observed.TrimEnd('}') + ",\"guiCandidateProduced\":true,\"guiBytesPreserved\":true,\"inspectionBytesPreserved\":true,\"guiPrincipalAndProtectionModeled\":true,\"guiEnrollment\":false}";
+                }
+                Console.WriteLine(observed);
             }
             finally
             {

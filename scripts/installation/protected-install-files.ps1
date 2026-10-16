@@ -1,12 +1,15 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'protected-journal.ps1')
+. (Join-Path $PSScriptRoot 'protected-gui.ps1')
 $script:ProtectedInstallParent = 'C:\ProgramData\AEGIS'
 $script:ProtectedInstallRoot = 'C:\ProgramData\AEGIS\ProtectedSession'
-$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json', 'registered-journal.json')
+$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json', 'registered-journal.json', 'registered-gui-candidate.json')
 
 function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
-        Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallDisk.cs'))
+        Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallDisk.cs'),
+            (Join-Path $PSScriptRoot 'ProtectedGuiManifest.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiBundleNative.cs'),
+            (Join-Path $PSScriptRoot 'ProtectedGuiBundleFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiIdentity.cs'))
     }
 }
 function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$Private = $false) {
@@ -130,9 +133,10 @@ function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
     return ,([Text.UTF8Encoding]::new($false)).GetBytes(($record | ConvertTo-Json -Compress))
 }
 function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) {
+    if ($Context.ContainsKey('cleanupUnknown') -and $Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     $path = Join-Path $script:ProtectedInstallParent ('Staging-' + [guid]::NewGuid().ToString('N'))
     $root = New-ProtectedInstallDirectory $path $Context.operatorSid
-    $stage = @{ root = $root; parent = $Context.parent; path = $path; rows = @(); revision = $Revision; epoch = $Epoch; published = $false; journal = $null; context = $Context }
+    $stage = @{ root = $root; parent = $Context.parent; path = $path; rows = @(); revision = $Revision; epoch = $Epoch; published = $false; journal = $null; gui = $null; context = $Context }
     try {
         $journal = New-ProtectedInstallJournal $Context $stage
         foreach ($name in @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe')) { Write-ProtectedInstallFile (Join-Path $path $name) $Context.inputs[$name] $Context.operatorSid }
@@ -175,27 +179,58 @@ function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) 
         Write-ProtectedInstallFile (Join-Path $path 'registered-operation.json') $operationBytes $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'registered-journal.json') (New-ProtectedInstallJournalRecord $policy $policyHash $journal) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'operator.credential') $Context.credential $Context.operatorSid $true
-        $stage.rows = @(Get-ChildItem -LiteralPath $path -Force | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName })
+        if ($Context.ContainsKey('guiInput') -and $null -ne $Context.guiInput) {
+            $stage.gui = New-ProtectedGuiStage $Context $stage $policyBytes
+            if ($null -eq $stage.gui -or $stage.gui.recordBytes -isnot [byte[]] -or $stage.gui.recordBytes.Length -lt 1 -or $stage.gui.recordBytes.Length -gt 4096) { throw 'protected-gui-binding-refused' }
+            Write-ProtectedInstallFile (Join-Path $path 'registered-gui-candidate.json') $stage.gui.recordBytes $Context.operatorSid
+        }
+        $stage.rows = @(Get-ProtectedInstallStageRows $stage)
         Release-ProtectedInstallJournal $journal
         return $stage
     } catch {
+        $original = $_
         # The root was created by this call and remains held; no pathname adoption.
-        $stage.rows = @(Get-ChildItem -LiteralPath $path -Force | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName })
-        Remove-ProtectedInstallStage $stage $false
-        throw
+        try {
+            $cause = $original.Exception
+            for ($depth = 0; $depth -lt 8 -and $null -ne $cause; $depth++) {
+                if ($cause.Data.Contains('protectedCleanupUnknown') -and $cause.Data['protectedCleanupUnknown'] -eq $true) { throw $original }
+                $cause = $cause.InnerException
+            }
+            $stage.rows = @(Get-ProtectedInstallStageRows $stage)
+            Remove-ProtectedInstallStage $stage $false
+        } catch {
+            $Context.cleanupUnknown = $true; $Context.failedStage = $stage
+            $failure = [IO.InvalidDataException]::new('protected-stage-cleanup-unknown', $_.Exception)
+            $failure.Data['protectedCleanupUnknown'] = $true
+            throw $failure
+        }
+        throw $original
+    }
+}
+function Get-ProtectedInstallStageRows($Stage) {
+    foreach ($file in @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)) {
+        if ($file.Name -ceq 'GuiBundle' -and $file.PSIsContainer) { continue }
+        Read-ProtectedInstallSnapshot $file.FullName
     }
 }
 function Assert-ProtectedInstallStage($Stage) {
     $Stage.root.Recheck()
     if (!$Stage.root.Protected($false)) { throw 'protected-stage-acl-refused' }
     $files = @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)
-    if ($files.Count -ne $Stage.rows.Count -or $files.Count -gt $script:ProtectedInstallLeaves.Count) { throw 'protected-stage-unknown-child' }
+    $hasGui = $Stage.ContainsKey('gui') -and $null -ne $Stage.gui
+    $directories = @($files | Where-Object { $_.PSIsContainer })
+    if ($directories.Count -ne [int]$hasGui -or @($directories | Where-Object { $_.Name -cne 'GuiBundle' -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) }).Count -ne 0 -or
+        $files.Count -ne ($Stage.rows.Count + [int]$hasGui) -or $Stage.rows.Count -gt $script:ProtectedInstallLeaves.Count -or
+        @($files | Where-Object { !$_.PSIsContainer -and ($_.Name -cnotin $script:ProtectedInstallLeaves -or ($_.Name -ceq 'registered-gui-candidate.json' -and !$hasGui)) }).Count -ne 0) { throw 'protected-stage-unknown-child' }
+    if ($hasGui) { Assert-ProtectedGuiStage $Stage }
     foreach ($row in $Stage.rows) { Assert-ProtectedInstallSnapshot $row }
 }
 function Move-ProtectedInstallStage($Stage, [string]$Destination) {
     Assert-ProtectedInstallStage $Stage
     if (Test-Path -LiteralPath $Destination) { throw 'protected-publish-destination-exists' }
-    $Stage.root.Rename($Destination, $Stage.parent); $Stage.path = $Destination
+    if ($Stage.ContainsKey('gui') -and $null -ne $Stage.gui) { Move-ProtectedGuiStageBinding $Stage $Destination }
+    else { $Stage.root.Rename($Destination, $Stage.parent) }
+    $Stage.path = $Destination
     try {
         foreach ($row in $Stage.rows) { $row.path = Join-Path $Destination ([IO.Path]::GetFileName($row.path)) }
         Assert-ProtectedInstallStage $Stage
@@ -208,7 +243,9 @@ function Move-ProtectedInstallStage($Stage, [string]$Destination) {
 function Update-ProtectedInstallRuntimeRows($Stage) {
     $rows = @($Stage.rows); $files = @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)
     foreach ($file in $files) {
+        if ($file.Name -ceq 'GuiBundle' -and $file.PSIsContainer -and $Stage.ContainsKey('gui') -and $null -ne $Stage.gui -and !($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { continue }
         if ($file.Name -cnotin $script:ProtectedInstallLeaves -or $file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'protected-runtime-unknown-child' }
+        if ($file.Name -ceq 'registered-gui-candidate.json' -and (!$Stage.ContainsKey('gui') -or $null -eq $Stage.gui)) { throw 'protected-runtime-unassociated-leaf' }
         if (@($rows | Where-Object { $_.path -ceq $file.FullName }).Count -eq 0) {
             if ($file.Name -cne 'main-registration.json') { throw 'protected-runtime-unassociated-leaf' }
             $rows += Read-ProtectedInstallSnapshot $file.FullName
@@ -217,7 +254,9 @@ function Update-ProtectedInstallRuntimeRows($Stage) {
     $Stage.rows = $rows; Assert-ProtectedInstallStage $Stage
 }
 function Remove-ProtectedInstallStage($Stage, [bool]$Published) {
+    if ($Stage.ContainsKey('context') -and $null -ne $Stage.context -and $Stage.context.ContainsKey('cleanupUnknown') -and $Stage.context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     Assert-ProtectedInstallStage $Stage
+    if ($Stage.ContainsKey('gui') -and $null -ne $Stage.gui) { Remove-ProtectedGuiStage $Stage }
     if ($Stage.ContainsKey('journal') -and $null -ne $Stage.journal) { Remove-ProtectedInstallJournal $Stage.context $Stage.journal; $Stage.journal = $null }
     $held = [Collections.Generic.List[object]]::new()
     try {

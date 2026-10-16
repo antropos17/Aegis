@@ -27,7 +27,9 @@ if ($Mode -ceq 'loader') {
 }
 $path = Join-Path $Root 'controls'
 New-Item -ItemType Directory -Path $path | Out-Null
-$context = @{ cleanupUnknown = $false; receipts = $null; parent = $null; operatorSid = $null; ancestors = [Collections.Generic.List[object]]::new(); password = $null; controlRows = @(); control = [ProtectedInstallFile]::new($path, $true, $true) }
+$context = @{ cleanupUnknown = $false; receipts = $null; parent = $null; operatorSid = $null; ancestors = [Collections.Generic.List[object]]::new(); password = $null;
+    journalDirectory = $null; journalFiles = @(); journalEvidence = @(); guiPrincipal = $null;
+    controlRows = @(); control = [ProtectedInstallFile]::new($path, $true, $true) }
 try {
     if ($Mode -cne 'empty') {
         foreach ($name in @('delete-original.txt', 'replace-original.txt')) {

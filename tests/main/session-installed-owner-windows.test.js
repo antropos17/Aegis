@@ -252,7 +252,11 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           },
         );
         expect(result.error).toBeUndefined();
-        expect(result.status).toBe(0);
+        const fixtureDiagnostics = JSON.stringify({
+          stdout: result.stdout.toString('utf8').slice(0, 8192),
+          stderr: result.stderr.toString('utf8').slice(0, 8192),
+        });
+        expect(result.status, fixtureDiagnostics).toBe(0);
         expect(result.stderr.length).toBe(0);
         expect(JSON.parse(result.stdout.toString())).toEqual({
           refused: true,

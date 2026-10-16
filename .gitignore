@@ -29,6 +29,9 @@ src/main/.mutants/
 .DS_Store
 Thumbs.db
 *.ps1
+!/scripts/installation/protected-gui.ps1
+!/tests/fixtures/protected-gui/stage.ps1
+!/tests/fixtures/protected-installation/gui-stage-composition.ps1
 !/scripts/installation/protected-journal.ps1
 !/tests/fixtures/protected-journal/registration.ps1
 !/tests/fixtures/protected-journal/lifecycle.ps1

@@ -40,6 +40,9 @@ try {
     $leaves = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe',
         'baseline/aegis-session.exe', 'native/installed-owner-actor.exe',
         'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/ProtectedInstallDisk.cs',
+        'scripts/installation/ProtectedGuiManifest.cs', 'scripts/installation/ProtectedGuiBundleNative.cs',
+        'scripts/installation/ProtectedGuiBundleFiles.cs', 'scripts/installation/ProtectedGuiIdentity.cs',
+        'scripts/installation/protected-journal.ps1', 'scripts/installation/protected-gui.ps1',
         'scripts/installation/protected-install-files.ps1', 'scripts/installation/protected-install-transaction.ps1',
         'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
         'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1',
@@ -87,7 +90,9 @@ try {
     $env:TEMP = $temp; $env:TMP = $temp
     $stage = 'maintained-corpus'
     $modules = @(
-        @{ relative = 'scripts/installation/protected-install-files.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-journal.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-gui.ps1'; dependencies = @() },
+        @{ relative = 'scripts/installation/protected-install-files.ps1'; dependencies = @('protected-journal.ps1', 'protected-gui.ps1') },
         @{ relative = 'scripts/installation/protected-install-transaction.ps1'; dependencies = @() },
         @{ relative = 'scripts/installation/protected-vm-provider.ps1'; dependencies = @() },
         @{ relative = 'scripts/installation/protected-vm.ps1'; dependencies = @() },
