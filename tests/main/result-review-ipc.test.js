@@ -3,6 +3,8 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { fork } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const ipc = require('../../src/main/local-security-ipc');
 const {
@@ -11,6 +13,7 @@ const {
 } = require('../../src/main/result-review-bundle');
 const { handleResultReview } = require('../../src/main/result-review-ipc');
 let root, file, window, event, dialog;
+let fifoChildReaped = true;
 const raw = Buffer.from(
   JSON.stringify({
     schemaVersion: 1,
@@ -32,6 +35,7 @@ const raw = Buffer.from(
   }),
 );
 beforeEach(async () => {
+  fifoChildReaped = true;
   root = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'aegis-result-ipc-'));
   file = path.join(root, 'selected.json');
   await fs.writeFile(file, raw);
@@ -44,6 +48,8 @@ beforeEach(async () => {
   ipc.init({ getWindow: () => window, rendererUrl: 'file:///app/index.html', dialog });
 });
 afterEach(async () => {
+  // Preserve the disposable tree if exact child teardown could not be confirmed.
+  expect(fifoChildReaped).toBe(true);
   expect(path.dirname(root)).toBe(await fs.realpath(os.tmpdir()));
   expect((await fs.lstat(root)).isSymbolicLink()).toBe(false);
   await fs.rm(root, { recursive: true });
@@ -140,6 +146,137 @@ it('rechecks window authority at bounded reader await points before returning im
   ).rejects.toThrow('request-denied');
   expect(checks).toBe(4);
 });
+
+it.skipIf(process.platform === 'win32')(
+  'refuses an actual FIFO substituted after the selected regular-file lstat without waiting for a writer (POSIX only)',
+  async () => {
+    const directory = await fs.mkdtemp(path.join(root, 'fifo-reader-'));
+    const originalDirectory = await fs.lstat(directory);
+    const child = fork(
+      fileURLToPath(new URL('../fixtures/result-review/fifo-reader.cjs', import.meta.url)),
+      [directory],
+      { execArgv: [], stdio: ['ignore', 'ignore', 'ignore', 'ipc'] },
+    );
+    fifoChildReaped = false;
+    let readyResolve, outcomeResolve;
+    const ready = new Promise((resolve) => {
+      readyResolve = resolve;
+    });
+    const outcome = new Promise((resolve) => {
+      outcomeResolve = resolve;
+    });
+    let phase = 'startup',
+      messages = 0,
+      refusalTimer;
+    const setupFailed = (code) => {
+      readyResolve({ kind: 'setup-error', code });
+      outcomeResolve({ kind: 'setup-error', code });
+    };
+    const startupTimer = setTimeout(() => setupFailed('startup-timeout'), 15000);
+    child.on('message', (message) => {
+      if (++messages > 2 || !message || typeof message !== 'object') {
+        setupFailed('invalid-protocol');
+        return;
+      }
+      if (
+        phase === 'startup' &&
+        message.kind === 'ready' &&
+        Object.keys(message).sort().join() === 'checkpoint,fifoVerified,kind,regularBefore' &&
+        message.regularBefore === true &&
+        message.fifoVerified === true &&
+        message.checkpoint === 2
+      ) {
+        phase = 'reader';
+        clearTimeout(startupTimer);
+        // Startup/mkfifo time is excluded. The actual refusal deadline starts
+        // only after independently verified FIFO readiness reaches this parent.
+        refusalTimer = setTimeout(() => outcomeResolve({ kind: 'refusal-timeout' }), 2000);
+        readyResolve(message);
+      } else if (
+        phase === 'startup' &&
+        message.kind === 'setup-error' &&
+        Object.keys(message).sort().join() === 'code,kind' &&
+        [
+          'unsupported-platform',
+          'directory-invalid',
+          'regular-file-missing',
+          'original-changed',
+          'mkfifo-unavailable',
+          'mkfifo-failed',
+          'fifo-not-observed',
+          'setup-unavailable',
+        ].includes(message.code)
+      ) {
+        clearTimeout(startupTimer);
+        setupFailed(message.code);
+      } else if (
+        phase === 'reader' &&
+        message.kind === 'result' &&
+        Object.keys(message).sort().join() === 'error,kind,review' &&
+        ['result-bundle-unavailable', 'unexpected-reader-error', 'unexpected-review'].includes(
+          message.error,
+        ) &&
+        typeof message.review === 'boolean'
+      ) {
+        phase = 'result';
+        clearTimeout(refusalTimer);
+        outcomeResolve(message);
+      } else setupFailed('missing-ready-or-invalid-result');
+    });
+    child.once('error', () => setupFailed('child-spawn-failed'));
+    const closed = new Promise((resolve) => {
+      child.once('close', () => {
+        fifoChildReaped = true;
+        if (phase !== 'result') setupFailed('child-exited-before-result');
+        resolve();
+      });
+    });
+    try {
+      const checkpoint = await ready;
+      if (checkpoint.kind !== 'ready') throw Error('fifo-reader-setup:' + checkpoint.code);
+      expect(checkpoint).toEqual({
+        kind: 'ready',
+        regularBefore: true,
+        fifoVerified: true,
+        checkpoint: 2,
+      });
+      const result = await outcome;
+      if (result.kind === 'refusal-timeout')
+        throw Error('fifo-reader-behavioral-timeout-after-ready');
+      expect(result).toEqual({ kind: 'result', error: 'result-bundle-unavailable', review: false });
+    } finally {
+      clearTimeout(startupTimer);
+      clearTimeout(refusalTimer);
+      if (!fifoChildReaped) child.kill('SIGKILL');
+      let reapTimer;
+      try {
+        await Promise.race([
+          closed,
+          new Promise((_, reject) => {
+            reapTimer = setTimeout(() => reject(Error('fifo-reader-child-not-reaped')), 5000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(reapTimer);
+      }
+      // Do not open a FIFO writer to settle the old open. Cleanup follows the
+      // exact child's exit and checks the original directory before unlinking.
+      const current = await fs.lstat(directory);
+      expect(current.isDirectory() && !current.isSymbolicLink()).toBe(true);
+      expect([current.dev, current.ino]).toEqual([originalDirectory.dev, originalDirectory.ino]);
+      const entries = await fs.readdir(directory);
+      expect(entries.every((name) => name === 'selected.json')).toBe(true);
+      for (const name of entries) {
+        const selected = path.join(directory, name);
+        const leaf = await fs.lstat(selected);
+        expect(!leaf.isSymbolicLink() && (leaf.isFile() || leaf.isFIFO())).toBe(true);
+        await fs.unlink(selected);
+      }
+      await fs.rmdir(directory);
+    }
+  },
+  30000,
+);
 
 it('clears only the owned retained comparison and expires its ID without another dialog', async () => {
   const first = await ipc.handle(event, { action: 'review-result' });
