@@ -301,7 +301,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         effects: mode.startsWith('settle:') ? 1 : 0,
       }),
     );
-    it('allows acknowledged completion of progressive short writes in the simulated store', () => {
+    it('accepts a complete simulated-store acknowledgment', () => {
       expect(invoke(executable, ['fault-consume:short-progress'])).toMatchObject({
         passed: true,
         effects: 1,
