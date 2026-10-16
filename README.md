@@ -1,185 +1,61 @@
-<p>
+<p align="center">
   <img src="docs/images/github-header.svg" width="720" alt="AEGIS — local AI agent monitoring">
 </p>
 
-AEGIS is a Windows-first desktop app for local AI-agent oversight. See running
-agents, file activity, TCP connections, resource use and token usage in
-Observatory. Review projects, skills and agent configurations before use, and
-configure policies for selected CLI actions or MCP tools. Monitoring requires
-no agent plugin; execution controls require explicit setup.
-
-[Download](#download) · [Features](#capabilities-at-a-glance) · [Get started](#start-with-a-task) · [Documentation](docs/README.md) · [Latest source](#latest-source) · [Try the demo](#try-without-ai-agents) · [Known limits](#known-limits)
-
-**Windows beta:** [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta),
-published 6 October 2026. [Verify the installer](docs/RELEASE-VERIFICATION.md)
-and read its [beta readiness record](docs/BETA-READINESS.md).
-
-**Current source version**: 0.19.2-beta <!-- x-release-please-version -->
-
-This README includes changes after that release tag. They require a new installer
-release; the beta label does not qualify general agent containment or experimental
-VM/provider routes. Default monitoring does not automatically intercept or block commands.
+<p align="center">
+  Local AI-agent monitoring, security reviews and explicitly configured action controls.
+</p>
 
 <p align="center">
-  <img src="docs/screenshots/01-monitoring.png" width="980" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar">
+  <a href="#capabilities-at-a-glance">Features</a> ·
+  <a href="#download">Install</a> ·
+  <a href="#start-with-a-task">Get started</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="#latest-source">Latest changes</a>
 </p>
-<p align="center"><sub>Observatory source UI preview with simulated data, captured on 11 October 2026.</sub></p>
+
+> **Windows beta:** [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta), published 6 October 2026.
+> [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
+>
+> **Current source version**: 0.19.2-beta <!-- x-release-please-version -->
+> This page includes later source work. Installed builds contain the features at their release tag.
 
 ## Capabilities at a glance
 
-| Capability | What you can do in current source |
+### Observe your agents
+
+Follow agent instances and process trees, sensitive-file events, TCP connections
+and attribution evidence. Inspect the live radar, CPU/RAM charts, Claude Code
+token subtotals and estimated costs. WSL and local Docker/Linux Podman metadata
+have explicit freshness and coverage limits.
+
+### Review before use
+
+Check selected projects, skills and agent profiles locally. Inventory components,
+review static findings, compare snapshots and import offline reports. Follow
+rules, baselines, anomalies and sequence evidence; search audit history and
+export JSON, CSV, HTML or diagnostic ZIP reports.
+
+### Control selected actions
+
+Configure exact CLI action policies, terminal approval, Windows Job lifetime
+controls or an offline AppContainer launch. Connect selected-action MCP tools,
+or configure a validating stdio/HTTP(S) gateway with accepted catalogs, bounded
+grants and optional known-secret checks.
+
+| Entry point | Availability |
 | --- | --- |
-| Live monitoring | Identify agent instances, follow process trees, inspect file events and TCP endpoints, and review attribution and sensor gaps. |
-| Investigation | Use the instance radar, activity filters, resource charts, measured Claude Code token subtotals and estimated costs. |
-| Local security review | Scan selected projects, skills and profiles; inventory components, compare snapshots and import offline Cisco JSON/SARIF reports. |
-| Rules and evidence | Review sensitive-path rules, baselines, anomalies and sequence evidence; search persisted audit records and export reports. |
-| Selected-action control | Apply exact `allow` / `ask` / `deny` policies, fresh terminal review, Windows Job lifetime controls or an explicit offline AppContainer launch. |
-| MCP integration | Publish selected action tools or configure a validating stdio/HTTP(S) gateway with accepted catalogs, bounded grants and optional known-secret checks. |
-| Runtime discovery | Observe running WSL distribution names and local Docker/Linux Podman container candidates; inspect bounded container configuration metadata. |
-| Experimental protected guests | Administrative Hyper-V provisioning, trusted image hydration and a bounded standard-user guest agent run have passed hosted qualification. Ordinary desktop launch remains disabled. |
+| **Observatory desktop** | Local monitoring and review; Windows primary, macOS/Linux experimental |
+| **CLI / MCP** | Explicit setup for selected actions and connections |
+| **Hyper-V guest APIs** | Experimental administrative lab path; ordinary desktop launch disabled |
 
-The [full capability guide](docs/CAPABILITIES.md) maps each feature to its entry
-point, evidence and limits. Desktop monitoring, opt-in terminal routes and
-administrative lab APIs have different setup requirements and coverage.
+Monitoring requires no agent plugin. Default monitoring does not automatically
+intercept or block commands. [Full capability guide →](docs/CAPABILITIES.md)
 
-## Start with a task
-
-Current source opens the full **Advanced** navigation by default. An optional
-**Simple interface** in Settings brings investigation, file checks and settings
-together; an explicitly saved Simple choice is retained.
-
-| What you want to do | Where to start |
-| --- | --- |
-| See running agents and review their activity | **Monitoring**, then an agent's processes, files or connections |
-| Review a sensitive-file alert | **Alerts** in Observatory, then [inspect the captured evidence](docs/ALERTS-AND-PERMISSIONS.md) |
-| Check a project, skill or agent profile before use | [**Local security**](docs/LOCAL-SECURITY-UI.md): static review, inventory, comparison and offline report import |
-| Check how a selected action matches a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md): choose files and review the captured outcome |
-| Connect selected actions to an agent | [MCP setup](docs/ACTION-MCP-CONFIG.md), explicitly configured from a terminal |
-| Explore settings, reports and the other tools | **Start here** in the sidebar, or **Commands** (`Ctrl K`) |
-
-The [workspace guide](docs/OBSERVATORY-GUIDED-WORKFLOWS.md) explains tasks and
-captured results. Static file reviews and route/catalog checks do not execute
-commands or establish safety. The published installer can contain an earlier UI.
-
-<details>
-<summary>More Observatory views</summary>
-
-![AEGIS Start here guide](docs/images/observatory-guide.png)
-
-![AEGIS local security workspace](docs/screenshots/04-local-security.png)
-
-![AEGIS selected-action workspace](docs/screenshots/05-action-control.png)
-
-These views use simulated preview data. [More screenshots](docs/screenshots/README.md).
-
-</details>
-
-## Latest source
-
-Updated 16 October 2026 against [master at `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
-These changes follow the published beta. See the [release-to-source comparison](https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...6001f2c295e42392967a845760c8fce14461b35a)
-for the complete diff. Evidence retains the exact tested revision.
-
-| Area | Current-source change and evidence |
-| --- | --- |
-| Protected Windows guest and agent | [#942](https://github.com/antropos17/Aegis/pull/942) adds trusted offline disk hydration, identity-bound native start/stop and one bounded guest agent operation. Actual Windows boot, a standard token, quota refusal, descendant cleanup and VM removal passed on the [recorded source](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md). |
-| Private VM and image creation | [#941](https://github.com/antropos17/Aegis/pull/941) creates a fresh Generation 2 VM and private image/disk files, with pending journals, full image hashing and conservative unknown-settlement retention. [Provisioning contract](docs/roadmap/enforcement-e2/protected-vm-creation.md). |
-| Registered VM inspection | [#931](https://github.com/antropos17/Aegis/pull/931)–[#937](https://github.com/antropos17/Aegis/pull/937) bind inspection to the original protected registration, disk identity and private storage; parent-backed disks are refused. [Inspection contract](docs/roadmap/enforcement-e2/installed-vm-registration.md). |
-| Qualification reliability | [#938](https://github.com/antropos17/Aegis/pull/938) recovers from one disappearing scratch child only after a complete fresh traversal; [#939](https://github.com/antropos17/Aegis/pull/939) handles bounded stdio startup population growth. Capacity and scratch limits remain enforced. |
-| Monitoring durability | [#925](https://github.com/antropos17/Aegis/pull/925) bounds initial watch-worker readiness; [#926](https://github.com/antropos17/Aegis/pull/926) excludes discarded writes from durable audit counts. |
-| Observatory and discovery | Instance/resource views, optional Simple navigation, local security reviews and passive WSL/container observations are integrated. See the [capability guide](docs/CAPABILITIES.md) and [design brief](frontend/observatory/DESIGN.md). |
-
-**Experimental status:** the new administrative guest run has native hosted
-evidence. Ordinary installed-caller authorization, authenticated runtime
-communication, cancellation/owner-loss supervision and result review still need
-integration and acceptance for the complete protected session. `launchAllowed=false`;
-independent A1–A4 acceptance remains open. The [protection roadmap](docs/roadmap/ai-agent-protection.md)
-tracks these separate gates.
-
-## What AEGIS observes
-
-| Layer | Coverage |
-| --- | --- |
-| Processes | 112 agents (265 process-name signatures), parent-chain, IDE-host and IDE-extension detection; passive WSL inventory does not inspect guest processes |
-| Files | Changes in configured sensitive directories and agent config paths; Windows open-handle and Restart Manager observations |
-| Network | TCP endpoints for detected agent PIDs, forward-confirmed reverse DNS, and `allowlisted` / `unknown` / `flagged` verdicts |
-| Behavior | 73 sensitive-path detection rules across 8 categories, rolling 10-session baselines, anomaly scoring and sequence correlations |
-| Local LLMs | Ollama and LM Studio runtime probes; other supported runtimes detected by process signature |
-| Runtime inventory | Running WSL distribution names; local Docker and Linux-native Podman candidates from image metadata, with selected configuration observations and explicit freshness |
-| Token usage | Claude Code usage from matching local session data, with durable deduplication, incomplete-coverage indicators and estimated dollar amounts |
-
-The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
-
-Current source adds [Liveline-inspired charts](frontend/observatory/DESIGN.md#live-chart-refinement--5-october-2026) to Statistics and agent Resources: short smooth updates, endpoint values, interval buttons and actual-point inspection. Missing readings, coverage, pause and reduced motion remain explicit.
-
-## Monitor-first
-
-Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants. The separate AppContainer CLI route adds Windows access restrictions for one reviewed offline action in a new workspace; other execution routes retain caller privileges.
-
-The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
-
-Monitoring data stays local, with no usage telemetry or cloud sync. Endpoint
-naming uses DNS queries; update checks contact GitHub. Optional AI analysis sends
-activity metadata to Anthropic on request using your own API key. See
-[privacy and key handling](SECURITY.md#privacy-architecture).
-
-## Opt-in action control
-
-An operator can select an exact executable, working directory, arguments and
-environment, then route that action through AEGIS:
-
-| Capability | Implemented scope |
-| --- | --- |
-| [Exact execution policy](docs/ACTION-EXECUTION.md) | Explicit CLI launch on `allow`; `ask`, `deny` and preparation failures do not launch |
-| [Windows AppContainer launch](docs/ACTION-APPCONTAINER.md) | Explicit terminal approval for one bounded offline action in a new retained workspace; private-file access checks, zero capabilities and Job cleanup |
-| [Windows Job lifetime route](docs/ACTION-EXECUTION.md#opt-in-windows-job-lifetime-route) | An approved selected Windows action starts inside a private Job; confirmed cleanup ends ordinary Job-member descendants. External brokers and actions outside this route remain outside its control |
-| [Terminal confirmation](docs/ACTION-CONFIRMATION.md) | Review the complete effective action and confirm one launch attempt; policy deny cannot be overridden |
-| [Selected-action MCP catalog](docs/ACTION-MCP-CATALOG.md) | Up to eight operator-selected actions with empty tool arguments; optional [terminal review broker](docs/ACTION-MCP-REVIEW.md) requires fresh confirmation per eligible call |
-| [Route and catalog checks](docs/ACTION-ROUTE-CHECK.md) | Inspect selected configuration and current-process prerequisites without executing; a completed check grants no permission |
-| [MCP connection status](docs/ACTION-MCP-STATUS.md) | Read-only counters for the current connection's admitted calls, pending work and cancellation requests |
-| [Action control workspace](docs/ACTION-COVERAGE-UI.md) | Native file selection and nonexecuting route/catalog checks in Observatory; shows captured policy outcomes, explicit unverified coverage and a configuration-check link when setup is missing |
-| [Live route observation](docs/ACTION-LIVE-OBSERVATION.md) | Opt-in desktop observation of one running MCP owner; self-reported client metadata, bounded counters and coverage loss; blocking and provider identity remain unverified |
-| [Validating MCP gateways](docs/MCP-STDIO-GATEWAY.md) | Explicit stdio, [loopback HTTP](docs/MCP-HTTP-GATEWAY.md) and [pinned HTTPS](docs/MCP-HTTPS-GATEWAY.md) routes with accepted catalogs, finite schema checks and exact grants; optional [persistent grant binding](docs/MCP-DURABLE-GRANTS.md) and [known-secret checks](docs/MCP-KNOWN-SECRETS.md) |
-| [Reviewed file deletion](docs/ACTION-DELETE-FILE.md) | One exact AEGIS-owned file operation with mandatory terminal confirmation; also available through a dedicated argument-free terminal MCP tool |
-
-These routes do not cover other agent tools, arbitrary MCP traffic or activity
-outside the selected actions. Direct execution and the ordinary Windows Job route
-retain the caller's account privileges. The separate AppContainer route adds the
-access restrictions described above. Terminal previews can expose secrets in local
-scrollback; terminal automation does not establish human identity. Client settings
-are not changed automatically. The linked contracts explain configuration, limits and verification.
-
-After creating a catalog, generate a client configuration from the source checkout
-(PowerShell 7 example):
-
-```powershell
-node src/main/main.js --action-mcp-config-json catalog "X:/private/actions/catalog.json" > aegis-mcp.json
-```
-
-The [configuration generator](docs/ACTION-MCP-CONFIG.md) prints an
-`mcpServers.aegis` entry using the current Node executable and absolute source
-entry path. Load the generated file explicitly in a client that accepts this
-configuration format; client setup requirements vary. The output intentionally
-contains local paths, so keep it private. Generation does not read or validate the
-catalog, start a server or install settings; run the appropriate route/catalog
-check separately.
-
-## Experimental protected Windows guests
-
-The repository's administrative APIs can create a fresh private Hyper-V VM,
-hydrate its original disk from a trusted Windows VHDX, start it through the
-retained native owner and run one bounded executable as a fresh ordinary guest
-user. The guest has no NICs. The agent has a private desktop, explicit environment,
-an enforced 512 MiB NTFS allocation quota, a 32-process Job and 512 MiB aggregate
-Job memory limit; its maximum run is 120 seconds. Closure must be verified before
-the original VM is stopped and removed.
-
-The [hosted qualification record](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md)
-links actual native and Windows guest/agent runs, source hashes and receipt hashes.
-The [administrative contract](docs/roadmap/enforcement-e2/protected-guest-start.md)
-explains trusted image/admin prerequisites, one-use admission and retained unknown
-operations. There is no ordinary desktop launch or recovery API for unknown VMMS
-work. These controls do not establish provider integration or production readiness.
+<p align="center">
+  <a href="docs/screenshots/01-monitoring.png"><img src="docs/screenshots/01-monitoring.png" width="920" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar"></a>
+</p>
+<p align="center"><sub>Observatory source UI preview · simulated data · 11 October 2026</sub></p>
 
 ## Download
 
@@ -236,7 +112,175 @@ The preview uses simulated data and an isolated host. It shares the desktop comp
 See [GitHub Releases](https://github.com/antropos17/Aegis/releases) for the full
 release history and each installer's changes.
 
+## Start with a task
+
+Current source opens the full **Advanced** navigation by default. An optional
+**Simple interface** in Settings brings investigation, file checks and settings
+together; an explicitly saved Simple choice is retained.
+
+| What you want to do | Where to start |
+| --- | --- |
+| See running agents and review their activity | **Monitoring**, then an agent's processes, files or connections |
+| Review a sensitive-file alert | **Alerts** in Observatory, then [inspect the captured evidence](docs/ALERTS-AND-PERMISSIONS.md) |
+| Check a project, skill or agent profile before use | [**Local security**](docs/LOCAL-SECURITY-UI.md): static review, inventory, comparison and offline report import |
+| Check how a selected action matches a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md): choose files and review the captured outcome |
+| Connect selected actions to an agent | [MCP setup](docs/ACTION-MCP-CONFIG.md), explicitly configured from a terminal |
+| Explore settings, reports and the other tools | **Start here** in the sidebar, or **Commands** (`Ctrl K`) |
+
+The [workspace guide](docs/OBSERVATORY-GUIDED-WORKFLOWS.md) explains tasks and
+captured results. Static file reviews and route/catalog checks do not execute
+commands or establish safety. The published installer can contain an earlier UI.
+
+<details>
+<summary>More Observatory views</summary>
+
+![AEGIS Start here guide](docs/images/observatory-guide.png)
+
+![AEGIS local security workspace](docs/screenshots/04-local-security.png)
+
+![AEGIS selected-action workspace](docs/screenshots/05-action-control.png)
+
+These views use simulated preview data. [More screenshots](docs/screenshots/README.md).
+
+</details>
+
+## What AEGIS observes
+
+<details>
+<summary>Sensor coverage, resources and investigation views</summary>
+
+| Layer | Coverage |
+| --- | --- |
+| Processes | 112 agents (265 process-name signatures), parent-chain, IDE-host and IDE-extension detection; passive WSL inventory does not inspect guest processes |
+| Files | Changes in configured sensitive directories and agent config paths; Windows open-handle and Restart Manager observations |
+| Network | TCP endpoints for detected agent PIDs, forward-confirmed reverse DNS, and `allowlisted` / `unknown` / `flagged` verdicts |
+| Behavior | 73 sensitive-path detection rules across 8 categories, rolling 10-session baselines, anomaly scoring and sequence correlations |
+| Local LLMs | Ollama and LM Studio runtime probes; other supported runtimes detected by process signature |
+| Runtime inventory | Running WSL distribution names; local Docker and Linux-native Podman candidates from image metadata, with selected configuration observations and explicit freshness |
+| Token usage | Claude Code usage from matching local session data, with durable deduplication, incomplete-coverage indicators and estimated dollar amounts |
+
+The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
+
+Current source adds [Liveline-inspired charts](frontend/observatory/DESIGN.md#live-chart-refinement--5-october-2026) to Statistics and agent Resources: short smooth updates, endpoint values, interval buttons and actual-point inspection. Missing readings, coverage, pause and reduced motion remain explicit.
+
+</details>
+
+## Monitor-first
+
+Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants. The separate AppContainer CLI route adds Windows access restrictions for one reviewed offline action in a new workspace; other execution routes retain caller privileges.
+
+The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
+
+Monitoring data stays local, with no usage telemetry or cloud sync. Endpoint
+naming uses DNS queries; update checks contact GitHub. Optional AI analysis sends
+activity metadata to Anthropic on request using your own API key. See
+[privacy and key handling](SECURITY.md#privacy-architecture).
+
+## Opt-in action control
+
+Choose the route for your selected action. The [setup guides](docs/README.md#configure-selected-actions) cover policy files, terminal review and client configuration.
+
+<details>
+<summary>Compare action routes, MCP gateways and configuration checks</summary>
+
+An operator can select an exact executable, working directory, arguments and
+environment, then route that action through AEGIS:
+
+| Capability | Implemented scope |
+| --- | --- |
+| [Exact execution policy](docs/ACTION-EXECUTION.md) | Explicit CLI launch on `allow`; `ask`, `deny` and preparation failures do not launch |
+| [Windows AppContainer launch](docs/ACTION-APPCONTAINER.md) | Explicit terminal approval for one bounded offline action in a new retained workspace; private-file access checks, zero capabilities and Job cleanup |
+| [Windows Job lifetime route](docs/ACTION-EXECUTION.md#opt-in-windows-job-lifetime-route) | An approved selected Windows action starts inside a private Job; confirmed cleanup ends ordinary Job-member descendants. External brokers and actions outside this route remain outside its control |
+| [Terminal confirmation](docs/ACTION-CONFIRMATION.md) | Review the complete effective action and confirm one launch attempt; policy deny cannot be overridden |
+| [Selected-action MCP catalog](docs/ACTION-MCP-CATALOG.md) | Up to eight operator-selected actions with empty tool arguments; optional [terminal review broker](docs/ACTION-MCP-REVIEW.md) requires fresh confirmation per eligible call |
+| [Route and catalog checks](docs/ACTION-ROUTE-CHECK.md) | Inspect selected configuration and current-process prerequisites without executing; a completed check grants no permission |
+| [MCP connection status](docs/ACTION-MCP-STATUS.md) | Read-only counters for the current connection's admitted calls, pending work and cancellation requests |
+| [Action control workspace](docs/ACTION-COVERAGE-UI.md) | Native file selection and nonexecuting route/catalog checks in Observatory; shows captured policy outcomes, explicit unverified coverage and a configuration-check link when setup is missing |
+| [Live route observation](docs/ACTION-LIVE-OBSERVATION.md) | Opt-in desktop observation of one running MCP owner; self-reported client metadata, bounded counters and coverage loss; blocking and provider identity remain unverified |
+| [Validating MCP gateways](docs/MCP-STDIO-GATEWAY.md) | Explicit stdio, [loopback HTTP](docs/MCP-HTTP-GATEWAY.md) and [pinned HTTPS](docs/MCP-HTTPS-GATEWAY.md) routes with accepted catalogs, finite schema checks and exact grants; optional [persistent grant binding](docs/MCP-DURABLE-GRANTS.md) and [known-secret checks](docs/MCP-KNOWN-SECRETS.md) |
+| [Reviewed file deletion](docs/ACTION-DELETE-FILE.md) | One exact AEGIS-owned file operation with mandatory terminal confirmation; also available through a dedicated argument-free terminal MCP tool |
+
+These routes do not cover other agent tools, arbitrary MCP traffic or activity
+outside the selected actions. Direct execution and the ordinary Windows Job route
+retain the caller's account privileges. The separate AppContainer route adds the
+access restrictions described above. Terminal previews can expose secrets in local
+scrollback; terminal automation does not establish human identity. Client settings
+are not changed automatically. The linked contracts explain configuration, limits and verification.
+
+After creating a catalog, generate a client configuration from the source checkout
+(PowerShell 7 example):
+
+```powershell
+node src/main/main.js --action-mcp-config-json catalog "X:/private/actions/catalog.json" > aegis-mcp.json
+```
+
+The [configuration generator](docs/ACTION-MCP-CONFIG.md) prints an
+`mcpServers.aegis` entry using the current Node executable and absolute source
+entry path. Load the generated file explicitly in a client that accepts this
+configuration format; client setup requirements vary. The output intentionally
+contains local paths, so keep it private. Generation does not read or validate the
+catalog, start a server or install settings; run the appropriate route/catalog
+check separately.
+
+</details>
+
+## Experimental protected Windows guests
+
+Actual Windows boot and a bounded standard-user agent run passed [hosted qualification](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md). These are administrative repository APIs. Ordinary installed-caller launch remains disabled: `launchAllowed=false`.
+
+<details>
+<summary>Guest limits, lifecycle and remaining integration</summary>
+
+The repository's administrative APIs can create a fresh private Hyper-V VM,
+hydrate its original disk from a trusted Windows VHDX, start it through the
+retained native owner and run one bounded executable as a fresh ordinary guest
+user. The guest has no NICs. The agent has a private desktop, explicit environment,
+an enforced 512 MiB NTFS allocation quota, a 32-process Job and 512 MiB aggregate
+Job memory limit; its maximum run is 120 seconds. Closure must be verified before
+the original VM is stopped and removed.
+
+The [hosted qualification record](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md)
+links actual native and Windows guest/agent runs, source hashes and receipt hashes.
+The [administrative contract](docs/roadmap/enforcement-e2/protected-guest-start.md)
+explains trusted image/admin prerequisites, one-use admission and retained unknown
+operations. There is no ordinary desktop launch or recovery API for unknown VMMS
+work. These controls do not establish provider integration or production readiness.
+
+</details>
+
+## Latest source
+
+The latest development includes private VM creation, bounded guest execution and monitoring durability fixes. [Browse all capabilities](docs/CAPABILITIES.md).
+
+<details>
+<summary>Changes through PR #942 and exact-source evidence</summary>
+
+Updated 16 October 2026 against [master at `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
+These changes follow the published beta. See the [release-to-source comparison](https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...6001f2c295e42392967a845760c8fce14461b35a)
+for the complete diff. Evidence retains the exact tested revision.
+
+| Area | Current-source change and evidence |
+| --- | --- |
+| Protected Windows guest and agent | [#942](https://github.com/antropos17/Aegis/pull/942) adds trusted offline disk hydration, identity-bound native start/stop and one bounded guest agent operation. Actual Windows boot, a standard token, quota refusal, descendant cleanup and VM removal passed on the [recorded source](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md). |
+| Private VM and image creation | [#941](https://github.com/antropos17/Aegis/pull/941) creates a fresh Generation 2 VM and private image/disk files, with pending journals, full image hashing and conservative unknown-settlement retention. [Provisioning contract](docs/roadmap/enforcement-e2/protected-vm-creation.md). |
+| Registered VM inspection | [#931](https://github.com/antropos17/Aegis/pull/931)–[#937](https://github.com/antropos17/Aegis/pull/937) bind inspection to the original protected registration, disk identity and private storage; parent-backed disks are refused. [Inspection contract](docs/roadmap/enforcement-e2/installed-vm-registration.md). |
+| Qualification reliability | [#938](https://github.com/antropos17/Aegis/pull/938) recovers from one disappearing scratch child only after a complete fresh traversal; [#939](https://github.com/antropos17/Aegis/pull/939) handles bounded stdio startup population growth. Capacity and scratch limits remain enforced. |
+| Monitoring durability | [#925](https://github.com/antropos17/Aegis/pull/925) bounds initial watch-worker readiness; [#926](https://github.com/antropos17/Aegis/pull/926) excludes discarded writes from durable audit counts. |
+| Observatory and discovery | Instance/resource views, optional Simple navigation, local security reviews and passive WSL/container observations are integrated. See the [capability guide](docs/CAPABILITIES.md) and [design brief](frontend/observatory/DESIGN.md). |
+
+**Experimental status:** the new administrative guest run has native hosted
+evidence. Ordinary installed-caller authorization, authenticated runtime
+communication, cancellation/owner-loss supervision and result review still need
+integration and acceptance for the complete protected session. `launchAllowed=false`;
+independent A1–A4 acceptance remains open. The [protection roadmap](docs/roadmap/ai-agent-protection.md)
+tracks these separate gates.
+
+</details>
+
 ## The evidence graph
+
+<details>
+<summary>Local review, instance identity, attribution and audit integrity</summary>
 
 The **Local security** workspace reviews selected project/profile files, commands,
 scripts and instruction patterns, compares content snapshots, and imports offline
@@ -249,7 +293,14 @@ Cisco results. It keeps incomplete coverage and unverified claims visible. See t
 
 See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/CORRECTNESS-AUDIT.md) and [dated measurements](docs/bench/) for implementation details and evidence.
 
+</details>
+
 ## Known limits
+
+Coverage depends on the agent, sensor and platform. Static findings, scores and unchanged hashes do not establish safety. No overall detection or false-positive rate has been measured.
+
+<details>
+<summary>Coverage gaps, privacy, token subtotals and recovery behavior</summary>
 
 - **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. Default monitoring does not parse MCP traffic or individual tool calls; the explicitly configured MCP routes handle only their published AEGIS tools.
 - **Platform gaps:** macOS lacks a process-generation witness. Linux generation identity depends on accessible `/proc` data; its fallback has no start-time witness. Missing identity limits process-control guarantees. Measured Claude Code usage requires a process start-time witness and a readable matching session registry/transcript. Windows is the verified primary path; native Linux token collection remains unverified.
@@ -259,7 +310,12 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 - **Unmeasured claims:** No general detection rate, false-positive rate, startup-time guarantee or whole-app overhead figure has been established.
 - **Token subtotals:** Bounded transcript reads can lag a backlog; records above 512 KiB are skipped with a fixed diagnostic. Token history retains all active records and 256 recent exited records; older records become one labeled archive preserving run totals. Compaction freezes during observation gaps. The published 0.19.2-beta uses a run-scoped 128 MiB SQLite index for transcript deduplication. Current source can retry a capacity-failed process with a smaller complete batch, while the remaining usage stays marked incomplete; accepted IDs are not evicted. Issue [#637](https://github.com/antropos17/Aegis/issues/637) is closed; long-duration qualification remains incomplete. The earlier two-hour receipt used pre-final harness bytes; [#863](https://github.com/antropos17/Aegis/pull/863) records a 15-second smoke of the final harness. See the [packaged-module qualification scope](docs/development/token-accounting-soak.md) and [token accounting limits](docs/TOKEN-ACCOUNTING.md), including incomplete coverage and estimated dollar amounts.
 
+</details>
+
 ## Development and roadmap
+
+<details>
+<summary>Contributor commands, architecture and remaining work</summary>
 
 Inspect a project's AI component files without starting agents or MCP servers:
 
@@ -277,6 +333,8 @@ The monitoring engine uses CommonJS JavaScript; the Svelte renderer and shared t
 CI runs build, lint, type checks, tests and dependency auditing. `npm run counts:check` verifies selected inventory declarations. `npm run verify:gate` checks identity-witness behavior with fault injection (4 mutants); `npm run verify:seq-gate` checks sequence behavior. Run `npm test` for current suite results.
 
 The [roadmap](ROADMAP.md) tracks Windows ETW experiments and remaining discovery/platform work. Source changes and isolated experiments are not automatically available in released installers.
+
+</details>
 
 ## Contributors
 
