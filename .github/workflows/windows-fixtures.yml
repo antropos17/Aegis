@@ -1,0 +1,65 @@
+name: Windows fixture evidence
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/main/**'
+      - 'src/shared/**'
+      - 'sidecar/**'
+      - 'tests/main/**'
+      - 'tests/shared/**'
+      - 'tests/fixtures/**'
+      - 'scripts/qualification/**'
+      - 'tools/development/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.js'
+      - '.github/workflows/windows-fixtures.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-fixtures:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Allocate private scratch
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'Invalid run identity' }
+          $scratch = Join-Path $env:RUNNER_TEMP ('aegis-fixtures-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $scratch) { throw 'Scratch already exists' }
+          New-Item -ItemType Directory -Path $scratch | Out-Null
+          @(
+            ('AEGIS_FIXTURE_ROOT=' + $scratch)
+            ('TEMP=' + $scratch)
+            ('TMP=' + $scratch)
+            ('npm_config_cache=' + (Join-Path $scratch 'bootstrap-cache'))
+            ('NODE_COMPILE_CACHE=' + (Join-Path $scratch 'bootstrap-node-cache'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Run current-source Windows fixtures
+        run: npm run dev:windows -- --install --source-sha $env:GITHUB_SHA --output (Join-Path $env:AEGIS_FIXTURE_ROOT 'run')
+      - name: Upload bounded receipt
+        if: always() && env.AEGIS_FIXTURE_ROOT != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-fixture-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_FIXTURE_ROOT }}/run/evidence/receipt.json
+          if-no-files-found: warn
+          retention-days: 7
