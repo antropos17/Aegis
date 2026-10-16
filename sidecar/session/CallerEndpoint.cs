@@ -44,6 +44,11 @@ namespace Aegis.ProtectedSession
                     // LocalSystem has no logon SID. Only the retained installed guard authorizes its fixed SID.
                     if (installed != null) installed.CheckEndpoint(selfProcess, held);
                     string serverPrincipal = installed == null ? CallerEndpointNative.LogonSid(self) : "S-1-5-18";
+#if CALLER_MAIN_OPERATION_TEST
+                    // Synthetic installed descriptors use the observed fixture logon; production retains SYSTEM.
+                    var testOwner = installed as InstalledOwnerRegistration;
+                    if (testOwner != null && testOwner.IsTestAuthority) serverPrincipal = CallerEndpointNative.LogonSid(self);
+#endif
                     pipe = CallerEndpointNative.Create(LocalLocator, serverPrincipal, CallerEndpointNative.LogonSid(token));
                 }
             }
