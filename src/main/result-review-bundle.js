@@ -251,7 +251,10 @@ async function readResultReviewBundle(file, assertOwned = () => {}) {
     const before = await fs.lstat(file);
     assertOwned();
     if (!before.isFile() || before.isSymbolicLink() || before.size > LIMITS.wireBytes) invalid();
-    handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    handle = await fs.open(
+      file,
+      constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0),
+    );
     assertOwned();
     const opened = await handle.stat();
     assertOwned();
