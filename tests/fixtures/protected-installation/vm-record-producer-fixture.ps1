@@ -91,6 +91,14 @@ function Read-ProtectedInstallSnapshot([string]$Path) {
 function Assert-ProtectedInstallSnapshot($Row) {
     if ((Get-FixtureSnapshotHash $Row.path) -cne $Row.sha256) { throw 'fixture-snapshot-changed' }
 }
+# The original fixture models filesystem protection. Preserve that boundary for the new immutable journal leaf.
+function New-ProtectedInstallJournal($Context, $Stage) {
+    $journal = @{ generation = ('a' * 32); leaf = 'operations-' + $Context.installId + '-' + $Stage.epoch + '-' + $Stage.revision + '.jsonl';
+        directory = @{ volume = ('1' * 16); fileId = ('2' * 32); securitySha256 = ('3' * 64) };
+        file = @{ volume = ('1' * 16); fileId = ('4' * 32); securitySha256 = ('5' * 64) } }
+    $Stage.journal = $journal; return $journal
+}
+function Release-ProtectedInstallJournal($Journal) { }
 $blob = [byte[]]@(1)
 $inputs = @{ 'aegis-owner.exe' = $blob; 'aegis-session.exe' = $blob; 'aegis-main.exe' = $blob }
 foreach ($row in @(@{ name = 'aegis-main.exe'; source = $MainImage }, @{ name = 'aegis-session.exe'; source = $SupervisorImage })) {
@@ -123,13 +131,13 @@ foreach ($version in $versions) {
     if ($version -ge 3) { $context.vmBinding.storageProtection = 'private-vm' }
     if ($version -eq 4) { $context.vmBinding.configurationProfile = 'aegis-offline-fixed-v1'; $context.vmBinding.configurationSha256 = $ConfigurationHash }
     $stage = New-ProtectedInstallStage $context 1 '22222222222222222222222222222222'
-    if ($stage.rows.Count -ne 10) { throw 'fixture-initial-leaf-count' }
+    if ($stage.rows.Count -ne 11) { throw 'fixture-initial-leaf-count' }
     Assert-ProtectedInstallStage $stage
     Write-ProtectedInstallFile (Join-Path $stage.path 'main-registration.json') ([Text.Encoding]::UTF8.GetBytes('{}')) $context.operatorSid
     Update-ProtectedInstallRuntimeRows $stage
-    if ($stage.rows.Count -ne 11) { throw 'fixture-runtime-leaf-count' }
+    if ($stage.rows.Count -ne 12) { throw 'fixture-runtime-leaf-count' }
     $originalRows = $stage.rows
-    foreach ($leaf in @('registered-operation.json', 'fixed-fixture.json')) {
+    foreach ($leaf in @('registered-operation.json', 'fixed-fixture.json', 'registered-journal.json')) {
         $stage.rows = @($originalRows | Where-Object { [IO.Path]::GetFileName($_.path) -cne $leaf })
         $unassociatedRefused = $false
         try { Update-ProtectedInstallRuntimeRows $stage } catch { $unassociatedRefused = $_.Exception.Message -ceq 'protected-runtime-unassociated-leaf' }
@@ -142,7 +150,7 @@ foreach ($version in $versions) {
     try { Update-ProtectedInstallRuntimeRows $stage } catch { $refused = $_.Exception.Message -ceq 'protected-runtime-unknown-child' }
     [IO.File]::Delete($foreign)
     if (!$refused) { throw 'fixture-unknown-leaf-not-refused' }
-    $result = @{ path = $stage.path; configured = $configured; storageBound = $version -ge 2; privateStorage = $version -ge 3; configurationBound = $version -eq 4; initialLeaves = 10; runtimeLeaves = 11; unknownRefused = $refused; staticLeavesRefused = $true }
+    $result = @{ path = $stage.path; configured = $configured; storageBound = $version -ge 2; privateStorage = $version -ge 3; configurationBound = $version -eq 4; initialLeaves = 11; runtimeLeaves = 12; unknownRefused = $refused; staticLeavesRefused = $true }
     foreach ($record in @(@{ key = 'policy'; leaf = 'owner-policy.json' }, @{ key = 'inventory'; leaf = 'inventory.json' },
         @{ key = 'operation'; leaf = 'registered-operation.json' }, @{ key = 'fixture'; leaf = 'fixed-fixture.json' })) {
         $recordPath = Join-Path $stage.path $record.leaf

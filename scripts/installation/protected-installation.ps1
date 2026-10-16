@@ -24,10 +24,11 @@ function Assert-ProtectedInstallation($Association) {
     if ($Association.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     Assert-ProtectedInstallAccount $Association
     $Association.parent.Recheck(); $Association.receipts.Recheck(); $Association.service.Recheck()
+    Assert-ProtectedInstallJournals $Association
     Update-ProtectedInstallRuntimeRows $Association.stage
     Assert-ProtectedInstallVm $Association
     $children = @(Get-ChildItem -LiteralPath $script:ProtectedInstallParent -Force)
-    $allowed = @($Association.stage.root.PathName, $Association.receipts.PathName)
+    $allowed = @($Association.stage.root.PathName, $Association.receipts.PathName, $Association.journalDirectory.PathName)
     if ($Association.ContainsKey('rollback') -and $null -ne $Association.rollback) { $allowed += $Association.rollback.root.PathName }
     if ($null -ne $Association.control) { $allowed += $Association.control.PathName }
     if ($Association.ContainsKey('vmProvision') -and $null -ne $Association.vmProvision) { $allowed += $Association.vmProvision.root.PathName }
@@ -54,7 +55,7 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
     $installParent = $script:ProtectedInstallParent; $installRoot = $script:ProtectedInstallRoot
     $context = @{ manifest = $Manifest; inputs = $inputs; operatorAccount = $OperatorAccount; password = $Password; operatorSid = $null;
         installId = [guid]::NewGuid().ToString('N'); selectionId = [guid]::NewGuid().ToString('N'); selectionEpoch = [guid]::NewGuid().ToString('N');
-        credential = $null; vmBinding = $null; parent = $null; receipts = $null; stage = $null; service = $null; ancestors = [Collections.Generic.List[object]]::new(); receiptRows = @(); attemptedReceiptPaths = @(); rollback = $null; control = $null; controlRows = @(); cleanupUnknown = $false }
+        credential = $null; vmBinding = $null; parent = $null; receipts = $null; journalDirectory = $null; journalFiles = @(); journalEvidence = @(); stage = $null; service = $null; ancestors = [Collections.Generic.List[object]]::new(); receiptRows = @(); attemptedReceiptPaths = @(); rollback = $null; control = $null; controlRows = @(); cleanupUnknown = $false }
     try {
         Assert-ProtectedInstallAdministrator
         $Journal.operation = 'native-initialize'; Initialize-ProtectedInstallNative
@@ -97,6 +98,8 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
                 $Journal.createdRoots += @{ role = 'parent'; volume = $context.parent.Volume; fileId = $context.parent.FileId }
                 $Journal.operation = 'receipts-create'; $context.receipts = New-ProtectedInstallDirectory (Join-Path $installParent 'Receipts') $context.operatorSid $true
                 $Journal.createdRoots += @{ role = 'receipts'; volume = $context.receipts.Volume; fileId = $context.receipts.FileId }
+                $Journal.operation = 'journal-directory-create'; New-ProtectedInstallJournalDirectory $context
+                $Journal.createdRoots += @{ role = 'journal'; volume = $context.journalDirectory.Volume; fileId = $context.journalDirectory.FileId }
                 if ($null -ne $sourceImage) {
                     $Journal.operation = 'vm-create'; New-ProtectedInstallVm $context $VmImage $sourceImage
                 }
@@ -182,6 +185,7 @@ function Remove-ProtectedInstallAncillary($Context) {
     if ($Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     Assert-ProtectedInstallAncillary $Context
     Remove-ProtectedInstallVm $Context
+    Remove-ProtectedInstallJournalDirectory $Context
     if ($null -ne $Context.control) {
         $Context.control.Recheck(); $files = @(Get-ChildItem -LiteralPath $Context.control.PathName -Force)
         if ($files.Count -ne $Context.controlRows.Count -or $files.Count -gt 5 -or @($files | Where-Object { $_.Name -cnotin @('delete-original.txt', 'actor-result.json', 'write-marker.txt', 'replace-original.txt', 'replacement.bin') -or $_.Length -gt 16KB }).Count) { throw 'protected-control-unknown-child' }

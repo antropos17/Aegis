@@ -29,6 +29,9 @@ src/main/.mutants/
 .DS_Store
 Thumbs.db
 *.ps1
+!/scripts/installation/protected-journal.ps1
+!/tests/fixtures/protected-journal/registration.ps1
+!/tests/fixtures/protected-journal/lifecycle.ps1
 !scripts/qualification/vm-disk-image-controls.ps1
 !/scripts/qualify-windows-installer.ps1
 !/scripts/qualification/cloud-hyperv-operations.ps1

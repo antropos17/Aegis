@@ -39,6 +39,7 @@ public sealed class ProtectedInstallFile : IDisposable
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool GetSecurityDescriptorSacl(IntPtr descriptor, out bool present, out IntPtr sacl, out bool defaulted);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr value);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool FlushFileBuffers(SafeFileHandle file);
     private readonly SafeFileHandle held;
     private static readonly object RenameGate = new object();
     private static RenameBuffers pendingRename;
@@ -153,12 +154,12 @@ public sealed class ProtectedInstallFile : IDisposable
     }
     public ProtectedInstallFile(string path, bool directory, bool mutate)
         : this(path, directory, mutate, 1) { }
-    private ProtectedInstallFile(string path, bool directory, bool mutate, uint sharing, bool metadataOnly = false)
+    private ProtectedInstallFile(string path, bool directory, bool mutate, uint sharing, bool metadataOnly = false, SafeFileHandle created = null)
     {
         Require(path.Length <= 2048 && Path.IsPathRooted(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) &&
             path.IndexOf(':', 2) < 0 && String.Equals(path, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
         // A held parent/leaf refuses foreign delete/rename while identities are checked.
-        held = CreateFile(path, (directory || metadataOnly ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0) | (directory && sharing == 3 ? 1U : 0),
+        held = created ?? CreateFile(path, (directory || metadataOnly ? 0x20080U : 0x80020000U) | (mutate ? 0x10000U : 0) | (directory && sharing == 3 ? 1U : 0),
             sharing, IntPtr.Zero, 3, 0x00200000U | (directory ? 0x02000000U : 0), IntPtr.Zero);
         try {
             RequireNative(held != null && !held.IsInvalid,
@@ -263,6 +264,38 @@ public sealed class ProtectedInstallFile : IDisposable
     {
         byte[] bytes = Read(cap); try { using (SHA256 hash = SHA256.Create()) return Hex(hash.ComputeHash(bytes)); }
         finally { Array.Clear(bytes, 0, bytes.Length); }
+    }
+    // The original creation handle supplies identity before any pathname handoff.
+    public static ProtectedInstallFile CreateEmptyJournal(string path, byte[] descriptor)
+    {
+        Require(path != null && Path.IsPathRooted(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) &&
+            path.IndexOf(':', 2) < 0 && path.Length <= 2048 && String.Equals(Path.GetFullPath(path), path, StringComparison.OrdinalIgnoreCase));
+        Require(descriptor != null && descriptor.Length > 0 && descriptor.Length <= 65536);
+        GCHandle pinned = GCHandle.Alloc(descriptor, GCHandleType.Pinned); SafeFileHandle file = null; ProtectedInstallFile original = null; bool created = false;
+        try {
+            var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
+            using (ProtectedCreationSecurity.Enter(descriptor))
+                file = CreateImageFile(path, 0xC0030000U, 1, ref attributes, 1, 0x80200000U, IntPtr.Zero);
+            RequireNative(file != null && !file.IsInvalid, "protected-journal-create-file"); created = true;
+            RequireNative(FlushFileBuffers(file), "protected-journal-create-flush");
+            original = new ProtectedInstallFile(path, false, true, 1, false, file); file = null;
+            Require(original.ReadJournal(1).Length == 0); return original;
+        } catch (Exception cause) {
+            if (original != null) original.Dispose();
+            if (file != null) file.Dispose();
+            if (created) { var unknown = new InvalidDataException("protected-journal-creation-cleanup-unknown", cause); unknown.Data["protectedCleanupUnknown"] = true; throw unknown; }
+            throw;
+        } finally { pinned.Free(); }
+    }
+    // Empty is permitted only by this explicitly journal-specific bounded reader.
+    public byte[] ReadJournal(int cap)
+    {
+        Recheck(); Require(!Directory && cap > 0 && cap <= 2101248);
+        if (stream == null) stream = new FileStream(held, FileAccess.Read, 65536, false);
+        Require(stream.Length >= 0 && stream.Length <= cap); stream.Position = 0;
+        byte[] bytes = new byte[(int)stream.Length]; int offset = 0;
+        while (offset < bytes.Length) { int count = stream.Read(bytes, offset, bytes.Length - offset); Require(count > 0); offset += count; }
+        Require(stream.ReadByte() == -1); Recheck(); return bytes;
     }
     // Streaming image admission never allocates the image size. The caller holds
     // this exact source without write/delete sharing throughout both passes.

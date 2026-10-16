@@ -72,6 +72,8 @@ internal static class InstalledOwnerFixture
             try { ExpectCheckpoint(rows, "endpoint-inheritance", 14, endpoint.CheckCurrent); }
             finally { CallerNative.Require(SetHandleInformation(pipe, 1, 0)); }
             var registration = (InstalledOwnerRegistration)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(InstalledOwnerRegistration));
+            // Constructor bypass also bypasses the synchronization-field initializer.
+            typeof(InstalledOwnerRegistration).GetField("JournalGate", flags).SetValue(registration, new object());
             typeof(InstalledOwnerRegistration).GetField("closed", flags).SetValue(registration, true);
             typeof(CallerEndpoint).GetField("installed", flags).SetValue(endpoint, registration);
             ExpectCheckpoint(rows, "installed-fence-entry", 114, endpoint.CheckCurrent);
@@ -99,6 +101,7 @@ internal static class InstalledOwnerFixture
         Type type = typeof(InstalledOwnerRegistration);
         var registration = (InstalledOwnerRegistration)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
         var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        type.GetField("JournalGate", flags).SetValue(registration, new object());
         type.GetField("closed", flags).SetValue(registration, true);
         int checkpoint = 11;
         var check = (DiagnosticCheck)Delegate.CreateDelegate(typeof(DiagnosticCheck), registration,

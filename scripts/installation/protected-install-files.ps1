@@ -1,7 +1,8 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'protected-journal.ps1')
 $script:ProtectedInstallParent = 'C:\ProgramData\AEGIS'
 $script:ProtectedInstallRoot = 'C:\ProgramData\AEGIS\ProtectedSession'
-$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json')
+$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json', 'registered-journal.json')
 
 function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
@@ -131,8 +132,9 @@ function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
 function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) {
     $path = Join-Path $script:ProtectedInstallParent ('Staging-' + [guid]::NewGuid().ToString('N'))
     $root = New-ProtectedInstallDirectory $path $Context.operatorSid
-    $stage = @{ root = $root; parent = $Context.parent; path = $path; rows = @(); revision = $Revision; epoch = $Epoch; published = $false }
+    $stage = @{ root = $root; parent = $Context.parent; path = $path; rows = @(); revision = $Revision; epoch = $Epoch; published = $false; journal = $null; context = $Context }
     try {
+        $journal = New-ProtectedInstallJournal $Context $stage
         foreach ($name in @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe')) { Write-ProtectedInstallFile (Join-Path $path $name) $Context.inputs[$name] $Context.operatorSid }
         $map = @{}; foreach ($row in $Context.manifest.files) { $map[$row.name] = $row }
         $policy = [ordered]@{ schemaVersion = 1; installId = $Context.installId; revision = $Revision; epoch = $Epoch; rootVolumeSerial = $root.Volume; rootFileId = $root.FileId;
@@ -171,8 +173,10 @@ function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) 
         Write-ProtectedInstallFile (Join-Path $path 'inventory.json') $inventoryBytes $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'fixed-fixture.json') $fixtureBytes $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'registered-operation.json') $operationBytes $Context.operatorSid
+        Write-ProtectedInstallFile (Join-Path $path 'registered-journal.json') (New-ProtectedInstallJournalRecord $policy $policyHash $journal) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'operator.credential') $Context.credential $Context.operatorSid $true
         $stage.rows = @(Get-ChildItem -LiteralPath $path -Force | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName })
+        Release-ProtectedInstallJournal $journal
         return $stage
     } catch {
         # The root was created by this call and remains held; no pathname adoption.
@@ -214,6 +218,7 @@ function Update-ProtectedInstallRuntimeRows($Stage) {
 }
 function Remove-ProtectedInstallStage($Stage, [bool]$Published) {
     Assert-ProtectedInstallStage $Stage
+    if ($Stage.ContainsKey('journal') -and $null -ne $Stage.journal) { Remove-ProtectedInstallJournal $Stage.context $Stage.journal; $Stage.journal = $null }
     $held = [Collections.Generic.List[object]]::new()
     try {
         foreach ($row in $Stage.rows) {

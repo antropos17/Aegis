@@ -53,7 +53,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         windowsHide: true,
       });
       expect(parsed.error).toBeUndefined();
-      expect(parsed.status).toBe(0);
+      expect(parsed.status, parsed.stderr.toString('utf8').slice(0, 8192)).toBe(0);
       expect(parsed.stderr.length).toBe(0);
       const native = JSON.parse(parsed.stdout.toString('utf8'));
       expect(native.frameBytes).toBe(104);
@@ -82,7 +82,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         windowsHide: true,
       });
       expect(value.error).toBeUndefined();
-      expect(value.status).toBe(0);
+      expect(value.status, value.stderr.toString('utf8').slice(0, 8192)).toBe(0);
       expect(value.stderr.length).toBe(0);
       expect(JSON.parse(value.stdout.toString('utf8')).rows).toEqual([
         { mode: 'precheck', checkpoint: 22 },
@@ -102,7 +102,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         windowsHide: true,
       });
       expect(value.error).toBeUndefined();
-      expect(value.status).toBe(0);
+      expect(value.status, value.stderr.toString('utf8').slice(0, 8192)).toBe(0);
       expect(value.stderr.length).toBe(0);
       expect(JSON.parse(value.stdout.toString('utf8')).rows).toEqual([
         { mode: 'operation-entry', checkpoint: 9 },
