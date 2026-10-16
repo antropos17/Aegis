@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
@@ -13,6 +14,17 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
         mode,
       ],
       {
+        // This fixture runs inbox Windows PowerShell, whose modules must not
+        // resolve through an inherited PowerShell 7 runtime installation.
+        env: {
+          ...Object.fromEntries(
+            Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'),
+          ),
+          PSModulePath: path.join(
+            process.env.WINDIR || 'C:/Windows',
+            'System32/WindowsPowerShell/v1.0/Modules',
+          ),
+        },
         windowsHide: true,
         timeout: 20000,
         maxBuffer: 16384,
@@ -23,6 +35,70 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
     expect(result.status).toBe(0);
     return JSON.parse(result.stdout.toString());
   }
+  it.each(['hydrate', 'stop'])(
+    'refreshes storage after modeled %s while preserving original configuration seals',
+    (phase) => {
+      expect(invoke(`binding-${phase}-positive`)).toMatchObject({
+        refused: false,
+        unknown: false,
+        sealsPreserved: true,
+        storageRefreshed: true,
+        originalReference: false,
+        observedBindings: 1,
+        updates: 1,
+      });
+    },
+  );
+  it.each(['hydrate', 'stop'])(
+    'retains original bindings and blocks settlement/stage update on modeled %s drift or outage',
+    (phase) => {
+      for (const failure of [
+        'configuration',
+        'identity',
+        'vm',
+        'profile',
+        'protection',
+        'outage',
+      ]) {
+        const result = invoke(`binding-${phase}-${failure}`);
+        expect(result).toMatchObject({
+          refused: true,
+          unknown: true,
+          sealsPreserved: true,
+          storageRefreshed: false,
+          originalReference: true,
+          observedBindings: 1,
+          updates: 0,
+        });
+        expect(result.events).not.toContain(
+          `settled-${phase === 'hydrate' ? 'hydrate' : 'stop'}.json`,
+        );
+      }
+    },
+    30000,
+  );
+  it.each(['hydrate', 'stop'])(
+    'preserves original legacy v3 compatibility after modeled %s without configuration promotion',
+    (phase) => {
+      expect(invoke(`binding-${phase}-legacy-positive`)).toMatchObject({
+        refused: false,
+        unknown: false,
+        sealsPreserved: true,
+        storageRefreshed: true,
+        configurationQualified: false,
+        observedBindings: 1,
+        updates: 1,
+      });
+      expect(invoke(`binding-${phase}-legacy-configuration`)).toMatchObject({
+        refused: true,
+        unknown: true,
+        originalReference: true,
+        configurationQualified: false,
+        storageRefreshed: false,
+        updates: 0,
+      });
+    },
+  );
   it('flushes a consumed start intent before releasing the offline disk and refuses a second start', () => {
     expect(invoke('positive')).toEqual({
       refused: false,

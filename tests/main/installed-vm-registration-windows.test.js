@@ -99,6 +99,77 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         providerClosed: true,
       });
     });
+    it('checks the v4 configuration on both sides of storage and retains the original seals', () => {
+      expect(invoke('configuration-positive')).toMatchObject({
+        acquired: true,
+        inspected: true,
+        configurationReads: 6,
+        requests: 0,
+        fileClosed: true,
+        providerClosed: true,
+      });
+    });
+    it.each([
+      'configuration-initial-digest',
+      'configuration-initial-profile',
+      'configuration-initial-identity',
+      'configuration-initial-vm',
+      'configuration-initial-outage',
+      'configuration-during-storage',
+      'configuration-after-storage-outage',
+    ])('rejects the v4 observation before acquisition completes: %s', (mode) => {
+      expect(invoke(mode)).toMatchObject({
+        acquired: false,
+        requests: 0,
+        fileClosed: true,
+        providerClosed: true,
+      });
+    });
+    it.each([
+      'configuration-malformed-profile',
+      'configuration-malformed-digest',
+      'configuration-missing-digest',
+      'configuration-duplicate-digest',
+      'configuration-unprotected',
+    ])('rejects malformed configuration registration before constructing a manager: %s', (mode) => {
+      expect(invoke(mode)).toMatchObject({
+        acquired: false,
+        constructed: 0,
+        requests: 0,
+        fileClosed: true,
+      });
+    });
+    it.each([
+      'configuration-changed',
+      'configuration-outage',
+      'configuration-owner',
+      'configuration-deadline',
+      'configuration-during-retained-storage',
+      'configuration-during-retained-storage-outage',
+    ])(
+      'never revives the v4 lease after restoring a failed observation or authority: %s',
+      (mode) => {
+        expect(invoke(mode)).toMatchObject({
+          acquired: true,
+          inspected: false,
+          refusedAgain: true,
+          requests: 0,
+          fileClosed: true,
+          providerClosed: true,
+        });
+      },
+    );
+    it.each(['positive', 'storage-positive', 'protected-positive'])(
+      'keeps legacy records read-only without configuration qualification: %s',
+      (mode) => {
+        expect(invoke(mode)).toMatchObject({
+          acquired: true,
+          inspected: true,
+          configurationReads: 0,
+          requests: 0,
+        });
+      },
+    );
     it.each([
       'protected-world',
       'protected-foreign-vm',
@@ -156,10 +227,44 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         });
       },
     );
+    it('keeps an original legacy verifier usable for idle upgrade and exact cleanup without v4 fallback', () => {
+      const scratch = path.join(root, 'legacy-verifier');
+      fs.mkdirSync(scratch);
+      const record = invoke('storage-record');
+      const result = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(
+            project,
+            'tests/fixtures/protected-installation/vm-record-producer-fixture.ps1',
+          ),
+          scratch,
+          record.vmId,
+          record.identitySha256,
+          record.storageSha256,
+          '-CompatibilityMode',
+          'legacy-verifier',
+        ],
+        { timeout: 15000, windowsHide: true, maxBuffer: 16384 },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr.toString()).toBe(0);
+      expect(JSON.parse(result.stdout.toString())).toMatchObject({
+        newIssuanceRefused: true,
+        v4MissingApiRefused: true,
+        upgradePreserved: true,
+        assertions: 2,
+        removals: 1,
+        exactCleanup: true,
+      });
+    });
     it('reads the actual installer stage records and rejects unknown runtime leaves', () => {
       const scratch = path.join(root, 'producer');
       fs.mkdirSync(scratch);
-      const record = invoke('storage-record');
+      const record = invoke('configuration-record');
       const produced = spawnSync(
         'powershell.exe',
         [
@@ -174,15 +279,18 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           record.vmId,
           record.identitySha256,
           record.storageSha256,
+          '-ConfigurationHash',
+          record.configurationSha256,
         ],
         { timeout: 15000, windowsHide: true, maxBuffer: 64 * 1024 },
       );
       expect(produced.error).toBeUndefined();
       expect(produced.status, produced.stderr.toString().slice(0, 1024)).toBe(0);
       const stages = JSON.parse(produced.stdout.toString()).stages;
-      expect(stages).toHaveLength(4);
-      expect(stages.filter((stage) => stage.storageBound)).toHaveLength(2);
-      expect(stages.filter((stage) => stage.privateStorage)).toHaveLength(1);
+      expect(stages).toHaveLength(5);
+      expect(stages.filter((stage) => stage.storageBound)).toHaveLength(3);
+      expect(stages.filter((stage) => stage.privateStorage)).toHaveLength(2);
+      expect(stages.filter((stage) => stage.configurationBound)).toHaveLength(1);
       for (const stage of stages) {
         expect(stage).toMatchObject({
           initialLeaves: 10,
@@ -200,7 +308,19 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           constructed: stage.configured ? 1 : 0,
           requests: 0,
           fileClosed: true,
+          configurationReads: stage.configurationBound ? 4 : 0,
         });
+        if (stage.configurationBound) {
+          expect(stage).toMatchObject({ originalSealsPreserved: true, observerCalls: 0 });
+          expect(invoke('from-upgrade', [stage.upgradePath])).toMatchObject({
+            acquired: true,
+            inspected: true,
+            configurationReads: 4,
+            requests: 0,
+            fileClosed: true,
+            providerClosed: true,
+          });
+        }
       }
     });
     it.each([
