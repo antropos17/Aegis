@@ -285,7 +285,10 @@ public sealed class ProtectedInstallFile : IDisposable
         try {
             var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
             using (ProtectedCreationSecurity.Enter(descriptor)) {
-                outputHandle = CreateImageFile(destination, 0x40000000, 0, ref attributes, 1, 0x80200000, IntPtr.Zero);
+                // Bulk image data is made durable by Flush(true) before any
+                // ready record. Avoid a device flush for every64KiB write;
+                // the preceding pending journal remains write-through.
+                outputHandle = CreateImageFile(destination, 0x40000000, 0, ref attributes, 1, 0x00200000, IntPtr.Zero);
                 if (outputHandle == null || outputHandle.IsInvalid) {
                     int error = Marshal.GetLastWin32Error(); if (outputHandle != null) outputHandle.Dispose();
                     throw NativeFailure("protected-file-create-image", error);
@@ -308,14 +311,14 @@ public sealed class ProtectedInstallFile : IDisposable
             } finally { Array.Clear(buffer, 0, buffer.Length); }
         }
     }
-    // Only a provisioner's original metadata pin may hydrate its fresh disk.
-    // It continues to exclude delete/rename while the separate write handle is open.
+    // The provisioner retains its original data pin during hydration. It
+    // excludes delete/rename while the separate write handle is open.
     public void HydrateDisk(ProtectedInstallFile source, long bytes, string digest)
     {
         Recheck(); RequireHighIntegrity(); Require(!Directory && source != null &&
             !String.Equals(PathName, source.PathName, StringComparison.OrdinalIgnoreCase) &&
             bytes >= 1024 * 1024 && source.HashImage(bytes) == digest);
-        using (SafeFileHandle writer = CreateFile(PathName, 0x40000000, 3, IntPtr.Zero, 3, 0x80200000, IntPtr.Zero)) {
+        using (SafeFileHandle writer = CreateFile(PathName, 0x40000000, 3, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero)) {
             RequireNative(writer != null && !writer.IsInvalid, "protected-disk-write-open");
             using (var output = new FileStream(writer, FileAccess.Write, 65536, false))
             using (SHA256 hash = SHA256.Create()) {

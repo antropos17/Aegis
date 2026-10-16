@@ -23,13 +23,15 @@ function Invoke-ProtectedGuestQualification([string]$OutputRoot, $DiskRequest, [
         New-CloudGuestAnswerIso (Join-Path $OutputRoot 'protected-iso-content') $iso '<AEGISFixture />' | Out-Null
         $image = @{ path = $iso; bytes = [long](Get-Item -LiteralPath $iso).Length; sha256 = (Get-FileHash -LiteralPath $iso).Hash.ToLowerInvariant() }
         $report.stage = 'private-create'
+        [Console]::WriteLine('protected-guest-stage private-create')
         $context = New-ProtectedInstallation (Join-Path $payloadRoot 'binaries') $manifest ('AegisOp' + [guid]::NewGuid().ToString('N').Substring(0, 12)) ('Ae!9-' + [guid]::NewGuid().ToString('N')) $false $journal '' $image
         $report.vmId = $context.vmProvision.vmId
-        $report.stage = 'hydrate'; Set-ProtectedGuestDisk $context $DiskRequest
+        $report.stage = 'hydrate'; [Console]::WriteLine('protected-guest-stage hydrate'); Set-ProtectedGuestDisk $context $DiskRequest
         $report.imageSha256 = $DiskRequest.sha256
-        $report.stage = 'start'; Start-ProtectedGuest $context
+        $report.stage = 'start'; [Console]::WriteLine('protected-guest-stage start'); Start-ProtectedGuest $context
         $report.liveDiskId = $context.vmProvision.disk.FileId
         $report.stage = 'agent-build'
+        [Console]::WriteLine('protected-guest-stage agent-build')
         $fixture = @'
 using System;
 using System.Diagnostics;
@@ -64,12 +66,13 @@ public static class ProtectedGuestControl {
         try { Invoke-ProtectedGuestAgent $context $Admin $Agent $bad | Out-Null } catch { $report.wrongDigestRefused = !$context.vmProvision.guest.agentConsumed }
         if (!$report.wrongDigestRefused) { throw 'protected-guest-bad-digest-control-failed' }
         $report.stage = 'agent-release'
+        [Console]::WriteLine('protected-guest-stage agent-release')
         $report.agent = Invoke-ProtectedGuestAgent $context $Admin $Agent $package @('a b', 'c"d\') 30000
         if ($report.agent.exitCode -ne 0 -or !$report.agent.jobClosed -or !$report.agent.standardToken) { throw 'protected-guest-agent-control-failed' }
         try { Invoke-ProtectedGuestAgent $context $Admin $Agent $package | Out-Null } catch { $report.replayRefused = $true }
-        $report.stage = 'stop'; Stop-ProtectedGuest $context; $report.off = $context.vmProvision.guest.state -ceq 'closed'
+        $report.stage = 'stop'; [Console]::WriteLine('protected-guest-stage stop'); Stop-ProtectedGuest $context; $report.off = $context.vmProvision.guest.state -ceq 'closed'
         $report.sameDiskId = $report.liveDiskId -ceq $context.vmProvision.disk.FileId
-        $report.stage = 'uninstall'; Remove-ProtectedInstallation $context; $context = $null
+        $report.stage = 'uninstall'; [Console]::WriteLine('protected-guest-stage uninstall'); Remove-ProtectedInstallation $context; $context = $null
         $report.removed = @(Get-CimInstance -Namespace root/virtualization/v2 -ClassName Msvm_ComputerSystem -Filter ("Name='" + $report.vmId + "'") -OperationTimeoutSec 5).Count -eq 0 -and !(Test-Path -LiteralPath $script:ProtectedInstallParent)
         $report.passed = $report.wrongDigestRefused -and $report.replayRefused -and $report.sameDiskId -and $report.off -and $report.removed
         $report.stage = 'complete'
