@@ -2,12 +2,13 @@
   <img src="docs/images/github-header.svg" width="720" alt="AEGIS — local AI agent monitoring">
 </p>
 
-AEGIS is a desktop app for monitoring local AI agents and reviewing their files
-and selected actions. Inspect processes, sensitive-file observations, TCP endpoints
-and attribution evidence in Observatory. Monitoring requires no agent plugin;
-policy-controlled execution and MCP action tools require explicit setup.
+AEGIS is a Windows-first desktop app for local AI-agent oversight. See running
+agents, file activity, TCP connections, resource use and token usage in
+Observatory. Review projects, skills and agent configurations before use, and
+configure policies for selected CLI actions or MCP tools. Monitoring requires
+no agent plugin; execution controls require explicit setup.
 
-[Download](#download) · [Get started](#start-with-a-task) · [Documentation](docs/README.md) · [Latest source](#latest-source) · [Try the demo](#try-without-ai-agents) · [Known limits](#known-limits)
+[Download](#download) · [Features](#capabilities-at-a-glance) · [Get started](#start-with-a-task) · [Documentation](docs/README.md) · [Latest source](#latest-source) · [Try the demo](#try-without-ai-agents) · [Known limits](#known-limits)
 
 **Windows beta:** [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta),
 published 6 October 2026. [Verify the installer](docs/RELEASE-VERIFICATION.md)
@@ -23,6 +24,23 @@ VM/provider routes. Default monitoring does not automatically intercept or block
   <img src="docs/screenshots/01-monitoring.png" width="980" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar">
 </p>
 <p align="center"><sub>Observatory source UI preview with simulated data, captured on 11 October 2026.</sub></p>
+
+## Capabilities at a glance
+
+| Capability | What you can do in current source |
+| --- | --- |
+| Live monitoring | Identify agent instances, follow process trees, inspect file events and TCP endpoints, and review attribution and sensor gaps. |
+| Investigation | Use the instance radar, activity filters, resource charts, measured Claude Code token subtotals and estimated costs. |
+| Local security review | Scan selected projects, skills and profiles; inventory components, compare snapshots and import offline Cisco JSON/SARIF reports. |
+| Rules and evidence | Review sensitive-path rules, baselines, anomalies and sequence evidence; search persisted audit records and export reports. |
+| Selected-action control | Apply exact `allow` / `ask` / `deny` policies, fresh terminal review, Windows Job lifetime controls or an explicit offline AppContainer launch. |
+| MCP integration | Publish selected action tools or configure a validating stdio/HTTP(S) gateway with accepted catalogs, bounded grants and optional known-secret checks. |
+| Runtime discovery | Observe running WSL distribution names and local Docker/Linux Podman container candidates; inspect bounded container configuration metadata. |
+| Experimental protected guests | Administrative Hyper-V provisioning, trusted image hydration and a bounded standard-user guest agent run have passed hosted qualification. Ordinary desktop launch remains disabled. |
+
+The [full capability guide](docs/CAPABILITIES.md) maps each feature to its entry
+point, evidence and limits. Desktop monitoring, opt-in terminal routes and
+administrative lab APIs have different setup requirements and coverage.
 
 ## Start with a task
 
@@ -58,24 +76,25 @@ These views use simulated preview data. [More screenshots](docs/screenshots/READ
 
 ## Latest source
 
-These unreleased changes are scoped implementation and qualification work.
-The evidence linked below records exact revisions and distinguishes native
-observations from synthetic controls.
+Updated 16 October 2026 against [master at `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
+These changes follow the published beta. See the [release-to-source comparison](https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...6001f2c295e42392967a845760c8fce14461b35a)
+for the complete diff. Evidence retains the exact tested revision.
 
 | Area | Current-source change and evidence |
 | --- | --- |
-| Observatory | Compact panels, the current AEGIS mark, reduced-motion handling and optional Simple investigation navigation. See the [current design brief](frontend/observatory/DESIGN.md) and [investigation integration record](docs/development/edr-investigation-2026-10-07.md). |
-| Retained Windows caller identity | [#810](https://github.com/antropos17/Aegis/pull/810) retains primary `TokenId`, `ModifiedId` and full context checks while accepting the native effective-only pipe projection. [Token stability evidence](docs/roadmap/enforcement-e2/supervisor-caller-token-stability-evidence.md). |
-| Fixed guest stdio cancellation | [#811](https://github.com/antropos17/Aegis/pull/811) requires actual live payload identity and a stable Job census before arming cancellation. [Stdio readiness evidence](docs/roadmap/enforcement-e3/stdio-cancellation-readiness-evidence-20261008.md) records native and synthetic controls and remaining guest qualification limits. |
-| Internal suspended caller launcher | [#812](https://github.com/antropos17/Aegis/pull/812) pins the selected executable, creates a suspended child in a private Job, verifies retained registration before resume and disables handle inheritance. [Native launcher evidence](docs/roadmap/enforcement-e2/supervisor-caller-launcher-native-evidence-20261009.md). |
+| Protected Windows guest and agent | [#942](https://github.com/antropos17/Aegis/pull/942) adds trusted offline disk hydration, identity-bound native start/stop and one bounded guest agent operation. Actual Windows boot, a standard token, quota refusal, descendant cleanup and VM removal passed on the [recorded source](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md). |
+| Private VM and image creation | [#941](https://github.com/antropos17/Aegis/pull/941) creates a fresh Generation 2 VM and private image/disk files, with pending journals, full image hashing and conservative unknown-settlement retention. [Provisioning contract](docs/roadmap/enforcement-e2/protected-vm-creation.md). |
+| Registered VM inspection | [#931](https://github.com/antropos17/Aegis/pull/931)–[#937](https://github.com/antropos17/Aegis/pull/937) bind inspection to the original protected registration, disk identity and private storage; parent-backed disks are refused. [Inspection contract](docs/roadmap/enforcement-e2/installed-vm-registration.md). |
+| Qualification reliability | [#938](https://github.com/antropos17/Aegis/pull/938) recovers from one disappearing scratch child only after a complete fresh traversal; [#939](https://github.com/antropos17/Aegis/pull/939) handles bounded stdio startup population growth. Capacity and scratch limits remain enforced. |
+| Monitoring durability | [#925](https://github.com/antropos17/Aegis/pull/925) bounds initial watch-worker readiness; [#926](https://github.com/antropos17/Aegis/pull/926) excludes discarded writes from durable audit counts. |
+| Observatory and discovery | Instance/resource views, optional Simple navigation, local security reviews and passive WSL/container observations are integrated. See the [capability guide](docs/CAPABILITIES.md) and [design brief](frontend/observatory/DESIGN.md). |
 
-**Experimental prerequisites:** the VM qualification fixtures require an explicitly
-provisioned disposable Windows lab and their pinned runtimes, trusted inputs and
-native helpers. These internal caller/VM increments are inactive in production;
-they do not provide a complete protected agent session. Standard-user guest and
-owner-lifetime qualification for the latest composition still require accepted
-native evidence. The [protection roadmap](docs/roadmap/ai-agent-protection.md)
-tracks the remaining boundaries and gates.
+**Experimental status:** the new administrative guest run has native hosted
+evidence. Ordinary installed-caller authorization, authenticated runtime
+communication, cancellation/owner-loss supervision and result review still need
+integration and acceptance for the complete protected session. `launchAllowed=false`;
+independent A1–A4 acceptance remains open. The [protection roadmap](docs/roadmap/ai-agent-protection.md)
+tracks these separate gates.
 
 ## What AEGIS observes
 
@@ -86,6 +105,8 @@ tracks the remaining boundaries and gates.
 | Network | TCP endpoints for detected agent PIDs, forward-confirmed reverse DNS, and `allowlisted` / `unknown` / `flagged` verdicts |
 | Behavior | 73 sensitive-path detection rules across 8 categories, rolling 10-session baselines, anomaly scoring and sequence correlations |
 | Local LLMs | Ollama and LM Studio runtime probes; other supported runtimes detected by process signature |
+| Runtime inventory | Running WSL distribution names; local Docker and Linux-native Podman candidates from image metadata, with selected configuration observations and explicit freshness |
+| Token usage | Claude Code usage from matching local session data, with durable deduplication, incomplete-coverage indicators and estimated dollar amounts |
 
 The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
 
@@ -118,6 +139,8 @@ environment, then route that action through AEGIS:
 | [MCP connection status](docs/ACTION-MCP-STATUS.md) | Read-only counters for the current connection's admitted calls, pending work and cancellation requests |
 | [Action control workspace](docs/ACTION-COVERAGE-UI.md) | Native file selection and nonexecuting route/catalog checks in Observatory; shows captured policy outcomes, explicit unverified coverage and a configuration-check link when setup is missing |
 | [Live route observation](docs/ACTION-LIVE-OBSERVATION.md) | Opt-in desktop observation of one running MCP owner; self-reported client metadata, bounded counters and coverage loss; blocking and provider identity remain unverified |
+| [Validating MCP gateways](docs/MCP-STDIO-GATEWAY.md) | Explicit stdio, [loopback HTTP](docs/MCP-HTTP-GATEWAY.md) and [pinned HTTPS](docs/MCP-HTTPS-GATEWAY.md) routes with accepted catalogs, finite schema checks and exact grants; optional [persistent grant binding](docs/MCP-DURABLE-GRANTS.md) and [known-secret checks](docs/MCP-KNOWN-SECRETS.md) |
+| [Reviewed file deletion](docs/ACTION-DELETE-FILE.md) | One exact AEGIS-owned file operation with mandatory terminal confirmation; also available through a dedicated argument-free terminal MCP tool |
 
 These routes do not cover other agent tools, arbitrary MCP traffic or activity
 outside the selected actions. Direct execution and the ordinary Windows Job route
@@ -140,6 +163,23 @@ configuration format; client setup requirements vary. The output intentionally
 contains local paths, so keep it private. Generation does not read or validate the
 catalog, start a server or install settings; run the appropriate route/catalog
 check separately.
+
+## Experimental protected Windows guests
+
+The repository's administrative APIs can create a fresh private Hyper-V VM,
+hydrate its original disk from a trusted Windows VHDX, start it through the
+retained native owner and run one bounded executable as a fresh ordinary guest
+user. The guest has no NICs. The agent has a private desktop, explicit environment,
+an enforced 512 MiB NTFS allocation quota, a 32-process Job and 512 MiB aggregate
+Job memory limit; its maximum run is 120 seconds. Closure must be verified before
+the original VM is stopped and removed.
+
+The [hosted qualification record](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md)
+links actual native and Windows guest/agent runs, source hashes and receipt hashes.
+The [administrative contract](docs/roadmap/enforcement-e2/protected-guest-start.md)
+explains trusted image/admin prerequisites, one-use admission and retained unknown
+operations. There is no ordinary desktop launch or recovery API for unknown VMMS
+work. These controls do not establish provider integration or production readiness.
 
 ## Download
 
@@ -175,6 +215,12 @@ cd Aegis
 npm ci
 npm start
 ```
+
+On Windows, run `npm run build:sidecar` after `npm ci` when using native Job/MCP
+routes or native-helper tests. The [development workflow](docs/development/workflow.md)
+describes helper builds and platform-specific verification. Administrative VM
+qualification has additional disposable-lab prerequisites and changes accounts,
+services and VM storage; it is separate from ordinary desktop setup.
 
 ### Try without AI agents
 

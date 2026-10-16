@@ -1,5 +1,28 @@
 # AEGIS Roadmap
 
+## Current source checkpoint — 16 October 2026
+
+Current source is [master `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a),
+package version `0.19.2-beta`. The published installer with that version is dated
+6 October; later source changes require a later installer release. The
+[capability guide](docs/CAPABILITIES.md) describes implemented entry points.
+
+PRs [#941](https://github.com/antropos17/Aegis/pull/941) and
+[#942](https://github.com/antropos17/Aegis/pull/942) add administrative fresh-VM
+creation, trusted offline image hydration and a bounded ordinary-user guest agent
+run. [Source-bound hosted evidence](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md)
+records actual provisioning, Windows boot, quota refusal and verified closure.
+Ordinary installed-caller authorization, authenticated runtime communication,
+cancellation/owner-loss supervision and result review still need integration and
+acceptance. Independent enforcement A1–A4 review remains open;
+`launchAllowed=false`.
+
+Passive WSL running-name inventory and local Docker/Linux Podman container
+candidates with bounded configuration observations are integrated. Guest-process
+discovery, independently verified agent identity inside containers and broader
+native-platform qualification remain open. The dated queue below retains its
+original baseline; completed slices do not qualify the whole protection plan.
+
 ## AI agent protection
 
 The user-approved [AI agent protection plan](docs/roadmap/ai-agent-protection.md)
@@ -52,7 +75,7 @@ baseline covers the default distribution and `opencode` / `grok` signatures only
 | --- | --- | --- |
 | A1 | All running WSL distributions, separate identities, caches and health. | Host-side running-name inventory has independent freshness and does not execute guest processes. Guest-agent discovery and per-distro process identities remain open. Supplied patch `a408af0` is unmerged. Resolve the running-list / `wsl -d` race before restoring process probes: another list check cannot provide an atomic no-start guarantee. |
 | A2 | Derive suitable POSIX signatures from the agent database. | After a safe guest-process boundary exists. Verify executable boundaries, Windows-only aliases and misleading argument matches; restore `opencode` / `grok` guest coverage only with that boundary. The database's 112 agents / 265 names are not a count of detectable Linux agents or processes. Derive the usable subset. |
-| A3 | Docker and Podman discovery under [#8](https://github.com/antropos17/Aegis/issues/8). | After A2. List running containers through runtime commands, with distinct runtime/container identities and independent freshness/health. No container start or exec for discovery. Command/image metadata is discovery evidence, not proof of every process inside. Direct daemon-socket integration is outside this block. |
+| A3 | Broader Docker and Podman discovery under [#8](https://github.com/antropos17/Aegis/issues/8). | Implemented slice: bounded local Docker and Linux-native Podman running-container candidates, selected configuration observations and independent freshness/health. Discovery does not start containers or execute inside them. Image/configuration metadata does not prove every internal process, agent identity or isolation. Broader native-platform qualification and guest-process evidence remain open; direct daemon-socket integration is outside this block. |
 | A4 | Define and implement the missing GPU signal in [#9](https://github.com/antropos17/Aegis/issues/9). | Recon first: current code already reports per-PID NVIDIA VRAM through `nvidia-smi`. Allocation does not measure active inference. Establish signal meaning, supported hardware, cost and unavailable behavior before implementation. |
 
 A1 must preserve successful observations from other distributions when one fails.

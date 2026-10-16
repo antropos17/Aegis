@@ -88,6 +88,7 @@ AEGIS follows Electron security best practices:
 
 ### Known Limitations
 
+- **Experimental administrative Hyper-V execution:** Repository APIs can create a fresh private VM, hydrate its original disk from a trusted Windows image and run one bounded executable as a fresh ordinary guest user with an enforced allocation quota and Job limits. [Hosted evidence](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md) records actual boot, agent execution and cleanup on one source/fixture. The image, administrators and privileged guest services remain trust inputs. Quotas cover allocations charged to that user; they do not constrain every guest write. Unknown VMMS settlement retains state without a recovery API. Ordinary installed-caller launch, provider runtime integration and independent acceptance remain open; `launchAllowed=false`. See the [administrative contract](docs/roadmap/enforcement-e2/protected-guest-start.md).
 - **Selected Windows AppContainer launch:** The separate confirmation CLI creates a fresh workspace and zero-capability AppContainer, verifies the suspended process token and Job membership, and fails closed on missing isolation. Only that selected process and ordinary descendants receive this boundary. Standard AppContainer resources with public package grants can remain accessible; same-account external processes and brokers remain outside the boundary. Reports distinguish Job cleanup, verified isolation, workspace retention and temporary-profile cleanup. See [AppContainer launch](docs/ACTION-APPCONTAINER.md) for recovery, runtime limits and tested scope.
 - **Default monitoring:** Agent permission states (allow/monitor/block) affect UI display and alerting. They do not enforce OS-level blocking; a kernel blocking driver is a deliberate non-goal.
 - **Opt-in selected-action execution:** Explicit CLI and MCP routes can gate an AEGIS-owned child on an exact policy decision, with a fresh terminal confirmation on confirmation routes. The separate Windows Job CLI route controls the lifetime of ordinary member descendants only when its cleanup receipt confirms it. Direct and Job-only allowed processes retain the caller's file and network privileges. Exact terminal previews can expose arguments and environment secrets in scrollback. See [execution](docs/ACTION-EXECUTION.md) and [terminal confirmation](docs/ACTION-CONFIRMATION.md) for the distinct authorization contracts.
@@ -99,7 +100,7 @@ AEGIS follows Electron security best practices:
 
 ## Supported Versions
 
-Only the latest release on the [GitHub Releases page](https://github.com/antropos17/Aegis/releases) is supported. AEGIS is alpha software: older releases receive no security fixes. Always run the latest release.
+Only the latest release on the [GitHub Releases page](https://github.com/antropos17/Aegis/releases) is supported. AEGIS is beta software: older releases receive no security fixes. Check the release notes and [verify the installer](docs/RELEASE-VERIFICATION.md). Current-source documentation can describe changes after the published release tag.
 
 ## Credit
 

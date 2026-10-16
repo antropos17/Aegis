@@ -8,6 +8,21 @@ and release tag separately before treating a control as shipped.
 The research compared documentation, selected source files and tests; external
 products and attacks were not run. Competitor effectiveness was not measured.
 
+## Source checkpoint — 16 October 2026
+
+The [capability guide](../CAPABILITIES.md) maps implemented desktop, CLI/MCP and
+administrative lab surfaces. [PR #942](https://github.com/antropos17/Aegis/pull/942)
+extends private VM creation with trusted Windows disk hydration and a bounded
+standard-user guest agent operation. The [hosted record](enforcement-e2/protected-guest-hosted-evidence-20261016.md)
+retains actual native and Windows/agent PASS on source `5113e3b`, merged at
+`6001f2c`. Ordinary installed-caller authorization, authenticated runtime
+communication, cancellation/owner-loss supervision and result review remain
+incomplete for the full protected session. `launchAllowed=false`.
+
+Enforcement acceptance A1–A4 remains `UNREVIEWED`; those labels are distinct from
+the inventory/static-review A1–A4 implementation stages below. A passing hosted
+slice and the implemented Local security UI do not complete broader acceptance.
+
 ## Goal and boundaries
 
 Target product: "AEGIS protects your computer and data from unsafe AI-agent
