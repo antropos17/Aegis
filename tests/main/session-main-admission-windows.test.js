@@ -3,33 +3,26 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const nativeSource = process.env.AEGIS_MAIN_NATIVE_SOURCE || project;
-let root, executable;
+let root, executable, temporary;
 describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
   'enrolled main inspection (native; descriptor model)',
   () => {
     beforeAll(() => {
-      root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-main-admission-'));
+      temporary = fs.realpathSync(os.tmpdir());
+      root = fs.mkdtempSync(path.join(temporary, 'aegis-main-admission-'));
       executable = path.join(root, 'main-fixture.exe');
-      const sourceNames = [
-        'CallerNative',
-        'CallerIdentity',
-        'CallerRegistration',
-        'CallerAdmission',
-        'CallerEndpointNative',
-        'CallerEndpoint',
-        'CallerLauncherNative',
-        'EnrollmentNative',
-        'EnrollmentInspection',
-        'EnrollmentLease',
-        'GuestJobNative',
-      ];
-      sourceNames.push('MainRegistrationEvidence', 'CallerMainOperation');
       const sources = [
-        ...sourceNames.map((name) => path.join(nativeSource, 'sidecar/session', name + '.cs')),
+        ...['sidecar/session', 'sidecar/owner'].flatMap((directory) =>
+          fs
+            .readdirSync(path.join(nativeSource, directory))
+            .filter((name) => name.endsWith('.cs'))
+            .sort()
+            .map((name) => path.join(nativeSource, directory, name)),
+        ),
         path.join(nativeSource, 'sidecar/mcpjob/AppContainerExecutable.cs'),
         path.join(project, 'tests/fixtures/session-caller-composition/CompositionFiles.cs'),
         ...['MainFixtureTransport', 'MainClientFixture', 'MainAdmissionFixture'].map((name) =>
@@ -47,6 +40,9 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
             '/target:exe',
             '/platform:x64',
             '/define:ENROLLMENT_LEASE_TEST',
+            '/main:MainAdmissionFixture',
+            '/reference:System.Management.dll',
+            '/reference:System.Security.dll',
             '/optimize+',
             '/warnaserror+',
             '/out:' + executable,
@@ -59,6 +55,14 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       }
       expect(fs.statSync(executable).size).toBeLessThanOrEqual(256 * 1024);
     }, 35000);
+    afterAll(() => {
+      if (!root) return;
+      expect(path.dirname(root)).toBe(temporary);
+      expect(path.basename(root)).toMatch(/^aegis-main-admission-[a-zA-Z0-9]+$/);
+      expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
+      expect(fs.realpathSync(root)).toBe(root);
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+    });
     function invoke(mode) {
       const directory = fs.mkdtempSync(path.join(root, mode + '-'));
       const result = spawnSync(executable, [mode, directory], {

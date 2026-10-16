@@ -67,7 +67,14 @@ The native preparation factory accepts the original `InstalledOwnerRegistration`
 It observes and holds the registered VM/storage before publishing routing that
 releases the fixed main controller. This preparation has no caller dispatch
 authority. After authentication, the fresh `CallerMainOperation.Context` consumes
-the fixed read-only inventory inspection once and returns an `InspectionCompletion`.
+the fixed read-only inventory inspection once and returns its single issued
+`InspectionCompletion`. Issuance and every completion recheck require the original
+published operation context and native admission, the same installed registration,
+and its exact policy selection ID, selection epoch and inventory revision. The
+context retains the identity of the completion it issued; constructing another
+completion from copied references does not confer authority. A deadline or
+authority failure closes the operation permanently, including failures during
+initial issuance and completion validation. A new deadline cannot revive it.
 That terminal fence binds once to the original VM registration; ordinary VM
 inspection is refused before binding. It exposes no dispatch or renewal method.
 An ordinary context or admission from another installed owner cannot be combined
@@ -79,6 +86,13 @@ and selection under the original supervisor deadline; it cannot authorize a seco
 inspection or another operation. Storage acquisition precedes admission. The native storage query independently
 fences the captured VM identity and Off state before and after its topology query.
 An observed failure permanently refuses the lease.
+
+The existing `InstalledOwnerFiles.PublishMain` already compares the installed
+inventory byte-for-byte with the inventory derived from the retained policy.
+The explicit completion checks make that selection contract local to the original
+operation and its retained lifetime. They do not establish a currently exploitable
+installed inventory-selection gap. See [Installed caller operation binding](installed-caller-operation-binding.md)
+for the native fixture boundary and remaining qualification work.
 
 The legacy version 1 active UTF-8 record, without a BOM or trailing whitespace, is:
 

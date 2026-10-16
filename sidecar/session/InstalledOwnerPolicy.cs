@@ -20,6 +20,18 @@ namespace Aegis.ProtectedSession
         private readonly List<EnrollmentHeld> held = new List<EnrollmentHeld>();
         private readonly byte[] record;
         private bool closed;
+#if CALLER_MAIN_OPERATION_TEST
+        // Synthetic protected-policy descriptor for the native caller fixture, absent from production builds.
+        private readonly bool testAuthority;
+        private InstalledOwnerPolicy(string selectionId, string selectionEpoch, uint revision)
+        {
+            CallerNative.Require(Regex.IsMatch(selectionId ?? "", "\\A[a-f0-9]{32}\\z") &&
+                Regex.IsMatch(selectionEpoch ?? "", "\\A[a-f0-9]{32}\\z") && revision > 0);
+            SelectionId = selectionId; SelectionEpoch = selectionEpoch; Revision = revision; testAuthority = true;
+        }
+        internal static InstalledOwnerPolicy CreateForTest(string selectionId, string selectionEpoch, uint revision)
+        { return new InstalledOwnerPolicy(selectionId, selectionEpoch, revision); }
+#endif
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
         private static readonly Regex Schema = new Regex("\\A\\{\"schemaVersion\":1,\"installId\":\"([a-f0-9]{32})\",\"revision\":([1-9][0-9]{0,9}),\"epoch\":\"([a-f0-9]{32})\"," +
             "\"rootVolumeSerial\":\"([a-f0-9]{16})\",\"rootFileId\":\"([a-f0-9]{32})\"," +
@@ -63,6 +75,9 @@ namespace Aegis.ProtectedSession
         internal void CheckCurrent()
         {
             CallerNative.Require(!closed && !CallerNative.HasThreadToken());
+#if CALLER_MAIN_OPERATION_TEST
+            if (testAuthority) return;
+#endif
             for (int index = 0; index < held.Count; index++) held[index].Recheck(index < held.Count - 2);
             byte[] current = held[held.Count - 1].Read(4096);
             try { CallerNative.Require(current.Length == record.Length); for (int index = 0; index < current.Length; index++) CallerNative.Require(current[index] == record[index]); }

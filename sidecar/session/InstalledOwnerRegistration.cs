@@ -21,6 +21,21 @@ namespace Aegis.ProtectedSession
         private InstalledJobInventory inventory;
         private long birth;
         private bool closed, cleanupUnknown;
+#if CALLER_MAIN_OPERATION_TEST
+        // Synthetic install authority only; real enrollment, registrations and pipe admission remain required.
+        private readonly Action testAuthority;
+        internal bool IsTestAuthority { get { return testAuthority != null; } }
+        private InstalledOwnerRegistration(InstalledOwnerPolicy policy, CallerRegistration server, IntPtr heldMain, Action checkAuthority)
+        {
+            CallerNative.Require(policy != null && server != null && checkAuthority != null);
+            Policy = policy; owner = server; testAuthority = checkAuthority;
+            try { main = CallerRegistration.RegisterMain(heldMain, server); CheckCurrent(); }
+            catch { Dispose(); throw; }
+        }
+        internal static InstalledOwnerRegistration CreateForTest(InstalledOwnerPolicy policy, CallerRegistration server,
+            IntPtr heldMain, Action checkAuthority)
+        { return new InstalledOwnerRegistration(policy, server, heldMain, checkAuthority); }
+#endif
         internal InstalledOwnerRegistration(InstalledOwnerBootstrap original, ref int substage)
         {
             substage = 1; setup = original; Policy = InstalledOwnerPolicy.Acquire();
@@ -57,6 +72,13 @@ namespace Aegis.ProtectedSession
         {
             substage = 14; // Live registration and unimpersonated entry.
             CallerNative.Require(!closed && !CallerNative.HasThreadToken());
+#if CALLER_MAIN_OPERATION_TEST
+            if (testAuthority != null)
+            {
+                Policy.CheckCurrent(); owner.CheckServer(); main.CheckMain(owner); testAuthority();
+                CallerNative.Require(!CallerNative.HasThreadToken()); return;
+            }
+#endif
             substage = 15; setup.CheckPolicy(Policy);
             substage = 16; service.CheckCurrent();
             substage = 17; owner.CheckCurrent();
@@ -99,6 +121,9 @@ namespace Aegis.ProtectedSession
         void ICallerInstalledEndpoint.CheckEndpoint(SafeFileHandle actualSelf, SafeFileHandle actualPeer)
         {
             CheckCurrent(); main.CheckHeldProcess(actualPeer);
+#if CALLER_MAIN_OPERATION_TEST
+            if (testAuthority != null) { owner.CheckHeldProcess(actualSelf); CheckCurrent(); return; }
+#endif
             CallerNative.Require(CallerNative.GetProcessId(actualSelf) == CallerNative.GetProcessId(self) &&
                 GuestJobNative.Birth(actualSelf.DangerousGetHandle(), setup.Job.DangerousGetHandle(), CallerNative.GetProcessId(actualSelf)) == birth);
             using (SafeFileHandle token = CallerNative.ProcessToken(actualSelf)) CallerNative.Require(CallerIdentity.Observe(token).InstalledSystem());
@@ -110,7 +135,12 @@ namespace Aegis.ProtectedSession
             if (!closed)
             {
                 closed = true; CloseResource(mainImage); CloseResource(ownerImage); CloseResource(service);
-                CloseResource(inventory); CloseResource(main); CloseResource(owner); CloseResource(self); CloseResource(Policy);
+                CloseResource(inventory); CloseResource(main);
+#if CALLER_MAIN_OPERATION_TEST
+                if (testAuthority == null)
+#endif
+                    CloseResource(owner);
+                CloseResource(self); CloseResource(Policy);
             }
             if (cleanupUnknown) throw new InvalidOperationException("installed-owner-registration-cleanup-unconfirmed");
         }
