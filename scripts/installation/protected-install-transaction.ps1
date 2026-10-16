@@ -100,11 +100,14 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         'protected-vm-tree-budget-refused', 'protected-vm-tree-acl-refused', 'protected-vm-tree-changed', 'protected-vm-unowned-child',
         'protected-vm-settlement-unknown', 'protected-vm-binding-changed', 'protected-vm-asset-handoff-refused', 'protected-vm-owned-state-retained')
     $operations += @('vm-create')
+    $codes += @('protected-guest-start-refused', 'protected-guest-stop-refused', 'protected-guest-configuration-refused', 'protected-guest-disk-handoff-refused',
+        'protected-guest-start-settlement-unknown', 'protected-guest-stop-settlement-unknown', 'protected-guest-disk-request-refused', 'protected-guest-disk-digest-refused',
+        'protected-guest-agent-request-refused', 'protected-guest-agent-digest-refused', 'protected-guest-agent-settlement-unknown', 'protected-guest-agent-result-refused')
     $operations += @('installed-mutation-job', 'installed-mutation-desktop', 'installed-mutation-create', 'installed-mutation-bind', 'installed-mutation-token-query', 'installed-mutation-profile', 'installed-mutation-groups', 'installed-mutation-privileges', 'installed-mutation-birth', 'installed-mutation-release', 'installed-mutation-exit', 'installed-mutation-census')
     $codes += @('installed-mutation-launch-refused', 'installed-mutation-cleanup-unknown')
     $codes += @('installed-mutation-actor-source-refused', 'installed-mutation-actor-acl-restore-refused')
     $failure = @{ operation = $(if ($Operation -cin $operations) { $Operation } else { 'qualification' }); diagnosticCode = 'protected-operation-refused'; nativeWin32 = $null; hResult = $ErrorRecord.Exception.HResult }
-    if ($null -ne $ErrorRecord.InvocationInfo -and [IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName) -cin @('protected-vm.ps1', 'protected-vm-provider.ps1')) {
+    if ($null -ne $ErrorRecord.InvocationInfo -and [IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName) -cin @('protected-vm.ps1', 'protected-vm-provider.ps1', 'protected-guest.ps1', 'protected-guest-agent.ps1')) {
         $failure.vmSourceLine = [int]$ErrorRecord.InvocationInfo.ScriptLineNumber
     }
     $cause = $ErrorRecord.Exception; $semanticCode = $null

@@ -40,6 +40,7 @@ function Set-ProtectedGuestDisk($Context, $Request) {
 }
 function Assert-ProtectedGuestConfiguration($Owned, [string]$State) {
     # No mutation, automatic repair, name-based adoption or host networking.
+    $Owned.configurationCheckpoint = 1
     $vm = Get-VM -Id ([guid]$Owned.vmId) -ErrorAction Stop
     $location = [IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\')
     $expected = Join-Path $Owned.root.PathName 'Machine'
@@ -53,8 +54,11 @@ function Assert-ProtectedGuestConfiguration($Owned, [string]$State) {
         $disks.Count -ne 1 -or $disks[0].Path -cne $Owned.disk.PathName -or $disks[0].ControllerType.ToString() -cne 'SCSI' -or
         $disks[0].ControllerNumber -ne 0 -or $disks[0].ControllerLocation -ne 0 -or $dvd.Count -ne 1 -or $dvd[0].Path -cne $Owned.image.PathName -or
         (Get-VMFirmware -VM $vm).SecureBoot.ToString() -cne 'On') { throw 'protected-guest-configuration-refused' }
-    foreach ($role in @('root', 'images', 'disks', 'image', 'disk')) { $Owned[$role].Recheck(); $Owned[$role].RequireHighIntegrity() }
+    $Owned.configurationCheckpoint = 2
+    foreach ($role in @('root', 'images', 'disks', 'image', 'disk')) { $Owned.configurationCheckpoint++; $Owned[$role].Recheck(); $Owned[$role].RequireHighIntegrity() }
+    $Owned.configurationCheckpoint = 8
     Read-ProtectedVmTree $Owned | Out-Null
+    $Owned.configurationCheckpoint = 9
 }
 function Start-ProtectedGuest($Context) {
     Initialize-ProtectedGuestNative; Assert-ProtectedInstallation $Context
