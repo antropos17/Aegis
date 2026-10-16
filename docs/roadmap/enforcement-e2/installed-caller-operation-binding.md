@@ -7,6 +7,11 @@ authority. This path leaves `ownershipQualified=false` and `launchAllowed=false`
 Lifecycle dispatch, preparation authority, agent release and production activation
 remain unavailable. A1-A4 remain `UNREVIEWED`.
 
+The installed path also requires the two protected records described by
+[fixed inspection registration](installed-fixed-operation-registration.md).
+They bind the exact policy, operator, inventory, fixture and executable images
+before endpoint publication. Missing records refuse the new installed reader.
+
 ## Operation and installed selection
 
 `CallerMainOperation.Accept` retains the exact published `Context` and original
@@ -29,7 +34,11 @@ selection gap in the existing installed publication path.
 ## Single issuance and permanent failure
 
 `InspectInstalledOwned` validates the original installed binding and supervisor
-deadline, consumes `InspectOwned` once, and records the one completion it issues.
+deadline, issues one native inspection authorization, consumes it through the
+fixed-operation dispatcher, and records the one completion it issues. The
+authorization retains the original context, admission/request, main generation,
+registration generation, installed owner and deadline. The dispatcher allows only
+`inspect-owned`; direct installed calls to `InspectOwned` are refused.
 Completion checks require that exact issued completion, the published context and
 the original native admission. Directly constructing another completion with the
 same references cannot substitute for issuance. A second inspection or completion
@@ -40,7 +49,8 @@ completion validation requires that same deadline object. Each recheck tests
 that deadline before and after the retained native, installation and selection
 checks. The initial dispatch still enforces the original two-second admission age;
 the terminal completion uses `CheckRetained` to keep checking the original pipe
-peer, token and held process identity under the supervisor deadline. No renewal
+peer, token and held process identity under the supervisor deadline. It also
+rechecks the consumed authorization and original protected records. No renewal
 method or second dispatch is exposed.
 
 Failures during initial installed issuance, completion validation or installed

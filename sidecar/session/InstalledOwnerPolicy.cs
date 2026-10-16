@@ -23,14 +23,26 @@ namespace Aegis.ProtectedSession
 #if CALLER_MAIN_OPERATION_TEST
         // Synthetic protected-policy descriptor for the native caller fixture, absent from production builds.
         private readonly bool testAuthority;
-        private InstalledOwnerPolicy(string selectionId, string selectionEpoch, uint revision)
+        private readonly string testRoot;
+        private InstalledOwnerPolicy(string root, string installId, uint revision, string epoch, string operatorSid,
+            string selectionId, string selectionEpoch, string policyDigest, int mainSize, string mainHash, int supervisorSize, string supervisorHash)
         {
-            CallerNative.Require(Regex.IsMatch(selectionId ?? "", "\\A[a-f0-9]{32}\\z") &&
-                Regex.IsMatch(selectionEpoch ?? "", "\\A[a-f0-9]{32}\\z") && revision > 0);
-            SelectionId = selectionId; SelectionEpoch = selectionEpoch; Revision = revision; testAuthority = true;
+            CallerNative.Require(root != null && Path.IsPathRooted(root) &&
+                Regex.IsMatch(installId ?? "", "\\A[a-f0-9]{32}\\z") && Regex.IsMatch(epoch ?? "", "\\A[a-f0-9]{32}\\z") &&
+                Regex.IsMatch(selectionId ?? "", "\\A[a-f0-9]{32}\\z") && Regex.IsMatch(selectionEpoch ?? "", "\\A[a-f0-9]{32}\\z") && revision > 0 &&
+                Regex.IsMatch(policyDigest ?? "", "\\A[a-f0-9]{64}\\z") && Regex.IsMatch(mainHash ?? "", "\\A[a-f0-9]{64}\\z") &&
+                Regex.IsMatch(supervisorHash ?? "", "\\A[a-f0-9]{64}\\z") && mainSize > 0 && mainSize <= 4 * 1024 * 1024 &&
+                supervisorSize > 0 && supervisorSize <= 4 * 1024 * 1024 &&
+                new System.Security.Principal.SecurityIdentifier(operatorSid).Value == operatorSid);
+            InstallId = installId; Epoch = epoch; OperatorSid = operatorSid; Digest = policyDigest;
+            SelectionId = selectionId; SelectionEpoch = selectionEpoch; Revision = revision;
+            MainSize = mainSize; MainHash = mainHash; SupervisorSize = supervisorSize; SupervisorHash = supervisorHash;
+            testRoot = root; testAuthority = true;
         }
-        internal static InstalledOwnerPolicy CreateForTest(string selectionId, string selectionEpoch, uint revision)
-        { return new InstalledOwnerPolicy(selectionId, selectionEpoch, revision); }
+        internal static InstalledOwnerPolicy CreateForTest(string root, string installId, uint revision, string epoch, string operatorSid,
+            string selectionId, string selectionEpoch, string policyDigest, int mainSize, string mainHash, int supervisorSize, string supervisorHash)
+        { return new InstalledOwnerPolicy(root, installId, revision, epoch, operatorSid, selectionId, selectionEpoch,
+            policyDigest, mainSize, mainHash, supervisorSize, supervisorHash); }
 #endif
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
         private static readonly Regex Schema = new Regex("\\A\\{\"schemaVersion\":1,\"installId\":\"([a-f0-9]{32})\",\"revision\":([1-9][0-9]{0,9}),\"epoch\":\"([a-f0-9]{32})\"," +
@@ -85,6 +97,15 @@ namespace Aegis.ProtectedSession
         }
         internal void CheckTuple(EnrollmentInspection.Identity enrollment)
         { CallerNative.Require(enrollment.Root == Root && enrollment.InstallId == InstallId && enrollment.Revision == Revision && enrollment.Epoch == Epoch); }
+        internal void CheckInspectionTuple(EnrollmentInspection.Identity enrollment)
+        {
+            string expectedRoot = Root;
+#if CALLER_MAIN_OPERATION_TEST
+            if (testAuthority) expectedRoot = testRoot;
+#endif
+            CallerNative.Require(enrollment != null && enrollment.Root == expectedRoot && enrollment.InstallId == InstallId &&
+                enrollment.Revision == Revision && enrollment.Epoch == Epoch);
+        }
         public void Dispose()
         {
             if (closed) return; closed = true;

@@ -158,7 +158,7 @@ function Invoke-InstalledOwnerAttempt($Association, [bool]$ExpectedPositive) {
     }
 }
 function Test-InstalledOwnerMutationActions($Rows) {
-    $expected = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential', 'registered-vm.json' | ForEach-Object {
+    $expected = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'inventory.json', 'main-registration.json', 'operator.credential', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json' | ForEach-Object {
         $leaf = $_; foreach ($operation in @('write', 'delete', 'replace', 'writeDac', 'writeOwner')) { $leaf + ':' + $operation }
     }) + @('ProtectedSession', 'AEGIS', 'Receipts' | ForEach-Object {
         $directory = $_; foreach ($operation in @('rename', 'writeDac', 'writeOwner')) { $directory + ':' + $operation }
@@ -293,7 +293,7 @@ function Invoke-InstalledOwnerMutations($Association, [string]$Actor, [string]$S
     $actual = [IO.File]::ReadAllText($path) | ConvertFrom-Json
     $Association.mutationDiagnostic.actualPassed = if ($actual.passed -is [bool]) { $actual.passed } else { $null }
     $Association.mutationDiagnostic.failedActions = @($actual.attempts | Where-Object { $_.denied -is [bool] -and !$_.denied } | ForEach-Object {
-        $label = if ($_.action -is [string] -and $_.action -cmatch '^(?:aegis-(?:owner|session|main)\.exe|owner-policy\.json|enrollment\.json|inventory\.json|main-registration\.json|registered-vm\.json|operator\.credential|ProtectedSession|AEGIS|Receipts|credential):(?:write|delete|replace|writeDac|writeOwner|rename|read)$') { $_.action } else { 'other' }
+        $label = if ($_.action -is [string] -and $_.action -cmatch '^(?:aegis-(?:owner|session|main)\.exe|owner-policy\.json|enrollment\.json|inventory\.json|main-registration\.json|registered-vm\.json|registered-operation\.json|fixed-fixture\.json|operator\.credential|ProtectedSession|AEGIS|Receipts|credential):(?:write|delete|replace|writeDac|writeOwner|rename|read)$') { $_.action } else { 'other' }
         @{ action = $label; win32Error = $(if (($_.win32Error -is [int] -or $_.win32Error -is [long]) -and $_.win32Error -ge 0 -and $_.win32Error -le 65535) { $_.win32Error } else { $null }) }
     })
     $Association.mutationDiagnostic.permitted = @{}

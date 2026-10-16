@@ -174,9 +174,14 @@ that stage's exact policy bytes. Upgrade preserves the original VM ID/identity
 digest and binds the new revision/epoch/policy rather than recapturing a replacement
 VM. Rollback restores the previous stage including its record. Partial-install and
 uninstall removal use the captured file identity, descriptor and hash through the
-existing transaction. Initial stages have eight leaves; the fixed runtime main
-registration makes nine. Other leaves are still refused. The mutation corpus adds
-all five file mutation actions for this record, for 55 actions total.
+existing transaction. Initial stages have ten leaves, including the mandatory
+`registered-operation.json` and `fixed-fixture.json` built-in inspection records;
+the fixed runtime main registration makes eleven. Both new records belong to the
+original stage snapshots and cannot be adopted as runtime leaves. Other leaves
+are still refused. The mutation corpus has five actions for each of eleven files,
+nine directory actions and one credential-read action, for 65 actions total.
+See [Installed fixed inspection registration](installed-fixed-operation-registration.md)
+for the exact record schemas and staging/upgrade boundaries.
 
 Trusted preparation still must create the VM and independently seal owned storage,
 image provenance and namespace/network configuration before enabling lifecycle or
@@ -203,7 +208,7 @@ are refused. These tests do not establish privileged installation or VM authorit
 
 The fixed Windows lab adds a registered-VM installed corpus after configuring its
 fresh exact VM and before the fixture starts it. It supplies that ID to the
-administrator, exercises baseline refusal, maintained inspection, all 55 mutations,
+administrator, exercises baseline refusal, maintained inspection, all 65 mutations,
 upgrade/rollback/partial-install/uninstall and independently observes the VM still
 Off. This scenario needs an exact-source passing receipt before its native positive
 path is qualified. Storage/network, production lifecycle and crash qualification
