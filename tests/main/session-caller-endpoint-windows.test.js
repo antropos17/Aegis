@@ -65,9 +65,67 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         crossProcess: true,
       });
     });
+    it('keeps the requested admission budget after the legitimate child connects without sending a frame', () => {
+      const value = invoke('connected-silent-deadline');
+      expect(value).toMatchObject({
+        accepted: false,
+        rejected: true,
+        closed: true,
+        connectedReady: true,
+        silentPeerAlive: true,
+        crossProcess: true,
+      });
+      expect(value.elapsed).toBeLessThan(1000);
+    });
     it('denies a same-logon sibling with the valid locator and exact registered frame', () => {
       expect(invoke('sibling')).toMatchObject({ accepted: false, rejected: true, closed: true });
     });
+    it('admits a valid frame when connection and frame fit the same decision budget', () => {
+      expect(invoke('aggregate-positive')).toMatchObject({
+        accepted: true,
+        timedOut: false,
+        connectedBeforeExpiry: true,
+        frameAfterExpiry: false,
+        closed: false,
+        threadUnimpersonated: true,
+      });
+    });
+    it('refuses a valid late frame after connection has already consumed part of the decision budget', () => {
+      expect(invoke('aggregate-deadline')).toMatchObject({
+        accepted: false,
+        timedOut: true,
+        connectedBeforeExpiry: true,
+        frameAfterExpiry: true,
+        closed: true,
+        threadUnimpersonated: true,
+      });
+    });
+    it('refuses an already buffered valid frame when its original decision budget has expired', () => {
+      expect(invoke('buffered-expired')).toMatchObject({
+        accepted: false,
+        timedOut: true,
+        validFrameQueued: true,
+        peerAlive: true,
+        closedByFixture: true,
+        threadUnimpersonated: true,
+      });
+    });
+    it.each(['auth-token-deadline', 'auth-revert-deadline'])(
+      'refuses publication at %s and completes actual thread reversion',
+      (mode) => {
+        expect(invoke(mode)).toMatchObject({
+          accepted: false,
+          timedOut: true,
+          validFrameQueued: true,
+          peerAlive: true,
+          closedByFixture: true,
+          barrierEntered: true,
+          impersonated: true,
+          reverted: true,
+          threadUnimpersonated: true,
+        });
+      },
+    );
     it('rejects the actual server when the client retains a different server registration', () => {
       expect(invoke('wrong-server')).toMatchObject({ accepted: false, rejected: true });
     });

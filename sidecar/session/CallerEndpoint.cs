@@ -13,6 +13,7 @@ namespace Aegis.ProtectedSession
         void CheckEndpoint(SafeFileHandle self, SafeFileHandle peer);
         void CheckCurrent();
         void CheckCurrent(ref int substage, bool polling);
+        void CheckCurrent(CallerAdmissionBudget budget, ref int substage, bool polling);
     }
     // Internal owned endpoint primitive. Installation and trusted locator/registration delivery remain separate gates.
     internal sealed class CallerEndpoint : IDisposable
@@ -55,41 +56,47 @@ namespace Aegis.ProtectedSession
         }
 
         internal CallerAdmission.Context Accept(int timeoutMilliseconds)
-        { int substage = 0; return AcceptCore(timeoutMilliseconds, false, ref substage); }
+        { return Accept(new CallerAdmissionBudget(timeoutMilliseconds)); }
+        internal CallerAdmission.Context Accept(CallerAdmissionBudget budget)
+        { int substage = 0; return AcceptCore(budget, false, ref substage); }
         internal CallerAdmission.Context AcceptMain(int timeoutMilliseconds)
         { int substage = 0; return AcceptMain(timeoutMilliseconds, ref substage); }
         internal CallerAdmission.Context AcceptMain(int timeoutMilliseconds, ref int substage)
-        { return AcceptCore(timeoutMilliseconds, true, ref substage); }
-        private CallerAdmission.Context AcceptCore(int timeoutMilliseconds, bool main, ref int substage)
+        { substage = 19; return AcceptMain(new CallerAdmissionBudget(timeoutMilliseconds), ref substage); }
+        internal CallerAdmission.Context AcceptMain(CallerAdmissionBudget budget, ref int substage)
+        { return AcceptCore(budget, true, ref substage); }
+        private CallerAdmission.Context AcceptCore(CallerAdmissionBudget budget, bool main, ref int substage)
         {
-            substage = 19; RequireDeadline(timeoutMilliseconds);
-            lock (gate)
+            substage = 19; CallerNative.Require(budget != null);
+            // A contender owns no attempt until this acquisition succeeds.
+            using (budget.Enter(gate))
             {
                 substage = 22; CallerNative.Require(!disposed && !consumed);
                 consumed = true;
-                var timer = Stopwatch.StartNew();
                 try
                 {
                     while (true)
                     {
-                        lock (peer.Gate)
+                        budget.Check();
+                        using (budget.Enter(peer.Gate))
                         {
                             substage = 17; peer.CheckCurrent();
-                            substage = 18; if (installed != null) installed.CheckCurrent(ref substage, true);
+                            budget.Check(); substage = 18; if (installed != null) installed.CheckCurrent(budget, ref substage, true);
                         }
+                        budget.Check();
                         substage = 2;
                         bool result = CallerEndpointNative.ConnectNamedPipe(pipe, IntPtr.Zero);
                         int error = result ? 0 : Marshal.GetLastWin32Error();
+                        budget.Check();
                         // In NOWAIT mode TRUE means listening, not connected. Only 535 admits the connection.
                         if (!result && error == 535) break;
                         CallerNative.Require(result || error == 536);
-                        if (timer.ElapsedMilliseconds >= timeoutMilliseconds)
-                        { substage = 3; throw new TimeoutException("caller-endpoint-connect-deadline"); }
-                        Thread.Sleep(2);
+                        substage = 3; budget.Pause();
                     }
                     // Keep NOWAIT: no pending native IO, and the existing admission reads one already-peeked message.
-                    return main ? CallerAdmission.ReadMainAndAuthenticate(pipe, peer, new CallerNative(), ref substage) :
-                        CallerAdmission.ReadAndAuthenticate(pipe, peer, new CallerNative());
+                    CallerAdmission.Context context = main ? CallerAdmission.ReadMainAndAuthenticate(pipe, peer, new CallerNative(), budget, ref substage) :
+                        CallerAdmission.ReadAndAuthenticate(pipe, peer, new CallerNative(), budget);
+                    budget.Check(); return context;
                 }
                 catch { Close(); throw; }
             }
@@ -99,28 +106,34 @@ namespace Aegis.ProtectedSession
         internal void CheckCurrent()
         { int substage = 0; CheckCurrent(ref substage); }
         internal void CheckCurrent(ref int substage)
+        { CheckCurrent(null, ref substage); }
+        internal void CheckCurrent(CallerAdmissionBudget budget, ref int substage)
         {
-            lock (gate)
-            lock (peer.Gate)
+            using (CallerAdmissionBudget.Enter(gate, budget))
+            using (CallerAdmissionBudget.Enter(peer.Gate, budget))
             {
                 substage = 13; CallerNative.Require(!CallerNative.HasThreadToken() && !disposed &&
                     !pipe.IsClosed && !pipe.IsInvalid);
                 substage = 14; CallerEndpointNative.RequireNonInherited(pipe);
                 substage = 15; peer.CheckCurrent();
-                substage = 16; if (installed != null) installed.CheckCurrent(ref substage, false);
+                CallerAdmissionBudget.Check(budget);
+                substage = 16; if (installed != null) {
+                    if (budget == null) installed.CheckCurrent(ref substage, false); else installed.CheckCurrent(budget, ref substage, false);
+                }
                 substage = 12; CallerNative.Require(!CallerNative.HasThreadToken());
+                CallerAdmissionBudget.Check(budget);
             }
         }
 
         internal static SafeFileHandle ConnectLocal(string locator, CallerRegistration expectedServer, int timeoutMilliseconds)
         {
-            RequireDeadline(timeoutMilliseconds);
+            var budget = new CallerAdmissionBudget(timeoutMilliseconds);
             CallerNative.Require(locator != null && locator.Length == "\\\\.\\pipe\\aegis-owned-caller-".Length + 32 && Regex.IsMatch(locator,
                 "\\A\\\\\\\\\\.\\\\pipe\\\\aegis-owned-caller-[a-f0-9]{32}\\z", RegexOptions.CultureInvariant));
-            var timer = Stopwatch.StartNew();
             while (true)
             {
-                lock (expectedServer.Gate) expectedServer.CheckCurrent();
+                budget.Check();
+                using (budget.Enter(expectedServer.Gate)) { expectedServer.CheckCurrent(); budget.Check(); }
                 var client = CallerEndpointNative.CreateFile(locator, CallerEndpointNative.ClientRights,
                     0, IntPtr.Zero, 3, 0x00100000 | 0x00020000, IntPtr.Zero);
                 if (!client.IsInvalid)
@@ -128,22 +141,19 @@ namespace Aegis.ProtectedSession
                     try
                     {
                         CallerEndpointNative.RequireNonInherited(client);
-                        expectedServer.VerifyServer(client);
+                        using (budget.Enter(expectedServer.Gate)) { expectedServer.VerifyServer(client); budget.Check(); }
                         uint mode = 1; // nonblocking writes; byte read mode unused by the one-way protocol
                         CallerNative.Require(CallerEndpointNative.SetNamedPipeHandleState(client, ref mode, IntPtr.Zero, IntPtr.Zero));
-                        return client;
+                        budget.Check(); return client;
                     }
                     catch { client.Dispose(); throw; }
                 }
                 int error = Marshal.GetLastWin32Error(); client.Dispose();
                 CallerNative.Require(error == 2 || error == 231);
-                if (timer.ElapsedMilliseconds >= timeoutMilliseconds) throw new TimeoutException("caller-endpoint-client-deadline");
-                Thread.Sleep(2);
+                budget.Pause();
             }
         }
 
-        private static void RequireDeadline(int milliseconds)
-        { CallerNative.Require(milliseconds > 0 && milliseconds <= 2000); }
         private void Close()
         {
             if (disposed) return;

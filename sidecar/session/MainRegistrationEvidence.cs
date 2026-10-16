@@ -92,13 +92,16 @@ namespace Aegis.ProtectedSession
             EnrollmentNative.Require(bytes != null && bytes.Length > 0 && bytes.Length <= maximum); return bytes;
         }
         internal void CheckCurrent()
+        { CheckCurrent(null); }
+        internal void CheckCurrent(CallerAdmissionBudget budget)
         {
-            EnrollmentNative.Require(!closed && ReferenceEquals(enrollment, lease.BindServer(server)));
+            CallerAdmissionBudget.Check(budget);
+            EnrollmentNative.Require(!closed && ReferenceEquals(enrollment, lease.BindServer(server, budget)));
             var watch = Stopwatch.StartNew();
             try
             {
                 main.CheckMain(server); main.CheckEnrolledOperator(operatorSid, operatorAuthentication, operatorSession);
-                for (int index = 0; index < held.Length; index++) { held[index].Recheck(false); Deadline(watch); }
+                for (int index = 0; index < held.Length; index++) { held[index].Recheck(false); Deadline(watch, budget); }
                 for (int index = 0; index < records.Length; index++)
                 {
                     byte[] current = Read(held[index], index == 0 ? 2048 : 4096);
@@ -108,10 +111,10 @@ namespace Aegis.ProtectedSession
                         for (int at = 0; at < current.Length; at++) EnrollmentNative.Require(current[at] == records[index][at]);
                     }
                     finally { Array.Clear(current, 0, current.Length); }
-                    Deadline(watch);
+                    Deadline(watch, budget);
                 }
                 main.CheckEnrolledImage(image); server.CheckCurrent();
-                EnrollmentNative.Require(!CallerNative.HasThreadToken()); Deadline(watch);
+                EnrollmentNative.Require(!CallerNative.HasThreadToken()); Deadline(watch, budget);
             }
             finally { watch.Stop(); }
         }
@@ -144,6 +147,8 @@ namespace Aegis.ProtectedSession
             main.CheckEnrolledImage(image); server.CheckEnrolledImage(supervisor);
         }
         private static void Deadline(Stopwatch watch) { EnrollmentNative.Require(watch.ElapsedMilliseconds < 2000); }
+        private static void Deadline(Stopwatch watch, CallerAdmissionBudget budget)
+        { CallerAdmissionBudget.Check(budget); Deadline(watch); }
         private void CloseResource(IDisposable value)
         { if (value != null) try { value.Dispose(); } catch { cleanupUnknown = true; } }
         public void Dispose()

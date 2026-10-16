@@ -125,12 +125,42 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         },
       });
     });
+    it('times out a competing admission while the original gate stays held and preserves its owner context', () => {
+      expect(invoke('admission-gate-contention')).toMatchObject({
+        admitted: true,
+        refused: false,
+        contenderRefused: true,
+        contenderFinishedWhileHeld: true,
+        ownerContextPreserved: true,
+        callerThreadsUnimpersonated: true,
+        borrowedUsable: true,
+        mainJobEmpty: true,
+        effects: 1,
+        protectedDescriptorsModeled: true,
+        inspection: { scope: 'retained-inventory-inspection', launchAllowed: false },
+      });
+    });
     it('refuses an ordinary root through real production descriptor checks', () => {
       expect(invoke('strict-root')).toMatchObject({
         enrollmentRejected: true,
         childCreated: false,
         effects: 0,
         protectedDescriptorsModeled: false,
+      });
+    });
+    it('refuses Main publication when the original budget expires in a real post-authentication proof check', () => {
+      expect(invoke('publication-deadline')).toMatchObject({
+        admitted: false,
+        refused: true,
+        publicationBarrierEntered: true,
+        publicationTimedOut: true,
+        validFrameQueued: true,
+        callerThreadsUnimpersonated: true,
+        borrowedUsable: true,
+        mainJobEmpty: true,
+        effects: 0,
+        inspection: null,
+        protectedDescriptorsModeled: true,
       });
     });
     it('keeps the independently built maintained supervisor within its enrolled image guard', () => {

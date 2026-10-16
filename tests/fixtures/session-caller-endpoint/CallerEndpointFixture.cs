@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using Microsoft.Win32.SafeHandles;
 using Aegis.ProtectedSession;
 
@@ -49,10 +50,10 @@ internal static class CallerEndpointFixture
         }
     }
 
-    private static Process StartChild()
+    private static Process StartChild(string mode = "child")
     {
         return Process.Start(new ProcessStartInfo {
-            FileName = typeof(CallerEndpointFixture).Assembly.Location, Arguments = "child", UseShellExecute = false,
+            FileName = typeof(CallerEndpointFixture).Assembly.Location, Arguments = mode, UseShellExecute = false,
             CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true
         });
     }
@@ -78,7 +79,7 @@ internal static class CallerEndpointFixture
         child.StandardInput.Flush();
     }
 
-    private static int Child()
+    private static int Child(string mode)
     {
         using (var imported = new SafeFileHandle(new IntPtr(long.Parse(Console.ReadLine())), true))
         {
@@ -87,10 +88,28 @@ internal static class CallerEndpointFixture
             {
                 try
                 {
+                    if (mode == "scheduled-child")
+                    {
+                        Console.WriteLine("bootstrap-ready"); Console.Out.Flush();
+                        CallerNative.Require(Console.ReadLine() == "connect");
+                    }
                     using (var client = CallerEndpoint.ConnectLocal(locator, server, 1000))
                     {
                         uint flags;
                         CallerNative.Require(CallerEndpointNative.GetHandleInformation(client, out flags) && (flags & 1) == 0);
+                        if (mode == "silent-child")
+                        {
+                            // Readiness follows actual connection and independent server verification.
+                            // The parent controls this pipe's lifetime; no message or EOF races admission.
+                            Console.WriteLine("connected-noninherited-verified-no-frame"); Console.Out.Flush();
+                            CallerNative.Require(Console.ReadLine() == "close-without-frame");
+                            return 0;
+                        }
+                        if (mode == "scheduled-child")
+                        {
+                            Console.WriteLine("connected-noninherited-verified-no-frame"); Console.Out.Flush();
+                            CallerNative.Require(Console.ReadLine() == "send");
+                        }
                         string json = "{\"protocol\":\"aegis-supervisor-caller\",\"version\":1,\"operation\":\"inspect-owned\"," +
                             "\"requestId\":\"" + new string('a', 32) + "\",\"sessionId\":\"" + session +
                             "\",\"generation\":\"" + generation + "\",\"sequence\":1}";
@@ -112,6 +131,132 @@ internal static class CallerEndpointFixture
     private static SafeFileHandle Pipe(CallerEndpoint endpoint)
     {
         return (SafeFileHandle)typeof(CallerEndpoint).GetField("pipe", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(endpoint);
+    }
+
+    private static string ReadReady(Process child)
+    {
+        var ready = child.StandardOutput.ReadLineAsync();
+        CallerNative.Require(ready.Wait(3000)); return ready.Result;
+    }
+
+    // Explicit protocol phase checkpoint, measured independently of the subject budget.
+    private static void Checkpoint(Stopwatch watch, int milliseconds)
+    {
+        using (var never = new ManualResetEvent(false))
+            while (true)
+            {
+                long remaining = milliseconds - watch.ElapsedMilliseconds;
+                if (remaining <= 0) return;
+                never.WaitOne((int)remaining);
+            }
+    }
+
+    private sealed class AuthenticationBarrier : CallerNative, IDisposable
+    {
+        private readonly bool afterRevert;
+        internal readonly ManualResetEvent Entered = new ManualResetEvent(false), Continue = new ManualResetEvent(false);
+        internal bool Impersonated, Reverted;
+        internal AuthenticationBarrier(bool selected) { afterRevert = selected; }
+        private void Hold() { Entered.Set(); CallerNative.Require(Continue.WaitOne(4000)); }
+        internal override SafeFileHandle ThreadToken()
+        {
+            SafeFileHandle token = base.ThreadToken();
+            try { Impersonated = CallerNative.HasThreadToken(); if (!afterRevert) Hold(); return token; }
+            catch { token.Dispose(); throw; }
+        }
+        internal override bool Revert()
+        {
+            bool result = base.Revert(); Reverted = result && !CallerNative.HasThreadToken();
+            if (afterRevert) Hold(); return result;
+        }
+        public void Dispose() { Continue.Set(); Entered.Dispose(); Continue.Dispose(); }
+    }
+
+    private static void AuthenticationDeadline(string mode, Process child, CallerEndpoint endpoint, CallerRegistration peer, IntPtr server)
+    {
+        Supply(child, endpoint, peer, server);
+        CallerNative.Require(ReadReady(child) == "written-noninherited-verified");
+        uint pid, available, left;
+        CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(Pipe(endpoint), out pid) && pid == child.Id &&
+            CallerNative.PeekNamedPipe(Pipe(endpoint), IntPtr.Zero, 0, IntPtr.Zero, out available, out left) && available == left && left > 4);
+        bool accepted = false, timedOut = false, clean = false, entered = false, impersonated = false, reverted = false;
+        IntPtr original = Pipe(endpoint).DangerousGetHandle();
+        if (mode == "buffered-expired")
+        {
+            var budget = new CallerAdmissionBudget(100); var clock = Stopwatch.StartNew();
+            Checkpoint(clock, 250);
+            try { CallerAdmission.ReadAndAuthenticate(Pipe(endpoint), peer, new CallerNative(), budget); accepted = true; }
+            catch (TimeoutException) { timedOut = true; }
+            clean = !CallerNative.HasThreadToken();
+        }
+        else using (var native = new AuthenticationBarrier(mode == "auth-revert-deadline"))
+        {
+            Exception failure = null;
+            var budget = new CallerAdmissionBudget(1000); var clock = Stopwatch.StartNew();
+            var attempt = new Thread(() => {
+                try { CallerAdmission.ReadAndAuthenticate(Pipe(endpoint), peer, native, budget); accepted = true; }
+                catch (TimeoutException) { timedOut = true; }
+                catch (Exception error) { failure = error; }
+                finally { clean = !CallerNative.HasThreadToken(); }
+            });
+            attempt.IsBackground = true; attempt.Start();
+            try { entered = native.Entered.WaitOne(2000); CallerNative.Require(entered); Checkpoint(clock, 1250); }
+            finally { native.Continue.Set(); CallerNative.Require(attempt.Join(3000)); }
+            CallerNative.Require(failure == null);
+            impersonated = native.Impersonated; reverted = native.Reverted;
+        }
+        bool alive = !child.HasExited; endpoint.Dispose();
+        bool closed = Closed(Pipe(endpoint), original);
+        child.StandardInput.WriteLine("release"); child.StandardInput.Flush();
+        CallerNative.Require(child.WaitForExit(2000) && child.ExitCode == 0 && child.StandardError.ReadToEnd().Length == 0);
+        Console.WriteLine("{\"accepted\":" + accepted.ToString().ToLowerInvariant() + ",\"timedOut\":" + timedOut.ToString().ToLowerInvariant() +
+            ",\"validFrameQueued\":true,\"peerAlive\":" + alive.ToString().ToLowerInvariant() + ",\"closedByFixture\":" + closed.ToString().ToLowerInvariant() +
+            ",\"barrierEntered\":" + entered.ToString().ToLowerInvariant() + ",\"impersonated\":" + impersonated.ToString().ToLowerInvariant() +
+            ",\"reverted\":" + reverted.ToString().ToLowerInvariant() + ",\"threadUnimpersonated\":" + clean.ToString().ToLowerInvariant() + "}");
+    }
+
+    private static void AggregateDeadline(Process child, CallerEndpoint endpoint, CallerRegistration peer, IntPtr server, bool withinBudget)
+    {
+        Supply(child, endpoint, peer, server); CallerNative.Require(ReadReady(child) == "bootstrap-ready");
+        bool accepted = false, timedOut = false, clean = false; Exception failure = null;
+        IntPtr original = Pipe(endpoint).DangerousGetHandle();
+        using (var started = new ManualResetEvent(false))
+        {
+            Stopwatch clock = null;
+            var attempt = new Thread(() => {
+                clock = Stopwatch.StartNew(); started.Set();
+                try { var context = endpoint.Accept(1000); context.CheckCurrent(); accepted = true; }
+                catch (TimeoutException) { timedOut = true; }
+                catch (Exception error) { failure = error; }
+                finally { clean = !CallerNative.HasThreadToken(); }
+            });
+            attempt.IsBackground = true; attempt.Start();
+            bool connectedBeforeExpiry = false, frameAfterExpiry = false;
+            string observation = null;
+            try
+            {
+                CallerNative.Require(started.WaitOne(1000)); Checkpoint(clock, 350);
+                child.StandardInput.WriteLine("connect"); child.StandardInput.Flush();
+                CallerNative.Require(ReadReady(child) == "connected-noninherited-verified-no-frame");
+                uint pid, available, left;
+                connectedBeforeExpiry = clock.ElapsedMilliseconds < 1000;
+                CallerNative.Require(connectedBeforeExpiry && !child.HasExited &&
+                    CallerNative.GetNamedPipeClientProcessId(Pipe(endpoint), out pid) && pid == child.Id &&
+                    CallerNative.PeekNamedPipe(Pipe(endpoint), IntPtr.Zero, 0, IntPtr.Zero, out available, out left) && available == 0);
+                Checkpoint(clock, withinBudget ? 550 : 1300); frameAfterExpiry = clock.ElapsedMilliseconds >= 1000;
+                child.StandardInput.WriteLine("send"); child.StandardInput.Flush();
+                observation = ReadReady(child);
+                CallerNative.Require(observation == "written-noninherited-verified" || observation == "server-denied");
+            }
+            finally { CallerNative.Require(attempt.Join(4000)); }
+            CallerNative.Require(failure == null);
+            bool closed = Closed(Pipe(endpoint), original);
+            if (observation == "written-noninherited-verified") { child.StandardInput.WriteLine("release"); child.StandardInput.Flush(); }
+            CallerNative.Require(child.WaitForExit(2000) && child.ExitCode == 0 && child.StandardError.ReadToEnd().Length == 0);
+            Console.WriteLine("{\"accepted\":" + accepted.ToString().ToLowerInvariant() + ",\"timedOut\":" + timedOut.ToString().ToLowerInvariant() +
+                ",\"connectedBeforeExpiry\":" + connectedBeforeExpiry.ToString().ToLowerInvariant() + ",\"frameAfterExpiry\":" + frameAfterExpiry.ToString().ToLowerInvariant() +
+                ",\"closed\":" + closed.ToString().ToLowerInvariant() + ",\"threadUnimpersonated\":" + clean.ToString().ToLowerInvariant() + "}");
+        }
     }
 
     private static void Inspect(CallerEndpoint endpoint)
@@ -165,21 +310,44 @@ internal static class CallerEndpointFixture
 
     private static int Main(string[] args)
     {
-        if (args.Length == 1 && args[0] == "child") return Child();
+        if (args.Length == 1 && (args[0] == "child" || args[0] == "silent-child" || args[0] == "scheduled-child")) return Child(args[0]);
         if (args.Length != 1) return 2;
         string mode = args[0];
         Process child = null, sibling = null;
         try
         {
-            child = StartChild();
+            child = StartChild(mode.StartsWith("aggregate-", StringComparison.Ordinal) ? "scheduled-child" : mode == "connected-silent-deadline" ? "silent-child" : "child");
             using (var peer = new CallerRegistration(child.Handle, new string('b', 32)))
             using (var self = Process.GetCurrentProcess())
             using (var endpoint = new CallerEndpoint(peer, child.Handle))
             {
                 IntPtr originalPipe = Pipe(endpoint).DangerousGetHandle();
-                bool accepted = false, rejected = false, closed = false;
+                bool accepted = false, rejected = false, closed = false, connectedReady = false, silentPeerAlive = false;
                 long elapsed = 0;
-                if (mode == "descriptor") { Inspect(endpoint); rejected = true; }
+                if (mode == "buffered-expired" || mode == "auth-token-deadline" || mode == "auth-revert-deadline")
+                { AuthenticationDeadline(mode, child, endpoint, peer, self.Handle); return 0; }
+                if (mode == "aggregate-deadline" || mode == "aggregate-positive")
+                { AggregateDeadline(child, endpoint, peer, self.Handle, mode == "aggregate-positive"); return 0; }
+                if (mode == "connected-silent-deadline")
+                {
+                    Supply(child, endpoint, peer, self.Handle);
+                    var ready = child.StandardOutput.ReadLineAsync();
+                    CallerNative.Require(ready.Wait(3000) && ready.Result == "connected-noninherited-verified-no-frame");
+                    uint clientPid, available, left;
+                    CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(Pipe(endpoint), out clientPid) && clientPid == child.Id &&
+                        CallerNative.PeekNamedPipe(Pipe(endpoint), IntPtr.Zero, 0, IntPtr.Zero, out available, out left) && available == 0 && left == 0);
+                    connectedReady = true;
+                    var timer = Stopwatch.StartNew();
+                    try { var unexpected = endpoint.Accept(100); unexpected.CheckCurrent(); accepted = true; }
+                    catch (InvalidOperationException) { rejected = true; }
+                    catch (TimeoutException) { rejected = true; }
+                    elapsed = timer.ElapsedMilliseconds;
+                    closed = Closed(Pipe(endpoint), originalPipe); silentPeerAlive = !child.HasExited;
+                    CallerNative.Require(!CallerNative.HasThreadToken());
+                    child.StandardInput.WriteLine("close-without-frame"); child.StandardInput.Flush();
+                    CallerNative.Require(child.WaitForExit(2000) && child.ExitCode == 0 && child.StandardError.ReadToEnd().Length == 0);
+                }
+                else if (mode == "descriptor") { Inspect(endpoint); rejected = true; }
                 else if (mode == "synthetic-peer-mask") { InspectSyntheticPeerMask(); rejected = true; }
                 else if (mode == "second-instance")
                 {
@@ -242,7 +410,8 @@ internal static class CallerEndpointFixture
                     CallerNative.Require(actual.WaitForExit(2000) && actual.ExitCode == 0 && actual.StandardError.ReadToEnd().Length == 0);
                 }
                 Console.WriteLine("{\"accepted\":" + accepted.ToString().ToLowerInvariant() + ",\"rejected\":" + rejected.ToString().ToLowerInvariant() +
-                    ",\"closed\":" + closed.ToString().ToLowerInvariant() + ",\"elapsed\":" + elapsed + ",\"crossProcess\":" + (mode == "positive" || mode == "close-context").ToString().ToLowerInvariant() + "}");
+                    ",\"closed\":" + closed.ToString().ToLowerInvariant() + ",\"elapsed\":" + elapsed + ",\"crossProcess\":" + (mode == "positive" || mode == "close-context" || mode == "connected-silent-deadline").ToString().ToLowerInvariant() +
+                    ",\"connectedReady\":" + connectedReady.ToString().ToLowerInvariant() + ",\"silentPeerAlive\":" + silentPeerAlive.ToString().ToLowerInvariant() + "}");
             }
             return 0;
         }

@@ -77,58 +77,72 @@ namespace Aegis.ProtectedSession
             finally { watch.Stop(); }
         }
         internal void CheckCurrent()
+        { CheckCurrent(null); }
+        internal void CheckCurrent(CallerAdmissionBudget budget)
         {
-            lock (gate)
+            using (CallerAdmissionBudget.Enter(gate, budget))
             {
                 var watch = Stopwatch.StartNew();
-                try { EnrollmentNative.Require(!revoked); CheckCore(watch); }
+                try { EnrollmentNative.Require(!revoked); CheckCore(watch, budget); }
+                catch (TimeoutException) { if (budget == null) { Close(); throw Unavailable(); } throw; }
                 catch { Close(); throw Unavailable(); }
                 finally { watch.Stop(); }
             }
         }
         // Release this lease-only precheck before acquiring the supplied server gate.
         internal void CheckServerAssociation(CallerRegistration server)
+        { CheckServerAssociation(server, null); }
+        private void CheckServerAssociation(CallerRegistration server, CallerAdmissionBudget budget)
         {
-            lock (gate) EnrollmentNative.Require(!revoked && server != null && (boundServer == null || ReferenceEquals(boundServer, server)));
+            using (CallerAdmissionBudget.Enter(gate, budget)) {
+                CallerAdmissionBudget.Check(budget);
+                EnrollmentNative.Require(!revoked && server != null && (boundServer == null || ReferenceEquals(boundServer, server)));
+                CallerAdmissionBudget.Check(budget);
+            }
         }
         // Server gate precedes this lease gate. Never call back into the server from Dispose/CheckCore.
         internal EnrollmentInspection.Identity BindServer(CallerRegistration server)
+        { return BindServer(server, null); }
+        internal EnrollmentInspection.Identity BindServer(CallerRegistration server, CallerAdmissionBudget budget)
         {
-            CheckServerAssociation(server);
-            lock (server.Gate)
-            lock (gate)
+            CheckServerAssociation(server, budget);
+            using (CallerAdmissionBudget.Enter(server.Gate, budget))
+            using (CallerAdmissionBudget.Enter(gate, budget))
             {
                 EnrollmentNative.Require(boundServer == null || ReferenceEquals(boundServer, server));
                 var watch = Stopwatch.StartNew();
                 try
                 {
-                    CheckCore(watch);
+                    CheckCore(watch, budget);
                     server.CheckServer(); server.CheckHeldProcess(process);
+                    CallerAdmissionBudget.Check(budget);
                     if (boundServer == null) boundServer = server;
                     return selected;
                 }
+                catch (TimeoutException) { if (budget == null) { Close(); throw Unavailable(); } throw; }
                 catch { Close(); throw Unavailable(); }
                 finally { watch.Stop(); }
             }
         }
-        private void CheckCore(Stopwatch watch)
+        private void CheckCore(Stopwatch watch, CallerAdmissionBudget budget = null)
         {
+            CallerAdmissionBudget.Check(budget);
             EnrollmentNative.Require(!revoked && !CallerNative.HasThreadToken());
-            owner.CheckCurrent(); Deadline(watch);
+            owner.CheckCurrent(); Deadline(watch, budget);
             EnrollmentNative.Require(GuestJobNative.Birth(process.DangerousGetHandle(), job.DangerousGetHandle(), pid) == birth &&
                 GuestJobNative.Counts(job.DangerousGetHandle()).Active >= 1);
-            Deadline(watch);
-            for (int index = 0; index < held.Count; index++) { snapshots[index].Check(held[index]); Deadline(watch); }
+            Deadline(watch, budget);
+            for (int index = 0; index < held.Count; index++) { snapshots[index].Check(held[index]); Deadline(watch, budget); }
             byte[] current = held[held.Count - 2].Read(1024);
             try { EnrollmentNative.Require(Same(record, current)); }
             finally { if (current != null) Array.Clear(current, 0, current.Length); }
-            Deadline(watch);
+            Deadline(watch, budget);
             byte[] bytes = held[held.Count - 1].Read(4 * 1024 * 1024);
             try { EnrollmentNative.Require(EnrollmentInspection.ImageHash(bytes) == imageHash); }
             finally { if (bytes != null) Array.Clear(bytes, 0, bytes.Length); }
-            Deadline(watch);
+            Deadline(watch, budget);
             EnrollmentNative.Require(image.IsPinned && image.MatchesProcessImage(process.DangerousGetHandle()));
-            owner.CheckCurrent(); EnrollmentNative.Require(!CallerNative.HasThreadToken()); Deadline(watch);
+            owner.CheckCurrent(); EnrollmentNative.Require(!CallerNative.HasThreadToken()); Deadline(watch, budget);
         }
         private static bool Same(byte[] first, byte[] second)
         {
@@ -138,6 +152,8 @@ namespace Aegis.ProtectedSession
         }
         // Post-call observation budget, not cancellation of synchronous native calls.
         private static void Deadline(Stopwatch watch) { EnrollmentNative.Require(watch.ElapsedMilliseconds < 2000); }
+        private static void Deadline(Stopwatch watch, CallerAdmissionBudget budget)
+        { CallerAdmissionBudget.Check(budget); Deadline(watch); }
         private static InvalidDataException Unavailable() { return new InvalidDataException("enrollment-lease-unavailable"); }
         private void CloseResource(IDisposable value)
         {

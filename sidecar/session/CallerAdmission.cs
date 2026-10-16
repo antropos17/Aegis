@@ -45,18 +45,22 @@ namespace Aegis.ProtectedSession
             }
             // No serialized context or booleans can substitute for this live fence.
             internal void CheckCurrent()
-            { CheckCore(true); }
+            { CheckCore(true, null); }
+            internal void CheckCurrent(CallerAdmissionBudget budget)
+            { CallerNative.Require(budget != null); CheckCore(true, budget); }
             // Completion can retain a live peer after its already-consumed
             // request ages out. This method grants no dispatch operation.
             internal void CheckRetained()
-            { CheckCore(false); }
-            private void CheckCore(bool requireFresh)
+            { CheckCore(false, null); }
+            private void CheckCore(bool requireFresh, CallerAdmissionBudget budget)
             {
-                lock (registration.Gate)
+                using (CallerAdmissionBudget.Enter(registration.Gate, budget))
                 {
+                    CallerAdmissionBudget.Check(budget);
                     // Admission reverts its own impersonation, but the invoking
                     // thread may have acquired another token before this fence.
                     CallerNative.Require(!CallerNative.HasThreadToken());
+                    CallerAdmissionBudget.Check(budget);
                     CallerNative.Require(!pipe.IsClosed && (!requireFresh || lease.ElapsedMilliseconds < 2000));
                     uint peer, available, left;
                     CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(pipe, out peer));
@@ -64,32 +68,41 @@ namespace Aegis.ProtectedSession
                     CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero,
                         out available, out left) && available == 0);
                     CallerNative.Require(!CallerNative.HasThreadToken());
+                    CallerAdmissionBudget.Check(budget);
                 }
             }
         }
 
         internal static Context ReadAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native)
-        { int substage = 0; return Authenticate(pipe, registered, native, Schema, ref substage); }
+        { return ReadAndAuthenticate(pipe, registered, native, new CallerAdmissionBudget(2000)); }
+        internal static Context ReadAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, CallerAdmissionBudget budget)
+        { int substage = 0; return Authenticate(pipe, registered, native, Schema, budget, ref substage); }
         internal static Context ReadMainAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native)
         { int substage = 0; return ReadMainAndAuthenticate(pipe, registered, native, ref substage); }
         internal static Context ReadMainAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, ref int substage)
-        { return Authenticate(pipe, registered, native, MainSchema, ref substage); }
-        private static Context Authenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, Regex schema, ref int substage)
+        { return ReadMainAndAuthenticate(pipe, registered, native, new CallerAdmissionBudget(2000), ref substage); }
+        internal static Context ReadMainAndAuthenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, CallerAdmissionBudget budget, ref int substage)
+        { return Authenticate(pipe, registered, native, MainSchema, budget, ref substage); }
+        private static Context Authenticate(SafeHandle pipe, CallerRegistration registered, CallerNative native, Regex schema, CallerAdmissionBudget budget, ref int substage)
         {
-            lock (registered.Gate)
+            CallerNative.Require(budget != null);
+            using (budget.Enter(registered.Gate))
             {
+                budget.Check();
                 substage = 20; CallerNative.Require(!CallerNative.HasThreadToken());
                 substage = 21; registered.CheckCurrent();
-                substage = 4; Match frame = schema.Match(ReadMessage(pipe, ref substage));
+                budget.Check(); substage = 4; Match frame = schema.Match(ReadMessage(pipe, budget, ref substage));
                 CallerNative.Require(frame.Success && frame.Groups[2].Value == registered.Session &&
                     frame.Groups[3].Value == registered.Generation);
                 substage = 5; uint peer;
                 CallerNative.Require(CallerNative.GetNamedPipeClientProcessId(pipe, out peer));
+                budget.Check();
                 bool impersonated = false;
                 try
                 {
                     impersonated = native.Impersonate(pipe);
                     CallerNative.Require(impersonated);
+                    budget.Check();
                     using (SafeFileHandle token = native.ThreadToken())
                         registered.CheckCaller(peer, CallerIdentity.Observe(token));
                 }
@@ -103,32 +116,35 @@ namespace Aegis.ProtectedSession
                     }
                 }
                 substage = 6; CallerNative.Require(!CallerNative.HasThreadToken());
+                budget.Check();
                 registered.CheckCurrent();
+                budget.Check();
                 uint available, left;
                 CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero, out available, out left) && available == 0);
-                return new Context(registered, pipe, frame);
+                var context = new Context(registered, pipe, frame); budget.Check(); return context;
             }
         }
 
-        private static string ReadMessage(SafeHandle pipe, ref int substage)
+        private static string ReadMessage(SafeHandle pipe, CallerAdmissionBudget budget, ref int substage)
         {
+            budget.Check();
             uint state;
             CallerNative.Require(CallerNative.GetNamedPipeHandleState(pipe, out state, IntPtr.Zero,
                 IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0) && (state & 2) != 0);
-            Stopwatch timer = Stopwatch.StartNew();
             uint available, left;
             do
             {
+                budget.Check();
                 CallerNative.Require(CallerNative.PeekNamedPipe(pipe, IntPtr.Zero, 0, IntPtr.Zero, out available, out left));
+                budget.Check();
                 if (available > 0) break;
-                if (timer.ElapsedMilliseconds >= 2000)
-                { substage = 7; CallerNative.Require(false); }
-                Thread.Sleep(2);
+                substage = 7; budget.Pause();
             } while (true);
             CallerNative.Require(left >= 5 && left <= MaxFrameBytes + 4 && available == left);
             byte[] bytes = new byte[left];
             uint read;
             CallerNative.Require(CallerNative.ReadFile(pipe, bytes, left, out read, IntPtr.Zero) && read == left);
+            budget.Check();
             uint length = (uint)bytes[0] | ((uint)bytes[1] << 8) | ((uint)bytes[2] << 16) | ((uint)bytes[3] << 24);
             if (length == 0 || length > MaxFrameBytes || length != left - 4) throw new InvalidDataException();
             return Utf8.GetString(bytes, 4, (int)length);

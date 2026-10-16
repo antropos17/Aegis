@@ -82,29 +82,39 @@ namespace Aegis.ProtectedSession
         // Post-admission checks retain checkpoint 6 and their existing default sink.
         internal Context Accept(int timeoutMilliseconds, ref int substage)
         {
-            lock (server.Gate)
+            var budget = new CallerAdmissionBudget(timeoutMilliseconds);
+            // An unowned contender must not close the operation holding this gate.
+            using (budget.Enter(server.Gate))
             {
                 try
                 {
-                    substage = 8; CallerNative.Require(!published); CheckCore(ref substage);
-                    CallerAdmission.Context admitted = endpoint.AcceptMain(timeoutMilliseconds, ref substage);
+                    substage = 8; CallerNative.Require(!published); CheckCore(ref substage, budget);
+                    CallerAdmission.Context admitted = endpoint.AcceptMain(budget, ref substage);
                     // Authenticate has reverted before proof/selection rechecks and publication.
-                    substage = 6; CheckCore(); admitted.CheckCurrent(); proof.CheckSelection(admitted); CheckCore();
-                    admission = admitted; publishedContext = new Context(this); published = true; return publishedContext;
+                    substage = 6; CheckCore(budget); admitted.CheckCurrent(budget); proof.CheckSelection(admitted); budget.Check(); CheckCore(budget);
+                    admission = admitted; var candidate = new Context(this); budget.Check();
+                    publishedContext = candidate; published = true; return candidate;
                 }
                 catch { Close(); throw; }
             }
         }
         private void CheckCore()
         { int substage = 0; CheckCore(ref substage); }
+        private void CheckCore(CallerAdmissionBudget budget)
+        { int substage = 0; CheckCore(ref substage, budget); }
         private void CheckCore(ref int substage)
+        { CheckCore(ref substage, null); }
+        private void CheckCore(ref int substage, CallerAdmissionBudget budget)
         {
+            CallerAdmissionBudget.Check(budget);
             substage = 9; CallerNative.Require(!closed && !CallerNative.HasThreadToken());
             substage = 10; server.CheckServer();
-            substage = 11; proof.CheckCurrent();
-            if (fixedRegistration != null) fixedRegistration.CheckCurrent();
-            endpoint.CheckCurrent(ref substage);
+            CallerAdmissionBudget.Check(budget);
+            substage = 11; proof.CheckCurrent(budget);
+            if (fixedRegistration != null) fixedRegistration.CheckCurrent(budget);
+            endpoint.CheckCurrent(budget, ref substage);
             substage = 12; CallerNative.Require(!CallerNative.HasThreadToken());
+            CallerAdmissionBudget.Check(budget);
         }
         internal sealed class Context
         {
