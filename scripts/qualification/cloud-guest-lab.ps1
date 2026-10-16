@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'installed-owner-build.ps1')
 . (Join-Path $PSScriptRoot 'installed-owner-phase.ps1')
 . (Join-Path $PSScriptRoot 'installed-owner-guest-phase.ps1')
+. (Join-Path $PSScriptRoot 'protected-guest-controls.ps1')
 Assert-CloudGuestRunner
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'windows-powershell51-required' }
 $expectedRoot = 'D:\aegis-cloud-guest-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
@@ -490,7 +491,8 @@ try {
 }
 catch { if ($null -eq $report.failure) { $report.failure = @{ stage = 'driver'; hResult = $_.Exception.HResult; category = $_.CategoryInfo.Category.ToString() } } }
 finally {
-    $adminPassword = $null; $taskPassword = $null; $adminCredential = $null
+    $adminPassword = $null
+    [Console]::WriteLine('protected-transition cleanup-stop-begin')
     try {
         if ($null -ne $owner) {
             $report.keyboard = $owner.KeyboardObservation
@@ -509,8 +511,41 @@ finally {
     finally { if ($null -ne $owner) { $owner.Dispose() } }
     if ($unknown) { $report.operationSettlement = 'unknown-provider-operation'; $report.removedObserved = $false }
     elseif ($report.removedObserved) { $report.operationSettlement = 'settled-and-exact-vm-absent' }
+    [Console]::WriteLine('protected-transition cleanup-stop-end')
     try { if ($mounted) { Dismount-DiskImage -ImagePath $windowsIso | Out-Null; $mounted = $false } } catch { $report.cleanupFailure = @{ stage = 'trusted-iso-dismount'; hResult = $_.Exception.HResult } }
     $report.hostCanariesUnchangedAfterRemoval = $canaries.Count -eq 2 -and (CanariesUnchanged)
+    # An actual installed guest becomes a trusted offline input only after the
+    # old VM is confirmed absent. Move its bytes to private D: storage before
+    # starting the protected C: provisioning batch; keep the existing C: floor.
+    $readyDisk = $null
+    if ($null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved) {
+        try {
+            $readyDisk = Stage 'protected-guest-offline-copy' {
+            $copyRoot = New-ProtectedInstallDirectory (Join-Path $OutputRoot 'protected-boot-input') '' $true $true
+            try {
+                $source = [ProtectedInstallFile]::new((Join-Path $vmRoot 'guest.vhdx'), $false, $false)
+                try {
+                    $readyPath = Join-Path $copyRoot.PathName 'guest.vhdx'
+                    $size = [long](Get-Item -LiteralPath $source.PathName).Length
+                    if ([long](Get-PSDrive D).Free -lt ($size + 10GB)) { throw 'protected-guest-copy-headroom-refused' }
+                    [Console]::WriteLine('protected-transition offline-source-hash')
+                    $digest = $source.HashImage($size); $sourceId = $source.FileId; $sourceVolume = $source.Volume
+                    $raw = [Security.AccessControl.RawSecurityDescriptor]::new('O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)S:(ML;;NW;;;HI)')
+                    $descriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($descriptor, 0)
+                    [Console]::WriteLine('protected-transition offline-source-copy')
+                    $source.CopyImage($readyPath, $size, $digest, $descriptor)
+                    $diskRequest = @{ path = $readyPath; bytes = $size; sha256 = $digest }
+                } finally { $source.Dispose() }
+                $closedOriginal = [ProtectedInstallFile]::new((Join-Path $vmRoot 'guest.vhdx'), $false, $true)
+                try {
+                    if ($closedOriginal.FileId -cne $sourceId -or $closedOriginal.Volume -cne $sourceVolume) { throw 'protected-guest-copy-source-changed' }
+                    $closedOriginal.Delete()
+                } finally { $closedOriginal.Dispose() }
+            } finally { $copyRoot.Dispose() }
+            return $diskRequest
+            }
+        } catch { $report.cleanupFailure = @{ stage = 'protected-guest-offline-copy'; hResult = $_.Exception.HResult } }
+    }
     # Preserves all receipts, transfer files and unknown/in-use VM media.
     $report['closedOwnedFilesCleanup'] = if ($assetRootCreated) {
         Remove-CloudGuestClosedFiles $assetRoot $env:GITHUB_RUN_ID $env:GITHUB_RUN_ATTEMPT $createAttempted ([bool]$id) ($null -ne $owner) $unknown $report.removedObserved $mounted
@@ -518,7 +553,20 @@ finally {
     if ($null -ne $report.closedOwnedFilesCleanup.failure -and $null -eq $report.cleanupFailure) {
         $report.cleanupFailure = @{ stage = 'closed-owned-file-cleanup'; code = $report.closedOwnedFilesCleanup.failure }
     }
+    if ($null -ne $readyDisk -and $null -eq $report.cleanupFailure) {
+        RecordDisk 'before-protected-guest' | Out-Null
+        $agentCredential = [pscredential]::new(('AegisAg' + [guid]::NewGuid().ToString('N').Substring(0, 12)), (ConvertTo-SecureString ('Ae!9-' + [guid]::NewGuid().ToString('N')) -AsPlainText -Force))
+        $report['protectedGuest'] = Stage 'protected-created-guest-agent' {
+            Invoke-ProtectedGuestQualification $OutputRoot $readyDisk $adminCredential $agentCredential $report.actualHead
+        }
+        if (!$report.protectedGuest.passed) { $report.cleanupFailure = @{ stage = 'protected-guest'; hResult = 0 } }
+        else {
+            $closedInput = [ProtectedInstallFile]::new($readyDisk.path, $false, $true)
+            try { if ($closedInput.HashImage($readyDisk.bytes) -cne $readyDisk.sha256) { throw 'protected-guest-copy-changed' }; $closedInput.Delete() } finally { $closedInput.Dispose() }
+        }
+    }
     RecordDisk 'after' | Out-Null
+    $taskPassword = $null; $adminCredential = $null; $agentCredential = $null
     $report.completedAt = [DateTime]::UtcNow.ToString('o')
     $report.passed = $null -ne $report.installedOwnerRegisteredVm -and $report.installedOwnerRegisteredVm.passed -is [bool] -and $report.installedOwnerRegisteredVm.passed -and $report.installedOwnerControlsComplete -and $report.hostCanariesUnchangedAfterInstalledOwner -and $report.ownerLifetimeControlsComplete -and $report.hostCanariesUnchangedAfterOwnerLifetime -and $report.stdioControlsComplete -and $report.hostCanariesUnchangedAfterStdio -and $report.cancellationControlsComplete -and $report.hostCanariesUnchangedAfterCancellation -and $null -eq $report.failure -and $null -eq $report.cleanupFailure -and $report.offObserved -and $report.removedObserved -and $report.hostCanariesUnchangedAfterTask -and $report.hostCanariesUnchangedAfterRemoval
     $json = $report | ConvertTo-Json -Depth 16

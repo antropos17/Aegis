@@ -1,5 +1,35 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+function Read-CloudGuestPreflightStorage([string]$Root) {
+    $queue = [Collections.Generic.Queue[string]]::new(); $queue.Enqueue($Root)
+    $entries = 0; $bytes = [long]0; $skipped = 0
+    while ($queue.Count -ne 0) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $queue.Dequeue() -Force)) {
+            $entries++
+            if ($entries -gt 4096) { throw 'preflight-output-layout-refused' }
+            # Some negative controls deliberately retain junctions for review.
+            # Observe the entry, never follow or remove its external target.
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { $skipped++; continue }
+            if ($item.PSIsContainer) { $queue.Enqueue($item.FullName) } else { $bytes += $item.Length }
+            if ($bytes -gt 512MB) { throw 'preflight-output-budget-refused' }
+        }
+    }
+    return @{ entries = $entries; ownedBytes = $bytes; skippedReparsePoints = $skipped }
+}
+$savedPreflightTemp = $env:TEMP; $savedPreflightTmp = $env:TMP
+$preflightRoot = $null; $preflightCBefore = $null
+if ($env:GITHUB_ACTIONS -ceq 'true' -and $env:RUNNER_ENVIRONMENT -ceq 'github-hosted' -and $env:RUNNER_OS -ceq 'Windows') {
+    if ($env:GITHUB_RUN_ID -cnotmatch '^[0-9]+$' -or $env:GITHUB_RUN_ATTEMPT -cnotmatch '^[0-9]+$') { throw 'preflight-run-identity-refused' }
+    $preflightRoot = 'D:\aegis-preflight-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT
+    if (Test-Path -LiteralPath $preflightRoot) { throw 'preflight-fresh-root-required' }
+    $drive = Get-Item -LiteralPath D:\ -Force
+    if ($drive.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'preflight-data-drive-refused' }
+    $preflightCBefore = [long](Get-PSDrive C).Free
+    New-Item -ItemType Directory -Path $preflightRoot | Out-Null
+    $env:TEMP = $preflightRoot; $env:TMP = $preflightRoot
+    @{ scope = 'hosted-preflight-storage-before'; cFreeBytes = $preflightCBefore; dataDrive = 'D' } | ConvertTo-Json -Compress
+}
+try {
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 $passed = 0
 function Require([bool]$Value) { if (!$Value) { throw 'guest-behavior-control-failed' } }
@@ -306,3 +336,14 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
 & (Join-Path $PSScriptRoot 'test-cloud-guest-owner-lifetime-bounds.ps1')
 & (Join-Path $PSScriptRoot 'test-cloud-guest-owner-lifetime-ordering.ps1')
 & (Join-Path $PSScriptRoot 'test-cloud-guest-owner-lifetime-compositions.ps1')
+} finally {
+    if ($null -ne $preflightRoot) {
+        # Disposable hosted fixture output has job-lifetime retention. Never
+        # sweep system Temp or unrelated caches; fail on unbounded owned output.
+        $observed = Read-CloudGuestPreflightStorage $preflightRoot
+        @{ scope = 'hosted-preflight-storage'; cFreeBefore = $preflightCBefore; cFreeAfter = [long](Get-PSDrive C).Free;
+            dataDrive = 'D'; entries = $observed.entries; ownedBytes = $observed.ownedBytes; skippedReparsePoints = $observed.skippedReparsePoints;
+            maximumBytes = 512MB; retention = 'disposable-job-lifetime' } | ConvertTo-Json -Compress
+        $env:TEMP = $savedPreflightTemp; $env:TMP = $savedPreflightTmp
+    }
+}

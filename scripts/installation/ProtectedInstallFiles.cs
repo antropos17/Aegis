@@ -188,6 +188,10 @@ public sealed class ProtectedInstallFile : IDisposable
     // their separate retained read/data handles with write/delete exclusion.
     public static ProtectedInstallFile OpenMetadata(string path, bool directory)
     { return new ProtectedInstallFile(path, directory, false, 3, true); }
+    // Actual data access makes NT sharing exclude deletion. This pin permits
+    // hydration writes while Off; a running VMMS disk requires metadata-only access.
+    public static ProtectedInstallFile OpenWritableDisk(string path)
+    { return new ProtectedInstallFile(path, false, false, 3); }
     // High-integrity creation also prevents ordinary medium/low callers from
     // retaining WRITE_DAC/OWNER handles during VMMS's directory ACL updates.
     // LABEL_SECURITY_INFORMATION is readable with READ_CONTROL; no audit-SACL
@@ -264,7 +268,7 @@ public sealed class ProtectedInstallFile : IDisposable
     // this exact source without write/delete sharing throughout both passes.
     public string HashImage(long expectedBytes)
     {
-        Recheck(); Require(!Directory && expectedBytes > 0 && expectedBytes <= 16L * 1024 * 1024 * 1024);
+        Recheck(); Require(!Directory && expectedBytes > 0 && expectedBytes <= 64L * 1024 * 1024 * 1024);
         if (stream == null) stream = new FileStream(held, FileAccess.Read, 65536, false);
         Require(stream.Length == expectedBytes); stream.Position = 0;
         string result;
@@ -281,7 +285,10 @@ public sealed class ProtectedInstallFile : IDisposable
         try {
             var attributes = new SecurityAttributes { length = Marshal.SizeOf(typeof(SecurityAttributes)), descriptor = pinned.AddrOfPinnedObject(), inherit = 0 };
             using (ProtectedCreationSecurity.Enter(descriptor)) {
-                outputHandle = CreateImageFile(destination, 0x40000000, 0, ref attributes, 1, 0x80200000, IntPtr.Zero);
+                // Bulk image data is made durable by Flush(true) before any
+                // ready record. Avoid a device flush for every64KiB write;
+                // the preceding pending journal remains write-through.
+                outputHandle = CreateImageFile(destination, 0x40000000, 0, ref attributes, 1, 0x00200000, IntPtr.Zero);
                 if (outputHandle == null || outputHandle.IsInvalid) {
                     int error = Marshal.GetLastWin32Error(); if (outputHandle != null) outputHandle.Dispose();
                     throw NativeFailure("protected-file-create-image", error);
@@ -302,6 +309,32 @@ public sealed class ProtectedInstallFile : IDisposable
                 Require(total == expectedBytes && Hex(hash.Hash) == expectedHash);
                 output.Flush(true); Recheck();
             } finally { Array.Clear(buffer, 0, buffer.Length); }
+        }
+    }
+    // The provisioner retains its original data pin during hydration. It
+    // excludes delete/rename while the separate write handle is open.
+    public void HydrateDisk(ProtectedInstallFile source, long bytes, string digest)
+    {
+        Recheck(); RequireHighIntegrity(); Require(!Directory && source != null &&
+            !String.Equals(PathName, source.PathName, StringComparison.OrdinalIgnoreCase) &&
+            bytes >= 1024 * 1024 && source.HashImage(bytes) == digest);
+        using (SafeFileHandle writer = CreateFile(PathName, 0x40000000, 3, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero)) {
+            RequireNative(writer != null && !writer.IsInvalid, "protected-disk-write-open");
+            using (var output = new FileStream(writer, FileAccess.Write, 65536, false))
+            using (SHA256 hash = SHA256.Create()) {
+                source.stream.Position = 0; byte[] buffer = new byte[65536]; long total = 0;
+                try {
+                    int count;
+                    while ((count = source.stream.Read(buffer, 0, buffer.Length)) != 0) {
+                        if (total == 0) Require(count >= 8 && Encoding.ASCII.GetString(buffer, 0, 8) == "vhdxfile");
+                        total += count; Require(total <= bytes);
+                        output.Write(buffer, 0, count); hash.TransformBlock(buffer, 0, count, buffer, 0);
+                    }
+                    hash.TransformFinalBlock(new byte[0], 0, 0);
+                    Require(total == bytes && Hex(hash.Hash) == digest);
+                    output.SetLength(bytes); output.Flush(true); source.Recheck(); Recheck();
+                } finally { Array.Clear(buffer, 0, buffer.Length); }
+            }
         }
     }
     public void Rename(string destination, ProtectedInstallFile parent)

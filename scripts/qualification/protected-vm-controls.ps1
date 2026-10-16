@@ -19,8 +19,11 @@ try {
     $stage = 'build'; $report.build = Build-InstalledOwnerPayload $project $payloadRoot $native $env:EXPECTED_SOURCE_SHA
     $payload = Test-InstalledOwnerPayload $payloadRoot $env:EXPECTED_SOURCE_SHA
     $manifest = Get-InstalledOwnerBinaryManifest $payload $false
-    # A fixed inert boot-media fixture exercises fresh copying/attachment, not OS boot.
-    $source = Join-Path $OutputRoot 'provision-source.iso'; [IO.File]::WriteAllText($source, 'AEGIS-fixed-offline-image-control-v1')
+    # Valid nonbootable media permits firmware startup. Plain text renamed to
+    # .iso is refused by VMMS with ERROR_FILE_CORRUPT before firmware executes.
+    Add-Type -ReferencedAssemblies System.Net.Http -Path (Join-Path $PSScriptRoot 'CloudGuestMetadata.cs')
+    $source = Join-Path $OutputRoot 'provision-source.iso'
+    New-CloudGuestAnswerIso (Join-Path $OutputRoot 'provision-iso-content') $source '<AEGISFixture />' | Out-Null
     $request = @{ path = $source; bytes = [long](Get-Item -LiteralPath $source).Length; sha256 = (Get-FileHash -LiteralPath $source).Hash.ToLowerInvariant() }
     $account = 'AegisOp' + [guid]::NewGuid().ToString('N').Substring(0, 12); $password = 'Ae!9-' + [guid]::NewGuid().ToString('N')
     $stage = 'bad-image'; $bad = $request.Clone(); $bad.sha256 = '0' * 64
@@ -50,6 +53,26 @@ try {
     Update-ProtectedInstallation $association (Join-Path $payloadRoot 'binaries') $manifest | Out-Null
     Assert-ProtectedInstallation $association
     $report.upgradePreserved = $association.vmBinding.vmId -ceq $id -and $association.vmProvision.root.FileId -ceq $rootId -and $association.vmBinding.storageSha256 -ceq $binding.storageSha256
+    $stage = 'live-disk-control'
+    . (Join-Path $PSScriptRoot '../installation/protected-guest.ps1')
+    $sourceDisk = Join-Path $OutputRoot 'provision-boot-control.vhdx'
+    $sourceBytes = [long](Get-Item -LiteralPath $owned.disk.PathName).Length
+    $sourceDigest = $owned.disk.HashImage($sourceBytes)
+    $raw = [Security.AccessControl.RawSecurityDescriptor]::new('O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)S:(ML;;NW;;;HI)')
+    $descriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($descriptor, 0)
+    $owned.disk.CopyImage($sourceDisk, $sourceBytes, $sourceDigest, $descriptor)
+    $diskRequest = @{ path = $sourceDisk; bytes = $sourceBytes; sha256 = $sourceDigest }
+    $originalDiskId = $owned.disk.FileId
+    Set-ProtectedGuestDisk $association $diskRequest
+    Assert-ProtectedInstallation $association
+    $report['preparedGuestDisk'] = @{ passed = $owned.disk.FileId -ceq $originalDiskId; originalDiskIdRetained = ($owned.disk.FileId -ceq $originalDiskId); guestOsBooted = $false }
+    if (!$report.preparedGuestDisk.passed) { throw 'protected-vm-disk-control-failed' }
+    # A bounded native firmware probe provides startup diagnostics quickly. It
+    # does not establish persistent OS boot or agent execution.
+    $stage = 'firmware-lifecycle'; Start-ProtectedGuest $association
+    $report['firmwareLifecycle'] = @{ runningObserved = $true; samples = $owned.stateSamples; guestOsBooted = $false; agentReleased = $false }
+    Stop-ProtectedGuest $association
+    $report.firmwareLifecycle.off = $owned.guest.state -ceq 'closed'
     $stage = 'uninstall'; Remove-ProtectedInstallation $association; $association = $null
     $rows = @(Get-CimInstance -Namespace root/virtualization/v2 -ClassName Msvm_ComputerSystem -Filter "Name='$id'" -OperationTimeoutSec 5)
     $report.removed = $rows.Count -eq 0 -and !(Test-Path -LiteralPath $script:ProtectedInstallParent) -and [ProtectedInstallService]::Absent() -and @(Get-LocalUser | Where-Object Name -CEQ $account).Count -eq 0
@@ -64,10 +87,24 @@ try {
     if (!$report.passed) { throw 'protected-vm-controls-incomplete' }
 } catch {
     $report.failure = Get-ProtectedInstallFailure $_ 'qualification'; $report.failure.stage = $stage
+    if ($null -ne $association -and $association.vmProvision.ContainsKey('guest')) {
+        $diagnosticOwned = $association.vmProvision
+        if ($diagnosticOwned.ContainsKey('stateSamples')) { $report.failure.stateSamples = $diagnosticOwned.stateSamples }
+        $report.failure.events = Get-ProtectedGuestFailureEvents $diagnosticOwned.vmId $diagnosticOwned.guest.startAt
+    }
     if ($journal.ContainsKey('failure') -and $null -ne $journal.failure) { $report.failure.installation = $journal.failure }
     if ($journal.ContainsKey('association') -and $journal.association.ContainsKey('vmProvision') -and $null -ne $journal.association.vmProvision) {
         $owned = $journal.association.vmProvision
         $report.failure.provision = @{ checkpoint = $owned.checkpoint; unknown = $owned.unknown; vmIdReturned = ($owned.vmId -cne '') }
+        if ($owned.ContainsKey('guest')) {
+            $report.failure.provision.guestCheckpoint = $owned.guest.checkpoint
+            $report.failure.provision.configurationCheckpoint = $owned.configurationCheckpoint
+            if ($owned.ContainsKey('configurationRefusals')) { $report.failure.provision.configurationRefusals = $owned.configurationRefusals }
+            if ($owned.ContainsKey('observedState')) { $report.failure.provision.observedState = $owned.observedState }
+            if ($null -ne $owned.guest.owner) {
+                $report.failure.provision.lifecycle = @{ returnCode = $owned.guest.owner.ReturnCode; jobState = $owned.guest.owner.JobState; jobError = $owned.guest.owner.JobError; hResult = $owned.guest.owner.FailureHResult; errorCodes = $owned.guest.owner.ErrorCodes }
+            }
+        }
         $report.failure.provision.directories = @()
         foreach ($role in @('root', 'images', 'disks')) {
             if ($null -ne $owned[$role]) {

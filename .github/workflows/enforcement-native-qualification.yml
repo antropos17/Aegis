@@ -194,7 +194,7 @@ jobs:
 
   cloud-windows11:
     if: inputs.mode == 'cloud-windows11'
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 45
     defaults:
       run:

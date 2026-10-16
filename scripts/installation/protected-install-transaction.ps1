@@ -100,11 +100,15 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         'protected-vm-tree-budget-refused', 'protected-vm-tree-acl-refused', 'protected-vm-tree-changed', 'protected-vm-unowned-child',
         'protected-vm-settlement-unknown', 'protected-vm-binding-changed', 'protected-vm-asset-handoff-refused', 'protected-vm-owned-state-retained')
     $operations += @('vm-create')
+    $codes += @('protected-guest-host-headroom-refused', 'protected-guest-state-refused', 'protected-guest-native-state-refused', 'protected-guest-state-agreement-unavailable', 'protected-guest-worker-capability-refused')
+    $codes += @('protected-guest-start-refused', 'protected-guest-stop-refused', 'protected-guest-configuration-refused', 'protected-guest-disk-handoff-refused',
+        'protected-guest-start-settlement-unknown', 'protected-guest-stop-settlement-unknown', 'protected-guest-disk-request-refused', 'protected-guest-disk-digest-refused',
+        'protected-guest-agent-request-refused', 'protected-guest-agent-digest-refused', 'protected-guest-agent-settlement-unknown', 'protected-guest-agent-result-refused')
     $operations += @('installed-mutation-job', 'installed-mutation-desktop', 'installed-mutation-create', 'installed-mutation-bind', 'installed-mutation-token-query', 'installed-mutation-profile', 'installed-mutation-groups', 'installed-mutation-privileges', 'installed-mutation-birth', 'installed-mutation-release', 'installed-mutation-exit', 'installed-mutation-census')
     $codes += @('installed-mutation-launch-refused', 'installed-mutation-cleanup-unknown')
     $codes += @('installed-mutation-actor-source-refused', 'installed-mutation-actor-acl-restore-refused')
     $failure = @{ operation = $(if ($Operation -cin $operations) { $Operation } else { 'qualification' }); diagnosticCode = 'protected-operation-refused'; nativeWin32 = $null; hResult = $ErrorRecord.Exception.HResult }
-    if ($null -ne $ErrorRecord.InvocationInfo -and [IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName) -cin @('protected-vm.ps1', 'protected-vm-provider.ps1')) {
+    if ($null -ne $ErrorRecord.InvocationInfo -and [IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName) -cin @('protected-vm.ps1', 'protected-vm-provider.ps1', 'protected-guest.ps1', 'protected-guest-agent.ps1')) {
         $failure.vmSourceLine = [int]$ErrorRecord.InvocationInfo.ScriptLineNumber
     }
     $cause = $ErrorRecord.Exception; $semanticCode = $null
@@ -135,6 +139,11 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         if ($cause.Data.Contains('protectedOperation') -and $cause.Data['protectedOperation'] -is [string] -and $cause.Data['protectedOperation'] -cin $operations) {
             $failure.operation = $cause.Data['protectedOperation']; $failure.nativeWin32 = $null
             if ($cause.Data.Contains('protectedNativeWin32') -and $cause.Data['protectedNativeWin32'] -is [int] -and $cause.Data['protectedNativeWin32'] -ge 0) { $failure.nativeWin32 = $cause.Data['protectedNativeWin32'] }
+        }
+        if ($cause.Data.Contains('vmTreeKind') -and $cause.Data['vmTreeKind'] -cin @('directory', 'vmcx', 'vmrs', 'vmgs', 'other')) {
+            $failure.vmTreeKind = $cause.Data['vmTreeKind']
+            if ($cause.Data.Contains('vmTreeSid') -and $cause.Data['vmTreeSid'] -is [string] -and $cause.Data['vmTreeSid'] -cmatch '^S-[0-9]+(-[0-9]+){1,16}$') { $failure.vmTreeSid = $cause.Data['vmTreeSid'] }
+            if ($cause.Data.Contains('vmTreeMask') -and $cause.Data['vmTreeMask'] -is [int]) { $failure.vmTreeMask = $cause.Data['vmTreeMask'] }
         }
         $cause = $cause.InnerException
     }

@@ -40,6 +40,17 @@ function Invoke-ProtectedVmEffect($Owned, [string]$Action) {
     Write-ProtectedVmJournal $Owned ('settled-' + $Action + '.json') @{ schemaVersion = 1; operation = $Action; vmId = $Owned.vmId; off = ($Action -cne 'remove'); absent = ($Action -ceq 'remove') }
     $Owned.unknown = $false
 }
+function Test-ProtectedVmWorkerAce($Owned, [string]$Path, [bool]$Directory, $Ace) {
+    # Capability access is the AppContainer half of Windows' dual-principal
+    # check. It never substitutes for the existing normal-user/VM SID check.
+    if ($Directory -or $Ace -isnot [Security.AccessControl.CommonAce] -or $Ace.IsCallback -or
+        $Ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or $Ace.AccessMask -le 0 -or
+        ($Ace.AccessMask -band (-bnot 0x1f01ff)) -ne 0 -or $null -eq ('ProtectedGuestVm' -as [type])) { return $false }
+    $machine = Join-Path $Owned.root.PathName 'Machine\'
+    if (!$Path.StartsWith($machine, [StringComparison]::OrdinalIgnoreCase) -or
+        [IO.Path]::GetFileName($Path) -inotmatch ('^' + [regex]::Escape($Owned.vmId) + '\.(vmcx|vmgs|vmrs)$')) { return $false }
+    return $Ace.SecurityIdentifier.Value -ceq [ProtectedGuestVm]::WorkerCapabilitySid()
+}
 function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
     $Owned.root.Recheck(); $rows = @(); $queue = [Collections.Generic.Queue[string]]::new(); $queue.Enqueue($Owned.root.PathName)
     while ($queue.Count -ne 0) {
@@ -68,7 +79,17 @@ function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) {
                 foreach ($ace in $sd.DiscretionaryAcl) {
                     if (([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) -ne 0) { continue }
                     if ($ace -isnot [Security.AccessControl.CommonAce] -or $ace.IsCallback -or $ace.AceQualifier -ne [Security.AccessControl.AceQualifier]::AccessAllowed -or
-                        $ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid)) { throw 'protected-vm-tree-acl-refused' }
+                        ($ace.SecurityIdentifier.Value -cnotin @('S-1-5-18', 'S-1-5-32-544', $Owned.vmSid) -and
+                            !(Test-ProtectedVmWorkerAce $Owned $item.FullName $item.PSIsContainer $ace))) {
+                        $failure = [InvalidOperationException]::new('protected-vm-tree-acl-refused')
+                        $kind = if ($item.PSIsContainer) { 'directory' } elseif ($item.Extension -cin @('.vmcx', '.vmrs', '.vmgs')) { $item.Extension.Substring(1) } else { 'other' }
+                        $failure.Data['vmTreeKind'] = $kind
+                        if ($ace -is [Security.AccessControl.CommonAce] -and $null -ne $ace.SecurityIdentifier) {
+                            $failure.Data['vmTreeSid'] = $ace.SecurityIdentifier.Value
+                            $failure.Data['vmTreeMask'] = [int]$ace.AccessMask
+                        }
+                        throw $failure
+                    }
                 }
                 $rows += @{ path = $held.PathName; volume = $held.Volume; fileId = $held.FileId; sddl = $held.Sddl; directory = $item.PSIsContainer }
                 if ($item.PSIsContainer) { $queue.Enqueue($item.FullName) }

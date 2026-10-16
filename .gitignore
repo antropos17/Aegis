@@ -202,3 +202,10 @@ aegis_landing.html
 !/scripts/installation/protected-vm-provider.ps1
 !/scripts/qualification/protected-vm-controls.ps1
 !/tests/fixtures/protected-installation/vm-fixture.ps1
+!/scripts/installation/protected-guest.ps1
+!/scripts/installation/protected-guest-agent.ps1
+!/scripts/installation/ProtectedGuestVm.cs
+!/scripts/installation/ProtectedGuestAgent.cs
+!/scripts/installation/ProtectedGuestDesktop.cs
+!/scripts/qualification/protected-guest-controls.ps1
+!/tests/fixtures/protected-installation/guest-fixture.ps1
