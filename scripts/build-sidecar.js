@@ -203,6 +203,8 @@ function main() {
         'VmStorageProtection',
         'VmDiskImageNative',
         'VmStorageNative',
+        'ProtectedOperationRecord',
+        'ProtectedOperationState',
       ].map((name) => path.join(ROOT, 'sidecar', 'session', `${name}.cs`)),
       '/reference:System.Security.dll',
       path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerExecutable.cs'),
