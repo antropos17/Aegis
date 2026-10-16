@@ -59,8 +59,12 @@ Each connection owns one lifetime timer and one cancellation registration.
 Cancellation schedules the timer immediately; lifetime expiry also retires an
 idle connection without another API call. A busy owner is never closed by the
 callback: one guarded callback retries on the same timer until it can acquire
-the I/O gate. The final frame-exit fence also observes a signaled stop. This
-covers signaling between the final success check and release of the gate.
+the I/O gate. If the final frame-exit fence observes a signaled stop or canceled
+token, that frame refuses; an otherwise complete receive buffer is cleared before
+it can escape. Already transmitted write bytes remain uncertain and never retry.
+This covers signaling observed between the prior success check and release of
+the gate. Cancellation after the last finalization check cannot retroactively
+retract an operation accepted before it.
 Retirement disposes the original timer and registration; callbacks contain
 failures and retain cleanup uncertainty. The cancellation callback never waits
 on the I/O gate, including synchronous invocation during registration.

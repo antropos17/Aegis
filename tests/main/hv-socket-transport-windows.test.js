@@ -213,7 +213,6 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       'cancel',
       'expire',
       'connect-gap',
-      'frame-gap',
       'native-reentry',
       'close-unknown',
       'dispose-race',
@@ -221,5 +220,12 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     ])('cleans up idle ownership without another frame call: %s', (mode) => {
       expect(invoke(executable, `idle:${mode}`).passed).toBe(true);
     });
+
+    it.each(['frame-gap', 'read-frame-gap'])(
+      'refuses a completed frame when finalization observes cancellation: %s',
+      (mode) => {
+        expect(invoke(executable, `idle:${mode}`).passed).toBe(true);
+      },
+    );
   },
 );

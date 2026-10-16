@@ -23,14 +23,24 @@ internal static class IdleCases
             var connection = Cases.Open(io, cancellation.Token);
             if (mode == "cancel") cancellation.Cancel();
             else if (mode == "expire") { io.Clock.Value = 120000; connection.LifetimeTickForTest(); }
-            else if (mode == "frame-gap")
+            else if (mode == "frame-gap" || mode == "read-frame-gap")
             {
                 connection.BeforeUnlockForTest = delegate
                 {
                     connection.BeforeUnlockForTest = null; cancellation.Cancel(); connection.LifetimeTickForTest();
                     Check(io.Closes == 0); // A busy native/frame owner is never closed by a callback.
                 };
-                connection.WriteFrame(new byte[] { 82 });
+                if (mode == "frame-gap")
+                {
+                    Cases.Refuses(delegate { connection.WriteFrame(new byte[] { 82 }); });
+                    Cases.Equal(io.Output.ToArray(), Cases.Frame(new byte[] { 82 }));
+                }
+                else
+                {
+                    io.Input = Cases.Frame(new byte[] { 7, 8, 9 });
+                    Cases.Refuses(delegate { connection.ReadFrame(); });
+                }
+                Cases.Cleared(io);
             }
             else if (mode == "native-reentry")
             {

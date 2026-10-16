@@ -136,9 +136,10 @@ namespace Aegis.ProtectedSession
         internal byte[] ReadFrame()
         {
             EnterOperation();
+            byte[] payload = null;
             try
             {
-                byte[] payload = null, header = new byte[4]; bool returned = false;
+                byte[] header = new byte[4]; bool returned = false;
                 try
                 {
                     long deadline = Deadline(); Check(deadline); Peer(deadline); Transfer(header, false, deadline);
@@ -154,7 +155,11 @@ namespace Aegis.ProtectedSession
                     if (!returned && payload != null) Array.Clear(payload, 0, payload.Length);
                 }
             }
-            finally { ExitOperation(); }
+            finally
+            {
+                try { ExitOperation(); }
+                catch { if (payload != null) Array.Clear(payload, 0, payload.Length); throw; }
+            }
         }
         private void EnterOperation()
         {
@@ -219,7 +224,10 @@ namespace Aegis.ProtectedSession
 #if HV_SOCKET_TEST
                 if (BeforeUnlockForTest != null) BeforeUnlockForTest();
 #endif
-                if (Interlocked.CompareExchange(ref stopped, 0, 0) != 0) { poisoned = true; CloseLocked(); }
+                if (Interlocked.CompareExchange(ref stopped, 0, 0) != 0 || cancellation.IsCancellationRequested)
+                {
+                    poisoned = true; Interlocked.Exchange(ref stopped, 1); CloseLocked(); throw Failure();
+                }
             }
             finally { operationBusy = false; Monitor.Exit(gate); }
         }
