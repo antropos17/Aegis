@@ -64,6 +64,26 @@ function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) {
 $prior = [ProtectedInstallFile]::new()
 $owned = @{ hydrated = $true; unknown = $false; disk = $prior; vmId = '11111111-2222-3333-4444-555555555555'; binding = @{ identitySha256 = 'a' * 64 } }
 $context = @{ vmProvision = $owned }
+if ($Mode.StartsWith('tree-', [StringComparison]::Ordinal)) {
+    $owned.root = @{ PathName = 'C:\private' }
+    $owned.rows = @(
+        @{ path = 'C:\private\Disks\system.vhdx'; volume = 'volume'; fileId = 'original'; sddl = 'private'; directory = $false },
+        @{ path = ('C:\private\Machine\Virtual Machines\' + $owned.vmId + '.vmcx'); volume = 'volume'; fileId = 'configuration'; sddl = 'private'; directory = $false },
+        @{ path = 'C:\private\Machine'; volume = 'volume'; fileId = 'parent'; sddl = 'private'; directory = $true })
+    $rows = @($owned.rows | ForEach-Object { $_.Clone() })
+    switch ($Mode) {
+        'tree-foreign' { $extra = $rows[0].Clone(); $extra.path = 'C:\private\foreign.txt'; $rows += $extra }
+        'tree-foreign-config' { $extra = $rows[0].Clone(); $extra.path = 'C:\private\Machine\foreign.txt'; $rows += $extra }
+        'tree-journal' { $extra = $rows[0].Clone(); $extra.path = 'C:\private\pending-start.json'; $rows += $extra }
+        'tree-disk-replaced' { $rows[0].fileId = 'replacement' }
+        'tree-config-renewal' { $rows[1].fileId = 'renewed-configuration' }
+        'tree-parent-replaced' { $rows[2].fileId = 'replacement-parent' }
+        'tree-missing' { $rows = @($rows[1], $rows[2]) }
+    }
+    $refused = $false
+    try { Assert-ProtectedGuestTree $owned $rows } catch { $refused = $true }
+    return (@{ refused = $refused } | ConvertTo-Json -Compress)
+}
 if ($Mode.StartsWith('agent-', [StringComparison]::Ordinal)) {
     $owned.guest = @{ state = 'running'; agentConsumed = ($Mode -ceq 'agent-replay') }
     $script:workerRemoved = $false; $script:arguments = $null

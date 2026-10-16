@@ -115,4 +115,19 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
       ],
     });
   });
+  it.each([
+    'tree-foreign',
+    'tree-foreign-config',
+    'tree-disk-replaced',
+    'tree-parent-replaced',
+    'tree-missing',
+  ])('retains unexpected files, replaced storage and missing original inventory: %s', (mode) => {
+    expect(invoke(mode)).toEqual({ refused: true });
+  });
+  it.each(['tree-journal', 'tree-config-renewal'])(
+    'permits only named administrative journals and exact-VM configuration renewal: %s',
+    (mode) => {
+      expect(invoke(mode)).toEqual({ refused: false });
+    },
+  );
 });

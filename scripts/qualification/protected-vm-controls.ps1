@@ -62,8 +62,8 @@ try {
     $descriptor = New-Object byte[] $raw.BinaryLength; $raw.GetBinaryForm($descriptor, 0)
     $owned.disk.CopyImage($sourceDisk, $sourceBytes, $sourceDigest, $descriptor)
     $diskRequest = @{ path = $sourceDisk; bytes = $sourceBytes; sha256 = $sourceDigest }
-    Set-ProtectedGuestDisk $association $diskRequest
     $originalDiskId = $owned.disk.FileId
+    Set-ProtectedGuestDisk $association $diskRequest
     Assert-ProtectedInstallation $association
     $report['preparedGuestDisk'] = @{ passed = $owned.disk.FileId -ceq $originalDiskId; originalDiskIdRetained = ($owned.disk.FileId -ceq $originalDiskId); guestOsBooted = $false }
     # The empty disk has no OS; firmware may stop after an initial Running
