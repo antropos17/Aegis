@@ -72,6 +72,10 @@ the architecture rules, including deliberately invalid import boundaries.
 
 ## Selecting verification
 
+For bounded native Windows fixtures, failure diagnosis, current-candidate inputs,
+release-PR approval waits or worktree retention, use
+[Verification and worktree lifecycle](verification-lifecycle.md).
+
 Install application dependencies with `npm ci`. The root `tsconfig.json` is a
 solution file with an empty file list: bare `npx tsc --noEmit` checks nothing and
 exits 0. Use `npm run typecheck` for main, retained renderer code and Observatory;
