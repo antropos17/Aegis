@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Management;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -29,7 +30,27 @@ namespace Aegis.ProtectedSession
         }
 
         internal static string Endpoint(string value, string name)
-        { return VmManagementNative.ValidatePath(Text(value), name).RelativePath.ToLowerInvariant(); }
+        {
+            try { return VmManagementNative.ValidatePath(Text(value), name).RelativePath.ToLowerInvariant(); }
+            catch (ArgumentException) { Refuse(); }
+            catch (ManagementException) { Refuse(); }
+            return null;
+        }
+
+        private static string HostPath(string value)
+        {
+            value = Text(value);
+            // Refuse streams/device/UNC/relative paths before invoking the inbox
+            // parser, whose expected malformed-input exceptions vary by runtime.
+            if (value.Length < 4 || !((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) ||
+                value[1] != ':' || value[2] != '\\' || value.IndexOf(':', 2) >= 0 ||
+                value.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0 || value.IndexOfAny(new[] { '*', '?', '/' }) >= 0) Refuse();
+            try { if (System.IO.Path.GetFullPath(value) != value) Refuse(); }
+            catch (ArgumentException) { Refuse(); }
+            catch (NotSupportedException) { Refuse(); }
+            catch (PathTooLongException) { Refuse(); }
+            return value;
+        }
 
         private static void Refuse() { throw new InvalidOperationException("installed-vm-configuration-unavailable"); }
         private static void Field(StringBuilder output, string value)
@@ -97,9 +118,7 @@ namespace Aegis.ProtectedSession
                     else if (subtype == Prefix + "Virtual CD/DVD Disk" && dvdFile == null) dvdFile = row;
                     else Refuse();
                     string[] host = Value<string[]>(row.Values, "HostResource");
-                    if (host.Length != 1 || !System.IO.Path.IsPathRooted(Text(host[0])) ||
-                        host[0].StartsWith(@"\\", StringComparison.Ordinal) || System.IO.Path.GetFullPath(host[0]) != host[0] ||
-                        host[0].IndexOf(':', 2) >= 0 || !hostPaths.Add(host[0])) Refuse();
+                    if (host.Length != 1 || !hostPaths.Add(HostPath(host[0]))) Refuse();
                 }
                 else if (row.ClassName == "Msvm_ResourceAllocationSettingData")
                 {

@@ -99,6 +99,10 @@ internal static class VmConfigurationFixture
         if (mode == "relative-host") data.Resources[5].Values["HostResource"] = new[] { "a.vhdx" };
         if (mode == "duplicate-host") data.Resources[6].Values["HostResource"] = data.Resources[5].Values["HostResource"];
         if (mode == "stream-host") data.Resources[5].Values["HostResource"] = new[] { @"X:\private\disk.vhdx:stream" };
+        if (mode == "device-host") data.Resources[5].Values["HostResource"] = new[] { @"\\?\X:\private\disk.vhdx" };
+        if (mode == "invalid-host") data.Resources[5].Values["HostResource"] = new[] { "X:\\private\\bad\"disk.vhdx" };
+        if (mode == "malformed-parent") data.Resources[4].Values["Parent"] = "not:a:provider:path";
+        if (mode == "malformed-settings") data.SettingsPath = "not:a:provider:path";
         if (mode == "remote-parent") data.Resources[4].Values["Parent"] = data.Resources[2].Path.Replace(@"\\.\", @"\\foreign\");
         if (mode == "wrong-namespace") data.Resources[4].Values["Parent"] = data.Resources[2].Path.Replace(@"virtualization\v2", "cimv2");
         if (mode == "wrong-class") data.Resources[4].Values["Parent"] = Path("Msvm_ComputerSystem", "controller");
