@@ -230,6 +230,222 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     it('checks principal pair roles and stable token identity separately from privilege modification', () => {
       expect(run(executable, ['identity'])).toEqual({ passed: true, modeledPrincipal: true });
     });
+    function diagnostic(mode, malformed = false) {
+      const value = candidate();
+      const work = path.join(value.work, 'diagnostic-stage');
+      fs.mkdirSync(work);
+      if (malformed) fs.writeFileSync(value.manifest, '{');
+      return {
+        value,
+        observed: run(
+          path.join(
+            process.env.WINDIR || 'C:/Windows',
+            'System32/WindowsPowerShell/v1.0/powershell.exe',
+          ),
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-File',
+            path.join(project, 'tests/fixtures/protected-gui/stage.ps1'),
+            '-Project',
+            project,
+            '-Assembly',
+            executable,
+            '-Source',
+            value.source,
+            '-Manifest',
+            value.manifest,
+            '-Scratch',
+            work,
+            '-Mode',
+            mode,
+          ],
+        ),
+      };
+    }
+    it('projects only finite GUI identities and same-node Int32 metadata from synthetic diagnostic records', () => {
+      const { observed } = diagnostic('diagnostic-projection-matrix');
+      expect(observed).toMatchObject({
+        syntheticProjection: true,
+        nativeWin32Observed: false,
+        firstFailureExact: true,
+      });
+      expect(observed.rows).toHaveLength(27);
+      const rows = new Map(observed.rows.map((row) => [row.name, row]));
+      expect(rows.size).toBe(27);
+      const codes = [
+        'protected-gui-input-refused',
+        'protected-gui-binding-refused',
+        'protected-gui-manifest-refused',
+        'protected-gui-bundle-refused',
+        'protected-gui-principal-refused',
+        'protected-gui-cleanup-unknown',
+      ];
+      codes.forEach((code, index) => {
+        expect(rows.get('code-' + index)).toMatchObject({
+          operation: 'publish',
+          diagnosticCode: code,
+          nativeWin32: null,
+        });
+      });
+      const operations = [
+        'protected-gui-metadata-changed',
+        'protected-gui-open-original-id',
+        'protected-gui-delete-original',
+      ];
+      operations.forEach((operation, index) => {
+        expect(rows.get('op-' + index)).toMatchObject({
+          operation,
+          diagnosticCode: 'protected-gui-bundle-refused',
+          nativeWin32: [0, 17, 2147483647][index],
+        });
+      });
+      for (let index = 0; index < 4; index++) {
+        expect(rows.get('unknown-code-' + index)).toMatchObject({
+          operation: 'publish',
+          diagnosticCode: 'protected-operation-refused',
+          nativeWin32: null,
+        });
+        expect(rows.get('unknown-op-' + index)).toMatchObject({
+          operation: 'publish',
+          diagnosticCode: 'protected-gui-bundle-refused',
+          nativeWin32: null,
+        });
+      }
+      for (const name of ['native-int64', 'native-string', 'native-negative']) {
+        expect(rows.get(name)).toMatchObject({
+          operation: 'protected-gui-open-original-id',
+          diagnosticCode: 'protected-gui-bundle-refused',
+          nativeWin32: null,
+        });
+      }
+      for (const [name, operation, nativeWin32] of [
+        ['pair-inner-number-ignored', 'protected-gui-open-original-id', 17],
+        ['pair-outer-number-not-borrowed', 'protected-gui-metadata-changed', null],
+        ['pair-deeper-known-replaces', 'protected-gui-delete-original', 23],
+        ['pair-deeper-known-clears', 'protected-gui-metadata-changed', null],
+        ['pair-deeper-unknown-ignored', 'protected-gui-open-original-id', 17],
+      ]) {
+        expect(rows.get(name)).toMatchObject({
+          operation,
+          nativeWin32,
+          diagnosticCode: 'protected-gui-bundle-refused',
+        });
+      }
+      expect(rows.get('depth-7')).toMatchObject({
+        operation: 'protected-gui-open-original-id',
+        nativeWin32: 17,
+        diagnosticCode: 'protected-gui-manifest-refused',
+      });
+      expect(rows.get('depth-8')).toMatchObject({
+        operation: 'publish',
+        nativeWin32: null,
+        diagnosticCode: 'protected-operation-refused',
+      });
+      expect(observed.receiptKeys).toEqual([
+        'cleanup',
+        'createdRoots',
+        'createdSid',
+        'failure',
+        'operation',
+        'published',
+        'schemaVersion',
+        'service',
+      ]);
+      expect(observed.failureKeys).toEqual([
+        'diagnosticCode',
+        'hResult',
+        'nativeWin32',
+        'operation',
+      ]);
+      expect(observed.privacyReceipt.failure).toMatchObject({
+        operation: 'publish',
+        nativeWin32: null,
+        diagnosticCode: 'protected-gui-principal-refused',
+      });
+      expect(JSON.stringify(observed)).not.toContain('PRIVATE_GUI_CANARY_20261016');
+    });
+    it('preserves the actual malformed GUI manifest helper code without projecting private invocation details', () => {
+      const { observed, value } = diagnostic('diagnostic-malformed-manifest', true);
+      expect(observed).toMatchObject({
+        actualManifestHelper: true,
+        sourceDiagnosticCode: 'protected-gui-manifest-refused',
+        cleanupUnknown: false,
+        receipt: {
+          failure: {
+            operation: 'input',
+            diagnosticCode: 'protected-gui-manifest-refused',
+            nativeWin32: null,
+          },
+        },
+      });
+      expect(Object.keys(observed.receipt.failure).sort()).toEqual([
+        'diagnosticCode',
+        'hResult',
+        'nativeWin32',
+        'operation',
+      ]);
+      expect(JSON.stringify(observed.receipt)).not.toContain(value.source);
+      expect(JSON.stringify(observed.receipt)).not.toContain(value.manifest);
+      expect(fs.readFileSync(path.join(value.source, GUI_EXECUTABLE), 'utf8')).toBe(
+        'dummy-executable',
+      );
+      expect(fs.readFileSync(path.join(value.source, 'resources/app.asar'), 'utf8')).toBe(
+        'dummy-asar',
+      );
+    });
+    it('preserves the actual GUI metadata helper failure through the administrative failure receipt', () => {
+      const value = candidate();
+      const work = path.join(value.work, 'diagnostic-stage');
+      fs.mkdirSync(work);
+      const observed = run(
+        path.join(
+          process.env.WINDIR || 'C:/Windows',
+          'System32/WindowsPowerShell/v1.0/powershell.exe',
+        ),
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-File',
+          path.join(project, 'tests/fixtures/protected-gui/stage.ps1'),
+          '-Project',
+          project,
+          '-Assembly',
+          executable,
+          '-Source',
+          value.source,
+          '-Manifest',
+          value.manifest,
+          '-Scratch',
+          work,
+          '-Mode',
+          'diagnostic-rename-missing',
+        ],
+      );
+      expect(observed).toMatchObject({
+        helperFailureObserved: true,
+        sourceOperation: 'protected-gui-metadata-changed',
+        sourceDiagnosticCode: 'protected-gui-bundle-refused',
+        nativeCodeCaptured: false,
+        capturedNativeWin32: null,
+        cleanupUnknown: true,
+        modeledPrincipalAndProtection: true,
+      });
+      expect(observed.finiteChain).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'invalid-data',
+            operation: 'protected-gui-metadata-changed',
+            code: 'protected-gui-bundle-refused',
+            nativeCodeType: 'absent',
+          }),
+        ]),
+      );
+      expect(observed.finiteChain.length).toBeLessThanOrEqual(8);
+      expect(observed.projectedOperation).toBe(observed.sourceOperation);
+      expect(observed.projectedDiagnosticCode).toBe(observed.sourceDiagnosticCode);
+      expect(observed.projectedNativeWin32).toBeNull();
+    });
     it.each(['normal', 'failed-record-cleanup'])(
       'runs actual shared GUI stage hooks with %s ownership',
       (mode) => {
