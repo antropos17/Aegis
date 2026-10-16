@@ -66,10 +66,13 @@ try {
     Set-ProtectedGuestDisk $association $diskRequest
     Assert-ProtectedInstallation $association
     $report['preparedGuestDisk'] = @{ passed = $owned.disk.FileId -ceq $originalDiskId; originalDiskIdRetained = ($owned.disk.FileId -ceq $originalDiskId); guestOsBooted = $false }
-    # The empty disk has no OS; firmware may stop after an initial Running
-    # observation. Actual start/agent/stop acceptance uses the installed Windows
-    # disk exclusively in protected-guest-controls.
     if (!$report.preparedGuestDisk.passed) { throw 'protected-vm-disk-control-failed' }
+    # A bounded native firmware probe provides startup diagnostics quickly. It
+    # does not establish persistent OS boot or agent execution.
+    $stage = 'firmware-lifecycle'; Start-ProtectedGuest $association
+    $report['firmwareLifecycle'] = @{ runningObserved = $true; samples = $owned.stateSamples; guestOsBooted = $false; agentReleased = $false }
+    Stop-ProtectedGuest $association
+    $report.firmwareLifecycle.off = $owned.guest.state -ceq 'closed'
     $stage = 'uninstall'; Remove-ProtectedInstallation $association; $association = $null
     $rows = @(Get-CimInstance -Namespace root/virtualization/v2 -ClassName Msvm_ComputerSystem -Filter "Name='$id'" -OperationTimeoutSec 5)
     $report.removed = $rows.Count -eq 0 -and !(Test-Path -LiteralPath $script:ProtectedInstallParent) -and [ProtectedInstallService]::Absent() -and @(Get-LocalUser | Where-Object Name -CEQ $account).Count -eq 0
@@ -84,6 +87,11 @@ try {
     if (!$report.passed) { throw 'protected-vm-controls-incomplete' }
 } catch {
     $report.failure = Get-ProtectedInstallFailure $_ 'qualification'; $report.failure.stage = $stage
+    if ($null -ne $association -and $association.vmProvision.ContainsKey('guest')) {
+        $diagnosticOwned = $association.vmProvision
+        if ($diagnosticOwned.ContainsKey('stateSamples')) { $report.failure.stateSamples = $diagnosticOwned.stateSamples }
+        $report.failure.events = Get-ProtectedGuestFailureEvents $diagnosticOwned.vmId $diagnosticOwned.guest.startAt
+    }
     if ($journal.ContainsKey('failure') -and $null -ne $journal.failure) { $report.failure.installation = $journal.failure }
     if ($journal.ContainsKey('association') -and $journal.association.ContainsKey('vmProvision') -and $null -ne $journal.association.vmProvision) {
         $owned = $journal.association.vmProvision

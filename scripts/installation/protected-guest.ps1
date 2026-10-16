@@ -64,10 +64,56 @@ function Set-ProtectedGuestDisk($Context, $Request) {
     } catch { $owned.unknown = $true; throw }
     finally { $source.Dispose() }
 }
-function Assert-ProtectedGuestConfiguration($Owned, [string]$State) {
+function Wait-ProtectedGuestState($Owned, [string]$State, [int]$Milliseconds = 5000) {
+    if ($State -cnotin @('Off', 'Running') -or $Milliseconds -lt 100 -or $Milliseconds -gt 5000 -or $Owned.guest.owner.PendingUnknown) { throw 'protected-guest-state-refused' }
+    $expected = if ($State -ceq 'Running') { 2 } else { 3 }
+    $watch = [Diagnostics.Stopwatch]::StartNew(); $Owned.stateSamples = @()
+    do {
+        $vm = Get-VM -Id ([guid]$Owned.vmId) -ErrorAction Stop
+        $native = $Owned.guest.owner.ObserveState()
+        $label = if ($vm.State.ToString() -cin @('Off', 'Running', 'Starting', 'Stopping', 'RunningCritical', 'OffCritical', 'Paused', 'Saved', 'Saving', 'Pausing')) { $vm.State.ToString() } else { 'other' }
+        $sample = @{ native = [int]$native; cmdlet = $label; milliseconds = [int]$watch.ElapsedMilliseconds }
+        if ($Owned.stateSamples.Count -lt 16) { $Owned.stateSamples += $sample } else { $Owned.stateSamples[15] = $sample }
+        # Only re-observe a settled transition. Never retry the provider, ignore
+        # native state loss or admit an agent on cmdlet state alone.
+        if ($native -ne $expected) { throw 'protected-guest-native-state-refused' }
+        if ($label -ceq $State) { return $vm }
+        Start-Sleep -Milliseconds 50
+    } while ($watch.ElapsedMilliseconds -lt $Milliseconds)
+    throw 'protected-guest-state-agreement-unavailable'
+}
+function Get-ProtectedGuestFailureEvents([string]$VmId, [datetime]$Since) {
+    if ($VmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$') { throw 'protected-guest-identity-refused' }
+    $rows = @()
+    foreach ($log in @('Microsoft-Windows-Hyper-V-VMMS-Admin', 'Microsoft-Windows-Hyper-V-Worker-Admin')) {
+        try {
+            foreach ($event in @(Get-WinEvent -FilterHashtable @{ LogName = $log; StartTime = $Since } -MaxEvents 64 -ErrorAction Stop)) {
+                $xml = $event.ToXml()
+                if ($xml.Length -gt 65536 -or $xml -inotmatch [regex]::Escape($VmId)) { continue }
+                $document = [Xml.XmlDocument]::new(); $document.XmlResolver = $null; $document.LoadXml($xml)
+                $codes = @()
+                foreach ($data in $document.SelectNodes("//*[local-name()='Data']")) {
+                    if ($data.GetAttribute('Name') -cnotin @('ErrorCode', 'Error', 'HResult', 'HRESULT', 'ResultCode', 'StatusCode')) { continue }
+                    $value = $data.InnerText
+                    if ($value -cmatch '^0x[0-9a-fA-F]{8}$') { $codes += $value.ToLowerInvariant() }
+                    elseif ($value -cmatch '^(%%)?[0-9]{1,10}$') {
+                        $number = [uint32]0
+                        if ([uint32]::TryParse($value.TrimStart('%'), [ref]$number)) { $codes += ('0x{0:x8}' -f $number) }
+                    }
+                    if ($codes.Count -ge 8) { break }
+                }
+                # No event message, XML, path, account or arbitrary Data value.
+                $rows += @{ log = $log; id = [int]$event.Id; codes = $codes }
+                if ($rows.Count -ge 16) { return ,$rows }
+            }
+        } catch { }
+    }
+    return ,$rows
+}
+function Assert-ProtectedGuestConfiguration($Owned, [string]$State, [bool]$SettledTransition = $false) {
     # No mutation, automatic repair, name-based adoption or host networking.
     $Owned.configurationCheckpoint = 1
-    $vm = Get-VM -Id ([guid]$Owned.vmId) -ErrorAction Stop
+    $vm = if ($SettledTransition) { Wait-ProtectedGuestState $Owned $State } else { Get-VM -Id ([guid]$Owned.vmId) -ErrorAction Stop }
     $location = [IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\')
     $expected = Join-Path $Owned.root.PathName 'Machine'
     $disks = @(Get-VMHardDiskDrive -VM $vm); $dvd = @(Get-VMDvdDrive -VM $vm)
@@ -100,7 +146,7 @@ function Start-ProtectedGuest($Context) {
     if ($null -eq $owned -or !$owned.ContainsKey('hydrated') -or $owned.ContainsKey('guest')) { throw 'protected-guest-start-refused' }
     Assert-ProtectedGuestHeadroom $owned
     Assert-ProtectedGuestConfiguration $owned 'Off'
-    $owned.guest = @{ consumed = $true; owner = $null; state = 'pending'; agentConsumed = $false; checkpoint = 1 }
+    $owned.guest = @{ consumed = $true; owner = $null; state = 'pending'; agentConsumed = $false; checkpoint = 1; startAt = [datetime]::UtcNow }
     $owned.unknown = $true
     Write-ProtectedVmJournal $owned 'pending-start.json' @{ schemaVersion = 1; vmId = $owned.vmId; identitySha256 = $owned.binding.identitySha256 }
     $owned.guest.owner = [ProtectedGuestVm]::new($owned.vmId, $owned.binding.identitySha256)
@@ -114,7 +160,7 @@ function Start-ProtectedGuest($Context) {
     $owned.guest.checkpoint = 3
     if (!$owned.guest.owner.Start() -or $owned.guest.owner.PendingUnknown) { throw 'protected-guest-start-settlement-unknown' }
     $owned.guest.checkpoint = 4
-    Assert-ProtectedGuestConfiguration $owned 'Running'
+    Assert-ProtectedGuestConfiguration $owned 'Running' $true
     $owned.guest.checkpoint = 5
     Write-ProtectedVmJournal $owned 'settled-start.json' @{ schemaVersion = 1; vmId = $owned.vmId; running = $true }
     $owned.guest.state = 'running'; $owned.unknown = $false
@@ -126,7 +172,7 @@ function Stop-ProtectedGuest($Context) {
     $owned.unknown = $true; $owned.guest.state = 'stopping'
     Write-ProtectedVmJournal $owned 'pending-stop.json' @{ schemaVersion = 1; vmId = $owned.vmId }
     if (!$owned.guest.owner.Stop() -or $owned.guest.owner.PendingUnknown -or !$owned.guest.owner.ObserveOff()) { throw 'protected-guest-stop-settlement-unknown' }
-    Assert-ProtectedGuestConfiguration $owned 'Off'
+    Assert-ProtectedGuestConfiguration $owned 'Off' $true
     $prior = $owned.disk; $offline = [ProtectedInstallFile]::new($prior.PathName, $false, $false)
     if ($offline.FileId -cne $prior.FileId -or $offline.Volume -cne $prior.Volume -or $offline.Sddl -cne $prior.Sddl) { $offline.Dispose(); throw 'protected-guest-disk-handoff-refused' }
     $owned.disk = $offline; $prior.Dispose()

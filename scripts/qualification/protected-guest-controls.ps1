@@ -82,6 +82,8 @@ public static class ProtectedGuestControl {
             $report.failure.checkpoint = $context.vmProvision.guest.checkpoint
             if ($context.vmProvision.ContainsKey('configurationRefusals')) { $report.failure.configurationRefusals = $context.vmProvision.configurationRefusals }
             if ($context.vmProvision.ContainsKey('observedState')) { $report.failure.observedState = $context.vmProvision.observedState }
+            if ($context.vmProvision.ContainsKey('stateSamples')) { $report.failure.stateSamples = $context.vmProvision.stateSamples }
+            if ($context.vmProvision.guest.ContainsKey('startAt')) { $report.failure.events = Get-ProtectedGuestFailureEvents $context.vmProvision.vmId $context.vmProvision.guest.startAt }
         }
     } finally {
         if ($null -ne $context) {

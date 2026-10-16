@@ -37,6 +37,40 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
       ],
     });
   });
+  it.each(['state-lag', 'state-off-lag'])(
+    'waits for cmdlet agreement with the original native owner after a settled transition: %s',
+    (mode) => {
+      expect(invoke(mode)).toEqual({ refused: false, samples: 2, observations: 2 });
+    },
+  );
+  it('refuses native loss of running state even when the cmdlet subsequently reports Running', () => {
+    expect(invoke('state-changed')).toEqual({ refused: true, samples: 2, observations: 2 });
+  });
+  it('refuses an already stopped native VM without another provider start', () => {
+    expect(invoke('state-stopped')).toEqual({ refused: true, samples: 1, observations: 1 });
+  });
+  it('never re-observes unresolved provider work as a settled transition', () => {
+    expect(invoke('state-pending')).toEqual({ refused: true, samples: 0, observations: 0 });
+  });
+  it('bounds disagreement with a cmdlet that never observes the native running state', () => {
+    expect(invoke('state-never')).toMatchObject({ refused: true });
+  });
+  it('compiles native retained-owner state observation without constructing a VM owner', () => {
+    expect(invoke('vm-native-compile')).toEqual({ stateType: 'System.UInt16' });
+  });
+  it('exports only scoped event IDs and finite numeric codes, excluding event content and other VMs', () => {
+    expect(invoke('failure-events')).toEqual({
+      rows: [
+        { log: 'Microsoft-Windows-Hyper-V-VMMS-Admin', id: 12345, codes: ['0x80070005'] },
+        { log: 'Microsoft-Windows-Hyper-V-Worker-Admin', id: 12345, codes: ['0x80070005'] },
+      ],
+    });
+  });
+  it('bounds startup event evidence to sixteen records', () => {
+    const { rows } = invoke('failure-events-many');
+    expect(rows).toHaveLength(16);
+    expect(rows.every((row) => row.id === 12345 && row.codes.length === 1)).toBe(true);
+  });
   it('refuses changed configuration before consuming start or releasing media', () => {
     expect(invoke('configuration')).toMatchObject({
       refused: true,

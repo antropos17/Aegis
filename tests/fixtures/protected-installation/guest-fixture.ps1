@@ -1,6 +1,43 @@
 param([string]$Mode)
 Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-guest.ps1')
+if ($Mode -ceq 'vm-native-compile') {
+    $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
+    Add-Type -ReferencedAssemblies System.Management -Path @((Join-Path $project 'scripts/installation/ProtectedGuestVm.cs'),
+        (Join-Path $project 'sidecar/session/OwnedVmLifecycle.cs'), (Join-Path $project 'sidecar/session/VmManagementNative.cs'))
+    return (@{ stateType = [ProtectedGuestVm].GetMethod('ObserveState').ReturnType.FullName } | ConvertTo-Json -Compress)
+}
+if ($Mode -cin @('failure-events', 'failure-events-many')) {
+    $script:targetVm = '11111111-2222-3333-4444-555555555555'
+    function Get-WinEvent {
+        $matching = [pscustomobject]@{ Id = 12345 }
+        $matching | Add-Member ScriptMethod ToXml { return ('<Event><Data>' + $script:targetVm + '</Data><Data Name="path">private-content C:\credentials\0x12345678</Data><Data Name="ErrorCode">0x80070005</Data></Event>') }
+        $foreign = [pscustomobject]@{ Id = 98765 }
+        $foreign | Add-Member ScriptMethod ToXml { return '<Event><Data>99999999-2222-3333-4444-555555555555</Data><Data>0x80070020</Data></Event>' }
+        if ($Mode -ceq 'failure-events-many') { return @($matching) * 20 }
+        return @($foreign, $matching)
+    }
+    return (@{ rows = (Get-ProtectedGuestFailureEvents $script:targetVm ([datetime]::UtcNow)) } | ConvertTo-Json -Depth 5 -Compress)
+}
+if ($Mode.StartsWith('state-', [StringComparison]::Ordinal)) {
+    $script:samples = 0; $script:observations = 0
+    $owner = [pscustomobject]@{ PendingUnknown = ($Mode -ceq 'state-pending') }
+    $owner | Add-Member ScriptMethod ObserveState {
+        $script:observations++
+        if ($Mode -ceq 'state-stopped' -or ($Mode -ceq 'state-changed' -and $script:observations -gt 1) -or $Mode -ceq 'state-off-lag') { return 3 }
+        return 2
+    }
+    function Get-VM {
+        $script:samples++
+        $state = if ($Mode -ceq 'state-off-lag') { if ($script:samples -gt 1) { 'Off' } else { 'Running' } }
+            elseif ($Mode -cne 'state-never' -and $script:samples -gt 1) { 'Running' } else { 'Off' }
+        return @{ State = $state }
+    }
+    $owned = @{ vmId = '11111111-2222-3333-4444-555555555555'; guest = @{ owner = $owner } }
+    $refused = $false
+    try { Wait-ProtectedGuestState $owned $(if ($Mode -ceq 'state-off-lag') { 'Off' } else { 'Running' }) 200 | Out-Null } catch { $refused = $true }
+    return (@{ refused = $refused; samples = $script:samples; observations = $script:observations } | ConvertTo-Json -Compress)
+}
 if ($Mode -ceq 'preflight-storage') {
     $source = Join-Path $PSScriptRoot '../../../scripts/qualification/test-cloud-guest.ps1'
     $tokens = $null; $errors = $null; $ast = [Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$errors)

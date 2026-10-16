@@ -11,6 +11,7 @@ public sealed class ProtectedGuestVm : IDisposable
 {
     private readonly OwnedVmLifecycle owner;
     private readonly VmManagementNative management;
+    private readonly string identity;
     public bool PendingUnknown { get { return owner.PendingUnknown; } }
     public uint? ReturnCode { get; private set; }
     public ushort? JobState { get; private set; }
@@ -32,7 +33,7 @@ public sealed class ProtectedGuestVm : IDisposable
                 new UTF8Encoding(false, true).GetBytes(initial.Identity))).Replace("-", "").ToLowerInvariant();
             if (initial.State != 3 || digest != expectedIdentity)
                 throw new InvalidOperationException("protected-guest-identity-refused");
-            owner = new OwnedVmLifecycle(native, 15000); management = native;
+            owner = new OwnedVmLifecycle(native, 15000); management = native; identity = initial.Identity;
         } catch { native.Dispose(); throw; }
     }
     public bool Start() {
@@ -57,6 +58,12 @@ public sealed class ProtectedGuestVm : IDisposable
         return result;
     }
     public bool Stop() { return owner.Stop(); }
+    public ushort ObserveState() {
+        VmObservation observed = management.Inspect();
+        if (observed == null || observed.VmId != management.VmId || observed.Identity != identity)
+            throw new InvalidOperationException("protected-guest-identity-refused");
+        return observed.State;
+    }
     public bool ObserveOff() { return owner.ObserveOff(); }
     public void Dispose() { owner.Dispose(); }
 }
