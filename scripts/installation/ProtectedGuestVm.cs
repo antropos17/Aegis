@@ -4,11 +4,33 @@ using System.Security.Principal;
 using System.Text;
 using System.Management;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 using Aegis.ProtectedSession;
 
 // Administrative, in-process authority only. Never wired to the caller dispatcher.
 public sealed class ProtectedGuestVm : IDisposable
 {
+    [DllImport("kernelbase.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool DeriveCapabilitySidsFromName(string name, out IntPtr groups, out uint groupCount, out IntPtr capabilities, out uint capabilityCount);
+    [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr pointer);
+    public static string WorkerCapabilitySid() {
+        IntPtr groups = IntPtr.Zero, capabilities = IntPtr.Zero; uint groupCount = 0, capabilityCount = 0;
+        try {
+            if (!DeriveCapabilitySidsFromName("vmWorkerProcess", out groups, out groupCount, out capabilities, out capabilityCount) ||
+                capabilityCount != 1 || groupCount > 16 || capabilities == IntPtr.Zero)
+                throw new InvalidOperationException("protected-guest-worker-capability-refused");
+            return new SecurityIdentifier(Marshal.ReadIntPtr(capabilities)).Value;
+        } finally {
+            if (groups != IntPtr.Zero) {
+                for (int i = 0; i < Math.Min(groupCount, 16U); i++) LocalFree(Marshal.ReadIntPtr(groups, i * IntPtr.Size));
+                LocalFree(groups);
+            }
+            if (capabilities != IntPtr.Zero) {
+                for (int i = 0; i < Math.Min(capabilityCount, 16U); i++) LocalFree(Marshal.ReadIntPtr(capabilities, i * IntPtr.Size));
+                LocalFree(capabilities);
+            }
+        }
+    }
     private readonly OwnedVmLifecycle owner;
     private readonly VmManagementNative management;
     private readonly string identity;

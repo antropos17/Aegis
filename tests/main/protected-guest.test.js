@@ -58,6 +58,17 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
   it('compiles native retained-owner state observation without constructing a VM owner', () => {
     expect(invoke('vm-native-compile')).toEqual({ stateType: 'System.UInt16' });
   });
+  it('derives the Windows worker capability and refuses it outside the original VM configuration or for another capability', () => {
+    expect(invoke('worker-capability')).toEqual({
+      sid: 'S-1-15-3-1024-2268835264-3721307629-241982045-173645152-1490879176-104643441-2915960892-1612460704',
+      ownConfig: true,
+      directory: false,
+      disk: false,
+      foreignVm: false,
+      unknownCapability: false,
+      genericAll: false,
+    });
+  });
   it('exports only scoped event IDs and finite numeric codes, excluding event content and other VMs', () => {
     expect(invoke('failure-events')).toEqual({
       rows: [

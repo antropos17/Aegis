@@ -1,11 +1,21 @@
 param([string]$Mode)
 Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-guest.ps1')
-if ($Mode -ceq 'vm-native-compile') {
+if ($Mode -cin @('vm-native-compile', 'worker-capability')) {
     $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
     Add-Type -ReferencedAssemblies System.Management -Path @((Join-Path $project 'scripts/installation/ProtectedGuestVm.cs'),
         (Join-Path $project 'sidecar/session/OwnedVmLifecycle.cs'), (Join-Path $project 'sidecar/session/VmManagementNative.cs'))
-    return (@{ stateType = [ProtectedGuestVm].GetMethod('ObserveState').ReturnType.FullName } | ConvertTo-Json -Compress)
+    if ($Mode -ceq 'vm-native-compile') { return (@{ stateType = [ProtectedGuestVm].GetMethod('ObserveState').ReturnType.FullName } | ConvertTo-Json -Compress) }
+    $sid = [ProtectedGuestVm]::WorkerCapabilitySid()
+    $owned = @{ root = @{ PathName = 'C:\private' }; vmId = '11111111-2222-3333-4444-555555555555' }
+    $path = 'C:\private\Machine\Virtual Machines\' + $owned.vmId + '.vmgs'
+    $ace = [Security.AccessControl.CommonAce]::new(0, 0, 2032127, [Security.Principal.SecurityIdentifier]::new($sid), $false, $null)
+    $wrong = [Security.AccessControl.CommonAce]::new(0, 0, 2032127, [Security.Principal.SecurityIdentifier]::new('S-1-15-3-1'), $false, $null)
+    $generic = [Security.AccessControl.CommonAce]::new(0, 0, 0x10000000, [Security.Principal.SecurityIdentifier]::new($sid), $false, $null)
+    return (@{ sid = $sid; ownConfig = (Test-ProtectedVmWorkerAce $owned $path $false $ace);
+        directory = (Test-ProtectedVmWorkerAce $owned $path $true $ace); disk = (Test-ProtectedVmWorkerAce $owned 'C:\private\Disks\system.vhdx' $false $ace);
+        foreignVm = (Test-ProtectedVmWorkerAce $owned ($path.Replace($owned.vmId, '99999999-2222-3333-4444-555555555555')) $false $ace);
+        unknownCapability = (Test-ProtectedVmWorkerAce $owned $path $false $wrong); genericAll = (Test-ProtectedVmWorkerAce $owned $path $false $generic) } | ConvertTo-Json -Compress)
 }
 if ($Mode -cin @('failure-events', 'failure-events-many')) {
     $script:targetVm = '11111111-2222-3333-4444-555555555555'
