@@ -177,6 +177,53 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
     });
   });
   it.each([
+    'agent-extra-key',
+    'agent-shadow-members',
+    'agent-schema-string',
+    'agent-id-array',
+    'agent-nonce-array',
+    'agent-digest-array',
+    'agent-key-case',
+    'agent-exit-negative',
+    'agent-exit-overflow',
+    'agent-quota-string',
+    'agent-job-string',
+    'agent-object',
+    'agent-multiple',
+  ])('refuses malformed guest result before publishing settlement: %s', (mode) => {
+    expect(invoke(mode)).toMatchObject({
+      refused: true,
+      consumed: true,
+      workerRemoved: true,
+      events: ['configuration-Running', 'pending-agent.json'],
+    });
+  });
+  it('copies only canonical result fields and excludes remoting note properties', () => {
+    expect(invoke('agent-metadata')).toEqual({
+      refused: false,
+      metadataLeaked: false,
+      keys: [
+        'diskQuotaBytes',
+        'executableSha256',
+        'exitCode',
+        'jobClosed',
+        'nonce',
+        'schemaVersion',
+        'standardToken',
+        'vmId',
+      ],
+    });
+  });
+  it('accepts typed nonzero exits through a real Windows PowerShell job and nested serialization', () => {
+    expect(invoke('result-serialization')).toEqual({
+      count: 8,
+      exitCode: 17,
+      versionType: 'System.Int32',
+      quotaType: 'System.Int64',
+      noteProperties: 0,
+    });
+  });
+  it.each([
     'tree-foreign',
     'tree-foreign-config',
     'tree-disk-replaced',

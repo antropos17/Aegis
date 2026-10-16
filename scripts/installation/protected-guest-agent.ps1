@@ -1,5 +1,23 @@
 Set-StrictMode -Version Latest
 
+# Validate the closed guest wire value and publish a fresh metadata-free copy.
+# This checks a retained administrative result; it grants no caller authority.
+function ConvertTo-ProtectedGuestAgentResult($Result, [string]$VmId, [string]$Nonce, [string]$Digest) {
+    $keys = @('schemaVersion', 'vmId', 'nonce', 'executableSha256', 'exitCode', 'jobClosed', 'standardToken', 'diskQuotaBytes')
+    if ($Result -isnot [hashtable] -or $Result.get_Count() -ne $keys.Count -or
+        @($Result.get_Keys() | Where-Object { $_ -isnot [string] -or $_ -cnotin $keys }).Count -ne 0 -or
+        $Result['schemaVersion'] -isnot [int] -or $Result['schemaVersion'] -ne 1 -or
+        $Result['vmId'] -isnot [string] -or $Result['vmId'] -cne $VmId -or
+        $Result['nonce'] -isnot [string] -or $Result['nonce'] -cne $Nonce -or
+        $Result['executableSha256'] -isnot [string] -or $Result['executableSha256'] -cne $Digest -or
+        $Result['jobClosed'] -isnot [bool] -or !$Result['jobClosed'] -or
+        $Result['standardToken'] -isnot [bool] -or !$Result['standardToken'] -or
+        $Result['diskQuotaBytes'] -isnot [long] -or $Result['diskQuotaBytes'] -ne 512MB -or
+        $Result['exitCode'] -isnot [long] -or $Result['exitCode'] -lt 0 -or $Result['exitCode'] -gt [uint32]::MaxValue) { throw 'protected-guest-agent-result-refused' }
+    return @{ schemaVersion = 1; vmId = $Result['vmId']; nonce = $Result['nonce']; executableSha256 = $Result['executableSha256'];
+        exitCode = $Result['exitCode']; jobClosed = $true; standardToken = $true; diskQuotaBytes = [long]512MB }
+}
+
 # Administrative PS Direct is bound to the created VMId; no IP, network share,
 # guest result file or ordinary caller can choose the destination or executable.
 function Invoke-ProtectedGuestAgent($Context, [pscredential]$Administrator, [pscredential]$Agent, $Package, [string[]]$Arguments = @(), [int]$Milliseconds = 30000) {
@@ -114,12 +132,11 @@ public static class ProtectedGuestDirectory {
         }
         if ($worker.State -cin @('Running', 'NotStarted')) { throw 'protected-guest-agent-settlement-unknown' }
         $rows = @(Receive-Job -Job $worker -ErrorAction Stop)
-        if ($worker.State -cne 'Completed' -or $rows.Count -ne 1 -or $rows[0].schemaVersion -ne 1 -or $rows[0].vmId -cne $owned.vmId -or
-            $rows[0].nonce -cne $nonce -or $rows[0].executableSha256 -cne $Package.sha256 -or $rows[0].jobClosed -isnot [bool] -or !$rows[0].jobClosed -or
-            $rows[0].standardToken -isnot [bool] -or !$rows[0].standardToken -or $rows[0].diskQuotaBytes -isnot [long] -or $rows[0].diskQuotaBytes -ne 512MB -or $rows[0].exitCode -isnot [long] -or $rows[0].exitCode -lt 0 -or $rows[0].exitCode -gt [uint32]::MaxValue) { throw 'protected-guest-agent-result-refused' }
+        if ($worker.State -cne 'Completed' -or $rows.Count -ne 1) { throw 'protected-guest-agent-result-refused' }
+        $settlement = ConvertTo-ProtectedGuestAgentResult $rows[0] $owned.vmId $nonce $Package.sha256
         Assert-ProtectedGuestConfiguration $owned 'Running'
-        Write-ProtectedVmJournal $owned 'settled-agent.json' $rows[0]
-        return $rows[0]
+        Write-ProtectedVmJournal $owned 'settled-agent.json' $settlement
+        return $settlement
     } finally {
         if ($worker.State -eq 'Running') { Stop-Job -Job $worker }
         Remove-Job -Job $worker -Force; [Array]::Clear($payload, 0, $payload.Length)
