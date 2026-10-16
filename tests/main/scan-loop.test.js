@@ -1878,6 +1878,7 @@ describe('scan-loop', () => {
       expect(scanLoop.getScanCadence()).toEqual({
         skippedProcessTicks: 1,
         lastSkippedAt: Date.now(),
+        maxProcessGapMs: 5000,
       });
       expect(mockDeps.statsUpdateBatcher.pushLazy).toHaveBeenCalledWith(mockDeps.getStats);
       await vi.advanceTimersByTimeAsync(5000); // a second skipped interval
@@ -1888,7 +1889,11 @@ describe('scan-loop', () => {
     it('starts a new monitoring run with no skipped process intervals', async () => {
       const deps = makeDeps();
       scanLoop.init(deps);
-      expect(scanLoop.getScanCadence()).toEqual({ skippedProcessTicks: 0, lastSkippedAt: null });
+      expect(scanLoop.getScanCadence()).toEqual({
+        skippedProcessTicks: 0,
+        lastSkippedAt: null,
+        maxProcessGapMs: null,
+      });
       scanLoop.startScanIntervals(5000);
       await vi.advanceTimersByTimeAsync(5000);
       expect(scanLoop.getScanCadence().skippedProcessTicks).toBe(0);

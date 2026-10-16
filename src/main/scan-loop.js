@@ -19,6 +19,7 @@ const { collectTokenCosts, getTokenCostDelivery } = require('./token-cost-collec
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { identify } = require('./process-identity');
+const { STARTUP_MS, WARMUP_MS, warmupProcessSchedule } = require('./scan-schedule');
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -52,6 +53,9 @@ let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
 // can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
 let processScanRunning = false;
+// Planned timer spacing, not evidence of a successful scan. The renderer binds
+// this bound to a reliable batch; stats-only deliveries never renew its age.
+let maxProcessGapMs = null;
 // A slow scan can span interval ticks. Count the scheduled observations that
 // could not start; this is cadence evidence, not a count of missed events.
 let skippedProcessTicks = 0;
@@ -259,6 +263,7 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  maxProcessGapMs = null;
   if (wslInventoryInterval) {
     clearInterval(wslInventoryInterval);
     wslInventoryInterval = null;
@@ -1269,6 +1274,7 @@ async function doHotReadScan() {
 function startScanIntervals(intervalMs) {
   startWslInventoryPolling();
   const ms = intervalMs || 10000;
+  maxProcessGapMs = ms;
   scanInterval = setInterval(doProcessScan, ms);
   netInterval = setInterval(doNetworkScan, 30000);
   fileScanInterval = setInterval(doFileScan, Math.max(ms * 3, 30000));
@@ -1304,8 +1310,9 @@ function startWslInventoryPolling() {
 
 /** @param {number} targetMs @since v0.4.0 */
 function startWarmup(targetMs) {
-  const warmupMs = targetMs * 3;
-  scanInterval = setInterval(doProcessScan, warmupMs);
+  const schedule = warmupProcessSchedule(targetMs);
+  maxProcessGapMs = schedule.maxGapMs;
+  scanInterval = setInterval(doProcessScan, schedule.intervalMs);
   netInterval = setInterval(doNetworkScan, 60000);
   fileScanInterval = setInterval(doFileScan, 60000);
   warmupTimer = setTimeout(() => {
@@ -1316,24 +1323,26 @@ function startWarmup(targetMs) {
     netInterval = null;
     fileScanInterval = null;
     startScanIntervals(targetMs);
-  }, 60000);
+  }, WARMUP_MS);
 }
 
 /** @param {number} intervalMs @param {boolean} paused @since v0.3.0 */
 function staggeredStartup(intervalMs, paused) {
+  maxProcessGapMs = paused ? null : warmupProcessSchedule(intervalMs).maxGapMs;
   if (!paused) startupTimers.push(setTimeout(startWslInventoryPolling, 15000));
-  startupTimers.push(setTimeout(() => doProcessScan(), 3000));
-  startupTimers.push(setTimeout(() => doFileScan(), 8000));
+  startupTimers.push(setTimeout(() => doProcessScan(), STARTUP_MS.process));
+  startupTimers.push(setTimeout(() => doFileScan(), STARTUP_MS.files));
   startupTimers.push(
     setTimeout(() => {
       doNetworkScan();
       if (!paused) startWarmup(intervalMs);
-    }, 12000),
+    }, STARTUP_MS.polling),
   );
 }
 
 /** @param {Object} injected @since v0.3.0 */
 function init(injected) {
+  maxProcessGapMs = null;
   resourceScanGeneration++;
   resourceSampler.invalidate();
   deps = injected;
@@ -1354,9 +1363,9 @@ function init(injected) {
   });
 }
 
-/** @returns {{skippedProcessTicks: number, lastSkippedAt: number|null}} @since v0.17.0-alpha */
+/** @returns {{skippedProcessTicks: number, lastSkippedAt: number|null, maxProcessGapMs: number|null}} @since v0.17.0-alpha */
 function getScanCadence() {
-  return { skippedProcessTicks, lastSkippedAt };
+  return { skippedProcessTicks, lastSkippedAt, maxProcessGapMs };
 }
 
 /** @returns {{ollama: {running:boolean,models:string[]}, lmstudio: {running:boolean,models:string[]}}} */

@@ -6,17 +6,21 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { boundedCommand } from './bounded-command.mjs';
-import { desktopPassed } from './desktop-contract.mjs';
+import { desktopPassed, monitoringPassed } from './desktop-contract.mjs';
 import { processCoreSources } from '../../tests/fixtures/protected-gui-process/harness.mjs';
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
-  options: { output: { type: 'string' }, 'source-sha': { type: 'string' } },
+  options: {
+    output: { type: 'string' },
+    'source-sha': { type: 'string' },
+    monitoring: { type: 'boolean', default: false },
+  },
 });
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory>',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring]',
   );
 const output = path.resolve(values.output);
 if (
@@ -63,7 +67,9 @@ const receipt = {
   scope: {
     packagedElectron: true,
     windowObservation: true,
-    rendererInteractions: 'not-run',
+    rendererInteractions: values.monitoring
+      ? 'monitoring-with-ordinary-current-user-and-playwright'
+      : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
     uac: 'not-run',
     guiEnrollment: false,
@@ -198,6 +204,27 @@ try {
   if (fs.statSync(path.join(evidence, 'window.png')).size > 8 * 1024 ** 2)
     throw new Error('Window image too large');
   receipt.screenshotSha256 = hash(path.join(evidence, 'window.png'));
+  if (values.monitoring) {
+    await command(
+      'monitoring',
+      process.execPath,
+      [
+        path.join(root, 'frontend/observatory/tests/monitoring-electron.mjs'),
+        '--executable',
+        path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
+        '--output',
+        path.join(output, 'monitoring'),
+      ],
+      180000,
+    );
+    const monitoringReceipt = path.join(output, 'monitoring/receipt.json');
+    if (fs.statSync(monitoringReceipt).size > 262144)
+      throw new Error('Monitoring receipt too large');
+    receipt.monitoring = JSON.parse(fs.readFileSync(monitoringReceipt, 'utf8'));
+    if (!monitoringPassed(receipt.monitoring))
+      throw new Error('Packaged monitoring scenario incomplete');
+    receipt.monitoringReceiptSha256 = hash(monitoringReceipt);
+  }
   if (
     hash(manifest) !== receipt.packageManifestSha256 ||
     !produceGuiManifest(candidate).equals(fs.readFileSync(manifest))

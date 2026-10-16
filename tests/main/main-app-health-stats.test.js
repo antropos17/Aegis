@@ -100,6 +100,7 @@ describe('getStats() — app health composition', () => {
     expect(main.getStats().scanCadence).toEqual({
       skippedProcessTicks: 0,
       lastSkippedAt: null,
+      maxProcessGapMs: null,
     });
   });
 
@@ -151,7 +152,11 @@ describe('getStats() — app health composition', () => {
       permissionDeniedScans: 0,
     });
     try {
-      expect(main.getStats().scanCadence).toEqual({ skippedProcessTicks: 0, lastSkippedAt: null });
+      expect(main.getStats().scanCadence).toEqual({
+        skippedProcessTicks: 0,
+        lastSkippedAt: null,
+        maxProcessGapMs: null,
+      });
     } finally {
       main._setScannerForTest(null);
     }
@@ -252,7 +257,11 @@ describe('getStats() — app health composition', () => {
   });
 
   it('delivers a nonzero cadence snapshot on both stats branches', () => {
-    const cadence = { skippedProcessTicks: 2, lastSkippedAt: 1_700_000_000_000 };
+    const cadence = {
+      skippedProcessTicks: 2,
+      lastSkippedAt: 1_700_000_000_000,
+      maxProcessGapMs: 40000,
+    };
     main._setScanLoopForTest({ getScanCadence: () => ({ ...cadence }) });
     try {
       expect(main.getStats().scanCadence).toEqual(cadence);
