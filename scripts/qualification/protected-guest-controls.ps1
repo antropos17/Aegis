@@ -40,8 +40,9 @@ public static class ProtectedGuestControl {
   if (args.Length == 1 && args[0] == "child") { System.Threading.Thread.Sleep(60000); return 0; }
   if (args.Length != 2 || args[0] != "a b" || args[1] != "c\"d\\") return 10;
   if (new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) return 11;
-  if (Environment.GetEnvironmentVariable("AEGIS_GUEST_ADMIN_CANARY") != null) return 12;
+  if (Environment.GetEnvironmentVariable("TEMP") != Directory.GetCurrentDirectory()) return 12;
   string image = Process.GetCurrentProcess().MainModule.FileName;
+  try { File.WriteAllText(Path.Combine(Path.GetDirectoryName(image), "unauthorized.txt"), "refuse"); return 16; } catch (UnauthorizedAccessException) {}
   try { using (var f = File.Open(image, FileMode.Open, FileAccess.Write, FileShare.ReadWrite)) {} return 13; } catch (UnauthorizedAccessException) {} catch (IOException) {}
   File.WriteAllText(Path.Combine(Environment.GetEnvironmentVariable("TEMP"), "standard-write.txt"), "bounded-control");
   string quotaFile = Path.Combine(Environment.GetEnvironmentVariable("TEMP"), "quota-control.bin");
@@ -74,7 +75,11 @@ public static class ProtectedGuestControl {
         $report.stage = 'complete'
     } catch {
         $report.failure = Get-ProtectedInstallFailure $_ 'protected-guest'; $report.failure.stage = $report.stage
-        if ($null -ne $context -and $context.vmProvision.ContainsKey('guest')) { $report.failure.checkpoint = $context.vmProvision.guest.checkpoint }
+        if ($null -ne $context -and $context.vmProvision.ContainsKey('guest')) {
+            $report.failure.checkpoint = $context.vmProvision.guest.checkpoint
+            if ($context.vmProvision.ContainsKey('configurationRefusals')) { $report.failure.configurationRefusals = $context.vmProvision.configurationRefusals }
+            if ($context.vmProvision.ContainsKey('observedState')) { $report.failure.observedState = $context.vmProvision.observedState }
+        }
     } finally {
         if ($null -ne $context) {
             try {

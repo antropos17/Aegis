@@ -12,6 +12,24 @@ function Initialize-ProtectedGuestNative {
             (Join-Path $project 'sidecar/session/OwnedVmLifecycle.cs'), (Join-Path $project 'sidecar/session/VmManagementNative.cs'))
     }
 }
+function Assert-ProtectedGuestTree($Owned, $Rows) {
+    $machine = Join-Path $Owned.root.PathName 'Machine\'
+    $journals = @('pending-hydrate.json', 'settled-hydrate.json', 'pending-bootdisk.json', 'settled-bootdisk.json',
+        'pending-start.json', 'settled-start.json', 'pending-agent.json', 'settled-agent.json', 'pending-stop.json', 'settled-stop.json')
+    foreach ($row in $Rows) {
+        $prior = @($Owned.rows | Where-Object { $_.path -ceq $row.path })
+        $configuration = !$row.directory -and $row.path.StartsWith($machine, [StringComparison]::OrdinalIgnoreCase) -and
+            [IO.Path]::GetFileName($row.path) -imatch ('^' + [regex]::Escape($Owned.vmId) + '\.(vmcx|vmgs|vmrs)$')
+        if ($prior.Count -eq 1) {
+            if ($prior[0].volume -cne $row.volume -or $prior[0].directory -cne $row.directory -or
+                (!$configuration -and ($prior[0].fileId -cne $row.fileId -or $prior[0].sddl -cne $row.sddl))) { throw 'protected-vm-tree-changed' }
+        } elseif (!$configuration -and ($row.directory -or [IO.Path]::GetDirectoryName($row.path) -ine $Owned.root.PathName -or
+            [IO.Path]::GetFileName($row.path) -cnotin $journals)) { throw 'protected-vm-unowned-child' }
+    }
+    foreach ($prior in $Owned.rows) {
+        if (@($Rows | Where-Object { $_.path -ceq $prior.path }).Count -ne 1) { throw 'protected-vm-tree-changed' }
+    }
+}
 function Set-ProtectedGuestDisk($Context, $Request) {
     Assert-ProtectedInstallation $Context
     $owned = $Context.vmProvision
@@ -33,7 +51,8 @@ function Set-ProtectedGuestDisk($Context, $Request) {
         Invoke-ProtectedVmEffect $owned 'bootdisk'; $owned.unknown = $true
         $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier; $Context.vmBinding = $owned.binding
         Write-ProtectedVmJournal $owned 'settled-hydrate.json' @{ schemaVersion = 1; vmId = $owned.vmId; bytes = $Request.bytes; sha256 = $Request.sha256 }
-        $owned.rows = Read-ProtectedVmTree $owned $true; $owned.unknown = $false
+        $nextRows = Read-ProtectedVmTree $owned $true; Assert-ProtectedGuestTree $owned $nextRows
+        $owned.rows = $nextRows; $owned.unknown = $false
         Update-ProtectedInstallation $Context $Context.stage.root.PathName $Context.manifest | Out-Null
     } catch { $owned.unknown = $true; throw }
     finally { $source.Dispose() }
@@ -60,11 +79,12 @@ function Assert-ProtectedGuestConfiguration($Owned, [string]$State) {
     }
     if ($dvd.Count -eq 1) { $checks.dvdPath = ($dvd[0].Path -ieq $Owned.image.PathName) }
     $Owned.configurationRefusals = @($checks.Keys | Where-Object { !$checks[$_] })
+    $Owned.observedState = $(if ($vm.State.ToString() -cin @('Off', 'Running', 'Starting', 'Stopping', 'RunningCritical', 'OffCritical', 'Paused', 'Saved', 'Saving', 'Pausing')) { $vm.State.ToString() } else { 'other' })
     if ($Owned.configurationRefusals.Count -ne 0) { throw 'protected-guest-configuration-refused' }
     $Owned.configurationCheckpoint = 2
     foreach ($role in @('root', 'images', 'disks', 'image', 'disk')) { $Owned.configurationCheckpoint++; $Owned[$role].Recheck(); $Owned[$role].RequireHighIntegrity() }
     $Owned.configurationCheckpoint = 8
-    Read-ProtectedVmTree $Owned | Out-Null
+    $rows = Read-ProtectedVmTree $Owned; Assert-ProtectedGuestTree $Owned $rows
     $Owned.configurationCheckpoint = 9
 }
 function Start-ProtectedGuest($Context) {
@@ -104,6 +124,7 @@ function Stop-ProtectedGuest($Context) {
     $owned.disk = $offline; $prior.Dispose()
     $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier; $Context.vmBinding = $owned.binding
     Write-ProtectedVmJournal $owned 'settled-stop.json' @{ schemaVersion = 1; vmId = $owned.vmId; off = $true }
-    $owned.rows = Read-ProtectedVmTree $owned; $owned.guest.owner.Dispose(); $owned.guest.state = 'closed'; $owned.unknown = $false
+    $nextRows = Read-ProtectedVmTree $owned; Assert-ProtectedGuestTree $owned $nextRows
+    $owned.rows = $nextRows; $owned.guest.owner.Dispose(); $owned.guest.state = 'closed'; $owned.unknown = $false
     Update-ProtectedInstallation $Context $Context.stage.root.PathName $Context.manifest | Out-Null
 }

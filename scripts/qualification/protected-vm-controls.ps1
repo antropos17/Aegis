@@ -64,13 +64,12 @@ try {
     $diskRequest = @{ path = $sourceDisk; bytes = $sourceBytes; sha256 = $sourceDigest }
     Set-ProtectedGuestDisk $association $diskRequest
     $originalDiskId = $owned.disk.FileId
-    $stage = 'live-start'; Start-ProtectedGuest $association
-    $replay = $false
-    try { Start-ProtectedGuest $association } catch { $replay = $true }
-    $stage = 'live-stop'; Stop-ProtectedGuest $association
-    $report['liveLifecycle'] = @{ passed = $replay -and $owned.disk.FileId -ceq $originalDiskId -and $owned.guest.state -ceq 'closed';
-        replayRefused = $replay; originalDiskIdRetained = ($owned.disk.FileId -ceq $originalDiskId); offConfirmed = ($owned.guest.state -ceq 'closed'); guestOsBooted = $false }
-    if (!$report.liveLifecycle.passed) { throw 'protected-vm-live-control-failed' }
+    Assert-ProtectedInstallation $association
+    $report['preparedGuestDisk'] = @{ passed = $owned.disk.FileId -ceq $originalDiskId; originalDiskIdRetained = ($owned.disk.FileId -ceq $originalDiskId); guestOsBooted = $false }
+    # The empty disk has no OS; firmware may stop after an initial Running
+    # observation. Actual start/agent/stop acceptance uses the installed Windows
+    # disk exclusively in protected-guest-controls.
+    if (!$report.preparedGuestDisk.passed) { throw 'protected-vm-disk-control-failed' }
     $stage = 'uninstall'; Remove-ProtectedInstallation $association; $association = $null
     $rows = @(Get-CimInstance -Namespace root/virtualization/v2 -ClassName Msvm_ComputerSystem -Filter "Name='$id'" -OperationTimeoutSec 5)
     $report.removed = $rows.Count -eq 0 -and !(Test-Path -LiteralPath $script:ProtectedInstallParent) -and [ProtectedInstallService]::Absent() -and @(Get-LocalUser | Where-Object Name -CEQ $account).Count -eq 0
@@ -93,6 +92,7 @@ try {
             $report.failure.provision.guestCheckpoint = $owned.guest.checkpoint
             $report.failure.provision.configurationCheckpoint = $owned.configurationCheckpoint
             if ($owned.ContainsKey('configurationRefusals')) { $report.failure.provision.configurationRefusals = $owned.configurationRefusals }
+            if ($owned.ContainsKey('observedState')) { $report.failure.provision.observedState = $owned.observedState }
             if ($null -ne $owned.guest.owner) {
                 $report.failure.provision.lifecycle = @{ returnCode = $owned.guest.owner.ReturnCode; jobState = $owned.guest.owner.JobState; jobError = $owned.guest.owner.JobError; hResult = $owned.guest.owner.FailureHResult; errorCodes = $owned.guest.owner.ErrorCodes }
             }
