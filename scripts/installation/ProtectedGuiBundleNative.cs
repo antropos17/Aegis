@@ -18,6 +18,8 @@ internal sealed class ProtectedGuiBundleNative : IDisposable
     [DllImport("kernel32.dll", EntryPoint = "CreateDirectoryW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool CreateDirectory(string path, ref Attributes attributes);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, byte[] bytes, uint count);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool DeviceIoControl(SafeFileHandle file, uint code,
+        IntPtr input, uint inputBytes, byte[] output, uint outputBytes, out uint returned, IntPtr overlapped);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder value, uint size, uint flags);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetFileInformationByHandle(SafeFileHandle file, int kind, ref int value, uint size);
     [StructLayout(LayoutKind.Sequential)] private struct FileIdentifier { internal uint Size, Type; internal ulong Low, High; }
@@ -157,6 +159,16 @@ internal sealed class ProtectedGuiBundleNative : IDisposable
     { Need(created && !closed && Hex(Query(18, 24)) == Hex(identity) && String.Equals(Name(), path, StringComparison.OrdinalIgnoreCase)); PathName = path; Check(); }
     internal void FreezeDirectoryMetadata()
     { Need(created && Directory); CheckOriginal(); metadata = Metadata(); }
+    internal void PrepareShellObjectId()
+    {
+        // Only our unpublished CreateNew executable. The shell can lazily create
+        // this optional NTFS attribute, changing ChangeTime during first launch.
+        // Create-or-get never replaces an ID. It is not our file identity authority.
+        Need(created && !Directory && !resumedReadOnly); Check();
+        var value = new byte[64]; uint returned;
+        Need(DeviceIoControl(held, 0x900c0, IntPtr.Zero, 0, value, 64, out returned, IntPtr.Zero) && returned == 64);
+        metadata = Metadata(); Check();
+    }
     internal static ProtectedGuiBundleNative ParentHint(ProtectedInstallFile original)
     {
         Need(original != null && original.Directory); original.Recheck();

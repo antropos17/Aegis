@@ -64,6 +64,12 @@ runner and historical receipts remain separate.
 
 ## Failures and retries
 
+For the actual packaged Electron Start/Query/Stop window lifecycle, use the
+[packaged desktop milestone](packaged-desktop-milestone.md). It builds the package
+and records native window/profile/Job observations in an interactive Windows
+session. Its installation authority remains modeled; the hosted fixture lane
+above does not run this desktop probe.
+
 | Observed stage | Next investigation |
 | --- | --- |
 | preflight | SHA/dirty source, OS/Node/compiler, dependency ownership, disk capacity |

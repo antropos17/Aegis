@@ -23,6 +23,9 @@ public sealed class ProtectedGuiProcessLease : IDisposable
 #if PROTECTED_GUI_PROCESS_TEST
     private string diagnosticPhase = "none", diagnosticFailurePhase = "none";
     public string FailurePhaseForTest { get { return diagnosticFailurePhase; } }
+    // Observation only; absent from the production assembly. Never reacquire ownership by PID.
+    public uint ProcessIdForTest { get { return process == null ? 0 : process.ProcessId; } }
+    public string ProfilePathForTest { get { return profile == null ? null : profile.PathName; } }
 #endif
     [Conditional("PROTECTED_GUI_PROCESS_TEST")]
     private void Phase(string value) {

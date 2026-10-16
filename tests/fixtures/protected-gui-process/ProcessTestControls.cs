@@ -1,11 +1,23 @@
 #if PROTECTED_GUI_TEST && PROTECTED_GUI_PROCESS_TEST
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 // Fixture controls only: all filesystem/process effects below are real. The
 // callback dispatch and missing closure acknowledgment are explicitly modeled.
 public static class ProcessTestControls
 {
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool DeviceIoControl(SafeFileHandle file, uint code,
+        IntPtr input, uint inputBytes, byte[] output, uint outputBytes, out uint returned, IntPtr overlapped);
+    public static string ShellObjectId(string path) {
+        using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            var value = new byte[64]; uint returned;
+            if (!DeviceIoControl(file.SafeFileHandle, 0x900c0, IntPtr.Zero, 0, value, 64, out returned, IntPtr.Zero) || returned != 64)
+                throw new IOException("fixture-shell-object-id-refused");
+            return BitConverter.ToString(value, 0, 16);
+        }
+    }
     public static string AttemptPath { get; private set; }
     public static bool ReplacementAttempted { get; private set; }
     public static bool ReplacementRefused { get; private set; }

@@ -133,6 +133,7 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
                     result.entries.Add(new Entry(file.Path, target, file));
                     Entry source = entries.Find(delegate(Entry entry) { return entry.Relative == file.Path; }); Need(source != null);
                     source.Pin.CopyTo(target, file.Bytes, file.Hash);
+                    if (file.Path == ProtectedGuiManifest.ProductExecutable) target.PrepareShellObjectId();
                 }
                 foreach (var entry in result.entries) if (entry.Pin.Directory) entry.Pin.FreezeDirectoryMetadata();
                 CheckCurrent(); originalStageRoot.Recheck(); originalPrincipal.CheckCurrent(); result.CheckCurrent(originalStageRoot); return result;
