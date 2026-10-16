@@ -11,6 +11,7 @@ namespace Aegis.ProtectedSession
         private readonly CallerRegistration server;
         private CallerRegistration main;
         private MainRegistrationEvidence proof;
+        private InstalledFixedOperationRegistration fixedRegistration;
         private CallerEndpoint endpoint;
         private CallerAdmission.Context admission;
         private Context publishedContext;
@@ -62,6 +63,12 @@ namespace Aegis.ProtectedSession
                     owner.main = CallerRegistration.RegisterMain(heldMain, server);
                     owner.proof = MainRegistrationEvidence.Acquire(lease, server, owner.main, files);
                     owner.installed = installed;
+                    if (installed != null)
+                    {
+                        var registeredOwner = installed as InstalledOwnerRegistration;
+                        CallerNative.Require(registeredOwner != null);
+                        owner.fixedRegistration = InstalledFixedOperationRegistration.Acquire(owner.proof, registeredOwner, files);
+                    }
                     owner.endpoint = new CallerEndpoint(owner.main, heldMain, installed);
                     owner.CheckCore(); owner.Labels = new Routing(owner.endpoint, owner.main);
                     return owner;
@@ -94,7 +101,9 @@ namespace Aegis.ProtectedSession
         {
             substage = 9; CallerNative.Require(!closed && !CallerNative.HasThreadToken());
             substage = 10; server.CheckServer();
-            substage = 11; proof.CheckCurrent(); endpoint.CheckCurrent(ref substage);
+            substage = 11; proof.CheckCurrent();
+            if (fixedRegistration != null) fixedRegistration.CheckCurrent();
+            endpoint.CheckCurrent(ref substage);
             substage = 12; CallerNative.Require(!CallerNative.HasThreadToken());
         }
         internal sealed class Context
@@ -104,6 +113,7 @@ namespace Aegis.ProtectedSession
             private bool inspected;
             private InspectionCompletion completion;
             private InstalledOwnerDeadline inspectionDeadline;
+            private InstalledInspectionAuthorization authorization;
             internal Context(CallerMainOperation operation)
             { owner = operation; native = operation.admission; }
             internal void CheckCurrent()
@@ -131,28 +141,64 @@ namespace Aegis.ProtectedSession
                 {
                     try
                     {
-                        CallerNative.Require(!inspected); CheckCurrent(); inspected = true;
-                        string result = owner.proof.Inspect(native); CheckCurrent(); return result;
+                        CallerNative.Require(owner.fixedRegistration == null);
+                        return InspectCore();
                     }
                     catch { owner.Close(); throw; }
                 }
             }
             internal InspectionCompletion InspectInstalledOwned(InstalledOwnerRegistration installed, InstalledOwnerDeadline deadline)
             {
+                InstalledInspectionAuthorization issued = IssueInspectionAuthorization(installed, deadline);
+                return DispatchInstalledInspection(issued, InstalledFixedOperationRegistration.Operation, installed, deadline);
+            }
+            private string InspectCore()
+            {
+                CallerNative.Require(!inspected); CheckCurrent(); inspected = true;
+                string result = owner.proof.Inspect(native); CheckCurrent(); return result;
+            }
+            private InstalledInspectionAuthorization IssueInspectionAuthorization(InstalledOwnerRegistration installed, InstalledOwnerDeadline deadline)
+            {
                 lock (owner.server.Gate)
                 {
                     try
                     {
-                        CallerNative.Require(deadline != null && completion == null && inspectionDeadline == null);
+                        CallerNative.Require(deadline != null && completion == null && inspectionDeadline == null && authorization == null &&
+                            owner.fixedRegistration != null && !inspected);
                         inspectionDeadline = deadline;
                         CheckInstalledOwner(installed); deadline.Check();
-                        string result = InspectOwned();
+                        authorization = new InstalledInspectionAuthorization(this, native, owner.main.Generation, owner.fixedRegistration, installed, deadline);
+                        return authorization;
+                    }
+                    catch { owner.Close(); throw; }
+                }
+            }
+            private InspectionCompletion DispatchInstalledInspection(InstalledInspectionAuthorization issued, string operation,
+                InstalledOwnerRegistration installed, InstalledOwnerDeadline deadline)
+            {
+                lock (owner.server.Gate)
+                {
+                    try
+                    {
+                        CallerNative.Require(authorization != null && Object.ReferenceEquals(authorization, issued) &&
+                            Object.ReferenceEquals(inspectionDeadline, deadline) && completion == null);
+                        CheckInstalledOwner(installed); deadline.Check();
+                        authorization.Consume(this, native, owner.main.Generation, owner.fixedRegistration, installed, deadline, operation);
+                        string result = InspectCore();
                         completion = new InspectionCompletion(this, installed, deadline, native, result);
                         completion.CheckCurrent(); return completion;
                     }
                     catch { owner.Close(); throw; }
                 }
             }
+#if CALLER_MAIN_OPERATION_TEST
+            // These seams issue and consume the real native authorization after genuine pipe admission.
+            internal InstalledInspectionAuthorization IssueInspectionAuthorizationForTest(InstalledOwnerRegistration installed, InstalledOwnerDeadline deadline)
+            { return IssueInspectionAuthorization(installed, deadline); }
+            internal InspectionCompletion DispatchInstalledInspectionForTest(InstalledInspectionAuthorization issued, string operation,
+                InstalledOwnerRegistration installed, InstalledOwnerDeadline deadline)
+            { return DispatchInstalledInspection(issued, operation, installed, deadline); }
+#endif
             private void CheckBinding()
             {
                 CallerNative.Require(owner.published && Object.ReferenceEquals(owner.publishedContext, this) &&
@@ -164,6 +210,7 @@ namespace Aegis.ProtectedSession
                 installed.CheckCurrent();
                 CallerNative.Require(native.SelectionId == installed.Policy.SelectionId &&
                     native.SelectionEpoch == installed.Policy.SelectionEpoch && native.InventoryRevision == installed.Policy.Revision);
+                owner.fixedRegistration.CheckOwner(installed);
             }
             internal void CheckCompleted(InspectionCompletion issued, InstalledOwnerRegistration installed,
                 InstalledOwnerDeadline deadline, CallerAdmission.Context original)
@@ -176,7 +223,10 @@ namespace Aegis.ProtectedSession
                             inspected && completion != null && issued != null && Object.ReferenceEquals(completion, issued) &&
                             Object.ReferenceEquals(native, original));
                         deadline.Check(); CheckBinding(); owner.CheckCore(); native.CheckRetained();
-                        owner.proof.CheckSelection(native); CheckInstalledBinding(installed); deadline.Check();
+                        owner.proof.CheckSelection(native); CheckInstalledBinding(installed);
+                        CallerNative.Require(authorization != null);
+                        authorization.CheckRetained(this, native, owner.main.Generation, owner.fixedRegistration, installed, deadline);
+                        deadline.Check();
                     }
                     catch { owner.Close(); throw; }
                 }
@@ -204,7 +254,7 @@ namespace Aegis.ProtectedSession
         {
             if (!closed)
             {
-                closed = true; CloseResource(endpoint); CloseResource(proof); CloseResource(main);
+                closed = true; CloseResource(endpoint); CloseResource(fixedRegistration); CloseResource(proof); CloseResource(main);
             }
             if (cleanupUnknown) throw new InvalidDataException("main-operation-cleanup-unconfirmed");
         }

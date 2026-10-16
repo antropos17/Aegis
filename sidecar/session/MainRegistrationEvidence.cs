@@ -25,6 +25,8 @@ namespace Aegis.ProtectedSession
         private AppContainerExecutable.PinnedFile image;
         private string[] ids, epochs;
         private string operatorSid, operatorAuthentication;
+        private int mainImageSize;
+        private string mainImageHash;
         private uint operatorSession;
         private bool closed, cleanupUnknown;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
@@ -39,6 +41,7 @@ namespace Aegis.ProtectedSession
         private static readonly Regex Entries = new Regex(Entry, RegexOptions.CultureInvariant);
         private MainRegistrationEvidence(EnrollmentLease original, CallerRegistration exactServer, CallerRegistration exactMain)
         { lease = original; server = exactServer; main = exactMain; enrollment = lease.BindServer(server); }
+        internal string InstalledRoot { get { return enrollment.Root; } }
 
         internal static MainRegistrationEvidence Acquire(EnrollmentLease lease, CallerRegistration server,
             CallerRegistration main, IEnrollmentFiles files)
@@ -62,6 +65,7 @@ namespace Aegis.ProtectedSession
                     EnrollmentInspection.ImageHash(proof.records[1]) == role.Groups[9].Value &&
                     UInt32.TryParse(role.Groups[6].Value, out proof.operatorSession));
                 proof.operatorSid = role.Groups[4].Value; proof.operatorAuthentication = role.Groups[5].Value;
+                proof.mainImageSize = size; proof.mainImageHash = role.Groups[8].Value;
                 MatchCollection entries = Entries.Matches(Utf8.GetString(proof.records[1]));
                 proof.ids = new string[entries.Count]; proof.epochs = new string[entries.Count];
                 for (int index = 0; index < entries.Count; index++)
@@ -124,6 +128,20 @@ namespace Aegis.ProtectedSession
             return "{\"schemaVersion\":1,\"scope\":\"retained-inventory-inspection\",\"selectionId\":\"" + context.SelectionId +
                 "\",\"revision\":" + enrollment.Revision + ",\"epoch\":\"" + context.SelectionEpoch +
                 "\",\"inventoryObserved\":true,\"ownershipQualified\":false,\"launchAllowed\":false}";
+        }
+        internal void CheckFixedInspectionBinding(InstalledOwnerPolicy policy, InstalledFixedOperationRegistration.Manifest manifest,
+            AppContainerExecutable.PinnedFile supervisor)
+        {
+            // These bytes and image observations belong to the original acquired main proof.
+            policy.CheckInspectionTuple(enrollment);
+            EnrollmentNative.Require(operatorSid == policy.OperatorSid && mainImageSize == policy.MainSize && mainImageHash == policy.MainHash &&
+                manifest.MainSize == mainImageSize && manifest.MainHash == mainImageHash &&
+                records[1].Length == manifest.InventorySize && EnrollmentInspection.ImageHash(records[1]) == manifest.InventoryHash);
+            bool selected = false;
+            for (int index = 0; index < ids.Length; index++)
+                if (ids[index] == manifest.SelectionId && epochs[index] == manifest.SelectionEpoch) selected = true;
+            EnrollmentNative.Require(selected && manifest.SelectionId == policy.SelectionId && manifest.SelectionEpoch == policy.SelectionEpoch);
+            main.CheckEnrolledImage(image); server.CheckEnrolledImage(supervisor);
         }
         private static void Deadline(Stopwatch watch) { EnrollmentNative.Require(watch.ElapsedMilliseconds < 2000); }
         private void CloseResource(IDisposable value)

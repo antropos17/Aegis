@@ -189,6 +189,8 @@ function main() {
         'InstalledJobInventory',
         'InstalledOwnerFiles',
         'InstalledOwnerSession',
+        'InstalledFixedOperationRegistration',
+        'InstalledInspectionAuthorization',
         'InstalledVmRegistration',
         'InstalledVmInspection',
         'VmStorageInspection',

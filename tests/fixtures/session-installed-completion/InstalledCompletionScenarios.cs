@@ -7,6 +7,8 @@ internal sealed class CompletionObservation
 {
     internal bool Admitted, Refused, RetryRefused, Completed, Retained, MainJobEmpty, BorrowedUsable, RecordsUnchanged;
     internal int Effects;
+    internal bool AuthorizationIssued, PolicyGuardAttempted, MutationApplied, ByteSharingAndMetadataModeled;
+    internal string PreAdmissionRefusal = "";
     internal long DeadlineRetryAge = -1;
     private static string B(bool value) { return value.ToString().ToLowerInvariant(); }
     internal string Json()
@@ -15,6 +17,9 @@ internal sealed class CompletionObservation
             ",\"completed\":" + B(Completed) + ",\"retained\":" + B(Retained) + ",\"effects\":" + Effects +
             ",\"mainJobEmpty\":" + B(MainJobEmpty) + ",\"borrowedUsable\":" + B(BorrowedUsable) +
             ",\"recordsUnchanged\":" + B(RecordsUnchanged) + ",\"deadlineRetryAgeMilliseconds\":" + DeadlineRetryAge +
+            ",\"authorizationIssued\":" + B(AuthorizationIssued) + ",\"policyGuardAttempted\":" + B(PolicyGuardAttempted) + ",\"mutationApplied\":" + B(MutationApplied) +
+            ",\"preAdmissionRefusal\":\"" + PreAdmissionRefusal.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n") + "\"" +
+            ",\"byteSharingAndMetadataModeled\":" + B(ByteSharingAndMetadataModeled) +
             ",\"protectedDescriptorsModeled\":true,\"installedAuthorityModeled\":true}";
     }
 }
@@ -46,9 +51,8 @@ internal static class InstalledCompletionScenarios
         }
         if (mode == "ordinary-first")
         {
-            context.InspectOwned();
-            observed.Refused = Refused(delegate { context.InspectInstalledOwned(installed, deadline); });
-            observed.RetryRefused = Refused(delegate { context.CheckCurrent(); });
+            observed.Refused = Refused(delegate { context.InspectOwned(); });
+            observed.RetryRefused = Refused(delegate { context.InspectInstalledOwned(installed, deadline); });
             return;
         }
         var completion = context.InspectInstalledOwned(installed, mode == "completion-deadline" ? new InstalledOwnerDeadline(500) : deadline);

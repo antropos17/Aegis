@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $script:ProtectedInstallParent = 'C:\ProgramData\AEGIS'
 $script:ProtectedInstallRoot = 'C:\ProgramData\AEGIS\ProtectedSession'
-$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json')
+$script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json')
 
 function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
@@ -123,11 +123,34 @@ function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) 
         $inventory = [ordered]@{ schemaVersion = 1; installId = $Context.installId; revision = $Revision; epoch = $Epoch; selections = @([ordered]@{ id = $Context.selectionId; epoch = $Context.selectionEpoch; operation = 'inspect-owned' }) }
         $utf8 = [Text.UTF8Encoding]::new($false)
         $policyBytes = $utf8.GetBytes(($policy | ConvertTo-Json -Compress))
+        # Serialize inventory once: these exact bytes are staged and pinned by the
+        # fixed built-in inspection manifest. The binary input manifest is unchanged.
+        $inventoryBytes = $utf8.GetBytes(($inventory | ConvertTo-Json -Compress -Depth 5))
+        $hash = [Security.Cryptography.SHA256]::Create()
+        try {
+            $inventoryHash = [BitConverter]::ToString($hash.ComputeHash($inventoryBytes)).Replace('-', '').ToLowerInvariant()
+            $policyHash = [BitConverter]::ToString($hash.ComputeHash($policyBytes)).Replace('-', '').ToLowerInvariant()
+            $fixture = [ordered]@{ schemaVersion = 1; fixtureId = 'installed-inventory-inspection-v1'; scope = 'retained-inventory-inspection';
+                selectionId = $Context.selectionId; selectionEpoch = $Context.selectionEpoch; inventoryBytes = $inventoryBytes.Length; inventorySha256 = $inventoryHash;
+                mainImageBytes = $map['aegis-main.exe'].bytes; mainImageSha256 = $map['aegis-main.exe'].sha256;
+                supervisorImageBytes = $map['aegis-session.exe'].bytes; supervisorImageSha256 = $map['aegis-session.exe'].sha256 }
+            $fixtureBytes = $utf8.GetBytes(($fixture | ConvertTo-Json -Compress))
+            $fixtureHash = [BitConverter]::ToString($hash.ComputeHash($fixtureBytes)).Replace('-', '').ToLowerInvariant()
+            $operation = [ordered]@{ schemaVersion = 1; installId = $Context.installId; revision = $Revision; epoch = $Epoch; policySha256 = $policyHash;
+                operatorSid = $Context.operatorSid; selectionId = $Context.selectionId; selectionEpoch = $Context.selectionEpoch; fixtureId = 'installed-inventory-inspection-v1';
+                fixtureManifestBytes = $fixtureBytes.Length; fixtureManifestSha256 = $fixtureHash; operations = @('inspect-owned'); status = 'active' }
+            $operationBytes = $utf8.GetBytes(($operation | ConvertTo-Json -Compress -Depth 5))
+        } finally { $hash.Dispose() }
+        foreach ($bytes in @($inventoryBytes, $fixtureBytes, $operationBytes)) {
+            if ($bytes.Length -lt 1 -or $bytes.Length -gt 4096) { throw 'protected-operation-record-budget-refused' }
+        }
         Write-ProtectedInstallFile (Join-Path $path 'owner-policy.json') $policyBytes $Context.operatorSid
         $binding = if ($Context.ContainsKey('vmBinding')) { $Context.vmBinding } else { $null }
         Write-ProtectedInstallFile (Join-Path $path 'registered-vm.json') (New-ProtectedInstallVmRecord $policy $policyBytes $binding) $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'enrollment.json') $utf8.GetBytes(($enrollment | ConvertTo-Json -Compress)) $Context.operatorSid
-        Write-ProtectedInstallFile (Join-Path $path 'inventory.json') $utf8.GetBytes(($inventory | ConvertTo-Json -Compress -Depth 5)) $Context.operatorSid
+        Write-ProtectedInstallFile (Join-Path $path 'inventory.json') $inventoryBytes $Context.operatorSid
+        Write-ProtectedInstallFile (Join-Path $path 'fixed-fixture.json') $fixtureBytes $Context.operatorSid
+        Write-ProtectedInstallFile (Join-Path $path 'registered-operation.json') $operationBytes $Context.operatorSid
         Write-ProtectedInstallFile (Join-Path $path 'operator.credential') $Context.credential $Context.operatorSid $true
         $stage.rows = @(Get-ChildItem -LiteralPath $path -Force | ForEach-Object { Read-ProtectedInstallSnapshot $_.FullName })
         return $stage
@@ -142,7 +165,7 @@ function Assert-ProtectedInstallStage($Stage) {
     $Stage.root.Recheck()
     if (!$Stage.root.Protected($false)) { throw 'protected-stage-acl-refused' }
     $files = @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)
-    if ($files.Count -ne $Stage.rows.Count -or $files.Count -gt 9) { throw 'protected-stage-unknown-child' }
+    if ($files.Count -ne $Stage.rows.Count -or $files.Count -gt $script:ProtectedInstallLeaves.Count) { throw 'protected-stage-unknown-child' }
     foreach ($row in $Stage.rows) { Assert-ProtectedInstallSnapshot $row }
 }
 function Move-ProtectedInstallStage($Stage, [string]$Destination) {

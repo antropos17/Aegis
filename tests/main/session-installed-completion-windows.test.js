@@ -32,6 +32,11 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           .filter((name) => name.endsWith('.cs'))
           .sort()
           .map((name) => path.join(project, 'tests/fixtures/session-installed-completion', name)),
+        ...fs
+          .readdirSync(path.join(project, 'tests/fixtures/session-fixed-operation'))
+          .filter((name) => name.endsWith('.cs'))
+          .sort()
+          .map((name) => path.join(project, 'tests/fixtures/session-fixed-operation', name)),
       );
       try {
         execFileSync(
@@ -102,13 +107,13 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         expect(observed.deadlineRetryAgeMilliseconds).toBeLessThan(1800);
       }
       expect(observed).toMatchObject({
-        admitted: true,
         mainJobEmpty: true,
         borrowedUsable: true,
         recordsUnchanged: true,
         protectedDescriptorsModeled: true,
         installedAuthorityModeled: true,
       });
+      if (!mode.startsWith('policy-')) expect(observed.admitted).toBe(true);
       expect(
         fs.readFileSync(path.join(directory, 'control/supervisor-job-empty.txt'), 'utf8'),
       ).toBe('true');
@@ -144,14 +149,15 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
     });
 
     it.each(['policy-selection', 'policy-epoch', 'policy-revision'])(
-      'refuses an independently admitted inventory tuple mismatching the installed %s',
+      'refuses an inventory tuple mismatching the fixed installed %s before publication',
       (mode) => {
-        expect(invoke(mode)).toMatchObject({
+        const observed = invoke(mode);
+        expect(observed).toMatchObject({
           refused: true,
-          retryRefused: true,
           completed: false,
           effects: 0,
         });
+        if (observed.admitted) expect(observed.retryRefused).toBe(true);
       },
     );
 
@@ -173,7 +179,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
     }, 10000);
 
-    it('refuses installed issuance after ordinary inspection has consumed the request', () => {
+    it('refuses direct ordinary inspection on an installed context and terminally rejects later issuance', () => {
       expect(invoke('ordinary-first')).toMatchObject({
         completed: false,
         refused: true,

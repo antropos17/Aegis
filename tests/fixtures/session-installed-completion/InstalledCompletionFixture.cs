@@ -44,6 +44,7 @@ internal static class InstalledCompletionFixture
             int at = original.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
             File.WriteAllText(role, original.Substring(0, at) + CompositionFiles.Hash(inventory) + original.Substring(at + 64));
         }
+        FixedOperationRecords.Write(root, mode);
         File.WriteAllLines(Path.Combine(root, "fixture-config.txt"), new[] { mode, control });
         File.WriteAllText(Path.Combine(root, "fixture-route.txt"), "");
         using (var created = new CallerLauncherNative().Create(Path.Combine(root, "aegis-session.exe")))

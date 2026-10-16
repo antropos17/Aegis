@@ -175,7 +175,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
           record.identitySha256,
           record.storageSha256,
         ],
-        { timeout: 15000, windowsHide: true, maxBuffer: 8192 },
+        { timeout: 15000, windowsHide: true, maxBuffer: 64 * 1024 },
       );
       expect(produced.error).toBeUndefined();
       expect(produced.status, produced.stderr.toString().slice(0, 1024)).toBe(0);
@@ -184,7 +184,17 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(stages.filter((stage) => stage.storageBound)).toHaveLength(2);
       expect(stages.filter((stage) => stage.privateStorage)).toHaveLength(1);
       for (const stage of stages) {
-        expect(stage).toMatchObject({ initialLeaves: 8, runtimeLeaves: 9, unknownRefused: true });
+        expect(stage).toMatchObject({
+          initialLeaves: 10,
+          runtimeLeaves: 11,
+          unknownRefused: true,
+          staticLeavesRefused: true,
+        });
+        for (const key of ['policy', 'inventory', 'operation', 'fixture']) {
+          expect(fs.readFileSync(stage[key + 'Path'])).toEqual(
+            Buffer.from(stage[key + 'Base64'], 'base64'),
+          );
+        }
         expect(invoke('from-producer', [stage.path])).toMatchObject({
           acquired: stage.configured,
           constructed: stage.configured ? 1 : 0,
