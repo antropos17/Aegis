@@ -45,6 +45,22 @@ describe.skipIf(process.platform !== 'win32')('protected guest startup', () => {
       events: ['configuration-Off'],
     });
   });
+  it('refuses insufficient host capacity before consuming start or releasing media', () => {
+    expect(invoke('capacity')).toMatchObject({
+      refused: true,
+      unknown: false,
+      priorClosed: false,
+      events: [],
+    });
+  });
+  it('measures only owned preflight output and skips retained junction targets', () => {
+    expect(invoke('preflight-storage')).toEqual({
+      entries: 2,
+      bytes: 3,
+      skipped: 1,
+      externalPreserved: true,
+    });
+  });
   it('preserves the offline pin if durable intent cannot be written', () => {
     expect(invoke('journal')).toMatchObject({
       refused: true,

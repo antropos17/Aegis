@@ -64,6 +64,8 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
         if ($null -ne $VmImage) {
             if ($RegisteredVmId -cne '') { throw 'protected-vm-create-and-adopt-refused' }
             $sourceImage = Open-ProtectedVmImage $VmImage
+            $drive = [IO.Path]::GetPathRoot($installParent).Substring(0, 1)
+            if ([long](Get-PSDrive -Name $drive).Free -lt ($VmImage.bytes + 8GB)) { throw 'protected-guest-host-headroom-refused' }
         }
         $context.vmBinding = Read-ProtectedInstallVmBinding $RegisteredVmId $inputs['aegis-session.exe']
         $Journal.operation = 'ancestor'

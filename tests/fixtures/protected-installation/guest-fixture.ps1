@@ -1,6 +1,27 @@
 param([string]$Mode)
 Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-guest.ps1')
+if ($Mode -ceq 'preflight-storage') {
+    $source = Join-Path $PSScriptRoot '../../../scripts/qualification/test-cloud-guest.ps1'
+    $tokens = $null; $errors = $null; $ast = [Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$errors)
+    $definition = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Read-CloudGuestPreflightStorage' }, $false))
+    if ($errors.Count -ne 0 -or $definition.Count -ne 1) { throw 'preflight-fixture-source-refused' }
+    . ([scriptblock]::Create($definition[0].Extent.Text))
+    $root = Join-Path $env:TEMP ('preflight-owned-' + [guid]::NewGuid().ToString('N'))
+    $target = Join-Path $env:TEMP ('preflight-external-' + [guid]::NewGuid().ToString('N'))
+    [void][IO.Directory]::CreateDirectory($root); [void][IO.Directory]::CreateDirectory($target)
+    $link = Join-Path $root 'link'; $ownedFile = Join-Path $root 'owned.txt'; $externalFile = Join-Path $target 'external.txt'
+    try {
+        [IO.File]::WriteAllText($ownedFile, 'own'); [IO.File]::WriteAllText($externalFile, 'external-target-must-not-be-counted')
+        New-Item -ItemType Junction -Path $link -Target $target | Out-Null
+        $observed = Read-CloudGuestPreflightStorage $root
+        return (@{ entries = $observed.entries; bytes = $observed.ownedBytes; skipped = $observed.skippedReparsePoints; externalPreserved = ([IO.File]::ReadAllText($externalFile) -ceq 'external-target-must-not-be-counted') } | ConvertTo-Json -Compress)
+    } finally {
+        if (Test-Path -LiteralPath $link) { [IO.Directory]::Delete($link) }
+        [IO.File]::Delete($ownedFile); [IO.Directory]::Delete($root)
+        [IO.File]::Delete($externalFile); [IO.Directory]::Delete($target)
+    }
+}
 if ($Mode -ceq 'pin') {
     Add-Type -Path (Join-Path $PSScriptRoot '../../../scripts/installation/ProtectedInstallFiles.cs')
     $path = Join-Path $env:TEMP ('guest-live-pin-' + [guid]::NewGuid().ToString('N'))
@@ -62,7 +83,8 @@ function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) {
     if ($Mode -ceq 'journal') { throw 'journal-failed' }
 }
 $prior = [ProtectedInstallFile]::new()
-$owned = @{ hydrated = $true; unknown = $false; disk = $prior; vmId = '11111111-2222-3333-4444-555555555555'; binding = @{ identitySha256 = 'a' * 64 } }
+$owned = @{ hydrated = $true; unknown = $false; disk = $prior; root = @{ PathName = 'C:\private' }; vmId = '11111111-2222-3333-4444-555555555555'; binding = @{ identitySha256 = 'a' * 64 } }
+if ($Mode -ceq 'capacity') { function Get-PSDrive { return @{ Free = [long]0 } } }
 $context = @{ vmProvision = $owned }
 if ($Mode.StartsWith('tree-', [StringComparison]::Ordinal)) {
     $owned.root = @{ PathName = 'C:\private' }

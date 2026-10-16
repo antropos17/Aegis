@@ -1,5 +1,21 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+function Read-CloudGuestPreflightStorage([string]$Root) {
+    $queue = [Collections.Generic.Queue[string]]::new(); $queue.Enqueue($Root)
+    $entries = 0; $bytes = [long]0; $skipped = 0
+    while ($queue.Count -ne 0) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $queue.Dequeue() -Force)) {
+            $entries++
+            if ($entries -gt 4096) { throw 'preflight-output-layout-refused' }
+            # Some negative controls deliberately retain junctions for review.
+            # Observe the entry, never follow or remove its external target.
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { $skipped++; continue }
+            if ($item.PSIsContainer) { $queue.Enqueue($item.FullName) } else { $bytes += $item.Length }
+            if ($bytes -gt 512MB) { throw 'preflight-output-budget-refused' }
+        }
+    }
+    return @{ entries = $entries; ownedBytes = $bytes; skippedReparsePoints = $skipped }
+}
 $savedPreflightTemp = $env:TEMP; $savedPreflightTmp = $env:TMP
 $preflightRoot = $null; $preflightCBefore = $null
 if ($env:GITHUB_ACTIONS -ceq 'true' -and $env:RUNNER_ENVIRONMENT -ceq 'github-hosted' -and $env:RUNNER_OS -ceq 'Windows') {
@@ -11,6 +27,7 @@ if ($env:GITHUB_ACTIONS -ceq 'true' -and $env:RUNNER_ENVIRONMENT -ceq 'github-ho
     $preflightCBefore = [long](Get-PSDrive C).Free
     New-Item -ItemType Directory -Path $preflightRoot | Out-Null
     $env:TEMP = $preflightRoot; $env:TMP = $preflightRoot
+    @{ scope = 'hosted-preflight-storage-before'; cFreeBytes = $preflightCBefore; dataDrive = 'D' } | ConvertTo-Json -Compress
 }
 try {
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
@@ -323,18 +340,10 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     if ($null -ne $preflightRoot) {
         # Disposable hosted fixture output has job-lifetime retention. Never
         # sweep system Temp or unrelated caches; fail on unbounded owned output.
-        $queue = [Collections.Generic.Queue[string]]::new(); $queue.Enqueue($preflightRoot)
-        $entries = 0; $bytes = [long]0
-        while ($queue.Count -ne 0) {
-            foreach ($item in @(Get-ChildItem -LiteralPath $queue.Dequeue() -Force)) {
-                $entries++
-                if ($entries -gt 4096 -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'preflight-output-layout-refused' }
-                if ($item.PSIsContainer) { $queue.Enqueue($item.FullName) } else { $bytes += $item.Length }
-                if ($bytes -gt 512MB) { throw 'preflight-output-budget-refused' }
-            }
-        }
+        $observed = Read-CloudGuestPreflightStorage $preflightRoot
         @{ scope = 'hosted-preflight-storage'; cFreeBefore = $preflightCBefore; cFreeAfter = [long](Get-PSDrive C).Free;
-            dataDrive = 'D'; entries = $entries; ownedBytes = $bytes; maximumBytes = 512MB; retention = 'disposable-job-lifetime' } | ConvertTo-Json -Compress
+            dataDrive = 'D'; entries = $observed.entries; ownedBytes = $observed.ownedBytes; skippedReparsePoints = $observed.skippedReparsePoints;
+            maximumBytes = 512MB; retention = 'disposable-job-lifetime' } | ConvertTo-Json -Compress
         $env:TEMP = $savedPreflightTemp; $env:TMP = $savedPreflightTmp
     }
 }

@@ -12,6 +12,12 @@ function Initialize-ProtectedGuestNative {
             (Join-Path $project 'sidecar/session/OwnedVmLifecycle.cs'), (Join-Path $project 'sidecar/session/VmManagementNative.cs'))
     }
 }
+function Assert-ProtectedGuestHeadroom($Owned, [long]$AdditionalBytes = 0) {
+    $drive = [IO.Path]::GetPathRoot($Owned.root.PathName).Substring(0, 1)
+    # Reserve fixed guest RAM backing plus a separate4GiB host floor. Neither
+    # source hashing nor an unknown partial copy may consume that reserve.
+    if ([long](Get-PSDrive -Name $drive).Free -lt ($AdditionalBytes + 8GB)) { throw 'protected-guest-host-headroom-refused' }
+}
 function Assert-ProtectedGuestTree($Owned, $Rows) {
     $machine = Join-Path $Owned.root.PathName 'Machine\'
     $journals = @('pending-hydrate.json', 'settled-hydrate.json', 'pending-bootdisk.json', 'settled-bootdisk.json',
@@ -36,6 +42,7 @@ function Set-ProtectedGuestDisk($Context, $Request) {
     if ($null -eq $owned -or $owned.ContainsKey('guest') -or $owned.ContainsKey('hydrated') -or $Request -isnot [hashtable] -or $Request.Count -ne 3 -or
         @($Request.Keys | Where-Object { $_ -cnotin @('path', 'bytes', 'sha256') }).Count -ne 0 -or $Request.path -isnot [string] -or
         $Request.bytes -isnot [long] -or $Request.bytes -lt 1MB -or $Request.bytes -gt 64GB -or $Request.sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'protected-guest-disk-request-refused' }
+    Assert-ProtectedGuestHeadroom $owned $Request.bytes
     $source = [ProtectedInstallFile]::new($Request.path, $false, $false)
     try {
         if ($source.HashImage($Request.bytes) -cne $Request.sha256) { throw 'protected-guest-disk-digest-refused' }
@@ -91,6 +98,7 @@ function Start-ProtectedGuest($Context) {
     Initialize-ProtectedGuestNative; Assert-ProtectedInstallation $Context
     $owned = $Context.vmProvision
     if ($null -eq $owned -or !$owned.ContainsKey('hydrated') -or $owned.ContainsKey('guest')) { throw 'protected-guest-start-refused' }
+    Assert-ProtectedGuestHeadroom $owned
     Assert-ProtectedGuestConfiguration $owned 'Off'
     $owned.guest = @{ consumed = $true; owner = $null; state = 'pending'; agentConsumed = $false; checkpoint = 1 }
     $owned.unknown = $true

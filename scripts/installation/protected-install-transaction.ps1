@@ -100,6 +100,7 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
         'protected-vm-tree-budget-refused', 'protected-vm-tree-acl-refused', 'protected-vm-tree-changed', 'protected-vm-unowned-child',
         'protected-vm-settlement-unknown', 'protected-vm-binding-changed', 'protected-vm-asset-handoff-refused', 'protected-vm-owned-state-retained')
     $operations += @('vm-create')
+    $codes += @('protected-guest-host-headroom-refused')
     $codes += @('protected-guest-start-refused', 'protected-guest-stop-refused', 'protected-guest-configuration-refused', 'protected-guest-disk-handoff-refused',
         'protected-guest-start-settlement-unknown', 'protected-guest-stop-settlement-unknown', 'protected-guest-disk-request-refused', 'protected-guest-disk-digest-refused',
         'protected-guest-agent-request-refused', 'protected-guest-agent-digest-refused', 'protected-guest-agent-settlement-unknown', 'protected-guest-agent-result-refused')
