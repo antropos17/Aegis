@@ -19,9 +19,18 @@ public sealed class ProtectedGuiIdentity : IDisposable
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenThreadToken(IntPtr thread, uint access, bool self, out SafeFileHandle token);
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(SafeFileHandle token, int kind, IntPtr bytes, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool DuplicateTokenEx(SafeFileHandle token, uint access, IntPtr security, int level, int type, out SafeFileHandle copy);
+    [DllImport("shell32.dll")] private static extern int SHGetKnownFolderPath(ref Guid folder, uint flags, SafeFileHandle token, out IntPtr path);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool ImpersonateLoggedOnUser(SafeFileHandle token);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool RevertToSelf();
+    private readonly object lifecycle = new object();
+    private ProtectedGuiProcessLease processOwner;
     private SafeFileHandle elevated, limited;
     private Observation originalElevated, originalLimited;
     private bool closed, refused;
+#if PROTECTED_GUI_PROCESS_TEST
+    [ThreadStatic] private static string processTestPhase;
+#endif
     private static InvalidDataException Refused() { return new InvalidDataException("protected-gui-principal-refused"); }
     private static void Need(bool value) { if (!value) throw Refused(); }
     private static string Id(Luid value) { return (((ulong)unchecked((uint)value.High) << 32) | value.Low).ToString("x16"); }
@@ -39,11 +48,21 @@ public sealed class ProtectedGuiIdentity : IDisposable
     private static T Query<T>(SafeFileHandle token, int kind, Func<IntPtr, int, T> read)
     {
         int length; bool sized = GetTokenInformation(token, kind, IntPtr.Zero, 0, out length);
-        Need(!sized && Marshal.GetLastWin32Error() == 122 && length > 0 && length <= 65536);
+        int sizingError = Marshal.GetLastWin32Error();
+#if PROTECTED_GUI_PROCESS_TEST
+        if (processTestPhase != null) processTestPhase = "query-" + kind + "-sizing-" + (sized ? 1 : 0) + "-error-" + sizingError + "-length-" + length;
+#endif
+        // This fixed TokenElevation structure reports ERROR_BAD_LENGTH on the
+        // inbox runtime. Its actual second query must still return exactly four.
+        Need(!sized && (sizingError == 122 || (kind == 20 && sizingError == 24 && length == 4)) && length > 0 && length <= 65536);
         IntPtr data = Marshal.AllocHGlobal(length);
         try
         {
-            int returned; Need(GetTokenInformation(token, kind, data, length, out returned) && returned > 0 && returned <= length);
+            int returned; bool queried = GetTokenInformation(token, kind, data, length, out returned); int error = Marshal.GetLastWin32Error();
+#if PROTECTED_GUI_PROCESS_TEST
+            if (processTestPhase != null) processTestPhase = "query-" + kind + "-read-" + (queried ? 1 : 0) + "-error-" + error + "-returned-" + returned + "-buffer-" + length;
+#endif
+            Need(queried && returned > 0 && returned <= length);
             return read(data, returned);
         }
         finally { Marshal.FreeHGlobal(data); }
@@ -77,6 +96,9 @@ public sealed class ProtectedGuiIdentity : IDisposable
     private static void NoImpersonation()
     {
         SafeFileHandle token; bool opened = OpenThreadToken(GetCurrentThread(), 8, true, out token); int error = Marshal.GetLastWin32Error();
+#if PROTECTED_GUI_PROCESS_TEST
+        if (processTestPhase != null) processTestPhase = "no-impersonation-opened-" + (opened ? 1 : 0) + "-error-" + error;
+#endif
         if (token != null) token.Dispose(); Need(!opened && error == 1008);
     }
     private static void CheckPair(Observation full, Observation medium)
@@ -100,13 +122,19 @@ public sealed class ProtectedGuiIdentity : IDisposable
         }
         catch { result.Dispose(); throw Refused(); }
     }
-    public void CheckCurrent()
+    public void CheckCurrent() { lock (lifecycle) CheckCurrentCore(); }
+    private void CheckCurrentCore()
     {
         try
         {
             Need(!closed && !refused); NoImpersonation();
 #if PROTECTED_GUI_TEST
-            if (modelPrincipal) { CheckPair(originalElevated, originalLimited); return; }
+            if (modelPrincipal) {
+#if PROTECTED_GUI_PROCESS_TEST
+                if (modelProcess) { using (var current = CurrentToken()) Need(originalLimited.Same(Observe(current))); return; }
+#endif
+                CheckPair(originalElevated, originalLimited); return;
+            }
 #endif
             Need(originalElevated.Same(Observe(elevated)) && originalLimited.Same(Observe(limited)));
             using (SafeFileHandle current = CurrentToken()) Need(originalElevated.Same(Observe(current)));
@@ -125,10 +153,113 @@ public sealed class ProtectedGuiIdentity : IDisposable
     public string LimitedAuthentication { get { CheckCurrent(); return originalLimited.Authentication; } }
     public string LimitedTokenId { get { CheckCurrent(); return originalLimited.Token; } }
     public int LimitedSession { get { CheckCurrent(); return originalLimited.Session; } }
+    private sealed class LifecycleEntry : IDisposable {
+        private readonly object gate; private bool owned;
+        internal LifecycleEntry(object value) { gate = value; System.Threading.Monitor.Enter(gate, ref owned); }
+        public void Dispose() { if (owned) { owned = false; System.Threading.Monitor.Exit(gate); } }
+    }
+    public IDisposable EnterLifecycle() { return new LifecycleEntry(lifecycle); }
+    public void AssertProcessIdle() { lock (lifecycle) Need(processOwner == null); }
+    internal void BindProcess(ProtectedGuiProcessLease owner) {
+        lock (lifecycle) { CheckCurrentCore(); Need(owner != null && processOwner == null); processOwner = owner; }
+    }
+    internal void ReleaseProcess(ProtectedGuiProcessLease owner) {
+        lock (lifecycle) { Need(Object.ReferenceEquals(processOwner, owner)); processOwner = null; }
+    }
+    internal SafeFileHandle DuplicateLimitedForProcess() {
+        lock (lifecycle) {
+            CheckCurrentCore(); SafeFileHandle copy = null;
+            try { Need(DuplicateTokenEx(limited, 0xBU, IntPtr.Zero, 2, 1, out copy));
+                Need(SamePrincipal(originalLimited, Observe(copy))); return copy;
+            } catch { if (copy != null) copy.Dispose(); throw; }
+        }
+    }
+    internal string LocalAppDataForProcess() {
+        lock (lifecycle) {
+            CheckCurrentCore();
+#if PROTECTED_GUI_TEST && PROTECTED_GUI_PROCESS_TEST
+            if (modelProcess) return modelLocalAppData;
+#endif
+            var folder = new Guid("F1B32785-6FBA-4FCF-9D55-7B8E7F157091"); IntPtr value = IntPtr.Zero;
+            try {
+                Need(SHGetKnownFolderPath(ref folder, 0, limited, out value) == 0 && value != IntPtr.Zero);
+                string path = Marshal.PtrToStringUni(value); Need(path != null && path.Length > 0 && path.Length <= 2048 &&
+                    Path.IsPathRooted(path) && !path.StartsWith("\\\\", StringComparison.Ordinal) && path.IndexOf(':', 2) < 0 &&
+                    String.Equals(path, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+                CheckCurrentCore(); return path;
+            } finally { if (value != IntPtr.Zero) Marshal.FreeCoTaskMem(value); }
+        }
+    }
+    private static bool SamePrincipal(Observation expected, Observation current) {
+        return expected != null && current != null && expected.Sid == current.Sid && expected.Authentication == current.Authentication &&
+            expected.Session == current.Session && expected.Type == current.Type && expected.Integrity == current.Integrity &&
+            expected.ElevationType == current.ElevationType && expected.Elevated == current.Elevated &&
+            expected.AppContainer == current.AppContainer && expected.UiAccess == current.UiAccess;
+    }
+    internal sealed class ProcessBinding : IDisposable {
+        private SafeFileHandle held; private readonly Observation original;
+        private ProcessBinding(SafeFileHandle token) { held = token; original = Observe(token); }
+        internal void Check(ProtectedGuiProcessNative process) {
+            Need(held != null && original.Same(Observe(held))); SafeFileHandle current = null;
+            try { current = process.OpenRootToken(); Need(original.Same(Observe(current))); }
+            finally { if (current != null) current.Dispose(); }
+        }
+        public void Dispose() { if (held != null) { held.Dispose(); held = null; } }
+        internal static ProcessBinding Capture(ProtectedGuiIdentity identity, ProtectedGuiProcessNative process) {
+            identity.CheckCurrent(); SafeFileHandle token = null;
+            try { token = process.OpenRootToken(); Need(SamePrincipal(identity.originalLimited, Observe(token)));
+                var result = new ProcessBinding(token); token = null; return result;
+            } finally { if (token != null) token.Dispose(); }
+        }
+    }
+    private sealed class ProfileContext : IDisposable {
+        private SafeFileHandle token; private bool impersonated;
+        internal ProfileContext(SafeFileHandle selected) {
+            token = selected;
+            try { NoImpersonation(); Need(ImpersonateLoggedOnUser(token)); impersonated = true; }
+            catch { token.Dispose(); throw; }
+        }
+        public void Dispose() {
+            if (!impersonated) return;
+            impersonated = false;
+            try {
+                if (!RevertToSelf()) { var failure = new InvalidDataException("protected-gui-process-cleanup-unknown"); failure.Data["protectedCleanupUnknown"] = true; throw failure; }
+                NoImpersonation();
+            } finally { token.Dispose(); token = null; }
+        }
+    }
+    private sealed class EmptyContext : IDisposable { public void Dispose() { } }
+    internal IDisposable EnterProfileContext() {
+        CheckCurrent();
+#if PROTECTED_GUI_TEST && PROTECTED_GUI_PROCESS_TEST
+        if (modelProcess) return new EmptyContext();
+#endif
+        return new ProfileContext(DuplicateLimitedForProcess());
+    }
     public void Dispose()
-    { if (closed) return; closed = true; try { if (limited != null) limited.Dispose(); } finally { if (elevated != null) elevated.Dispose(); } }
+    { lock (lifecycle) { Need(processOwner == null); if (closed) return; closed = true; try { if (limited != null) limited.Dispose(); } finally { if (elevated != null) elevated.Dispose(); } } }
 #if PROTECTED_GUI_TEST
     private bool modelPrincipal = false;
+#if PROTECTED_GUI_PROCESS_TEST
+    private bool modelProcess = false;
+    private string modelLocalAppData;
+    internal bool IsProcessModel { get { return modelProcess; } }
+    public static ProtectedGuiIdentity CreateForProcessTest(string fixtureLocalAppData) {
+        processTestPhase = "path";
+        try {
+        Need(fixtureLocalAppData != null && Path.IsPathRooted(fixtureLocalAppData) && Directory.Exists(fixtureLocalAppData));
+        processTestPhase = "process-open";
+        using (var current = CurrentToken()) {
+            var observed = Observe(current); var result = new ProtectedGuiIdentity();
+            result.modelPrincipal = true; result.modelProcess = true;
+            result.originalElevated = new Observation { Sid = observed.Sid, Session = Math.Max(1, observed.Session), Type = 1,
+                ElevationType = 2, Elevated = 1, Integrity = "S-1-16-12288", Authentication = "0000000000000001", Token = "0000000000000002" };
+            result.modelLocalAppData = Path.GetFullPath(fixtureLocalAppData); result.originalLimited = observed; result.CheckCurrent(); return result;
+        }
+        } catch (Exception failure) { throw new InvalidDataException("protected-gui-process-test-" + processTestPhase, failure); }
+        finally { processTestPhase = null; }
+    }
+#endif
     public static ProtectedGuiIdentity CreateForTest(string sid, int session)
     {
         var value = new ProtectedGuiIdentity(); value.modelPrincipal = true;

@@ -21,6 +21,12 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
     private readonly ProtectedGuiIdentity principal;
     private string rootPath;
     private bool closed, refused, removed, transitioning;
+    private ProtectedGuiExecutionPins execution;
+    internal sealed class ExecutionOwnershipFailure : IOException {
+        internal readonly ProtectedGuiExecutionPins Pins;
+        internal ExecutionOwnershipFailure(ProtectedGuiExecutionPins original, Exception cause)
+            : base("protected-gui-cleanup-unknown", cause) { Pins = original; Data["protectedCleanupUnknown"] = true; }
+    }
     private ProtectedGuiBundleFiles(ProtectedGuiManifest value, string root, ProtectedInstallFile stage, ProtectedInstallFile parent, ProtectedGuiIdentity identity)
     { manifest = value; rootPath = root; stageRoot = stage; stageParent = parent; principal = identity; }
     private static void Need(bool value) { if (!value) throw ProtectedGuiBundleNative.Refused(); }
@@ -67,9 +73,10 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
         }
         Need(observed.Count == expected.Count);
     }
-    private void CheckCore(bool complete, bool duringTransition = false)
+    private void CheckCore(bool complete, bool duringTransition = false, bool duringExecution = false)
     {
-        Need(!closed && !refused && !removed && (!transitioning || duringTransition) && entries.Count > 0);
+        Need(!closed && !refused && !removed && (!transitioning || duringTransition) &&
+            (execution == null || duringExecution) && entries.Count > 0);
         if (stageRoot != null) { stageRoot.Recheck(); Need(rootPath == Path.Combine(stageRoot.PathName, "GuiBundle")); }
         foreach (var entry in entries)
         {
@@ -84,6 +91,7 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
     {
         lock (gate)
         {
+            Need(execution == null && !transitioning);
             try { CheckCore(true); }
             catch { refused = true; throw ProtectedGuiBundleNative.Refused(); }
         }
@@ -92,14 +100,17 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
     {
         lock (gate)
         {
+            Need(execution == null && !transitioning);
             try { Need(stageRoot != null && Object.ReferenceEquals(stageRoot, originalStageRoot)); CheckCore(true); }
             catch { refused = true; throw ProtectedGuiBundleNative.Refused(); }
         }
     }
     public ProtectedGuiBundleFiles Stage(ProtectedInstallFile originalStageRoot, byte[] protectedDescriptor, ProtectedInstallFile originalParent, ProtectedGuiIdentity originalPrincipal)
     {
+        using (originalPrincipal == null ? null : originalPrincipal.EnterLifecycle())
         lock (gate)
         {
+            if (originalPrincipal != null) originalPrincipal.AssertProcessIdle();
             CheckCurrent(); Need(originalStageRoot != null && originalParent != null && originalPrincipal != null &&
                 (principal == null || Object.ReferenceEquals(principal, originalPrincipal)));
             originalStageRoot.Recheck(); originalParent.Recheck(); originalPrincipal.CheckCurrent();
@@ -137,8 +148,10 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
     }
     public void RenameStage(ProtectedInstallFile originalStageRoot, ProtectedInstallFile originalParent, string destination)
     {
+        using (principal == null ? null : principal.EnterLifecycle())
         lock (gate)
         {
+            if (principal != null) principal.AssertProcessIdle();
             Need(!transitioning && stageRoot != null && Object.ReferenceEquals(stageRoot, originalStageRoot) && Object.ReferenceEquals(stageParent, originalParent));
             principal.CheckCurrent(); CheckCore(true); stageParent.Recheck();
 #if PROTECTED_GUI_TEST
@@ -178,8 +191,10 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
     }
     public void Remove(ProtectedInstallFile originalStageRoot)
     {
+        using (principal == null ? null : principal.EnterLifecycle())
         lock (gate)
         {
+            if (principal != null) principal.AssertProcessIdle();
             try
             {
                 Need(stageRoot != null && Object.ReferenceEquals(stageRoot, originalStageRoot)); CheckCore(true);
@@ -193,10 +208,55 @@ public sealed class ProtectedGuiBundleFiles : IDisposable
     }
     public void Dispose()
     {
+        using (principal == null ? null : principal.EnterLifecycle())
         lock (gate)
         {
+            if (principal != null) principal.AssertProcessIdle();
             Need(!transitioning); if (closed) return; closed = true;
             for (int index = entries.Count - 1; index >= 0; index--) entries[index].Pin.Dispose();
+        }
+    }
+    internal ProtectedGuiExecutionPins AcquireExecution(ProtectedInstallFile root, ProtectedInstallFile parent,
+        ProtectedGuiIdentity identity, ProtectedGuiProcessLease lease)
+    {
+        using (identity.EnterLifecycle())
+        lock (gate) {
+            Need(Object.ReferenceEquals(root, stageRoot) && Object.ReferenceEquals(parent, stageParent) &&
+                Object.ReferenceEquals(identity, principal) && lease != null && execution == null);
+            CheckCore(true); principal.CheckCurrent(); stageParent.Recheck();
+#if PROTECTED_GUI_TEST
+            if (!modelStageProtection)
+#endif
+            Need(stageRoot.Protected(false) && stageParent.Protected(false));
+            var pins = new ProtectedGuiExecutionPins(this, lease, Child(rootPath, ProtectedGuiManifest.ProductExecutable), rootPath);
+            execution = pins; transitioning = true; bool released = false;
+            try {
+                using (var hint = ProtectedGuiBundleNative.ParentHint(stageParent)) {
+                    foreach (var entry in entries) { released = true; entry.Pin.Suspend(); }
+                    foreach (var entry in entries) entry.Pin.ResumeExecution(hint, Child(rootPath, entry.Relative));
+                    CheckCore(true, true, true); principal.CheckCurrent(); stageParent.Recheck(); transitioning = false; return pins;
+                }
+            } catch (Exception failure) {
+                transitioning = false;
+                if (released) { refused = true; throw new ExecutionOwnershipFailure(pins, failure); }
+                execution = null; throw;
+            }
+        }
+    }
+    internal void CheckExecution(ProtectedGuiExecutionPins pins, ProtectedGuiProcessLease lease) {
+        lock (gate) { Need(Object.ReferenceEquals(execution, pins) && pins.OwnedBy(lease)); CheckCore(true, false, true); principal.CheckCurrent(); stageParent.Recheck(); }
+    }
+    internal void RestoreExecution(ProtectedGuiExecutionPins pins, ProtectedGuiProcessLease lease) {
+        lock (gate) {
+            Need(Object.ReferenceEquals(execution, pins) && pins.OwnedBy(lease)); CheckCore(true, false, true); principal.CheckCurrent(); transitioning = true;
+            try {
+                using (var hint = ProtectedGuiBundleNative.ParentHint(stageParent)) {
+                    foreach (var entry in entries) entry.Pin.Suspend();
+                    foreach (var entry in entries) entry.Pin.Resume(hint, Child(rootPath, entry.Relative));
+                    CheckCore(true, true, true); principal.CheckCurrent(); stageParent.Recheck();
+                    execution = null; transitioning = false;
+                }
+            } catch (Exception failure) { transitioning = false; refused = true; throw ProtectedGuiBundleNative.Unknown(failure); }
         }
     }
 #if PROTECTED_GUI_TEST

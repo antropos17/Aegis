@@ -65,7 +65,15 @@ public static class PartialReplacement {
         }
     }
     $refused = $false
-    try { Remove-ProtectedInstallAncillary $context } catch { $refused = $true }
+    try { Remove-ProtectedInstallAncillary $context } catch {
+        $refused = $true
+        if ($Mode -cin @('empty', 'seeded', 'replacement-control')) {
+            $failure = Get-ProtectedInstallFailure $_ 'ancillary-remove'
+            [Console]::Error.WriteLine(('partial-control-fixture:' + (@{
+                operation = $failure.operation; diagnosticCode = $failure.diagnosticCode; nativeWin32 = $failure.nativeWin32
+            } | ConvertTo-Json -Compress)))
+        }
+    }
     $observedPath = if ($Mode -ceq 'renamed-control') { $path + '-renamed' } else { $path }
     $result = @{ refused = $refused; removed = !(Test-Path -LiteralPath $observedPath); remaining = @((Get-ChildItem -LiteralPath $observedPath -ErrorAction SilentlyContinue)).Count }
     if ($Mode -ceq 'replacement-control') { $result.replacementSucceeded = $replacementSucceeded }

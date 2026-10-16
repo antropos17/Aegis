@@ -1,6 +1,17 @@
 param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'upgrade-retention-matrix', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'gui-stage-hook', 'gui-lifecycle', 'gui-clean-failure', 'gui-unknown-failure', 'gui-invalid-options')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# These sequential orchestration cases model lifecycle exclusion; actual
+# retained principal/gate behavior is exercised by the native process fixture.
+function Add-FixtureGuiLifecycle($Principal) {
+    $Principal | Add-Member ScriptMethod EnterLifecycle {
+        $this.CheckCurrent()
+        $gate = [pscustomobject]@{ Disposed = $false }
+        $gate | Add-Member ScriptMethod Dispose { if ($this.Disposed) { throw 'fixture-double-gate-close' }; $this.Disposed = $true }
+        return $gate
+    }
+    $Principal | Add-Member ScriptMethod AssertProcessIdle { $this.CheckCurrent() }
+}
 if ($Mode -ceq 'upgrade-retention-matrix') {
     . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-install-transaction.ps1')
     function New-RetentionSentinel([string]$Label) {
@@ -119,6 +130,8 @@ if ($Mode -ceq 'gui-stage-hook') {
         operatorAccount = 'FixtureOnly'; parent = @{}; credential = $blob; inputs = $inputs; manifest = @{ files = $manifest }; guiInput = $null; guiPrincipal = $null }
     $headless = New-ProtectedInstallStage $context 1 ('d' * 32)
     $principal = [pscustomobject]@{ original = $true }; $context.guiPrincipal = $principal
+    $principal | Add-Member ScriptMethod CheckCurrent { if (!$this.original) { throw 'fixture-original-principal-lost' } }
+    Add-FixtureGuiLifecycle $principal
     $context.guiInput = @{ source = [pscustomobject]@{ original = $true }; principal = $principal }
     $withGui = New-ProtectedInstallStage $context 1 ('d' * 32)
     $sameInventory = [Convert]::ToBase64String($script:GuiHookFiles[(Join-Path $headless.path 'inventory.json')].bytes) -ceq
@@ -185,6 +198,7 @@ if ($Mode -cin @('host-script-child', 'gui-lifecycle', 'gui-clean-failure', 'gui
         $source | Add-Member ScriptMethod Dispose { if ($this.Disposed) { throw 'fixture-double-source-close' }; $this.Disposed = $true; $script:FixtureGui.sourceCloses++; $script:FixtureGui.events.Add('source-close') }
         $principal = [pscustomobject]@{ Disposed = $false }
         $principal | Add-Member ScriptMethod CheckCurrent { if ($this.Disposed) { throw 'fixture-original-principal-closed' } }
+        Add-FixtureGuiLifecycle $principal
         $principal | Add-Member ScriptMethod Dispose { if ($this.Disposed) { throw 'fixture-double-principal-close' }; $this.Disposed = $true; $script:FixtureGui.principalCloses++; $script:FixtureGui.events.Add('principal-close') }
         return @{ source = $source; principal = $principal; ownsSource = $true; ownsPrincipal = $true }
     }

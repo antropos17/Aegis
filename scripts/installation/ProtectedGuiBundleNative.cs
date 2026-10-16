@@ -26,6 +26,9 @@ internal sealed class ProtectedGuiBundleNative : IDisposable
     [DllImport("advapi32.dll")] private static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
     [DllImport("kernel32.dll")] private static extern IntPtr LocalFree(IntPtr value);
     private SafeFileHandle held;
+    // The by-ID handle remains identity authority. A separately verified named
+    // link supplies namespace sharing exclusion for the execution lifetime.
+    private ProtectedGuiBundleNative executionLink;
     private readonly byte[] identity, security;
     private readonly bool created;
     private FileStream stream;
@@ -124,6 +127,7 @@ internal sealed class ProtectedGuiBundleNative : IDisposable
     {
         CheckOriginal();
         if (Hex(Metadata()) != Hex(metadata)) { var failure = Refused(); failure.Data["protectedOperation"] = "protected-gui-metadata-changed"; throw failure; }
+        if (executionLink != null) executionLink.Check();
     }
     internal void CheckOriginal()
     {
@@ -166,14 +170,38 @@ internal sealed class ProtectedGuiBundleNative : IDisposable
     internal void Suspend()
     {
         Need(created); Check(); suspended = true;
-        try { if (stream != null) { stream.Dispose(); stream = null; } }
+        try {
+            if (executionLink != null) { executionLink.Dispose(); executionLink = null; }
+            if (stream != null) { stream.Dispose(); stream = null; }
+        }
         finally { if (held != null) { held.Dispose(); held = null; } }
     }
     internal void Resume(ProtectedGuiBundleNative originalParentHint, string expectedPath)
+    { ResumeCore(originalParentHint, expectedPath, false); }
+    internal void ResumeExecution(ProtectedGuiBundleNative originalParentHint, string expectedPath)
+    {
+        ResumeCore(originalParentHint, expectedPath, true);
+        Need(executionLink == null); ProtectedGuiBundleNative candidate = null;
+        try {
+#if PROTECTED_GUI_PROCESS_TEST
+            if (BeforeExecutionLinkForTest != null) BeforeExecutionLinkForTest(expectedPath);
+#endif
+            // OpenExisting only. Keep the original by-ID authority continuously;
+            // a same-name replacement is never accepted as the execution link.
+            candidate = new ProtectedGuiBundleNative(expectedPath, Directory, false, null);
+            Need(candidate.Directory == Directory && Hex(candidate.identity) == Hex(identity) &&
+                Hex(candidate.security) == Hex(security) && Hex(candidate.metadata) == Hex(metadata) &&
+                String.Equals(candidate.PathName, PathName, StringComparison.OrdinalIgnoreCase));
+            Check(); candidate.Check(); originalParentHint.CheckOriginal();
+            executionLink = candidate; candidate = null; Check();
+        } finally { if (candidate != null) candidate.Dispose(); }
+    }
+    private void ResumeCore(ProtectedGuiBundleNative originalParentHint, string expectedPath, bool execution)
     {
         Need(created && !closed && suspended); originalParentHint.CheckOriginal();
         var descriptor = new FileIdentifier { Size = 24, Type = 2, Low = BitConverter.ToUInt64(identity, 8), High = BitConverter.ToUInt64(identity, 16) };
-        SafeFileHandle reopened = OpenFileById(originalParentHint.held, ref descriptor, Directory ? 0x30081U : 0x80030000U, Directory ? 7U : 5U,
+        SafeFileHandle reopened = OpenFileById(originalParentHint.held, ref descriptor,
+            execution ? (Directory ? 0x20081U : 0x80020000U) : (Directory ? 0x30081U : 0x80030000U), execution ? 1U : (Directory ? 7U : 5U),
             IntPtr.Zero, 0x00200000U | (Directory ? 0x02000000U : 0));
         try {
             if (reopened == null || reopened.IsInvalid) {
@@ -255,7 +283,14 @@ internal sealed class ProtectedGuiBundleNative : IDisposable
         Dispose();
     }
     public void Dispose()
-    { if (closed) return; closed = true; try { if (stream != null) stream.Dispose(); } finally { if (held != null) held.Dispose(); } }
+    {
+        if (closed) return; closed = true;
+        try { if (executionLink != null) executionLink.Dispose(); }
+        finally { try { if (stream != null) stream.Dispose(); } finally { if (held != null) held.Dispose(); } }
+    }
+#if PROTECTED_GUI_PROCESS_TEST
+    internal static Action<string> BeforeExecutionLinkForTest = null;
+#endif
 #if PROTECTED_GUI_TEST
     internal static bool ModelProtectionForTest = false;
     internal static bool FailCopyForTest = false;

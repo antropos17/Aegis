@@ -34,9 +34,9 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         expect(result.stderr.toString()).toBe('');
         expect(result.status).toBe(0);
         expect(JSON.parse(result.stdout.toString())).toEqual({
-          copiedLeaves: 22,
-          bootstrapPins: 22,
-          invocationPins: 22,
+          copiedLeaves: 27,
+          bootstrapPins: 27,
+          invocationPins: 27,
           noVmOrInstallation: true,
         });
       } finally {

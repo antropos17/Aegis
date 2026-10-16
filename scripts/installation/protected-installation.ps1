@@ -201,6 +201,9 @@ function Assert-ProtectedInstallAncillary($Context) {
     }
 }
 function Remove-ProtectedInstallAncillary($Context) {
+    $guiGate = Enter-ProtectedGuiProcessLifecycle $Context
+    try {
+    Assert-ProtectedGuiProcessIdle $Context
     if ($Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     Assert-ProtectedInstallAncillary $Context
     Remove-ProtectedInstallVm $Context
@@ -256,10 +259,14 @@ function Remove-ProtectedInstallAncillary($Context) {
     foreach ($held in $Context.ancestors) { $held.Dispose() }; $Context.ancestors.Clear()
     if ($Context.ContainsKey('guiPrincipal') -and $null -ne $Context.guiPrincipal) { $Context.guiPrincipal.Dispose(); $Context.guiPrincipal = $null }
     $Context.password = $null
+    } finally { if ($null -ne $guiGate) { $guiGate.Dispose() } }
 }
 
 function Remove-ProtectedInstallation($Association) {
     Invoke-ProtectedUninstallCheckpoint 'administrator' { Assert-ProtectedInstallAdministrator }
+    $guiGate = Enter-ProtectedGuiProcessLifecycle $Association
+    try {
+    Assert-ProtectedGuiProcessIdle $Association
     $ops = @{
         validate = { param($selected)
             Assert-ProtectedInstallIdleUpgrade $selected.service
@@ -276,10 +283,15 @@ function Remove-ProtectedInstallation($Association) {
     Invoke-ProtectedUninstallCheckpoint 'absence-confirm' {
         if ((Test-Path -LiteralPath $script:ProtectedInstallParent) -or ![ProtectedInstallService]::Absent()) { throw 'protected-uninstall-absence-unconfirmed' }
     }
+    } finally { if ($null -ne $guiGate) { $guiGate.Dispose() } }
 }
 
 function Update-ProtectedInstallation($Association, [string]$SourceRoot, $Manifest, [bool]$FailAfterPublish = $false) {
-    Assert-ProtectedInstallAdministrator; Assert-ProtectedInstallIdleUpgrade $Association.service
+    Assert-ProtectedInstallAdministrator
+    $guiGate = Enter-ProtectedGuiProcessLifecycle $Association
+    try {
+    Assert-ProtectedGuiProcessIdle $Association
+    Assert-ProtectedInstallIdleUpgrade $Association.service
     Assert-ProtectedInstallation $Association
     $priorManifest = $Association.manifest; $old = $Association.stage; $priorInputs = $Association.inputs
     $priorGuiInput = if ($Association.ContainsKey('guiInput')) { $Association.guiInput } else { $null }
@@ -318,4 +330,5 @@ function Update-ProtectedInstallation($Association, [string]$SourceRoot, $Manife
         try { if ($null -ne $borrowedGui) { Close-ProtectedGuiCandidate $borrowedGui } }
         finally { $Association.guiInput = $priorGuiInput; foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) } }
     }
+    } finally { if ($null -ne $guiGate) { $guiGate.Dispose() } }
 }
