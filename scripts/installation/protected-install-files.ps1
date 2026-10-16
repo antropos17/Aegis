@@ -57,7 +57,7 @@ function Read-ProtectedInstallInputs([string]$SourceRoot, $Manifest) {
     $names = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe'); $inputs = @{}
     foreach ($name in $names) {
         $rows = @($Manifest.files | Where-Object { $_.name -ceq $name })
-        if ($rows.Count -ne 1 -or $rows[0].sha256 -cnotmatch '^[a-f0-9]{64}$' -or $rows[0].bytes -lt 1 -or $rows[0].bytes -gt 4MB) { throw 'protected-input-manifest-refused' }
+        if ($rows.Count -ne 1 -or $rows[0].sha256 -cnotmatch '\A[a-f0-9]{64}\z' -or $rows[0].bytes -lt 1 -or $rows[0].bytes -gt 4MB) { throw 'protected-input-manifest-refused' }
         $held = [ProtectedInstallFile]::new((Join-Path $SourceRoot $name), $false, $false)
         try {
             $bytes = $held.Read(4MB)
@@ -67,18 +67,32 @@ function Read-ProtectedInstallInputs([string]$SourceRoot, $Manifest) {
     }
     return $inputs
 }
-function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage) {
+function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage, $ExpectedBinding = $null) {
     if ($VmId -ceq '') { return $null }
     if ($VmId -cnotmatch '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' -or $VmId -ceq [guid]::Empty.ToString('D')) { throw 'protected-vm-binding-refused' }
     try {
+        $legacy = $false
+        if ($null -ne $ExpectedBinding) {
+            if ($ExpectedBinding -isnot [hashtable]) { throw 'protected-vm-binding-refused' }
+            $legacy = !$ExpectedBinding.ContainsKey('configurationProfile') -and !$ExpectedBinding.ContainsKey('configurationSha256')
+            if ($legacy -and ($ExpectedBinding.Count -ne 4 -or
+                @($ExpectedBinding.Keys | Where-Object { $_ -cnotin @('vmId', 'identitySha256', 'storageSha256', 'storageProtection') }).Count -ne 0 -or
+                $ExpectedBinding.vmId -cne $VmId -or $ExpectedBinding.storageProtection -cne 'private-vm' -or
+                $ExpectedBinding.identitySha256 -isnot [string] -or $ExpectedBinding.identitySha256 -cnotmatch '\A[a-f0-9]{64}\z' -or
+                $ExpectedBinding.storageSha256 -isnot [string] -or $ExpectedBinding.storageSha256 -cnotmatch '\A[a-f0-9]{64}\z')) { throw 'protected-vm-binding-refused' }
+        }
         $assembly = [Reflection.Assembly]::Load($VerifiedImage)
         $type = $assembly.GetType('Aegis.ProtectedSession.InstalledVmRegistration', $true)
-        $method = $type.GetMethod('ObserveProtectedStorageForInstaller', [Reflection.BindingFlags]'Public,Static')
+        $observer = if ($legacy) { 'ObserveProtectedStorageForInstaller' } else { 'ObserveProtectedConfigurationForInstaller' }
+        $method = $type.GetMethod($observer, [Reflection.BindingFlags]'Public,Static')
         $arguments = [object[]]::new(1); $arguments[0] = [guid]::ParseExact($VmId, 'D')
         $hash = $method.Invoke($null, $arguments)
-        if ($hash -isnot [string] -or $hash -cnotmatch '\A[a-f0-9]{64}\n[a-f0-9]{64}\z') { throw 'protected-vm-binding-refused' }
+        $format = if ($legacy) { '\A[a-f0-9]{64}\n[a-f0-9]{64}\z' } else { '\A[a-f0-9]{64}\n[a-f0-9]{64}\naegis-offline-fixed-v1\n[a-f0-9]{64}\z' }
+        if ($hash -isnot [string] -or $hash -cnotmatch $format) { throw 'protected-vm-binding-refused' }
         $parts = $hash.Split([char]10)
-        return @{ vmId = $VmId; identitySha256 = $parts[0]; storageSha256 = $parts[1]; storageProtection = 'private-vm' }
+        $binding = @{ vmId = $VmId; identitySha256 = $parts[0]; storageSha256 = $parts[1]; storageProtection = 'private-vm' }
+        if (!$legacy) { $binding.configurationProfile = $parts[2]; $binding.configurationSha256 = $parts[3] }
+        return $binding
     } catch {
         $failure = [InvalidOperationException]::new('protected-vm-binding-refused')
         $cause = $_.Exception
@@ -103,6 +117,12 @@ function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
         if ($Binding.ContainsKey('storageProtection')) {
             if ($Binding.storageProtection -cne 'private-vm' -or !$Binding.ContainsKey('storageSha256')) { throw 'protected-vm-binding-refused' }
             $record.schemaVersion = 3; $record.storageProtection = 'private-vm'
+        }
+        if ($Binding.ContainsKey('configurationProfile') -or $Binding.ContainsKey('configurationSha256')) {
+            if (!$Binding.ContainsKey('configurationProfile') -or !$Binding.ContainsKey('configurationSha256') -or
+                $Binding.configurationProfile -cne 'aegis-offline-fixed-v1' -or $Binding.configurationSha256 -isnot [string] -or
+                $Binding.configurationSha256 -cnotmatch '\A[a-f0-9]{64}\z' -or $record.schemaVersion -ne 3) { throw 'protected-vm-binding-refused' }
+            $record.schemaVersion = 4; $record.configurationProfile = $Binding.configurationProfile; $record.configurationSha256 = $Binding.configurationSha256
         }
         $record.status = 'active'
     }

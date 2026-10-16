@@ -225,8 +225,8 @@ function Assert-ProtectedInstallVm($Context) {
     Assert-ProtectedVmTree $owned
     $observed = Invoke-ProtectedVmProvider $owned 'observe'
     if ($observed.vmId -cne $owned.vmId -or !$observed.off -or $observed.name -cne $owned.name) { throw 'protected-vm-state-refused' }
-    $binding = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier
-    foreach ($key in @('vmId', 'identitySha256', 'storageSha256', 'storageProtection')) { if ($binding[$key] -cne $owned.binding[$key]) { throw 'protected-vm-binding-changed' } }
+    $binding = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier $owned.binding
+    foreach ($key in @('vmId', 'identitySha256', 'storageSha256', 'storageProtection', 'configurationProfile', 'configurationSha256')) { if ($binding[$key] -cne $owned.binding[$key]) { throw 'protected-vm-binding-changed' } }
 }
 function Remove-ProtectedInstallVm($Context) {
     if (!$Context.ContainsKey('vmProvision') -or $null -eq $Context.vmProvision) { return }

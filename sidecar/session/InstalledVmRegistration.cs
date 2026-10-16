@@ -27,6 +27,9 @@ namespace Aegis.ProtectedSession
         private static readonly Regex ProtectedStorageSchema = new Regex(StorageSchema.ToString()
             .Replace("schemaVersion\":2", "schemaVersion\":3")
             .Replace("\"status\":\"active\"", "\"storageProtection\":\"private-vm\",\"status\":\"active\""), RegexOptions.CultureInvariant);
+        private static readonly Regex ConfigurationSchema = new Regex(ProtectedStorageSchema.ToString()
+            .Replace("schemaVersion\":3", "schemaVersion\":4")
+            .Replace("\"status\":\"active\"", "\"configurationProfile\":\"(aegis-offline-fixed-v1)\",\"configurationSha256\":\"([a-f0-9]{64})\",\"status\":\"active\""), RegexOptions.CultureInvariant);
         private readonly Action checkAuthority;
         private Action checkCaller;
         private readonly InstalledOwnerRegistration installed;
@@ -39,6 +42,7 @@ namespace Aegis.ProtectedSession
         private readonly string identityHash;
         internal readonly string StorageHash;
         internal readonly bool PrivateStorage;
+        internal readonly string ConfigurationProfile, ConfigurationHash;
         private readonly bool configured;
 
         private InstalledVmRegistration(string root, string installId, uint revision, string epoch,
@@ -57,6 +61,7 @@ namespace Aegis.ProtectedSession
                 Match record = Schema.Match(Utf8.GetString(original));
                 if (!record.Success) record = StorageSchema.Match(Utf8.GetString(original));
                 if (!record.Success) { record = ProtectedStorageSchema.Match(Utf8.GetString(original)); PrivateStorage = record.Success; }
+                if (!record.Success) { record = ConfigurationSchema.Match(Utf8.GetString(original)); PrivateStorage = record.Success; }
                 configured = record.Success;
                 if (!configured) record = Unconfigured.Match(Utf8.GetString(original));
                 uint recordedRevision;
@@ -69,7 +74,9 @@ namespace Aegis.ProtectedSession
                 {
                     if (!Guid.TryParseExact(record.Groups[7].Value, "D", out VmId) || VmId == Guid.Empty) throw new InvalidDataException();
                     identityHash = record.Groups[8].Value;
-                    if (record.Groups.Count == 10) StorageHash = record.Groups[9].Value;
+                    if (record.Groups.Count >= 10) StorageHash = record.Groups[9].Value;
+                    if (record.Groups.Count == 12)
+                    { ConfigurationProfile = record.Groups[10].Value; ConfigurationHash = record.Groups[11].Value; }
                 }
                 CheckCurrent();
             }
@@ -160,6 +167,19 @@ namespace Aegis.ProtectedSession
             }
         }
 
+        internal void CheckConfiguration(VmConfigurationObservation observation)
+        {
+            CheckCurrent();
+            if (observation == null || observation.VmId != VmId || String.IsNullOrEmpty(observation.Identity) ||
+                observation.Identity.Length > 2048 || EnrollmentInspection.ImageHash(Utf8.GetBytes(observation.Identity)) != identityHash ||
+                ConfigurationProfile != VmConfigurationProfile.Name || observation.Profile != ConfigurationProfile ||
+                observation.Digest != ConfigurationHash)
+            {
+                refused = true; throw new InvalidOperationException("installed-vm-configuration-unavailable");
+            }
+            CheckCurrent();
+        }
+
         internal void BindCaller(CallerMainOperation.InspectionCompletion admitted)
         {
             if (installed == null || admitted == null) throw new InvalidOperationException("installed-vm-caller-unavailable");
@@ -199,7 +219,16 @@ namespace Aegis.ProtectedSession
         { return ObserveStorage(id, false); }
         public static string ObserveProtectedStorageForInstaller(Guid id)
         { return ObserveStorage(id, true); }
-        private static string ObserveStorage(Guid id, bool requireProtection)
+        public static string ObserveProtectedConfigurationForInstaller(Guid id)
+        { return ObserveStorage(id, true, true); }
+        private static void ValidateInstallerConfiguration(VmConfigurationObservation value, VmObservation vm)
+        {
+            if (value == null || value.VmId != vm.VmId || value.Identity != vm.Identity ||
+                value.Profile != VmConfigurationProfile.Name || value.Digest == null ||
+                !Regex.IsMatch(value.Digest, "\\A[a-f0-9]{64}\\z", RegexOptions.CultureInvariant))
+                throw new InvalidOperationException("installed-vm-observation-unavailable");
+        }
+        private static string ObserveStorage(Guid id, bool requireProtection, bool requireConfiguration = false)
         {
             var checkpoint = new VmInspectionCheckpoint();
             try
@@ -207,15 +236,29 @@ namespace Aegis.ProtectedSession
             using (var native = new VmManagementNative(id))
             {
                 VmObservation before = native.Inspect();
-                if (before == null || before.VmId != id || before.State != 3 || String.IsNullOrEmpty(before.Identity))
+                if (before == null || before.VmId != id || before.State != 3 || String.IsNullOrEmpty(before.Identity) || before.Identity.Length > 2048)
                     throw new InvalidOperationException("installed-vm-observation-unavailable");
+                VmConfigurationObservation configuration = null;
+                if (requireConfiguration)
+                {
+                    checkpoint.Code = 15; configuration = ((IVmConfigurationSource)native).ReadConfiguration();
+                    ValidateInstallerConfiguration(configuration, before);
+                }
                 using (var storage = new VmStorageInspection(native, new EnrollmentNative(), checkpoint))
                 {
                     if (requireProtection) storage.RequireProtectedStorage(id);
                     VmObservation after = native.Inspect(); storage.CheckCurrent();
                     if (after == null || after.VmId != id || after.State != 3 || after.Identity != before.Identity)
                         throw new InvalidOperationException("installed-vm-observation-unavailable");
-                    return EnrollmentInspection.ImageHash(Utf8.GetBytes(before.Identity)) + "\n" + storage.Digest;
+                    if (requireConfiguration)
+                    {
+                        checkpoint.Code = 16; var current = ((IVmConfigurationSource)native).ReadConfiguration();
+                        ValidateInstallerConfiguration(current, after);
+                        if (current.Profile != configuration.Profile || current.Digest != configuration.Digest)
+                            throw new InvalidOperationException("installed-vm-observation-unavailable");
+                    }
+                    return EnrollmentInspection.ImageHash(Utf8.GetBytes(before.Identity)) + "\n" + storage.Digest +
+                        (requireConfiguration ? "\n" + configuration.Profile + "\n" + configuration.Digest : "");
                 }
             }
             }

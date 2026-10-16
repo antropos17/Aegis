@@ -1,10 +1,62 @@
 # Installed VM registration inspection
 
+## Offline configuration registration
+
+New administrative VM registrations use schema version 4. The exact ordered
+suffix after `storageSha256` is `"storageProtection":"private-vm",` followed by
+`"configurationProfile":"aegis-offline-fixed-v1",` and
+`"configurationSha256":"<64 lowercase hex>","status":"active"`.
+The profile identifies the native offline configuration contract; its digest
+comes from the verified native observer and is preserved as the original expected
+seal. An upgrade serializes the supplied original binding with the new policy
+revision and epoch; it never observes a replacement configuration to change the
+expected seal. Original stage snapshots, rollback and identity-bound cleanup
+retain their existing behavior.
+
+The original elevated provisioner may refresh `storageSha256` after its confirmed
+hydration or stop transition and the existing original disk identity/ACL handoff.
+Both paths compare the candidate VM ID, identity digest, storage protection,
+configuration profile and configuration digest with the retained original binding.
+They copy only the new storage digest. A mismatch or outage preserves both original
+binding references, keeps settlement unknown, and prevents the settled journal and
+stage update. Original v3 bindings use the retained legacy observer and may refresh storage
+without gaining configuration fields. New/v4 issuance never falls back to that
+observer when the configuration API is absent. Mocked hydration/stop controls
+exercise those actual functions without starting a VM or mutating real storage.
+
+The administrative installer calls
+`ObserveProtectedConfigurationForInstaller(Guid)` on the exact verified session
+image bytes. This read-only method retains one native manager and returns exactly
+four LF-separated fields without a trailing LF: identity SHA-256, protected
+storage SHA-256, configuration profile and configuration SHA-256. It observes
+configuration before and after the protected storage inspection and rejects any
+identity, profile or digest change. The legacy installer observer methods retain
+their original output.
+
+The version-four installed inspection compares immutable configuration
+observations before and after storage inspection against the staged original
+profile and digest. Each observation is fenced by the retained registration and
+caller authority. A configuration outage, mismatched identity, profile or digest,
+or authority/deadline failure permanently refuses that inspection lease even if
+the original observations or authority later return. Version 1 through 3 records
+retain read-only compatibility and provide no configuration qualification.
+Checkpoints 15 and 16 identify the version-four configuration precheck and
+postcheck within the existing fixed numeric diagnostic range.
+
+The contract fixtures substitute VM provider, filesystem ACL and installed-owner
+authority. They exercise actual PowerShell stage serialization into the native
+consumer, including v4, invalid configuration observations, permanent refusal and
+legacy compatibility. The deadline control uses an actual elapsed two-second
+fixture fence. These modeled controls do not qualify Hyper-V provider behavior,
+privileged installation, guest execution or production authority. The permitted
+operation remains `inspect-owned`, checklist remains 30/60,
+A1-A4 remain `UNREVIEWED`, and `launchAllowed=false`.
+
 ## Private storage ACL eligibility
 
-New administrative registrations use version 3. Its version-two fields are
+Version 3 introduced private storage eligibility, retained by version 4. Its version-two fields are
 followed by `"storageProtection":"private-vm"` before `status`. The installer
-calls `ObserveProtectedStorageForInstaller` on the verified native image and
+calls the protected configuration observer on the verified native image and
 refuses unprotected storage. It does not change ACLs on a selected existing VM.
 Versions 1 and 2 retain their read-only compatibility paths and supply no private
 storage claim.
@@ -36,7 +88,7 @@ eligibility is latched through the original observation lease.
 
 This proves observed ACL eligibility while the files and ancestors are held. It
 does not prove trusted fresh creation, the absence of earlier mapped writers,
-image-content provenance, configuration/network seals,
+image-content provenance, running configuration/network enforcement,
 running-VM containment, lifecycle permission consumption or guest authentication.
 The supported disk policy excludes parent chains; it does not qualify creating or
 operating them. All results remain read-only with `ownershipQualified=false` and `launchAllowed=false`.
@@ -155,7 +207,7 @@ The installed failure frame retains a fixed stage-nine checkpoint (0..20):
 identity, 4 Off state, 5 storage query, 6 topology validation, 7 ancestor hold,
 8 file hold, 9 file metadata, 10 digest construction, 11 held precheck,
 12 topology recheck, 13 held postcheck, 14 recorded storage digest,
-15 second VM observation, 16 second identity/state check, 17 final authority,
+15 configuration precheck (v4), 16 configuration postcheck (v4), 17 final authority,
 18 registration acquisition, 19 native manager creation and 20 optional-record
 precheck. The original private channel and bounded numeric host projection retain
 this position without paths, provider exception text or file contents. It supplies

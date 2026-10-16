@@ -118,6 +118,8 @@ public sealed class ProtectedGuestVm : IDisposable {
  public bool PendingUnknown { get { return Unknown; } }
  public ProtectedGuestVm(string id, string digest) {}
  public bool Start() { return !Unknown; }
+ public bool Stop() { return !Unknown; }
+ public bool ObserveOff() { return !Unknown; }
  public void Dispose() {}
 }
 public sealed class ProtectedInstallFile {
@@ -125,6 +127,8 @@ public sealed class ProtectedInstallFile {
  public bool Closed;
  public ProtectedInstallFile() {}
  public ProtectedInstallFile(string path, bool directory, bool mutate) {}
+ public string HashImage(long bytes) { return new string('a', 64); }
+ public void HydrateDisk(ProtectedInstallFile source, long bytes, string digest) {}
  public string Hash(int cap) { return new string('a', 64); }
  public byte[] Read(int cap) { return new byte[] { 1, 2 }; }
  public static ProtectedInstallFile OpenWritableDisk(string path) { return new ProtectedInstallFile(); }
@@ -147,8 +151,55 @@ function Write-ProtectedVmJournal($Owned, [string]$Name, $Record) {
 }
 $prior = [ProtectedInstallFile]::new()
 $owned = @{ hydrated = $true; unknown = $false; disk = $prior; root = @{ PathName = 'C:\private' }; vmId = '11111111-2222-3333-4444-555555555555'; binding = @{ identitySha256 = 'a' * 64 } }
+# The common VM root is modeled; host C-drive free space is not fixture authority.
+function Get-PSDrive { return @{ Free = [long]64GB } }
 if ($Mode -ceq 'capacity') { function Get-PSDrive { return @{ Free = [long]0 } } }
 $context = @{ vmProvision = $owned }
+if ($Mode.StartsWith('binding-', [StringComparison]::Ordinal)) {
+    # Actual hydration/stop control flow; all VM/provider, disk mutation and
+    # installation authority below are modeled. No guest is started.
+    $owned.binding = @{ vmId = $owned.vmId; identitySha256 = 'a' * 64; storageSha256 = 'b' * 64;
+        storageProtection = 'private-vm'; configurationProfile = 'aegis-offline-fixed-v1'; configurationSha256 = 'c' * 64 }
+    $original = $owned.binding; $context.vmBinding = $original
+    $owned.verifier = [byte[]]@(1); $owned.rows = @(); $context.stage = @{ root = @{ PathName = 'C:\modeled-stage' } }; $context.manifest = @{}
+    $script:updates = 0; $script:observedBindings = 0
+    function Assert-ProtectedGuestHeadroom($Owned, [long]$AdditionalBytes = 0) {}
+    function Invoke-ProtectedVmEffect($Owned, [string]$Action) { $script:events.Add('effect-' + $Action) }
+    function Read-ProtectedVmTree($Owned, [bool]$SealConfiguration = $false) { return ,@() }
+    function Update-ProtectedInstallation($Context, [string]$Root, $Manifest) {
+        if ($Context.vmProvision.unknown) { throw 'fixture-unsettled-stage-update' }; $script:updates++
+    }
+    function Read-ProtectedInstallVmBinding([string]$VmId, [byte[]]$VerifiedImage, $ExpectedBinding = $null) {
+        $script:observedBindings++; $candidate = $original.Clone(); $candidate.storageSha256 = 'd' * 64
+        if ($Mode.EndsWith('-configuration', [StringComparison]::Ordinal)) { $candidate.configurationSha256 = 'e' * 64 }
+        if ($Mode.EndsWith('-vm', [StringComparison]::Ordinal)) { $candidate.vmId = '99999999-2222-3333-4444-555555555555' }
+        if ($Mode.EndsWith('-protection', [StringComparison]::Ordinal)) { $candidate.storageProtection = 'trusted' }
+        if ($Mode.EndsWith('-identity', [StringComparison]::Ordinal)) { $candidate.identitySha256 = 'e' * 64 }
+        if ($Mode.EndsWith('-profile', [StringComparison]::Ordinal)) { $candidate.configurationProfile = 'unknown' }
+        if ($Mode.EndsWith('-outage', [StringComparison]::Ordinal)) { throw 'fixture-observation-outage' }
+        return $candidate
+    }
+    if ($Mode.Contains('-legacy-')) {
+        $original.Remove('configurationProfile'); $original.Remove('configurationSha256')
+    }
+    $refused = $false; $fixtureFailure = ''
+    try {
+        if ($Mode.StartsWith('binding-hydrate-', [StringComparison]::Ordinal)) {
+            $owned.Remove('hydrated')
+            Set-ProtectedGuestDisk $context @{ path = 'C:\modeled-source.vhdx'; bytes = [long]1MB; sha256 = 'a' * 64 }
+        } else {
+            $owned.guest = @{ state = 'running'; owner = [ProtectedGuestVm]::new($owned.vmId, $original.identitySha256) }
+            Stop-ProtectedGuest $context
+        }
+    } catch { $refused = $true; $fixtureFailure = $_.Exception.Message }
+    $sealPreserved = $true
+    foreach ($key in @('vmId', 'identitySha256', 'storageProtection', 'configurationProfile', 'configurationSha256')) {
+        if ($owned.binding[$key] -cne $original[$key] -or $context.vmBinding[$key] -cne $original[$key]) { $sealPreserved = $false }
+    }
+    return (@{ refused = $refused; unknown = $owned.unknown; sealsPreserved = $sealPreserved;
+        configurationQualified = $owned.binding.ContainsKey('configurationSha256'); storageRefreshed = ($owned.binding.storageSha256 -ceq ('d' * 64)); originalReference = [object]::ReferenceEquals($owned.binding, $original);
+        fixtureFailure = $fixtureFailure; observedBindings = $script:observedBindings; updates = $script:updates; events = @($script:events) } | ConvertTo-Json -Compress)
+}
 if ($Mode.StartsWith('tree-', [StringComparison]::Ordinal)) {
     $owned.root = @{ PathName = 'C:\private' }
     $owned.rows = @(

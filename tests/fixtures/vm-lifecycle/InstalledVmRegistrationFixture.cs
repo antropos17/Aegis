@@ -13,6 +13,7 @@ internal static class InstalledVmRegistrationFixture
     private const string SelectionEpoch = "55555555555555555555555555555555";
     private static readonly Guid Id = new Guid("11111111-2222-3333-4444-555555555555");
     private const string Identity = "msvm_computersystem.creationclassname=\"Msvm_ComputerSystem\",name=\"11111111-2222-3333-4444-555555555555\"\nMicrosoft:settings-generation";
+    private static readonly string ConfigurationHash = EnrollmentInspection.ImageHash(Encoding.UTF8.GetBytes("modeled original offline configuration"));
     private sealed class File : EnrollmentHeld, IEnrollmentFiles
     {
         internal byte[] Bytes;
@@ -31,10 +32,22 @@ internal static class InstalledVmRegistrationFixture
         internal override void Recheck(bool ancestor) { if (Closed || Changed) throw new InvalidDataException(); }
         public override void Dispose() { Closed = true; }
     }
-    private sealed class Provider : IVmManagement, IVmStorageSource
+    private sealed class Provider : IVmManagement, IVmStorageSource, IVmConfigurationSource
     {
         internal readonly VmStorageFixture.Source Storage = new VmStorageFixture.Source();
         public VmStorageAttachment[] ReadStorage() { return Storage.ReadStorage(); }
+        internal string ConfigurationDigest = ConfigurationHash, ConfigurationIdentity = Identity, ConfigurationProfile = VmConfigurationProfile.Name;
+        internal Guid ConfigurationVm = Id;
+        internal int ConfigurationReads;
+        internal bool ConfigurationFail;
+        internal Action ConfigurationQueried;
+        public VmConfigurationObservation ReadConfiguration()
+        {
+            ConfigurationReads++;
+            if (ConfigurationQueried != null) ConfigurationQueried();
+            if (ConfigurationFail) throw new InvalidOperationException();
+            return new VmConfigurationObservation(ConfigurationVm, ConfigurationIdentity, ConfigurationProfile, ConfigurationDigest);
+        }
         internal string Actual = Identity;
         internal Guid IdValue = Id;
         internal ushort State = 3;
@@ -67,10 +80,10 @@ internal static class InstalledVmRegistrationFixture
         var storageSource = new VmStorageFixture.Source();
         string storageHash;
         using (var storage = new VmStorageInspection(storageSource, storageFiles)) storageHash = storage.Digest;
-        if (mode.StartsWith("storage-", StringComparison.Ordinal) || mode.StartsWith("protected-", StringComparison.Ordinal) || mode == "prepared-slow")
+        if (mode.StartsWith("storage-", StringComparison.Ordinal) || mode.StartsWith("protected-", StringComparison.Ordinal) || mode.StartsWith("configuration-", StringComparison.Ordinal) || mode == "prepared-slow")
             text = text.Replace("\"schemaVersion\":1", "\"schemaVersion\":2").Replace("\"status\":\"active\"",
                 "\"storageSha256\":\"" + storageHash + "\",\"status\":\"active\"");
-        if (mode.StartsWith("protected-", StringComparison.Ordinal))
+        if (mode.StartsWith("protected-", StringComparison.Ordinal) || mode.StartsWith("configuration-", StringComparison.Ordinal))
         {
             VmStorageProtection.ResolveForTest = delegate(Guid vm) { if (vm != Id) throw new InvalidOperationException(); return VmStorageFixture.Files.VmSid; };
             text = text.Replace("\"schemaVersion\":2", "\"schemaVersion\":3")
@@ -82,6 +95,16 @@ internal static class InstalledVmRegistrationFixture
             if (mode == "protected-missing-sid") storageFiles.SecuritySddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)";
             if (mode == "protected-malformed") text = text.Replace("private-vm", "trusted");
             if (mode == "protected-parent-disk") storageFiles.Standalone = false;
+        }
+        if (mode.StartsWith("configuration-", StringComparison.Ordinal))
+        {
+            text = text.Replace("\"schemaVersion\":3", "\"schemaVersion\":4")
+                .Replace("\"status\":\"active\"", "\"configurationProfile\":\"" + VmConfigurationProfile.Name + "\",\"configurationSha256\":\"" + ConfigurationHash + "\",\"status\":\"active\"");
+            if (mode == "configuration-malformed-profile") text = text.Replace(VmConfigurationProfile.Name, "unknown");
+            if (mode == "configuration-malformed-digest") text = text.Replace(ConfigurationHash, "invalid");
+            if (mode == "configuration-missing-digest") text = text.Replace("\"configurationSha256\":\"" + ConfigurationHash + "\",", "");
+            if (mode == "configuration-duplicate-digest") text = text.Replace("\"configurationSha256\":", "\"configurationSha256\":\"" + ConfigurationHash + "\",\"configurationSha256\":");
+            if (mode == "configuration-unprotected") text = text.Replace("private-vm", "trusted");
         }
         if (mode == "storage-initial-replacement") storageFiles.FileIdentity = new string('3', 32);
         if (mode == "storage-initial-metadata") storageFiles.Metadata = new string('3', 64);
@@ -102,12 +125,13 @@ internal static class InstalledVmRegistrationFixture
             }
             return 0;
         }
-        string expectedDigest = Digest;
-        if (mode == "record" || mode == "storage-record") { Console.WriteLine(text); return 0; }
-        if (mode == "from-producer")
+        string expectedDigest = Digest, expectedEpoch = Epoch; uint expectedRevision = 1;
+        if (mode == "record" || mode == "storage-record" || mode == "configuration-record") { Console.WriteLine(text); return 0; }
+        if (mode == "from-producer" || mode == "from-upgrade")
         {
             text = System.IO.File.ReadAllText(Path.Combine(root, "registered-vm.json"));
-            if (text.StartsWith("{\"schemaVersion\":3,", StringComparison.Ordinal))
+            if (mode == "from-upgrade") { expectedRevision = 2; expectedEpoch = "66666666666666666666666666666666"; }
+            if ((text.StartsWith("{\"schemaVersion\":3,", StringComparison.Ordinal) || text.StartsWith("{\"schemaVersion\":4,", StringComparison.Ordinal)))
                 VmStorageProtection.ResolveForTest = delegate(Guid vm) { if (vm != Id) throw new InvalidOperationException(); return VmStorageFixture.Files.VmSid; };
             expectedDigest = EnrollmentInspection.ImageHash(System.IO.File.ReadAllBytes(Path.Combine(root, "owner-policy.json")));
         }
@@ -152,17 +176,34 @@ internal static class InstalledVmRegistrationFixture
         if (mode == "reparse") file.Link = true;
         if (mode == "initial-replacement") provider.Actual = "replacement";
         if (mode == "initial-foreign") provider.IdValue = Guid.NewGuid();
+        if (mode == "configuration-initial-digest") provider.ConfigurationDigest = new string('a', 64);
+        if (mode == "configuration-initial-profile") provider.ConfigurationProfile = "unknown";
+        if (mode == "configuration-initial-identity") provider.ConfigurationIdentity = "replacement";
+        if (mode == "configuration-initial-vm") provider.ConfigurationVm = Guid.NewGuid();
+        if (mode == "configuration-initial-outage") provider.ConfigurationFail = true;
+        if (mode == "configuration-during-storage") provider.Storage.Queried = delegate { provider.ConfigurationDigest = new string('b', 64); };
+        if (mode == "configuration-after-storage-outage") provider.Storage.Queried = delegate { provider.ConfigurationFail = true; };
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
         bool authority = mode != "unadmitted", acquired = false, inspected = false, refusedAgain = false;
         int constructed = 0;
         InstalledVmInspection owner = null;
         try
         {
             IEnrollmentFiles files = mode == "native-unprotected" ? (IEnrollmentFiles)new EnrollmentNative() : file;
-            owner = InstalledVmRegistration.AcquireForTest(root, Install, 1, Epoch, expectedDigest, Selection, SelectionEpoch,
-                delegate { if (!authority) throw new InvalidOperationException(); }, files,
+            owner = InstalledVmRegistration.AcquireForTest(root, Install, expectedRevision, expectedEpoch, expectedDigest, Selection, SelectionEpoch,
+                delegate { if (!authority || (mode == "configuration-deadline" && deadline.ElapsedMilliseconds >= 2000)) throw new InvalidOperationException(); }, files,
                 delegate(Guid id) { constructed++; if (id != Id) throw new InvalidOperationException(); return provider; }, storageFiles);
             acquired = owner != null;
             if (owner == null) return PrintUnconfigured(file, constructed);
+            if (mode == "configuration-changed") provider.ConfigurationDigest = new string('a', 64);
+            if (mode == "configuration-outage") provider.ConfigurationFail = true;
+            if (mode == "configuration-owner") provider.ConfigurationQueried = delegate { authority = false; };
+            if (mode == "configuration-deadline")
+                provider.ConfigurationQueried = delegate { System.Threading.Thread.Sleep(2100); };
+            if (mode == "configuration-during-retained-storage")
+                provider.Storage.Queried = delegate { provider.ConfigurationDigest = new string('b', 64); };
+            if (mode == "configuration-during-retained-storage-outage")
+                provider.Storage.Queried = delegate { provider.ConfigurationFail = true; };
             if (mode == "lost-authority") authority = false;
             if (mode == "replaced-vm") provider.Actual = "replacement";
             if (mode == "replaced-file") file.Changed = true;
@@ -175,12 +216,14 @@ internal static class InstalledVmRegistrationFixture
             if (mode == "protected-changed-acl") storageFiles.SecuritySddl += "(A;;FR;;;WD)";
             if (mode == "protected-lost-disk-observation") storageFiles.Standalone = false;
             try { inspected = owner.Inspect() != null; } catch { }
-            if (mode != "positive" && mode != "from-producer" && mode != "storage-positive")
+            if (mode != "positive" && mode != "from-producer" && mode != "from-upgrade" && mode != "storage-positive")
             {
                 authority = true; file.Changed = false; file.Bytes = Encoding.UTF8.GetBytes(text); provider.Actual = Identity;
                 storageFiles.Changed = false; provider.Storage.Mode = "positive"; provider.Storage.Fail = false; provider.State = 3;
                 storageFiles.SecuritySddl = new VmStorageFixture.Files().SecuritySddl;
                 storageFiles.Standalone = true;
+                provider.ConfigurationDigest = ConfigurationHash; provider.ConfigurationFail = false;
+                provider.ConfigurationQueried = null; provider.Storage.Queried = null; deadline.Restart();
                 try { owner.Inspect(); } catch { refusedAgain = true; }
             }
         }
@@ -189,12 +232,12 @@ internal static class InstalledVmRegistrationFixture
         Console.WriteLine("{\"acquired\":" + Boolean(acquired) + ",\"inspected\":" + Boolean(inspected) + ",\"refusedAgain\":" + Boolean(refusedAgain) +
             ",\"constructed\":" + constructed + ",\"requests\":" + provider.Requests + ",\"jobRequests\":" + provider.JobRequests +
             ",\"nativeProtected\":" + (nativeProtected.HasValue ? Boolean(nativeProtected.Value) : "null") +
-            ",\"observations\":" + provider.Observations + ",\"opened\":" + file.Opens + ",\"fileClosed\":" + Boolean(file.Closed) + ",\"providerClosed\":" + Boolean(provider.Closed) + "}");
+            ",\"configurationReads\":" + provider.ConfigurationReads + ",\"observations\":" + provider.Observations + ",\"opened\":" + file.Opens + ",\"fileClosed\":" + Boolean(file.Closed) + ",\"providerClosed\":" + Boolean(provider.Closed) + "}");
         return 0;
     }
     private static int PrintUnconfigured(File file, int constructed)
     {
-        Console.WriteLine("{\"acquired\":false,\"configured\":false,\"constructed\":" + constructed + ",\"requests\":0,\"fileClosed\":" + Boolean(file.Closed) + "}");
+        Console.WriteLine("{\"acquired\":false,\"configured\":false,\"constructed\":" + constructed + ",\"configurationReads\":0,\"requests\":0,\"fileClosed\":" + Boolean(file.Closed) + "}");
         return 0;
     }
 }

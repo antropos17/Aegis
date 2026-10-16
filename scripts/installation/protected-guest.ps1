@@ -36,6 +36,34 @@ function Assert-ProtectedGuestTree($Owned, $Rows) {
         if (@($Rows | Where-Object { $_.path -ceq $prior.path }).Count -ne 1) { throw 'protected-vm-tree-changed' }
     }
 }
+# Refresh only disk metadata after the caller's confirmed administrative
+# transition and original file identity/ACL handoff. Configuration seals remain
+# the values captured by the original provisioner; failures retain both bindings.
+function Update-ProtectedGuestStorageBinding($Context) {
+    Assert-ProtectedInstallAdministrator
+    $owned = $Context.vmProvision
+    try {
+        if ($null -eq $owned -or !$owned.unknown -or $owned.binding -isnot [hashtable] -or
+            ![object]::ReferenceEquals($Context.vmBinding, $owned.binding)) { throw 'protected-vm-binding-changed' }
+        $original = $owned.binding
+        $candidate = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier $original
+        $keys = @('vmId', 'identitySha256', 'storageSha256', 'storageProtection', 'configurationProfile', 'configurationSha256')
+        $legacy = !$original.ContainsKey('configurationProfile') -and !$original.ContainsKey('configurationSha256')
+        if ($legacy) { $keys = @('vmId', 'identitySha256', 'storageSha256', 'storageProtection') }
+        foreach ($value in @($original, $candidate)) {
+            if ($value -isnot [hashtable] -or $value.Count -ne $keys.Count -or @($value.Keys | Where-Object { $_ -cnotin $keys }).Count -ne 0 -or
+                $value.vmId -cne $owned.vmId -or $value.identitySha256 -isnot [string] -or $value.identitySha256 -cnotmatch '\A[a-f0-9]{64}\z' -or
+                $value.storageSha256 -isnot [string] -or $value.storageSha256 -cnotmatch '\A[a-f0-9]{64}\z' -or $value.storageProtection -cne 'private-vm' -or
+                (!$legacy -and ($value.configurationProfile -cne 'aegis-offline-fixed-v1' -or $value.configurationSha256 -isnot [string] -or
+                $value.configurationSha256 -cnotmatch '\A[a-f0-9]{64}\z'))) { throw 'protected-vm-binding-changed' }
+        }
+        foreach ($key in @($keys | Where-Object { $_ -cne 'storageSha256' })) {
+            if ($candidate[$key] -cne $original[$key]) { throw 'protected-vm-binding-changed' }
+        }
+        $next = $original.Clone(); $next.storageSha256 = $candidate.storageSha256
+        $owned.binding = $next; $Context.vmBinding = $next
+    } catch { if ($null -ne $owned) { $owned.unknown = $true }; throw }
+}
 function Set-ProtectedGuestDisk($Context, $Request) {
     Assert-ProtectedInstallation $Context
     $owned = $Context.vmProvision
@@ -56,7 +84,7 @@ function Set-ProtectedGuestDisk($Context, $Request) {
         if ($next.FileId -cne $live.FileId -or $next.Volume -cne $live.Volume -or $next.Sddl -cne $live.Sddl) { $next.Dispose(); throw 'protected-guest-disk-handoff-refused' }
         $owned.disk = $next; $live.Dispose()
         Invoke-ProtectedVmEffect $owned 'bootdisk'; $owned.unknown = $true
-        $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier; $Context.vmBinding = $owned.binding
+        Update-ProtectedGuestStorageBinding $Context
         Write-ProtectedVmJournal $owned 'settled-hydrate.json' @{ schemaVersion = 1; vmId = $owned.vmId; bytes = $Request.bytes; sha256 = $Request.sha256 }
         $nextRows = Read-ProtectedVmTree $owned $true; Assert-ProtectedGuestTree $owned $nextRows
         $owned.rows = $nextRows; $owned.unknown = $false
@@ -176,7 +204,7 @@ function Stop-ProtectedGuest($Context) {
     $prior = $owned.disk; $offline = [ProtectedInstallFile]::new($prior.PathName, $false, $false)
     if ($offline.FileId -cne $prior.FileId -or $offline.Volume -cne $prior.Volume -or $offline.Sddl -cne $prior.Sddl) { $offline.Dispose(); throw 'protected-guest-disk-handoff-refused' }
     $owned.disk = $offline; $prior.Dispose()
-    $owned.binding = Read-ProtectedInstallVmBinding $owned.vmId $owned.verifier; $Context.vmBinding = $owned.binding
+    Update-ProtectedGuestStorageBinding $Context
     Write-ProtectedVmJournal $owned 'settled-stop.json' @{ schemaVersion = 1; vmId = $owned.vmId; off = $true }
     $nextRows = Read-ProtectedVmTree $owned; Assert-ProtectedGuestTree $owned $nextRows
     $owned.rows = $nextRows; $owned.guest.owner.Dispose(); $owned.guest.state = 'closed'; $owned.unknown = $false
