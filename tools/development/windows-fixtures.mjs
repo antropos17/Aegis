@@ -9,6 +9,9 @@ import { boundedCommand } from './bounded-command.mjs';
 import { WINDOWS_SUITES, validateTestReport } from './verification-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const sourceScratch = path.join(root, 'out/development');
+const sourceEntries = () => (fs.existsSync(sourceScratch) ? fs.readdirSync(sourceScratch) : []);
+const sourceEntriesBefore = new Set(sourceEntries());
 const { values } = parseArgs({
   options: {
     'source-sha': { type: 'string' },
@@ -168,10 +171,17 @@ try {
   receipt.finishedAt = new Date().toISOString();
   receipt.freeAfter = { source: free(root), output: free(output) };
   // Existing fixtures own their cleanup. Report leftovers without following or removing links.
-  receipt.cleanup = { retainedEntries: fs.readdirSync(scratch).length, automaticDeletion: false };
+  receipt.cleanup = {
+    retainedEntries: fs.readdirSync(scratch).length,
+    retainedSourceEntries: sourceEntries().filter((name) => !sourceEntriesBefore.has(name)).length,
+    automaticDeletion: false,
+  };
   // Junction-refusal fixtures intentionally preserve their links during teardown.
   // Fixture PASS does not imply an empty directory or authorize recursive cleanup.
-  receipt.cleanup.status = receipt.cleanup.retainedEntries ? 'retained-for-review' : 'empty';
+  receipt.cleanup.status =
+    receipt.cleanup.retainedEntries || receipt.cleanup.retainedSourceEntries
+      ? 'retained-for-review'
+      : 'empty';
   fs.writeFileSync(path.join(evidence, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n', {
     flag: 'wx',
   });

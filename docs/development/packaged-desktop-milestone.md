@@ -66,6 +66,8 @@ object ID, reopens a candidate to establish ownership, or refreshes metadata dur
 execution. Original volume/file IDs, descriptors, streams, hashes, namespace pins
 and timestamps remain enforced. The regression also changes another file's
 metadata after Stop and requires refusal, preventing a blanket metadata exemption.
+This native regression runs in the existing hosted Windows fixture selection;
+the actual desktop probe remains opt-in and requires an interactive session.
 Object-ID creation must succeed; filesystems without it fail closed during GUI
 staging (Microsoft documents ReFS as unsupported).
 
