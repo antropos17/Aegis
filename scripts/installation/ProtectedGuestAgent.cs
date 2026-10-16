@@ -63,8 +63,9 @@ public static class ProtectedGuestAgent
             using (var desktop = new ProtectedGuestDesktop(sid)) {
                 try {
                     job = CreateJobObject(IntPtr.Zero, null); Require(job != IntPtr.Zero);
-                    var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8 | 0x100;
+                    var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8 | 0x100 | 0x200;
                     limits.Basic.Active = 32; limits.ProcessMemory = new IntPtr(512 * 1024 * 1024);
+                    limits.JobMemory = new IntPtr(512 * 1024 * 1024);
                     Require(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
                     // Explicit environment excludes the administrative session's secrets.
                     string system = Environment.GetEnvironmentVariable("SystemRoot");
