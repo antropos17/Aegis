@@ -2,8 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHarness, invoke } from '../fixtures/session-fixed-operation/harness.mjs';
+import {
+  GUI_EXECUTABLE,
+  produceGuiManifest,
+} from '../../scripts/produce-protected-gui-manifest.mjs';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -17,6 +22,34 @@ const remove = (bytes, key) => {
 const invalidUtf8 = (bytes) => Buffer.concat([Buffer.from([0xff]), bytes.subarray(1)]);
 const reverse = (bytes) => encode(Object.fromEntries(Object.entries(JSON.parse(bytes)).reverse()));
 let harness, stages;
+function compileGuiFixture(directory) {
+  const library = path.join(directory, 'gui-helper.dll');
+  try {
+    execFileSync(
+      path.join(process.env.WINDIR || 'C:/Windows', 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'),
+      [
+        '/nologo',
+        '/target:library',
+        '/platform:x64',
+        '/define:PROTECTED_GUI_TEST',
+        '/warnaserror+',
+        '/reference:System.Security.dll',
+        '/out:' + library,
+        ...[
+          'ProtectedInstallFiles.cs',
+          'ProtectedGuiManifest.cs',
+          'ProtectedGuiBundleNative.cs',
+          'ProtectedGuiBundleFiles.cs',
+          'ProtectedGuiIdentity.cs',
+        ].map((name) => path.join(project, 'scripts/installation', name)),
+      ],
+      { timeout: 30000, maxBuffer: 32768, windowsHide: true },
+    );
+  } catch (error) {
+    throw new Error(String(error.stdout) + String(error.stderr), { cause: error });
+  }
+  return library;
+}
 
 describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
   'fixed installed inspection registration (actual producer and native reader)',
@@ -111,6 +144,100 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         expect(registration.fixtureManifestSha256).toBe(digest(fs.readFileSync(stage.fixturePath)));
       }
     });
+    it('completes native inspection with an actual installer-produced GUI candidate present (modeled principal and protection)', () => {
+      const directory = fs.mkdtempSync(path.join(harness.root, 'gui-inspection-'));
+      const source = path.join(directory, 'source');
+      fs.mkdirSync(path.join(source, 'resources'), { recursive: true });
+      fs.writeFileSync(path.join(source, GUI_EXECUTABLE), 'fixture GUI payload; never executed');
+      fs.writeFileSync(path.join(source, 'resources/app.asar'), 'fixture resource');
+      const manifest = path.join(directory, 'gui-manifest.json');
+      fs.writeFileSync(manifest, produceGuiManifest(source));
+      const library = compileGuiFixture(directory);
+      const observed = invoke(harness.native, [
+        'gui-present',
+        directory,
+        project,
+        library,
+        source,
+        manifest,
+      ]);
+      expect(observed).toMatchObject({
+        admitted: true,
+        completed: true,
+        refused: false,
+        effects: 1,
+        mainJobEmpty: true,
+        borrowedUsable: true,
+        recordsUnchanged: true,
+        guiCandidateProduced: true,
+        guiBytesPreserved: true,
+        inspectionBytesPreserved: true,
+        guiPrincipalAndProtectionModeled: true,
+        protectedDescriptorsModeled: true,
+        installedAuthorityModeled: true,
+        guiEnrollment: false,
+      });
+      const record = JSON.parse(
+        fs.readFileSync(path.join(directory, 'installed/registered-gui-candidate.json')),
+      );
+      expect(record).toMatchObject({
+        scope: 'protected-gui-bundle-candidate',
+        status: 'candidate',
+        guiEnrollment: false,
+      });
+      expect(record.policySha256).toBe(
+        digest(fs.readFileSync(path.join(directory, 'installed/owner-policy.json'))),
+      );
+      expect(
+        fs.readFileSync(path.join(directory, 'installed/GuiBundle', GUI_EXECUTABLE), 'utf8'),
+      ).toBe('fixture GUI payload; never executed');
+      // The existing positive fixture counts its inspection JSON publication.
+      expect(fs.readFileSync(path.join(directory, 'control/effect-counter.txt'), 'utf8')).toBe('1');
+      expect(fs.existsSync(path.join(directory, 'control/inspection.json'))).toBe(true);
+      expect(
+        fs.readFileSync(path.join(directory, 'control/supervisor-job-empty.txt'), 'utf8'),
+      ).toBe('true');
+    }, 40000);
+    it('runs the full actual installer stage and GUI native clone through bounded publication and rollback', () => {
+      const directory = fs.mkdtempSync(path.join(harness.root, 'full-gui-stage-'));
+      const source = path.join(directory, 'source'),
+        scratch = path.join(directory, 'stages');
+      fs.mkdirSync(path.join(source, 'resources'), { recursive: true });
+      fs.mkdirSync(scratch);
+      fs.writeFileSync(path.join(source, GUI_EXECUTABLE), 'fixture full stage GUI; never executed');
+      fs.writeFileSync(path.join(source, 'resources/app.asar'), 'fixture full stage resource');
+      const manifest = path.join(directory, 'gui-manifest.json');
+      fs.writeFileSync(manifest, produceGuiManifest(source));
+      const result = invoke('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        path.join(project, 'tests/fixtures/protected-installation/gui-stage-composition.ps1'),
+        '-Project',
+        project,
+        '-Assembly',
+        compileGuiFixture(directory),
+        '-Source',
+        source,
+        '-Manifest',
+        manifest,
+        '-Scratch',
+        scratch,
+      ]);
+      expect(result).toEqual({
+        passed: true,
+        actualFullStage: true,
+        ordinaryRows: 12,
+        externalSourceClosed: true,
+        cloneFromOriginal: true,
+        rollbackOriginalsPreserved: true,
+        unknownRetirementRefused: true,
+        modeledVerifiedClosure: true,
+        modeledPrincipalProtectionAndJournalMetadata: true,
+        guiEnrollment: false,
+      });
+      expect(fs.readdirSync(scratch)).toEqual([]);
+    }, 40000);
 
     it.each([
       ['extra property', (b) => edit(b, 'extra', true)],

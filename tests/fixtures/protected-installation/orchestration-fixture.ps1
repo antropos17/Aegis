@@ -1,6 +1,69 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'gui-stage-hook', 'gui-lifecycle', 'gui-clean-failure', 'gui-unknown-failure', 'gui-invalid-options')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($Mode -ceq 'gui-stage-hook') {
+    . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-install-files.ps1')
+    # The production stage serializer executes; only filesystem/native GUI ownership leaves are modeled.
+    $script:GuiHookFiles = @{}; $script:GuiHookStages = 0; $script:GuiHookCopies = 0; $script:GuiHookDirectorySnapshots = 0
+    function New-ProtectedInstallDirectory {
+        param($Path, $OperatorSid)
+        $root = [pscustomobject]@{ PathName = $Path; Volume = ('1' * 16); FileId = ('2' * 32) }
+        $root | Add-Member ScriptMethod Recheck { }
+        $root | Add-Member ScriptMethod Protected { param($ancestor); return $true }
+        $script:GuiHookStages++; return $root
+    }
+    function Write-ProtectedInstallFile {
+        param($Path, [byte[]]$Bytes, $OperatorSid, $Private)
+        $script:GuiHookFiles[$Path] = @{ bytes = [byte[]]$Bytes.Clone(); directory = $false }
+    }
+    function Get-ChildItem {
+        param($LiteralPath, [switch]$Force)
+        foreach ($path in $script:GuiHookFiles.Keys) {
+            if ([IO.Path]::GetDirectoryName($path) -ceq $LiteralPath) {
+                [pscustomobject]@{ FullName = $path; Name = [IO.Path]::GetFileName($path); PSIsContainer = $script:GuiHookFiles[$path].directory; Attributes = [IO.FileAttributes]::Normal }
+            }
+        }
+    }
+    function Read-ProtectedInstallSnapshot {
+        param($Path)
+        if ($script:GuiHookFiles[$Path].directory) { $script:GuiHookDirectorySnapshots++; throw 'fixture-gui-generic-snapshot-refused' }
+        return @{ path = $Path; bytes = $script:GuiHookFiles[$Path].bytes.Length }
+    }
+    function New-ProtectedInstallJournal {
+        param($Context, $Stage)
+        return @{ generation = ('a' * 32); leaf = 'operations-' + $Context.installId + '-' + $Stage.epoch + '-' + $Stage.revision + '.jsonl';
+            directory = @{ volume = ('1' * 16); fileId = ('2' * 32); securitySha256 = ('3' * 64) };
+            file = @{ volume = ('1' * 16); fileId = ('4' * 32); securitySha256 = ('5' * 64) } }
+    }
+    function Release-ProtectedInstallJournal { param($Journal) }
+    function New-ProtectedGuiStage {
+        param($Context, $Stage, [byte[]]$PolicyBytes)
+        if ($null -eq $Context.guiInput) { return $null }
+        $policy = [Text.Encoding]::UTF8.GetString($PolicyBytes) | ConvertFrom-Json
+        if ($policy.rootFileId -cne $Stage.root.FileId -or $policy.epoch -cne $Stage.epoch -or
+            ![object]::ReferenceEquals($Context.guiInput.principal, $Context.guiPrincipal)) { throw 'fixture-gui-original-tuple-refused' }
+        $script:GuiHookCopies++
+        $script:GuiHookFiles[(Join-Path $Stage.path 'GuiBundle')] = @{ bytes = [byte[]]@(); directory = $true }
+        return @{ bundle = [pscustomobject]@{ root = $Stage.root }; principal = $Context.guiPrincipal; recordBytes = [Text.Encoding]::UTF8.GetBytes('{"scope":"fixture-gui-candidate"}') }
+    }
+    $blob = [byte[]]@(1); $manifest = @(); $inputs = @{}
+    foreach ($name in @('aegis-owner.exe','aegis-session.exe','aegis-main.exe')) { $inputs[$name] = $blob; $manifest += @{ name = $name; bytes = 1; sha256 = ('a' * 64) } }
+    $context = @{ installId = ('a' * 32); selectionId = ('b' * 32); selectionEpoch = ('c' * 32); operatorSid = 'S-1-5-21-1';
+        operatorAccount = 'FixtureOnly'; parent = @{}; credential = $blob; inputs = $inputs; manifest = @{ files = $manifest }; guiInput = $null; guiPrincipal = $null }
+    $headless = New-ProtectedInstallStage $context 1 ('d' * 32)
+    $principal = [pscustomobject]@{ original = $true }; $context.guiPrincipal = $principal
+    $context.guiInput = @{ source = [pscustomobject]@{ original = $true }; principal = $principal }
+    $withGui = New-ProtectedInstallStage $context 1 ('d' * 32)
+    $sameInventory = [Convert]::ToBase64String($script:GuiHookFiles[(Join-Path $headless.path 'inventory.json')].bytes) -ceq
+        [Convert]::ToBase64String($script:GuiHookFiles[(Join-Path $withGui.path 'inventory.json')].bytes)
+    $sameFixture = [Convert]::ToBase64String($script:GuiHookFiles[(Join-Path $headless.path 'fixed-fixture.json')].bytes) -ceq
+        [Convert]::ToBase64String($script:GuiHookFiles[(Join-Path $withGui.path 'fixed-fixture.json')].bytes)
+    @{ guiStaged = ($script:GuiHookCopies -eq 1 -and $withGui.ContainsKey('gui') -and $null -ne $withGui.gui);
+        candidateWritten = $script:GuiHookFiles.ContainsKey((Join-Path $withGui.path 'registered-gui-candidate.json'));
+        originalInventoryPreserved = $sameInventory; originalFixedFixturePreserved = $sameFixture;
+        genericDirectorySnapshots = $script:GuiHookDirectorySnapshots; headlessRows = $headless.rows.Count; guiRows = $withGui.rows.Count } | ConvertTo-Json -Compress
+    return
+}
 if ($Mode -ceq 'host-script-scope') { & $PSCommandPath 'host-script-child'; return }
 # No native APIs: these finite resource objects exist only in this child process.
 Add-Type -TypeDefinition @'
@@ -39,12 +102,25 @@ public sealed class ProtectedInstallService {
     }
 }
 '@
-if ($Mode -ceq 'host-script-child') {
+if ($Mode -cin @('host-script-child', 'gui-lifecycle', 'gui-clean-failure', 'gui-unknown-failure', 'gui-invalid-options')) {
     # The workflow calls the lab as a child script from its step script. Load
     # maintained functions here in that child script's scope, never globally.
     . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-installation.ps1')
     $global:FixtureHost = @{ account = $null; exists = $false; member = $false; addedReferenceExact = $false; removedSidExact = $false; namedAccountQueries = 0;
         files = [Collections.Generic.List[object]]::new(); stages = [Collections.Generic.List[object]]::new() }
+    $script:FixtureGui = @{ captures = 0; sourceCloses = 0; principalCloses = 0; bundles = [Collections.Generic.List[object]]::new();
+        removed = [Collections.Generic.List[int]]::new(); events = [Collections.Generic.List[string]]::new() }
+    function Open-ProtectedGuiCandidate {
+        param($SourceRoot, [byte[]]$ManifestBytes)
+        if ($SourceRoot -cne 'C:\fixture\original-gui' -or $ManifestBytes.Length -ne 1) { throw 'fixture-gui-input-refused' }
+        $script:FixtureGui.captures++; $script:FixtureGui.events.Add('capture')
+        $source = [pscustomobject]@{ Disposed = $false }
+        $source | Add-Member ScriptMethod Dispose { if ($this.Disposed) { throw 'fixture-double-source-close' }; $this.Disposed = $true; $script:FixtureGui.sourceCloses++; $script:FixtureGui.events.Add('source-close') }
+        $principal = [pscustomobject]@{ Disposed = $false }
+        $principal | Add-Member ScriptMethod CheckCurrent { if ($this.Disposed) { throw 'fixture-original-principal-closed' } }
+        $principal | Add-Member ScriptMethod Dispose { if ($this.Disposed) { throw 'fixture-double-principal-close' }; $this.Disposed = $true; $script:FixtureGui.principalCloses++; $script:FixtureGui.events.Add('principal-close') }
+        return @{ source = $source; principal = $principal; ownsSource = $true; ownsPrincipal = $true }
+    }
     # Only OS leaves are global fakes, matching globally imported cmdlets. All
     # maintained account/association/cleanup helpers remain child-script functions.
     function global:ConvertTo-SecureString { param($String, [switch]$AsPlainText, [switch]$Force); return 'fixture-only-secure-value' }
@@ -103,24 +179,75 @@ if ($Mode -ceq 'host-script-child') {
     function New-ProtectedInstallStage {
         param($Context, $Revision, $Epoch)
         $held = New-ProtectedInstallDirectory (Join-Path $script:ProtectedInstallParent ('Staging-' + $Epoch)) $Context.operatorSid
-        $stage = @{ root = $held; path = $held.PathName; revision = $Revision; epoch = $Epoch; published = $false; rows = @() }
+        $stage = @{ root = $held; parent = $Context.parent; path = $held.PathName; revision = $Revision; epoch = $Epoch; published = $false; rows = @(); gui = $null; context = $Context }
+        if ($null -ne $Context.guiInput) {
+            $input = $Context.guiInput; $input.principal.CheckCurrent()
+            if ($input.source.Disposed -or ![object]::ReferenceEquals($input.principal, $Context.guiPrincipal)) { throw 'fixture-original-gui-input-lost' }
+            $index = $script:FixtureGui.bundles.Count
+            if ($index -gt 0 -and (![object]::ReferenceEquals($input.source, $Context.stage.gui.bundle) -or $input.source.Removed)) { throw 'fixture-upgrade-source-recaptured' }
+            $bundle = [pscustomobject]@{ Index = $index; Root = $held; Parent = $Context.parent; Source = $input.source; Disposed = $false; Removed = $false }
+            $bundle | Add-Member ScriptMethod CheckCurrent { param($root); if ($this.Disposed -or $this.Removed -or ![object]::ReferenceEquals($this.Root, $root)) { throw 'fixture-original-bundle-refused' } }
+            $bundle | Add-Member ScriptMethod RenameStage { param($root, $parent, $destination); $this.CheckCurrent($root); if (![object]::ReferenceEquals($parent, $this.Parent)) { throw 'fixture-original-parent-refused' }; $root.PathName = $destination; $script:FixtureGui.events.Add('move-' + $this.Index) }
+            $bundle | Add-Member ScriptMethod Remove { param($root); $this.CheckCurrent($root); $this.Removed = $true; $script:FixtureGui.removed.Add($this.Index); $script:FixtureGui.events.Add('remove-' + $this.Index) }
+            $bundle | Add-Member ScriptMethod Dispose { if (!$this.Removed -or $this.Disposed) { throw 'fixture-unowned-bundle-close' }; $this.Disposed = $true; $script:FixtureGui.events.Add('close-' + $this.Index) }
+            $script:FixtureGui.events.Add('stage-' + $index); $script:FixtureGui.bundles.Add($bundle)
+            $stage.gui = @{ bundle = $bundle; principal = $input.principal }
+        }
         $global:FixtureHost.stages.Add($stage); return $stage
     }
     function Assert-ProtectedInstallStage {
         param($Stage)
         if (@($global:FixtureHost.stages | Where-Object { [object]::ReferenceEquals($_, $Stage) }).Count -ne 1 -or $Stage.root.Deleted -or $Stage.path -cne $Stage.root.PathName) { throw 'fixture-stage-reference-refused' }
+        Assert-ProtectedGuiStage $Stage
     }
     function Update-ProtectedInstallRuntimeRows { param($Stage); Assert-ProtectedInstallStage $Stage }
     function Move-ProtectedInstallStage {
         param($Stage, $Destination)
-        Assert-ProtectedInstallStage $Stage; $Stage.path = $Destination; $Stage.root.PathName = $Destination
+        Assert-ProtectedInstallStage $Stage
+        if ($null -ne $Stage.gui) { Move-ProtectedGuiStageBinding $Stage $Destination } else { $Stage.root.PathName = $Destination }
+        $Stage.path = $Destination
     }
-    function Remove-ProtectedInstallStage { param($Stage, $Published); Assert-ProtectedInstallStage $Stage; $Stage.root.Delete() }
+    function Remove-ProtectedInstallStage { param($Stage, $Published); if ($Stage.context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }; Assert-ProtectedInstallStage $Stage; Remove-ProtectedGuiStage $Stage; $Stage.root.Delete() }
     [ProtectedInstallService]::CreateSucceeds = $true
+    if ($Mode -ceq 'gui-invalid-options') {
+        $invalid = @('wrong-type', @{ sourceRoot = 'C:\fixture\original-gui' }, @{ sourceRoot = ''; manifest = [byte[]]@(1) },
+            @{ sourceRoot = 42; manifest = [byte[]]@(1) }, @{ sourceRoot = 'C:\fixture\original-gui'; manifest = 'bytes' },
+            @{ sourceRoot = 'C:\fixture\original-gui'; manifest = [byte[]]@() }, @{ sourceRoot = 'C:\fixture\original-gui'; manifest = (New-Object byte[] 524289) },
+            @{ sourceRoot = 'C:\fixture\original-gui'; manifest = [byte[]]@(1); extra = $true }, @{ SourceRoot = 'C:\fixture\original-gui'; manifest = [byte[]]@(1) })
+        $refused = 0; $noEffects = $true
+        foreach ($option in $invalid) {
+            $journal = @{}
+            try { New-ProtectedInstallation 'C:\fixture\input' @{} 'AegisOp012345abcdef' 'fixture-credential-length-32-bytes' -Journal $journal -GuiBundle $option | Out-Null }
+            catch { if ($_.Exception.Message -ceq 'protected-gui-input-refused') { $refused++ } }
+            if ($journal.accountCreationAttempted -or $journal.cleanup.state -cne 'confirmed-no-effects') { $noEffects = $false }
+        }
+        @{ refused = $refused; noEffects = $noEffects; captures = $script:FixtureGui.captures; roots = $global:FixtureHost.files.Count } | ConvertTo-Json -Compress
+        return
+    }
+    if ($Mode -cin @('gui-clean-failure', 'gui-unknown-failure')) {
+        $unknown = $Mode -ceq 'gui-unknown-failure'
+        if ($unknown) { [ProtectedInstallService]::CreateSucceeds = $false; [ProtectedInstallService]::CleanupUnknown = $true }
+        $journal = @{}; $refused = $false
+        try { New-ProtectedInstallation 'C:\fixture\input' @{} 'AegisOp012345abcdef' 'fixture-credential-length-32-bytes' -FailAfterPublish (!$unknown) -Journal $journal -GuiBundle @{ sourceRoot = 'C:\fixture\original-gui'; manifest = [byte[]]@(1) } | Out-Null }
+        catch { $refused = $true }
+        @{ refused = $refused; cleanup = $journal.cleanup.state; sourceCloses = $script:FixtureGui.sourceCloses; principalCloses = $script:FixtureGui.principalCloses;
+            bundleRemoved = $script:FixtureGui.bundles[0].Removed; bundleDisposed = $script:FixtureGui.bundles[0].Disposed;
+            originalRetained = ($unknown -and [object]::ReferenceEquals($journal.association.stage.gui.bundle, $script:FixtureGui.bundles[0]) -and $journal.association.cleanupUnknown);
+            events = @($script:FixtureGui.events.ToArray()) } | ConvertTo-Json -Depth 4 -Compress
+        return
+    }
     $journal = @{}; $result = @{ installed = $false; originalExact = $false; firstUpgradeExact = $false; secondUpgradeExact = $false; rollbackExact = $false; uninstalled = $false; failure = $null }
     try {
-        $association = New-ProtectedInstallation 'C:\fixture\input' @{} 'AegisOp012345abcdef' 'fixture-credential-length-32-bytes' $false $journal
+        $guiOption = if ($Mode -ceq 'gui-lifecycle') { @{ sourceRoot = 'C:\fixture\original-gui'; manifest = [byte[]]@(1) } } else { $null }
+        $association = New-ProtectedInstallation 'C:\fixture\input' @{} 'AegisOp012345abcdef' 'fixture-credential-length-32-bytes' -Journal $journal -GuiBundle $guiOption
         $result.installed = $true; $result.originalExact = [object]::ReferenceEquals($association.stage, $global:FixtureHost.stages[0])
+        if ($Mode -ceq 'gui-lifecycle') {
+            $association.cleanupUnknown = $true; $blocked = $false
+            try { Remove-ProtectedInstallation $association } catch { $blocked = $_.Exception.Message -ceq 'protected-owned-cleanup-unknown' }
+            $result.unknownPreserved = $blocked -and !$script:FixtureGui.bundles[0].Removed -and $script:FixtureGui.principalCloses -eq 0 -and [ProtectedInstallService]::StopCalls -eq 0
+            # Only this modeled administrative fixture represents verified original closure.
+            $association.cleanupUnknown = $false
+        }
         $first = Update-ProtectedInstallation $association 'C:\fixture\input' @{}
         $result.firstUpgradeExact = [object]::ReferenceEquals($association.stage, $first) -and [object]::ReferenceEquals($first, $global:FixtureHost.stages[1])
         $second = Update-ProtectedInstallation $association 'C:\fixture\input' @{}
@@ -134,6 +261,11 @@ if ($Mode -ceq 'host-script-child') {
     $result.accountVerified = $global:FixtureHost.namedAccountQueries -gt 0; $result.memberAdditionComplete = $global:FixtureHost.member
     $result.addedReferenceExact = $global:FixtureHost.addedReferenceExact; $result.removedSidExact = $global:FixtureHost.removedSidExact
     $result.cleanup = $journal.cleanup
+    if ($Mode -ceq 'gui-lifecycle') {
+        $result.captures = $script:FixtureGui.captures; $result.sourceCloses = $script:FixtureGui.sourceCloses; $result.principalCloses = $script:FixtureGui.principalCloses
+        $result.removed = @($script:FixtureGui.removed.ToArray()); $result.events = @($script:FixtureGui.events.ToArray())
+        $result.allBundlesClosed = @($script:FixtureGui.bundles | Where-Object { !$_.Removed -or !$_.Disposed }).Count -eq 0
+    }
     $result | ConvertTo-Json -Depth 6 -Compress
     return
 }

@@ -45,7 +45,9 @@ function Build-InstalledOwnerPayload([string]$Project, [string]$PayloadRoot, [st
         $commands += @{ command = @($compiler) + $args; exitCode = $code; output = $build.leaf; sha256 = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $paths = @('binaries/aegis-owner.exe', 'binaries/aegis-session.exe', 'binaries/aegis-main.exe', 'baseline/aegis-session.exe', 'native/installed-owner-actor.exe')
-    foreach ($name in @('ProtectedInstallFiles.cs', 'ProtectedInstallService.cs', 'ProtectedInstallDisk.cs', 'protected-install-files.ps1', 'protected-install-transaction.ps1', 'protected-installation.ps1', 'protected-vm-provider.ps1', 'protected-vm.ps1')) {
+    foreach ($name in @('ProtectedInstallFiles.cs', 'ProtectedInstallService.cs', 'ProtectedInstallDisk.cs',
+        'ProtectedGuiManifest.cs', 'ProtectedGuiBundleNative.cs', 'ProtectedGuiBundleFiles.cs', 'ProtectedGuiIdentity.cs',
+        'protected-journal.ps1', 'protected-gui.ps1', 'protected-install-files.ps1', 'protected-install-transaction.ps1', 'protected-installation.ps1', 'protected-vm-provider.ps1', 'protected-vm.ps1')) {
         $path = 'scripts/installation/' + $name; Copy-Item -LiteralPath (Join-Path $Project $path) -Destination (Join-Path $PayloadRoot $path); $paths += $path
     }
     $phase = 'scripts/qualification/installed-owner-phase.ps1'; Copy-Item -LiteralPath (Join-Path $Project $phase) -Destination (Join-Path $PayloadRoot $phase); $paths += $phase

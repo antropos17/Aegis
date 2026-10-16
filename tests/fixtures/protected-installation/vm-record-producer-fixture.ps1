@@ -1,9 +1,50 @@
 param([Parameter(Mandatory)][string]$Scratch, [Parameter(Mandatory)][string]$VmId, [Parameter(Mandatory)][string]$IdentityHash, [Parameter(Mandatory)][string]$StorageHash,
-    [string]$MainImage = '', [string]$SupervisorImage = '', [string]$OperatorSid = 'S-1-5-21-1-2-3-400', [string]$ConfigurationHash = '', [string]$CompatibilityMode = '')
+    [string]$MainImage = '', [string]$SupervisorImage = '', [string]$OperatorSid = 'S-1-5-21-1-2-3-400', [string]$ConfigurationHash = '', [string]$CompatibilityMode = '',
+    [string]$GuiAssembly = '', [string]$GuiSource = '', [string]$GuiManifest = '')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-install-files.ps1')
 $script:fixtureRoot = [IO.Path]::GetFullPath($Scratch).TrimEnd('\')
+if ($CompatibilityMode -ceq 'gui-inspection') {
+    # Only the caller fixture's original existing root is selected. Descriptor
+    # and linked-principal authority are modeled; copy/hash/serialization are real.
+    Add-Type -Path $GuiAssembly
+    [ProtectedGuiBundleFiles]::ModelProtectionForTest()
+    function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$Private = $false) {
+        $acl = if ($Directory) { [Security.AccessControl.DirectorySecurity]::new() } else { [Security.AccessControl.FileSecurity]::new() }
+        $acl.SetAccessRuleProtection($true, $false)
+        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User; $acl.SetOwner($sid)
+        $inherit = if ($Directory) { [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit' } else { [Security.AccessControl.InheritanceFlags]::None }
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, [Security.AccessControl.FileSystemRights]::FullControl,
+            $inherit, [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+        return $acl
+    }
+    $policyBytes = [IO.File]::ReadAllBytes((Join-Path $script:fixtureRoot 'owner-policy.json'))
+    $policy = [Text.Encoding]::UTF8.GetString($policyBytes) | ConvertFrom-Json
+    $source = $null; $principal = $null; $root = $null; $parent = $null; $stage = $null
+    try {
+        $root = [ProtectedInstallFile]::new($script:fixtureRoot, $true, $false)
+        $parent = [ProtectedInstallFile]::new([IO.Path]::GetDirectoryName($script:fixtureRoot), $true, $false)
+        $principal = [ProtectedGuiIdentity]::CreateForTest($policy.operatorSid, 1)
+        $source = [ProtectedGuiBundleFiles]::Capture($GuiSource, [IO.File]::ReadAllBytes($GuiManifest))
+        $context = @{ installId = $policy.installId; operatorSid = $policy.operatorSid; selectionId = $policy.selectionId; selectionEpoch = $policy.selectionEpoch;
+            cleanupUnknown = $false; guiInput = @{ source = $source; principal = $principal; ownsSource = $true; ownsPrincipal = $false }; guiPrincipal = $principal }
+        $stage = @{ root = $root; parent = $parent; revision = $policy.revision; epoch = $policy.epoch; gui = $null }
+        $stage.gui = New-ProtectedGuiStage $context $stage $policyBytes
+        Write-ProtectedInstallFile (Join-Path $script:fixtureRoot 'registered-gui-candidate.json') $stage.gui.recordBytes $policy.operatorSid
+        Assert-ProtectedGuiStage $stage
+        @{ produced = $true; modeledPrincipalAndProtection = $true; guiEnrollment = $false } | ConvertTo-Json -Compress
+    } finally {
+        # Preserve the real produced tree for the existing native inspection;
+        # its exact test root is collected only after the native processes exit.
+        if ($null -ne $stage -and $null -ne $stage.gui) { $stage.gui.bundle.Dispose() }
+        if ($null -ne $source) { $source.Dispose() }
+        if ($null -ne $principal) { $principal.Dispose() }
+        if ($null -ne $root) { $root.Dispose() }
+        if ($null -ne $parent) { $parent.Dispose() }
+    }
+    return
+}
 if (!(Test-Path -LiteralPath $script:fixtureRoot -PathType Container) -or @(Get-ChildItem -LiteralPath $script:fixtureRoot -Force).Count) { throw 'fixture-empty-scratch-required' }
 $script:ProtectedInstallParent = $script:fixtureRoot
 if ($CompatibilityMode -ceq 'legacy-verifier') {

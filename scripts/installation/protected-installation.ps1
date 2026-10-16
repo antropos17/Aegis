@@ -45,23 +45,34 @@ function Set-ProtectedInstallCredential($Context) {
     try { $Context.credential = [Security.Cryptography.ProtectedData]::Protect($secret, [Text.Encoding]::ASCII.GetBytes('AEGIS-installed-owner-credential-v1'), [Security.Cryptography.DataProtectionScope]::LocalMachine) }
     finally { [Array]::Clear($secret, 0, $secret.Length) }
 }
-function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$OperatorAccount, [string]$Password, [bool]$FailAfterPublish = $false, [hashtable]$Journal = @{}, [string]$RegisteredVmId = '', $VmImage = $null) {
+function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$OperatorAccount, [string]$Password, [bool]$FailAfterPublish = $false, [hashtable]$Journal = @{}, [string]$RegisteredVmId = '', $VmImage = $null, $GuiBundle = $null) {
     $Journal.operation = 'administrator'; $Journal.failure = $null; $Journal.createdSid = $null; $Journal.createdRoots = @(); $Journal.published = $false
     $Journal.service = @{ name = 'AegisProtectedSessionOwner'; creationAttempted = $false; created = $false }
     $Journal.cleanup = @{ state = 'pending'; serviceAbsent = $null; protectedParentAbsent = $null; exactAccountSidAbsent = $null; failure = $null }
     $Journal.accountCreationAttempted = $false; $Journal.association = $null
     $inputs = @{}
-    $sourceImage = $null
+    $sourceImage = $null; $guiCapture = $null
     $installParent = $script:ProtectedInstallParent; $installRoot = $script:ProtectedInstallRoot
     $context = @{ manifest = $Manifest; inputs = $inputs; operatorAccount = $OperatorAccount; password = $Password; operatorSid = $null;
         installId = [guid]::NewGuid().ToString('N'); selectionId = [guid]::NewGuid().ToString('N'); selectionEpoch = [guid]::NewGuid().ToString('N');
-        credential = $null; vmBinding = $null; parent = $null; receipts = $null; journalDirectory = $null; journalFiles = @(); journalEvidence = @(); stage = $null; service = $null; ancestors = [Collections.Generic.List[object]]::new(); receiptRows = @(); attemptedReceiptPaths = @(); rollback = $null; control = $null; controlRows = @(); cleanupUnknown = $false }
+        credential = $null; vmBinding = $null; guiInput = $null; guiPrincipal = $null; parent = $null; receipts = $null; journalDirectory = $null; journalFiles = @(); journalEvidence = @(); stage = $null; failedStage = $null; service = $null; ancestors = [Collections.Generic.List[object]]::new(); receiptRows = @(); attemptedReceiptPaths = @(); rollback = $null; control = $null; controlRows = @(); cleanupUnknown = $false }
     try {
         Assert-ProtectedInstallAdministrator
         $Journal.operation = 'native-initialize'; Initialize-ProtectedInstallNative
         $Journal.operation = 'input'
         if ($OperatorAccount -cnotmatch '^AegisOp[a-f0-9]{12}$' -or $Password.Length -lt 24 -or $Password.Length -gt 64) { throw 'protected-install-input-refused' }
+        if ($null -ne $GuiBundle -and ($GuiBundle -isnot [hashtable] -or $GuiBundle.Count -ne 2 -or
+            @($GuiBundle.Keys | Where-Object { $_ -cnotin @('sourceRoot', 'manifest') }).Count -ne 0 -or
+            $GuiBundle.sourceRoot -isnot [string] -or [string]::IsNullOrWhiteSpace($GuiBundle.sourceRoot) -or
+            $GuiBundle.manifest -isnot [byte[]] -or $GuiBundle.manifest.Length -lt 1 -or $GuiBundle.manifest.Length -gt 524288)) { throw 'protected-gui-input-refused' }
         $inputs = Read-ProtectedInstallInputs $SourceRoot $Manifest; $context.inputs = $inputs
+        if ($null -ne $GuiBundle) {
+            $guiCapture = Open-ProtectedGuiCandidate $GuiBundle.sourceRoot $GuiBundle.manifest
+            $context.guiInput = $guiCapture; $context.guiPrincipal = $guiCapture.principal
+            # The association retains the original principal; the external source
+            # capture is released independently after this staging transaction.
+            $guiCapture.ownsPrincipal = $false
+        }
         if ($null -ne $VmImage) {
             if ($RegisteredVmId -cne '') { throw 'protected-vm-create-and-adopt-refused' }
             $sourceImage = Open-ProtectedVmImage $VmImage
@@ -146,6 +157,7 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
         # A pre-effect refusal never selects a preexisting account/root/service.
         if (!$Journal.accountCreationAttempted) {
             foreach ($held in $context.ancestors) { $held.Dispose() }; $context.ancestors.Clear(); $context.password = $null
+            if ($null -ne $context.guiPrincipal) { $context.guiPrincipal.Dispose(); $context.guiPrincipal = $null }
             $Journal.cleanup.state = 'confirmed-no-effects'; throw $original
         }
         # Unknown service/root states forbid further cleanup or account deletion.
@@ -164,7 +176,14 @@ function New-ProtectedInstallation([string]$SourceRoot, $Manifest, [string]$Oper
         }
         throw $original
     }
-    finally { if ($null -ne $sourceImage) { $sourceImage.Dispose() }; foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) } }
+    finally {
+        try { if ($null -ne $guiCapture) { Close-ProtectedGuiCandidate $guiCapture } }
+        finally {
+            $context.guiInput = $null
+            if ($null -ne $sourceImage) { $sourceImage.Dispose() }
+            foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) }
+        }
+    }
 }
 
 function Assert-ProtectedInstallAncillary($Context) {
@@ -235,6 +254,7 @@ function Remove-ProtectedInstallAncillary($Context) {
         $Context.parent.Delete(); $Context.parent = $null
     }
     foreach ($held in $Context.ancestors) { $held.Dispose() }; $Context.ancestors.Clear()
+    if ($Context.ContainsKey('guiPrincipal') -and $null -ne $Context.guiPrincipal) { $Context.guiPrincipal.Dispose(); $Context.guiPrincipal = $null }
     $Context.password = $null
 }
 
@@ -261,8 +281,15 @@ function Remove-ProtectedInstallation($Association) {
 function Update-ProtectedInstallation($Association, [string]$SourceRoot, $Manifest, [bool]$FailAfterPublish = $false) {
     Assert-ProtectedInstallAdministrator; Assert-ProtectedInstallIdleUpgrade $Association.service
     Assert-ProtectedInstallation $Association
-    $inputs = Read-ProtectedInstallInputs $SourceRoot $Manifest
     $priorManifest = $Association.manifest; $old = $Association.stage; $priorInputs = $Association.inputs
+    $priorGuiInput = if ($Association.ContainsKey('guiInput')) { $Association.guiInput } else { $null }
+    $borrowedGui = $null
+    if ($old.ContainsKey('gui') -and $null -ne $old.gui) {
+        if (!$Association.ContainsKey('guiPrincipal') -or ![object]::ReferenceEquals($old.gui.principal, $Association.guiPrincipal)) { throw 'protected-gui-binding-refused' }
+        $borrowedGui = @{ source = $old.gui.bundle; principal = $Association.guiPrincipal; ownsSource = $false; ownsPrincipal = $false }
+    }
+    $inputs = Read-ProtectedInstallInputs $SourceRoot $Manifest
+    $Association.guiInput = $borrowedGui
     $Association.manifest = $Manifest; $Association.inputs = $inputs
     $rollbackPath = Join-Path $script:ProtectedInstallParent ('Rollback-' + [guid]::NewGuid().ToString('N'))
     $installParent = $script:ProtectedInstallParent; $installRoot = $script:ProtectedInstallRoot
@@ -287,5 +314,8 @@ function Update-ProtectedInstallation($Association, [string]$SourceRoot, $Manife
         if (!$Association.cleanupUnknown) { $Association.manifest = $priorManifest; $Association.inputs = $priorInputs }
         throw
     }
-    finally { foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) } }
+    finally {
+        try { if ($null -ne $borrowedGui) { Close-ProtectedGuiCandidate $borrowedGui } }
+        finally { $Association.guiInput = $priorGuiInput; foreach ($bytes in $inputs.Values) { [Array]::Clear($bytes, 0, $bytes.Length) } }
+    }
 }
