@@ -35,7 +35,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
             { timeout: 30000, maxBuffer: 32768, windowsHide: true, env: environment() },
           );
         } catch (failure) {
-          throw new Error(`GUI process fixture compilation failed:\n${failure.stdout?.toString() || ''}\n${failure.stderr?.toString() || ''}`);
+          throw new Error(`GUI process fixture compilation failed:\n${failure.stdout?.toString() || ''}\n${failure.stderr?.toString() || ''}`, { cause: failure });
         }
       }
     }, 65000);

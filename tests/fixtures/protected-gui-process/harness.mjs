@@ -23,7 +23,7 @@ export function compileProcessLibrary(project, root) {
       { timeout: 30000, maxBuffer: 32768, windowsHide: true, env: { ...process.env, TEMP: root, TMP: root } },
     );
   } catch (failure) {
-    throw new Error(`GUI process library compilation failed:\n${failure.stdout?.toString() || ''}\n${failure.stderr?.toString() || ''}`);
+    throw new Error(`GUI process library compilation failed:\n${failure.stdout?.toString() || ''}\n${failure.stderr?.toString() || ''}`, { cause: failure });
   }
   return library;
 }
