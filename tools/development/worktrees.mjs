@@ -62,16 +62,22 @@ for (const [index, tree] of trees.entries()) {
       }
     }
     const modules = path.join(tree.path, 'node_modules');
+    let info;
     try {
-      const info = fs.lstatSync(modules);
+      info = fs.lstatSync(modules);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (info) {
       tree.dependencies = {
         present: true,
         linked: info.isSymbolicLink(),
-        realPath: fs.realpathSync.native(modules),
+        realPath: null,
         consumers: [],
       };
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+      // A dangling/inaccessible junction is incomplete evidence, not absent dependencies.
+      tree.dependencies.realPath = fs.realpathSync.native(modules);
+      if (!fs.statSync(modules).isDirectory()) throw new Error('Dependencies are not a directory');
     }
   } catch (error) {
     tree.error = error.code ?? 'inspection-failed';

@@ -6,6 +6,15 @@ required merge checks and authorization boundaries.
 
 ## Bounded Windows fixtures
 
+The optional [Windows fixture workflow](../../.github/workflows/windows-fixtures.yml)
+runs for pull requests matching its source/test/tooling paths and on explicit
+dispatch. It uses a hosted Windows runner, read-only repository permissions,
+no persisted checkout credentials and a ten-minute job deadline. Only the
+compact receipt is uploaded, with seven-day retention. On PR events its source
+is GitHub's checked-out merge commit (`github.sha`); record that SHA separately
+from the contributor head. This additional context is not a new required branch
+protection check. The five required contexts in `ci.yml` remain unchanged.
+
 From a clean, isolated checkout on Windows x64 with Node 24, run:
 
 ```powershell

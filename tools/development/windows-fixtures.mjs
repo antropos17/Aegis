@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -58,7 +59,12 @@ const receipt = {
   startedAt: new Date().toISOString(),
   expectedSourceSha: values['source-sha'],
   source: null,
-  host: { platform: process.platform, arch: process.arch, node: process.version },
+  host: {
+    platform: process.platform,
+    arch: process.arch,
+    node: process.version,
+    osRelease: os.release(),
+  },
   suites: WINDOWS_SUITES,
   commands: [],
   scope: {
@@ -153,7 +159,11 @@ try {
     throw new Error('Dependency lock changed');
   receipt.status = 'PASS';
 } catch (error) {
-  receipt.failure = { phase, message: error.message, rootCause: 'unclassified' };
+  receipt.failure = {
+    phase,
+    message: String(error.message).slice(0, 2048),
+    rootCause: 'unclassified',
+  };
 } finally {
   receipt.finishedAt = new Date().toISOString();
   receipt.freeAfter = { source: free(root), output: free(output) };
