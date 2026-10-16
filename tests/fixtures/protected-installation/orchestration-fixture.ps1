@@ -1,6 +1,73 @@
-param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'gui-stage-hook', 'gui-lifecycle', 'gui-clean-failure', 'gui-unknown-failure', 'gui-invalid-options')][string]$Mode)
+param([ValidateSet('clean-partial', 'unknown-partial', 'clean-refusal', 'native-refusal', 'upgrade-reference', 'upgrade-handoff-unknown', 'upgrade-retention-matrix', 'noisy-upgrade', 'null-upgrade', 'noisy-stage', 'membership-users-query', 'membership-users-add', 'membership-account-verify', 'membership-administrators-query', 'membership-users-verify', 'membership-existing', 'membership-add', 'membership-command-missing', 'membership-binding', 'membership-win32', 'membership-helper-lookup', 'host-script-scope', 'host-script-child', 'gui-stage-hook', 'gui-lifecycle', 'gui-clean-failure', 'gui-unknown-failure', 'gui-invalid-options')][string]$Mode)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($Mode -ceq 'upgrade-retention-matrix') {
+    . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-install-transaction.ps1')
+    function New-RetentionSentinel([string]$Label) {
+        $root = [pscustomobject]@{ Label = $Label; Deleted = $false }
+        return @{ root = $root; gui = @{ bundle = [pscustomobject]@{ Root = $root; Removed = $false } } }
+    }
+    function Invoke-RetentionCase([string]$Case) {
+        # Only callback resource leaves are modeled. The maintained transaction
+        # performs output validation, retention, compensation and slot clearing.
+        $old = New-RetentionSentinel 'old'; $issued = New-RetentionSentinel 'issued'; $partial = New-RetentionSentinel 'partial'
+        $association = @{ stage = $old; failedStage = $null; service = [pscustomobject]@{ Original = $true } }
+        $retentionState = @{ events = [Collections.Generic.List[string]]::new(); beforeStop = $false; removedExact = $false }
+        if ($Case -ceq 'preexisting') { $association.failedStage = $partial }
+        $ops = @{}
+        foreach ($step in @('validate', 'stage', 'stop', 'saveOld', 'publish', 'verify', 'commit', 'unpublish', 'restore', 'restart', 'remove')) {
+            $ops[$step] = {
+                param($Selected, $Second)
+                $retentionState.events.Add($step)
+                if ($step -ceq 'validate' -and ![object]::ReferenceEquals($Selected, $association)) { throw 'fixture-foreign-association' }
+                if ($step -ceq 'stage') {
+                    if ($Case -ceq 'construction-throw') { $association.failedStage = $partial; throw 'fixture-construction-failed' }
+                    if ($Case -ceq 'null-output') { return $null }
+                    if ($Case -ceq 'callback-slot-conflict') { $association.failedStage = $partial }
+                    if ($Case -ceq 'noisy-output') { 'unowned-output' }
+                    if ($Case -ceq 'multiple-output') { $issued; $partial; return }
+                    return $issued
+                }
+                if ($step -ceq 'stop') { $retentionState.beforeStop = [object]::ReferenceEquals($association.failedStage, $issued) }
+                if ($step -ceq 'publish' -or $step -ceq 'verify' -or $step -ceq 'unpublish' -or $step -ceq 'remove') {
+                    if (![object]::ReferenceEquals($Selected, $issued)) { throw 'fixture-foreign-stage' }
+                }
+                if ($step -ceq 'verify' -and ($Case -ceq 'compensation-success' -or $Case -ceq 'remove-slot-replaced' -or $Case -clike 'rollback-*')) { throw 'fixture-verification-failed' }
+                if ($step -ceq 'commit') {
+                    if (![object]::ReferenceEquals($Selected, $association) -or ![object]::ReferenceEquals($Second, $issued)) { throw 'fixture-foreign-commit' }
+                    if ($Case -cne 'commit-no-transfer') { $association.stage = $issued }
+                    if ($Case -ceq 'unknown-commit') { throw 'fixture-commit-unsettled' }
+                }
+                if ($Case -ceq ('unknown-' + $step)) {
+                    $failure = [IO.InvalidDataException]::new('protected-file-handoff-cleanup-unknown')
+                    $failure.Data['protectedCleanupUnknown'] = $true; throw $failure
+                }
+                if ($Case -ceq ('rollback-' + $step)) { throw 'fixture-compensation-unsettled' }
+                if ($step -ceq 'remove') {
+                    $issued.root.Deleted = $true; $issued.gui.bundle.Removed = $true; $retentionState.removedExact = $true
+                    if ($Case -ceq 'remove-slot-replaced') { $association.failedStage = $partial }
+                }
+            }.GetNewClosure()
+        }
+        $refused = $false; $returned = $null
+        try { $returned = Invoke-ProtectedUpgradeTransaction $ops $association } catch { $refused = $true }
+        $retained = $association.failedStage
+        @{ case = $Case; refused = $refused; returnedExact = [object]::ReferenceEquals($returned, $issued);
+            slotEmpty = $null -eq $retained; issuedExact = [object]::ReferenceEquals($retained, $issued);
+            issuedRootExact = ($null -ne $retained -and [object]::ReferenceEquals($retained.root, $issued.root));
+            issuedBundleExact = ($null -ne $retained -and [object]::ReferenceEquals($retained.gui.bundle, $issued.gui.bundle));
+            partialExact = [object]::ReferenceEquals($retained, $partial); beforeStopExact = $retentionState.beforeStop;
+            oldStillCurrent = [object]::ReferenceEquals($association.stage, $old); issuedCurrent = [object]::ReferenceEquals($association.stage, $issued);
+            removedExact = $retentionState.removedExact; events = $retentionState.events.ToArray() }
+    }
+    $rows = foreach ($case in @('preexisting', 'construction-throw', 'callback-slot-conflict', 'null-output', 'noisy-output', 'multiple-output',
+        'commit-success', 'compensation-success', 'commit-no-transfer', 'remove-slot-replaced', 'unknown-stop', 'unknown-saveOld',
+        'unknown-publish', 'unknown-verify', 'unknown-commit', 'rollback-unpublish', 'rollback-restore', 'rollback-restart', 'rollback-remove')) {
+        Invoke-RetentionCase $case
+    }
+    @{ rows = @($rows); modeledCallbackResources = $true; nativeEffects = 0 } | ConvertTo-Json -Depth 5 -Compress
+    return
+}
 if ($Mode -ceq 'gui-stage-hook') {
     . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-install-files.ps1')
     # The production stage serializer executes; only filesystem/native GUI ownership leaves are modeled.
@@ -325,7 +392,8 @@ $script:FixtureProductionAccount = (Get-Command Assert-ProtectedInstallAccount).
 $script:FixtureProductionAncillary = (Get-Command Remove-ProtectedInstallAncillary).ScriptBlock
 function Invoke-NestedFixture {
     $global:FixtureEvents = [Collections.Generic.List[string]]::new()
-    $global:FixtureState = @{ account = $null; parent = $null; receipts = $null; stage = $null; root = $null; stageRemoved = $false; ancillaryRemoved = $false; stages = [Collections.Generic.List[object]]::new() }
+    $global:FixtureState = @{ account = $null; parent = $null; receipts = $null; stage = $null; root = $null; stageRemoved = $false; ancillaryRemoved = $false; stages = [Collections.Generic.List[object]]::new();
+        issuedUpgradeStage = $null; issuedUpgradeRoot = $null; issuedUpgradeGuiBundle = $null }
     $global:FixtureMembership = @{ enabled = $Mode -clike 'membership-*'; accountExists = $false; memberExists = $Mode -ceq 'membership-existing'; accountObject = $null;
         usersCalls = 0; injected = $false; addCalls = 0; addedReferenceExact = $false; removedSidExact = $false; verified = $false }
     function script:Assert-ProtectedInstallAdministrator { }
@@ -405,6 +473,15 @@ function Invoke-NestedFixture {
         param($Context, $Revision, $Epoch)
         $held = [ProtectedInstallFile]::new('C:\fixture\stage', $true, $true)
         $stage = @{ root = $held; path = $held.PathName; revision = $Revision; epoch = $Epoch; published = $false }
+        if ($Mode -ceq 'upgrade-handoff-unknown' -and $Revision -gt 1) {
+            # Capture the exact object at issuance; the global list/count is not
+            # the administrative owner whose retention this control requires.
+            $bundle = [pscustomobject]@{ Root = $held; Original = $true }
+            $stage.gui = @{ bundle = $bundle }
+            $global:FixtureState.issuedUpgradeStage = $stage
+            $global:FixtureState.issuedUpgradeRoot = $held
+            $global:FixtureState.issuedUpgradeGuiBundle = $bundle
+        }
         $global:FixtureState.stage = $stage; $global:FixtureState.root = $held
         $global:FixtureState.stages.Add($stage)
         if ($Mode -ceq 'null-upgrade' -and $Revision -gt 1) { return $null }
@@ -460,6 +537,9 @@ function Invoke-NestedFixture {
             catch { $uninstallGuarded = $_.Exception.Message -ceq 'protected-owned-cleanup-unknown' }
             @{ firstFailure = $firstFailure; retryGuarded = $retryGuarded; uninstallGuarded = $uninstallGuarded; cleanupUnknown = $association.cleanupUnknown;
                 originalExact = [object]::ReferenceEquals($association.stage, $original); postEffectPathRecorded = $original.path -ceq $original.root.PathName;
+                failedStageExact = ($association.ContainsKey('failedStage') -and [object]::ReferenceEquals($association.failedStage, $global:FixtureState.issuedUpgradeStage));
+                failedRootExact = ($association.ContainsKey('failedStage') -and $null -ne $association.failedStage -and [object]::ReferenceEquals($association.failedStage.root, $global:FixtureState.issuedUpgradeRoot));
+                failedGuiBundleExact = ($association.ContainsKey('failedStage') -and $null -ne $association.failedStage -and [object]::ReferenceEquals($association.failedStage.gui.bundle, $global:FixtureState.issuedUpgradeGuiBundle));
                 stageCount = $global:FixtureState.stages.Count; stopCalls = [ProtectedInstallService]::StopCalls; eventsAfterFailure = $eventsAfterFailure;
                 eventsAfterReuse = $global:FixtureEvents.ToArray(); stageRemoved = $global:FixtureState.stageRemoved; ancillaryRemoved = $global:FixtureState.ancillaryRemoved } | ConvertTo-Json -Compress
             return
