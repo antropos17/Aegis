@@ -86,6 +86,9 @@ against the built EXE with an owned disposable profile and the ordinary current
 user's authority. The protected Start/Query/Stop probe still runs first with its
 unchanged fixed launch contract. Playwright's debugging transport is used only
 for the separate monitoring journey; it does not qualify protected enrollment.
+Its visible owned window ignores native mouse input and cannot receive keyboard
+focus on the shared desktop. CDP drives the controls; webPreferences, sensor
+providers and timer throttling are unchanged.
 
 The scenario compiles a short-lived process named `aider.exe` as a signature
 fixture, observes it through the real class-5 snapshot sidecar and preload bridge,

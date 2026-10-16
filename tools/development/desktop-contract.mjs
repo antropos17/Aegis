@@ -53,6 +53,7 @@ export function monitoringPassed(result) {
   return (
     result?.status === 'PASS' &&
     result.packaged === true &&
+    result.windowInputIsolated === true &&
     result.snapshotClass === 'class5' &&
     result.fixtureDetected === true &&
     result.fixtureSelectable === true &&

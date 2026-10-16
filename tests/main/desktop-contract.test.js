@@ -85,6 +85,7 @@ it('requires sustained fresh packaged monitoring, process lifecycle and cleanup 
   const result = {
     status: 'PASS',
     packaged: true,
+    windowInputIsolated: true,
     snapshotClass: 'class5',
     fixtureDetected: true,
     fixtureSelectable: true,
@@ -103,6 +104,7 @@ it('requires sustained fresh packaged monitoring, process lifecycle and cleanup 
   expect(monitoringPassed(result)).toBe(true);
   for (const patch of [
     { packaged: false },
+    { windowInputIsolated: false },
     { snapshotClass: 'cim' },
     { fixtureSelectable: false },
     { fixtureExited: false },

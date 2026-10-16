@@ -26,6 +26,7 @@ const receipt = {
   samples: [],
 };
 let app, appProcess, fixture, page;
+const errors = [];
 const exitWithin = async (child, ms) => {
   if (child.exitCode !== null) return child.exitCode;
   let timer;
@@ -83,8 +84,20 @@ try {
   );
   assert.equal(receipt.packaged, true);
   page = await app.firstWindow();
-  const errors = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  // This is a shared interactive desktop. Keep the owned test window visible
+  // while native mouse/keyboard input goes to the user's other windows. CDP
+  // drives this scenario; production webPreferences and timers stay unchanged.
+  receipt.windowInputIsolated = await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window.setIgnoreMouseEvents(true);
+    window.setFocusable(false);
+    window.blur();
+    return !window.isFocusable() && !window.isFocused();
+  });
+  assert.equal(receipt.windowInputIsolated, true);
+  page.on('pageerror', (error) => {
+    if (errors.length < 20) errors.push(error.message);
+  });
   await page.getByRole('heading', { name: 'Monitoring', exact: true, level: 1 }).waitFor();
   await page.evaluate((pid) => {
     window.__monitorProbe = { batches: [], pid };
@@ -232,6 +245,7 @@ try {
   receipt.status = 'PASS';
 } catch (error) {
   receipt.failure = error.message;
+  receipt.pageErrors = errors;
   if (page && !page.isClosed()) {
     try {
       receipt.failureView = await page.evaluate(() => ({
