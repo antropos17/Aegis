@@ -6,6 +6,11 @@
  */
 'use strict';
 
+// Storage configuration only; reject malformed selectors before CLI or settings.
+const ownedGuiProfile = require('./owned-gui-profile');
+if (ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1)))
+  ownedGuiProfile.configureOwnedGuiProfile(process.argv.slice(1), require('electron').app);
+
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
   '--mcp-gateway-http',

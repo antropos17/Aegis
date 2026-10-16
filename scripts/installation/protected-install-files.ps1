@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'protected-journal.ps1')
 . (Join-Path $PSScriptRoot 'protected-gui.ps1')
+. (Join-Path $PSScriptRoot 'protected-gui-process.ps1')
 $script:ProtectedInstallParent = 'C:\ProgramData\AEGIS'
 $script:ProtectedInstallRoot = 'C:\ProgramData\AEGIS\ProtectedSession'
 $script:ProtectedInstallLeaves = @('aegis-owner.exe', 'aegis-session.exe', 'aegis-main.exe', 'owner-policy.json', 'enrollment.json', 'operator.credential', 'main-registration.json', 'inventory.json', 'registered-vm.json', 'registered-operation.json', 'fixed-fixture.json', 'registered-journal.json', 'registered-gui-candidate.json')
@@ -9,7 +10,9 @@ function Initialize-ProtectedInstallNative {
     if ($null -eq ('ProtectedInstallFile' -as [type])) {
         Add-Type -Path @((Join-Path $PSScriptRoot 'ProtectedInstallFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallService.cs'), (Join-Path $PSScriptRoot 'ProtectedInstallDisk.cs'),
             (Join-Path $PSScriptRoot 'ProtectedGuiManifest.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiBundleNative.cs'),
-            (Join-Path $PSScriptRoot 'ProtectedGuiBundleFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiIdentity.cs'))
+            (Join-Path $PSScriptRoot 'ProtectedGuiBundleFiles.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiIdentity.cs'),
+            (Join-Path $PSScriptRoot 'ProtectedGuiExecutionPins.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiProcessNative.cs'),
+            (Join-Path $PSScriptRoot 'ProtectedGuiProcessLease.cs'), (Join-Path $PSScriptRoot 'ProtectedGuiProcessProfile.cs'))
     }
 }
 function New-ProtectedInstallAcl([bool]$Directory, [string]$OperatorSid, [bool]$Private = $false) {
@@ -133,6 +136,9 @@ function New-ProtectedInstallVmRecord($Policy, [byte[]]$PolicyBytes, $Binding) {
     return ,([Text.UTF8Encoding]::new($false)).GetBytes(($record | ConvertTo-Json -Compress))
 }
 function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) {
+    $guiGate = Enter-ProtectedGuiProcessLifecycle $Context
+    try {
+    Assert-ProtectedGuiProcessIdle $Context
     if ($Context.ContainsKey('cleanupUnknown') -and $Context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     $path = Join-Path $script:ProtectedInstallParent ('Staging-' + [guid]::NewGuid().ToString('N'))
     $root = New-ProtectedInstallDirectory $path $Context.operatorSid
@@ -206,6 +212,7 @@ function New-ProtectedInstallStage($Context, [uint32]$Revision, [string]$Epoch) 
         }
         throw $original
     }
+    } finally { if ($null -ne $guiGate) { $guiGate.Dispose() } }
 }
 function Get-ProtectedInstallStageRows($Stage) {
     foreach ($file in @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)) {
@@ -226,6 +233,10 @@ function Assert-ProtectedInstallStage($Stage) {
     foreach ($row in $Stage.rows) { Assert-ProtectedInstallSnapshot $row }
 }
 function Move-ProtectedInstallStage($Stage, [string]$Destination) {
+    $context = if ($Stage.ContainsKey('context')) { $Stage.context } else { $null }
+    $guiGate = Enter-ProtectedGuiProcessLifecycle $context
+    try {
+    Assert-ProtectedGuiProcessIdle $context
     Assert-ProtectedInstallStage $Stage
     if (Test-Path -LiteralPath $Destination) { throw 'protected-publish-destination-exists' }
     if ($Stage.ContainsKey('gui') -and $null -ne $Stage.gui) { Move-ProtectedGuiStageBinding $Stage $Destination }
@@ -239,6 +250,7 @@ function Move-ProtectedInstallStage($Stage, [string]$Destination) {
         $failure.Data['protectedCleanupUnknown'] = $true
         throw $failure
     }
+    } finally { if ($null -ne $guiGate) { $guiGate.Dispose() } }
 }
 function Update-ProtectedInstallRuntimeRows($Stage) {
     $rows = @($Stage.rows); $files = @(Get-ChildItem -LiteralPath $Stage.root.PathName -Force)
@@ -254,6 +266,10 @@ function Update-ProtectedInstallRuntimeRows($Stage) {
     $Stage.rows = $rows; Assert-ProtectedInstallStage $Stage
 }
 function Remove-ProtectedInstallStage($Stage, [bool]$Published) {
+    $context = if ($Stage.ContainsKey('context')) { $Stage.context } else { $null }
+    $guiGate = Enter-ProtectedGuiProcessLifecycle $context
+    try {
+    Assert-ProtectedGuiProcessIdle $context
     if ($Stage.ContainsKey('context') -and $null -ne $Stage.context -and $Stage.context.ContainsKey('cleanupUnknown') -and $Stage.context.cleanupUnknown) { throw 'protected-owned-cleanup-unknown' }
     Assert-ProtectedInstallStage $Stage
     if ($Stage.ContainsKey('gui') -and $null -ne $Stage.gui) { Remove-ProtectedGuiStage $Stage }
@@ -268,4 +284,5 @@ function Remove-ProtectedInstallStage($Stage, [bool]$Published) {
         if (@(Get-ChildItem -LiteralPath $Stage.root.PathName -Force).Count -ne 0) { throw 'protected-delete-unknown-child' }
         $Stage.root.Delete()
     } finally { foreach ($file in $held) { $file.Dispose() } }
+    } finally { if ($null -ne $guiGate) { $guiGate.Dispose() } }
 }

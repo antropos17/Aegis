@@ -53,6 +53,10 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         'ProtectedGuiBundleNative.cs',
         'ProtectedGuiBundleFiles.cs',
         'ProtectedGuiIdentity.cs',
+        'ProtectedGuiExecutionPins.cs',
+        'ProtectedGuiProcessNative.cs',
+        'ProtectedGuiProcessLease.cs',
+        'ProtectedGuiProcessProfile.cs',
       ].map((name) => path.join(project, 'scripts/installation', name));
       sources.push(path.join(project, 'tests/fixtures/protected-gui/BundleFixture.cs'));
       for (const [output, define] of [

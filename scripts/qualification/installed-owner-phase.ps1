@@ -7,7 +7,9 @@ function Test-InstalledOwnerPayload([string]$PayloadRoot, [string]$ExpectedSourc
         'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/ProtectedInstallDisk.cs', 'scripts/installation/protected-install-files.ps1',
         'scripts/installation/ProtectedGuiManifest.cs', 'scripts/installation/ProtectedGuiBundleNative.cs',
         'scripts/installation/ProtectedGuiBundleFiles.cs', 'scripts/installation/ProtectedGuiIdentity.cs',
-        'scripts/installation/protected-journal.ps1', 'scripts/installation/protected-gui.ps1',
+        'scripts/installation/ProtectedGuiExecutionPins.cs', 'scripts/installation/ProtectedGuiProcessNative.cs',
+        'scripts/installation/ProtectedGuiProcessLease.cs', 'scripts/installation/ProtectedGuiProcessProfile.cs',
+        'scripts/installation/protected-journal.ps1', 'scripts/installation/protected-gui.ps1', 'scripts/installation/protected-gui-process.ps1',
         'scripts/installation/protected-install-transaction.ps1', 'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
         'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1', 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
     $manifestPath = Join-Path $PayloadRoot 'payload-manifest.json'
@@ -460,7 +462,9 @@ function Test-InstalledOwnerQualificationReceipt($Value, [string]$ExpectedSource
             'scripts/installation/ProtectedInstallFiles.cs', 'scripts/installation/ProtectedInstallService.cs', 'scripts/installation/ProtectedInstallDisk.cs', 'scripts/installation/protected-install-files.ps1', 'scripts/installation/protected-install-transaction.ps1',
             'scripts/installation/ProtectedGuiManifest.cs', 'scripts/installation/ProtectedGuiBundleNative.cs',
             'scripts/installation/ProtectedGuiBundleFiles.cs', 'scripts/installation/ProtectedGuiIdentity.cs',
-            'scripts/installation/protected-journal.ps1', 'scripts/installation/protected-gui.ps1',
+        'scripts/installation/ProtectedGuiExecutionPins.cs', 'scripts/installation/ProtectedGuiProcessNative.cs',
+        'scripts/installation/ProtectedGuiProcessLease.cs', 'scripts/installation/ProtectedGuiProcessProfile.cs',
+            'scripts/installation/protected-journal.ps1', 'scripts/installation/protected-gui.ps1', 'scripts/installation/protected-gui-process.ps1',
             'scripts/installation/protected-vm-provider.ps1', 'scripts/installation/protected-vm.ps1',
         'scripts/installation/protected-installation.ps1', 'scripts/qualification/installed-owner-phase.ps1', 'scripts/qualification/installed-owner-guest-bootstrap.ps1')
         if ($ExpectedSourceSha -cnotmatch '^[a-f0-9]{40}$' -or @($Value.inputHashes).Count -ne $leafNames.Count) { return $false }
