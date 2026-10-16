@@ -121,6 +121,8 @@ function Get-ProtectedInstallFailure($ErrorRecord, [string]$Operation) {
     $operations += @('installed-mutation-job', 'installed-mutation-desktop', 'installed-mutation-create', 'installed-mutation-bind', 'installed-mutation-token-query', 'installed-mutation-profile', 'installed-mutation-groups', 'installed-mutation-privileges', 'installed-mutation-birth', 'installed-mutation-release', 'installed-mutation-exit', 'installed-mutation-census')
     $codes += @('installed-mutation-launch-refused', 'installed-mutation-cleanup-unknown')
     $codes += @('installed-mutation-actor-source-refused', 'installed-mutation-actor-acl-restore-refused')
+    $codes += @('protected-gui-input-refused', 'protected-gui-binding-refused', 'protected-gui-manifest-refused', 'protected-gui-bundle-refused', 'protected-gui-principal-refused', 'protected-gui-cleanup-unknown')
+    $operations += @('protected-gui-metadata-changed', 'protected-gui-open-original-id', 'protected-gui-delete-original')
     $failure = @{ operation = $(if ($Operation -cin $operations) { $Operation } else { 'qualification' }); diagnosticCode = 'protected-operation-refused'; nativeWin32 = $null; hResult = $ErrorRecord.Exception.HResult }
     if ($null -ne $ErrorRecord.InvocationInfo -and [IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName) -cin @('protected-vm.ps1', 'protected-vm-provider.ps1', 'protected-guest.ps1', 'protected-guest-agent.ps1')) {
         $failure.vmSourceLine = [int]$ErrorRecord.InvocationInfo.ScriptLineNumber
