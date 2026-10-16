@@ -102,12 +102,16 @@ namespace Aegis.ProtectedSession
         { Parse(operation, fixture, policy); }
 #endif
         internal void CheckCurrent()
+        { CheckCurrent(null); }
+        internal void CheckCurrent(CallerAdmissionBudget budget)
         {
+            CallerAdmissionBudget.Check(budget);
             var watch = Stopwatch.StartNew();
             try
             {
                 CallerNative.Require(!closed && !CallerNative.HasThreadToken() && Object.ReferenceEquals(owner.Policy, policy));
-                owner.CheckCurrent(); policy.CheckCurrent(); proof.CheckCurrent(); Deadline(watch);
+                owner.CheckCurrent(budget); CallerAdmissionBudget.Check(budget); policy.CheckCurrent(); CallerAdmissionBudget.Check(budget);
+                proof.CheckCurrent(budget); Deadline(watch, budget);
                 string[] names = { "registered-operation.json", "fixed-fixture.json" };
                 for (int index = 0; index < held.Length; index++)
                 {
@@ -120,10 +124,10 @@ namespace Aegis.ProtectedSession
                         for (int at = 0; at < current.Length; at++) CallerNative.Require(current[at] == records[index][at]);
                     }
                     finally { Array.Clear(current, 0, current.Length); }
-                    Deadline(watch);
+                    Deadline(watch, budget);
                 }
                 proof.CheckFixedInspectionBinding(policy, manifest, supervisor);
-                CallerNative.Require(!CallerNative.HasThreadToken()); Deadline(watch);
+                CallerNative.Require(!CallerNative.HasThreadToken()); Deadline(watch, budget);
             }
             catch { Dispose(); throw; }
         }
@@ -140,6 +144,8 @@ namespace Aegis.ProtectedSession
         private static byte[] Read(EnrollmentHeld value)
         { byte[] bytes = value.Read(4096); CallerNative.Require(bytes != null && bytes.Length > 0 && bytes.Length <= 4096); return bytes; }
         private static void Deadline(Stopwatch watch) { CallerNative.Require(watch.ElapsedMilliseconds < 2000); }
+        private static void Deadline(Stopwatch watch, CallerAdmissionBudget budget)
+        { CallerAdmissionBudget.Check(budget); Deadline(watch); }
         private void CloseResource(IDisposable value) { if (value != null) try { value.Dispose(); } catch { cleanupUnknown = true; } }
         public void Dispose()
         {

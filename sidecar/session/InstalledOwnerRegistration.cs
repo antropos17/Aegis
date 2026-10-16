@@ -71,9 +71,17 @@ namespace Aegis.ProtectedSession
             // Later calls retain their outer stage and substage zero on failure.
             int substage = 0; CheckCurrent(ref substage);
         }
+        internal void CheckCurrent(CallerAdmissionBudget budget)
+        { int substage = 0; CheckCurrent(budget, ref substage); }
         private void CheckCurrent(ref int substage)
-        { lock (JournalGate) CheckCore(ref substage); }
-        private void CheckCore(ref int substage)
+        { CheckCurrent(null, ref substage); }
+        private void CheckCurrent(CallerAdmissionBudget budget, ref int substage)
+        {
+            using (CallerAdmissionBudget.Enter(JournalGate, budget)) {
+                CallerAdmissionBudget.Check(budget); CheckCore(ref substage, budget); CallerAdmissionBudget.Check(budget);
+            }
+        }
+        private void CheckCore(ref int substage, CallerAdmissionBudget budget = null)
         {
             substage = 14; // Live registration and unimpersonated entry.
             CallerNative.Require(!closed && !CallerNative.HasThreadToken());
@@ -81,41 +89,56 @@ namespace Aegis.ProtectedSession
             if (testAuthority != null)
             {
                 Policy.CheckCurrent(); owner.CheckServer(); main.CheckMain(owner); testAuthority();
-                CallerNative.Require(!CallerNative.HasThreadToken()); return;
+                CallerNative.Require(!CallerNative.HasThreadToken()); CallerAdmissionBudget.Check(budget); return;
             }
 #endif
             substage = 15; setup.CheckPolicy(Policy);
+            CallerAdmissionBudget.Check(budget);
             substage = 16; service.CheckCurrent();
+            CallerAdmissionBudget.Check(budget);
             substage = 17; owner.CheckCurrent();
+            CallerAdmissionBudget.Check(budget);
             substage = 18; main.CheckCurrent();
+            CallerAdmissionBudget.Check(budget);
             substage = 19; // Supervisor SYSTEM role.
             using (SafeFileHandle token = CallerNative.ProcessToken(self)) CallerNative.Require(CallerIdentity.Observe(token).InstalledSystem());
+            CallerAdmissionBudget.Check(budget);
             substage = 20; // Main operator role.
             using (SafeFileHandle token = CallerNative.ProcessToken(setup.Main)) CallerNative.Require(CallerIdentity.Observe(token).InstalledOperator(Policy.OperatorSid));
+            CallerAdmissionBudget.Check(budget);
             substage = 21; // Exact supervisor and original owner parent.
             ProcessBasic info; int returned;
             CallerNative.Require(NtQueryInformationProcess(self, 0, out info, Marshal.SizeOf(typeof(ProcessBasic)), out returned) == 0 &&
                 info.Pid.ToInt64() == CallerNative.GetProcessId(self) && info.Parent.ToInt64() == CallerNative.GetProcessId(setup.Owner));
+            CallerAdmissionBudget.Check(budget);
             substage = 22;
             CallerNative.Require(ownerImage.IsPinned && ownerImage.MatchesProcessImage(setup.Owner.DangerousGetHandle()));
+            CallerAdmissionBudget.Check(budget);
             substage = 23;
             CallerNative.Require(mainImage.IsPinned && mainImage.MatchesProcessImage(setup.Main.DangerousGetHandle()));
+            CallerAdmissionBudget.Check(budget);
             substage = 24;
             CallerNative.Require(GuestJobNative.Birth(self.DangerousGetHandle(), setup.Job.DangerousGetHandle(), CallerNative.GetProcessId(self)) == birth);
+            CallerAdmissionBudget.Check(budget);
             substage = 25;
             if (inventory == null) inventory = new InstalledJobInventory(setup.Job, self, birth, ref substage);
             else inventory.CheckCurrent(ref substage);
             substage = 26; // Unimpersonated exit.
             CallerNative.Require(!CallerNative.HasThreadToken());
+            CallerAdmissionBudget.Check(budget);
         }
         private void CloseResource(IDisposable value) { if (value != null) try { value.Dispose(); } catch { cleanupUnknown = true; } }
         void ICallerInstalledEndpoint.CheckCurrent() { CheckCurrent(); }
         void ICallerInstalledEndpoint.CheckCurrent(ref int substage, bool polling)
+        { CheckEndpointCurrent(null, ref substage, polling); }
+        void ICallerInstalledEndpoint.CheckCurrent(CallerAdmissionBudget budget, ref int substage, bool polling)
+        { CallerNative.Require(budget != null); CheckEndpointCurrent(budget, ref substage, polling); }
+        private void CheckEndpointCurrent(CallerAdmissionBudget budget, ref int substage, bool polling)
         {
             // Only failures translate the existing registration checkpoint. The two
             // fixed bases retain fence/poll provenance without changing authority.
             int checkpoint = 14;
-            try { CheckCurrent(ref checkpoint); }
+            try { CheckCurrent(budget, ref checkpoint); }
             catch
             {
                 if ((checkpoint >= 14 && checkpoint <= 26) || (checkpoint >= 36 && checkpoint <= 44))

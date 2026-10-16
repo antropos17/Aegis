@@ -8,6 +8,14 @@ namespace Aegis.ProtectedSession
     {
         internal sealed partial class Instance
         {
+            internal void CheckCurrent(CallerAdmissionBudget budget)
+            {
+                CallerNative.Require(budget != null);
+                using (budget.Enter(gate))
+                using (budget.Enter(Registration.Gate)) {
+                    budget.Check(); CheckCurrentLocked(); budget.Check();
+                }
+            }
             // The lease duplicates the private held Job/process; neither raw handle escapes.
             internal EnrollmentLease AcquireEnrollment(string root)
             { return AcquireEnrollmentCore(root, null); }
@@ -138,14 +146,20 @@ namespace Aegis.ProtectedSession
             if (main != null) main.CheckMain(server, child == null ? null : child.Registration);
         }
         private void CheckOwnerCurrent()
+        { CheckOwnerCurrent(null); }
+        private void CheckOwnerCurrent(CallerAdmissionBudget budget)
         {
+            CallerAdmissionBudget.Check(budget);
             CallerNative.Require(!closed && !CallerNative.HasThreadToken());
             CheckAuthority();
+            CallerAdmissionBudget.Check(budget);
             if (setup != null) setup.CheckCurrent();
-            enrollment.CheckCurrent();
-            child.CheckCurrent();
-            endpoint.CheckCurrent();
+            CallerAdmissionBudget.Check(budget);
+            enrollment.CheckCurrent(budget);
+            if (budget == null) child.CheckCurrent(); else child.CheckCurrent(budget);
+            int substage = 0; endpoint.CheckCurrent(budget, ref substage);
             CallerNative.Require(!CallerNative.HasThreadToken());
+            CallerAdmissionBudget.Check(budget);
         }
         internal void Release()
         {
@@ -165,16 +179,17 @@ namespace Aegis.ProtectedSession
         }
         internal Context Accept(int timeoutMilliseconds)
         {
-            lock (gate)
+            var budget = new CallerAdmissionBudget(timeoutMilliseconds);
+            using (budget.Enter(gate))
             {
                 try
                 {
                     CallerNative.Require(!closed && released && !admissionAttempted);
                     admissionAttempted = true;
-                    CheckOwnerCurrent();
-                    CallerAdmission.Context admitted = endpoint.Accept(timeoutMilliseconds);
-                    CheckOwnerCurrent(); admitted.CheckCurrent();
-                    return new Context(this, admitted);
+                    CheckOwnerCurrent(budget);
+                    CallerAdmission.Context admitted = endpoint.Accept(budget);
+                    CheckOwnerCurrent(budget); admitted.CheckCurrent(budget);
+                    var candidate = new Context(this, admitted); budget.Check(); return candidate;
                 }
                 catch { Close(); throw; }
             }
