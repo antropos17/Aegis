@@ -161,7 +161,7 @@ These views use simulated preview data. [More screenshots](docs/screenshots/READ
 
 The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
 
-Current source adds [Liveline-inspired charts](frontend/observatory/DESIGN.md#live-chart-refinement--5-october-2026) to Statistics and agent Resources: short smooth updates, endpoint values, interval buttons and actual-point inspection. Missing readings, coverage, pause and reduced motion remain explicit.
+Current source adds [Liveline-inspired charts](frontend/observatory/DESIGN-HISTORY.md#live-chart-refinement--5-october-2026) to Statistics and agent Resources: short smooth updates, endpoint values, interval buttons and actual-point inspection. Missing readings, coverage, pause and reduced motion remain explicit.
 
 </details>
 

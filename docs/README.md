@@ -94,7 +94,8 @@ and independent enforcement acceptance remains open. `launchAllowed=false`.
 The [GitHub presentation audit](GITHUB-PRESENTATION-AUDIT.md) records the dated
 documentation/link review and its remaining verification limits.
 
-[Contribution workflow](../CONTRIBUTING.md), [development reference](DEVELOPMENT.md),
+[Current development context](development/current-context.md),
+[contribution workflow](../CONTRIBUTING.md), [development reference](DEVELOPMENT.md),
 [verification workflow](development/workflow.md), [code of conduct](../CODE_OF_CONDUCT.md),
 [bug reports](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
 and [feature requests](https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml).

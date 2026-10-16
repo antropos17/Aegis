@@ -1,7 +1,8 @@
 # AEGIS Tech Stack
 
-Source check: 11 September 2026, `17a3c0d` (PR #438). Exact dependency ranges
-live in `package.json`; `package-lock.json` records resolved versions.
+Use [Current development context](../docs/development/current-context.md) to
+select the checkout. Exact dependency ranges live in `package.json`;
+`package-lock.json` records resolved versions.
 
 ## Runtime and build
 
@@ -21,13 +22,14 @@ an installed MCP integration does not imply automatic code validation.
 
 ## Dependencies and checks
 
-Runtime dependencies are `ajv`, `chokidar`, `electron-updater`, `js-yaml` and
-`semver`. Electron, Svelte, Vite, TypeScript, Vitest, ESLint and Prettier are
+Read the runtime dependency inventory from `package.json` (`dependencies`).
+Electron, Svelte, Vite, TypeScript, Vitest, ESLint and Prettier are
 build/development dependencies. Use the pinned Node version and `npm ci`.
 
 `npm run typecheck` checks main, retained renderer code and Observatory configs.
 `npm run typecheck:svelte` checks both configured Svelte projects. The current
-full CI gate is listed in `AGENTS.md` and `.github/workflows/ci.yml`.
+full CI gate is defined in `.github/workflows/ci.yml`; see the
+[verification workflow](../docs/development/workflow.md#selecting-verification).
 `npm run build:renderer` builds production assets; `npm run build` packages
 those assets. `npm run dev` starts a simulated preview.
 

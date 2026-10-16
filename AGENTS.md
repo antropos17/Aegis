@@ -6,6 +6,7 @@ Explicit user instructions take precedence over repository guidance. If a reposi
 
 ## Read for the task
 
+- Starting or resuming work: use [Current development context](docs/development/current-context.md) to identify the checkout, task and evidence.
 - Code or documentation changes and reviews: read [CODING_STANDARDS.md](CODING_STANDARDS.md).
 - Checkout isolation, source navigation, dependency setup, verification or the PR cycle: read the relevant sections of [Development workflow](docs/development/workflow.md).
 - Observatory frontend work: also read [its instructions](frontend/observatory/AGENTS.md); they identify the visual authority and host-integration rules.
