@@ -1,0 +1,4 @@
+interface:
+  display_name: "AEGIS Debugging"
+  short_description: "Reproduce, diagnose and verify project bugs"
+  default_prompt: "Use $aegis-diagnosing-bugs for the requested change in AEGIS, following the current project rules."

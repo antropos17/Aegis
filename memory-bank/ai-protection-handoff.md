@@ -1,5 +1,9 @@
 # AI-agent protection: continuation context
 
+This is a dated protection checkpoint. Start new work from
+[Current development context](../docs/development/current-context.md); statements
+below about the current task apply to their recorded date.
+
 The authoritative current state, next step, verified PRs, workspace boundary and
 diagnostic-log retention are in [next-session.md](next-session.md). As of
 2026-09-26, MCP v4 credential binding (#536) and the first B4 review-required

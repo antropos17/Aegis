@@ -11,7 +11,7 @@ Exact dependency ranges live in [package.json](../package.json); [package-lock.j
 
 The application uses Electron, Svelte 5 and Vite. Vitest provides the test runner; Prettier and ESLint cover formatting and linting.
 
-Runtime dependencies are `ajv`, `chokidar`, `electron-updater`, `js-yaml` and `semver`. Electron is a devDependency that supplies the desktop shell. Justify new dependencies in the PR.
+The `dependencies` object in [package.json](../package.json) is the runtime dependency inventory; keep package names and versions there. Electron is a devDependency that supplies the desktop shell. Justify new dependencies in the PR.
 
 ---
 

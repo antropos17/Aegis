@@ -1,0 +1,42 @@
+[
+  {
+    "query": "Explain how AEGIS attributes a process and propagates its identity to the UI.",
+    "should_trigger": true
+  },
+  {
+    "query": "Review the README architecture claims against the current implementation.",
+    "should_trigger": true
+  },
+  {
+    "query": "Diagnose repeated rule-loader failures after hot reload.",
+    "should_trigger": true
+  },
+  {
+    "query": "Add an IPC export method and trace its handler, bridge and consumer.",
+    "should_trigger": true
+  },
+  {
+    "query": "Add regression tests for the active Observatory telemetry boundary.",
+    "should_trigger": true
+  },
+  {
+    "query": "Fix a spelling error in README.md.",
+    "should_trigger": false
+  },
+  {
+    "query": "Show git status and the current branch.",
+    "should_trigger": false
+  },
+  {
+    "query": "Run the existing npm test command.",
+    "should_trigger": false
+  },
+  {
+    "query": "Review project skill wording and routing.",
+    "should_trigger": false
+  },
+  {
+    "query": "Create five separate logo concepts without integrating them.",
+    "should_trigger": false
+  }
+]

@@ -15,19 +15,17 @@ Requires the Node.js version in `engines` in `package.json` (also pinned in `.nv
 
 ## Workflow
 
-1. **Fork** the repository
-2. **Branch** from `master`: `git checkout -b feat/your-feature` (see [BRANCHING.md](BRANCHING.md) for the full prefix list)
-3. **Implement** your changes following the code standards below
-4. **Verify**: run the checks appropriate to the change, including `npm run typecheck` and `npm run typecheck:svelte` for renderer changes. Visual changes require both `npm run build:renderer` and `npm run build:demo`, plus `npm run frontend:test`. Use the [repository verification table](AGENTS.md#verification) for the required CI checks; use `npm start` when checking native desktop behavior.
-5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
-6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
+Fork the repository if needed, then follow the
+[Git and PR workflow](docs/development/workflow.md#git-and-pr-cycle) and
+[branch/commit conventions](BRANCHING.md). Use a branch from a freshly fetched
+base and preserve unrelated work. External contributors submit a PR for
+maintainer review; repository automation permissions do not grant contributor
+access.
 
-### Branch Workflow
-See [BRANCHING.md](BRANCHING.md) for full details.
-- Create a feature branch: `git checkout -b feat/my-feature`
-- Make changes with conventional commits
-- Push and create PR: `gh pr create --base master`
-- CI must pass, then maintainer merges
+Choose checks from [Selecting verification](docs/development/workflow.md#selecting-verification).
+For visual changes, also follow [Observatory verification](frontend/observatory/AGENTS.md).
+Describe the resulting behavior, reason for the change, actual validation and
+remaining limits in the PR.
 
 ### Releases
 Releases are automated via [release-please](https://github.com/googleapis/release-please).
@@ -38,39 +36,16 @@ Merging the Release PR creates the version bump, changelog and GitHub Release; t
 
 ## Code Standards
 
-### General Rules
+[CODING_STANDARDS.md](CODING_STANDARDS.md) owns language, module, JSDoc,
+identity and lifecycle conventions. [The development guide](docs/DEVELOPMENT.md)
+contains implementation examples; [Observatory design](frontend/observatory/DESIGN.md)
+owns the active interface contract. Derive dependency versions and scripts from
+`package.json`, and justify new dependencies in the PR.
 
-- **Svelte 5 + Vite for renderer** — component-based architecture with `$state`/`$derived`/`$effect` runes. Main process remains CommonJS.
-- **CommonJS in main process** — `require`/`module.exports` with `init()` dependency injection pattern. Each module receives only the state it needs.
-- **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
-- **Aim for 300 lines in new files.** Extract a focused module when adding to an oversized file; do not split existing files solely to meet the target.
-- **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **Justify new dependencies.** Keep the runtime dependency inventory in [package.json](package.json). It includes parsers for supported project files, schema validation, file watching and updates. Electron is a devDependency used to build and run the desktop shell.
-
-### Naming Conventions
-
-- IPC channels: `kebab-case` — `scan-processes`, `get-stats`, `file-access`
-- CSS classes: `component-element` — `agent-card`, `feed-entry`, `trust-bar-fill`
-- Section comments: `// ═══ SECTION NAME ═══` for major sections, `// ── subsection ──` for minor
-- User-facing text: UPPERCASE for labels and badges, Title Case for proper names
-
-### TypeScript
-
-- **New renderer files use TypeScript** (`.ts` or `<script lang="ts">` in Svelte). Main-process modules remain CommonJS JavaScript with JSDoc; there is no blanket migration requirement
-- **Main process** (`.js`): annotated with JSDoc, which editors use for IntelliSense. `checkJs` is **off** in `tsconfig.base.json`, so `tsc` resolves these files but does not type-check their bodies — the annotations document intent, they are not enforced by the typecheck gate
-- **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
-- Shared type definitions live in `src/shared/types/` (`npm run counts:check` derives the file count)
-- Run `npm run typecheck` before opening a PR — zero type errors required. It checks `tsconfig.main.json`, `tsconfig.renderer.json` and `frontend/observatory/tsconfig.json`; a bare `npx tsc --noEmit` resolves the root solution file and checks nothing
-- **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
-- Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)
-- Unused variables are errors, not warnings, in `.ts` files
-
-### CSS
-
-- Follow `frontend/observatory/DESIGN.md` and preserve the stylesheet order in `frontend/observatory/styles.ts`. The base layout and tokens are in `styles/workbench.css`; subsequent imports add workspace and interaction styles.
-- Use existing semantic properties such as `--bg`, `--ink`, `--muted` and `--border`. Add scoped component CSS for new behavior; inspect the imported styles before introducing a token.
-- Match the approved Observatory hierarchy, typography and spacing.
-- Verify light, dark and both high-contrast themes, supported UI scales and keyboard focus.
+The main process uses CommonJS JavaScript with JSDoc; new renderer files use
+TypeScript. Check effective `checkJs` and per-file directives before describing
+body-level JavaScript type coverage. A passing root solution-file `tsc` command
+does not check source; use the repository's typecheck scripts.
 
 ## How to Add a New Agent
 

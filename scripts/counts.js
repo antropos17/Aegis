@@ -811,6 +811,14 @@ const ARCHIVAL = [
     why: 'dated work log; entries are superseded in place, not rewritten',
   },
   {
+    file: 'memory-bank/next-session-history-20261007.md',
+    why: 'verbatim archived handoff; its counts describe the recorded sessions',
+  },
+  {
+    file: 'frontend/observatory/DESIGN-HISTORY.md',
+    why: 'preserved dated design decisions; inventory figures describe their recorded revisions',
+  },
+  {
     file: 'memory-bank/honesty-audit.md',
     why: 'dated audit; its numbers are the findings being reported',
   },
