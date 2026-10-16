@@ -1,6 +1,22 @@
 param([string]$Mode)
 Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../../../scripts/installation/protected-guest.ps1')
+if ($Mode -ceq 'result-serialization') {
+    $worker = Start-Job -ScriptBlock {
+        $record = @{ schemaVersion = 1; vmId = '11111111-2222-3333-4444-555555555555'; nonce = 'a' * 32;
+            executableSha256 = 'b' * 64; exitCode = [long]17; jobClosed = $true; standardToken = $true; diskQuotaBytes = [long]512MB }
+        [Management.Automation.PSSerializer]::Deserialize([Management.Automation.PSSerializer]::Serialize($record))
+    }
+    try {
+        Wait-Job $worker -Timeout 10 | Out-Null
+        if ($worker.State -cne 'Completed') { throw 'fixture-worker-incomplete' }
+        $rows = @(Receive-Job $worker -ErrorAction Stop)
+        if ($rows.Count -ne 1) { throw 'fixture-result-count' }
+        $result = ConvertTo-ProtectedGuestAgentResult $rows[0] '11111111-2222-3333-4444-555555555555' ('a' * 32) ('b' * 64)
+        return (@{ count = $result.get_Count(); exitCode = $result.exitCode; versionType = $result.schemaVersion.GetType().FullName;
+            quotaType = $result.diskQuotaBytes.GetType().FullName; noteProperties = @($result.PSObject.Properties | Where-Object MemberType -eq NoteProperty).Count } | ConvertTo-Json -Compress)
+    } finally { if ($worker.State -eq 'Running') { Stop-Job $worker }; Remove-Job $worker -Force }
+}
 if ($Mode -cin @('vm-native-compile', 'worker-capability')) {
     $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
     Add-Type -ReferencedAssemblies System.Management -Path @((Join-Path $project 'scripts/installation/ProtectedGuestVm.cs'),
@@ -160,14 +176,37 @@ if ($Mode.StartsWith('agent-', [StringComparison]::Ordinal)) {
     function Start-Job($ArgumentList, $ScriptBlock) { $script:arguments = $ArgumentList; return [pscustomobject]@{ State = 'Completed' } }
     function Remove-Job($Job, [switch]$Force) { $script:workerRemoved = $true }
     function Receive-Job($Job) {
-        return @{ schemaVersion = 1; vmId = $script:arguments[0]; nonce = $(if ($Mode -ceq 'agent-nonce') { 'wrong' } else { $script:arguments[8] });
+        $result = @{ schemaVersion = 1; vmId = $script:arguments[0]; nonce = $(if ($Mode -ceq 'agent-nonce') { 'wrong' } else { $script:arguments[8] });
             executableSha256 = $script:arguments[4]; exitCode = [long]0; jobClosed = ($Mode -cne 'agent-open-job'); standardToken = ($Mode -cne 'agent-admin'); diskQuotaBytes = [long]512MB }
+        switch ($Mode) {
+            'agent-extra-key' { $result.privateDiagnostic = 'synthetic-private-value' }
+            'agent-shadow-members' {
+                $names = @($result.get_Keys()); $result.Count = 8; $result.Keys = $names
+                $result.privateDiagnostic = 'synthetic-private-value'
+            }
+            'agent-schema-string' { $result.schemaVersion = '1' }
+            'agent-id-array' { $result.vmId = @($result.vmId) }
+            'agent-nonce-array' { $result.nonce = @($result.nonce) }
+            'agent-digest-array' { $result.executableSha256 = @($result.executableSha256) }
+            'agent-key-case' { $value = $result.nonce; $result.Remove('nonce'); $result.Nonce = $value }
+            'agent-exit-negative' { $result.exitCode = [long]-1 }
+            'agent-exit-overflow' { $result.exitCode = [long]4294967296 }
+            'agent-quota-string' { $result.diskQuotaBytes = '536870912' }
+            'agent-job-string' { $result.jobClosed = 'true' }
+            'agent-object' { return [pscustomobject]$result }
+            'agent-multiple' { return @($result, $result) }
+            'agent-metadata' { $result | Add-Member NoteProperty privateDiagnostic 'synthetic-private-value' }
+        }
+        return $result
     }
     $secret = ConvertTo-SecureString 'synthetic-fixture-credential' -AsPlainText -Force
     $credential = [pscredential]::new('AegisAg111111111111', $secret)
     $package = @{ path = 'C:\private\agent.exe'; bytes = [long]2; sha256 = $(if ($Mode -ceq 'agent-digest') { '0' * 64 } else { 'a' * 64 }) }
-    $refused = $false
-    try { Invoke-ProtectedGuestAgent $context $credential $credential $package | Out-Null } catch { $refused = $true }
+    $refused = $false; $published = $null
+    try { $published = Invoke-ProtectedGuestAgent $context $credential $credential $package } catch { $refused = $true }
+    if ($Mode -ceq 'agent-metadata') {
+        return (@{ refused = $refused; keys = @($published.get_Keys() | Sort-Object); metadataLeaked = ($null -ne $published.PSObject.Properties['privateDiagnostic']) } | ConvertTo-Json -Compress)
+    }
     return (@{ refused = $refused; consumed = $owned.guest.agentConsumed; workerRemoved = $script:workerRemoved; events = @($script:events) } | ConvertTo-Json -Compress)
 }
 [ProtectedGuestVm]::Unknown = $Mode -ceq 'provider'
