@@ -1,0 +1,4 @@
+interface:
+  display_name: "AEGIS Code Review"
+  short_description: "Review changes against requirements and code"
+  default_prompt: "Use $aegis-code-review for the requested change in AEGIS, following the current project rules."

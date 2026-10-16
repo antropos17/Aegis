@@ -2,7 +2,7 @@
 
 Date: September 10, 2026. Status: the interface organization is implemented and has passed local checks; CI results are recorded in the PR. This document connects user complaints, research and specific Observatory changes. It does not report a measured improvement in usability.
 
-Clarification after user review: Monitoring always shows the overall view. The selected agent scope applies to Agents, Events, Network and Statistics. The current sizing and routing conventions are described in [DESIGN.md](../../frontend/observatory/DESIGN.md#monitoring-and-sizing-correction); they supersede the inclusion of Monitoring in the shared scope below.
+Clarification after user review: Monitoring always shows the overall view. The selected agent scope applies to Agents, Events, Network and Statistics. The current sizing and routing conventions are described in [DESIGN.md](../../frontend/observatory/DESIGN-HISTORY.md#monitoring-and-sizing-correction); they supersede the inclusion of Monitoring in the shared scope below.
 
 ## Goal and scope
 

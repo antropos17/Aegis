@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "aegis-code-review",
+      "files": ["LICENSE", "SKILL.md", "agents/openai.yaml"]
+    },
+    {
+      "name": "aegis-context",
+      "files": ["SKILL.md", "references/trigger-cases.json"]
+    },
+    {
+      "name": "aegis-diagnosing-bugs",
+      "files": ["LICENSE", "SKILL.md", "agents/openai.yaml"]
+    },
+    {
+      "name": "aegis-tdd",
+      "files": ["LICENSE", "SKILL.md", "agents/openai.yaml"]
+    },
+    {
+      "name": "audit-check",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "ci-monitor",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "commit-and-track",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "design-system",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "electron-main",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "pr-monitor",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "prompt-craft",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "ship",
+      "files": ["SKILL.md", "agents/openai.yaml"]
+    },
+    {
+      "name": "svelte-patterns",
+      "files": ["SKILL.md"]
+    },
+    {
+      "name": "testing",
+      "files": ["SKILL.md"]
+    }
+  ]
+}

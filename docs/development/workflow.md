@@ -2,37 +2,23 @@
 
 ## Checkout and source navigation
 
-For source navigation, start with the actual checkout, `git status --short`, and `npm run dev:context`.
-Read `out/development/context.md` (a short, generated inventory); search
-`memory-bank/progress.md` and `memory-bank/ai-mistakes.md` only for the current
-subsystem. Preserve the historical records. A commit alone does not identify an
-uncommitted tree: generated reports also contain dirty state and a source digest.
-That digest covers the selected JS/TS/Svelte inventory and configuration inputs;
-qualification scripts, native sidecars, workflows, Vite configuration, docs and
-skills are outside it. Review the current diff and freeze relevant file hashes
-when those paths or concurrent edits are in scope.
+Start with [Current development context](current-context.md) for checkout
+selection, source entrypoints, generated-inventory limits and historical records.
+Reuse matching reports during read-only work; regenerate only when owning their
+outputs. Verify optional commands in the selected checkout's `package.json`.
 
-Read HEAD, package scripts and Vite configuration before using the generated
-inventory. A preserved dirty checkout can be older than origin/master. Missing
-Observatory files or developer scripts in that checkout do not establish that
-they are missing from the current branch. Isolate new work without switching,
-stashing or resetting someone else's changes. Check existing attached worktrees
-before creating one; archive only task-created worktrees whose needed artifacts
-have been preserved. Derive current module and IPC counts with `npm run counts:check`.
+Derive current module and IPC counts with `npm run counts:check`.
 Shared contracts live in `src/shared/types/` (8 TS files); this declaration is
 checked by that gate.
-
-Desktop and preview share `frontend/observatory/`, selected by
-`vite.frontend.config.ts`. `npm start` builds the production entry in
-`dist/renderer`; `npm run dev` is a simulated preview. Retained renderer
-computations and regression fixtures live under `src/renderer/lib/`.
 
 ## Skills and tool selection
 
 Load the skill for the current task and only references needed for its decision.
-Local `.agents/skills` are ignored tooling; their installation path does not select
-the source checkout. Keep their changes local unless publication is requested.
-Do not force-add them. Repository agent definitions describe delegated roles;
+The [skill catalog](../../tools/agent-skills/README.md) is the versioned source.
+Local `.agents/skills` and `.claude/skills` are ignored installations; their paths
+do not select the source checkout. Edit the catalog and preview synchronization
+in the intended worktree. Preserve local customizations and do not force-add
+installed copies. Repository agent definitions describe delegated roles;
 invoke subagents and external AI CLIs only when the user requests delegation.
 
 | Task | First guidance or capability |
@@ -126,8 +112,9 @@ alone never verify the real preload bridge or OS sensors.
 The advance permission and actions requiring separate authorisation are in
 [AGENTS.md](../../AGENTS.md#permissions-and-boundaries).
 
-1. Work on a feature branch from `origin/master`. Preserve unrelated work and
-   isolate changes in a worktree when the shared checkout is dirty.
+1. Fetch `origin/master` when starting new work, then use a `codex/` feature branch
+   from that verified base (contributors may use a descriptive task prefix).
+   Preserve unrelated work and isolate changes in a worktree when the shared checkout is dirty.
    `.codex/hooks/branch-guard.js` blocks edits on master. Before Windows worktree
    cleanup, read the relevant entries in `memory-bank/ai-mistakes.md`.
 2. Review the final diff and stage only task files. Use conventional commits and
