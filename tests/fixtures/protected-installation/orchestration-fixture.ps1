@@ -92,6 +92,14 @@ if ($Mode -ceq 'host-script-child') {
         $held = [ProtectedInstallFile]::new($Path, $true, $true); $held.FileId = ($global:FixtureHost.files.Count + 1).ToString('x16'); $global:FixtureHost.files.Add($held); return $held
     }
     function Set-ProtectedInstallCredential { param($Context); $Context.credential = [byte[]]@(4,5,6) }
+    # Administrative journal ownership is modeled here; real native file controls have their own fixture.
+    function New-ProtectedInstallJournalDirectory {
+        param($Context)
+        $Context.journalDirectory = New-ProtectedInstallDirectory (Join-Path $Context.parent.PathName 'OperationJournal') $Context.operatorSid $true
+        $Context.journalFiles = @(); $Context.journalEvidence = @()
+    }
+    function Assert-ProtectedInstallJournals { param($Context); if ($Context.journalDirectory.Deleted -or $Context.journalFiles.Count -ne 0) { throw 'fixture-journal-association-refused' } }
+    function Remove-ProtectedInstallJournalDirectory { param($Context); Assert-ProtectedInstallJournals $Context; $Context.journalDirectory.Delete(); $Context.journalDirectory = $null }
     function New-ProtectedInstallStage {
         param($Context, $Revision, $Epoch)
         $held = New-ProtectedInstallDirectory (Join-Path $script:ProtectedInstallParent ('Staging-' + $Epoch)) $Context.operatorSid
@@ -247,6 +255,11 @@ function Invoke-NestedFixture {
         $global:FixtureState.account = $Context
     }
     function script:Set-ProtectedInstallCredential { param($Context); $Context.credential = [byte[]]@(4,5,6) }
+    function script:New-ProtectedInstallJournalDirectory {
+        param($Context)
+        $Context.journalDirectory = [ProtectedInstallFile]::new('C:\fixture\OperationJournal', $true, $true)
+        $Context.journalFiles = @(); $Context.journalEvidence = @()
+    }
     function script:New-ProtectedInstallDirectory {
         param($Path, $OperatorSid, $Private)
         # Membership success stops before any file effect; cleanup uses the real

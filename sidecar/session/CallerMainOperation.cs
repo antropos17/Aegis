@@ -108,6 +108,7 @@ namespace Aegis.ProtectedSession
         }
         internal sealed class Context
         {
+            internal object SynchronizationGate { get { return owner.server.Gate; } }
             private readonly CallerMainOperation owner;
             private readonly CallerAdmission.Context native;
             private bool inspected;
@@ -241,6 +242,8 @@ namespace Aegis.ProtectedSession
             private readonly InstalledOwnerDeadline deadline;
             private readonly CallerAdmission.Context admission;
             internal readonly string Result;
+            // Synchronization only. The original completion must still pass its retained association check.
+            internal object SynchronizationGate { get { return caller.SynchronizationGate; } }
             internal InspectionCompletion(Context original, InstalledOwnerRegistration owner, InstalledOwnerDeadline limit,
                 CallerAdmission.Context admitted, string result)
             { caller = original; installed = owner; deadline = limit; admission = admitted; Result = result; }

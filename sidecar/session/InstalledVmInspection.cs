@@ -6,7 +6,7 @@ namespace Aegis.ProtectedSession
     internal sealed class VmInspectionCheckpoint { internal int Code; }
     // Inspect-owned admission authorizes observations only. No lifecycle method
     // or native manager escapes this retained registration.
-    internal sealed class InstalledVmInspection : IDisposable
+    internal sealed partial class InstalledVmInspection : IDisposable
     {
         private readonly InstalledVmRegistration registration;
         private readonly IVmManagement native;

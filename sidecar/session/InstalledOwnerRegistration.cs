@@ -6,8 +6,10 @@ using Microsoft.Win32.SafeHandles;
 namespace Aegis.ProtectedSession
 {
     // This original-install guard is required in addition to PermittedBroker and role admission.
-    internal sealed class InstalledOwnerRegistration : IDisposable, ICallerInstalledEndpoint
+    internal sealed partial class InstalledOwnerRegistration : IDisposable, ICallerInstalledEndpoint
     {
+        internal readonly object JournalGate = new object();
+        internal IDisposable JournalResource = null;
         [StructLayout(LayoutKind.Sequential)] private struct ProcessBasic
         { internal IntPtr Exit, Peb, Affinity, Priority, Pid, Parent; }
         [DllImport("ntdll.dll")] private static extern int NtQueryInformationProcess(SafeFileHandle process, int kind,
@@ -21,6 +23,7 @@ namespace Aegis.ProtectedSession
         private InstalledJobInventory inventory;
         private long birth;
         private bool closed, cleanupUnknown;
+        private bool closing;
 #if CALLER_MAIN_OPERATION_TEST
         // Synthetic install authority only; real enrollment, registrations and pipe admission remain required.
         private readonly Action testAuthority;
@@ -69,6 +72,8 @@ namespace Aegis.ProtectedSession
             int substage = 0; CheckCurrent(ref substage);
         }
         private void CheckCurrent(ref int substage)
+        { lock (JournalGate) CheckCore(ref substage); }
+        private void CheckCore(ref int substage)
         {
             substage = 14; // Live registration and unimpersonated entry.
             CallerNative.Require(!closed && !CallerNative.HasThreadToken());
@@ -132,9 +137,16 @@ namespace Aegis.ProtectedSession
         }
         public void Dispose()
         {
-            if (!closed)
+            lock (JournalGate)
             {
-                closed = true; CloseResource(mainImage); CloseResource(ownerImage); CloseResource(service);
+                if (closing) throw new InvalidOperationException("installed-owner-registration-cleanup-unconfirmed");
+                if (closed) { if (cleanupUnknown) throw new InvalidOperationException("installed-owner-registration-cleanup-unconfirmed"); return; }
+                // Revoke under the acknowledgment gate, then release it before child registration locks.
+                closed = true; closing = true;
+            }
+            try
+            {
+                CloseResource(JournalResource); CloseResource(mainImage); CloseResource(ownerImage); CloseResource(service);
                 CloseResource(inventory); CloseResource(main);
 #if CALLER_MAIN_OPERATION_TEST
                 if (testAuthority == null)
@@ -142,7 +154,8 @@ namespace Aegis.ProtectedSession
                     CloseResource(owner);
                 CloseResource(self); CloseResource(Policy);
             }
-            if (cleanupUnknown) throw new InvalidOperationException("installed-owner-registration-cleanup-unconfirmed");
+            finally { lock (JournalGate) closing = false; }
+            lock (JournalGate) if (cleanupUnknown) throw new InvalidOperationException("installed-owner-registration-cleanup-unconfirmed");
         }
     }
 }

@@ -7,7 +7,7 @@ namespace Aegis.ProtectedSession
 {
     // A fixed protected record supplies the VM selection; no caller-supplied GUID,
     // root or record is accepted by the installed-owner factory.
-    internal sealed class InstalledVmRegistration : IDisposable
+    internal sealed partial class InstalledVmRegistration : IDisposable
     {
         private const string Leaf = "registered-vm.json";
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
@@ -34,6 +34,7 @@ namespace Aegis.ProtectedSession
         private Action checkCaller;
         private readonly InstalledOwnerRegistration installed;
         private readonly bool mustBindCaller;
+        internal CallerMainOperation.InspectionCompletion JournalCaller { get; private set; }
         internal bool IsBound { get { return !mustBindCaller || checkCaller != null; } }
         private readonly EnrollmentHeld held;
         private readonly byte[] original;
@@ -198,6 +199,7 @@ namespace Aegis.ProtectedSession
         {
             if (installed == null || admitted == null) throw new InvalidOperationException("installed-vm-caller-unavailable");
             BindCore(delegate { admitted.CheckInstalledOwner(installed); });
+            JournalCaller = admitted;
         }
         private void BindCore(Action caller)
         {

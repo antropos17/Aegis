@@ -293,8 +293,8 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       expect(stages.filter((stage) => stage.configurationBound)).toHaveLength(1);
       for (const stage of stages) {
         expect(stage).toMatchObject({
-          initialLeaves: 10,
-          runtimeLeaves: 11,
+          initialLeaves: 11,
+          runtimeLeaves: 12,
           unknownRefused: true,
           staticLeavesRefused: true,
         });
