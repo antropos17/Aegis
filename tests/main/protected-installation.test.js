@@ -238,7 +238,11 @@ describe.skipIf(process.platform !== 'win32')(
           path.join(project, 'tests/fixtures/protected-installation/orchestration-fixture.ps1'),
           mode,
         ],
-        { windowsHide: true, timeout: 10000, maxBuffer: 8192 },
+        {
+          windowsHide: true,
+          timeout: 10000,
+          maxBuffer: mode === 'upgrade-retention-matrix' ? 32768 : 8192,
+        },
       );
       expect(value.error).toBeUndefined();
       expect(value.status).toBe(0);
@@ -503,6 +507,9 @@ describe.skipIf(process.platform !== 'win32')(
         cleanupUnknown: true,
         originalExact: true,
         postEffectPathRecorded: true,
+        failedStageExact: true,
+        failedRootExact: true,
+        failedGuiBundleExact: true,
         stageCount: 2,
         stopCalls: 1,
         eventsAfterFailure: ['publish'],
@@ -510,6 +517,114 @@ describe.skipIf(process.platform !== 'win32')(
         stageRemoved: false,
         ancillaryRemoved: false,
       });
+    });
+    it('retains only the exact issued upgrade stage across transaction failure and ownership-transfer boundaries', () => {
+      const value = orchestration('upgrade-retention-matrix');
+      expect(value).toMatchObject({ modeledCallbackResources: true, nativeEffects: 0 });
+      expect(value.rows).toHaveLength(19);
+      const rows = new Map(value.rows.map((row) => [row.case, row]));
+      expect(rows.size).toBe(19);
+      for (const name of ['preexisting', 'construction-throw', 'callback-slot-conflict']) {
+        expect(rows.get(name)).toMatchObject({
+          refused: true,
+          returnedExact: false,
+          slotEmpty: false,
+          partialExact: true,
+          issuedExact: false,
+          beforeStopExact: false,
+          oldStillCurrent: true,
+          removedExact: false,
+          events: name === 'preexisting' ? [] : ['validate', 'stage'],
+        });
+      }
+      for (const name of ['null-output', 'noisy-output', 'multiple-output']) {
+        expect(rows.get(name)).toMatchObject({
+          refused: true,
+          returnedExact: false,
+          slotEmpty: true,
+          issuedExact: false,
+          partialExact: false,
+          beforeStopExact: false,
+          oldStillCurrent: true,
+          removedExact: false,
+          events: ['validate', 'stage'],
+        });
+      }
+      const forward = ['validate', 'stage', 'stop', 'saveOld', 'publish', 'verify', 'commit'];
+      const compensated = [
+        ...forward.slice(0, -1),
+        'stop',
+        'unpublish',
+        'restore',
+        'restart',
+        'remove',
+      ];
+      expect(rows.get('commit-success')).toMatchObject({
+        refused: false,
+        returnedExact: true,
+        slotEmpty: true,
+        issuedCurrent: true,
+        beforeStopExact: true,
+        removedExact: false,
+        events: forward,
+      });
+      expect(rows.get('compensation-success')).toMatchObject({
+        refused: true,
+        returnedExact: false,
+        slotEmpty: true,
+        oldStillCurrent: true,
+        beforeStopExact: true,
+        removedExact: true,
+        events: compensated,
+      });
+      expect(rows.get('commit-no-transfer')).toMatchObject({
+        refused: true,
+        returnedExact: false,
+        issuedExact: true,
+        issuedRootExact: true,
+        issuedBundleExact: true,
+        oldStillCurrent: true,
+        beforeStopExact: true,
+        events: forward,
+      });
+      expect(rows.get('remove-slot-replaced')).toMatchObject({
+        refused: true,
+        returnedExact: false,
+        slotEmpty: false,
+        partialExact: true,
+        issuedExact: false,
+        removedExact: true,
+        beforeStopExact: true,
+        events: compensated,
+      });
+      for (const step of ['stop', 'saveOld', 'publish', 'verify', 'commit']) {
+        expect(rows.get('unknown-' + step)).toMatchObject({
+          refused: true,
+          returnedExact: false,
+          slotEmpty: false,
+          issuedExact: true,
+          issuedRootExact: true,
+          issuedBundleExact: true,
+          beforeStopExact: true,
+          removedExact: false,
+          issuedCurrent: step === 'commit',
+          events: forward.slice(0, forward.indexOf(step) + 1),
+        });
+      }
+      for (const step of ['unpublish', 'restore', 'restart', 'remove']) {
+        expect(rows.get('rollback-' + step)).toMatchObject({
+          refused: true,
+          returnedExact: false,
+          slotEmpty: false,
+          issuedExact: true,
+          issuedRootExact: true,
+          issuedBundleExact: true,
+          beforeStopExact: true,
+          removedExact: false,
+          oldStillCurrent: true,
+          events: compensated.slice(0, compensated.indexOf(step) + 1),
+        });
+      }
     });
   },
 );

@@ -1,8 +1,9 @@
-param([string]$Project, [string]$Assembly, [string]$Source, [string]$Manifest, [string]$Scratch)
+param([string]$Project, [string]$Assembly, [string]$Source, [string]$Manifest, [string]$Scratch,
+    [ValidateSet('clone-rollback', 'retention-publish-unknown')][string]$Mode = 'clone-rollback')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Reflection.Assembly]::LoadFrom($Assembly) | Out-Null
-. (Join-Path $Project 'scripts/installation/protected-install-files.ps1')
+. (Join-Path $Project 'scripts/installation/protected-installation.ps1')
 # Real production stage/GUI serializers, original handles, copies, IDs, hashes,
 # rename and deletion. Only ACL/principal authority and journal metadata are modeled.
 [ProtectedGuiBundleFiles]::ModelProtectionForTest()
@@ -62,6 +63,79 @@ try {
     $externalClosed = $false; try { $sourceOwner.CheckCurrent() } catch { $externalClosed = $true }; Need $externalClosed
     $published = Join-Path $Scratch 'published'
     Move-ProtectedInstallStage $old $published
+    if ($Mode -ceq 'retention-publish-unknown') {
+        $script:ProtectedInstallRoot = $published
+        $context.stage = $old; $context.rollback = $null
+        $script:GuiRetention = @{ issued = $null; root = $null; bundle = $null; record = $null; rootId = $null; bundleId = $null; inputs = $inputs;
+            moves = 0; stops = 0; stages = 0 }
+        $service = [pscustomobject]@{ Original = $true }
+        $service | Add-Member ScriptMethod Status { return @(1, 0) }
+        $service | Add-Member ScriptMethod WaitExited { }
+        $service | Add-Member ScriptMethod Recheck { }
+        $service | Add-Member ScriptMethod Stop { $script:GuiRetention.stops++ }
+        $context.service = $service
+        # Only administrative/principal/descriptor authority and input delivery
+        # are modeled. Every stage/bundle operation below calls the real helper.
+        function Assert-ProtectedInstallAdministrator { }
+        $script:OriginalAssertInstallation = (Get-Command Assert-ProtectedInstallation).ScriptBlock
+        function Assert-ProtectedInstallation($Association) {
+            if ($Association.cleanupUnknown) { & $script:OriginalAssertInstallation $Association; return }
+            Need ([object]::ReferenceEquals($Association, $context))
+            $Association.parent.Recheck(); Assert-ProtectedInstallStage $Association.stage
+        }
+        function Read-ProtectedInstallInputs($SourceRoot, $Manifest) {
+            $copy = @{}; foreach ($entry in $script:GuiRetention.inputs.GetEnumerator()) { $copy[$entry.Key] = [byte[]]$entry.Value.Clone() }; return $copy
+        }
+        $script:OriginalNewStage = (Get-Command New-ProtectedInstallStage).ScriptBlock
+        function New-ProtectedInstallStage($Context, $Revision, $Epoch) {
+            $stage = & $script:OriginalNewStage $Context $Revision $Epoch
+            $script:GuiRetention.stages++
+            $script:GuiRetention.issued = $stage; $script:GuiRetention.root = $stage.root; $script:GuiRetention.bundle = $stage.gui.bundle
+            $script:GuiRetention.record = [byte[]]$stage.gui.recordBytes.Clone()
+            $script:GuiRetention.rootId = $stage.root.FileId; $script:GuiRetention.bundleId = $stage.gui.bundle.FileId
+            return $stage
+        }
+        $script:OriginalMoveStage = (Get-Command Move-ProtectedInstallStage).ScriptBlock
+        function Move-ProtectedInstallStage($Stage, $Destination) {
+            & $script:OriginalMoveStage $Stage $Destination
+            $script:GuiRetention.moves++
+            if ([object]::ReferenceEquals($Stage, $script:GuiRetention.issued)) {
+                # The real encapsulated native rename completed. Model loss of
+                # administrative handoff confirmation, without native recovery.
+                $failure = [IO.InvalidDataException]::new('protected-file-handoff-cleanup-unknown')
+                $failure.Data['protectedCleanupUnknown'] = $true; throw $failure
+            }
+        }
+        $refused = $false
+        try { Update-ProtectedInstallation $context 'fixture-inputs-never-opened' $context.manifest | Out-Null }
+        catch { $refused = $_.Exception.Message -ceq 'protected-upgrade-handoff-cleanup-unknown' }
+        $next = $script:GuiRetention.issued
+        Need ($refused -and $null -ne $next -and $context.cleanupUnknown)
+        $exactStage = [object]::ReferenceEquals($context.failedStage, $next)
+        $exactRoot = [object]::ReferenceEquals($context.failedStage.root, $script:GuiRetention.root)
+        $exactBundle = [object]::ReferenceEquals($context.failedStage.gui.bundle, $script:GuiRetention.bundle)
+        Need ($exactStage -and $exactRoot -and $exactBundle -and [object]::ReferenceEquals($context.stage, $old) -and [object]::ReferenceEquals($context.rollback, $old))
+        # Exercise the actual retained originals before explicit fixture teardown;
+        # reachability counts, collection timing and reopening by path prove none of this.
+        $context.failedStage.root.Recheck(); $context.failedStage.gui.bundle.CheckCurrent($context.failedStage.root)
+        $old.root.Recheck(); $old.gui.bundle.CheckCurrent($old.root); $principal.CheckCurrent()
+        Need ($context.failedStage.root.FileId -ceq $script:GuiRetention.rootId -and $context.failedStage.gui.bundle.FileId -ceq $script:GuiRetention.bundleId)
+        $recordsPreserved = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $next.path 'registered-gui-candidate.json'))) -ceq [Convert]::ToBase64String($script:GuiRetention.record)
+        foreach ($stage in @($old, $next)) { foreach ($row in $stage.rows) { Assert-ProtectedInstallSnapshot $row } }
+        $before = @($script:GuiRetention.stages, $script:GuiRetention.moves, $script:GuiRetention.stops)
+        $retryGuarded = $false; $uninstallGuarded = $false
+        try { Update-ProtectedInstallation $context 'fixture-inputs-never-opened' $context.manifest | Out-Null }
+        catch { $retryGuarded = $_.Exception.Message -ceq 'protected-owned-cleanup-unknown' }
+        try { Remove-ProtectedInstallation $context } catch { $uninstallGuarded = $_.Exception.Message -ceq 'protected-owned-cleanup-unknown' }
+        $noFollowup = $before[0] -eq $script:GuiRetention.stages -and $before[1] -eq $script:GuiRetention.moves -and $before[2] -eq $script:GuiRetention.stops
+        Need ($recordsPreserved -and $retryGuarded -and $uninstallGuarded -and $noFollowup)
+        @{ passed = $true; actualFullStage = $true; retainedStageExact = $exactStage; retainedRootExact = $exactRoot; retainedBundleExact = $exactBundle;
+            retainedPinsCurrent = $true; originalFileIdsPreserved = $true; candidateBytesPreserved = $recordsPreserved; oldAndRollbackExact = $true;
+            retryGuarded = $retryGuarded; uninstallGuarded = $uninstallGuarded; noFollowupEffects = $noFollowup;
+            staged = $script:GuiRetention.stages; nativeMoves = $script:GuiRetention.moves; modeledServiceStops = $script:GuiRetention.stops;
+            modeledAdministrativeHandoffUncertainty = $true; modeledPrincipalProtectionAndJournalMetadata = $true; guiEnrollment = $false } | ConvertTo-Json -Compress
+        return
+    }
     $context.guiInput = @{ source = $old.gui.bundle; principal = $principal; ownsSource = $false; ownsPrincipal = $false }
     $next = New-ProtectedInstallStage $context 2 ('2' * 32)
     Close-ProtectedGuiCandidate $context.guiInput; $context.guiInput = $null

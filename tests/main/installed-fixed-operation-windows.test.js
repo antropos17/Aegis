@@ -238,6 +238,71 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       });
       expect(fs.readdirSync(scratch)).toEqual([]);
     }, 40000);
+    it('retains the actual issued GUI stage and original pins through uncertain upgrade publication', () => {
+      const directory = fs.mkdtempSync(path.join(harness.root, 'retained-gui-stage-'));
+      const source = path.join(directory, 'source');
+      const scratch = path.join(directory, 'stages');
+      fs.mkdirSync(path.join(source, 'resources'), { recursive: true });
+      fs.mkdirSync(scratch);
+      fs.writeFileSync(path.join(source, GUI_EXECUTABLE), 'fixture retained GUI; never executed');
+      fs.writeFileSync(path.join(source, 'resources/app.asar'), 'fixture retained resource');
+      const manifest = path.join(directory, 'gui-manifest.json');
+      fs.writeFileSync(manifest, produceGuiManifest(source));
+      const result = invoke('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        path.join(project, 'tests/fixtures/protected-installation/gui-stage-composition.ps1'),
+        '-Project',
+        project,
+        '-Assembly',
+        compileGuiFixture(directory),
+        '-Source',
+        source,
+        '-Manifest',
+        manifest,
+        '-Scratch',
+        scratch,
+        '-Mode',
+        'retention-publish-unknown',
+      ]);
+      expect(result).toEqual({
+        passed: true,
+        actualFullStage: true,
+        retainedStageExact: true,
+        retainedRootExact: true,
+        retainedBundleExact: true,
+        retainedPinsCurrent: true,
+        originalFileIdsPreserved: true,
+        candidateBytesPreserved: true,
+        oldAndRollbackExact: true,
+        retryGuarded: true,
+        uninstallGuarded: true,
+        noFollowupEffects: true,
+        staged: 1,
+        nativeMoves: 2,
+        modeledServiceStops: 1,
+        modeledAdministrativeHandoffUncertainty: true,
+        modeledPrincipalProtectionAndJournalMetadata: true,
+        guiEnrollment: false,
+      });
+      const current = path.join(scratch, 'published');
+      const rollback = fs.readdirSync(scratch).filter((name) => name.startsWith('Rollback-'));
+      expect(rollback).toHaveLength(1);
+      expect(fs.readdirSync(scratch).sort()).toEqual([rollback[0], 'published'].sort());
+      for (const stage of [current, path.join(scratch, rollback[0])]) {
+        expect(fs.readFileSync(path.join(stage, 'GuiBundle', GUI_EXECUTABLE), 'utf8')).toBe(
+          'fixture retained GUI; never executed',
+        );
+        expect(
+          JSON.parse(fs.readFileSync(path.join(stage, 'registered-gui-candidate.json'))),
+        ).toMatchObject({
+          scope: 'protected-gui-bundle-candidate',
+          status: 'candidate',
+          guiEnrollment: false,
+        });
+      }
+    }, 40000);
 
     it.each([
       ['extra property', (b) => edit(b, 'extra', true)],

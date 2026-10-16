@@ -35,10 +35,16 @@ function Invoke-ProtectedInstallTransaction([hashtable]$Operations) {
 
 function Invoke-ProtectedUpgradeTransaction([hashtable]$Operations, $Association) {
     $stage = $null; $oldMoved = $false; $newMoved = $false; $stopped = $false; $commitStarted = $false
+    # An unresolved original already owns this slot; no callback may replace it.
+    if ($Association.ContainsKey('failedStage') -and $null -ne $Association.failedStage) { throw 'protected-upgrade-stage-cleanup-unknown' }
     # Refuse a changed exact SCM/root/account association before staging or Stop.
     (& $Operations.validate $Association) | Out-Null
     try {
-        $outputs = @(& $Operations.stage); if ($outputs.Count -ne 1 -or $null -eq $outputs[0]) { throw 'protected-upgrade-stage-cleanup-unknown' }; $stage = $outputs[0]
+        $outputs = @(& $Operations.stage); if ($outputs.Count -ne 1 -or $null -eq $outputs[0]) { throw 'protected-upgrade-stage-cleanup-unknown' }
+        # Construction failures retain their own partial owner. Never select one
+        # ambiguous output or overwrite a slot published by the stage producer.
+        if ($Association.ContainsKey('failedStage') -and $null -ne $Association.failedStage) { throw 'protected-upgrade-stage-cleanup-unknown' }
+        $stage = $outputs[0]; $Association.failedStage = $stage
         (& $Operations.stop $Association) | Out-Null; $stopped = $true
         (& $Operations.saveOld $Association) | Out-Null; $oldMoved = $true
         (& $Operations.publish $stage) | Out-Null; $newMoved = $true
@@ -46,6 +52,9 @@ function Invoke-ProtectedUpgradeTransaction([hashtable]$Operations, $Association
         # The verified publication is now authoritative. Partial deletion of the
         # old revision cannot safely be undone or treated as a rollback.
         $commitStarted = $true; (& $Operations.commit $Association $stage) | Out-Null
+        if (!$Association.ContainsKey('failedStage') -or ![object]::ReferenceEquals($Association.failedStage, $stage) -or
+            !$Association.ContainsKey('stage') -or ![object]::ReferenceEquals($Association.stage, $stage)) { throw 'protected-upgrade-commit-cleanup-unknown' }
+        $Association.failedStage = $null
         return $stage
     }
     catch {
@@ -54,12 +63,17 @@ function Invoke-ProtectedUpgradeTransaction([hashtable]$Operations, $Association
         # compensating callback may adopt or mutate that uncertain state.
         if (Test-ProtectedInstallCleanupUnknown $original) { throw 'protected-upgrade-handoff-cleanup-unknown' }
         if ($commitStarted) { throw 'protected-upgrade-commit-cleanup-unknown' }
+        if ($null -ne $stage -and (!$Association.ContainsKey('failedStage') -or ![object]::ReferenceEquals($Association.failedStage, $stage))) { throw 'protected-upgrade-handoff-cleanup-unknown' }
         try {
             if ($stopped) { (& $Operations.stop $Association) | Out-Null }
             if ($newMoved) { (& $Operations.unpublish $stage) | Out-Null }
             if ($oldMoved) { (& $Operations.restore $Association) | Out-Null }
             if ($stopped) { (& $Operations.restart $Association) | Out-Null }
-            if ($null -ne $stage) { (& $Operations.remove $stage $false) | Out-Null }
+            if ($null -ne $stage) {
+                (& $Operations.remove $stage $false) | Out-Null
+                if (!$Association.ContainsKey('failedStage') -or ![object]::ReferenceEquals($Association.failedStage, $stage)) { throw 'protected-upgrade-rollback-unknown' }
+                $Association.failedStage = $null
+            }
         } catch { $settled = $false }
         if (!$settled) { throw 'protected-upgrade-rollback-unknown' }
         throw $original

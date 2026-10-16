@@ -20,6 +20,8 @@ Cleanup first verifies the exact retained set and retires it in reverse creation
 
 Unknown children, substitutions or failed cleanup preserve uncertainty and retained ownership for the outer transaction. Disposing an owner closes handles without claiming successful removal. The observed Win32 87 is evidence from this host rather than a claim about every Windows/filesystem implementation.
 
+During upgrade, the administrative association retains the exact newly issued stage in `failedStage` before Stop, old-stage movement or publication. A preexisting unresolved slot refuses the transaction before callbacks; construction failures and ambiguous outputs preserve any partial owner already recorded by the stage producer. Handoff, rollback and commit uncertainty keep that stage's original root, GUI bundle and journal reachable through the association alongside the existing old/rollback references. The slot clears only when that same stage has been removed successfully, or commit has returned successfully and the association's current stage is the exact issued object. An unexpected reference causes refusal rather than replacement or further recovery. This retention adds no cleanup retry, path adoption, GUI enrollment or activation authority.
+
 ## Installing principal observation
 
 `ProtectedGuiIdentity.CaptureInstaller` observes the current non-impersonating process token, requiring an elevated primary token in an interactive session and its same-SID/session linked limited medium token. A reciprocal link must identify the original elevated token. SID, session, token IDs, authentication IDs and security roles are observed independently; the two authentication IDs need not be equal.
