@@ -33,6 +33,7 @@ public static class ProtectedGuestAgent
     [DllImport("kernel32.dll", SetLastError = true)] private static extern uint ResumeThread(IntPtr thread);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     private static void Require(bool value) { if (!value) throw new InvalidOperationException("protected-guest-agent-refused"); }
+    private static void Native(bool value) { if (!value) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "protected-guest-native-refused"); }
     public static string Quote(string value)
     {
         Require(value != null && value.Length <= 4096 && value.IndexOf('\0') < 0);
@@ -60,21 +61,21 @@ public static class ProtectedGuestAgent
                 BitConverter.ToString(sha.ComputeHash(image)).Replace("-", "").ToLowerInvariant() == digest);
             IntPtr job = IntPtr.Zero, environment = IntPtr.Zero; ProcessInfo child = new ProcessInfo();
             bool assigned = false;
-            using (var desktop = new ProtectedGuestDesktop(sid)) {
+            using (var desktop = new ProtectedGuestDesktop(sid, true)) {
                 try {
-                    job = CreateJobObject(IntPtr.Zero, null); Require(job != IntPtr.Zero);
+                    job = CreateJobObject(IntPtr.Zero, null); Native(job != IntPtr.Zero);
                     var limits = new Limits(); limits.Basic.Flags = 0x2000 | 8 | 0x100 | 0x200;
                     limits.Basic.Active = 32; limits.ProcessMemory = new IntPtr(512 * 1024 * 1024);
                     limits.JobMemory = new IntPtr(512 * 1024 * 1024);
-                    Require(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
+                    Native(SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))));
                     // Explicit environment excludes the administrative session's secrets.
                     string system = Environment.GetEnvironmentVariable("SystemRoot");
                     string block = "COMSPEC=" + system + "\\System32\\cmd.exe\0PATH=" + system + "\\System32\0SystemRoot=" + system +
                         "\0TEMP=" + working + "\0TMP=" + working + "\0WINDIR=" + system + "\0\0";
                     environment = Marshal.StringToHGlobalUni(block);
                     var startup = new Startup(); startup.Size = Marshal.SizeOf(typeof(Startup)); startup.Desktop = desktop.Path;
-                    Require(CreateProcessWithLogonW(user, ".", password, 0, path, command, 0x08000404, environment, working, ref startup, out child));
-                    Require(AssignProcessToJobObject(job, child.Process)); assigned = true;
+                    Native(CreateProcessWithLogonW(user, ".", password, 1, path, command, 0x08000404, environment, working, ref startup, out child));
+                    Native(AssignProcessToJobObject(job, child.Process)); assigned = true;
                     GuestJobNative.RequireStandardPrincipal(child.Process, sid, Process.GetCurrentProcess().SessionId);
                     Require(String.Equals(GuestJobNative.Image(child.Process), path, StringComparison.OrdinalIgnoreCase));
                     GuestJobNative.Birth(child.Process, job, child.Pid);

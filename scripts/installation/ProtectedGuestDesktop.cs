@@ -31,7 +31,7 @@ internal sealed class ProtectedGuestDesktop : IDisposable
     internal bool ThreadDesktopPreserved { get; private set; }
     internal bool Closed { get; private set; }
     private static void Require(bool value, string code)
-    { if (!value) throw new InvalidOperationException(code + ":" + Marshal.GetLastWin32Error()); }
+    { if (!value) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), code); }
     internal static string Descriptor(string expectedSid, bool windowStation)
     { return Descriptor(expectedSid, windowStation, false); }
     internal static string Descriptor(string expectedSid, bool windowStation, bool documented)
