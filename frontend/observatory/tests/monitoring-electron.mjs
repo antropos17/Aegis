@@ -25,7 +25,7 @@ const receipt = {
   fixture: 'disposable Aider process-name signature; no provider execution',
   samples: [],
 };
-let app, fixture, page;
+let app, appProcess, fixture, page;
 const exitWithin = async (child, ms) => {
   if (child.exitCode !== null) return child.exitCode;
   let timer;
@@ -75,6 +75,9 @@ try {
     env,
     timeout: 30000,
   });
+  // Keep the original Node child handle: Playwright disposes its process()
+  // accessor when the Electron connection closes.
+  appProcess = app.process();
   receipt.packaged = await app.evaluate(
     ({ app }) => app.isPackaged && app.getAppPath().endsWith('app.asar'),
   );
@@ -193,7 +196,7 @@ try {
   receipt.batchCount = receipt.batches.length;
   assert(receipt.batchCount >= 4);
   assert.deepEqual(errors, []);
-  const rootPid = app.process().pid;
+  const rootPid = appProcess.pid;
   const childPids = await app.evaluate(({ app }) => app.getAppMetrics().map((item) => item.pid));
   const helperPids = execFileSync(
     path.join(process.env.WINDIR, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
@@ -217,7 +220,7 @@ try {
     .getByRole('button', { name: 'Quit AEGIS', exact: true })
     .click();
   await closed;
-  assert.equal(await exitWithin(app.process(), 10000), 0);
+  assert.equal(await exitWithin(appProcess, 10000), 0);
   const closureDeadline = Date.now() + 10000;
   while (receipt.ownedPids.some(exists) && Date.now() < closureDeadline)
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -252,7 +255,7 @@ try {
       process.exitCode = 1;
     }
   }
-  if (app && app.process().exitCode === null) {
+  if (app && appProcess?.exitCode === null) {
     try {
       await app.close();
     } catch {
