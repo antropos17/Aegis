@@ -135,6 +135,10 @@ try {
       label: document.querySelector('.live-badge')?.textContent.trim(),
       batches: window.__monitorProbe.batches.length,
     }));
+    if (!sample.label) {
+      await page.locator('.live-badge').waitFor({ state: 'visible', timeout: 2000 });
+      sample.label = (await page.locator('.live-badge').innerText()).trim();
+    }
     receipt.samples.push(sample);
     assert.match(sample.label, /^(Live|Scanning)$/);
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -225,6 +229,18 @@ try {
   receipt.status = 'PASS';
 } catch (error) {
   receipt.failure = error.message;
+  if (page && !page.isClosed()) {
+    try {
+      receipt.failureView = await page.evaluate(() => ({
+        title: document.title,
+        heading: document.querySelector('h1')?.textContent,
+        selected: document.querySelector('[aria-current="page"]')?.textContent,
+      }));
+      await page.screenshot({ path: path.join(out, 'failure.png'), timeout: 5000 });
+    } catch {
+      /* Preserve the original failure. */
+    }
+  }
   process.exitCode = 1;
 } finally {
   if (fixture && fixture.exitCode === null) {
