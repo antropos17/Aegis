@@ -85,6 +85,28 @@ describe('scan-loop stats-update is deferred', () => {
     expect(deps.statsUpdateBatcher.pushLazy).toHaveBeenCalledWith(deps.getStats);
   });
 
+  it('reports a bound covering real startup and warmup transition gaps, then the steady cadence', async () => {
+    const arrivals = [];
+    deps = makeDeps();
+    deps.scanner.scanProcesses.mockImplementation(async () => {
+      arrivals.push(Date.now());
+      return { agents: [], changed: false, reliable: true };
+    });
+    scanLoop.init(deps);
+    expect(scanLoop.getScanCadence().maxProcessGapMs).toBeNull();
+    scanLoop.staggeredStartup(10000, false);
+    const startupBound = scanLoop.getScanCadence().maxProcessGapMs;
+    await vi.advanceTimersByTimeAsync(82100);
+    expect(arrivals).toHaveLength(3);
+    expect(arrivals[1] - arrivals[0]).toBe(39000);
+    expect(arrivals[2] - arrivals[1]).toBe(40000);
+    expect(startupBound).toBeGreaterThanOrEqual(arrivals[1] - arrivals[0]);
+    expect(startupBound).toBeGreaterThanOrEqual(arrivals[2] - arrivals[1]);
+    expect(scanLoop.getScanCadence().maxProcessGapMs).toBe(10000);
+    scanLoop.stopScanIntervals();
+    expect(scanLoop.getScanCadence().maxProcessGapMs).toBeNull();
+  });
+
   it('the call site does not resolve the producer itself', async () => {
     deps = makeDeps();
     scanLoop.init(deps);

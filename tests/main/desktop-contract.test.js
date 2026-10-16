@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { desktopPassed } from '../../tools/development/desktop-contract.mjs';
+import { desktopPassed, monitoringPassed } from '../../tools/development/desktop-contract.mjs';
 
 const fixture = () => {
   const flags = { cleanupUnknown: false, guiEnrollment: false, launchAllowed: false };
@@ -79,4 +79,48 @@ describe('packaged desktop evidence boundary', () => {
       expect(desktopPassed(result)).toBe(false);
     }
   });
+});
+
+it('requires sustained fresh packaged monitoring, process lifecycle and cleanup evidence', () => {
+  const result = {
+    status: 'PASS',
+    packaged: true,
+    snapshotClass: 'class5',
+    fixtureDetected: true,
+    fixtureSelectable: true,
+    fixtureExited: true,
+    pauseRetained: true,
+    resumeExpired: true,
+    closureConfirmed: true,
+    warmupObservedMs: 85000,
+    batchCount: 4,
+    batches: [{}, {}, {}, {}],
+    samples: [
+      { at: 1, label: 'Live' },
+      { at: 85001, label: 'Scanning' },
+    ],
+  };
+  expect(monitoringPassed(result)).toBe(true);
+  for (const patch of [
+    { packaged: false },
+    { snapshotClass: 'cim' },
+    { fixtureSelectable: false },
+    { fixtureExited: false },
+    { pauseRetained: false },
+    { resumeExpired: false },
+    { closureConfirmed: false },
+    { appCleanupUnconfirmed: true },
+    { fixtureCleanupUnconfirmed: true },
+    { batchCount: 1 },
+    { samples: [] },
+    { warmupObservedMs: 1000 },
+    {
+      samples: [
+        { at: 1, label: 'Live' },
+        { at: 85001, label: 'Observation unavailable / stale' },
+      ],
+    },
+  ]) {
+    expect(monitoringPassed({ ...result, ...patch })).toBe(false);
+  }
 });

@@ -79,7 +79,40 @@ they do not identify the specific shell component that issued the original reque
 
 ## Remaining boundary
 
-PASS covers the visible packaged-window lifecycle with modeled installation
+### Packaged monitoring scenario
+
+Add `--monitoring` to the command above to run a separate Playwright journey
+against the built EXE with an owned disposable profile and the ordinary current
+user's authority. The protected Start/Query/Stop probe still runs first with its
+unchanged fixed launch contract. Playwright's debugging transport is used only
+for the separate monitoring journey; it does not qualify protected enrollment.
+
+The scenario compiles a short-lived process named `aider.exe` as a signature
+fixture, observes it through the real class-5 snapshot sidecar and preload bridge,
+and selects its OS-stamped identity in the interface. It samples freshness for
+85 seconds across startup and the transition to steady scans. It then pauses
+the view, exits only its own fixture through stdin, verifies a reliable backend
+exit observation, and resumes to the retained selection with unavailable current
+measurements. It quits through the UI and checks that observed app/helper PIDs
+have exited. No provider execution, process intervention against user processes
+or sensor injection occurs. The parent runner gives this journey 180 seconds.
+
+The private `monitoring/receipt.json` and two screenshots are retained beside
+the existing package evidence. The final receipt hashes the monitoring receipt
+and rechecks package/source integrity. Fixture matching proves process-name
+detection, rather than the authenticity of an installed Aider product. Monitoring
+PASS does not qualify file/network event attribution or every sensor/provider.
+
+During warmup the scheduler reports its longest planned process-scan gap in
+`scanCadence.maxProcessGapMs`. The renderer binds it to each reliable batch and
+keeps the existing ten-second delivery allowance. Stats-only updates cannot
+renew a population's age or shorten the schedule attached to that batch. Missing
+delivery still expires; failed population/identity and monitoring pause remain
+immediately unavailable.
+
+### Other qualification
+
+Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation
 authority. It does not qualify real UAC/linked-principal installation, authenticated
 GUI enrollment, monitoring freshness, renderer interaction journeys, real guest or
 provider execution, or an elapsed 30-minute lease. Use the separate Electron bridge

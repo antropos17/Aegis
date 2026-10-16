@@ -43,3 +43,39 @@ export function desktopPassed(result) {
     stopped(result.finalStop)
   );
 }
+
+/** Require the real packaged monitoring journey and confirmed owned cleanup.
+ * @param {object} result Private monitoring probe receipt.
+ * @returns {boolean} Whether every required observation is present. @since v0.19.2
+ */
+export function monitoringPassed(result) {
+  const samples = result?.samples;
+  return (
+    result?.status === 'PASS' &&
+    result.packaged === true &&
+    result.snapshotClass === 'class5' &&
+    result.fixtureDetected === true &&
+    result.fixtureSelectable === true &&
+    result.fixtureExited === true &&
+    result.pauseRetained === true &&
+    result.resumeExpired === true &&
+    result.closureConfirmed === true &&
+    !result.fixtureCleanupUnconfirmed &&
+    !result.appCleanupUnconfirmed &&
+    Number.isFinite(result.warmupObservedMs) &&
+    result.warmupObservedMs >= 85000 &&
+    Number.isInteger(result.batchCount) &&
+    result.batchCount >= 4 &&
+    Array.isArray(result.batches) &&
+    result.batches.length === result.batchCount &&
+    Array.isArray(samples) &&
+    samples.length >= 2 &&
+    samples.every(
+      (sample, index) =>
+        Number.isFinite(sample.at) &&
+        /^(Live|Scanning)$/.test(sample.label) &&
+        (index === 0 || sample.at >= samples[index - 1].at),
+    ) &&
+    samples.at(-1).at - samples[0].at >= 80000
+  );
+}

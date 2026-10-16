@@ -179,6 +179,8 @@ export function connectHost(
   const cleanups: (() => void)[] = [];
   const revisions = new Map<string, number>();
   let staleAfterMs = 30000;
+  let lastBatchMaxGapMs = 0;
+  const freshnessLimit = (): number => Math.max(staleAfterMs, lastBatchMaxGapMs + 10000);
   const applySettings = (settings: unknown): void => {
     const interval = measured(record(settings).scanIntervalSec);
     if (!alive || interval === null || interval <= 0) return;
@@ -225,7 +227,7 @@ export function connectHost(
       statsAt: Date.now(),
       stale:
         healthStale(stats) ||
-        (state.lastScan !== null && Date.now() - state.lastScan > staleAfterMs),
+        (state.lastScan !== null && Date.now() - state.lastScan > freshnessLimit()),
     });
   };
   const refreshFalsePositives = async (): Promise<void> => {
@@ -262,6 +264,10 @@ export function connectHost(
     const reliable = !healthStale(state.stats);
     const patch: Partial<Telemetry> = {};
     if (Array.isArray(batch.agents) && reliable) {
+      // Only a reliable population can bind a new schedule to its receipt time.
+      // Warmup and the transition to steady polling have longer planned gaps.
+      const gap = measured(record(record(batch.stats).scanCadence).maxProcessGapMs);
+      lastBatchMaxGapMs = gap !== null && gap > 0 ? gap : 0;
       patch.agents = batch.agents as DetectedAgent[];
       patch.ready = true;
       patch.stale = false;
@@ -343,7 +349,7 @@ export function connectHost(
   );
   if (host.getSettings) seed('getSettings', 'settings', applySettings);
   const watchdog = setInterval(() => {
-    if (state.lastScan !== null && !state.stale && Date.now() - state.lastScan > staleAfterMs) {
+    if (state.lastScan !== null && !state.stale && Date.now() - state.lastScan > freshnessLimit()) {
       update({
         stale: true,
         statsAt: Date.now(),
