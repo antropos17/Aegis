@@ -180,6 +180,30 @@ describe('network recovery after a process-scope skip', () => {
     expect(network.getNetworkSensorHealth().state).toBe('HEALTHY');
   });
 
+  it('refreshes an unchanged population after settings restart invalidates an in-flight poll', async () => {
+    let finishOldPoll;
+    getRawTcpConnections.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOldPoll = resolve;
+        }),
+    );
+    const deps = makeDeps();
+    scanLoop.init(deps);
+    scanLoop.doNetworkScan();
+    scanLoop.stopScanIntervals();
+    scanLoop.startScanIntervals(2000);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(getRawTcpConnections).toHaveBeenCalledTimes(1);
+    finishOldPoll([]);
+    await flush();
+    expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(getRawTcpConnections).toHaveBeenCalledTimes(2);
+    expect(deps.setLatestNetConnections).toHaveBeenCalledExactlyOnceWith([]);
+    expect(network.getNetworkSensorHealth().state).toBe('HEALTHY');
+  });
+
   it('cancels the queued replacement when monitoring stops before identity settles', async () => {
     let finishIdentity;
     const deps = makeDeps({

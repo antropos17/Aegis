@@ -80,3 +80,90 @@ export function monitoringPassed(result) {
     samples.at(-1).at - samples[0].at >= 80000
   );
 }
+
+/** Require native file/socket observations, honest attribution, UI, audit and cleanup.
+ * @param {object} r Private real-package sensor receipt.
+ * @returns {boolean} Whether the controlled scenario is complete. @since v0.19.2
+ */
+export function sensorsPassed(r) {
+  if (!r || !Array.isArray(r.files) || !Array.isArray(r.audit)) return false;
+  const evidence = (row, code) => row.attribution?.evidence?.includes(code) === true;
+  const owner = (row, code) =>
+    row.pid === r.fixturePid &&
+    row.instanceId === r.instanceId &&
+    row.attribution?.status === 'confirmed' &&
+    evidence(row, code);
+  const pathOf = (row) => row.file ?? row.path ?? '';
+  const filesValid = (rows) => {
+    const changes = rows.filter((row) => pathOf(row).endsWith('.env.sensor-events'));
+    return (
+      JSON.stringify(changes.map((row) => row.action)) ===
+        JSON.stringify(['created', 'modified', 'deleted', 'created']) &&
+      changes.every(
+        (row) =>
+          row.pid === null &&
+          row.instanceId === null &&
+          row.attribution?.status === 'unattributed' &&
+          evidence(row, 'no-owner-match'),
+      ) &&
+      ['.ssh', '.env.sensor-held'].every((suffix) =>
+        rows.some(
+          (row) =>
+            pathOf(row).endsWith(suffix) && row.action === 'holding' && owner(row, 'rm-holder-pid'),
+        ),
+      )
+    );
+  };
+  const live = r.networkLive;
+  const sockets = live?.rows;
+  return (
+    r.status === 'PASS' &&
+    r.packaged === true &&
+    r.windowInputIsolated === true &&
+    r.filesVisible === true &&
+    r.networkVisible === true &&
+    r.networkClearedVisible === true &&
+    r.fixtureExited === true &&
+    r.closureConfirmed === true &&
+    r.contentExcluded === true &&
+    r.leaked === false &&
+    r.overflow === false &&
+    !r.fixtureCleanupUnconfirmed &&
+    !r.appCleanupUnconfirmed &&
+    typeof r.witness === 'string' &&
+    /^\d+$/.test(r.witness) &&
+    filesValid(r.files) &&
+    filesValid(r.audit.filter((row) => row.type === 'file-access')) &&
+    r.files
+      .filter((row) => row.action === 'holding')
+      .every((row) => row.createTime100ns === r.witness) &&
+    Array.isArray(sockets) &&
+    sockets.length === 2 &&
+    new Set(r.native?.ports).size === 2 &&
+    new Set(sockets.map((row) => row.localPort)).size === 2 &&
+    sockets.every(
+      (row) =>
+        owner(row, 'os-tcp-owner-pid') &&
+        row.remoteIp === r.remoteIp &&
+        row.remotePort === 443 &&
+        r.native.ports.includes(row.localPort),
+    ) &&
+    live.at >= r.settingsSavedAt &&
+    live.at - r.settingsSavedAt <= 20000 &&
+    Array.isArray(r.network) &&
+    r.network.every((sample) =>
+      sample.rows.every((row) => row.remoteIp === r.remoteIp && row.remotePort === 443),
+    ) &&
+    r.networkClosed?.at > r.networkClosedAt &&
+    r.networkClosed.rows?.length === 0 &&
+    r.native.ports.every((port) =>
+      r.audit.some(
+        (row) =>
+          row.type === 'network-connection' &&
+          owner(row, 'os-tcp-owner-pid') &&
+          row.details?.localPort === port,
+      ),
+    ) &&
+    ['fs-chokidar', 'fs-rm', 'network'].every((id) => r.health?.[id]?.state === 'HEALTHY')
+  );
+}
