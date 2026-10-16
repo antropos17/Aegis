@@ -180,6 +180,20 @@ namespace Aegis.ProtectedSession
             CheckCurrent();
         }
 
+        // Association check only; copied candidate fields issue no authority.
+        internal void CheckCandidateBinding(InstalledOwnerRegistration owner, Guid vmId, string profile, string digest)
+        {
+            try
+            {
+                if (owner == null || !Object.ReferenceEquals(installed, owner) || !mustBindCaller || checkCaller == null ||
+                    ConfigurationHash == null || ConfigurationProfile != VmConfigurationProfile.Name ||
+                    VmId != vmId || ConfigurationProfile != profile || ConfigurationHash != digest)
+                    throw new InvalidOperationException();
+                CheckCurrent();
+            }
+            catch { refused = true; throw new InvalidOperationException("installed-vm-candidate-binding-unavailable"); }
+        }
+
         internal void BindCaller(CallerMainOperation.InspectionCompletion admitted)
         {
             if (installed == null || admitted == null) throw new InvalidOperationException("installed-vm-caller-unavailable");
@@ -287,6 +301,16 @@ namespace Aegis.ProtectedSession
         {
             return CreateInspection(new InstalledVmRegistration(root, installId, revision, epoch,
                 digest, selection, selectionEpoch, authority, files), create, true, storageFiles);
+        }
+#endif
+#if RUNTIME_CANDIDATE_TEST
+        internal static InstalledVmInspection PrepareCandidateForTest(string root, InstalledOwnerRegistration owner,
+            IEnrollmentFiles records, Func<Guid, IVmManagement> create, IEnrollmentFiles storageFiles)
+        {
+            InstalledOwnerPolicy policy = owner.Policy;
+            return CreateInspection(new InstalledVmRegistration(root, policy.InstallId, policy.Revision, policy.Epoch,
+                policy.Digest, policy.SelectionId, policy.SelectionEpoch, owner.CheckCurrent, records, owner),
+                create, false, storageFiles, null, true);
         }
 #endif
     }

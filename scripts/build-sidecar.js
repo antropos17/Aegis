@@ -193,6 +193,8 @@ function main() {
         'InstalledInspectionAuthorization',
         'InstalledVmRegistration',
         'InstalledVmInspection',
+        'InstalledRuntimeCandidate',
+        'RuntimeCandidateCodec',
         'VmConfigurationObservation',
         'VmConfigurationProfile',
         'VmConfigurationRead',

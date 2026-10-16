@@ -30,6 +30,17 @@ namespace Aegis.ProtectedSession
             return InspectCore();
         }
         internal void BindCaller(CallerMainOperation.InspectionCompletion admitted) { registration.BindCaller(admitted); }
+        internal void CheckCandidateBinding(InstalledOwnerRegistration owner, Guid vmId, string profile, string digest)
+        {
+            try
+            {
+                if (closed || refused) throw new InvalidOperationException();
+                registration.CheckCandidateBinding(owner, vmId, profile, digest);
+                Inspect(); // Original caller-bound registration, fresh VM/configuration/storage observation.
+                registration.CheckCandidateBinding(owner, vmId, profile, digest);
+            }
+            catch { refused = true; throw new InvalidOperationException("installed-vm-candidate-binding-unavailable"); }
+        }
 #if INSTALLED_VM_TEST
         internal void BindForTest(Action caller) { registration.BindForTest(caller); }
 #endif
