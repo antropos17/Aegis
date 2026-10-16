@@ -34,7 +34,8 @@ The executable suite allowlist is `WINDOWS_SUITES` in
 [verification-contract.mjs](../../tools/development/verification-contract.mjs).
 These tests compile disposable C# fixtures using the Windows framework compiler
 and exercise caller identity, retained caller context, sealed import and its main
-reader. The runner records source HEAD/tree, lock/compiler hashes, Node/platform,
+reader, plus retained GUI process ownership and its shell object-ID regression.
+The runner records source HEAD/tree, lock/compiler hashes, Node/platform,
 free space, command exits, duration, test totals and a raw-report hash. Source must
 remain clean at completion. Assertion results must cover every selected suite;
 missing, duplicate, empty, skipped and failed results reject PASS.
@@ -48,6 +49,11 @@ The fixture harnesses own their cleanup; junction-refusal cases intentionally
 retain links. The receipt reports remaining scratch separately as
 `retained-for-review`: fixture PASS does not mean cleanup completed. Do not delete
 paths reached through a junction.
+
+The GUI fixtures also retain deliberately uncertain cases under the source
+checkout's `out/development`. `retainedSourceEntries` counts newly remaining
+entries there separately from run-local scratch; preexisting diagnostics are
+excluded. Neither location is automatically removed by the runner.
 
 Preserve `evidence/receipt.json`. Raw logs, raw test JSON, scratch and run-local
 caches are private diagnostics: review them after seven days, retain failures
@@ -63,6 +69,12 @@ qualification workflow for its explicitly selected additional scope; its inline
 runner and historical receipts remain separate.
 
 ## Failures and retries
+
+For the actual packaged Electron Start/Query/Stop window lifecycle, use the
+[packaged desktop milestone](packaged-desktop-milestone.md). It builds the package
+and records native window/profile/Job observations in an interactive Windows
+session. Its installation authority remains modeled; the hosted fixture lane
+above does not run this desktop probe.
 
 | Observed stage | Next investigation |
 | --- | --- |

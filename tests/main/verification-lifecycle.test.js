@@ -43,7 +43,10 @@ describe('workflow diagnosis', () => {
 
 describe('Windows evidence validation', () => {
   it('accepts each expected native suite with executed assertions', () => {
-    expect(validateTestReport(passing(), root)).toEqual({ suites: 4, assertions: 4 });
+    expect(validateTestReport(passing(), root)).toEqual({
+      suites: WINDOWS_SUITES.length,
+      assertions: WINDOWS_SUITES.length,
+    });
   });
   it.each(['pending', 'todo', 'skipped', 'failed'])(
     'rejects an assertion marked %s despite aggregate success',

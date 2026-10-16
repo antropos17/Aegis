@@ -5,6 +5,7 @@ export const WINDOWS_SUITES = [
   'tests/main/session-caller-context-windows.test.js',
   'tests/main/sealed-import-windows.test.js',
   'tests/main/result-review-sealed-import.test.js',
+  'tests/main/protected-gui-process-windows.test.js',
 ];
 
 /** Classify a workflow observation without treating absent/skipped evidence as success.

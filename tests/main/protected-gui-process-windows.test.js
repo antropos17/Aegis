@@ -53,6 +53,12 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
       }
       let retainUncertainEvidence = false;
       for (const { scratch, mode } of attemptedStages) {
+        if (mode === 'shell-object-id') {
+          expect(fs.readFileSync(path.join(scratch, 'uncertainty.retained'), 'utf8'))
+            .toBe('post-stop-metadata-change;original-job-already-empty');
+          retainUncertainEvidence = true;
+          continue;
+        }
         if (mode === 'closure-observation-unknown' || mode === 'execution-substitution') {
           expect(fs.readFileSync(path.join(scratch, 'uncertainty.retained'), 'utf8'))
             .toBe(mode === 'execution-substitution'
@@ -164,6 +170,12 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         expect(result.status, 'stage fixture exit').toBe(0);
         return JSON.parse(result.stdout.toString());
       }
+
+      it('keeps Query and Stop valid after the shell requests the executable object ID', () => {
+        expect(stage('shell-object-id')).toMatchObject({ passed: true, rootExitedAndJobEmpty: true,
+          originalIdsAndCandidateBytesPreserved: true, sameEpochRetryRefused: true,
+          laterMetadataChangeRefused: true, launchAllowed: false });
+      }, 30000);
 
       it.each(['lifecycle', 'administrative-unknown', 'expiry', 'profile-replacement'])(
         'refuses actual package deletion while the owned root is alive and restores exact originals in %s mode',
