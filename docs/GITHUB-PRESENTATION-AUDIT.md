@@ -3,6 +3,36 @@
 Audit date: 2026-09-19. This records a documentation and repository-presentation
 review, not a security certification or a new installer release.
 
+## Follow-up — 16 October 2026
+
+Source baseline: master `6001f2c295e42392967a845760c8fce14461b35a`, after PR #942.
+GitHub's published prerelease remains `aegis-v0.19.2-beta`, dated 6 October. The
+0.20.0-beta release proposal remains an open PR; it is not a published release.
+
+The README now presents a capability table and current-source changes through
+protected VM creation and guest-agent execution. The new [capability guide](CAPABILITIES.md)
+maps desktop, offline review, audit/token accounting, CLI actions, validating MCP
+gateways and administrative Hyper-V APIs to entry points and limitations. The
+documentation index, architecture blind spots, roadmap checkpoint, security
+limitations, package description/keywords and `llms.txt` use the same boundaries.
+The documentation index's screenshot date is corrected to 11 October.
+
+The [hosted guest evidence record](roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md)
+preserves exact source/merge binding, run links, raw receipt hashes, observed
+controls and remaining acceptance. GitHub metadata for its three referenced runs
+was rechecked: all report success on source `5113e3b`. Earlier failures remain
+failures. Independent enforcement acceptance and ordinary launch remain open;
+`launchAllowed=false`.
+
+Repository About metadata uses the matching current capability summary, retains
+the documentation homepage and adds discovery topics for AppContainer, Hyper-V,
+MCP gateways and process monitoring. The applied values must be verified through
+GitHub after publication. No installer/release, historical release notes, issue
+state, branch protection or social-preview selection is changed by this refresh.
+Existing screenshots retain their dated simulated-data captions. This follow-up
+checks links in changed documents; it does not repeat the 2026-09-19 external-link
+census or establish native-platform/product acceptance.
+
 ## Follow-up — 6 October 2026
 
 The lightweight review checked master `0bda7dc`, the release PR, publication,

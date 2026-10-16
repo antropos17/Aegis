@@ -1,7 +1,7 @@
 {
   "name": "aegis",
   "version": "0.19.2-beta",
-  "description": "Desktop monitoring and local security reviews for AI agents, with opt-in policy-controlled execution and MCP action tools.",
+  "description": "Windows-first desktop oversight for AI agents: live monitoring, local security reviews, token usage, audit reports and opt-in action policies/MCP gateways. Experimental Hyper-V guest execution; macOS/Linux experimental.",
   "main": "src/main/main.js",
   "scripts": {
     "dev:context": "node tools/development/context.mjs",
@@ -152,7 +152,10 @@
     "open-source",
     "openclaw",
     "mcp-security",
-    "llm-agent-security"
+    "llm-agent-security",
+    "mcp-gateway",
+    "appcontainer",
+    "hyper-v"
   ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",

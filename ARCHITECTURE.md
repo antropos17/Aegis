@@ -2,6 +2,13 @@
 
 The canonical desktop entry is `frontend/observatory/entry.ts`, configured in `vite.frontend.config.ts`. The same Svelte components power the explicitly simulated browser preview. Shared enrichment remains in `src/renderer/lib/utils/enrich-agents.ts`; the old visual shell has been removed.
 
+The [capability guide](docs/CAPABILITIES.md) maps current desktop and CLI/MCP
+surfaces. Experimental administrative Hyper-V provisioning and guest execution
+have PowerShell/C# sources under `scripts/installation/`, shared native helpers
+under `sidecar/` and hosted controls under `scripts/qualification/`. They are separate from the
+ordinary desktop dispatcher; [guest evidence](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md)
+does not enable production launch.
+
 ## Mission
 
 AEGIS is an **Independent AI Oversight Layer** for local agent processes, file activity and TCP endpoints. Coverage is signature- and sensor-dependent; no overall observability percentage has been established. Monitoring runs locally, with optional external AI analysis and update requests described below.
@@ -107,8 +114,8 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 | Blind Spot | Description | Planned Approach / Status |
 |---|---|---|
 | **UI Awareness** | Cannot see what AI agents display or interact with in UI | Accessibility API monitoring (no screen capture) |
-| **Container/VM Detection** | Runtime process signatures and limited WSL discovery exist; this does not enumerate every container or its internal processes | Broader WSL, Docker and Podman discovery; see [roadmap](ROADMAP.md#a--discovery-coverage) |
-| **Sandbox Containment** | Default monitoring does not isolate agents. The opt-in Windows Job route controls the lifetime of ordinary descendants of a selected action after confirmed cleanup, without restricting file or network access | AppContainer-style isolation remains out of scope; pair AEGIS with external sandboxing when isolation is required |
+| **Container/VM Detection** | Running WSL names and local Docker/Linux Podman image candidates with bounded configuration observations are integrated; they do not establish guest-process identity or every internal process | Broader guest-process coverage and native-platform qualification; see [roadmap](ROADMAP.md#a--discovery-coverage) |
+| **Sandbox Containment** | Default monitoring observes. The explicit Windows Job route bounds member lifetime; a separate AppContainer CLI adds a zero-capability offline boundary for one reviewed action | Administrative Hyper-V creation and a bounded guest run have hosted evidence; ordinary protected-session launch, runtime integration and independent acceptance remain open. See [capabilities](docs/CAPABILITIES.md#experimental-administrative-hyper-v-execution). |
 | **GPU Monitoring** | Per-PID NVIDIA VRAM samples exist; allocated memory does not establish active inference | Define and validate the missing inference signal; see [roadmap](ROADMAP.md#a--discovery-coverage) |
 | **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | Non-goal: TLS interception is deliberately out of scope; endpoints-only is the contract |
 | **Syscall Monitoring** | No kernel-level visibility into system calls | Kernel drivers (Minifilter/Endpoint Security/eBPF) are a non-goal; user-mode ETW telemetry is under evaluation |

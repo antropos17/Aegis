@@ -1,13 +1,18 @@
 # Aegis
 
-> Aegis is an open-source desktop app for local AI-agent monitoring, file reviews and selected-action policy checks. Monitoring combines polling with event-based file watchers; coverage and attribution have documented limits.
+> Aegis is a Windows-first open-source desktop app for local AI-agent oversight: process/file/TCP monitoring, local security review, resource/token accounting, audit reports and explicit action policies/MCP gateways. macOS/Linux support is experimental.
+
+Source checkpoint: 16 October 2026, master 6001f2c295e42392967a845760c8fce14461b35a (PR #942). The published Windows 0.19.2-beta installer is dated 6 October; later source changes need a later installer release.
 
 Current source also provides opt-in exact-action execution policies and explicitly configured MCP action routes. Default monitoring does not intercept commands or isolate agents. A separate opt-in Windows Job route can bound the lifetime of ordinary descendants of one selected action after confirmed cleanup; it does not restrict file or network access. The separate AppContainer confirmation CLI verifies a zero-capability Windows token and Job for one bounded action in a new retained workspace. Installed builds contain only the features at their release tag.
+
+Experimental administrative Hyper-V APIs can create a private VM, hydrate its original disk from a trusted Windows VHDX and run one bounded package as a fresh ordinary guest user. Actual boot, an enforced 512 MiB allocation quota, Job descendant closure, native Off and owned VM removal passed hosted qualification on source 5113e3b5d8473d105776e92d4830d6824d3f4c5d. Ordinary installed-caller launch, authenticated runtime communication, cancellation/owner-loss supervision and result review remain incomplete; independent enforcement A1-A4 acceptance remains open and launchAllowed=false. Unknown VMMS work has no recovery/restart API.
 
 ## Documentation
 
 - [README](https://github.com/antropos17/Aegis/blob/master/README.md)
 - [Documentation index](https://github.com/antropos17/Aegis/blob/master/docs/README.md)
+- [Full capability guide](https://github.com/antropos17/Aegis/blob/master/docs/CAPABILITIES.md)
 - [Guided desktop workflows](https://github.com/antropos17/Aegis/blob/master/docs/OBSERVATORY-GUIDED-WORKFLOWS.md)
 - [Security Policy](https://github.com/antropos17/Aegis/blob/master/SECURITY.md)
 - [Contributing Guide](https://github.com/antropos17/Aegis/blob/master/CONTRIBUTING.md)
@@ -18,9 +23,11 @@ Current source also provides opt-in exact-action execution policies and explicit
 - Process monitoring with 112 known AI agents (265 process-name signatures) and parent-child tree resolution
 - File system watching for sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs)
 - Network activity logging with per-agent PID tracking and reverse DNS
+- Passive running WSL distribution-name inventory and local Docker/Linux-native Podman container candidates, with bounded configuration observations and explicit freshness; no guest process execution or independently verified internal agent identity
 - Behavioral analysis with 73 detection rules across 8 categories
 - Trust scoring with grades A+ through F using time-decay algorithms
 - Local LLM detection (Ollama, LM Studio, vLLM, llama.cpp)
+- Claude Code measured usage from matching local session data with durable deduplication, incomplete-coverage flags and estimated costs; other agents can show estimates
 - Export to JSON, CSV, HTML reports and ZIP archives
 - YAML rulesets with JSON Schema validation; edits to existing files hot-reload in unpacked runs
 - Explicit policy-controlled direct child execution, with optional fresh terminal confirmation for one launch attempt
@@ -31,12 +38,18 @@ Current source also provides opt-in exact-action execution policies and explicit
 - Opt-in --observe endpoint for selected/catalog MCP owners: separate read-only desktop observation, bounded counters, self-reported client label/version and sticky coverage loss; no independently verified provider identity or blocking
 - Local security workspace: selected project/profile static reviews, bounded inventory, saved snapshot comparison and offline report import, with explicit coverage limits
 - Guided Observatory navigation with distinct local SVG icons, task search, result-first review screens and optional technical details; English and Brazilian Portuguese
+- Explicit validating MCP gateways for selected stdio, loopback HTTP and pinned HTTPS servers, with accepted catalogs, finite schema validation and exact grants
+- Optional expiring persistent MCP grants with route/credential/launch binding and known-secret checks for explicitly supplied values and listed encodings
+- One exact selected-file deletion operation with mandatory terminal review, also exposed by a dedicated argument-free terminal MCP tool
+- Administrative protected VM/image creation, original-disk hydration, identity-bound native lifecycle and one standard-user guest agent operation: no NICs, private desktop, explicit environment, 512 MiB allocation quota, 32-process Job, 512 MiB per-process/aggregate Job memory and 120-second maximum runtime
 
 Local monitoring has no telemetry; endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
 
 Direct and Job-only execution retain caller file/network privileges. The explicit AppContainer confirmation route adds OS access checks, zero capabilities and Job cleanup, with separate receipts for isolation, retained workspace and temporary-profile cleanup. Installed agents and ordinary launches do not enter it automatically. Private action previews can expose secrets in terminal scrollback; a TTY does not authenticate human presence. No client settings are changed automatically.
 
 Generated client configuration intentionally includes local executable and selected-file paths. Keep it private; generation does not verify those files or a client's compatibility.
+
+MCP gateways cover their explicitly configured traffic only. Known-secret checks are not general DLP; general OAuth, recipient/scope enforcement and arbitrary content-channel validation remain incomplete. Guest images, administrators and privileged guest services remain trust inputs; the allocation quota does not constrain writes charged to other principals. A hosted lab PASS does not establish a protected provider or production session.
 
 ## Technical Details
 
@@ -59,3 +72,9 @@ Generated client configuration intentionally includes local executable and selec
 - Nonexecuting checks: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-ROUTE-CHECK.md
 - Connection status: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-STATUS.md
 - Explicit MCP client configuration: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-CONFIG.md
+- Validating stdio MCP gateway: https://github.com/antropos17/Aegis/blob/master/docs/MCP-STDIO-GATEWAY.md
+- Pinned HTTPS MCP profile: https://github.com/antropos17/Aegis/blob/master/docs/MCP-HTTPS-GATEWAY.md
+- Persistent grants: https://github.com/antropos17/Aegis/blob/master/docs/MCP-DURABLE-GRANTS.md
+- Known-secret policy: https://github.com/antropos17/Aegis/blob/master/docs/MCP-KNOWN-SECRETS.md
+- Experimental administrative guest contract: https://github.com/antropos17/Aegis/blob/master/docs/roadmap/enforcement-e2/protected-guest-start.md
+- Source-bound hosted guest evidence: https://github.com/antropos17/Aegis/blob/master/docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md
