@@ -170,7 +170,8 @@ publish or enable ETW. This optional run requires an interactive same-account UA
 decision; it never automates that decision or changes privileges/session ownership.
 
 The marked diagnostic build also requires an explicit local root argument. Its
-capture lasts at most 60 seconds after ready and remains diagnostic DEGRADED.
+runtime requests stop 60 seconds after ready on its two-second supervisor tick
+and remains diagnostic DEGRADED while capturing.
 The journey reads an owned synthetic 4 KiB file from ordinary Node, observes a
 Read candidate matching its header PID/path, checks bounded retention and scope
 exclusion, and observes health through the real preload bridge and Sensors view.
@@ -189,6 +190,15 @@ has a 15-second bound; timeout cannot count as acknowledged cleanup. Independent
 session absence, protected collector crash recovery, consent cancellation, actual
 sleep/wake, event-time attribution, complete read coverage and the remaining
 E1–E8 gates remain unqualified. This profile is not production ETW admission.
+
+The 2026-10-17 local run at `97f87429035a889470c0a4c8efe212bd494a9b46`
+passed the actual packaged scenario, including Sensors health and quit during
+capture. The published helper passed 61 self-tests. Final native EventsLost,
+RealTimeBuffersLost and LogBuffersLost, ingress/output drops and decoder errors
+were zero in this run; 157 mapping resets remained explicit. The Read path/header
+PID stayed candidate metadata with no agent/instance join or diagnostic audit
+admission. The first run failed in the Playwright evaluator before capture; its
+receipt was retained, and the CommonJS evaluator was verified before repeating.
 
 ### Other qualification
 

@@ -108,8 +108,8 @@ that build with the boolean `aegisEtwDiagnostic` metadata. The root flag remains
 mandatory. This is a mutable local diagnostic build, without production provenance
 or attribution admission. It does not change the default release profile.
 
-App diagnostics stop after 60 seconds from `ready`, excluding time spent awaiting
-UAC. Normal quit waits for the stopped acknowledgement and normal broker exit,
+App diagnostics request stop after 60 seconds from `ready` on the two-second
+supervisor tick, excluding time spent awaiting UAC. Normal quit waits for the stopped acknowledgement and normal broker exit,
 with a 15-second outer deadline. A timeout permits app exit and supplies no verified
 cleanup result; a pending Windows consent dialog is not dismissed. Candidate paths
 are cleared on stop; the bounded final counters/summary stay in main memory until
