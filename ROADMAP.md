@@ -131,10 +131,12 @@ The dependency is those observations, not the absence of a Windows host.
    [connected file backend](docs/roadmap/etw-file-backend.md) adds the fixed provider,
    bounded queues and naming maps, candidate process witnesses, lifecycle supervisor,
    explicit verified restart and optional Electron health wiring. Enabled only by a
-   development root flag; packaged capture stays gated. New live evidence confirms
+   explicit root flag; ordinary packaged capture stays gated. The separately
+   marked local diagnostic package supports bounded qualification. Historical live evidence confirms
    a scoped Read/header PID candidate and owned stop, with zero native losses but
-   substantial counted ingress drops. E4/E5 authoritative attribution, independent
-   cleanup/recovery and the remaining E3/E6–E8 live gates remain open.
+   substantial counted ingress drops. The initial smoke left E4/E5 attribution,
+   independent recovery and the remaining E3/E6–E8 live gates open; the later
+   issuer/recovery subset below has its own source-bound qualification.
    The [2026-09-11 burst follow-up](docs/roadmap/etw-burst-handling.md) moves process
    probes and serialization off the mapper. A controlled held-probe regression
    drains 8,192 additional reads without ingress loss. Its authorized live check

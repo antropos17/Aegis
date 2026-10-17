@@ -48,3 +48,13 @@ incorrect generation join. Actual preload health, visible Sensors failure, no
 automatic restart, bounded retention, content exclusion and observed helper exit
 are checked. This is a mutable diagnostic build and a bounded host scenario;
 warm mmap, Fast I/O, comprehensive coverage and all E1–E8 gates remain open.
+
+The 2026-10-17 [packaged evidence](../recon/evidence/etw-packaged-issuer-recovery.json)
+records PASS at `c4d4cf472c3f594d179d531830c5a046c16827c5`. Both captures observed
+160/160 pending overlapped operations and matching sync/async issuer witnesses.
+The controlled collector exited 70; the authenticated guard confirmed cleanup,
+the broker exited 4 and the next separate capture normally stopped with broker
+exit 0. Crash application-stage losses remain unknown. Native final loss counters
+were zero in both cases; main-ring evictions were 156 and 47 respectively. These
+are distinct accounting regions and do not establish complete capture. Earlier
+failed attempts are preserved in the evidence instead of being promoted to PASS.

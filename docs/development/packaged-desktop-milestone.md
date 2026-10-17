@@ -205,6 +205,11 @@ PID stayed candidate metadata with no agent/instance join or diagnostic audit
 admission. The first run failed in the Playwright evaluator before capture; its
 receipt was retained, and the CommonJS evaluator was verified before repeating.
 
+The [issuer/recovery follow-up](../roadmap/etw-issuer-recovery.md) records the later
+two-capture PASS, exact tested source, evidence hashes and retained failed attempts.
+Its Read issuer subset and original-handle guard cleanup do not close production
+path attribution, protected installation or all remaining ETW gates.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation

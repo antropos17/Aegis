@@ -3,8 +3,9 @@
 Development opt-in only. This is the first connected file producer, distinct from
 the frozen `etw-probe` measurements and the empty-session `etw-lifecycle` harness.
 It does not emit FileEvents, update risk/baselines/sequences, or
-persist paths. Packaged AEGIS refuses enablement until deployment and lifecycle
-gates are closed. No installer, service or default production buffer budget changes.
+persist paths. Ordinary packages refuse capture; the separately marked local
+diagnostic profile below permits bounded qualification before production gates
+close. No installer, service or default production buffer budget changes.
 
 Build on Windows x64 with .NET 10:
 
@@ -183,6 +184,10 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 ## Current evidence and limits
 
 See [backend implementation record](../../docs/roadmap/etw-file-backend.md).
+The [packaged issuer/recovery record](../../docs/recon/evidence/etw-packaged-issuer-recovery.json)
+binds the two-capture Windows PASS to `c4d4cf472c3f594d179d531830c5a046c16827c5`.
+Both actual pending-I/O cases, collector exit/guard recovery and subsequent normal
+stop passed; earlier failed attempts and the unresolved gates are retained there.
 The local C# build/formatter, self-tests and process checks are separate from the
 repository's five CI contexts, which do not build this new .NET project.
 The initial provider's narrow live smoke passed, including a scoped Read/header-PID
