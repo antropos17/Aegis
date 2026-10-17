@@ -18,7 +18,10 @@ function createSupervisor({
   mono = () => performance.now(),
   id = randomUUID,
   profileClock = process.hrtime.bigint,
+  maxCaptureMs = null,
 }) {
+  if (maxCaptureMs !== null && (!Number.isSafeInteger(maxCaptureMs) || maxCaptureMs <= 0))
+    throw new Error('etw-file:invalid-capture-limit');
   let current = null,
     child = null,
     timer = null,
@@ -40,6 +43,9 @@ function createSupervisor({
     failedAt = null;
   let stopReason = null;
   let capture = null;
+  let readyAt = null;
+  let completion = Promise.resolve(false),
+    resolveCompletion = null;
   let diagnostics = createDiagnostics(profileClock);
   let summaries = [],
     omittedSummaries = 0;
@@ -107,6 +113,7 @@ function createSupervisor({
     }
     if (message.t === 'ready') {
       receivedReady = true;
+      readyAt = mono();
       capture = structuredClone({
         buffers: message.data.buffers,
         frequency: message.data.frequency,
@@ -141,6 +148,13 @@ function createSupervisor({
     if (stopAt !== null && elapsed - stopAt > 10000) return fail('stop-unverified');
     if (current.phase === 'starting' && elapsed - startedAt > 130000) return fail('launch-failed');
     if (current.phase === 'running' && elapsed - receivedAt > 10000) return fail('lease-expired');
+    if (
+      stopAt === null &&
+      readyAt !== null &&
+      maxCaptureMs !== null &&
+      elapsed - readyAt >= maxCaptureMs
+    )
+      stop('duration-limit');
     if (current.phase === 'running' && stopAt === null) send('ping', {});
   }
   function finish(target, code) {
@@ -176,6 +190,8 @@ function createSupervisor({
     }
     child = null;
     clearRing();
+    resolveCompletion?.(current.phase === 'stopped' && code === 0);
+    resolveCompletion = null;
     if (restartRequested && !unsafe && !disposed) {
       restartRequested = false;
       start();
@@ -189,6 +205,7 @@ function createSupervisor({
     stopAt = null;
     stopReason = null;
     capture = null;
+    readyAt = null;
     sent = 0n;
     pendingWrite = false;
     receivedReady = false;
@@ -198,6 +215,7 @@ function createSupervisor({
     clearRing();
     startedAt = receivedAt = mono();
     closed = false;
+    completion = Promise.resolve(false);
     try {
       child = spawnBroker(current.launchId, current.sessionId);
     } catch {
@@ -205,6 +223,9 @@ function createSupervisor({
       closed = true;
       return false;
     }
+    completion = new Promise((resolve) => {
+      resolveCompletion = resolve;
+    });
     const target = child;
     decoder = wire.createFrameDecoder({
       ...current,
@@ -243,7 +264,11 @@ function createSupervisor({
     return true;
   }
   function stop(reason = 'operator-stop') {
-    if (!['operator-stop', 'pause', 'suspend', 'restart', 'shutdown'].includes(reason))
+    if (
+      !['operator-stop', 'pause', 'suspend', 'restart', 'shutdown', 'duration-limit'].includes(
+        reason,
+      )
+    )
       throw new Error('etw-file:invalid-stop-reason');
     restartRequested = false;
     clearRing();
@@ -270,7 +295,9 @@ function createSupervisor({
     dispose() {
       disposed = true;
       stop('shutdown');
+      return completion;
     },
+    isActive: () => child !== null && !closed,
     setUnavailable(state, detail) {
       idle = { ...idle, state, detail };
     },

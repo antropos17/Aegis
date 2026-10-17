@@ -9,6 +9,7 @@ import { boundedCommand } from './bounded-command.mjs';
 import { desktopPassed, monitoringPassed, sensorsPassed } from './desktop-contract.mjs';
 import { processCoreSources } from '../../tests/fixtures/protected-gui-process/harness.mjs';
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
+import { prepareEtwPackage, etwPassed } from './etw-package.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
@@ -17,11 +18,12 @@ const { values } = parseArgs({
     'source-sha': { type: 'string' },
     monitoring: { type: 'boolean', default: false },
     sensors: { type: 'boolean', default: false },
+    etw: { type: 'boolean', default: false },
   },
 });
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors]',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw]',
   );
 const output = path.resolve(values.output);
 if (
@@ -49,6 +51,11 @@ const env = {
   NODE_COMPILE_CACHE: path.join(output, 'node-cache'),
   CSC_IDENTITY_AUTO_DISCOVERY: 'false',
   HUSKY: '0',
+  DOTNET_CLI_HOME: path.join(output, 'cache/dotnet-home'),
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1',
+  DOTNET_NOLOGO: '1',
+  NUGET_PACKAGES: path.join(output, 'cache/nuget'),
+  NUGET_HTTP_CACHE_PATH: path.join(output, 'cache/nuget-http'),
 };
 delete env.ELECTRON_RUN_AS_NODE;
 const git = (...args) =>
@@ -72,8 +79,9 @@ const receipt = {
       ? 'monitoring-with-ordinary-current-user-and-playwright'
       : 'not-run',
     fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
+    etw: values.etw ? 'live-diagnostic-candidates-only' : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
-    uac: 'not-run',
+    uac: values.etw ? 'one-interactive-same-account-prompt' : 'not-run',
     guiEnrollment: false,
     realGuestProvider: 'not-run',
     elapsedThirtyMinuteExpiry: 'not-run',
@@ -135,6 +143,7 @@ try {
     [path.join(root, 'node_modules/electron/install.js')],
     240000,
   );
+  const etwConfig = values.etw ? await prepareEtwPackage(root, output, command) : null;
   await command(
     'package',
     process.execPath,
@@ -144,6 +153,7 @@ try {
       '--dir',
       '--publish',
       'never',
+      ...(etwConfig ? ['--config', etwConfig] : []),
       `-c.directories.output=${path.join(output, 'package')}`,
     ],
     300000,
@@ -245,6 +255,25 @@ try {
     receipt.sensors = JSON.parse(fs.readFileSync(sensorReceipt, 'utf8'));
     if (!sensorsPassed(receipt.sensors)) throw new Error('Packaged sensor scenario incomplete');
     receipt.sensorReceiptSha256 = hash(sensorReceipt);
+  }
+  if (values.etw) {
+    await command(
+      'etw',
+      process.execPath,
+      [
+        path.join(root, 'frontend/observatory/tests/etw-electron.mjs'),
+        '--executable',
+        path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
+        '--output',
+        path.join(output, 'etw'),
+      ],
+      210000,
+    );
+    const file = path.join(output, 'etw/receipt.json');
+    if (fs.statSync(file).size > 262144) throw new Error('ETW receipt too large');
+    receipt.etw = JSON.parse(fs.readFileSync(file));
+    if (!etwPassed(receipt.etw)) throw new Error('Packaged ETW diagnostic incomplete');
+    receipt.etwReceiptSha256 = hash(file);
   }
   if (
     hash(manifest) !== receipt.packageManifestSha256 ||
