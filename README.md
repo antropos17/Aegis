@@ -17,7 +17,7 @@
 > **Windows beta:** [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta), published 6 October 2026.
 > [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 >
-> **Current source version**: 0.19.2-beta <!-- x-release-please-version -->
+> **Current source version**: 0.20.0-beta <!-- x-release-please-version -->
 > This page includes later source work. Installed builds contain the features at their release tag.
 
 ## Capabilities at a glance
