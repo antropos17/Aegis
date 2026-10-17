@@ -39,7 +39,7 @@ const errors = [];
 
 async function diagnostics() {
   return app.evaluate(async ({ app }) => {
-    const { createRequire } = await import('node:module');
+    const { createRequire } = process.mainModule.require('node:module');
     return createRequire(app.getAppPath() + '/package.json')(
       './src/main/main.js',
     ).getEtwFileDiagnostics();
@@ -56,7 +56,7 @@ try {
   Object.assign(
     receipt,
     await app.evaluate(async ({ app, BrowserWindow }) => {
-      const { createRequire } = await import('node:module');
+      const { createRequire } = process.mainModule.require('node:module');
       const require = createRequire(app.getAppPath() + '/package.json');
       const w = BrowserWindow.getAllWindows()[0];
       w.setIgnoreMouseEvents(true);
@@ -138,7 +138,7 @@ try {
   const final = path.join(out, 'shutdown.json');
   // Observe the real owner at will-quit; do not inject records or replace the backend.
   await app.evaluate(async ({ app }, destination) => {
-    const { createRequire } = await import('node:module');
+    const { createRequire } = process.mainModule.require('node:module');
     const require = createRequire(app.getAppPath() + '/package.json');
     const main = require('./src/main/main.js');
     app.once('will-quit', () => {
