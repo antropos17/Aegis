@@ -23,6 +23,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
   const canary = 'AEGIS_ETW_CANARY_' + crypto.randomUUID();
   const locations = scenarioPaths(out, canary);
   const { file, fixture: root, profile, home, temp } = locations;
+  const final = path.join(out, 'shutdown.json');
   const env = { ...process.env, USERPROFILE: home, HOME: home, TEMP: temp, TMP: temp };
   delete env.ELECTRON_RUN_AS_NODE;
   const r = {
@@ -74,6 +75,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     );
     assert(r.packaged && r.diagnosticBuild && r.bundleSelfContained && r.windowInputIsolated);
     page = await app.firstWindow();
+    await observeQuit(app, final);
     page.on('pageerror', (error) => {
       if (errors.length < 20) errors.push(error.message);
     });
@@ -93,6 +95,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     observer = observe(app, fixture.child.pid, root, canary);
     for (const mode of ['sync', 'async']) {
       const native = await fixture.command(mode);
+      r[mode + 'Native'] = native;
       assert.equal(native.command, mode);
       assert.equal(native.birth, witness.birth);
       assert.equal(native.tid, witness.tid);
@@ -211,8 +214,6 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     observer = null;
     await fixture.close();
     r.fixtureExited = true;
-    const final = path.join(out, 'shutdown.json');
-    await observeQuit(app, final);
     const closed = app.waitForEvent('close', { timeout: 22000 });
     await page.getByRole('button', { name: 'Quit AEGIS', exact: true }).click();
     await page
@@ -247,7 +248,9 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     r.pageErrors = errors;
     process.exitCode = 1;
     if (app && appProcess?.exitCode === null) {
-      r.lastDiagnostics = await diagnostics(app).catch(() => null);
+      r.lastDiagnostics = await diagnostics(app)
+        .then((data) => ({ ...data, records: data.records.slice(-32) }))
+        .catch(() => null);
       await page
         ?.screenshot({ path: path.join(out, 'failure.png'), timeout: 5000 })
         .catch(() => {});
@@ -272,6 +275,9 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
       await exitWithin(appProcess).catch(() => {
         r.appCleanupUnconfirmed = true;
       });
+    }
+    if (r.status !== 'PASS' && fs.existsSync(final) && fs.statSync(final).size <= 262144) {
+      r.failureShutdown = JSON.parse(fs.readFileSync(final)).summaries.at(-1);
     }
     if (r.appCleanupUnconfirmed || r.fixtureCleanupUnconfirmed || r.observerFailure) {
       r.status = 'FAIL';

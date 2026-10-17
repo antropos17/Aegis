@@ -25,11 +25,11 @@ function attributeDiagnostics(snapshot, agents, health) {
           row.createTime100ns === record.generationWitness &&
           row.instanceIdSource === 'os' &&
           row.instanceId === `${row.pid}:${epochMs}` &&
-          typeof row.name === 'string' &&
-          row.name.length > 0,
+          typeof row.agent === 'string' &&
+          row.agent.length > 0,
       );
       return matches.length === 1
-        ? { ...record, agent: matches[0].name, instanceId: matches[0].instanceId }
+        ? { ...record, agent: matches[0].agent, instanceId: matches[0].instanceId }
         : unlabelled;
     }),
   };

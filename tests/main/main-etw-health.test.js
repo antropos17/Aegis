@@ -38,7 +38,7 @@ describe('ETW leaf in the actual application composer', () => {
     h.main._setLatestAgentsForTest([
       {
         pid: 71,
-        name: 'Aider',
+        agent: 'Aider',
         createTime100ns: '134333333333333337',
         instanceId: '71:1788859733333',
         instanceIdSource: 'os',

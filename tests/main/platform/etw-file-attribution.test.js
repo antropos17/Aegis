@@ -16,7 +16,7 @@ const record = () =>
   });
 const agent = () => ({
   pid: 71,
-  name: 'Aider',
+  agent: 'Aider',
   createTime100ns: witness,
   instanceId: '71:1788859733333',
   instanceIdSource: 'os',
@@ -41,6 +41,7 @@ describe('ETW diagnostic issuer labels', () => {
     for (const rows of [
       [{ ...agent(), createTime100ns: '134333333333333338' }],
       [{ ...agent(), createTime100ns: null }],
+      [{ ...agent(), agent: undefined, name: 'aider.exe' }],
       [agent(), agent()],
     ])
       expect(apply(record(), rows).agent).toBeNull();
