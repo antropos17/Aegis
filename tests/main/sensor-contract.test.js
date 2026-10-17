@@ -34,6 +34,7 @@ const fixture = () => {
     filesVisible: true,
     networkVisible: true,
     networkClearedVisible: true,
+    networkClosedWhileAlive: true,
     fixtureExited: true,
     closureConfirmed: true,
     contentExcluded: true,
@@ -112,6 +113,9 @@ it('requires both native sockets, file lifecycle, honest ownership and durable a
     },
     (r) => {
       r.networkClearedVisible = false;
+    },
+    (r) => {
+      r.networkClosedWhileAlive = false;
     },
     (r) => {
       r.contentExcluded = false;

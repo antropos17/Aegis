@@ -135,7 +135,7 @@ cleared current network table, then observes the fixture's exit.
 
 The journey checks visible file/network evidence and retained audit metadata,
 including the create/delete/recreate order and both socket identities. Synthetic
-held-file content contains a random canary; its presence in actual sensor
+file content contains a random canary; its presence in actual sensor
 deliveries or the closed retained profile fails the run. Profile inspection is
 bounded to 64 MiB total and 16 MiB per file. This covers a controlled content
 exclusion check, without establishing every possible export or provider path.

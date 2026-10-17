@@ -123,6 +123,7 @@ export function sensorsPassed(r) {
     r.filesVisible === true &&
     r.networkVisible === true &&
     r.networkClearedVisible === true &&
+    r.networkClosedWhileAlive === true &&
     r.fixtureExited === true &&
     r.closureConfirmed === true &&
     r.contentExcluded === true &&

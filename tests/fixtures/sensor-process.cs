@@ -40,11 +40,12 @@ internal static class SensorProcess
                     held.ReadByte(); envHeld.ReadByte();
                     Console.WriteLine("{\"ready\":true,\"ports\":[" + ((IPEndPoint)first.Client.LocalEndPoint).Port + "," + ((IPEndPoint)second.Client.LocalEndPoint).Port + "],\"loopbackPort\":" + ((IPEndPoint)listener.LocalEndpoint).Port + "}");
                     var file = Path.Combine(args[0], ".env.sensor-events");
+                    var content = File.ReadAllText(Path.Combine(args[0], ".env.sensor-held"));
                     string command;
                     while ((command = Console.ReadLine()) != null && command != "stop")
                     {
-                        if (command == "create") File.WriteAllText(file, "fixture-created");
-                        else if (command == "modify") File.AppendAllText(file, "fixture-modified");
+                        if (command == "create") File.WriteAllText(file, content);
+                        else if (command == "modify") File.AppendAllText(file, content);
                         else if (command == "delete") File.Delete(file);
                         else if (command == "close-network") { first.Close(); second.Close(); }
                         else return 1;

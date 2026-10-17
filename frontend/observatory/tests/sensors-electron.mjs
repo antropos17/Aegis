@@ -188,14 +188,13 @@ try {
   const context = page.getByRole('region', { name: 'Selected agent context', exact: true });
   await context.getByLabel('Selected agent', { exact: true }).selectOption('Aider');
   await context.getByLabel('Selected process', { exact: true }).selectOption(receipt.instanceId);
-  await page.getByLabel('Grouping', { exact: true }).selectOption('none');
-  await page.getByRole('button', { name: 'Show latest', exact: true }).click();
-  const connections = page.locator('tbody tr').filter({ hasText: 'Aider' });
-  await page.waitForFunction(
-    () =>
-      [...document.querySelectorAll('tbody tr')].filter((row) => row.textContent.includes('Aider'))
-        .length === 2,
-  );
+  const networkPanel = page.getByRole('region', { name: 'Network', exact: true });
+  await networkPanel.getByRole('combobox', { name: 'Grouping', exact: true }).selectOption('none');
+  const networkTable = networkPanel.locator('.observation-table:visible');
+  const showLatest = networkTable.getByRole('button', { name: 'Show latest', exact: true });
+  if (await showLatest.isEnabled()) await showLatest.click();
+  const connections = networkTable.locator('tbody tr').filter({ hasText: 'Aider' });
+  await connections.nth(1).waitFor({ timeout: 10000 });
   assert.equal(await connections.count(), 2);
   assert((await connections.allTextContents()).every((text) => text.includes('PID confirmed')));
   await page.screenshot({ path: path.join(out, 'network.png') });
@@ -211,8 +210,10 @@ try {
     (at) => window.__sensorProbe.network.find((row) => row.at > at && row.rows.length === 0),
     receipt.networkClosedAt,
   );
-  await page.getByRole('button', { name: 'Show latest', exact: true }).click();
-  await page.getByText('No records match these filters.', { exact: true }).waitFor();
+  assert.equal(fixture.exitCode, null, 'Fixture exited before socket closure was observed');
+  receipt.networkClosedWhileAlive = true;
+  if (await showLatest.isEnabled()) await showLatest.click();
+  await networkTable.getByText('No records match these filters.', { exact: true }).waitFor();
   receipt.networkClearedVisible = true;
   fixture.stdin.end();
   assert.equal(await exitWithin(fixture), 0);
