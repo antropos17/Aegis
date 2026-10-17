@@ -1,6 +1,7 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { installShims, createHarness } from './helpers/health-umbrella-harness.js';
 import supervisor from '../../src/main/platform/etw-file-supervisor.js';
+import { observation } from './platform/etw-file-fixtures.js';
 
 const shims = installShims();
 let h;
@@ -10,6 +11,48 @@ afterEach(async () => {
   await h?.tearDown();
 });
 describe('ETW leaf in the actual application composer', () => {
+  it('labels a verified issuer only in main diagnostics while stats and audit stay metadata-only', async () => {
+    h = createHarness(shims);
+    await h.bringUp();
+    const before = h.auditTypes();
+    const sensor = supervisor.createSupervisor({
+      spawnBroker: () => {
+        throw new Error('must-not-launch');
+      },
+    });
+    const raw = observation({
+      qpc: '110',
+      headerPid: 4,
+      issuerStatus: 'verified',
+      issuerPid: 71,
+      issuerInterval: { fromQpc: '100', toQpc: '120' },
+      generationStatus: 'verified',
+      generationWitness: '134333333333333337',
+      generationSource: 'createTime100ns',
+      generationInterval: { fromQpc: '115', toQpc: '120' },
+    });
+    h.main._setEtwFileForTest({
+      getHealth: sensor.getHealth,
+      getDiagnostics: () => ({ records: [raw] }),
+    });
+    h.main._setLatestAgentsForTest([
+      {
+        pid: 71,
+        agent: 'Aider',
+        createTime100ns: '134333333333333337',
+        instanceId: '71:1788859733333',
+        instanceIdSource: 'os',
+      },
+    ]);
+    expect(h.main.getEtwFileDiagnostics().records[0]).toMatchObject({
+      agent: 'Aider',
+      instanceId: '71:1788859733333',
+    });
+    expect(h.stats()).not.toHaveProperty('etwObservations');
+    expect(h.auditTypes()).toEqual(before);
+    expect(raw.agent).toBeNull();
+    sensor.dispose();
+  });
   it('includes the optional disabled sensor without reducing process coverage', async () => {
     h = createHarness(shims);
     await h.bringUp();

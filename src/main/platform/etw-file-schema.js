@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/5';
+const PROTOCOL = 'etw-file/6';
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
 const MAX_DEPTH = 16;
@@ -14,6 +14,7 @@ const ERROR_CODES = Object.freeze([
   'stop-unverified',
   'stream-ended',
   'consumer-failed',
+  'collector-exited',
 ]);
 const REASONS = Object.freeze([
   'mapping-uncertain',
@@ -196,8 +197,10 @@ const observationShape = shape({
     'conflict',
     'unresolved',
   ),
-  issuerStatus: oneOf('candidate', 'unresolved'),
-  generationStatus: oneOf('candidate', 'unresolved'),
+  issuerStatus: oneOf('candidate', 'unresolved', 'verified'),
+  issuerPid: nullable(uint32),
+  issuerInterval: nullable(intervalOrdered),
+  generationStatus: oneOf('candidate', 'unresolved', 'verified'),
   generationWitness: nullable(positive64),
   generationSource: nullable(oneOf('createTime100ns', 'sequence')),
   generationInterval: nullable(intervalOrdered),
@@ -209,6 +212,22 @@ const observation = (v) =>
   SCHEMAS.includes(`${v.eventId}:${v.version}`) &&
   (v.path === null) === ['conflict', 'unresolved'].includes(v.pathEvidence) &&
   (v.pathEvidence !== 'observed-name' || [10, 12].includes(v.eventId)) &&
+  (v.issuerStatus === 'verified'
+    ? v.eventId === 15 &&
+      v.version === 1 &&
+      v.issuingTid > 0 &&
+      v.issuingTid < 0xffffffff &&
+      v.issuerPid > 0 &&
+      v.issuerPid < 0xffffffff &&
+      v.issuerInterval !== null &&
+      BigInt(v.issuerInterval.fromQpc) < BigInt(v.qpc) &&
+      BigInt(v.qpc) <= BigInt(v.issuerInterval.toQpc) &&
+      v.generationStatus === 'verified' &&
+      v.generationSource === 'createTime100ns' &&
+      v.generationInterval !== null &&
+      BigInt(v.qpc) <= BigInt(v.generationInterval.fromQpc) &&
+      BigInt(v.generationInterval.toQpc) <= BigInt(v.issuerInterval.toQpc)
+    : v.issuerPid === null && v.issuerInterval === null && v.generationStatus !== 'verified') &&
   (v.generationStatus === 'unresolved'
     ? v.generationWitness === null && v.generationSource === null && v.generationInterval === null
     : v.generationWitness !== null && v.generationSource !== null && v.generationInterval !== null);
@@ -239,6 +258,15 @@ const messageData = {
     telemetry,
   }),
   error: shape({ requestId: nullable(id), code: oneOf(...ERROR_CODES) }),
+  recovered: shape({
+    cause: oneOf('collector-exited'),
+    stopped: oneOf(true),
+    absent: oneOf(true),
+    counters: counts,
+    finalTotals: oneOf(null),
+    observationGap: oneOf(true),
+    collectorExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
+  }),
 };
 
 /** Validate the closed envelope and its message-specific payload.
@@ -258,6 +286,14 @@ function validEnvelope(message) {
   return valid(message);
 }
 
+/** Check the complete native issuer proof before a main-only agent label join.
+ * @param {Object} value Unmodified collector observation.
+ * @returns {boolean} Whether the held-thread/generation contract is valid. @since v0.19.2
+ */
+function verifiedIssuer(value) {
+  return observation(value) && value.issuerStatus === 'verified';
+}
+
 module.exports = {
   PROTOCOL,
   PROFILE,
@@ -267,4 +303,5 @@ module.exports = {
   ERROR_CODES,
   id,
   validEnvelope,
+  verifiedIssuer,
 };

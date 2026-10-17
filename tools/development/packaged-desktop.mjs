@@ -9,7 +9,7 @@ import { boundedCommand } from './bounded-command.mjs';
 import { desktopPassed, monitoringPassed, sensorsPassed } from './desktop-contract.mjs';
 import { processCoreSources } from '../../tests/fixtures/protected-gui-process/harness.mjs';
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
-import { prepareEtwPackage, etwPassed } from './etw-package.mjs';
+import { prepareEtwPackage, etwRecoveryPassed } from './etw-package.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
@@ -81,7 +81,7 @@ const receipt = {
     fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
     etw: values.etw ? 'live-diagnostic-candidates-only' : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
-    uac: values.etw ? 'one-interactive-same-account-prompt' : 'not-run',
+    uac: values.etw ? 'two-planned-interactive-same-account-captures' : 'not-run',
     guiEnrollment: false,
     realGuestProvider: 'not-run',
     elapsedThirtyMinuteExpiry: 'not-run',
@@ -267,12 +267,13 @@ try {
         '--output',
         path.join(output, 'etw'),
       ],
-      210000,
+      420000,
     );
     const file = path.join(output, 'etw/receipt.json');
     if (fs.statSync(file).size > 262144) throw new Error('ETW receipt too large');
     receipt.etw = JSON.parse(fs.readFileSync(file));
-    if (!etwPassed(receipt.etw)) throw new Error('Packaged ETW diagnostic incomplete');
+    if (!etwRecoveryPassed(receipt.etw))
+      throw new Error('Packaged ETW attribution/recovery incomplete');
     receipt.etwReceiptSha256 = hash(file);
   }
   if (

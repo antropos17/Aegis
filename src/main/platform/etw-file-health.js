@@ -165,7 +165,12 @@ function reduceSession(state, message, now) {
   validateMessage(message, state);
   if (['start', 'stop', 'ping'].includes(message.t)) error('wrong-direction');
   if (BigInt(message.seq) <= BigInt(state.lastSeq)) error('sequence-replayed');
-  if (state.phase === 'failed' || state.phase === 'stopped') error('session-terminal');
+  if (
+    state.phase === 'stopped' ||
+    state.phase === 'recovered' ||
+    (state.phase === 'failed' && message.t !== 'recovered')
+  )
+    error('session-terminal');
   if (message.t === 'hello' && (state.helloSeen || state.lastSeq !== '0'))
     error('unexpected-hello');
   if (message.t !== 'hello' && message.t !== 'error' && !state.helloSeen) error('hello-required');
@@ -207,6 +212,39 @@ function reduceSession(state, message, now) {
         return failSession(next, now, 'stop-unverified');
       if (next.phase === 'failed') return next;
       return { ...next, phase: 'stopped' };
+    }
+    case 'recovered': {
+      const counters = message.data.counters;
+      const maxima = { ...next.maxima };
+      for (const key of NATIVE) {
+        const value = counters.queryStatus === 0 ? counters[key] : null;
+        if (value !== null && BigInt(value) > BigInt(maxima[key])) maxima[key] = value;
+      }
+      const losses = BigInt(maxima.eventsLost);
+      const reasons = [
+        ...new Set([
+          ...next.reasons,
+          'collector-exited',
+          'recovery-verified',
+          'stage-loss-unmeasured',
+          ...(counters.queryStatus === 0 && NATIVE.every((k) => counters[k] !== null)
+            ? []
+            : ['unmeasured-interval']),
+        ]),
+      ];
+      return {
+        ...next,
+        phase: 'recovered',
+        recovery: structuredClone(message.data),
+        latest: null,
+        maxima,
+        reasons,
+        record: health.markFailed(
+          { ...next.record, lossCount: Number(losses > MAX_SAFE ? MAX_SAFE : losses) },
+          now,
+          { error: 'collector-exited', detail: detail(reasons) },
+        ),
+      };
     }
     case 'error':
       return failSession(next, now, message.data.code);

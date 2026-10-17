@@ -8,6 +8,31 @@ function decoder(onMessage = () => {}) {
 }
 
 describe('offline ETW envelope', () => {
+  it('accepts only a held issuer interval bracketing the event and a fresh generation query', () => {
+    const verified = observation({
+      qpc: '110',
+      headerPid: 4,
+      issuerStatus: 'verified',
+      issuerPid: 71,
+      issuerInterval: { fromQpc: '100', toQpc: '120' },
+      generationStatus: 'verified',
+      generationWitness: '134333333333333337',
+      generationSource: 'createTime100ns',
+      generationInterval: { fromQpc: '115', toQpc: '120' },
+    });
+    const frame = (row) => message('observations', '3', { records: [row] });
+    expect(validateMessage(frame(verified))).toBeTruthy();
+    for (const patch of [
+      { issuerInterval: { fromQpc: '110', toQpc: '120' } },
+      { issuerPid: null },
+      { issuingTid: null },
+      { generationInterval: { fromQpc: '90', toQpc: '120' } },
+      { generationStatus: 'candidate' },
+      { generationWitness: null },
+      { agent: 'invented' },
+    ])
+      expect(() => validateMessage(frame({ ...verified, ...patch }))).toThrow();
+  });
   it.each([
     'hello',
     'start',
@@ -18,6 +43,7 @@ describe('offline ETW envelope', () => {
     'stop',
     'stopped',
     'error',
+    'recovered',
   ])('accepts the closed %s contract', (t) => {
     const frames = [];
     decoder((m) => {
@@ -49,7 +75,8 @@ describe('offline ETW envelope', () => {
   it.each([
     { proto: 'etw-file/1' },
     { proto: 'etw-file/4' },
-    { proto: 'etw-file/6' },
+    { proto: 'etw-file/5' },
+    { proto: 'etw-file/7' },
     { sessionId: '' },
     { launchId: 'x'.repeat(65) },
     { t: '__proto__' },
