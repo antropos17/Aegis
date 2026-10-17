@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { matchingRead } from '../../frontend/observatory/tests/etw-support.mjs';
 
 /** Publish the existing pinned helper as a self-contained folder for one diagnostic build.
  * The normal packaging profile has no SDK or ETW dependency. No single-file extraction
@@ -94,5 +95,44 @@ export function etwPassed(r) {
     ].every((key) => decimal(t[key])) &&
     BigInt(t.ingressDropped) + BigInt(t.outputDropped) === BigInt(t.dropped) &&
     BigInt(t.outputOverflowDropped) + BigInt(t.outputInvalidatedDropped) === BigInt(t.outputDropped)
+  );
+}
+
+/** Require actual pending I/O, full issuer witnesses, crash cleanup and a fresh capture.
+ * @param {object} r Root private two-capture receipt. @returns {boolean} @since v0.19.2
+ */
+export function etwRecoveryPassed(r) {
+  const crash = r?.crash,
+    normal = r?.normal,
+    summary = crash?.summary;
+  const proof = (scenario, mode) => {
+    const p = scenario?.[mode + 'Proof'];
+    return (
+      p &&
+      p.native?.reads === 160 &&
+      (mode !== 'async' || p.native.pending > 0) &&
+      matchingRead([p.record], p.native) !== undefined
+    );
+  };
+  return Boolean(
+    r?.status === 'PASS' &&
+    r.productionAdmission === false &&
+    r.newSessionAfterRecovery === true &&
+    etwPassed(normal) &&
+    crash?.status === 'PASS' &&
+    crash.closureConfirmed === true &&
+    crash.failureVisible === true &&
+    crash.guardClosureConfirmed === true &&
+    crash.noAutomaticRestart === true &&
+    crash.rapidExitNoWrongGeneration === true &&
+    crash.rapidExitUnresolved === true &&
+    crash.rapidExitObserved > 0 &&
+    summary?.recoveryVerified === true &&
+    summary.stopVerified === false &&
+    summary.exitCode === 4 &&
+    summary.collectorExit === 70 &&
+    summary.finalTotals === null &&
+    summary.observationGap === true &&
+    ['sync', 'async'].every((mode) => proof(crash, mode) && proof(normal, mode)),
   );
 }

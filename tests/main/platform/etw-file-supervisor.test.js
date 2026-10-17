@@ -80,6 +80,58 @@ function harness(options = {}) {
 }
 
 describe('ETW diagnostic supervisor', () => {
+  it('publishes health transitions promptly without a per-observation stats storm', () => {
+    const onHealthChange = vi.fn();
+    const h = harness({ onHealthChange });
+    const child = h.running();
+    expect(onHealthChange).toHaveBeenCalledTimes(2);
+    child.message('observations', 3);
+    child.message('observations', 4, { records: [observation({ eventSeq: '2' })] });
+    expect(onHealthChange).toHaveBeenCalledTimes(2);
+    child.message('recovered', 5);
+    expect(onHealthChange).toHaveBeenCalledTimes(3);
+  });
+  it('permits explicit retry only after an authenticated recovery terminal AND broker exit 4', () => {
+    const h = harness();
+    const child = h.running();
+    child.message('recovered', 3);
+    expect(h.sensor.getHealth().state).toBe('FAILED');
+    expect(h.sensor.start()).toBe(false);
+    child.stdout.emit('end');
+    child.emit('close', 4);
+    const summary = h.sensor.getDiagnostics().summaries[0];
+    expect(summary.recoveryVerified).toBe(true);
+    expect(summary.stopVerified).toBe(false);
+    expect(summary.finalTotals).toBeNull();
+    expect(summary.observationGap).toBe(true);
+    expect(h.spawnBroker).toHaveBeenCalledOnce();
+    expect(h.sensor.getDiagnostics().restartBlocked).toBe(false);
+    expect(h.sensor.restart()).toBe(true);
+  });
+  it('cannot infer cleanup from exit code 4 alone or a failed broker after a recovery frame', () => {
+    for (const terminal of [false, true]) {
+      const h = harness();
+      const child = h.running();
+      if (terminal) child.message('recovered', 3);
+      child.stdout.emit('end');
+      child.emit('close', terminal ? 2 : 4);
+      expect(h.sensor.getDiagnostics().summaries[0].recoveryVerified).toBe(false);
+      expect(h.sensor.start()).toBe(false);
+    }
+  });
+  it('reports failed cleanup when the broker exits nonzero after a stopped acknowledgement', async () => {
+    const h = harness();
+    const child = h.running();
+    const completion = h.sensor.dispose();
+    child.flush();
+    const data = message('stopped').data;
+    data.requestId = child.writes.at(-1).data.requestId;
+    child.message('stopped', 3, data);
+    child.emit('close', 2);
+    expect(await completion).toBe(false);
+    expect(h.sensor.getHealth().state).toBe('FAILED');
+    expect(h.sensor.getDiagnostics().summaries[0].stopVerified).toBe(false);
+  });
   it('waits for acknowledged stop AND broker closure during application shutdown', async () => {
     const h = harness();
     const child = h.running();
@@ -357,6 +409,48 @@ describe('ETW backend runtime gate', () => {
       'C:\\fixture',
     ]);
     expect(sensor.getHealth().lastError).toBe('launch-failed');
+  });
+  it.each([
+    { app: { isPackaged: false } },
+    { argv: ['--etw-file-diagnostic-root=C:\\fixture', '--etw-file-diagnostic-fault=unknown'] },
+    {
+      argv: [
+        '--etw-file-diagnostic-root=C:\\fixture',
+        '--etw-file-diagnostic-fault=collector-exit',
+        '--etw-file-diagnostic-fault=collector-exit',
+      ],
+    },
+  ])('rejects an unauthorized diagnostic crash mode (%j)', (options) => {
+    const { sensor, spawnProcess } = make({
+      app: { isPackaged: true },
+      packageMetadata: { aegisEtwDiagnostic: true },
+      resourcesPath: 'C:\\candidate\\resources',
+      argv: [
+        '--etw-file-diagnostic-root=C:\\fixture',
+        '--etw-file-diagnostic-fault=collector-exit',
+      ],
+      ...options,
+    });
+    expect(sensor.start()).toBe(false);
+    expect(spawnProcess).not.toHaveBeenCalled();
+    expect(sensor.getHealth().state).toBe('FAILED');
+  });
+  it('selects the fixed crash check only in a marked explicit diagnostic package', () => {
+    const spawnProcess = vi.fn(() => {
+      throw new Error('test launch failure');
+    });
+    const { sensor } = make({
+      app: { isPackaged: true },
+      packageMetadata: { aegisEtwDiagnostic: true },
+      resourcesPath: 'C:\\candidate\\resources',
+      argv: [
+        '--etw-file-diagnostic-root=C:\\fixture',
+        '--etw-file-diagnostic-fault=collector-exit',
+      ],
+      spawnProcess,
+    });
+    sensor.start();
+    expect(spawnProcess.mock.calls[0][1][0]).toBe('broker-crash-check');
   });
   it('does not auto-launch on resume or unpause; removes power listeners', () => {
     const { sensor, powerMonitor, spawnProcess } = make({

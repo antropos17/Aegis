@@ -2,7 +2,7 @@
 
 Development opt-in only. This is the first connected file producer, distinct from
 the frozen `etw-probe` measurements and the empty-session `etw-lifecycle` harness.
-It does not emit FileEvents, identify agents, update risk/baselines/sequences, or
+It does not emit FileEvents, update risk/baselines/sequences, or
 persist paths. Packaged AEGIS refuses enablement until deployment and lifecycle
 gates are closed. No installer, service or default production buffer budget changes.
 
@@ -25,10 +25,10 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/5`. Each telemetry sample includes
+The matching main/helper now require `etw-file/6`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–4 are rejected; rebuild the helper together with the main reader.
+Versions 1–5 are rejected; rebuild the helper together with the main reader.
 Collector telemetry also requires bounded elapsed-time aggregates and separate
 ingress/output queue depths. Ended reports retain collector and main measurements;
 see [service measurements](../../docs/roadmap/etw-service-timings.md) for clock regions,
@@ -98,7 +98,8 @@ in the main-process runtime's bounded `getDiagnostics()` ring. No renderer IPC w
 added. Pause, suspend and quit request stop and erase the ring. Resume/unpause never
 automatically prompt for UAC. The internal runtime supports explicit restart after
 verified stop and child exit; a new app invocation is currently the user-facing
-way to start another capture. The separately owned frontend is unchanged.
+way to start another capture. A verified guard recovery and broker exit 4 also
+allow an explicit new capture; a failed capture never automatically restarts.
 
 An ordinary package still refuses capture, including when the root flag is present.
 For a local packaged diagnostic use the optional `--etw` qualification profile in
@@ -165,13 +166,13 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
   Reads with unresolved paths are sampled at up to ten per second of receipt time;
   omitted samples contribute to `filtered`, separately from overflow `dropped`.
   This sample is not an activity count. Selected-path candidates are not sampled.
-- Header PID and issuing TID remain candidates. At most 100 fresh limited-query
-  process handle probes per second retain full creation FILETIME and the actual
-  QPC observation interval, without caching birth time. Probes happen when output
-  is consumed; queued or dropped records do not trigger a probe. A native/ingress
-  loss invalidation during a probe discards and counts the in-flight record too.
-  This later observation
-  cannot prove the earlier event issuer; agent and instanceId remain null.
+- Header PID remains metadata. Read v1 issuing-thread proof requires an original
+  held live thread/process pair acquired strictly before the event QPC and a fresh
+  full process creation FILETIME query while both objects remain live. At most 128
+  pairs survive for 30 seconds; no birth time is cached. First or delayed events
+  outside that interval remain unverified. Main labels a diagnostic copy only on
+  an exact full-FILETIME match to a reliable current annotated population. Path
+  correlation remains candidate evidence. See [issuer and recovery contract](../../docs/roadmap/etw-issuer-recovery.md).
 - Main retains at most 256 diagnostic records / 1 MiB including UTF-16 storage
   estimates. Eviction has its own counter. Stop/failure clears this ring. At most
   32 ended summaries retain reasons, loss maxima, ready clock/buffers, final sampled
@@ -188,7 +189,11 @@ The initial provider's narrow live smoke passed, including a scoped Read/header-
 candidate and owned stop. Its application queues dropped 12,061 of 88,772 events despite
 zero native ETW losses; this is a degraded diagnostic backend, not loss-free capture.
 The aggregate retains all earlier attempts, including the failed first one. Independent
-absence witnessing and protected collector-crash recovery remain unfinished.
+absence witnessing and protected installation remain incomplete. The authenticated
+guard now carries the original session handle/GUID for bounded collector-crash
+cleanup, with independent handle queries and a separate broker receipt. Recovery
+retains FAILED health, unknown application-stage losses and an observation gap.
+Pre-arm crash and simultaneous collector/guard loss remain unqualified.
 Warm mmap, Fast I/O and the remaining B1/E4–E8 coverage questions remain open.
 
 The 2026-09-11 [burst-handling follow-up](../../docs/roadmap/etw-burst-handling.md)

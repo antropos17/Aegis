@@ -157,7 +157,11 @@ The dependency is those observations, not the absence of a Windows host.
    now replaces polling with queue/lifecycle/deadline signals while preserving drain
    bounds. Its live run recorded 40 empty waits and 50,246 output overflow drops.
    Overflow remains; differing burst rates prevent a causal throughput claim.
-   Next measure burst-interval arrival/drain rates, wake latency and broker forwarding.
+   The [issuer/recovery follow-up](docs/roadmap/etw-issuer-recovery.md) adds held
+   thread/process interval proof with fresh full FILETIME joins, an authenticated
+   original-handle cleanup guard and a two-capture packaged qualification. This
+   narrows E4 and collector-crash cleanup; production/path admission, pre-arm and
+   simultaneous guard/collector crash, actual reuse and sleep/wake remain open.
 
 ## C — existing rules coverage
 

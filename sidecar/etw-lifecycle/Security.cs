@@ -126,10 +126,16 @@ internal static class Security
 
     internal static void Verify(PipeStream pipe, Process expected, ulong birth, bool serverEnd, bool elevated)
     {
+        if (expected.HasExited) throw new UnauthorizedAccessException();
+        Verify(pipe, expected.SafeHandle, expected.Id, birth, serverEnd, elevated);
+    }
+
+    internal static void Verify(PipeStream pipe, SafeProcessHandle expected, int expectedPid, ulong birth, bool serverEnd, bool elevated)
+    {
         bool ok = serverEnd ? GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var pid)
             : GetNamedPipeServerProcessId(pipe.SafePipeHandle, out pid);
-        if (!ok || pid != expected.Id) throw new UnauthorizedAccessException();
-        var actual = Observe(expected); var self = Current();
+        if (!ok || pid != expectedPid) throw new UnauthorizedAccessException();
+        var actual = Observe(expected, expectedPid); var self = Current();
         if (actual.Birth != birth || actual.User != self.User || actual.Logon != self.Logon || actual.Elevated != elevated ||
             !actual.Image.Equals(Program.Executable, StringComparison.OrdinalIgnoreCase)) throw new UnauthorizedAccessException();
     }

@@ -6,16 +6,21 @@ internal static class FileBroker
 {
     internal static async Task<int> Run(string[] args)
     {
-        bool live = args[0] == "broker";
+        bool live = args[0] is "broker" or "broker-crash-check";
         if (Security.Current().Elevated || !FileWire.Id(args[1]) || !FileWire.Id(args[2])) return 3;
         var scope = new FileScope(args[3]); // Validate before any UAC request.
         string pipeId = Guid.NewGuid().ToString("N");
         using var pipe = Security.Server(pipeId);
+        string recoveryId = Guid.NewGuid().ToString("N");
+        using var recoveryPipe = live ? Security.Server(recoveryId) : null;
         if (!Security.RestrictedAcl(pipe)) return 3;
+        if (recoveryPipe != null && !Security.RestrictedAcl(recoveryPipe)) return 3;
         var self = Security.Current();
-        string collector = live ? "collector" : args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
+        string collector = live ? args[0] == "broker-crash-check" ? "crash-collector" : "collector" :
+            args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
         var info = Program.Child(collector, args[1], args[2], pipeId,
             self.Pid.ToString(), self.Birth.ToString(), scope.Root, FileWire.Profile);
+        if (live) info.ArgumentList.Add(recoveryId);
         if (live)
         {
             info.UseShellExecute = true; info.Verb = "runas"; info.WindowStyle = ProcessWindowStyle.Hidden;
@@ -27,12 +32,27 @@ internal static class FileBroker
         using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         using var expire = startup.Token.Register(() => pipe.Dispose());
         using var child = Process.Start(info) ?? throw new InvalidOperationException();
+        using var recoveryLifetime = new CancellationTokenSource();
+        FileGuardPeer? guard = null;
+        Task<FileGuardResult>? recovery = null;
         try
         {
             var identity = Security.Observe(child);
             await pipe.WaitForConnectionAsync(startup.Token);
             Security.Verify(pipe, child, identity.Birth, true, live);
             startup.CancelAfter(Timeout.InfiniteTimeSpan);
+            if (recoveryPipe != null)
+            {
+                using var connect = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                var hello = await FileGuardWire.Read<FileGuardHello>(pipe, connect.Token);
+                if (hello.pid <= 0 || !ulong.TryParse(hello.birth, out ulong birth) || birth == 0 || birth.ToString() != hello.birth)
+                    throw new InvalidDataException();
+                guard = new FileGuardPeer(hello.pid);
+                await recoveryPipe.WaitForConnectionAsync(connect.Token);
+                guard.Verify(recoveryPipe, birth);
+                recovery = FileGuardWire.Read<FileGuardResult>(recoveryPipe, recoveryLifetime.Token);
+                await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
+            }
             var read = new FileWire(args[1], args[2]);
             var controls = new FileWire(args[1], args[2]);
             int terminalObserved = 0;
@@ -44,12 +64,38 @@ internal static class FileBroker
             var outbound = Task.Run(async () =>
             {
                 var performance = new FileForwardProfile();
-                while (true)
+                try
                 {
-                    var frame = await read.ReadFrame(pipe, false, lifetime.Token);
-                    if (frame.Message.t == "stopped") Volatile.Write(ref terminalObserved, 1);
-                    await performance.Forward(output, frame, lifetime.Token);
-                    if (frame.Message.t == "stopped") return;
+                    while (true)
+                    {
+                        var frame = await read.ReadFrame(pipe, false, lifetime.Token);
+                        if (frame.Message.t == "stopped") Volatile.Write(ref terminalObserved, 1);
+                        await performance.Forward(output, frame, lifetime.Token);
+                        if (frame.Message.t == "stopped") return;
+                    }
+                }
+                catch when (live && Volatile.Read(ref terminalObserved) == 0 && recovery != null && guard != null)
+                {
+                    Volatile.Write(ref terminalObserved, 3); // Guard recovery owns completion while pipe pings unwind.
+                    pipe.Dispose();
+                    await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(12));
+                    var receipt = await recovery.WaitAsync(TimeSpan.FromSeconds(12));
+                    await guard.WaitForExitAsync(TimeSpan.FromSeconds(5));
+                    if (guard.ExitCode != 0 || !receipt.stopped || !receipt.absent ||
+                        receipt.kind is not ("recovered" or "disarmed") ||
+                        (receipt.collectorExit != null && receipt.collectorExit != child.ExitCode)) throw new IOException();
+                    var counters = receipt.counters ?? new FileStats(50, null, null, null, null, null);
+                    var terminal = new FileWire(args[1], args[2]);
+                    terminal.ContinueAfter(read.LastReceived);
+                    Volatile.Write(ref terminalObserved, 2);
+                    await terminal.Write(output, "recovered", new
+                    {
+                        cause = "collector-exited", stopped = true, absent = true,
+                        counters = new { queryStatus = counters.Status, eventsLost = counters.Events?.ToString(),
+                            realTimeBuffersLost = counters.RealTime?.ToString(), logBuffersLost = counters.Log?.ToString(),
+                            asOfQpc = receipt.asOfQpc },
+                        finalTotals = (object?)null, observationGap = true, collectorExit = child.ExitCode
+                    }, lifetime.Token);
                 }
             });
             try
@@ -60,6 +106,12 @@ internal static class FileBroker
                 if (first == inbound && Volatile.Read(ref terminalObserved) == 0) await inbound;
                 await outbound;
                 await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(7));
+                if (guard != null)
+                {
+                    await guard.WaitForExitAsync(TimeSpan.FromSeconds(7));
+                    if (guard.ExitCode != 0) return 2;
+                }
+                if (Volatile.Read(ref terminalObserved) == 2) return 4; // Cleanup succeeded; capture failed.
                 return child.ExitCode == 0 ? 0 : 2;
             }
             finally
@@ -72,6 +124,13 @@ internal static class FileBroker
         {
             pipe.Dispose(); // Independent EOF cleanup trigger; never terminate elevated child.
             try { await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(12)); } catch { }
+            if (guard != null)
+            {
+                try { await guard.WaitForExitAsync(TimeSpan.FromSeconds(12)); } catch { }
+                guard.Dispose();
+            }
+            recoveryLifetime.Cancel();
+            if (recovery != null) { try { await recovery; } catch { } }
         }
     }
 }
