@@ -6,8 +6,12 @@ do the file/transport/backend block while deferring real sleep/wake. See the
 
 The source graph is now Electron main → `etw-file-runtime` → `etw-file-supervisor`
 → existing protocol/health modules → fixed normal C# broker → authenticated pipe
-→ elevated file collector. Startup requires an explicit development root flag;
-packaged enablement remains blocked. No renderer, IPC channel, FileEvent adapter,
+→ elevated file collector. Startup requires an explicit diagnostic root flag;
+ordinary packaged enablement remains blocked. An optional local diagnostic package
+profile bundles the self-contained helper for bounded live qualification (see the
+[desktop milestone](../development/packaged-desktop-milestone.md#etw-diagnostic-profile)).
+This profile does not satisfy the remaining E1–E8 production gates.
+No renderer, IPC channel, FileEvent adapter,
 scoring, sequence, baseline or audit consumer receives diagnostic observations.
 The existing app-health composer receives one optional `etw-file` leaf and keeps
 its process-population gate independent.

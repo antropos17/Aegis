@@ -160,6 +160,46 @@ replacement network query behind a fresh annotated process observation, even
 when the population did not change. An old in-flight result is still discarded;
 pause, identity/outage gates and the single-flight query remain enforced.
 
+### ETW diagnostic profile
+
+Add `--etw` to publish the pinned ETW helper with a local .NET 10 SDK and run the
+real Kernel-File provider in the packaged app. The publish is a self-contained
+Windows x64 folder, avoiding a runtime installation or elevated single-file
+extraction. NuGet and SDK caches use the output directory. Default builds do not
+publish or enable ETW. This optional run requires an interactive same-account UAC
+decision; it never automates that decision or changes privileges/session ownership.
+
+The marked diagnostic build also requires an explicit local root argument. Its
+runtime requests stop 60 seconds after ready on its two-second supervisor tick
+and remains diagnostic DEGRADED while capturing.
+The journey reads an owned synthetic 4 KiB file from ordinary Node, observes a
+Read candidate matching its header PID/path, checks bounded retention and scope
+exclusion, and observes health through the real preload bridge and Sensors view.
+It exits through the actual Quit AEGIS dialog while capture is active. A read-only
+main observer records the final acknowledged stop, native counters, stage totals
+and normal broker exit before app exit. Missing or unmeasured final counters fail
+the scenario; positive measured losses remain visible and do not establish
+loss-free capture. Candidate records never enter FileEvent/audit/risk/sequence
+consumers; the retained profile is checked for synthetic content leakage.
+
+The parent gives this journey 210 seconds and retains private `etw/receipt.json`,
+`shutdown.json` and `etw.png`, hashing the receipt and the complete package. The
+manual seven-day retention policy applies. A failure never causes an automatic
+UAC retry, session adoption, name-based session stop or elevated kill. Normal quit
+has a 15-second bound; timeout cannot count as acknowledged cleanup. Independent
+session absence, protected collector crash recovery, consent cancellation, actual
+sleep/wake, event-time attribution, complete read coverage and the remaining
+E1–E8 gates remain unqualified. This profile is not production ETW admission.
+
+The 2026-10-17 local run at `97f87429035a889470c0a4c8efe212bd494a9b46`
+passed the actual packaged scenario, including Sensors health and quit during
+capture. The published helper passed 61 self-tests. Final native EventsLost,
+RealTimeBuffersLost and LogBuffersLost, ingress/output drops and decoder errors
+were zero in this run; 157 mapping resets remained explicit. The Read path/header
+PID stayed candidate metadata with no agent/instance join or diagnostic audit
+admission. The first run failed in the Playwright evaluator before capture; its
+receipt was retained, and the CommonJS evaluator was verified before repeating.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation

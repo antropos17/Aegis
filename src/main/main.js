@@ -1294,7 +1294,8 @@ app.on('before-quit', (event) => {
     event.preventDefault();
     return;
   }
-  if (!alertQuitDrainStarted && sensitiveAlertJournal?.hasPending()) {
+  const etwActive = etwFile?.isActive?.() === true;
+  if (!alertQuitDrainStarted && (sensitiveAlertJournal?.hasPending() || etwActive)) {
     event.preventDefault();
     alertQuitDrainStarted = true;
     isQuitting = true;
@@ -1310,14 +1311,16 @@ app.on('before-quit', (event) => {
       } catch {
         // Continue draining accepted events even if a watcher refuses to close.
       }
-      for (let attempt = 0; attempt < 3 && sensitiveAlertJournal.hasPending(); attempt++) {
+      for (let attempt = 0; attempt < 3 && sensitiveAlertJournal?.hasPending(); attempt++) {
         if (!(await sensitiveAlertJournal.flush())) break;
       }
     };
     Promise.race([
-      drain(),
+      Promise.all([drain(), etwFile?.dispose()]),
       new Promise((resolve) => {
-        timeout = setTimeout(resolve, 2000);
+        // An ETW stop must include its terminal counters AND normal broker exit.
+        // Pending UAC or an unresponsive collector still cannot hold quit forever.
+        timeout = setTimeout(resolve, etwActive ? 15000 : 2000);
       }),
     ])
       .catch(() => {})
@@ -1490,6 +1493,9 @@ module.exports = {
   // pre-`loadDeferredModules` branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
+  /** Read main-only diagnostic metadata; no preload exposure.
+   * @returns {Object|undefined} Bounded diagnostic snapshot. @since v0.19.2 */
+  getEtwFileDiagnostics: () => etwFile?.getDiagnostics(),
   _setWatcherForTest,
   _setEtwFileForTest,
   _setMonitoringPausedForTest: setMonitoringPaused,

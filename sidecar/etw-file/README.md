@@ -85,7 +85,7 @@ final native counters and verified stop; positive losses are retained and allowe
 in this overload measurement. It does not certify loss-free capture. See the
 [repeatable-load record](../../docs/roadmap/etw-repeatable-load.md) for results and limits.
 
-After building the renderer, explicitly enable a development app session with a
+After building the renderer, explicitly enable an app diagnostic session with a
 single local subdirectory (not an entire drive, UNC root, dot-segment or relative path):
 
 ```powershell
@@ -99,6 +99,21 @@ added. Pause, suspend and quit request stop and erase the ring. Resume/unpause n
 automatically prompt for UAC. The internal runtime supports explicit restart after
 verified stop and child exit; a new app invocation is currently the user-facing
 way to start another capture. The separately owned frontend is unchanged.
+
+An ordinary package still refuses capture, including when the root flag is present.
+For a local packaged diagnostic use the optional `--etw` qualification profile in
+[the desktop milestone](../../docs/development/packaged-desktop-milestone.md#etw-diagnostic-profile).
+It bundles a self-contained .NET folder under `resources/etw-file` and marks only
+that build with the boolean `aegisEtwDiagnostic` metadata. The root flag remains
+mandatory. This is a mutable local diagnostic build, without production provenance
+or attribution admission. It does not change the default release profile.
+
+App diagnostics request stop after 60 seconds from `ready` on the two-second
+supervisor tick, excluding time spent awaiting UAC. Normal quit waits for the stopped acknowledgement and normal broker exit,
+with a 15-second outer deadline. A timeout permits app exit and supplies no verified
+cleanup result; a pending Windows consent dialog is not dismissed. Candidate paths
+are cleared on stop; the bounded final counters/summary stay in main memory until
+exit. The read-only main-module getter used by qualification adds no renderer IPC.
 
 ## Boundaries and accounting
 

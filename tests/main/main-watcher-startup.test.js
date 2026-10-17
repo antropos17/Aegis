@@ -481,6 +481,58 @@ describe('main — watcher startup ordering', () => {
     },
   );
 
+  it('waits for ETW broker closure even without pending journal entries and bounds a stuck stop', async () => {
+    vi.useFakeTimers();
+    let release;
+    const sensor = {
+      isActive: () => true,
+      dispose: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+      ),
+    };
+    main._setEtwFileForTest(sensor);
+    const quit = vi.spyOn(fakeElectron.app, 'quit').mockImplementation(() => {});
+    const shutdown = vi.spyOn(logger, 'shutdown').mockImplementation(() => {});
+    try {
+      const beforeQuit = appListeners['before-quit'][0];
+      const event = { preventDefault: vi.fn() };
+      beforeQuit(event);
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      expect(sensor.dispose).toHaveBeenCalledOnce();
+      expect(shutdown).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(quit).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(13000);
+      expect(quit).toHaveBeenCalledOnce();
+      release(false);
+    } finally {
+      main._setEtwFileForTest(undefined);
+      vi.useRealTimers();
+    }
+  });
+  it('finishes quit promptly after ETW acknowledges closure', async () => {
+    let release;
+    main._setEtwFileForTest({
+      isActive: () => true,
+      dispose: () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    });
+    const quit = vi.spyOn(fakeElectron.app, 'quit').mockImplementation(() => {});
+    try {
+      appListeners['before-quit'][0]({ preventDefault: vi.fn() });
+      expect(quit).not.toHaveBeenCalled();
+      release(true);
+      await flush();
+      expect(quit).toHaveBeenCalledOnce();
+    } finally {
+      main._setEtwFileForTest(undefined);
+    }
+  });
   it('keeps repeated quit requests behind the pending alert-journal drain', async () => {
     let releaseWatchers;
     watcherMock.closeFileWatchers = vi.fn(

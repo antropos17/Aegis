@@ -9,7 +9,7 @@ afterEach(() => {
   for (const sensor of sensors.splice(0)) sensor.dispose();
   vi.useRealTimers();
 });
-function harness() {
+function harness(options = {}) {
   vi.useFakeTimers();
   let time = 0,
     nextId = 0;
@@ -43,6 +43,7 @@ function harness() {
     now: () => time,
     mono: () => time,
     id: () => `id-${++nextId}`,
+    ...options,
   });
   sensors.push(sensor);
   function running() {
@@ -79,6 +80,56 @@ function harness() {
 }
 
 describe('ETW diagnostic supervisor', () => {
+  it('waits for acknowledged stop AND broker closure during application shutdown', async () => {
+    const h = harness();
+    const child = h.running();
+    let settled = false;
+    const completion = h.sensor.dispose().then((verified) => {
+      settled = verified;
+    });
+    child.flush();
+    const data = message('stopped').data;
+    data.requestId = child.writes.at(-1).data.requestId;
+    child.message('stopped', 3, data);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(h.sensor.isActive()).toBe(true);
+    child.emit('close', 0);
+    await completion;
+    expect(settled).toBe(true);
+    expect(h.sensor.isActive()).toBe(false);
+  });
+  it('does not report a successful shutdown from EOF without a stopped acknowledgement', async () => {
+    const h = harness();
+    const child = h.running();
+    const completion = h.sensor.dispose();
+    child.stdout.emit('end');
+    child.emit('close', 0);
+    expect(await completion).toBe(false);
+  });
+  it('bounds capture from ready rather than from the time spent waiting for UAC', () => {
+    const h = harness({ maxCaptureMs: 60000 });
+    h.sensor.start();
+    h.advance(100000);
+    const child = h.children[0];
+    child.message('hello', 1);
+    child.flush();
+    const ready = message('ready').data;
+    ready.requestId = child.writes[0].data.requestId;
+    child.message('ready', 2, ready);
+    for (let seq = 3; seq <= 32; seq++) {
+      child.message('heartbeat', seq, telemetry());
+      h.advance(2000);
+      child.flush();
+    }
+    expect(child.writes.filter((row) => row.t === 'stop')).toHaveLength(1);
+    const stopped = message('stopped').data;
+    stopped.requestId = child.writes.at(-1).data.requestId;
+    child.message('stopped', 33, stopped);
+    child.emit('close', 0);
+    expect(h.sensor.getDiagnostics().summaries[0].stopReason).toBe('duration-limit');
+    expect(h.spawnBroker).toHaveBeenCalledOnce();
+  });
   it('does not start implicitly and publishes diagnostic degradation after ready', () => {
     const h = harness();
     expect(h.spawnBroker).not.toHaveBeenCalled();
@@ -267,6 +318,14 @@ describe('ETW backend runtime gate', () => {
     [{}, 'DISABLED'],
     [{ platform: 'linux' }, 'UNSUPPORTED'],
     [{ app: { isPackaged: true }, argv: ['--etw-file-diagnostic-root=C:\\fixture'] }, 'DISABLED'],
+    [
+      {
+        app: { isPackaged: true },
+        packageMetadata: { aegisEtwDiagnostic: 'true' },
+        argv: ['--etw-file-diagnostic-root=C:\\fixture'],
+      },
+      'DISABLED',
+    ],
     [{ argv: ['--etw-file-diagnostic-root=C:\\'] }, 'FAILED'],
     [{ argv: ['--etw-file-diagnostic-root=C:\\fixture'], exists: () => false }, 'FAILED'],
   ])('does not elevate when gates fail (%j)', (options, state) => {
@@ -274,6 +333,30 @@ describe('ETW backend runtime gate', () => {
     expect(sensor.start()).toBe(false);
     expect(sensor.getHealth().state).toBe(state);
     expect(spawnProcess).not.toHaveBeenCalled();
+  });
+  it('uses only the bundled broker in an explicit diagnostic package', () => {
+    const spawnProcess = vi.fn(() => {
+      throw new Error('test launch failure');
+    });
+    const { sensor } = make({
+      app: { isPackaged: true },
+      packageMetadata: { aegisEtwDiagnostic: true },
+      resourcesPath: 'C:\\candidate\\resources',
+      argv: ['--etw-file-diagnostic-root=C:\\fixture'],
+      spawnProcess,
+    });
+    sensor.start();
+    expect(spawnProcess).toHaveBeenCalledOnce();
+    expect(spawnProcess.mock.calls[0][0].replaceAll('\\', '/')).toMatch(
+      /candidate\/resources\/etw-file\/EtwFile.exe$/,
+    );
+    expect(spawnProcess.mock.calls[0][1]).toEqual([
+      'broker',
+      expect.any(String),
+      expect.any(String),
+      'C:\\fixture',
+    ]);
+    expect(sensor.getHealth().lastError).toBe('launch-failed');
   });
   it('does not auto-launch on resume or unpause; removes power listeners', () => {
     const { sensor, powerMonitor, spawnProcess } = make({

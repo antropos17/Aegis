@@ -1,8 +1,10 @@
 # B2 — Windows ETW file sensor design
 
 Status update 2026-09-09: [B5 diagnostic backend](etw-file-backend.md) now connects
-the protocol/reducer to an explicit development-only file collector and Electron
-health leaf. Packaged capture and authoritative attribution remain gated. The
+the protocol/reducer to an explicit diagnostic file collector and Electron
+health leaf. The optional [local package diagnostic profile](../development/packaged-desktop-milestone.md#etw-diagnostic-profile)
+can exercise the real collector; ordinary packaged capture and authoritative
+attribution remain gated. The
 following B2–B4 sections retain their scope/history; B5 records implemented bounds
 and deviations (queue telemetry maxima across two capped stages, conservative close invalidation,
 fresh candidate handle observations, no independent receipt on the file transport).
