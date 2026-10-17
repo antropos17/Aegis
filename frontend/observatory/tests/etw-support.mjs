@@ -221,3 +221,30 @@ export function traceHelpers(roots, env) {
   }
   return [...new Set(helpers)];
 }
+
+/** Query existence without opening elevated processes for termination rights.
+ * Signal-zero on Windows can report EPERM for exited elevated process objects.
+ * @param {number[]} pids Owned metadata-only IDs. @param {object} env Child environment.
+ * @returns {number[]} Currently enumerated IDs; errors remain errors. @since v0.19.2
+ */
+export function remainingPids(pids, env) {
+  assert(
+    pids.length > 0 && pids.length <= 100 && pids.every((pid) => Number.isInteger(pid) && pid > 0),
+  );
+  const filter = [...new Set(pids)].map((pid) => `ProcessId = ${pid}`).join(' OR ');
+  const raw = execFileSync(
+    path.join(process.env.WINDIR, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process -Filter '${filter}' | Select-Object -ExpandProperty ProcessId) | ConvertTo-Json -Compress`,
+    ],
+    { env, windowsHide: true, timeout: 10000, maxBuffer: 16384 },
+  )
+    .toString()
+    .trim();
+  const result = [JSON.parse(raw || '[]')].flat();
+  assert(result.every((pid) => pids.includes(pid)));
+  return result;
+}

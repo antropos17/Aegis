@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { _electron as electron } from 'playwright';
-import { exitWithin, exists, ownedPids, inspectProfile } from './sensor-support.mjs';
+import { exitWithin, ownedPids, inspectProfile } from './sensor-support.mjs';
 import {
   delay,
   diagnostics,
@@ -13,6 +13,7 @@ import {
   observeQuit,
   scenarioPaths,
   traceHelpers,
+  remainingPids,
 } from './etw-support.mjs';
 
 /** Run one real packaged capture, optionally with a scheduled exit of its own collector.
@@ -125,6 +126,8 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
       while (!rows.length && Date.now() < until) {
         rows = (await diagnostics(app)).records.filter(
           (row) =>
+            row.eventId === 15 &&
+            row.version === 1 &&
             row.issuingTid === born.tid &&
             BigInt(row.qpc) >= BigInt(read.fromQpc) &&
             BigInt(row.qpc) <= BigInt(read.toQpc),
@@ -149,6 +152,9 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
       r.rapidExitNoWrongGeneration = true;
       r.rapidExitUnresolved = true;
       r.rapidExitObserved = rows.length;
+      r.rapidExitRead = rows.find(
+        (row) => row.issuerStatus !== 'verified' && row.agent === null && row.instanceId === null,
+      );
     }
     const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
     r.health = health.sensors.byId['etw-file'];
@@ -201,10 +207,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
       assert.equal(still.summaries.length, 1);
       assert.equal(still.restartBlocked, false);
       r.noAutomaticRestart = true;
-      assert(
-        r.traceHelperPids.every((pid) => !exists(pid)),
-        'Recovered helper remains',
-      );
+      assert(remainingPids(r.traceHelperPids, env).length === 0, 'Recovered helper remains');
       r.guardClosureConfirmed = true;
     } else {
       assert.equal((await diagnostics(app)).phase, 'running');
@@ -227,10 +230,10 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     if (!fault) r.summary = ended.summaries.at(-1);
     assert.equal(ended.records.length, 0);
     const until = Date.now() + 10000;
-    while ([...r.ownedPids, ...r.traceHelperPids].some(exists) && Date.now() < until)
+    while (remainingPids([...r.ownedPids, ...r.traceHelperPids], env).length && Date.now() < until)
       await delay(100);
     assert(
-      [...r.ownedPids, ...r.traceHelperPids].every((pid) => !exists(pid)),
+      remainingPids([...r.ownedPids, ...r.traceHelperPids], env).length === 0,
       'Owned app/helper remains',
     );
     r.closureConfirmed = true;
