@@ -1493,7 +1493,8 @@ module.exports = {
   // pre-`loadDeferredModules` branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
-  // Local diagnostic qualification only; never exposed through the preload bridge.
+  /** Read main-only diagnostic metadata; no preload exposure.
+   * @returns {Object|undefined} Bounded diagnostic snapshot. @since v0.19.2 */
   getEtwFileDiagnostics: () => etwFile?.getDiagnostics(),
   _setWatcherForTest,
   _setEtwFileForTest,
