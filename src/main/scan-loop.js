@@ -1273,6 +1273,10 @@ async function doHotReadScan() {
 /** @param {number} intervalMs @since v0.3.0 */
 function startScanIntervals(intervalMs) {
   startWslInventoryPolling();
+  // Settings and resume restart the timers after invalidating the old lifetime.
+  // Even an unchanged process publication must replace that discarded TCP poll.
+  // The pending gate keeps this retry behind a fresh, fully annotated population.
+  if (networkScopePending) networkRescanQueued = true;
   const ms = intervalMs || 10000;
   maxProcessGapMs = ms;
   scanInterval = setInterval(doProcessScan, ms);

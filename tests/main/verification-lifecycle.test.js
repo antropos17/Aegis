@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   WINDOWS_SUITES,
   validateTestReport,
+  describeTestFailure,
   parseWorktrees,
   retentionBlockers,
   classifyRun,
@@ -42,6 +43,36 @@ describe('workflow diagnosis', () => {
 });
 
 describe('Windows evidence validation', () => {
+  it('locates failed assertions without publishing private diagnostics or unexpected suites', () => {
+    const secret = 'PRIVATE_CONTENT_CANARY';
+    const report = passing();
+    report.testResults[0] = {
+      name: path.join(root, WINDOWS_SUITES[0]),
+      status: 'failed',
+      message: secret,
+      assertionResults: [
+        { status: 'passed', fullName: secret },
+        { status: 'failed', title: secret, failureMessages: [secret] },
+        { status: 'skipped', title: secret },
+      ],
+    };
+    report.testResults.push({ name: path.join(root, secret), status: 'failed', message: secret });
+    expect(describeTestFailure(report, root)).toEqual([
+      {
+        suite: WINDOWS_SUITES[0],
+        failedAssertions: [2],
+        nonPassingAssertions: 2,
+        totalAssertions: 3,
+      },
+    ]);
+    expect(JSON.stringify(describeTestFailure(report, root))).not.toContain(secret);
+    expect(describeTestFailure(null, root)).toEqual([]);
+    report.testResults[0].assertionResults = Array.from({ length: 100 }, () => ({
+      status: 'failed',
+      message: secret,
+    }));
+    expect(describeTestFailure(report, root)[0].failedAssertions).toHaveLength(32);
+  });
   it('accepts each expected native suite with executed assertions', () => {
     expect(validateTestReport(passing(), root)).toEqual({
       suites: WINDOWS_SUITES.length,

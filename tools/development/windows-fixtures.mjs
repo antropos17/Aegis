@@ -6,7 +6,11 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { boundedCommand } from './bounded-command.mjs';
-import { WINDOWS_SUITES, validateTestReport } from './verification-contract.mjs';
+import {
+  WINDOWS_SUITES,
+  validateTestReport,
+  describeTestFailure,
+} from './verification-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const sourceScratch = path.join(root, 'out/development');
@@ -150,8 +154,21 @@ try {
     { cwd: root, env, log: path.join(output, 'fixtures.log'), timeoutMs: 180000 },
   );
   receipt.commands.push({ name: 'native-fixtures', ...command });
-  if (command.code !== 0 || command.error || command.reason)
+  if (command.code !== 0 || command.error || command.reason) {
+    // Keep raw diagnostics private, while the existing uploaded receipt can
+    // identify the source assertion that failed on an otherwise inaccessible host.
+    if (fs.existsSync(reportPath) && fs.statSync(reportPath).size <= 4 * 1024 ** 2) {
+      try {
+        receipt.failedTests = describeTestFailure(
+          JSON.parse(fs.readFileSync(reportPath, 'utf8')),
+          root,
+        );
+      } catch {
+        /* A missing/malformed report cannot qualify this failed command. */
+      }
+    }
     throw new Error('Fixture command failed; inspect private fixtures.log');
+  }
   if (fs.statSync(reportPath).size > 4 * 1024 ** 2) throw new Error('Test report exceeds 4 MiB');
   receipt.tests = validateTestReport(JSON.parse(fs.readFileSync(reportPath, 'utf8')), root);
   receipt.testReportSha256 = hash(reportPath);
@@ -191,6 +208,7 @@ try {
       source: receipt.source?.head,
       tests: receipt.tests,
       failure: receipt.failure,
+      failedTests: receipt.failedTests,
     }),
   );
   process.exitCode = receipt.status === 'PASS' ? 0 : 1;

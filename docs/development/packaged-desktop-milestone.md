@@ -113,6 +113,53 @@ renew a population's age or shorten the schedule attached to that batch. Missing
 delivery still expires; failed population/identity and monitoring pause remain
 immediately unavailable.
 
+### Packaged file and network sensors
+
+Add `--sensors` to run a separate bounded Playwright journey on the built EXE.
+It uses an ordinary current-user process named `aider.exe`, a synthetic home
+selected through the child-only `USERPROFILE`, and a separate retained profile.
+It creates, modifies, deletes and recreates a synthetic `.env` file, and holds
+another `.env` file and a file inside `.ssh` open. Chokidar path events must
+remain unattributed; Restart Manager holding observations must carry the fixture's
+PID, stamped instance and observed creation witness. A directory holding record
+identifies the sensitive group, without identifying the individual open file.
+
+The fixture opens two TCP sockets to one IPv4 address resolved for `example.com`
+on port 443, plus loopback sockets as a negative control. It sends no application
+payload. The two public sockets must retain distinct local ports, the same exact
+fixture instance and OS TCP-owner evidence. Loopback must remain excluded. The
+journey saves a two-second scan interval through Settings and requires a fresh
+positive network delivery within 20 seconds. It closes the public sockets while
+the process remains alive, requires a later delivered empty fixture scope and a
+cleared current network table, then observes the fixture's exit.
+
+The journey checks visible file/network evidence and retained audit metadata,
+including the create/delete/recreate order and both socket identities. Synthetic
+file content contains a random canary; its presence in actual sensor
+deliveries or the closed retained profile fails the run. Profile inspection is
+bounded to 64 MiB total and 16 MiB per file. This covers a controlled content
+exclusion check, without establishing every possible export or provider path.
+
+`sensors/receipt.json`, `files.png` and `network.png` are private evidence; the
+parent hashes the receipt and rechecks the package/source manifest. The journey
+has a 240-second parent deadline, a 180-second native fixture lifetime and bounded
+captured metadata. It verifies observed app/helper closure. Failures retain their
+profile and diagnostic screenshot under the same manual seven-day policy.
+
+This optional scenario requires public DNS and outbound TCP access. IANA's
+[example domains](https://www.iana.org/help/example-domains) are documentation
+resources with best-effort services; availability is an environmental dependency,
+not a required hosted CI check. Windows
+[`os.homedir()`](https://nodejs.org/api/os.html#oshomedir) honors the child
+`USERPROFILE`; the user's real home and global environment remain unchanged.
+No live ETW, transient open/close completeness, packet contents, bandwidth,
+cross-platform sensor coverage or authenticated provider acceptance is qualified.
+
+Saving settings invalidates the previous polling lifetime. Restart now queues a
+replacement network query behind a fresh annotated process observation, even
+when the population did not change. An old in-flight result is still discarded;
+pause, identity/outage gates and the single-flight query remain enforced.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation

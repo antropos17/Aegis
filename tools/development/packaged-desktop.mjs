@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { boundedCommand } from './bounded-command.mjs';
-import { desktopPassed, monitoringPassed } from './desktop-contract.mjs';
+import { desktopPassed, monitoringPassed, sensorsPassed } from './desktop-contract.mjs';
 import { processCoreSources } from '../../tests/fixtures/protected-gui-process/harness.mjs';
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
 
@@ -16,11 +16,12 @@ const { values } = parseArgs({
     output: { type: 'string' },
     'source-sha': { type: 'string' },
     monitoring: { type: 'boolean', default: false },
+    sensors: { type: 'boolean', default: false },
   },
 });
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring]',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors]',
   );
 const output = path.resolve(values.output);
 if (
@@ -70,6 +71,7 @@ const receipt = {
     rendererInteractions: values.monitoring
       ? 'monitoring-with-ordinary-current-user-and-playwright'
       : 'not-run',
+    fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
     uac: 'not-run',
     guiEnrollment: false,
@@ -224,6 +226,25 @@ try {
     if (!monitoringPassed(receipt.monitoring))
       throw new Error('Packaged monitoring scenario incomplete');
     receipt.monitoringReceiptSha256 = hash(monitoringReceipt);
+  }
+  if (values.sensors) {
+    await command(
+      'sensors',
+      process.execPath,
+      [
+        path.join(root, 'frontend/observatory/tests/sensors-electron.mjs'),
+        '--executable',
+        path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
+        '--output',
+        path.join(output, 'sensors'),
+      ],
+      240000,
+    );
+    const sensorReceipt = path.join(output, 'sensors/receipt.json');
+    if (fs.statSync(sensorReceipt).size > 262144) throw new Error('Sensor receipt too large');
+    receipt.sensors = JSON.parse(fs.readFileSync(sensorReceipt, 'utf8'));
+    if (!sensorsPassed(receipt.sensors)) throw new Error('Packaged sensor scenario incomplete');
+    receipt.sensorReceiptSha256 = hash(sensorReceipt);
   }
   if (
     hash(manifest) !== receipt.packageManifestSha256 ||

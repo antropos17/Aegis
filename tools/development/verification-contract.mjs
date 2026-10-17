@@ -8,6 +8,32 @@ export const WINDOWS_SUITES = [
   'tests/main/protected-gui-process-windows.test.js',
 ];
 
+/** Locate failed native assertions without publishing titles, messages, paths or payloads.
+ * @param {object} report Vitest JSON output. @param {string} root Tested checkout.
+ * @returns {object[]} Fixed suite names and one-based assertion positions only. @since v0.19.2
+ */
+export function describeTestFailure(report, root) {
+  const results = Array.isArray(report?.testResults) ? report.testResults : [];
+  return WINDOWS_SUITES.flatMap((suite) => {
+    const result = results.find(
+      (row) =>
+        typeof row?.name === 'string' && path.resolve(row.name) === path.resolve(root, suite),
+    );
+    if (!result || result.status === 'passed') return [];
+    const assertions = Array.isArray(result.assertionResults) ? result.assertionResults : [];
+    return [
+      {
+        suite,
+        failedAssertions: assertions
+          .flatMap((row, index) => (row?.status === 'failed' ? [index + 1] : []))
+          .slice(0, 32),
+        nonPassingAssertions: assertions.filter((row) => row?.status !== 'passed').length,
+        totalAssertions: assertions.length,
+      },
+    ];
+  });
+}
+
 /** Classify a workflow observation without treating absent/skipped evidence as success.
  * @param {object|null} run GitHub Actions run.
  * @returns {string} Diagnostic state. @since v0.19.2
