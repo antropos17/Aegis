@@ -10,6 +10,8 @@ Monitoring runs locally without telemetry or an account. Optional AI analysis se
 
 This document describes current source. Installed releases can lag behind it; consult the release tag and README limitations.
 
+Source checkpoint: 18 October 2026, merged master 96b63b165ac932e9615815f93c587765e6bde1b8 (PR #975). Packaged monitoring and file/TCP fixtures have source-bound results. A persistent installed Claude Code session read a synthetic .env after a preparatory README read; Events displayed the read, verified issuer and potential path-rule risk. Windows Kernel-File capture remains diagnostic-only and disabled in ordinary packages. Candidate paths and diagnostic potential risk do not update risk scores, audit, baselines or sequences. PR #974 (actual Windows restart) and PR #976 (first-read preparation) remain draft; their outstanding live checks are not qualified by fixture tests. See [the agent-read guide](docs/development/agent-sensitive-read.md) and the README's current-development section.
+
 ## Installation
 
 ```bash
