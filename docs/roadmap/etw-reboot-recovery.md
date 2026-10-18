@@ -1,8 +1,9 @@
 # ETW recovery across a Windows restart
 
-The restart-spanning qualification is prepared; a real Windows restart has not
-yet been observed for this revision. Unit tests, same-boot rejection and a
-packaged build cannot establish reboot recovery. Production ETW remains disabled.
+The pre-restart packaged regression and preparation/cancellation controls pass.
+A real Windows restart and post-restart capture have not yet been observed for
+this revision. Unit tests, same-boot rejection and a packaged build cannot
+establish reboot recovery. Production ETW remains disabled.
 
 The [protected durable reservation](etw-durable-recovery.md) already handles an
 absent stale record from another logon or package scope. It requires independent
@@ -24,6 +25,37 @@ and [LUID uniqueness only until restart](https://learn.microsoft.com/en-us/windo
 The qualification therefore permits either observed scope comparison while still
 requiring an independently observed later OS boot and the exact previous record.
 This does not claim that actual logon-SID reuse was forced.
+
+## Pre-restart evidence
+
+The [bounded preflight receipt](../recon/evidence/etw-packaged-reboot-preflight.json)
+records one complete 32-scenario packaged sweep with no retry. Its temporary
+launch host accounted for 39 children, including the two earlier cleanup workers,
+and closed with zero live children. Both real read workloads passed with 160
+synchronous reads and 160 asynchronous reads with actual pending I/O and full
+issuer witnesses per capture.
+
+The separate preparation reached `PREPARED` after all six original process
+objects exited and an independent query still found the session. Attempting
+resume in that same Windows boot returned the expected `FAIL` before starting
+UAC or a new capture; the original session remained present. Cancellation then
+matched the exact prepared record digest, recovered before its own StartTrace
+and finished `CANCELLED`. Each live phase had one collector exit 70 and a closed
+temporary launch host. Final independent status was 4201, with zero remaining
+`EtwFile.exe` processes. The user deferred the actual restart, so a **fresh
+preparation is required immediately before that restart**; the cancelled receipt
+cannot establish restart recovery.
+
+The frozen package and 32-scenario harness are revision
+`3547b5195a695293549f4c35ce4d14744fcca3e1`. Preparation, refusal and cancellation
+use harness `212fbe85ae7d12f0aff91ed63cf1aed643d16364`; its native and main/shared
+sources match the frozen package inputs. That harness fixes two oracle errors:
+accepting contradictory child exits and requiring the scope label to change
+across every restart. Tests reproduced both before the correction. Current
+focused ETW tests pass 408 cases and the published helper passes 108 self-tests.
+All 39 disposable profiles passed the content, audit-exclusion and size checks.
+Raw receipts and private correlation values remain outside Git; their hashes are
+in the projection. These controls leave actual restart acceptance pending.
 
 ## Two separately consented phases
 

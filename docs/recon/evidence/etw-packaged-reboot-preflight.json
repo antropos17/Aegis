@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "status": "PENDING_REBOOT",
+  "productionAdmission": false,
+  "actualWindowsRestartObserved": false,
+  "runtimeSourceHead": "3547b5195a695293549f4c35ce4d14744fcca3e1",
+  "rebootHarnessSourceHead": "212fbe85ae7d12f0aff91ed63cf1aed643d16364",
+  "packageManifestSha256": "b59d551f38de1080fec663e479b50adc6a4b60fecf59838519e6979e0ecd1a9b",
+  "nativeDllSha256": "24667edba56c90bc594e6db72496f0611bbb70c10471491514ef6109469fb9d7",
+  "sourceBinding": {
+    "archivedMainSharedFilesChecked": 231,
+    "nativeAndMainSharedUnchangedAfterBuild": true
+  },
+  "tests": {
+    "focusedEtw": 408,
+    "nativeSelfTests": 108
+  },
+  "packagedRegression": {
+    "status": "PASS",
+    "logicalScenarios": 32,
+    "successfulSweep": 1,
+    "launchHostExitCode": 0,
+    "hostLaunches": 39,
+    "liveChildren": 0,
+    "childExitsAccountedFor": 39,
+    "cases": {
+      "orphan-total-before-start": {
+        "status": "PASS"
+      },
+      "orphan-total-before-arm": {
+        "status": "PASS"
+      },
+      "orphan-total-running": {
+        "status": "PASS"
+      },
+      "orphan-total-denial": {
+        "status": "PASS"
+      },
+      "orphan-before-start": {
+        "status": "PASS"
+      },
+      "orphan-before-arm": {
+        "status": "PASS"
+      },
+      "orphan-main-first": {
+        "status": "PASS"
+      },
+      "orphan-native-first": {
+        "status": "PASS"
+      },
+      "orphan-access-denied": {
+        "status": "PASS"
+      },
+      "custodian-exit": {
+        "status": "PASS"
+      },
+      "group-before-start": {
+        "status": "PASS"
+      },
+      "group-before-arm": {
+        "status": "PASS"
+      },
+      "group-broker-first": {
+        "status": "PASS"
+      },
+      "group-triple-first": {
+        "status": "PASS"
+      },
+      "group-access-denied": {
+        "status": "PASS"
+      },
+      "triple-before-start": {
+        "status": "PASS"
+      },
+      "triple-before-arm": {
+        "status": "PASS"
+      },
+      "triple-collector-first": {
+        "status": "PASS"
+      },
+      "triple-guard-first": {
+        "status": "PASS"
+      },
+      "triple-fallback-first": {
+        "status": "PASS"
+      },
+      "triple-access-denied": {
+        "status": "PASS"
+      },
+      "dual-before-start": {
+        "status": "PASS"
+      },
+      "dual-before-arm": {
+        "status": "PASS"
+      },
+      "dual-guard-first": {
+        "status": "PASS"
+      },
+      "dual-collector-first": {
+        "status": "PASS"
+      },
+      "collector-before-start": {
+        "status": "PASS"
+      },
+      "collector-before-arm": {
+        "status": "PASS"
+      },
+      "guard-exit": {
+        "status": "PASS"
+      },
+      "broker-exit": {
+        "status": "PASS"
+      },
+      "app-exit": {
+        "status": "PASS"
+      }
+    },
+    "realReadCaptures": [
+      {
+        "mode": "crash",
+        "status": "PASS",
+        "synchronousReads": 160,
+        "asynchronousReads": 160,
+        "pendingAsynchronousReads": 160,
+        "issuerWitnessesVerified": true
+      },
+      {
+        "mode": "normal",
+        "status": "PASS",
+        "synchronousReads": 160,
+        "asynchronousReads": 160,
+        "pendingAsynchronousReads": 160,
+        "issuerWitnessesVerified": true
+      }
+    ]
+  },
+  "preRestartControls": {
+    "preparation": {
+      "status": "PREPARED",
+      "originalProcessesExited": 6,
+      "originalObjectWitness": true,
+      "originalPeerExitCodes": [73, 0, 70, 71, 74],
+      "custodianExit": 76,
+      "normalJournalWriteDenied": true,
+      "sessionQueryAfterOriginalExits": 0,
+      "launchHostClosed": true,
+      "hostLaunches": 1,
+      "collectorExitCode": 70
+    },
+    "sameBootResume": {
+      "observedStatus": "FAIL",
+      "expectedRefusal": true,
+      "noUacOrCaptureStarted": true,
+      "originalSessionStillPresent": true
+    },
+    "cancellation": {
+      "status": "CANCELLED",
+      "exactPreparedRecordDigestMatched": true,
+      "previousSameScopeObserved": true,
+      "sessionAbsentBeforeNewStart": true,
+      "closureConfirmed": true,
+      "hostLaunches": 1,
+      "collectorExitCode": 70,
+      "finalIndependentQueryStatus": 4201
+    }
+  },
+  "privacy": {
+    "profilesChecked": 39,
+    "syntheticContentExcluded": true,
+    "noEtwOrFixtureFileAccessAuditRows": true,
+    "auditRowsChecked": 3119,
+    "totalProfileBytes": 336502207,
+    "maxProfileBytes": 8719569,
+    "maxProfileFileBytes": 4202496,
+    "perFileLimitBytes": 16777216,
+    "perProfileLimitBytes": 67108864
+  },
+  "finalState": {
+    "sessionAbsent": true,
+    "sessionQueryStatus": 4201,
+    "remainingEtwFileProcesses": 0,
+    "preparationCurrentlyCancelled": true,
+    "freshPreparationRequiredBeforeRestart": true
+  },
+  "privateReceiptHashes": {
+    "regression": "ea444b1525a842cca2a0afbbf0502c755347e545ad45703e21ac4380486b5de1",
+    "regressionHost": "99566f6728119ab3455e132fee2bc98fb2afa494440e6ba4839972dc09f3e02c",
+    "build": "2f9bb60486b4f8d97f9a40b34a67c783fce81e9b10f10ec3dc374097a65d8cfb",
+    "preparation": "9fd84a44c47c7110f7a1bde8649a4d250cd501db2e38db55ceba059f631b2381",
+    "sameBootRefusal": "5b355ec4f008a8fb102226a6a33a7ea1cbdc5f3b236834014ab26357d46b46f2",
+    "cancellation": "9e2c090c7ad17ea8d72c57d819d232a5c2ff504d565f38b9bcd29ec17a32253c"
+  },
+  "limits": [
+    "Actual Windows restart and post-restart capture not run; user deferred the restart.",
+    "Same-boot negative control and cancellation do not establish reboot recovery.",
+    "No forced logon-SID reuse, clock manipulation, hard power loss, hive-write interruption, hibernation or Fast Startup qualification.",
+    "Diagnostic package only; no production ETW, protected installation, path admission or complete-I/O acceptance."
+  ]
+}

@@ -1,8 +1,8 @@
 # ETW recovery after all six original processes exit
 
-The next [restart-spanning qualification](etw-reboot-recovery.md) is prepared;
-its actual Windows restart remains pending. It does not extend the live evidence
-recorded here.
+The next [restart-spanning qualification](etw-reboot-recovery.md) passes its
+pre-restart sweep and preparation/cancellation controls. Its actual Windows
+restart remains pending; it adds no post-restart evidence to this record.
 
 The diagnostic capture can recover a leftover session at the next explicit capture
 launch after main, broker, collector, guard, fallback and custodian all exit. It

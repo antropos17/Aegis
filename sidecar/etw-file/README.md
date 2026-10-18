@@ -201,9 +201,15 @@ The final profile passed four loss/relaunch targets, live-owner refusal and all
 twenty-eight previous captures in one frozen-package sweep. Its temporary launch
 host used one consent for thirty-seven collectors and two cleanup workers and
 closed with zero live children. The host holds no reservation or ETW recovery
-handles. Native self-tests passed 107 cases. Earlier failed attempts and the
+handles. That earlier sweep passed 107 native self-tests. Earlier failed attempts and the
 ordinary ShellExecute activation boundary are retained in the linked evidence.
 Historical v8 evidence below remains unchanged.
+
+The [restart preflight](../../docs/roadmap/etw-reboot-recovery.md) reruns all 32
+packaged scenarios with read-only protected-record digests and 108 native
+self-tests. Preparation, same-boot refusal and cancellation pass; the session is
+closed. A real Windows restart and post-restart capture remain pending, and a
+fresh preparation is required immediately before that restart.
 
 The [all-helper recovery](../../docs/roadmap/etw-total-recovery.md) retains the
 original reservation in the existing normal broker. It requires all three original
