@@ -81,6 +81,17 @@ solution file with an empty file list: bare `npx tsc --noEmit` checks nothing an
 exits 0. Use `npm run typecheck` for main, retained renderer code and Observatory;
 `npm run typecheck:svelte` checks Svelte templates.
 
+Use Node.js 24.16.0 or later in the 24.x line (`.nvmrc` pins the minimum).
+Node 24.15.0 can terminate Windows HTTP test processes with native exit code
+`3221226505` (`0xC0000409`), including outside Vitest and without compile caching.
+The [upstream diagnosis](https://github.com/nodejs/node/issues/63620) traces this
+to Windows TCP handling; [libuv's fix](https://github.com/libuv/libuv/commit/aabb7651de)
+initializes `OSVERSIONINFOW` before `RtlGetVersion`. It is included in
+[Node 24.16.0](https://nodejs.org/en/blog/release/v24.16.0).
+Vitest checks the runtime before preparing Electron or starting workers, and
+stops with an upgrade instruction on unsupported versions. Changing the cache,
+worker count or test timeouts does not repair the affected runtime.
+
 Vitest prepares the installed Electron binary once in
 [`globalSetup`](https://vitest.dev/config/globalsetup), before any test workers
 start. [Electron 42+](https://www.electronjs.org/docs/latest/breaking-changes#behavior-changed-electron-no-longer-downloads-itself-via-postinstall-script)

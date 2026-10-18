@@ -45,7 +45,7 @@
     "frontend:test:electron": "node frontend/observatory/tests/electron-smoke.mjs"
   },
   "engines": {
-    "node": ">=24.15.0 <25"
+    "node": ">=24.16.0 <25"
   },
   "lint-staged": {
     "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
