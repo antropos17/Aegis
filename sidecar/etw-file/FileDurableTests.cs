@@ -11,6 +11,17 @@ internal static class FileDurableTests
         Enumerable.Range(71, 6).Select(pid => new FileDurablePeer(pid, "134000000000001111")).ToArray());
     internal static void Run(Action<string, Action> test)
     {
+        test("read-only reservation digest binds the whole original protected payload", () =>
+        {
+            var lease = Lease(); string digest = FileDurableRecovery.Digest(lease);
+            Check(FileDurableRecovery.ValidDigest(digest));
+            Check(FileDurableRecovery.Digest(FileDurableRecovery.Parse(JsonSerializer.SerializeToUtf8Bytes(lease))) == digest);
+            foreach (var changed in new[] { lease with { guid = "22345678123456781234567812345678" },
+                lease with { user = "other" }, lease with { logon = "other" }, lease with { image = "other" },
+                lease with { peers = [.. lease.peers.Take(5), new(88, "134000000000001112")] } })
+                Check(FileDurableRecovery.Digest(changed) != digest);
+            Check(!FileDurableRecovery.ValidDigest(null) && !FileDurableRecovery.ValidDigest(new('g', 64)));
+        });
         test("durable recovery covers all six original identities without a survivor", () =>
         {
             int calls = 0;

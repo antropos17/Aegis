@@ -5,7 +5,8 @@ namespace Aegis.EtwLifecycle;
 internal sealed record FileOrphanEndpoint(string id, int pid, string birth);
 internal sealed record FileOrphanSetup(int mainPid, string mainBirth, string? observer);
 internal sealed record FileOrphanLease(string guid, JsonElement peers, string? observer);
-internal sealed record FileOrphanNotice(string kind, int custodianPid, string custodianBirth, int[] originalPids);
+internal sealed record FileOrphanNotice(string kind, int custodianPid, string custodianBirth, int[] originalPids,
+    string journalDigest, string? previousJournalDigest, bool? previousSameScope);
 internal sealed record FileOrphanPhase(string kind);
 internal sealed record FileOrphanTerminal(string kind, bool recovered, bool absent, int[] exits,
     uint queryStatus, uint? restrictedProbeStatus, bool observationGap, object? finalTotals);
