@@ -220,6 +220,9 @@ It has a 15-minute parent deadline and stops at the first failed scenario. Each
 capture needs a same-account UAC decision; a query-only elevated witness may also
 be needed when ordinary queries are denied. See the [failure contract](../roadmap/etw-failure-boundaries.md)
 for capability boundaries and remaining qualification limits.
+The [2026-10-18 evidence](../recon/evidence/etw-packaged-failure-boundaries.json)
+records seven actual packaged PASS cases at source `278f0754`, an independently
+exercised elevated query witness and the retained initial pre-capture build failure.
 
 ### Other qualification
 

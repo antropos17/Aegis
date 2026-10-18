@@ -1,5 +1,10 @@
 # Diagnostic issuer proof and collector recovery
 
+The subsequent [failure-boundary follow-up](etw-failure-boundaries.md) adds
+pre-start reservation and qualifies the diagnostic pre-arm gap, guard/broker loss
+and abrupt Electron exit. The historical two-capture evidence below retains its
+original scope and does not itself qualify those later cases.
+
 Protocol `etw-file/6` adds a narrow Read v1 issuer proof and independent cleanup
 guard. Production capture, path confirmation and downstream FileEvent admission
 remain gated. This document describes implementation; each live receipt binds its
@@ -34,9 +39,9 @@ Broker exit 4 plus a validated recovery receipt confirms cleanup while preservin
 FAILED capture health. Application-stage totals remain null and `observationGap`
 stays true. No receipt, receipt without expected exit, guard failure or conflicting
 session GUID blocks retry. Explicit retry after confirmed cleanup is permitted;
-there is no automatic relaunch/UAC. Crash before guard arming, simultaneous guard
-and collector loss, protected installation, alternate credentials and actual
-sleep/wake remain open. Held-handle PID/TID reuse is modeled in deterministic
+there is no automatic relaunch/UAC. The original two-capture qualification left
+crash before guard arming, simultaneous guard and collector loss, protected
+installation, alternate credentials and actual sleep/wake open. Held-handle PID/TID reuse is modeled in deterministic
 tests; real reuse is not forced by the packaged check.
 
 The optional packaged profile runs two planned captures: controlled collector

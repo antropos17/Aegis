@@ -204,7 +204,8 @@ absence witnessing and protected installation remain incomplete. The authenticat
 guard now carries the original session handle/GUID for bounded collector-crash
 cleanup, with independent handle queries and a separate broker receipt. Recovery
 retains FAILED health, unknown application-stage losses and an observation gap.
-Pre-arm crash and simultaneous collector/guard loss remain unqualified.
+Pre-arm recovery now has the bounded local qualification above; simultaneous
+collector/guard loss and protected recovery authority remain unqualified.
 Warm mmap, Fast I/O and the remaining B1/E4–E8 coverage questions remain open.
 
 The 2026-09-11 [burst-handling follow-up](../../docs/roadmap/etw-burst-handling.md)

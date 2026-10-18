@@ -162,8 +162,11 @@ The dependency is those observations, not the absence of a Windows host.
    The [issuer/recovery follow-up](docs/roadmap/etw-issuer-recovery.md) adds held
    thread/process interval proof with fresh full FILETIME joins, an authenticated
    original-handle cleanup guard and a two-capture packaged qualification. This
-   narrows E4 and collector-crash cleanup; production/path admission, pre-arm and
-   simultaneous guard/collector crash, actual reuse and sleep/wake remain open.
+   narrows E4 and collector-crash cleanup. The subsequent
+   [failure-boundary qualification](docs/roadmap/etw-failure-boundaries.md) passes
+   seven packaged cases including pre-arm reservation recovery, guard/broker loss
+   and abrupt Electron exit. Production/path admission, simultaneous guard/collector
+   crash, protected recovery, actual reuse and sleep/wake remain open.
 
 ## C — existing rules coverage
 

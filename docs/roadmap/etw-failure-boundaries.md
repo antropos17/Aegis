@@ -59,3 +59,21 @@ Simultaneous loss of collector and guard still needs protected recovery authorit
 this profile does not deliberately orphan such a session or claim it recovered.
 Actual sleep/wake, alternate credentials, complete I/O coverage, real forced
 PID/TID reuse and the remaining E1-E8 gates are separate qualification work.
+
+The 2026-10-18 [packaged evidence](../recon/evidence/etw-packaged-failure-boundaries.json)
+records all seven scenarios PASS at `278f075438ee7c027f1435be4721a48db4ca0049`.
+Before-start exit produced status 4201 with unknown counters; pre-arm exit produced
+verified guard cleanup with native query status 0. Guard/broker loss kept FAILED,
+retry blocked and final counters/totals null, while independent queries subsequently
+observed absence. Abrupt Electron exit 73 also left no observed owned helper or
+session. The existing actual sync/pending-overlapped issuer proof, collector crash
+and new normally stopped capture passed unchanged. A separate explicit elevated
+query-only witness passed; the access-denied fallback trigger was not induced.
+
+All 229 packaged main/shared JS/JSON files matched the clean worktree; the published
+native DLL matched its packaged copy and no mutation fixture entered the archive.
+The first packaging attempt failed before ETW because a concurrently running
+mutation gate removed a temporary file while the packager enumerated it. That
+receipt is retained; the successful run started after both gates completed. The
+evidence also hashes the raw receipts/package manifest and independently checks
+all audit rows in all seven retained profiles for diagnostic admission.
