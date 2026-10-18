@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "scope": "First scoped read issuer preparation: verification without elevation",
+  "status": "PREPARED_LIVE_PENDING",
+  "productionAdmission": false,
+  "recordedAt": "2026-10-18T19:02:26.312Z",
+  "source": {
+    "head": "41335d2d4f9f4c6d9182f1351f9a8face853744e",
+    "tree": "075b92e814a2653b7e2fda114d2737581fc5382e",
+    "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+  },
+  "packageManifestSha256": "aef8bf14cb95172f9e9743bbd5296969299eb91f6a38241964c51835ef4dc52e",
+  "nativeDllSha256": "097744904d9eb454bc50bf20db2b45b47770d5862d1b16c629f74d194c16e8ed",
+  "checks": {
+    "nativeSelfTests": {
+      "passed": 122,
+      "liveEtw": false,
+      "logSha256": "f2f80f9ca4ba53f5aaf5230435db4dd6361fb06fc6f8feb6feda7d3795002e28"
+    },
+    "platformAndScanTests": {
+      "passed": 722,
+      "skipped": 1,
+      "failed": 0,
+      "reportSha256": "2f83871f838596f5c3d54de5d92b872fd719fd4e0da11636c956900360431f5b"
+    },
+    "hosted": {
+      "head": "41335d2d4f9f4c6d9182f1351f9a8face853744e",
+      "requiredContexts": "SUCCESS (build, lint, svelte-check, test, audit)",
+      "nativeFixtures": "SUCCESS",
+      "ciRun": "https://github.com/antropos17/Aegis/actions/runs/39156077945",
+      "nativeRun": "https://github.com/antropos17/Aegis/actions/runs/39156077910"
+    },
+    "nativeOwnedHandles": {
+      "status": "PASS",
+      "elevated": false,
+      "realWindowsHandles": true,
+      "liveEtw": false,
+      "genuineAgentRead": false,
+      "method": "Private reflection harness invokes the unmodified packaged FileGeneration with default native dependencies; observations are synthetic.",
+      "cycles": [
+        {
+          "preparedThreads": 26,
+          "wrongBirthRejected": true,
+          "earlierEventUnverified": true,
+          "syntheticLaterEventVerified": true,
+          "freshBirthMatched": true,
+          "disposed": true
+        },
+        {
+          "preparedThreads": 26,
+          "wrongBirthRejected": true,
+          "earlierEventUnverified": true,
+          "syntheticLaterEventVerified": true,
+          "freshBirthMatched": true,
+          "disposed": true
+        }
+      ],
+      "receiptSha256": "6de3cb90ac2473cb7cc26aa5f403335d26d7618554c8e98b60c03d651e719c05",
+      "harnessSha256": "36b53ae5c5b6d9a82609e785790ff305c9eb6b04fe81a0b27553939db33b4424"
+    },
+    "normalTokenControl": {
+      "status": "PASS",
+      "cycles": 2,
+      "synthetic": true,
+      "liveEtw": false,
+      "nativeThreadPreparation": false,
+      "description": "Actual source-build check-broker/check-collector processes acknowledge the version-10 control and stop normally with synthetic targets.",
+      "receiptSha256": "44f3ac341d0a7f95065dad607ddc3dab3d6eed8eeef21b874c3b8c737c21c4f0"
+    },
+    "ordinaryPackagedLaunch": {
+      "status": "PASS",
+      "liveEtw": false,
+      "providerRequested": false,
+      "reliablePopulation": true,
+      "diagnosticStats": null,
+      "capture": "disabled",
+      "appExit": 0,
+      "independentSessionAbsent": true,
+      "receiptSha256": "9b7824b29d938b504d932beed1c73280907bfd0e32494ee0258d4256b673c103"
+    },
+    "finalIntegrity": {
+      "status": "PASS",
+      "packageFiles": 283,
+      "packageUnchanged": true,
+      "primaryStatusUnchanged": true,
+      "primaryFilesUnchanged": 8,
+      "independentSessionAbsent": true
+    }
+  },
+  "liveQualification": {
+    "baseline": {
+      "status": "FAIL",
+      "reason": "Manual UAC expired before capture ready and before any provider Read; this is unavailable live baseline evidence.",
+      "receiptSha256": "5458c58f6fbe133ed3d6ae230e78aed052af4afce8ee162e857c3dac87e6a2d0"
+    },
+    "candidateFirstRead": "NOT_RUN: manual UAC deferred by the user",
+    "candidatePersistentRegression": "NOT_RUN: manual UAC deferred by the user"
+  },
+  "limits": [
+    "These checks do not qualify genuine-agent first-read capture, visible action/risk or the persistent-read regression on this package.",
+    "Earlier persistent-agent live evidence belongs to its original package and does not qualify this first-read implementation.",
+    "Ordinary packaged ETW remains disabled; marked diagnostic package and explicit fixture root are required.",
+    "Denied handles, unavailable witnesses, bounded capacity and workers created after preparation can leave reads unverified.",
+    "Candidate paths and path-rule potential risk do not establish resolved file identity or malicious intent; no risk-score, FileEvent, audit, baseline or sequence admission.",
+    "One local Windows x64 machine; no other platform or agent qualification."
+  ],
+  "retention": "Private receipts, private harness and unsuccessful attempts retained; manual review of closed disposable diagnostics after seven days."
+}

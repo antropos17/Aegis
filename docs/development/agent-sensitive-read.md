@@ -99,3 +99,27 @@ the snapshot alone is never identity proof.
 The [source/package-bound live record](../recon/evidence/agent-sensitive-read.json)
 retains the result and earlier unsuccessful attempts separately from modeled
 tests. Production admission remains open.
+
+## First-read preparation status
+
+The [first-read preparation record](../recon/evidence/agent-first-read-preparation.json)
+binds the checks without elevation to runtime source `41335d2d` and its complete
+package manifest. It records 122 passing native self-tests, 722 passing
+platform/scan tests with one skipped, and successful CI at that runtime revision.
+Later documentation-only commits leave these tested runtime inputs unchanged;
+their current PR checks still apply separately.
+
+An unelevated Windows probe invoked the unmodified packaged native preparation
+code with its default dependencies. Two cycles each held 26 real threads of the
+probe process, rejected a mismatched full birth time, left an earlier synthetic
+event unverified, verified a later synthetic event and disposed the retained
+handles. This checks native handle access with synthetic observations. Separate
+normal-token control round trips and the ordinary packaged launch also passed;
+the latter kept capture disabled and exited normally.
+
+Live qualification remains pending. The baseline attempt expired at manual UAC
+before any provider Read. The candidate's genuine first-read journey and its
+persistent-read regression have not run; the user deferred checks requiring UAC.
+Keep the PR in draft until those packaged journeys pass, including visible
+action/risk, privacy and owned cleanup. The earlier live record above qualifies
+its original persistent-read package only.
