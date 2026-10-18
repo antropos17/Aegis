@@ -6,6 +6,7 @@ import {
   WINDOWS_SUITES,
   validateTestReport,
   describeTestFailure,
+  guiStageDiagnostic,
   parseWorktrees,
   retentionBlockers,
   classifyRun,
@@ -43,6 +44,48 @@ describe('workflow diagnosis', () => {
 });
 
 describe('Windows evidence validation', () => {
+  it('retains only closed native stage codes from a failed GUI assertion', () => {
+    const report = passing();
+    const suite = report.testResults.find((row) =>
+      row.name.endsWith('protected-gui-process-windows.test.js'),
+    );
+    const stage = {
+      first: 'stop',
+      code: 'protected-gui-process-cleanup-unknown',
+      leasePhase: 'profile',
+      cleanup: 'none',
+      cleanupCode: 'none',
+    };
+    suite.status = 'failed';
+    suite.assertionResults = [
+      {
+        status: 'failed',
+        failureMessages: [
+          'PRIVATE_CANARY X:/private/path AEGIS_GUI_STAGE:' +
+            JSON.stringify(stage) +
+            '\nPRIVATE_CANARY',
+        ],
+      },
+    ];
+    const result = describeTestFailure(report, root);
+    expect(result[0].stageFailures).toEqual([{ assertion: 1, ...stage }]);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_CANARY');
+    expect(JSON.stringify(result)).not.toContain('X:/private');
+    expect(
+      guiStageDiagnostic(
+        'AEGIS_GUI_STAGE:{"code":"truncated"\nAEGIS_GUI_STAGE:' + JSON.stringify(stage),
+      ),
+    ).toEqual(stage);
+    expect(guiStageDiagnostic('x'.repeat(32769))).toBeNull();
+    for (const invalid of [
+      { ...stage, first: 'private-path' },
+      { ...stage, code: 'PRIVATE_CANARY' },
+      { ...stage, extra: 'PRIVATE_CANARY' },
+    ]) {
+      suite.assertionResults[0].failureMessages = ['AEGIS_GUI_STAGE:' + JSON.stringify(invalid)];
+      expect(describeTestFailure(report, root)[0].stageFailures).toBeUndefined();
+    }
+  });
   it('locates failed assertions without publishing private diagnostics or unexpected suites', () => {
     const secret = 'PRIVATE_CONTENT_CANARY';
     const report = passing();

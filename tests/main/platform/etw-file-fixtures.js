@@ -127,6 +127,7 @@ export function message(t = 'hello', seq = '1', data) {
       finalTotals: null,
       observationGap: true,
       collectorExit: 70,
+      brokerExit: null,
       peers: {
         guardExit: 0,
         fallbackExit: 0,
@@ -138,7 +139,7 @@ export function message(t = 'hello', seq = '1', data) {
   };
   return {
     t,
-    proto: 'etw-file/7',
+    proto: 'etw-file/8',
     launchId: 'launch-1',
     sessionId: 'session-1',
     seq,

@@ -87,7 +87,11 @@ diagnostic package. It did not qualify loss of all three elevated peers. The
 [all-helper follow-up](etw-total-recovery.md) now records six target PASS cases with
 the original normal broker surviving and all seventeen cases accepted across
 retained captures and a bounded continuation on the same immutable package.
-Loss of broker plus all elevated peers, protected/durable service recovery,
+The [main-held follow-up](etw-main-custody.md) records five later broker-plus-peer
+target PASS cases with main surviving and all twenty-two regressions across fourteen
+original captures and two four-capture continuations on the same immutable package.
+Failed attempts remain recorded; no single-sweep PASS is claimed.
+Main-plus-all-native loss, protected/durable service recovery,
 protected installation, alternate credentials and actual sleep/wake remain unqualified.
 Production ETW stays disabled by default. Path confirmation, complete I/O coverage
 and the remaining E1-E8 gates are unchanged.

@@ -6,6 +6,7 @@ const wire = require('./etw-file-protocol');
 const model = require('./etw-file-health');
 const health = require('../sensor-health');
 const { createDiagnostics, createSummary } = require('./etw-file-diagnostics');
+const { bindTransport } = require('./etw-file-transport');
 
 /** Own one broker at a time, with explicit retry and no elevated kill or replay.
  * @param {Object} deps - spawnBroker, optional clocks/ID factory for deterministic tests.
@@ -14,6 +15,8 @@ const { createDiagnostics, createSummary } = require('./etw-file-diagnostics');
  */
 function createSupervisor({
   spawnBroker,
+  spawnRecovery = null,
+  ownerPid = process.pid,
   now = Date.now,
   mono = () => performance.now(),
   id = randomUUID,
@@ -46,6 +49,13 @@ function createSupervisor({
   let stopReason = null;
   let capture = null;
   let readyAt = null;
+  let privateLease = null,
+    rescuing = false,
+    lostBrokerCode = null,
+    startPending = false,
+    custodyObserved = false,
+    consentAckPending = false,
+    cleanupAttemptObserved = false;
   let completion = Promise.resolve(false),
     resolveCompletion = null;
   let diagnostics = createDiagnostics(profileClock);
@@ -69,13 +79,18 @@ function createSupervisor({
     diagnostics.clear();
   }
   function fail(code) {
-    if (!current || current.phase === 'failed') return;
+    if (!current) return;
+    if (current.phase === 'failed') {
+      consentAckPending = false;
+      child?.stdin?.destroy();
+      return;
+    }
     current = model.failSession(current, now(), code);
     failedAt = mono();
     unsafe = receivedReady; // Once capture existed, missing cleanup forbids a new capture.
     restartRequested = false;
     clearRing();
-    child?.stdin.destroy(); // Broker EOF and collector lease own cleanup.
+    child?.stdin?.destroy(); // Broker EOF and collector lease own cleanup.
     notify();
   }
   function send(t, data) {
@@ -96,6 +111,8 @@ function createSupervisor({
         if (child !== target) return;
         pendingWrite = false;
         if (error) return fail('consumer-failed');
+        flushStart();
+        flushConsentAck();
         flushStop();
       });
     } catch {
@@ -110,7 +127,48 @@ function createSupervisor({
       send('stop', { requestId: stopRequest });
     }
   }
+  function flushStart() {
+    if (startPending && !pendingWrite && stopAt === null && current?.phase === 'starting') {
+      startPending = false;
+      if (!send('start', { requestId: startRequest, profile: wire.PROFILE, buffersMiB: 16 }))
+        fail('consumer-failed');
+    }
+  }
+  function flushConsentAck() {
+    if (consentAckPending && !pendingWrite && current?.recoveryPending && !closed) {
+      consentAckPending = false;
+      if (!send('consent-ack', {})) fail('consumer-failed');
+    }
+  }
   function accept(message) {
+    if (message.t === 'escrow') {
+      if (
+        rescuing ||
+        privateLease ||
+        typeof spawnRecovery !== 'function' ||
+        current.lastSeq !== '0' ||
+        current.helloSeen ||
+        message.data.ownerPid !== ownerPid ||
+        message.data.peers[0].pid !== child.pid
+      )
+        throw new Error('custody');
+      privateLease = structuredClone(message.data);
+      custodyObserved = true;
+      receivedAt = mono();
+      if (!send('escrow-ack', {})) throw new Error('write-busy');
+      return; // Never enter health, diagnostics, summary or renderer state.
+    }
+    if (['recovering', 'recovered'].includes(message.t)) {
+      if ((message.data.cause === 'broker-and-all-helpers-exited') !== rescuing)
+        throw new Error('controller');
+      if (
+        rescuing &&
+        message.t === 'recovered' &&
+        Number.isInteger(lostBrokerCode) &&
+        message.data.brokerExit !== lostBrokerCode
+      )
+        throw new Error('broker-exit');
+    }
     if (message.t === 'ready' && message.data.requestId !== startRequest)
       throw new Error('request');
     if (message.t === 'stopped' && message.data.requestId !== stopRequest)
@@ -123,8 +181,8 @@ function createSupervisor({
         return;
       }
       startRequest = id();
-      if (!send('start', { requestId: startRequest, profile: wire.PROFILE, buffersMiB: 16 }))
-        throw new Error('write-busy');
+      startPending = true;
+      flushStart();
     }
     if (message.t === 'ready') {
       receivedReady = true;
@@ -143,10 +201,13 @@ function createSupervisor({
     }
     if (message.t === 'recovering') {
       failedAt = mono();
-      failureGraceMs = 135000; // One native 120 s consent deadline plus bounded exit.
+      failureGraceMs = 145000; // ACK <=8 s, one 120 s UAC window, receipt/exit/flush.
+      cleanupAttemptObserved = true;
+      consentAckPending = true;
       stopAt = null;
       unsafe = true;
       clearRing();
+      flushConsentAck();
     }
     if (message.t === 'observations' && stopAt === null) {
       diagnostics.retain(message.data.records);
@@ -190,6 +251,40 @@ function createSupervisor({
   }
   function finish(target, code) {
     if (target !== child || closed) return;
+    if (
+      !['stopped', 'recovered'].includes(current.phase) &&
+      privateLease &&
+      !cleanupAttemptObserved &&
+      !rescuing &&
+      !disposed &&
+      typeof spawnRecovery === 'function'
+    ) {
+      rescuing = true;
+      lostBrokerCode = Number.isInteger(code) && code >= 0 && code <= 0xffffffff ? code | 0 : code;
+      unsafe = true;
+      restartRequested = false;
+      current = {
+        ...model.failSession(current, now(), 'broker-recovery-pending'),
+        groupRecoveryAuthorized: true,
+      };
+      failedAt = mono();
+      failureGraceMs = 40000;
+      stopAt = null;
+      pendingWrite = false;
+      startPending = false;
+      clearRing();
+      try {
+        child = spawnRecovery(current.launchId, current.sessionId);
+        attach(child);
+        if (!send('rescue', { lease: privateLease, lastSeq: current.lastSeq }))
+          child.stdin?.destroy();
+        notify();
+        return;
+      } catch {
+        child = target;
+        current = model.failSession(current, now(), 'broker-recovery-unverified');
+      }
+    }
     closed = true;
     clearInterval(timer);
     timer = null;
@@ -206,6 +301,7 @@ function createSupervisor({
     summaries.push(
       createSummary(current, { capture, diagnostics, stopReason, code, endedAt: now() }),
     );
+    if (!unsafe) privateLease = null;
     if (summaries.length > 32) {
       summaries.shift();
       omittedSummaries++;
@@ -236,6 +332,13 @@ function createSupervisor({
     stopSent = false;
     failedAt = null;
     failureGraceMs = 15000;
+    privateLease = null;
+    custodyObserved = false;
+    cleanupAttemptObserved = false;
+    consentAckPending = false;
+    rescuing = false;
+    lostBrokerCode = null;
+    startPending = false;
     clearRing();
     startedAt = receivedAt = mono();
     closed = false;
@@ -252,42 +355,26 @@ function createSupervisor({
     completion = new Promise((resolve) => {
       resolveCompletion = resolve;
     });
-    const target = child;
-    decoder = wire.createFrameDecoder({
-      ...current,
-      onMessage: (message) => diagnostics.measure('acceptFrame', () => accept(message)),
-    });
-    const reader = decoder;
-    target.stdout.on('data', (bytes) => {
-      if (target !== child || closed) return;
-      try {
-        diagnostics.measure('decodeChunk', () => reader.push(bytes));
-      } catch {
-        fail('protocol-failed');
-      }
-    });
-    target.stdout.on('end', () => {
-      if (target !== child || closed) return;
-      try {
-        reader.end();
-      } catch {
-        fail('protocol-failed');
-      }
-      if (!['stopped', 'recovered'].includes(current.phase)) fail('stream-ended');
-    });
-    target.stdout.on('error', () => {
-      if (target === child) fail('stream-ended');
-    });
-    target.stdin.on('error', () => {
-      if (target === child && current.phase !== 'stopped') fail('stream-ended');
-    });
-    target.on('error', () => {
-      if (target === child) fail('launch-failed');
-    });
-    target.on('close', (code) => finish(target, code));
+    attach(child);
     timer = setInterval(tick, 2000);
     timer.unref?.();
     return true;
+  }
+  function attach(target) {
+    decoder = bindTransport({
+      target,
+      launchId: current.launchId,
+      sessionId: current.sessionId,
+      isCurrent: () => target === child && !closed,
+      measure: (name, operation) => diagnostics.measure(name, operation),
+      onMessage: (message) => diagnostics.measure('acceptFrame', () => accept(message)),
+      onEnd: () => {
+        if (!['stopped', 'recovered'].includes(current.phase)) fail('stream-ended');
+      },
+      onFailure: fail,
+      onClose: (code) => finish(target, code),
+      stopped: () => current.phase === 'stopped',
+    });
   }
   function stop(reason = 'operator-stop') {
     if (
@@ -310,6 +397,7 @@ function createSupervisor({
     stop,
     tick,
     restart() {
+      if (unsafe || (rescuing && child)) return false;
       stop('restart');
       restartRequested = true;
       if (!child && !unsafe) {
@@ -335,7 +423,9 @@ function createSupervisor({
         summaries: structuredClone(summaries),
         omittedSummaries,
         restartBlocked: unsafe,
-        recoveryPending: current?.recoveryPending === true && !closed,
+        recoveryPending: (current?.recoveryPending === true || rescuing) && !closed,
+        cleanupConsentPending: current?.recoveryPending === true && !closed,
+        custodyObserved,
         phase: current?.phase || 'disabled',
         pendingBytes: decoder?.allocatedBytes() || 0,
       })),

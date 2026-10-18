@@ -234,10 +234,14 @@ try {
             if ($null -ne $phaseProperty) {
                 $phase = [string]$phaseProperty.GetValue($process, $null)
                 if ($phase -cin @('none', 'native-observe', 'principal', 'pins', 'profile', 'native-live', 'binding',
-                    'deadline-before', 'deadline-after', 'native-stop', 'native-observe-stopped', 'native-terminal-invariant',
+                'native-exit-reobserve', 'deadline-before', 'deadline-after', 'native-stop', 'native-observe-stopped', 'native-terminal-invariant',
                     'known-cleanup', 'native-close', 'binding-close', 'pins-restore', 'profile-close', 'principal-release')) { $leasePhase = $phase }
             }
         }
+        # Console writes avoid PowerShell's wrapped ErrorRecord rendering. The CI
+        # receipt admits only known enum values; raw exception text stays private.
+        [Console]::Error.WriteLine('AEGIS_GUI_STAGE:' + (@{ first = $firstPhase; code = $firstCode;
+            leasePhase = $leasePhase; cleanup = $cleanupPhase; cleanupCode = $cleanupCode } | ConvertTo-Json -Compress))
         throw ('gui-process-stage-fixture:first=' + $firstPhase + ';code=' + $firstCode + ';state=' + $script:ObservedState + ';payload=' + $script:PayloadState + ';leasePhase=' + $leasePhase + ';cleanup=' + $cleanupPhase + ';cleanupCode=' + $cleanupCode)
     }
 }

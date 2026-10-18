@@ -15,7 +15,7 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
         internal Envelope Message { get; } = message;
         internal Task Forward(Stream stream, CancellationToken token) => WriteBody(stream, body, token);
     }
-    internal const string Protocol = "etw-file/7", Profile = "home-26200-diagnostic-v1";
+    internal const string Protocol = "etw-file/8", Profile = "home-26200-diagnostic-v1";
     internal const int Limit = 256 * 1024;
     internal static readonly string[] Schemas = ["10:0", "12:1", "13:1", "14:1", "15:1"];
     private static readonly UTF8Encoding Utf8 = new(false, true);
@@ -58,8 +58,10 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
             }
             else if (frame.t == "stop") Shape(frame.data, "requestId");
             else if (frame.t == "ping") Shape(frame.data);
+            else if (frame.t is "escrow-ack" or "consent-ack") Shape(frame.data);
+            else if (frame.t == "rescue") FileMainWire.ValidateRescue(frame.data);
             else throw new InvalidDataException();
-            if (frame.t != "ping" && !Id(frame.data.GetProperty("requestId").GetString() ?? "")) throw new InvalidDataException();
+            if (frame.t is not ("ping" or "escrow-ack" or "consent-ack" or "rescue") && !Id(frame.data.GetProperty("requestId").GetString() ?? "")) throw new InvalidDataException();
         }
         else if (frame.t is not ("hello" or "ready" or "observations" or "health" or "heartbeat" or "stopped" or "error"))
             throw new InvalidDataException();

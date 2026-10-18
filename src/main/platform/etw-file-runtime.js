@@ -42,6 +42,11 @@ function createRuntime({
     'triple-before-arm': 'broker-triple-prearm-check',
     'triple-before-start': 'broker-triple-prestart-check',
     'triple-access-denied': 'broker-triple-denial-check',
+    'group-before-start': 'broker-group-prestart-check',
+    'group-before-arm': 'broker-group-prearm-check',
+    'group-broker-first': 'broker-group-first-check',
+    'group-triple-first': 'broker-group-triple-check',
+    'group-access-denied': 'broker-group-denial-check',
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;
@@ -58,13 +63,32 @@ function createRuntime({
     spawnBroker: (launchId, sessionId) =>
       spawnProcess(
         executable,
-        [faults.length ? faultModes[fault] : 'broker', launchId, sessionId, root],
+        [
+          faults.length ? faultModes[fault] : 'broker',
+          launchId,
+          sessionId,
+          root,
+          ...(app.isPackaged && diagnosticPackage ? ['main-escrow'] : []),
+        ],
         {
           windowsHide: true,
           shell: false,
           stdio: ['pipe', 'pipe', 'ignore'],
         },
       ),
+    spawnRecovery:
+      app.isPackaged && diagnosticPackage
+        ? (launchId, sessionId) =>
+            spawnProcess(
+              executable,
+              [
+                fault === 'group-access-denied' ? 'rescue-denial-check' : 'rescue',
+                launchId,
+                sessionId,
+              ],
+              { windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] },
+            )
+        : null,
   });
   const validRoot =
     typeof root === 'string' &&

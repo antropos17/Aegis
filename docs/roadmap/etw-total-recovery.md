@@ -1,5 +1,10 @@
 # Recovery after loss of all three elevated helpers
 
+The architecture and qualification below record the v7 surviving-broker path.
+Current marked packages also use [main-held custody](etw-main-custody.md) before
+StartTrace; the later record separates its five target PASS cases from the still
+incomplete full regression qualification. Earlier JSON receipts remain unchanged.
+
 The normal broker receives the capture's original random reservation through the
 authenticated collector channel before StartTrace. Both authenticated peer hellos
 must carry the same canonical nonempty GUID. The reservation stays in memory and
@@ -39,8 +44,9 @@ dismiss Windows consent; a late worker must still authenticate the original brok
 and receive a live private command. Closing the app during consent certifies no
 cleanup. No capture is automatically restarted.
 
-This uses a surviving original broker. No recovery obligation survives loss of
-that broker together with the elevated peers; protected durable recovery and
+That v7 qualification uses a surviving original broker. Its authority does not
+survive broker loss. Current v8 main-held custody addresses broker-plus-peer loss
+while the original main survives; protected durable recovery after main loss and
 installed-binary provenance remain separate gates.
 
 ## Packaged qualification
@@ -102,7 +108,11 @@ launch created no profile. Native self-tests passed 86 cases and focused JS test
 passed 223. Typecheck, task lint, derived counts, native whitespace and normal-token
 synthetic transport passed. Local Semgrep was unavailable (`ENOENT`).
 
-Broker loss together with all elevated peers, refused/abandoned cleanup consent,
-protected durable recovery, protected installation, alternate credentials, actual
-sleep/wake, complete I/O coverage and production/path admission remain explicit
-limits. Ordinary production ETW remains disabled by default.
+Broker loss together with all elevated peers was outside that frozen evidence.
+The [main-held follow-up](etw-main-custody.md) now records five target PASS cases
+and all twenty-two regressions across fourteen original captures and two four-capture
+continuations on the same immutable package. Failed attempts remain recorded;
+no single-sweep PASS is claimed. Refused/abandoned cleanup
+consent, protected durable recovery after main loss, protected installation,
+alternate credentials, actual sleep/wake, complete I/O coverage and production/path
+admission remain explicit limits. Ordinary production ETW remains disabled by default.

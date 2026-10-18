@@ -172,8 +172,13 @@ The dependency is those observations, not the absence of a Windows host.
    cases using the surviving normal broker, with cleanup-only UAC after native
    denial. All seventeen cases now pass across thirteen retained captures and a
    four-capture continuation on the same immutable package; the earlier startup
-   failures remain recorded. Loss of broker plus all elevated peers, production/path
-   admission, protected durable recovery, actual reuse and sleep/wake remain open.
+   failures remain recorded. The [main-held custody follow-up](docs/roadmap/etw-main-custody.md)
+   passes five broker-plus-helper loss targets with the original main surviving.
+   All twenty-two cases passed across fourteen original captures and two bounded
+   four-capture continuations on the same immutable package; failed attempts remain
+   recorded and no single-sweep PASS is claimed. Loss of main together with
+   all native peers, production/path admission, protected durable recovery, actual
+   reuse and sleep/wake remain open.
 
 ## C — existing rules coverage
 

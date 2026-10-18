@@ -8,9 +8,135 @@ export const WINDOWS_SUITES = [
   'tests/main/protected-gui-process-windows.test.js',
 ];
 
+const STAGE_PHASES = new Set([
+  'none',
+  'setup',
+  'stage',
+  'execution-link-substitution',
+  'preexisting-profile',
+  'start',
+  'ready',
+  'query',
+  'release',
+  'initial-query',
+  'initial-state',
+  'busy-check-unbound',
+  'busy-check-bound',
+  'busy-check-result',
+  'strict-payload-write',
+  'strict-payload-delete',
+  'strict-payload-result',
+  'strict-payload-preserved',
+  'active-upgrade-guard',
+  'active-uninstall-guard',
+  'active-guard-result',
+  'stop',
+  'restore-after-busy-check',
+  'retry',
+  'retire-original',
+  'finally-clear-controls',
+  'finally-stop',
+  'finally-dispose-process',
+  'finally-dispose-principal',
+  'finally-dispose-parent',
+]);
+const STAGE_CODES = new Set([
+  'none',
+  'unclassified',
+  'protected-gui-process-refused',
+  'protected-gui-process-cleanup-unknown',
+  'protected-gui-process-profile-refused',
+  'protected-gui-principal-refused',
+  'protected-gui-bundle-refused',
+  'protected-gui-cleanup-unknown',
+  'protected-gui-process-active',
+  'protected-gui-process-association-refused',
+  'protected-stage-acl-refused',
+  'desktop-root-not-live',
+  'desktop-window-capture-failed',
+  'desktop-window-empty',
+  'desktop-dpi-context-refused',
+]);
+const LEASE_PHASES = new Set([
+  'none',
+  'unavailable',
+  'native-observe',
+  'principal',
+  'pins',
+  'profile',
+  'native-live',
+  'binding',
+  'native-exit-reobserve',
+  'deadline-before',
+  'deadline-after',
+  'native-stop',
+  'native-observe-stopped',
+  'native-terminal-invariant',
+  'known-cleanup',
+  'native-close',
+  'binding-close',
+  'pins-restore',
+  'profile-close',
+  'principal-release',
+]);
+
+/** Read only finite native stage enums before assertion reporters truncate stderr.
+ * @param {unknown} text Private stderr or failure message. @returns {object|null} Safe codes.
+ * @since v0.19.2
+ */
+export function guiStageDiagnostic(text) {
+  if (typeof text !== 'string' || text.length > 32768) return null;
+  let count = 0;
+  for (const marker of text.matchAll(/AEGIS_GUI_STAGE:([^\r\n]{1,1024})/g)) {
+    if (++count > 4) break;
+    try {
+      const v = JSON.parse(marker[1]);
+      const fields = ['first', 'code', 'leasePhase', 'cleanup', 'cleanupCode'];
+      if (
+        !v ||
+        typeof v !== 'object' ||
+        Array.isArray(v) ||
+        Object.keys(v).length !== 5 ||
+        !fields.every((k) => Object.hasOwn(v, k)) ||
+        !STAGE_PHASES.has(v.first) ||
+        !STAGE_CODES.has(v.code) ||
+        !LEASE_PHASES.has(v.leasePhase) ||
+        !STAGE_PHASES.has(v.cleanup) ||
+        !STAGE_CODES.has(v.cleanupCode)
+      )
+        continue;
+      return {
+        first: v.first,
+        code: v.code,
+        leasePhase: v.leasePhase,
+        cleanup: v.cleanup,
+        cleanupCode: v.cleanupCode,
+      };
+    } catch {
+      /* Unknown/malformed diagnostics stay private. */
+    }
+  }
+  return null;
+}
+
+/** Project finite native GUI errors without copying assertion text.
+ * @param {object[]} assertions Native assertions. @returns {object[]} Safe codes.
+ * @since v0.19.2
+ */
+function stageFailures(assertions) {
+  return assertions.slice(0, 32).flatMap((row, index) => {
+    if (row?.status !== 'failed' || !Array.isArray(row.failureMessages)) return [];
+    for (const text of row.failureMessages.slice(0, 4)) {
+      const diagnostic = guiStageDiagnostic(text);
+      if (diagnostic) return [{ assertion: index + 1, ...diagnostic }];
+    }
+    return [];
+  });
+}
+
 /** Locate failed native assertions without publishing titles, messages, paths or payloads.
  * @param {object} report Vitest JSON output. @param {string} root Tested checkout.
- * @returns {object[]} Fixed suite names and one-based assertion positions only. @since v0.19.2
+ * @returns {object[]} Fixed suite names, assertion positions and optional finite GUI codes. @since v0.19.2
  */
 export function describeTestFailure(report, root) {
   const results = Array.isArray(report?.testResults) ? report.testResults : [];
@@ -21,6 +147,8 @@ export function describeTestFailure(report, root) {
     );
     if (!result || result.status === 'passed') return [];
     const assertions = Array.isArray(result.assertionResults) ? result.assertionResults : [];
+    const stages =
+      suite === 'tests/main/protected-gui-process-windows.test.js' ? stageFailures(assertions) : [];
     return [
       {
         suite,
@@ -29,6 +157,7 @@ export function describeTestFailure(report, root) {
           .slice(0, 32),
         nonPassingAssertions: assertions.filter((row) => row?.status !== 'passed').length,
         totalAssertions: assertions.length,
+        ...(stages.length ? { stageFailures: stages } : {}),
       },
     ];
   });

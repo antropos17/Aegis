@@ -14,6 +14,8 @@ internal sealed class FileGuardPeer : IDisposable
     [DllImport("kernel32.dll")] private static extern bool GetExitCodeProcess(SafeProcessHandle process, out uint code);
     private readonly SafeProcessHandle process;
     private readonly int pid;
+    internal SafeProcessHandle Handle => process;
+    internal int Id => pid;
     internal FileGuardPeer(int id)
     {
         pid = id; process = OpenProcess(0x101000, false, id);

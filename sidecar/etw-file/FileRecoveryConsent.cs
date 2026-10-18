@@ -6,7 +6,7 @@ namespace Aegis.EtwLifecycle;
 // No caller-selected name, provider, file, new capture or arbitrary command exists.
 internal static class FileRecoveryConsent
 {
-    internal static async Task<FileGuardResult> Start(string reservation)
+    internal static async Task<FileGuardResult> Start(string reservation, CancellationToken ownerLifetime = default)
     {
         if (Security.Current().Elevated) throw new UnauthorizedAccessException();
         FileBrokerRecovery.Reservation(reservation, reservation);
@@ -16,8 +16,10 @@ internal static class FileRecoveryConsent
         var info = Program.Child("recover-peer", id, self.Pid.ToString(), self.Birth.ToString());
         info.UseShellExecute = true; info.Verb = "runas"; info.WindowStyle = ProcessWindowStyle.Hidden;
         info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
-        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ownerLifetime);
+        limit.CancelAfter(TimeSpan.FromSeconds(120));
         using var expiry = limit.Token.Register(() => pipe.Dispose());
+        limit.Token.ThrowIfCancellationRequested();
         using var child = Process.Start(info) ?? throw new IOException();
         var peer = Security.Observe(child);
         await pipe.WaitForConnectionAsync(limit.Token);

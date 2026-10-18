@@ -27,6 +27,8 @@ internal static class FileBroker
             "broker-triple-collector-check" or "broker-triple-denial-check" => "triple-collector", "broker-triple-guard-check" => "triple-guard-collector",
             "broker-triple-fallback-check" => "triple-fallback-collector", "broker-triple-prearm-check" => "triple-prearm-collector",
             "broker-triple-prestart-check" => "triple-prestart-collector",
+            "broker-group-prestart-check" => "triple-prestart-collector", "broker-group-prearm-check" => "triple-prearm-collector",
+            "broker-group-first-check" => "group-parent-collector", "broker-group-triple-check" or "broker-group-denial-check" => "triple-collector",
             _ => "collector" } :
             args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
         var info = Program.Child(collector, args[1], args[2], pipeId,
@@ -49,6 +51,8 @@ internal static class FileBroker
         Task<FileGuardResult>? recovery = null;
         Task<FileGuardResult>? fallbackRecovery = null;
         string? reservation = null;
+        FileMainCustody? mainCustody = null;
+        Stream input = Console.OpenStandardInput(), output = Console.OpenStandardOutput();
         try
         {
             var identity = Security.Observe(child);
@@ -75,16 +79,50 @@ internal static class FileBroker
                 fallback.Verify(fallbackPipe, secondBirth);
                 reservation = FileBrokerRecovery.Reservation(hello.guid, second.guid);
                 fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
+                if (args.Length == 5 && args[4] == "main-escrow")
+                {
+                    using var originalBroker = Process.GetCurrentProcess();
+                    mainCustody = FileMainCustody.Deposit(reservation,
+                        [(self.Pid, originalBroker.SafeHandle), (child.Id, child.SafeHandle),
+                         (guard.Id, guard.Handle), (fallback.Id, fallback.Handle)]);
+                    await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody.Reservation, connect.Token);
+                }
                 await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
             }
             var read = new FileWire(args[1], args[2]);
             var controls = new FileWire(args[1], args[2]);
             int terminalObserved = 0;
-            Stream input = Console.OpenStandardInput(), output = Console.OpenStandardOutput();
+            int consentRequested = 0;
+            var cleanupAck = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var inbound = Task.Run(async () =>
             {
-                while (true) await FileWire.Forward(pipe, await controls.Read(input, true, lifetime.Token), lifetime.Token);
+                while (true)
+                {
+                    var command = await controls.Read(input, true, lifetime.Token);
+                    if (command.t == "consent-ack")
+                    {
+                        if (Volatile.Read(ref consentRequested) != 1 || !cleanupAck.TrySetResult(true)) throw new InvalidDataException();
+                        return;
+                    }
+                    await FileWire.Forward(pipe, command, lifetime.Token);
+                }
             });
+            async Task ConsentAck()
+            {
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+                deadline.CancelAfter(TimeSpan.FromSeconds(8));
+                await Task.WhenAny(cleanupAck.Task, inbound).WaitAsync(deadline.Token);
+                if (cleanupAck.Task.IsCompleted) { await cleanupAck.Task; return; }
+                try { await inbound; } catch { }
+                // The old forwarding task can have ended after pipe EOF. It no
+                // longer reads stdin, so transfer that one reader to cleanup.
+                while (true)
+                {
+                    var command = await controls.Read(input, true, deadline.Token);
+                    if (command.t == "consent-ack") return;
+                    if (command.t is not ("ping" or "stop")) throw new InvalidDataException();
+                }
+            }
             var outbound = Task.Run(async () =>
             {
                 var performance = new FileForwardProfile();
@@ -97,6 +135,8 @@ internal static class FileBroker
                         await performance.Forward(output, frame, lifetime.Token);
                         if (frame.Message.t == "ready" && args[0] == "broker-exit-check") _ = Task.Run(async () =>
                         { await Task.Delay(30000); Environment.Exit(72); });
+                        if (frame.Message.t == "ready" && args[0] == "broker-group-first-check") _ = Task.Run(async () =>
+                        { await Task.Delay(30000); Environment.Exit(75); });
                         if (frame.Message.t == "stopped") return;
                     }
                 }
@@ -108,6 +148,7 @@ internal static class FileBroker
                     await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(12));
                     await Task.WhenAll(guard.WaitForExitAsync(TimeSpan.FromSeconds(12)),
                         fallback.WaitForExitAsync(TimeSpan.FromSeconds(12)));
+                    if (args[0].StartsWith("broker-group-", StringComparison.Ordinal)) Environment.Exit(75);
                     FileGuardResult? primary = null;
                     try { primary = await recovery.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
                     FileGuardResult? secondary = null;
@@ -130,8 +171,10 @@ internal static class FileBroker
                         if (FileRecoveryAccess.NeedsConsent(receipt))
                         {
                             accessDenied = true;
+                            Volatile.Write(ref consentRequested, 1);
                             await terminal.Write(output, "recovering", new
                             { cause = "all-three-helpers-exited", queryStatus = 5, consentDeadlineMs = 120000 }, lifetime.Token);
+                            await ConsentAck();
                             receipt = await FileRecoveryConsent.Start(reservation!);
                             cleanupElevated = true;
                         }
@@ -148,7 +191,8 @@ internal static class FileBroker
                         counters = new { queryStatus = counters.Status, eventsLost = counters.Events?.ToString(),
                             realTimeBuffersLost = counters.RealTime?.ToString(), logBuffersLost = counters.Log?.ToString(),
                             asOfQpc = receipt.asOfQpc },
-                        finalTotals = (object?)null, observationGap = true, collectorExit = child.ExitCode
+                        finalTotals = (object?)null, observationGap = true, collectorExit = child.ExitCode,
+                        brokerExit = (int?)null
                     }, lifetime.Token);
                 }
             });
@@ -176,6 +220,7 @@ internal static class FileBroker
                     await fallback.WaitForExitAsync(TimeSpan.FromSeconds(7));
                     if (fallback.ExitCode != 0 && Volatile.Read(ref terminalObserved) != 2) return 2;
                 }
+                if (Volatile.Read(ref terminalObserved) is 1 or 2) mainCustody?.ReleaseDeposits(false);
                 if (Volatile.Read(ref terminalObserved) == 2) return 4; // Cleanup succeeded; capture failed.
                 return child.ExitCode == 0 ? 0 : 2;
             }
@@ -202,6 +247,7 @@ internal static class FileBroker
             recoveryLifetime.Cancel();
             if (recovery != null) { try { await recovery; } catch { } }
             if (fallbackRecovery != null) { try { await fallbackRecovery; } catch { } }
+            mainCustody?.Dispose();
         }
     }
 }

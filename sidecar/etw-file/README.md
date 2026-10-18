@@ -26,10 +26,15 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/7`. Each telemetry sample includes
+The matching main/helper now require `etw-file/8`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–6 are rejected; rebuild the helper together with the main reader.
+Versions 1–7 are rejected; rebuild the helper together with the main reader.
+Marked diagnostic packages retain private references to the original broker and
+three elevated helpers in the surviving main before capture authorization. See
+[main-held recovery custody](../../docs/roadmap/etw-main-custody.md) for the
+four-process exit gate, cleanup consent acknowledgment, deadlines and qualification
+limits. Reservation and process-reference values never enter diagnostics or IPC.
 Collector telemetry also requires bounded elapsed-time aggregates and separate
 ingress/output queue depths. Ended reports retain collector and main measurements;
 see [service measurements](../../docs/roadmap/etw-service-timings.md) for clock regions,
@@ -190,9 +195,14 @@ UAC decision if ordinary control is denied. It adds the `--etw-total-recovery`
 seventeen-capture profile. Its [current evidence](../../docs/recon/evidence/etw-packaged-total-recovery.json)
 records all six new target cases PASS at `6b66655a`. All seventeen cases passed
 across thirteen retained captures and a four-capture continuation on the same
-immutable package; the earlier startup failures remain recorded. Loss of the broker
-together with every elevated peer still needs protected durable recovery. Ordinary
-packages remain disabled.
+immutable package; the earlier startup failures remain recorded. That evidence
+uses a surviving original broker. The [main-held custody follow-up](../../docs/roadmap/etw-main-custody.md)
+adds `--etw-group-recovery`: five broker-plus-helper loss targets pass with main
+surviving. All twenty-two regressions passed across fourteen original captures and
+two four-capture continuations on the same immutable package; failed attempts remain
+recorded and no single-sweep PASS is claimed. Main loss together
+with all native peers still needs protected durable recovery. Ordinary packages
+remain disabled.
 
 The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
 elevated fallback reserved before StartTrace. It waits for both original collector
