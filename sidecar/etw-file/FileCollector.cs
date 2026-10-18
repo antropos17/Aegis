@@ -6,7 +6,7 @@ internal static class FileCollector
 {
     internal static async Task<int> Run(string[] args)
     {
-        bool live = args[0] is "collector" or "crash-collector";
+        bool live = args[0] is "collector" or "crash-collector" or "prestart-collector" or "prearm-collector" or "guard-loss-collector";
         if (Security.Current().Elevated != live || !FileWire.Id(args[1]) || !FileWire.Id(args[2]) || args[7] != FileWire.Profile) return 3;
         using var parent = Process.GetProcessById(int.Parse(args[4]));
         using var pipe = Security.Client(args[3]);
@@ -22,7 +22,8 @@ internal static class FileCollector
         using var lifetime = new CancellationTokenSource();
         using var trace = live ? new FileTrace() : null;
         using var capture = live ? new FileCapture(ingress) : null;
-        await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe) : null;
+        await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe,
+            trace!.Reservation, args[0] == "guard-loss-collector") : null;
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
         string? stopRequest = null;
@@ -38,7 +39,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-6-held-guard" : "etw-file-synthetic-check-6",
+                build = live ? "etw-file-diagnostic-6-reserved-guard" : "etw-file-synthetic-check-6",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -48,8 +49,11 @@ internal static class FileCollector
             if (start.t != "start") throw new InvalidDataException();
             if (trace != null)
             {
+                if (guard?.Alive != true) throw new IOException();
+                if (args[0] == "prestart-collector") Environment.Exit(70);
                 stats = trace.Start(); owns = true;
                 if (stats.Status != 0 || stats.Buffers == null || stats.Size == null) throw new InvalidOperationException();
+                if (args[0] == "prearm-collector") Environment.Exit(70);
                 await guard!.Arm(trace.Token); // Ready is impossible before the independent guard is armed.
                 capture!.Start(); trace.Enable(); stats = trace.Query();
                 if (stats.Status != 0) throw new InvalidOperationException();

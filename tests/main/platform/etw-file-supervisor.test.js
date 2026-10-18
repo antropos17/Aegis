@@ -80,6 +80,43 @@ function harness(options = {}) {
 }
 
 describe('ETW diagnostic supervisor', () => {
+  it('accepts verified reservation cleanup before ready without inventing a capture', () => {
+    const h = harness();
+    h.sensor.start();
+    const child = h.children[0];
+    child.message('hello', 1);
+    child.flush();
+    child.message('recovered', 2);
+    child.emit('close', 4);
+    const d = h.sensor.getDiagnostics();
+    expect(d.restartBlocked).toBe(false);
+    expect(d.summaries[0]).toMatchObject({
+      capture: null,
+      recoveryVerified: true,
+      observationGap: true,
+      finalTotals: null,
+    });
+    expect(h.sensor.getHealth().state).toBe('FAILED');
+  });
+  it.each([2, 72])(
+    'keeps guard/broker failure blocked and never calls sampled totals final (exit %s)',
+    (code) => {
+      const h = harness();
+      const child = h.running();
+      child.message('heartbeat', 3, telemetry());
+      child.emit('close', code);
+      const d = h.sensor.getDiagnostics();
+      expect(d.restartBlocked).toBe(true);
+      expect(d.summaries[0]).toMatchObject({
+        finalCounters: null,
+        finalTotals: null,
+        observationGap: true,
+        recoveryVerified: false,
+      });
+      expect(h.sensor.restart()).toBe(false);
+      expect(h.spawnBroker).toHaveBeenCalledOnce();
+    },
+  );
   it('publishes health transitions promptly without a per-observation stats storm', () => {
     const onHealthChange = vi.fn();
     const h = harness({ onHealthChange });
@@ -435,23 +472,29 @@ describe('ETW backend runtime gate', () => {
     expect(spawnProcess).not.toHaveBeenCalled();
     expect(sensor.getHealth().state).toBe('FAILED');
   });
-  it('selects the fixed crash check only in a marked explicit diagnostic package', () => {
-    const spawnProcess = vi.fn(() => {
-      throw new Error('test launch failure');
-    });
-    const { sensor } = make({
-      app: { isPackaged: true },
-      packageMetadata: { aegisEtwDiagnostic: true },
-      resourcesPath: 'C:\\candidate\\resources',
-      argv: [
-        '--etw-file-diagnostic-root=C:\\fixture',
-        '--etw-file-diagnostic-fault=collector-exit',
-      ],
-      spawnProcess,
-    });
-    sensor.start();
-    expect(spawnProcess.mock.calls[0][1][0]).toBe('broker-crash-check');
-  });
+  it.each([
+    ['collector-exit', 'broker-crash-check'],
+    ['collector-before-start', 'broker-prestart-check'],
+    ['collector-before-arm', 'broker-prearm-check'],
+    ['guard-exit', 'broker-guard-check'],
+    ['broker-exit', 'broker-exit-check'],
+  ])(
+    'selects only fixed crash mode %s in a marked explicit diagnostic package',
+    (fault, command) => {
+      const spawnProcess = vi.fn(() => {
+        throw new Error('test launch failure');
+      });
+      const { sensor } = make({
+        app: { isPackaged: true },
+        packageMetadata: { aegisEtwDiagnostic: true },
+        resourcesPath: 'C:\\candidate\\resources',
+        argv: ['--etw-file-diagnostic-root=C:\\fixture', '--etw-file-diagnostic-fault=' + fault],
+        spawnProcess,
+      });
+      sensor.start();
+      expect(spawnProcess.mock.calls[0][1][0]).toBe(command);
+    },
+  );
   it('does not auto-launch on resume or unpause; removes power listeners', () => {
     const { sensor, powerMonitor, spawnProcess } = make({
       argv: ['--etw-file-diagnostic-root=C:\\fixture'],

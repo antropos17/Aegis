@@ -5,6 +5,7 @@ namespace Aegis.EtwLifecycle;
 
 internal sealed record FileStats(uint Status, uint? Events, uint? RealTime, uint? Log, uint? Buffers, uint? Size);
 internal sealed record FileTraceToken(string Handle, string Guid);
+internal sealed record FileTraceLookup(FileStats Stats, Guid Identity, ulong Handle);
 
 // Fixed diagnostic session. Only StartTrace success grants handle-based stop authority.
 internal sealed class FileTrace : IDisposable
@@ -13,6 +14,7 @@ internal sealed class FileTrace : IDisposable
     private ulong handle;
     private bool owned;
     private readonly Guid identity = Guid.NewGuid();
+    internal string Reservation => identity.ToString("N");
     internal FileTraceToken Token => owned ? new(handle.ToString(), identity.ToString("N")) : throw new InvalidOperationException();
     [StructLayout(LayoutKind.Sequential)]
     private struct Wnode
@@ -137,6 +139,35 @@ internal sealed class FileTrace : IDisposable
         finally { Marshal.FreeHGlobal(memory); }
     }
     internal static bool GuardAbsent(uint status) => status is 4201 or 6 or 87;
+
+    // Query only: a name never grants stop authority. The guard already holds the
+    // random reservation from its authenticated owner before StartTrace can run.
+    internal static FileTraceLookup Lookup()
+    {
+        var memory = Allocate(Guid.Empty);
+        try
+        {
+            uint status = ControlTrace(0, Name, memory, 0);
+            if (status != 0) return new(new(status, null, null, null, null, null), Guid.Empty, 0);
+            var value = Marshal.PtrToStructure<Properties>(memory);
+            return new(new(0, value.EventsLost, value.RealTimeBuffersLost, value.LogBuffersLost,
+                value.NumberOfBuffers, value.BufferSize), value.Wnode.Guid, value.Wnode.HistoricalContext);
+        }
+        finally { Marshal.FreeHGlobal(memory); }
+    }
+    internal static FileGuardResult RecoverReservation(string reservation,
+        Func<FileTraceLookup>? lookup = null, Func<uint, (FileStats Stats, Guid Identity)>? control = null)
+    {
+        if (!Guid.TryParseExact(reservation, "N", out var expected) || expected == Guid.Empty) throw new InvalidDataException();
+        var found = (lookup ?? Lookup)();
+        if (found.Stats.Status == 4201)
+            return new("recovered", true, true, found.Stats, null, Stopwatch.GetTimestamp().ToString());
+        if (found.Stats.Status != 0 || found.Identity != expected || found.Handle == 0)
+            return new("unverified", false, false, null, null);
+        // Recover performs another exact handle/GUID query before stopping by
+        // handle. The fixed-name query itself never adopts or stops a session.
+        return Recover(new(found.Handle.ToString(), reservation), control);
+    }
 
     // Only an armed guard may use this token, received over the retained owner's
     // authenticated pipe after StartTrace success. A foreign GUID is never stopped.

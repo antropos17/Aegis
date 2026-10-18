@@ -12,14 +12,15 @@ internal sealed class FileGuardOwner : IAsyncDisposable
     private bool ended;
     internal bool Alive => !child.HasExited;
     private FileGuardOwner(NamedPipeServerStream channel, Process guard) { pipe = channel; child = guard; }
-    internal static async Task<FileGuardOwner> Start(string recoveryPipe, Process broker, ulong brokerBirth, Stream data)
+    internal static async Task<FileGuardOwner> Start(string recoveryPipe, Process broker, ulong brokerBirth, Stream data,
+        string reservation, bool diagnosticExit)
     {
         string id = Guid.NewGuid().ToString("N");
         var pipe = Security.Server(id);
         if (!Security.RestrictedAcl(pipe)) { pipe.Dispose(); throw new UnauthorizedAccessException(); }
         var self = Security.Current();
         var info = Program.Child("guard", id, self.Pid.ToString(), self.Birth.ToString(),
-            recoveryPipe, broker.Id.ToString(), brokerBirth.ToString());
+            recoveryPipe, broker.Id.ToString(), brokerBirth.ToString(), diagnosticExit ? "exit-after-arm" : "normal");
         info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
         var child = Process.Start(info) ?? throw new InvalidOperationException();
         var owner = new FileGuardOwner(pipe, child);
@@ -32,6 +33,10 @@ internal sealed class FileGuardOwner : IAsyncDisposable
             await FileGuardWire.Write(data, new FileGuardHello(child.Id, identity.Birth.ToString()), limit.Token);
             var ack = await FileGuardWire.Read<FileGuardCommand>(data, limit.Token);
             if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
+            await FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), limit.Token);
+            var reserved = await FileGuardWire.Read<FileGuardCommand>(pipe, limit.Token);
+            if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null || !owner.Alive)
+                throw new InvalidDataException();
             return owner;
         }
         catch { await owner.DisposeAsync(); throw; }
