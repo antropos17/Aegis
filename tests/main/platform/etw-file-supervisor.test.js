@@ -539,6 +539,11 @@ describe('ETW backend runtime gate', () => {
     ['triple-before-arm', 'broker-triple-prearm-check'],
     ['triple-before-start', 'broker-triple-prestart-check'],
     ['triple-access-denied', 'broker-triple-denial-check'],
+    ['orphan-total-before-start', 'broker-orphan-total-prestart-check'],
+    ['orphan-total-before-arm', 'broker-orphan-total-prearm-check'],
+    ['orphan-total-running', 'broker-orphan-total-running-check'],
+    ['orphan-total-denial', 'broker-orphan-total-running-check'],
+    ['orphan-recovery-denial', 'broker-orphan-recovery-denial-check'],
   ])(
     'selects only fixed crash mode %s in a marked explicit diagnostic package',
     (fault, command) => {

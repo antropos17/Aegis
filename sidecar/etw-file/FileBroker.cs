@@ -33,6 +33,10 @@ internal static class FileBroker
             "broker-orphan-prestart-check" => "orphan-prestart-collector", "broker-orphan-prearm-check" => "orphan-prearm-collector",
             "broker-orphan-main-check" => "orphan-main-collector", "broker-orphan-native-check" => "orphan-native-collector",
             "broker-orphan-denial-check" => "orphan-denial-collector", "broker-custodian-exit-check" => "custodian-exit-collector",
+            "broker-orphan-total-prestart-check" => "orphan-total-prestart-collector",
+            "broker-orphan-total-prearm-check" => "orphan-total-prearm-collector",
+            "broker-orphan-total-running-check" => "orphan-total-running-collector",
+            "broker-orphan-recovery-denial-check" => "orphan-recovery-denial-collector",
             _ => "collector" } :
             args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
         var info = Program.Child(collector, args[1], args[2], pipeId,

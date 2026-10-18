@@ -66,11 +66,11 @@ internal static class FileCollector
             if (trace != null)
             {
                 if (guard?.Alive != true || fallback?.Alive != true || args.Length == 11 && orphan?.Alive != true) throw new IOException();
-                if (args[0] == "orphan-prestart-collector") await FileOrphanCollector.Pause(orphan, "before-start", pipe, read);
+                if (args[0] is "orphan-prestart-collector" or "orphan-total-prestart-collector" or "orphan-recovery-denial-collector") await FileOrphanCollector.Pause(orphan, "before-start", pipe, read);
                 if (args[0] is "prestart-collector" or "dual-prestart-collector" or "triple-prestart-collector") Environment.Exit(70);
                 stats = trace.Start(); owns = true;
                 if (stats.Status != 0 || stats.Buffers == null || stats.Size == null) throw new InvalidOperationException();
-                if (args[0] == "orphan-prearm-collector") await FileOrphanCollector.Pause(orphan, "before-arm", pipe, read);
+                if (args[0] is "orphan-prearm-collector" or "orphan-total-prearm-collector") await FileOrphanCollector.Pause(orphan, "before-arm", pipe, read);
                 if (args[0] is "prearm-collector" or "dual-prearm-collector" or "triple-prearm-collector") Environment.Exit(70);
                 await guard!.Arm(trace.Token); // Ready is impossible before the independent guard is armed.
                 capture!.Start(); trace.Enable(); stats = trace.Query();

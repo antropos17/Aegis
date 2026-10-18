@@ -10,7 +10,8 @@ internal static class FileQualificationPolicy
         "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or "triple-guard-collector" or
         "triple-fallback-collector" or "triple-prearm-collector" or "triple-prestart-collector" or "group-parent-collector" or
         "orphan-prestart-collector" or "orphan-prearm-collector" or "orphan-main-collector" or "orphan-native-collector" or
-        "orphan-denial-collector" or "custodian-exit-collector";
+        "orphan-denial-collector" or "custodian-exit-collector" or
+        "orphan-total-prestart-collector" or "orphan-total-prearm-collector" or "orphan-total-running-collector" or "orphan-recovery-denial-collector";
 
     internal static void Validate(string[] args, string root, int clientPid, ulong clientBirth)
     {

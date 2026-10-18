@@ -27,12 +27,15 @@ export async function reliableHealth(page) {
  * @param {object} app @returns {Promise<object>} @since v0.19.2
  */
 export function diagnostics(app) {
-  return app.evaluate(({ app }) =>
-    process.mainModule
+  return app.evaluate(async ({ app }) => {
+    // Playwright may evaluate inside a synchronous native startup callback.
+    // Let the current module-loading stack unwind before reading its exports.
+    await new Promise((resolve) => setImmediate(resolve));
+    return process.mainModule
       .require('node:module')
       .createRequire(app.getAppPath() + '/package.json')('./src/main/main.js')
-      .getEtwFileDiagnostics(),
-  );
+      .getEtwFileDiagnostics();
+  });
 }
 
 /** Start a normal-token native fixture with capped metadata-only output.

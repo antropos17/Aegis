@@ -34,5 +34,5 @@ internal static class FileOrphanWire
         foreach (var peer in peers) { FileMainHandles.Positive(peer.birth); FileMainHandles.Positive(peer.handle); }
         return peers;
     }
-    internal static bool Phase(string kind) => kind is "before-start" or "before-arm" or "running" or "triple-exited";
+    internal static bool Phase(string kind) => kind is "before-start" or "before-arm" or "running" or "triple-exited" or "journal-recovered" or "journal-denied";
 }

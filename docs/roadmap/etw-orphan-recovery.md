@@ -1,10 +1,15 @@
 # Recovery after original main, broker and three helpers exit
 
-Protocol `etw-file/9` adds a temporary elevated custodian outside the five original
-processes. The collector starts it using the original capture elevation. No service,
-scheduled task, account change, machine permission or durable journal is installed.
-It cannot restart the application or capture. Ordinary packages keep ETW disabled.
-Loss of this custodian together with the five originals remains unqualified.
+This page retains the temporary-custodian design and twenty-eight-capture evidence
+at `6ede1763`. The current [durable-recovery follow-up](etw-durable-recovery.md)
+also persists one protected reservation for loss of all six original processes;
+its next-launch recovery has separate source-bound evidence.
+
+That v9 revision added a temporary elevated custodian outside the five originals,
+using the original capture elevation. It installed no service, scheduled task,
+account change, machine permission or durable journal. It could not restart the
+application or capture; ordinary packages kept ETW disabled. Its historical
+receipts do not qualify loss of the custodian together with the originals.
 
 ## Authority before capture
 
@@ -104,7 +109,7 @@ exit 76 must leave main alive, Sensors FAILED, an observation gap, verified clea
 and no automatic restart. A separate fresh capture checks actual synchronous and
 pending overlapped read attribution and acknowledged normal stop.
 
-## Current evidence
+## Historical twenty-eight-capture evidence
 
 The frozen runtime at `6ede1763` passed all twenty-eight real packaged captures
 in one final sweep: six original-main/custodian scenarios and all twenty-two
@@ -149,8 +154,8 @@ PASS. Earlier hosted Windows fixtures also needed a retry after natural-exit
 control 14 failed outside this patch; a later pass does not establish its cause
 or a product fix.
 
-Protected installation, loss of the custodian with the originals, actual sleep/wake,
-forced real PID/TID reuse, complete I/O coverage and production/path admission
-remain separate gates. Volatile custody does not survive every process or machine
+Those historical receipts do not qualify protected installation, loss of the
+custodian with the originals, actual sleep/wake, forced real PID/TID reuse,
+complete I/O coverage or production/path admission. Volatile custody does not survive every process or machine
 failure. Private diagnostics use manual seven-day review, preserving failed
 attempts and verification obligations; no automatic deletion is configured.

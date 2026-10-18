@@ -188,15 +188,22 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 
 ## Current evidence and limits
 
-Current protocol `etw-file/9` adds a [temporary elevated custodian](../../docs/roadmap/etw-orphan-recovery.md)
-before capture in marked packages. It holds five original process references and
-can clean up only after original main, broker, collector, guard and fallback exit.
-Its original capture elevation is retained; no service or machine setting is changed.
-The twenty-eight-capture profile passed in one final frozen-package sweep, using
-one consent for its temporary launch host and thirty worker launches. The host
-holds no reservation or recovery handles. See the linked contract and evidence
-for retained earlier failures and qualification limits. Historical v8 evidence
-below remains unchanged.
+Marked protocol `etw-file/9` packages use a [temporary custodian](../../docs/roadmap/etw-orphan-recovery.md)
+and a [protected write-ahead reservation](../../docs/roadmap/etw-durable-recovery.md).
+After loss of all six original processes, the next explicitly consented capture
+can recover the reserved session before another StartTrace. One bounded
+administrator/SYSTEM-only application-state value survives the processes; no
+service, scheduled task or UAC-policy change is introduced. Unknown/live identities,
+unsafe state and foreign sessions block capture. Live cleanup requires the same
+user, Windows logon and helper image scope.
+
+The final profile passed four loss/relaunch targets, live-owner refusal and all
+twenty-eight previous captures in one frozen-package sweep. Its temporary launch
+host used one consent for thirty-seven collectors and two cleanup workers and
+closed with zero live children. The host holds no reservation or ETW recovery
+handles. Native self-tests passed 107 cases. Earlier failed attempts and the
+ordinary ShellExecute activation boundary are retained in the linked evidence.
+Historical v8 evidence below remains unchanged.
 
 The [all-helper recovery](../../docs/roadmap/etw-total-recovery.md) retains the
 original reservation in the existing normal broker. It requires all three original
@@ -210,9 +217,10 @@ uses a surviving original broker. The [main-held custody follow-up](../../docs/r
 adds `--etw-group-recovery`: five broker-plus-helper loss targets pass with main
 surviving. All twenty-two regressions passed across fourteen original captures and
 two four-capture continuations on the same immutable package; failed attempts remain
-recorded and no single-sweep PASS is claimed. Main loss together
-with all native peers still needs protected durable recovery. Ordinary packages
-remain disabled.
+recorded and no single-sweep PASS is claimed for that historical evidence. Those
+survivor-based profiles do not establish protected durable installation. The
+current next-launch journal has its own narrower diagnostic evidence above.
+Ordinary packages remain disabled.
 
 The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
 elevated fallback reserved before StartTrace. It waits for both original collector

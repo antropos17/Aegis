@@ -290,8 +290,20 @@ consents and two earlier cleanup consents. The completed twenty-eight-capture sw
 used a temporary fixed-image launch host with one explicit consent and thirty
 worker launches, keeping main and broker normal-token. See [the original-main-loss
 contract](../roadmap/etw-orphan-recovery.md) for the read-only observer, original-object
-gate, source-bound evidence and retained earlier failures. No protected installation
-or durable recovery is qualified.
+gate, source-bound evidence and retained earlier failures. That profile does not
+qualify protected installation or all-six-process recovery.
+
+### ETW all-six-process loss and explicit relaunch
+
+The optional `--etw-durable-recovery` profile adds four loss/relaunch cases and a
+live-owner rejection to all twenty-eight earlier captures. It runs thirty-seven
+collector launches and two existing cleanup workers, with a forty-minute ETW
+deadline. Ordinary activation plans thirty-nine consent decisions; the completed
+frozen-package sweep used one temporary fixed-image host consent. That host closed
+with zero live children. See the [durable-recovery contract](../roadmap/etw-durable-recovery.md)
+for protected state, original-identity gates, source-bound evidence and failures.
+Cleanup requires a new explicit capture in the same user/logon/image scope.
+No service, scheduled task, automatic re-elevation or production admission is granted.
 
 ### Other qualification
 
