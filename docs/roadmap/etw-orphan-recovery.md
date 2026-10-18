@@ -106,18 +106,48 @@ pending overlapped read attribution and acknowledged normal stop.
 
 ## Current evidence
 
-Implementation and offline checks are prepared. Native self-tests passed 99 cases;
-320 focused JS tests passed across ten files, and all 16 protected GUI Windows
-tests passed locally. Effective typecheck, Svelte check, renderer build,
-formatting, lint and tracked counts passed for the earlier revision. Its six
-hosted contexts passed; Windows fixtures required a retry after a natural-exit
-observation failure outside this patch. Current-head checks must be refreshed.
-Normal-token synthetic transport passed. Semgrep is unavailable (`ENOENT`).
-One host consent expired; two approved host batches failed before reservation,
-with actual session absence and zero remaining launch-host children recorded.
-These attempts are retained. The latter exposed the unread-pipe race above.
-Packaged qualification of its correction is pending; no new live recovery PASS
-or production admission is claimed here.
+The frozen runtime at `6ede1763` passed all twenty-eight real packaged captures
+in one final sweep: six original-main/custodian scenarios and all twenty-two
+earlier regressions. See the [bounded evidence](../recon/evidence/etw-packaged-orphan-custody.json).
+Main-first and native-triple-first recovery, both pre-capture boundaries, actual
+restricted-token status 5 and custodian-only exit passed. The retained original
+objects, terminal cleanup, independent absence, visible failure and helper closure
+were checked. Capture and application never restart automatically.
+
+One explicit UAC consent started the temporary fixed-image host for this final
+sweep. It launched twenty-eight collectors and two cleanup workers, rejected an
+unowned normal CLI caller, then exited with zero live child processes. Main and
+broker remained normal-token. No Windows UAC setting, service or global permission
+changed. This qualifies the host activation route; thirty ordinary ShellExecute
+interactions were not independently repeated. The standard profile without the
+host still plans those individual consent decisions.
+
+Both final read workloads performed 160 synchronous and 160 actually pending
+overlapped reads with full issuer witnesses. Rapid-exit evidence stayed unresolved
+when proof was unavailable. Collector loss retained null final totals and an
+observation gap; the fresh normal capture stopped with acknowledgment and exit 0.
+Loss counters and ring evictions remain measured values in the evidence, without
+a loss-free or complete-I/O claim. All 40 profiles, including failed
+attempts, passed bounded content and diagnostic-audit exclusion checks.
+
+All 231 archived main/shared JS/JSON files match frozen runtime source, the
+published native DLL matches the package, and no mutation fixture entered the
+archive. Later changes contain documentation and evidence only. Native self-tests
+passed 100 cases; 321 focused JS tests passed across ten files; all 16 protected GUI
+Windows tests passed locally. Frozen-runtime hosted build, formatting/lint,
+typecheck/Svelte, coverage/witness/count gates, production dependency audit and
+Windows fixtures passed. Final PR-head checks are tracked in GitHub. Local
+Semgrep remains unavailable (`ENOENT`).
+
+Earlier attempts retain one expired host consent, two failed startup handshakes,
+an overly strict broker-exit oracle, and a health observation before first reliable
+scan. The delayed-reader test reproduced the missing-ACK pipe failure before its
+fix. The warmup observation now waits for actual reliable health within thirty
+seconds. Temporary diagnostics preserve existing capture exit codes after startup.
+Those earlier FAIL receipts remain failures; none was rewritten into the final
+PASS. Earlier hosted Windows fixtures also needed a retry after natural-exit
+control 14 failed outside this patch; a later pass does not establish its cause
+or a product fix.
 
 Protected installation, loss of the custodian with the originals, actual sleep/wake,
 forced real PID/TID reuse, complete I/O coverage and production/path admission

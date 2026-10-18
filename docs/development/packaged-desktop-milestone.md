@@ -285,10 +285,13 @@ evicted 79 records, so this does not establish complete I/O coverage.
 
 The optional `--etw-orphan-recovery` profile adds six scenarios to the twenty-two
 earlier cases, using a temporary elevated custodian outside the five originals.
-Its ETW deadline is forty minutes, with twenty-eight planned capture consents and
-two earlier cleanup consents. See [the original-main-loss contract](../roadmap/etw-orphan-recovery.md)
-for the restricted read-only observer, original-object gate and pending packaged
-qualification. No protected installation or durable recovery is qualified.
+Its ETW deadline is forty minutes. The standard profile plans twenty-eight capture
+consents and two earlier cleanup consents. The completed twenty-eight-capture sweep
+used a temporary fixed-image launch host with one explicit consent and thirty
+worker launches, keeping main and broker normal-token. See [the original-main-loss
+contract](../roadmap/etw-orphan-recovery.md) for the read-only observer, original-object
+gate, source-bound evidence and retained earlier failures. No protected installation
+or durable recovery is qualified.
 
 ### Other qualification
 
