@@ -50,6 +50,19 @@ internal static class FileQualificationTests
             }
             Transfer().GetAwaiter().GetResult();
         });
+        test("accepted qualification startup preserves the existing generic capture failure exit", () =>
+        {
+            string? original = Environment.GetEnvironmentVariable(FileQualificationPolicy.Variable);
+            try
+            {
+                Environment.SetEnvironmentVariable(FileQualificationPolicy.Variable, "test-only");
+                FileQualificationDiagnostic.Step = 3;
+                if (FileQualificationDiagnostic.Failure != 131) throw new InvalidOperationException();
+                FileQualificationDiagnostic.Step = 6;
+                if (FileQualificationDiagnostic.Failure != 2) throw new InvalidOperationException();
+            }
+            finally { FileQualificationDiagnostic.Step = 0; Environment.SetEnvironmentVariable(FileQualificationPolicy.Variable, original); }
+        });
     }
     private static void Reject(Action action) { bool rejected = false; try { action(); } catch { rejected = true; } if (!rejected) throw new InvalidOperationException(); }
 }

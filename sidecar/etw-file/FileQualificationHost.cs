@@ -63,7 +63,6 @@ internal static class FileQualificationHost
                     var info = Program.Child(value.args);
                     info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
                     info.Environment.Remove(FileQualificationPolicy.Variable);
-                    info.Environment["AEGIS_ETW_QUALIFICATION_CHILD"] = "1";
                     var child = Process.Start(info) ?? throw new IOException(); children.Add(child);
                     var witness = FileMainHandles.Deposit(client, child.SafeHandle, child.Id);
                     // An ambiguous delivery is never remotely closed/retried. At worst the
