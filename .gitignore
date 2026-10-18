@@ -1,4 +1,8 @@
 node_modules/
+# Disposable local agent/tool output; these rules do not remove or rotate files.
+/.tmp/
+/__pycache__/
+/%SystemDrive%/
 .serena/
 /tools/development/local.json
 dist/

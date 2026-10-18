@@ -1,8 +1,12 @@
-# Current AEGIS context — 2026-09-10
+# Historical frontend handoff — 2026-09-10
+
+This is a dated integration record. Use [current development context](docs/development/current-context.md)
+to select the active checkout and evidence, and [the Observatory design](frontend/observatory/DESIGN.md)
+for current interface rules. The observations below describe the September checkpoint.
 
 Production renderer: frontend/observatory/entry.ts. npm start, build:renderer and Electron packaging consume dist/renderer. Preview uses an isolated fixture host with the same Svelte components; desktop builds exclude fixtures.
 
-The active integration checkout is X:/tmp/aegis-observatory-integration. Preserve the separate dirty original checkout at X:/Future/ESCAPE/AEGIS. The installed Windows executable is X:/Future/ESCAPE/AEGIS-Desktop/AEGIS - AI Monitoring & Threat Detection.exe; its existing user profile is under %APPDATA%/aegis. Build and test temporary files belong on X.
+Machine-specific checkout, installation and profile paths are selected by the active task; this historical handoff does not select them.
 
 The approved template is preserved in frontend/observatory/reference/. Twelve original stylesheets retain their source order, followed by the requested radar, motion, detail and comfort refinements. Historical Shield/Fancy UI documents and the old migration prompt are not current design instructions.
 

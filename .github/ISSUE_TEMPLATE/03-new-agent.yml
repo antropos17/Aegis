@@ -1,6 +1,6 @@
-name: "🤖 Add New AI Agent"
-description: "Request or submit a new AI agent for the detection database"
-labels: ["agent-database", "good first issue"]
+name: '🤖 Add New AI Agent'
+description: 'Request or submit a new AI agent for the detection database'
+labels: ['agent-database']
 body:
   - type: input
     id: agent-name
@@ -13,7 +13,7 @@ body:
     id: process-name
     attributes:
       label: Process name
-      description: "The executable name as it appears in task manager"
+      description: 'The executable name as it appears in task manager'
     validations:
       required: true
 
@@ -47,4 +47,4 @@ body:
     id: detection
     attributes:
       label: How to detect
-      description: "Process name, child processes, network domains, or other detection methods"
+      description: 'Process name, child processes, network domains, or other detection methods'

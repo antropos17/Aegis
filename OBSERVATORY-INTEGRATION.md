@@ -1,6 +1,9 @@
 # Observatory integration
 
-Current context: [FRONTEND-HANDOFF.md](FRONTEND-HANDOFF.md). The [2026-09-09 backend/frontend audit](docs/current-state/AUDIT-2026-09-09.md) supersedes older verification counts below. Source-specific graph clocks and fixed-window corrections were merged in PR #411 before this audit.
+Current task context: [docs/development/current-context.md](docs/development/current-context.md).
+This is a historical integration record; [the September handoff](FRONTEND-HANDOFF.md)
+and [2026-09-09 audit](docs/current-state/AUDIT-2026-09-09.md) explain its checkpoint.
+Source-specific graph clocks and fixed-window corrections were merged in PR #411 before that audit.
 
 The earlier integrations passed functional gates but did not preserve the reviewed template closely enough. Their validation below is historical evidence, not visual approval of the current interface.
 
