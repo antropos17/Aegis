@@ -56,6 +56,7 @@ export function agentReadPassed(r) {
     r.agentExit === 0 &&
     r.appExit === 0 &&
     !r.agentTerminationRequested &&
+    !r.agentCleanupUnconfirmed &&
     !r.appCleanupUnconfirmed &&
     r.independentAbsence?.status === 4201 &&
     r.independentAbsence.present === false &&

@@ -193,7 +193,11 @@ try {
         const stats = await page.evaluate(() => window.aegis.getStats());
         assert(!JSON.stringify(stats).includes(marker), 'Contents entered renderer stats');
         const target = stats.fileReadDiagnostics?.reads?.find(
-          (row) => canonical(row.path) === canonical(file),
+          (row) =>
+            canonical(row.path) === canonical(file) &&
+            row.agent === 'Claude Code' &&
+            row.pid === agent.pid &&
+            row.instanceId === r.agentIdentity.instanceId,
         );
         if (target) r.rendererObservation = target;
       } catch (e) {
@@ -261,7 +265,11 @@ try {
   assert(r.readProof, 'No verified kernel read for the real agent and synthetic .env');
   await page.locator('.sidebar').getByRole('button', { name: 'Events', exact: true }).click();
   const panel = page.getByRole('region', { name: 'File read observations', exact: true });
-  const row = panel.locator('tbody tr').filter({ hasText: '.env.aegis-read-check' });
+  const row = panel
+    .locator('tbody tr')
+    .filter({ hasText: '.env.aegis-read-check' })
+    .filter({ hasText: 'Claude Code' })
+    .filter({ hasText: 'PID ' + agent.pid });
   await row.waitFor();
   const text = await row.innerText();
   for (const expected of [
@@ -289,16 +297,6 @@ try {
       .flatMap((row) => row.message?.content ?? [])
       .filter((b) => b.type === 'tool_use')
       .map((b) => b.name),
-    diagnostics: [
-      '429',
-      '401',
-      '503',
-      'permission',
-      'denied',
-      'timeout',
-      'overloaded',
-      'rate limit',
-    ].filter((key) => output.toLowerCase().includes(key)),
   };
   if (app && page) {
     try {

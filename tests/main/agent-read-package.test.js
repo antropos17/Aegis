@@ -108,6 +108,7 @@ describe('genuine-agent journey acceptance oracle', () => {
       (r) => (r.remainingNativeProcesses = 1),
       (r) => (r.summary.stopVerified = false),
       (r) => (r.agentTerminationRequested = true),
+      (r) => (r.agentCleanupUnconfirmed = true),
       (r) => (r.summary.exitCode = 2),
       (r) => (r.status = 'FAIL'),
     ]) {
