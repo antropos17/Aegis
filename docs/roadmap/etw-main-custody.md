@@ -124,8 +124,9 @@ probe showed that Playwright's Windows child is `cmd.exe`, while Electron main h
 a different PID. The harness now records the actual main PID at launch; the current
 package was frozen after that correction. All 231 archived main/shared JS/JSON files
 match frozen runtime source, the native DLL matches publication and no mutation
-fixture entered the archive. Later changes are confined to documentation and
-evidence; the runtime and harness stay frozen.
+fixture entered the archive. Later changes update documentation, evidence and
+finite Windows CI failure diagnostics; the ETW runtime and physical qualification
+harness stay frozen.
 
 Published native self-tests passed 91 cases and the focused JS suite passed 259.
 Normal-token original-object lifetime, limited rights, high-bit Windows exits and
