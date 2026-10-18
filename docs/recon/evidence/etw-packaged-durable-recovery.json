@@ -1,0 +1,2749 @@
+{
+  "schemaVersion": 1,
+  "scope": "Mutable local diagnostic package; all six original recovery processes exit; protected reservation recovers only at the next explicit capture launch; no production admission",
+  "source": {
+    "head": "35882984ee7faf588ef1fe55c880b878201c7da8",
+    "tree": "3dbc32da26534962794aae108b4eedbebe717be8",
+    "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+  },
+  "harnessSource": {
+    "head": "35882984ee7faf588ef1fe55c880b878201c7da8",
+    "changesSinceRuntime": []
+  },
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.11.1",
+    "os": "10.0.26200"
+  },
+  "qualification": {
+    "status": "PASS",
+    "singleSweepPass": true,
+    "startedAt": "2026-10-18T15:55:16.626Z",
+    "completedAt": "2026-10-18T16:07:47.355Z",
+    "targetCasesPassed": 4,
+    "liveOwnerRejectionPassed": true,
+    "earlierRegressionCapturesPassed": 28,
+    "logicalCasesPassed": 32,
+    "collectorLaunches": 37,
+    "cleanupWorkerLaunches": 2,
+    "packageManifestSha256": "ed5e8d7151dbfeb4ee3e1029c162ed7d5856124e4d37ef9d22961bd557d82253",
+    "receiptSha256": "57878cfac302d6a161024a1387dba7a7ef35ab9c4375ebf35b399f26164dc7e6",
+    "etwReceiptSha256": "8571491c45c30ff0f3fdedd928f6e3402b84fe6dcdab6c8091c8e57c3107d0f1",
+    "activation": "Temporary bounded fixed-image qualification host, with normal main/broker. Ordinary repeated ShellExecute interactions not independently qualified.",
+    "explicitHostConsents": 1,
+    "launchHost": {
+      "ready": true,
+      "finished": {
+        "type": "host-finished",
+        "launches": 39,
+        "liveChildren": 0,
+        "childExitCodes": [
+          70, 70, 70, 70, 70, 2, 70, 70, 70, 70, 70, 70, 70, 70, 2, 70, 70, 70, 70, 70, 0, 70, 70,
+          70, 70, 70, 70, 0, 70, 70, 70, 70, 70, 70, 2, 2, 2, 70, 0
+        ],
+        "exitCode": 0
+      },
+      "exitCode": 0,
+      "outputBytes": 287
+    },
+    "retainedEarlierAttempts": [
+      {
+        "status": "FAIL",
+        "source": {
+          "head": "ade9f36f7c3e49e91f12f14b450f1886881ae4b6",
+          "tree": "5f21d7585a559b03b7e4b2c88730aa9235e7f40c",
+          "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+        },
+        "receiptSha256": "0cfbe8c691753fd0509bde24630eb7dcba59d411ba10afe185b2dddc54c6af60",
+        "reason": "Diagnostic observation re-entered synchronous main startup before deferred modules finished; independent absence afterward.",
+        "explicitHostConsents": 1,
+        "host": {
+          "launches": 1,
+          "liveChildren": 0,
+          "childExitCodes": [2],
+          "exitCode": 0
+        }
+      },
+      {
+        "status": "FAIL",
+        "source": {
+          "head": "ade9f36f7c3e49e91f12f14b450f1886881ae4b6",
+          "tree": "5f21d7585a559b03b7e4b2c88730aa9235e7f40c",
+          "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+        },
+        "harnessSource": {
+          "head": "e0147c8ad6b27ffd3b2d8656c8726b14e3bf5289",
+          "changesSinceRuntime": ["frontend/observatory/tests/etw-support.mjs"]
+        },
+        "receiptSha256": "4418b593d4f9185ec186947dfe32f220a1e61101257d541679b91aad9d9a54e9",
+        "reason": "Protected reservation and read-only original objects observed; expected all-six fault receipt missing. Diagnostic mode could take ordinary pre-start absence retirement; independent absence afterward.",
+        "explicitHostConsents": 1,
+        "host": {
+          "launches": 1,
+          "liveChildren": 0,
+          "childExitCodes": [70],
+          "exitCode": 0
+        }
+      }
+    ]
+  },
+  "packageSourceCheck": {
+    "archiveSha256": "d2bd04a69c439a52f09efb1012d18c95c7820849ec2a90740ba6914651579724",
+    "packageManifestSha256": "ed5e8d7151dbfeb4ee3e1029c162ed7d5856124e4d37ef9d22961bd557d82253",
+    "nativeDllSha256": "65d3091d961972485e60cad901393a25485e057b5435b9bab57a637d2bd7d6b9",
+    "archivedMainSharedFilesChecked": 231,
+    "allArchivedMainSharedJsJsonMatchFrozenRuntimeSource": true,
+    "noMutationFixtureInArchive": true
+  },
+  "localChecks": {
+    "publishedNativeSelfTests": 107,
+    "focusedJsTests": 393,
+    "focusedJsFiles": 13,
+    "policyRedThenGreen": true,
+    "finalPrCi": "Check the exact final PR head in GitHub; this file does not self-certify CI"
+  },
+  "retainedEarlierCi": {
+    "runId": 39142053957,
+    "head": "f05d718e826fc757b42ebe8e7ddb48ae3d088fbc",
+    "checkedOutMerge": "7053662cb2511d6683fb8d3e6e018848212cb9bc",
+    "status": "FAIL",
+    "suite": "tests/main/protected-gui-process-windows.test.js",
+    "assertion": 14,
+    "stage": "native-observe; finally-stop; protected-gui-process-refused",
+    "rawLogSha256": "08c0f13f222738c0fdc2ab38c07bec5ffb3b29c9d37daef01d7f21ef27c01d0b",
+    "limit": "No GUI control cause or product fix established. All six frozen-runtime contexts later passed at 35882984."
+  },
+  "independentFinalAbsence": {
+    "status": 4201,
+    "present": false,
+    "elevatedWitness": false
+  },
+  "cases": {
+    "orphan-total-before-start": {
+      "status": "PASS",
+      "mode": "orphan-total-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "originalObjectsObserved": true,
+      "allSixExited": true,
+      "journalWriteAccessDenied": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "beforeRecovery": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "appExitCode": 73,
+      "recoveryBeforeNewTrace": true,
+      "recoveryMainWasFresh": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observationGap": true,
+      "finalTotals": null,
+      "originalProcessObjectCount": 6,
+      "originalExitCodes": [73, 0, 70, 71, 74, 76],
+      "recovery": {
+        "journalRecovered": true,
+        "restrictedProbeStatus": null,
+        "presence": {
+          "status": 4201,
+          "present": false,
+          "elevatedWitness": false
+        },
+        "terminal": {
+          "type": "terminal",
+          "receipt": {
+            "kind": "terminal",
+            "recovered": true,
+            "absent": true,
+            "exits": [73, 75, 70, 71, 74],
+            "queryStatus": 4201,
+            "restrictedProbeStatus": null,
+            "observationGap": true,
+            "finalTotals": null
+          },
+          "custodianExit": 4
+        }
+      },
+      "unavailablePriorObservations": "An observation gap and null prior final totals; no terminal frame or complete old counts are reconstructed."
+    },
+    "orphan-total-before-arm": {
+      "status": "PASS",
+      "mode": "orphan-total-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "originalObjectsObserved": true,
+      "allSixExited": true,
+      "journalWriteAccessDenied": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "beforeRecovery": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "appExitCode": 73,
+      "recoveryBeforeNewTrace": true,
+      "recoveryMainWasFresh": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observationGap": true,
+      "finalTotals": null,
+      "originalProcessObjectCount": 6,
+      "originalExitCodes": [73, 0, 70, 71, 74, 76],
+      "recovery": {
+        "journalRecovered": true,
+        "restrictedProbeStatus": null,
+        "presence": {
+          "status": 4201,
+          "present": false,
+          "elevatedWitness": false
+        },
+        "terminal": {
+          "type": "terminal",
+          "receipt": {
+            "kind": "terminal",
+            "recovered": true,
+            "absent": true,
+            "exits": [73, 0, 70, 71, 74],
+            "queryStatus": 4201,
+            "restrictedProbeStatus": null,
+            "observationGap": true,
+            "finalTotals": null
+          },
+          "custodianExit": 4
+        }
+      },
+      "unavailablePriorObservations": "An observation gap and null prior final totals; no terminal frame or complete old counts are reconstructed."
+    },
+    "orphan-total-running": {
+      "status": "PASS",
+      "mode": "orphan-total-running",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "originalObjectsObserved": true,
+      "allSixExited": true,
+      "journalWriteAccessDenied": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "beforeRecovery": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "appExitCode": 73,
+      "recoveryBeforeNewTrace": true,
+      "recoveryMainWasFresh": true,
+      "liveOwnerBlocked": true,
+      "liveOwnerUnaffected": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observationGap": true,
+      "finalTotals": null,
+      "originalProcessObjectCount": 6,
+      "originalExitCodes": [73, 0, 70, 71, 74, 76],
+      "recovery": {
+        "journalRecovered": true,
+        "restrictedProbeStatus": null,
+        "presence": {
+          "status": 4201,
+          "present": false,
+          "elevatedWitness": false
+        },
+        "terminal": {
+          "type": "terminal",
+          "receipt": {
+            "kind": "terminal",
+            "recovered": true,
+            "absent": true,
+            "exits": [73, 75, 70, 71, 74],
+            "queryStatus": 4201,
+            "restrictedProbeStatus": null,
+            "observationGap": true,
+            "finalTotals": null
+          },
+          "custodianExit": 4
+        }
+      },
+      "unavailablePriorObservations": "An observation gap and null prior final totals; no terminal frame or complete old counts are reconstructed."
+    },
+    "orphan-total-denial": {
+      "status": "PASS",
+      "mode": "orphan-total-denial",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "originalObjectsObserved": true,
+      "allSixExited": true,
+      "journalWriteAccessDenied": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "beforeRecovery": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "appExitCode": 73,
+      "recoveryBeforeNewTrace": true,
+      "recoveryMainWasFresh": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observationGap": true,
+      "finalTotals": null,
+      "originalProcessObjectCount": 6,
+      "originalExitCodes": [73, 0, 70, 71, 74, 76],
+      "recovery": {
+        "journalRecovered": true,
+        "restrictedProbeStatus": 5,
+        "presence": {
+          "status": 4201,
+          "present": false,
+          "elevatedWitness": false
+        },
+        "terminal": {
+          "type": "terminal",
+          "receipt": {
+            "kind": "terminal",
+            "recovered": true,
+            "absent": true,
+            "exits": [73, 75, 70, 71, 74],
+            "queryStatus": 4201,
+            "restrictedProbeStatus": null,
+            "observationGap": true,
+            "finalTotals": null
+          },
+          "custodianExit": 4
+        }
+      },
+      "unavailablePriorObservations": "An observation gap and null prior final totals; no terminal frame or complete old counts are reconstructed."
+    },
+    "orphan-before-start": {
+      "status": "PASS",
+      "mode": "orphan-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": false,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "observerExited": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "abruptAppExit": true,
+      "appExitCode": 73,
+      "originalProcessObjectCount": 5,
+      "distinctOriginalProcessIds": 5,
+      "custodianOutsideOriginalGroup": true,
+      "observedNativeHelpers": 5,
+      "terminal": {
+        "type": "terminal",
+        "receipt": {
+          "kind": "terminal",
+          "recovered": true,
+          "absent": true,
+          "exits": [73, 75, 70, 71, 74],
+          "queryStatus": 4201,
+          "restrictedProbeStatus": null,
+          "observationGap": true,
+          "finalTotals": null
+        },
+        "custodianExit": 4
+      }
+    },
+    "orphan-before-arm": {
+      "status": "PASS",
+      "mode": "orphan-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": false,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "observerExited": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "abruptAppExit": true,
+      "appExitCode": 73,
+      "originalProcessObjectCount": 5,
+      "distinctOriginalProcessIds": 5,
+      "custodianOutsideOriginalGroup": true,
+      "observedNativeHelpers": 5,
+      "terminal": {
+        "type": "terminal",
+        "receipt": {
+          "kind": "terminal",
+          "recovered": true,
+          "absent": true,
+          "exits": [73, 0, 70, 71, 74],
+          "queryStatus": 0,
+          "restrictedProbeStatus": null,
+          "observationGap": true,
+          "finalTotals": null
+        },
+        "custodianExit": 4
+      }
+    },
+    "orphan-main-first": {
+      "status": "PASS",
+      "mode": "orphan-main-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "observerExited": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "abruptAppExit": true,
+      "appExitCode": 73,
+      "originalProcessObjectCount": 5,
+      "distinctOriginalProcessIds": 5,
+      "custodianOutsideOriginalGroup": true,
+      "observedNativeHelpers": 5,
+      "terminal": {
+        "type": "terminal",
+        "receipt": {
+          "kind": "terminal",
+          "recovered": true,
+          "absent": true,
+          "exits": [73, 0, 70, 71, 74],
+          "queryStatus": 0,
+          "restrictedProbeStatus": null,
+          "observationGap": true,
+          "finalTotals": null
+        },
+        "custodianExit": 4
+      }
+    },
+    "orphan-native-first": {
+      "status": "PASS",
+      "mode": "orphan-native-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "observerExited": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "abruptAppExit": true,
+      "appExitCode": 73,
+      "mainAndBrokerSurvivedUntilTripleExit": true,
+      "originalProcessObjectCount": 5,
+      "distinctOriginalProcessIds": 5,
+      "custodianOutsideOriginalGroup": true,
+      "observedNativeHelpers": 5,
+      "terminal": {
+        "type": "terminal",
+        "receipt": {
+          "kind": "terminal",
+          "recovered": true,
+          "absent": true,
+          "exits": [73, 0, 70, 71, 74],
+          "queryStatus": 0,
+          "restrictedProbeStatus": null,
+          "observationGap": true,
+          "finalTotals": null
+        },
+        "custodianExit": 4
+      }
+    },
+    "orphan-access-denied": {
+      "status": "PASS",
+      "mode": "orphan-access-denied",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "observerExited": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "abruptAppExit": true,
+      "appExitCode": 73,
+      "originalProcessObjectCount": 5,
+      "distinctOriginalProcessIds": 5,
+      "custodianOutsideOriginalGroup": true,
+      "observedNativeHelpers": 5,
+      "terminal": {
+        "type": "terminal",
+        "receipt": {
+          "kind": "terminal",
+          "recovered": true,
+          "absent": true,
+          "exits": [73, 75, 70, 71, 74],
+          "queryStatus": 0,
+          "restrictedProbeStatus": 5,
+          "observationGap": true,
+          "finalTotals": null
+        },
+        "custodianExit": 4
+      }
+    },
+    "custodian-exit": {
+      "status": "PASS",
+      "mode": "custodian-exit",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "observerExited": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "appExitCode": 0,
+      "custodianExit": 76,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "originalProcessObjectCount": 5,
+      "distinctOriginalProcessIds": 5,
+      "custodianOutsideOriginalGroup": true,
+      "observedNativeHelpers": 5,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 2,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 50,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "0"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "173474",
+          "filtered": "168807",
+          "dropped": "4640",
+          "ingressDropped": "4640",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "1",
+          "mapResets": "1",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "760948191468",
+            "unixMs": "1792339068708",
+            "uncertaintyQpc": "10145"
+          }
+        }
+      }
+    },
+    "group-before-start": {
+      "status": "PASS",
+      "mode": "group-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "cleanup controller verified all four original main-held process object exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "broker-and-all-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": 75,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "761310865887"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "group-before-arm": {
+      "status": "PASS",
+      "mode": "group-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "cleanup controller verified all four original main-held process object exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "broker-and-all-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": 75,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "761388745911"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "group-broker-first": {
+      "status": "PASS",
+      "mode": "group-broker-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "broker-and-all-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": 75,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "761766529271"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "405797",
+          "filtered": "405769",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "761464136863",
+            "unixMs": "1792339120302",
+            "uncertaintyQpc": "10239"
+          }
+        }
+      }
+    },
+    "group-triple-first": {
+      "status": "PASS",
+      "mode": "group-triple-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "broker-and-all-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": 75,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "762148848597"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "83904",
+          "filtered": "83877",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "761845269663",
+            "unixMs": "1792339158416",
+            "uncertaintyQpc": "10129"
+          }
+        }
+      }
+    },
+    "group-access-denied": {
+      "status": "PASS",
+      "mode": "group-access-denied",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "cleanupConsentPendingObserved": true,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "broker-and-all-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": 75,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": true,
+          "accessDenied": true
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "762531700452"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "77380",
+          "filtered": "77354",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "3",
+          "mapResets": "3",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "762225354231",
+            "unixMs": "1792339196424",
+            "uncertaintyQpc": "10144"
+          }
+        }
+      }
+    },
+    "triple-before-start": {
+      "status": "PASS",
+      "mode": "triple-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "762610796888"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "triple-before-arm": {
+      "status": "PASS",
+      "mode": "triple-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "762688374210"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "triple-collector-first": {
+      "status": "PASS",
+      "mode": "triple-collector-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "763064476820"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "129077",
+          "filtered": "129049",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "762762775847",
+            "unixMs": "1792339250166",
+            "uncertaintyQpc": "10142"
+          }
+        }
+      }
+    },
+    "triple-guard-first": {
+      "status": "PASS",
+      "mode": "triple-guard-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "763460713577"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "330465",
+          "filtered": "330439",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "763158732452",
+            "unixMs": "1792339289762",
+            "uncertaintyQpc": "10159"
+          }
+        }
+      }
+    },
+    "triple-fallback-first": {
+      "status": "PASS",
+      "mode": "triple-fallback-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "763848878602"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "147979",
+          "filtered": "147951",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "763546557928",
+            "unixMs": "1792339328544",
+            "uncertaintyQpc": "10201"
+          }
+        }
+      }
+    },
+    "triple-access-denied": {
+      "status": "PASS",
+      "mode": "triple-access-denied",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "cleanupConsentPendingObserved": true,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": true,
+          "accessDenied": true
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "764236553160"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "134229",
+          "filtered": "134203",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "763932901010",
+            "unixMs": "1792339367179",
+            "uncertaintyQpc": "10148"
+          }
+        }
+      }
+    },
+    "dual-before-start": {
+      "status": "PASS",
+      "mode": "dual-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "764317134231"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "dual-before-arm": {
+      "status": "PASS",
+      "mode": "dual-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "764393849516"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "dual-guard-first": {
+      "status": "PASS",
+      "mode": "dual-guard-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "764771238301"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "109456",
+          "filtered": "109428",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "764469357082",
+            "unixMs": "1792339420824",
+            "uncertaintyQpc": "10168"
+          }
+        }
+      }
+    },
+    "dual-collector-first": {
+      "status": "PASS",
+      "mode": "dual-collector-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "765160980509"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "268463",
+          "filtered": "268437",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "764859994344",
+            "unixMs": "1792339459888",
+            "uncertaintyQpc": "10158"
+          }
+        }
+      }
+    },
+    "collector-before-start": {
+      "status": "PASS",
+      "mode": "collector-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "765244701802"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "collector-before-arm": {
+      "status": "PASS",
+      "mode": "collector-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "765318371417"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": null
+      }
+    },
+    "guard-exit": {
+      "status": "PASS",
+      "mode": "guard-exit",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 2,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "765700138011"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "362131",
+          "filtered": "362103",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "3",
+          "mapResets": "3",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "765396496987",
+            "unixMs": "1792339513538",
+            "uncertaintyQpc": "10192"
+          }
+        }
+      }
+    },
+    "broker-exit": {
+      "status": "PASS",
+      "mode": "broker-exit",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "mainSurvived": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "restartBlocked": false,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "broker-and-all-helpers-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 2,
+        "brokerExit": 72,
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 2,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "766213093308"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 0,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "446271",
+          "filtered": "446244",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "765791052206",
+            "unixMs": "1792339552994",
+            "uncertaintyQpc": "10146"
+          }
+        }
+      }
+    },
+    "app-exit": {
+      "status": "PASS",
+      "mode": "app-exit",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "mainCustodyObserved": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "abruptAppExit": true,
+      "appExitCode": 73
+    }
+  },
+  "regression": {
+    "status": "PASS",
+    "newSessionAfterRecovery": true,
+    "crash": {
+      "status": "PASS",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "summary": {
+        "phase": "recovered",
+        "recoveryCause": "collector-exited",
+        "recoveryVerified": true,
+        "stopVerified": false,
+        "exitCode": 4,
+        "collectorExit": 70,
+        "brokerExit": null,
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "766674254635"
+        },
+        "finalTotals": null,
+        "observationGap": true,
+        "ringDropped": 157,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "128449",
+          "filtered": "128038",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "3",
+          "mapResets": "3",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "766373785430",
+            "unixMs": "1792339611267",
+            "uncertaintyQpc": "10186"
+          }
+        }
+      },
+      "synchronousIssuerProofVerified": true,
+      "pendingOverlappedIssuerProofVerified": true,
+      "syncNative": {
+        "command": "sync",
+        "reads": 160,
+        "pending": 0
+      },
+      "asyncNative": {
+        "command": "async",
+        "reads": 160,
+        "pending": 160
+      },
+      "rapidExitNoWrongGeneration": true,
+      "rapidExitUnresolved": true,
+      "rapidExitObserved": 65,
+      "populationReliable": true,
+      "healthVisible": true,
+      "guardClosureConfirmed": true
+    },
+    "normal": {
+      "status": "PASS",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "summary": {
+        "phase": "stopped",
+        "recoveryCause": null,
+        "recoveryVerified": false,
+        "stopVerified": true,
+        "exitCode": 0,
+        "collectorExit": null,
+        "brokerExit": null,
+        "recoveryPeers": null,
+        "finalCounters": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "queryStatus": 0,
+          "asOfQpc": "766905763423"
+        },
+        "finalTotals": {
+          "delivered": "257378",
+          "filtered": "257038",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "2",
+          "mapResets": "2",
+          "mapConflicts": "0"
+        },
+        "observationGap": false,
+        "ringDropped": 83,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "257378",
+          "filtered": "257038",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "2",
+          "mapResets": "2",
+          "mapConflicts": "0"
+        },
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "766751315136",
+            "unixMs": "1792339649020",
+            "uncertaintyQpc": "10181"
+          }
+        }
+      },
+      "synchronousIssuerProofVerified": true,
+      "pendingOverlappedIssuerProofVerified": true,
+      "syncNative": {
+        "command": "sync",
+        "reads": 160,
+        "pending": 0
+      },
+      "asyncNative": {
+        "command": "async",
+        "reads": 160,
+        "pending": 160
+      },
+      "populationReliable": true,
+      "healthVisible": true
+    }
+  },
+  "allProfileAuditCheck": [
+    {
+      "profile": "qualification-2/live-1/etw/orphan-total-before-start/lost",
+      "status": "PASS",
+      "bytes": 7239257,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-2/live-2/etw/orphan-total-before-start/lost",
+      "status": "PASS",
+      "bytes": 8586601,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/app-exit",
+      "status": "PASS",
+      "bytes": 8636334,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/broker-exit",
+      "status": "PASS",
+      "bytes": 8782519,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/collector-after-ready",
+      "status": "PASS",
+      "bytes": 8679818,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/collector-before-arm",
+      "status": "PASS",
+      "bytes": 8569520,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/collector-before-start",
+      "status": "PASS",
+      "bytes": 8569528,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/custodian-exit",
+      "status": "PASS",
+      "bytes": 8707954,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/dual-before-arm",
+      "status": "PASS",
+      "bytes": 8569504,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/dual-before-start",
+      "status": "PASS",
+      "bytes": 8569512,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/dual-collector-first",
+      "status": "PASS",
+      "bytes": 8698446,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/dual-guard-first",
+      "status": "PASS",
+      "bytes": 8698438,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/group-access-denied",
+      "status": "PASS",
+      "bytes": 8709190,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/group-before-arm",
+      "status": "PASS",
+      "bytes": 8574299,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/group-before-start",
+      "status": "PASS",
+      "bytes": 8574306,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/group-broker-first",
+      "status": "PASS",
+      "bytes": 8715687,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/group-triple-first",
+      "status": "PASS",
+      "bytes": 8710992,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/guard-exit",
+      "status": "PASS",
+      "bytes": 8709050,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/normal",
+      "status": "PASS",
+      "bytes": 8690400,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-access-denied",
+      "status": "PASS",
+      "bytes": 8591095,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-before-arm",
+      "status": "PASS",
+      "bytes": 8591212,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-before-start",
+      "status": "PASS",
+      "bytes": 8591090,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-main-first",
+      "status": "PASS",
+      "bytes": 8591212,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-native-first",
+      "status": "PASS",
+      "bytes": 8665546,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-before-arm/lost",
+      "status": "PASS",
+      "bytes": 8602401,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-before-arm/recovered",
+      "status": "PASS",
+      "bytes": 8592455,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-before-start/lost",
+      "status": "PASS",
+      "bytes": 8606972,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-before-start/recovered",
+      "status": "PASS",
+      "bytes": 8602301,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-denial/lost",
+      "status": "PASS",
+      "bytes": 8591109,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-denial/recovered",
+      "status": "PASS",
+      "bytes": 8591261,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-running/blocked",
+      "status": "PASS",
+      "bytes": 8592309,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-running/lost",
+      "status": "PASS",
+      "bytes": 8668535,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/orphan-total-running/recovered",
+      "status": "PASS",
+      "bytes": 8591264,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/triple-access-denied",
+      "status": "PASS",
+      "bytes": 8699044,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/triple-before-arm",
+      "status": "PASS",
+      "bytes": 8574925,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/triple-before-start",
+      "status": "PASS",
+      "bytes": 8574933,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/triple-collector-first",
+      "status": "PASS",
+      "bytes": 8709202,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/triple-fallback-first",
+      "status": "PASS",
+      "bytes": 8699024,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    },
+    {
+      "profile": "qualification-3/session-1/run-1/etw/triple-guard-first",
+      "status": "PASS",
+      "bytes": 8709639,
+      "largestFileBytes": 4202496,
+      "contentExcluded": true,
+      "noDiagnosticEtwAudit": true,
+      "noFixtureFileAccessAudit": true
+    }
+  ],
+  "limits": [
+    "No recovery runs while all application processes are absent; next explicit consented capture is required.",
+    "One protected reservation, at most 8192 bytes; an empty administrator/SYSTEM-only application-state key can remain.",
+    "Live cleanup requires the same user, Windows logon and image scope. Absent foreign-scope metadata retirement has native-policy evidence, without live reboot/upgrade qualification.",
+    "The normal original-object witness exits before recovery and has no ETW control. The temporary high launch host holds no reservation or ETW recovery handles.",
+    "Controlled original self-exits do not qualify instruction-level simultaneous death or unhandled SEH.",
+    "Restricted-token status 5 is real; restoring the original already-granted token is not persistent-denial recovery.",
+    "No protected installation, resident service, automatic re-elevation, power-loss durability, sleep/wake, forced live PID/TID reuse, complete I/O coverage or production/path admission.",
+    "The final frozen package passed one complete sweep. Two earlier failed receipts remain failed.",
+    "Seven-day manual diagnostic review; no automatic deletion."
+  ],
+  "productionAdmission": false
+}

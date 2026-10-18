@@ -1,9 +1,10 @@
 # Recovery after broker and all three elevated helpers exit
 
-This document retains the v8 implementation and evidence. Current v9 marked
-packages also use a [separate custodian](etw-orphan-recovery.md) for loss of
-the original main and four native processes. Its twenty-eight packaged captures
-passed with the temporary custodian surviving outside that original group.
+This document retains the v8 implementation and evidence. The v9
+[temporary-custodian follow-up](etw-orphan-recovery.md) passed twenty-eight packaged
+captures with the custodian surviving outside the original five-process group.
+The current [durable-recovery follow-up](etw-durable-recovery.md) handles loss of
+all six originals at the next explicit same-logon, same-image capture launch.
 
 The surviving Electron main holds the capture's original reservation and four
 original process-object references. Before StartTrace, the authenticated normal
