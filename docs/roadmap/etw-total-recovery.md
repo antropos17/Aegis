@@ -109,8 +109,10 @@ passed 223. Typecheck, task lint, derived counts, native whitespace and normal-t
 synthetic transport passed. Local Semgrep was unavailable (`ENOENT`).
 
 Broker loss together with all elevated peers was outside that frozen evidence.
-The [main-held follow-up](etw-main-custody.md) now records five target PASS cases;
-its complete regression check is still incomplete. Refused/abandoned cleanup
+The [main-held follow-up](etw-main-custody.md) now records five target PASS cases
+and all twenty-two regressions across fourteen original captures and two four-capture
+continuations on the same immutable package. Failed attempts remain recorded;
+no single-sweep PASS is claimed. Refused/abandoned cleanup
 consent, protected durable recovery after main loss, protected installation,
 alternate credentials, actual sleep/wake, complete I/O coverage and production/path
 admission remain explicit limits. Ordinary production ETW remains disabled by default.

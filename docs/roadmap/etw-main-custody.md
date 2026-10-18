@@ -88,8 +88,8 @@ kill is used. These are coordinated exit orders, not instruction-level simultane
 death or an actual unhandled SEH crash.
 
 The profile also requires the earlier broker-only loss to recover through main
-(original broker 72, collector 2, guards 0, absence 4201), then actual read attribution
-after collector loss and a fresh normal stop. Historical receipts are preserved;
+(original broker 72, collector 2, guard 0, fallback 0 or unverified 2, absence 4201),
+then actual read attribution after collector loss and a fresh normal stop. Historical receipts are preserved;
 the new group oracle cannot substitute an earlier blocked broker-loss result.
 
 Qualification results are recorded separately. Main loss together with all native
@@ -109,14 +109,32 @@ absence. Ready cases first observed session presence. Actual restricted-token
 status 5 required separate elevated cleanup, and main observed pending consent.
 Sensors stayed FAILED, stage totals remained null and no capture restarted itself.
 
-The full qualification is incomplete. Fourteen of twenty-two cases passed before
+All twenty-two unique cases passed across fourteen original captures and two
+four-capture continuations on the identical immutable package. The original sweep
+did not pass: fourteen cases passed before
 the earlier `dual-collector-first` regression failed its PID-only CIM closure
 witness. Native original-helper exits and controller exit 4 were verified;
 subsequent enumeration found all observed IDs absent and a separate query returned
 absence 4201. The discrepancy remains unclassified, and no product fix is claimed.
-A continuation then expired before ready while awaiting UAC. Both failed attempts
-are retained. The same immutable package is prepared for the remaining eight
-scenarios; they require fresh human UAC decisions.
+A continuation then expired before ready while awaiting UAC. After four more PASS
+captures, another continuation stopped at `broker-exit`: main verified recovery
+and controller exit 4, but fallback exited with native unverified code 2 instead of
+the harness's required 0. Native fallback success is not the cleanup authority after
+broker loss; surviving main independently waits for all four original objects and
+verifies reserved-GUID cleanup. The corrected harness permits fallback 0 or 2 only
+with that proof, controller receipt/exit 4 and absence 4201. A failing behavioral
+test preceded the correction; 87 packaged-oracle tests then passed. The exact
+internal fallback failure branch remains unclassified; no native fix is claimed.
+All failed attempts remain FAIL. A fresh broker capture and the remaining three
+cases passed at harness head `83078819` without changing the runtime or package.
+
+The final collector-loss and normal workloads each performed 160 synchronous and
+160 actually pending overlapped reads with issuer attribution witnesses. Collector
+loss kept unknown final stage totals and an observation gap. The fresh normal
+capture stopped with acknowledgment and exit 0; observed native loss counters were
+zero, while the bounded main ring evicted 79 records. No loss-free or complete I/O
+coverage is claimed. All twenty-six created profiles, including failed attempts,
+had no diagnostic ETW or fixture file-access audit admission.
 
 Earlier attempts also retain a NuGet runtime-download timeout before capture and
 a harness PID mismatch after successful early cleanup. A no-ETW normal-package
@@ -124,9 +142,9 @@ probe showed that Playwright's Windows child is `cmd.exe`, while Electron main h
 a different PID. The harness now records the actual main PID at launch; the current
 package was frozen after that correction. All 231 archived main/shared JS/JSON files
 match frozen runtime source, the native DLL matches publication and no mutation
-fixture entered the archive. Later changes update documentation, evidence and
-finite Windows CI failure diagnostics; the ETW runtime and physical qualification
-harness stay frozen.
+fixture entered the archive. Later changes update documentation, evidence,
+finite Windows CI failure diagnostics and the broker-only harness expectation
+described above; ETW runtime files and the package stay frozen.
 
 Published native self-tests passed 91 cases and the focused JS suite passed 259.
 Normal-token original-object lifetime, limited rights, high-bit Windows exits and
@@ -138,3 +156,9 @@ separate full local Windows coverage attempt reported failures in AppContainer,
 gateway and installed-owner suites and reached its 300-second limit without completion.
 One isolated installed-owner control passed afterward; the full Windows result is
 not claimed fixed. Local Semgrep remains unavailable (`ENOENT`).
+
+Two earlier hosted Windows fixture attempts failed existing natural-exit GUI
+control 14. Finite failure diagnostics were added without changing acceptance;
+their 17 tests, an actual reporter-format probe, and all 112 native assertions
+subsequently passed locally and in hosted CI. Later passes do not establish the
+earlier control's cause or a fix. Final PR checks are tracked on the current head.

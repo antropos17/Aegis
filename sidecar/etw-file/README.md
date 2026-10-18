@@ -198,8 +198,9 @@ across thirteen retained captures and a four-capture continuation on the same
 immutable package; the earlier startup failures remain recorded. That evidence
 uses a surviving original broker. The [main-held custody follow-up](../../docs/roadmap/etw-main-custody.md)
 adds `--etw-group-recovery`: five broker-plus-helper loss targets pass with main
-surviving, while the complete twenty-two-case regression check remains incomplete
-at fourteen PASS cases and eight awaiting fresh UAC decisions. Main loss together
+surviving. All twenty-two regressions passed across fourteen original captures and
+two four-capture continuations on the same immutable package; failed attempts remain
+recorded and no single-sweep PASS is claimed. Main loss together
 with all native peers still needs protected durable recovery. Ordinary packages
 remain disabled.
 

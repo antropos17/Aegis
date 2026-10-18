@@ -174,8 +174,9 @@ The dependency is those observations, not the absence of a Windows host.
    four-capture continuation on the same immutable package; the earlier startup
    failures remain recorded. The [main-held custody follow-up](docs/roadmap/etw-main-custody.md)
    passes five broker-plus-helper loss targets with the original main surviving.
-   Its full twenty-two-case regression qualification is incomplete: fourteen cases
-   passed and eight still require fresh UAC decisions. Loss of main together with
+   All twenty-two cases passed across fourteen original captures and two bounded
+   four-capture continuations on the same immutable package; failed attempts remain
+   recorded and no single-sweep PASS is claimed. Loss of main together with
    all native peers, production/path admission, protected durable recovery, actual
    reuse and sleep/wake remain open.
 

@@ -266,14 +266,20 @@ for the original-object gate, private handoff, one permitted cleanup consent and
 remaining main-plus-all-native loss boundary.
 
 The [2026-10-18 evidence](../recon/evidence/etw-packaged-main-custody.json) records
-five target PASS cases at runtime/harness source `d05ecd0c`. Fourteen of twenty-two
-cases passed before a PID-only CIM closure check reported a survivor in
+all twenty-two unique cases PASS on unchanged runtime source `d05ecd0c`: fourteen
+original captures and two four-capture continuations. The original sweep stopped
+when a PID-only CIM closure check reported a survivor in
 `dual-collector-first`, despite a verified native terminal and controller exit 4.
 Subsequent enumeration found the original IDs absent, and an independent query
-confirmed ETW absence. The discrepancy remains unclassified. A bounded continuation
-then expired before ready while awaiting UAC; its failure is retained. Eight real
-scenarios remain unqualified pending fresh human UAC decisions. No complete-sweep
-or full twenty-two-case PASS is claimed.
+confirmed ETW absence. The discrepancy remains unclassified. Later attempts retain
+an expired startup consent and a broker-only harness failure: fallback exited with
+native unverified code 2 despite verified main cleanup. The corrected harness accepts
+fallback 0 or 2 only with independent main recovery, original-object exits, controller
+receipt/exit 4 and absence 4201; a fresh broker capture passed. Native/runtime files
+and the package stayed unchanged. No single-sweep PASS is claimed. Both final read
+workloads exercised 160 synchronous and 160 actually pending reads with issuer
+attribution; the fresh normal capture stopped with acknowledgment. Its bounded ring
+evicted 79 records, so this does not establish complete I/O coverage.
 
 ### Other qualification
 
