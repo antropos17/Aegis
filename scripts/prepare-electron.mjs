@@ -1,14 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const install = promisify(execFile);
 
 /** Prepare the installed Electron runtime once, before Vitest starts any workers.
  * @param {{config: {root: string}}} project Vitest root project.
- * @returns {void} Throws before test execution if installation or validation fails.
+ * @returns {Promise<void>} Rejects before tests if installation or validation fails.
  * @since 0.19.2
  */
-export default function prepareElectron(project) {
+export default async function prepareElectron(project) {
   const root = project.config.root;
   const require = createRequire(path.join(root, 'package.json'));
   try {
@@ -18,12 +21,18 @@ export default function prepareElectron(project) {
     console.log('[test-setup] Preparing Electron before test workers');
     // Use Electron's own idempotent installer and its cache/mirror/checksum policy.
     // Never import its entrypoint here: that fallback download has no deadline.
-    execFileSync(process.execPath, [path.join(directory, 'install.js')], {
-      cwd: root,
-      stdio: 'inherit',
-      windowsHide: true,
-      timeout: 240000,
-    });
+    const { stdout, stderr } = await install(
+      process.execPath,
+      [path.join(directory, 'install.js')],
+      {
+        cwd: root,
+        windowsHide: true,
+        timeout: 240000,
+        maxBuffer: 2 * 1024 * 1024,
+      },
+    );
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
     const installed = fs
       .readFileSync(path.join(directory, 'dist/version'), 'utf8')
       .trim()

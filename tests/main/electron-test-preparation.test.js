@@ -37,6 +37,19 @@ function fixture({ ready = false, mode = 'ready', override = false } = {}) {
   const binary = path.join(binaryRoot, 'fixture-electron');
   const events = path.join(root, 'events.jsonl');
   const record = `const record = (event) => fs.appendFileSync(${JSON.stringify(events)}, JSON.stringify(event) + '\\n');`;
+  const observeLoop = !ready && mode === 'ready';
+  const heartbeat = path.join(root, 'heartbeat.mjs');
+  if (observeLoop) {
+    fs.writeFileSync(
+      heartbeat,
+      `import fs from 'node:fs';
+${record}
+export default function setup() {
+  const timer = setInterval(() => record({ phase: 'setup-heartbeat' }), 20);
+  return () => clearInterval(timer);
+}`,
+    );
+  }
   fs.writeFileSync(
     path.join(electron, 'install.js'),
     `const fs = require('node:fs');
@@ -95,6 +108,7 @@ it('uses the prepared binary', () => record({ phase: 'test' }));
     .flat()
     .filter(Boolean)
     .map((file) => path.resolve(repository, file));
+  if (observeLoop) globalSetup.unshift(heartbeat);
   fs.writeFileSync(
     path.join(root, 'vitest.config.mjs'),
     `export default ${JSON.stringify({
@@ -161,8 +175,13 @@ describe('Electron preparation before test workers', () => {
     expect(phases.filter((phase) => phase === 'download-start')).toHaveLength(1);
     expect(phases).not.toContain('worker-download');
     expect(phases.indexOf('download-ready')).toBeLessThan(phases.indexOf('worker-require'));
+    const downloading = phases.slice(
+      phases.indexOf('download-start') + 1,
+      phases.indexOf('download-ready'),
+    );
+    expect(downloading).toContain('setup-heartbeat');
     expect(phases.filter((phase) => phase === 'test')).toHaveLength(2);
-    expect(result.events[0]).toMatchObject({
+    expect(result.events.find((event) => event.phase === 'installer-check')).toMatchObject({
       cache: path.join(result.root, 'cache'),
       mirror: 'https://fixture.invalid/electron/',
     });
