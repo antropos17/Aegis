@@ -5,10 +5,11 @@
  *   detected AI-agent processes. The OS is queried BY PID — that is the only handle
  *   it offers — but every sample is requested, cached and returned under the caller's
  *   `instanceId`, so a recycled pid can never inherit the previous holder's numbers.
- *   Windows transport lives in platform/windows-resources; all queries use the
+ *   Windows transport lives in platform/windows-resources, GPU sampling in
+ *   platform/nvidia-gpu; all queries use the
  *   injectable execFile runner. Collection and cache provenance stay here.
  *   CPU is normalized to 0–100 % of total machine per-PID (C-01). GPU memory is
- *   reported ONLY when nvidia-smi exists — else gpu:null + a one-time warning
+ *   reported only for complete measurements from an admitted NVIDIA CLI — else gpu:null
  *   (fail honest: never fabricate a number).
  * @requires child_process
  * @requires os
@@ -23,6 +24,7 @@ const { execFile } = require('child_process');
 const os = require('os');
 const logger = require('./logger');
 const { createWindowsResources } = require('./platform/windows-resources');
+const { createNvidiaGpu, parseGpuCsv: _parseGpuCsv } = require('./platform/nvidia-gpu');
 
 /** @typedef {{ pid: number, cpu: number|null, memMb: number|null, gpu: {memMb: number}|null }} Resource */
 /** @typedef {{ cpuRaw: number|null, memMb: number|null }} CpuMem */
@@ -55,11 +57,6 @@ const RESOURCE_CACHE_TTL = 5000;
 const EXEC_TIMEOUT = 8000;
 const LOGICAL_CORES = Math.max(1, os.cpus().length);
 const BYTES_PER_MB = 1048576;
-
-/** GPU availability: null = unprobed, true/false after the one-time probe. */
-let _gpuAvailable = null;
-let _gpuWarned = false;
-let _gpuProbePromise = null; // memoizes the one-time probe
 
 /**
  * TTL cache, keyed by `instanceId` — NOT by pid.
@@ -104,6 +101,9 @@ let _exec = (cmd, argv, opts) =>
 function _setExecForTest(fn, options = {}) {
   _exec = fn;
   _windows = createWindowsResources({ exec: fn, resolveExe: () => null, ...options });
+  // Injected runners never execute a real driver. Tests can separately exercise
+  // production admission with the platform sampler's resolver seam.
+  _gpu = createGpu(options.resolveGpuExe || (() => ({ file: 'nvidia-smi', cwd: process.cwd() })));
 }
 
 let _windows = createWindowsResources({ exec: (...args) => _exec(...args) });
@@ -111,6 +111,15 @@ let _windows = createWindowsResources({ exec: (...args) => _exec(...args) });
 /** Injectable logger (real by default). Tests inject a spy via DI, not module-mock
  * — dodges the ESM/CJS interop identity trap. @type {{ warn: Function }} */
 let _log = logger;
+
+function createGpu(resolveExe) {
+  return createNvidiaGpu({
+    exec: (...args) => _exec(...args),
+    resolveExe,
+    warn: (message) => _log.warn('resource-monitor', message),
+  });
+}
+let _gpu = createGpu();
 
 /** @internal Override the logger (tests). */
 function _setLoggerForTest(fn) {
@@ -122,9 +131,7 @@ function _resetForTest() {
   _cache.clear();
   _pendingCollections.clear();
   _collectionSequence = 0;
-  _gpuAvailable = null;
-  _gpuWarned = false;
-  _gpuProbePromise = null;
+  _gpu.reset();
   _log = logger;
 }
 
@@ -204,65 +211,19 @@ function _parsePsOutput(stdout) {
 }
 
 /**
- * Sum nvidia-smi compute-apps GPU rows of "pid, used_gpu_memory" (MiB) by PID.
- * Omit a PID for this snapshot if its total exceeds the safe integer range.
- * @param {string} stdout
- * @returns {Map<number, number>} pid → GPU memory in MiB
- * @since v0.10.0
- */
-function _parseGpuCsv(stdout) {
-  const map = new Map();
-  const overflowed = new Set();
-  for (const line of (stdout || '').split('\n')) {
-    const m = line.trim().match(/^(\d+)\s*,\s*(\d+)$/);
-    if (!m) continue;
-    const pid = Number(m[1]);
-    if (!Number.isSafeInteger(pid) || pid <= 0 || overflowed.has(pid)) continue;
-    const memory = measurement(m[2]);
-    if (memory === null || !Number.isSafeInteger(memory)) continue;
-    const total = (map.get(pid) ?? 0) + memory;
-    if (!Number.isSafeInteger(total)) {
-      map.delete(pid);
-      overflowed.add(pid);
-    } else {
-      map.set(pid, total);
-    }
-  }
-  return map;
-}
-
-/**
- * One-time probe for an nvidia-smi binary. Sets _gpuAvailable and warns once when
+ * One-time probe for an admitted NVIDIA binary. Records availability and warns once when
  * absent. Errors/timeouts resolve to unavailable (fail honest); later calls return
  * the memoized result with no extra spawn.
  * @returns {Promise<{available: boolean}>}
  * @since v0.10.0
  */
 function probeGpu() {
-  if (_gpuProbePromise) return _gpuProbePromise;
-  _gpuProbePromise = _exec('nvidia-smi', ['--query-gpu=name', '--format=csv,noheader'])
-    .then((out) => {
-      _gpuAvailable = out.trim().length > 0;
-    })
-    .catch(() => {
-      _gpuAvailable = false;
-    })
-    .then(() => {
-      if (!_gpuAvailable && !_gpuWarned) {
-        _gpuWarned = true;
-        _log.warn(
-          'resource-monitor',
-          'GPU metrics degraded: nvidia-smi not found — per-PID GPU memory disabled (gpu:null)',
-        );
-      }
-      return { available: _gpuAvailable === true };
-    });
-  return _gpuProbePromise;
+  return _gpu.probe();
 }
 
 /** @returns {boolean} Whether nvidia-smi GPU detection is currently available. */
 function isGpuAvailable() {
-  return _gpuAvailable === true;
+  return _gpu.isAvailable();
 }
 
 /**
@@ -289,13 +250,7 @@ function _fetchCpuMem(pids) {
  * @returns {Promise<Map<number, number>>}
  */
 function _fetchGpu() {
-  if (!isGpuAvailable()) return Promise.resolve(new Map());
-  return _exec('nvidia-smi', [
-    '--query-compute-apps=pid,used_gpu_memory',
-    '--format=csv,noheader,nounits',
-  ])
-    .then(_parseGpuCsv)
-    .catch(() => new Map());
+  return _gpu.sample();
 }
 
 /**
