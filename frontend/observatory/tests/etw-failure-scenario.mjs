@@ -4,7 +4,14 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { _electron as electron } from 'playwright';
 import { exitWithin, ownedPids, inspectProfile } from './sensor-support.mjs';
-import { delay, diagnostics, scenarioPaths, observeQuit, traceHelpers } from './etw-support.mjs';
+import {
+  delay,
+  diagnostics,
+  scenarioPaths,
+  observeQuit,
+  traceHelpers,
+  reliableHealth,
+} from './etw-support.mjs';
 import { inspectSession, waitOwnedExit } from './etw-failure-support.mjs';
 
 /** Exercise one actual fault in a marked packaged app; no provider/backend injection.
@@ -64,7 +71,11 @@ export async function runFailure({ executable, out, mode }) {
     });
     await observeQuit(app, final);
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
-    console.log('Waiting for one same-account capture UAC decision: ' + mode);
+    console.log(
+      (env.AEGIS_ETW_QUALIFICATION_HOST
+        ? 'Shared-consent capture: '
+        : 'Waiting for one same-account capture UAC decision: ') + mode,
+    );
     const dual = mode.startsWith('dual-');
     const triple = mode.startsWith('triple-');
     const group = mode.startsWith('group-');
@@ -211,7 +222,7 @@ export async function runFailure({ executable, out, mode }) {
       r.mainSurvived =
         (await app.evaluate(() => process.pid)) === r.mainPid && child.exitCode === null;
       assert.equal(r.mainSurvived, true);
-      const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
+      const health = await reliableHealth(page);
       assert.equal(health.sensors.byId['etw-file'].state, 'FAILED');
       assert.equal(health.populationReliable, true);
       await card.getByText('Failed', { exact: true }).waitFor({ timeout: 10000 });

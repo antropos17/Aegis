@@ -14,6 +14,7 @@ import {
   scenarioPaths,
   traceHelpers,
   remainingPids,
+  reliableHealth,
 } from './etw-support.mjs';
 
 /** Run one real packaged capture, optionally with a scheduled exit of its own collector.
@@ -156,7 +157,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
         (row) => row.issuerStatus !== 'verified' && row.agent === null && row.instanceId === null,
       );
     }
-    const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
+    const health = await reliableHealth(page);
     r.health = health.sensors.byId['etw-file'];
     r.populationReliable = health.populationReliable === true;
     assert.equal(r.health.state, 'DEGRADED');
@@ -198,7 +199,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
       r.failureVisibilityMs = Date.now() - failedAt;
       r.failureVisible = true;
       await page.screenshot({ path: path.join(out, 'recovered.png') });
-      const after = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
+      const after = await reliableHealth(page);
       assert.equal(after.sensors.byId['etw-file'].state, 'FAILED');
       assert.equal(after.populationReliable, true);
       await delay(1500);

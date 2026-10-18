@@ -9,6 +9,20 @@ import { exitWithin } from './sensor-support.mjs';
 /** @param {number} ms @returns {Promise<void>} @since v0.19.2 */
 export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Wait for an actual reliable scan; shared consent no longer supplies a human startup delay.
+ * @param {object} page Actual renderer. @returns {Promise<object>} Observed application health.
+ * @since v0.19.2
+ */
+export async function reliableHealth(page) {
+  const until = Date.now() + 30000;
+  do {
+    const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
+    if (health.populationReliable === true) return health;
+    await delay(100);
+  } while (Date.now() < until);
+  throw new Error('Reliable process snapshot not observed within 30 seconds');
+}
+
 /** Read the actual main owner; no backend/record injection or preload addition.
  * @param {object} app @returns {Promise<object>} @since v0.19.2
  */
