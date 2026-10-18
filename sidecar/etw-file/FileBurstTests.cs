@@ -36,7 +36,9 @@ internal static class FileBurstTests
                     Check(SpinWait.SpinUntil(() => ingress.Snapshot().Records == 0, 2000), "ingress-stalled-on-probe");
                 }
                 // Lifecycle work must finish even after the bounded outbound queue fills.
-                Feed(ingress, 14, ++qpc);
+                // An unidentified close must invalidate the map even while the
+                // native witness is blocked and the outbound queue is full.
+                ingress.Enqueue(new(0, 14, 1, ++qpc, 71, 72, 72, null, 0, 0, null));
                 pipeline.Complete();
                 pipeline.Worker.WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
                 Check(ingress.Totals().Dropped == 0, "raw-loss");

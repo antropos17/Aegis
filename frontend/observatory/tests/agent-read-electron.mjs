@@ -274,6 +274,7 @@ try {
     assert(text.includes(expected), 'Missing visible evidence: ' + expected);
   r.uiReadAndRisk = true;
   await panel.scrollIntoViewIfNeeded();
+  await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
   await panel.screenshot({ path: path.join(out, 'reads-dark.png') });
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
   await panel.screenshot({ path: path.join(out, 'reads-light.png') });

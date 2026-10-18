@@ -68,6 +68,20 @@ internal static class FileTests
                 Check(map.Accept(Input(15, 5, obj: 0, key: 2))?.path == null);
             }
         });
+        Test("closing a parallel handle preserves independently named live objects", () =>
+        {
+            foreach (int id in new[] { 13, 14 })
+            {
+                var map = Map(); Name(map, obj: 1); Name(map, 2, 0, 9);
+                Name(map, 3, obj: 2);
+                map.Accept(Input(id, 4, obj: 2, key: 9));
+                Check(map.Accept(Input(15, 5, obj: 1, key: 9))?.pathEvidence == "candidate-object");
+                Check(map.Accept(Input(15, 6, obj: 2, key: 9))?.path == null);
+                Check(map.Accept(Input(15, 7, obj: 0, key: 9))?.path == null);
+                map.Accept(Input(id, 8, obj: 1, key: 9));
+                Check(map.Accept(Input(15, 9, obj: 1, key: 9))?.path == null);
+            }
+        });
         Test("conflicting object and key are unresolved", () =>
         {
             var map = Map(); Name(map); Name(map, 2, 0, 2, @"C:\fixture\b");
