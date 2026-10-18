@@ -99,6 +99,7 @@ function createDiagnostics(clock = process.hrtime.bigint) {
 function createSummary(state, { capture, diagnostics, stopReason, code, endedAt }) {
   const recoveryVerified =
     state.phase === 'recovered' && code === 4 && state.recovery?.absent === true;
+  const stopVerified = state.phase === 'stopped' && code === 0;
   return {
     launchId: state.launchId,
     sessionId: state.sessionId,
@@ -107,16 +108,22 @@ function createSummary(state, { capture, diagnostics, stopReason, code, endedAt 
     reasons: [...state.reasons],
     maxima: { ...state.maxima },
     capture,
-    finalCounters: structuredClone(state.recovery?.counters ?? state.latest?.counters ?? null),
-    finalTotals: state.recovery ? null : structuredClone(state.latest?.totals ?? null),
+    finalCounters: structuredClone(
+      recoveryVerified
+        ? state.recovery.counters
+        : stopVerified
+          ? (state.latest?.counters ?? null)
+          : null,
+    ),
+    finalTotals: stopVerified ? structuredClone(state.latest?.totals ?? null) : null,
     ringDropped: diagnostics.dropped,
     collectorPerformance: structuredClone(state.latest?.performance ?? null),
     mainPerformance: diagnostics.performance(),
     stopReason,
     exitCode: code,
-    stopVerified: state.phase === 'stopped' && code === 0,
+    stopVerified,
     recoveryVerified,
-    observationGap: state.recovery?.observationGap === true,
+    observationGap: !stopVerified,
     collectorExit: state.recovery?.collectorExit ?? null,
   };
 }

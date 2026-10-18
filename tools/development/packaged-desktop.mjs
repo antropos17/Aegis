@@ -9,7 +9,8 @@ import { boundedCommand } from './bounded-command.mjs';
 import { desktopPassed, monitoringPassed, sensorsPassed } from './desktop-contract.mjs';
 import { processCoreSources } from '../../tests/fixtures/protected-gui-process/harness.mjs';
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
-import { prepareEtwPackage, etwRecoveryPassed } from './etw-package.mjs';
+import { prepareEtwPackage } from './etw-package.mjs';
+import { qualifyEtw } from './etw-qualification.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
@@ -19,11 +20,14 @@ const { values } = parseArgs({
     monitoring: { type: 'boolean', default: false },
     sensors: { type: 'boolean', default: false },
     etw: { type: 'boolean', default: false },
+    'etw-failures': { type: 'boolean', default: false },
   },
 });
+const etwFailures = values['etw-failures'];
+if (values.etw && etwFailures) throw new Error('Select one ETW profile');
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw]',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw | --etw-failures]',
   );
 const output = path.resolve(values.output);
 if (
@@ -79,9 +83,17 @@ const receipt = {
       ? 'monitoring-with-ordinary-current-user-and-playwright'
       : 'not-run',
     fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
-    etw: values.etw ? 'live-diagnostic-candidates-only' : 'not-run',
+    etw: etwFailures
+      ? 'seven-planned-failure-and-regression-captures'
+      : values.etw
+        ? 'live-diagnostic-candidates-only'
+        : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
-    uac: values.etw ? 'two-planned-interactive-same-account-captures' : 'not-run',
+    uac: etwFailures
+      ? 'seven-planned-same-account-captures-and-query-only-witness-if-denied'
+      : values.etw
+        ? 'two-planned-interactive-same-account-captures'
+        : 'not-run',
     guiEnrollment: false,
     realGuestProvider: 'not-run',
     elapsedThirtyMinuteExpiry: 'not-run',
@@ -143,7 +155,8 @@ try {
     [path.join(root, 'node_modules/electron/install.js')],
     240000,
   );
-  const etwConfig = values.etw ? await prepareEtwPackage(root, output, command) : null;
+  const etwConfig =
+    values.etw || etwFailures ? await prepareEtwPackage(root, output, command) : null;
   await command(
     'package',
     process.execPath,
@@ -256,25 +269,8 @@ try {
     if (!sensorsPassed(receipt.sensors)) throw new Error('Packaged sensor scenario incomplete');
     receipt.sensorReceiptSha256 = hash(sensorReceipt);
   }
-  if (values.etw) {
-    await command(
-      'etw',
-      process.execPath,
-      [
-        path.join(root, 'frontend/observatory/tests/etw-electron.mjs'),
-        '--executable',
-        path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
-        '--output',
-        path.join(output, 'etw'),
-      ],
-      420000,
-    );
-    const file = path.join(output, 'etw/receipt.json');
-    if (fs.statSync(file).size > 262144) throw new Error('ETW receipt too large');
-    receipt.etw = JSON.parse(fs.readFileSync(file));
-    if (!etwRecoveryPassed(receipt.etw))
-      throw new Error('Packaged ETW attribution/recovery incomplete');
-    receipt.etwReceiptSha256 = hash(file);
+  if (values.etw || etwFailures) {
+    Object.assign(receipt, await qualifyEtw(root, output, candidate, command, etwFailures));
   }
   if (
     hash(manifest) !== receipt.packageManifestSha256 ||

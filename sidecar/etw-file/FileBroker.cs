@@ -6,7 +6,7 @@ internal static class FileBroker
 {
     internal static async Task<int> Run(string[] args)
     {
-        bool live = args[0] is "broker" or "broker-crash-check";
+        bool live = args[0] is not ("check-broker" or "check-loss-broker");
         if (Security.Current().Elevated || !FileWire.Id(args[1]) || !FileWire.Id(args[2])) return 3;
         var scope = new FileScope(args[3]); // Validate before any UAC request.
         string pipeId = Guid.NewGuid().ToString("N");
@@ -16,7 +16,9 @@ internal static class FileBroker
         if (!Security.RestrictedAcl(pipe)) return 3;
         if (recoveryPipe != null && !Security.RestrictedAcl(recoveryPipe)) return 3;
         var self = Security.Current();
-        string collector = live ? args[0] == "broker-crash-check" ? "crash-collector" : "collector" :
+        string collector = live ? args[0] switch {
+            "broker-crash-check" => "crash-collector", "broker-prestart-check" => "prestart-collector",
+            "broker-prearm-check" => "prearm-collector", "broker-guard-check" => "guard-loss-collector", _ => "collector" } :
             args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
         var info = Program.Child(collector, args[1], args[2], pipeId,
             self.Pid.ToString(), self.Birth.ToString(), scope.Root, FileWire.Profile);
@@ -71,6 +73,8 @@ internal static class FileBroker
                         var frame = await read.ReadFrame(pipe, false, lifetime.Token);
                         if (frame.Message.t == "stopped") Volatile.Write(ref terminalObserved, 1);
                         await performance.Forward(output, frame, lifetime.Token);
+                        if (frame.Message.t == "ready" && args[0] == "broker-exit-check") _ = Task.Run(async () =>
+                        { await Task.Delay(30000); Environment.Exit(72); });
                         if (frame.Message.t == "stopped") return;
                     }
                 }

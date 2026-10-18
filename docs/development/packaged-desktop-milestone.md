@@ -210,6 +210,17 @@ two-capture PASS, exact tested source, evidence hashes and retained failed attem
 Its Read issuer subset and original-handle guard cleanup do not close production
 path attribution, protected installation or all remaining ETW gates.
 
+### ETW failure boundaries
+
+Use `--etw-failures` instead of `--etw` for seven planned captures covering
+collector exit before start/arm, guard loss, broker loss, abrupt owned Electron
+exit and the two-capture issuer/recovery regression. The profile independently
+queries session presence/absence and checks visible failure and blocked retry.
+It has a 15-minute parent deadline and stops at the first failed scenario. Each
+capture needs a same-account UAC decision; a query-only elevated witness may also
+be needed when ordinary queries are denied. See the [failure contract](../roadmap/etw-failure-boundaries.md)
+for capability boundaries and remaining qualification limits.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { etwPassed, etwRecoveryPassed } from '../../tools/development/etw-package.mjs';
+import { etwFailuresPassed } from '../../tools/development/etw-failure-contract.mjs';
 
 function receipt() {
   return {
@@ -151,6 +152,92 @@ function recoveryReceipt() {
     },
   };
 }
+
+function failureReceipt() {
+  return {
+    status: 'PASS',
+    productionAdmission: false,
+    regression: recoveryReceipt(),
+    cases: Object.fromEntries(
+      [
+        'collector-before-start',
+        'collector-before-arm',
+        'guard-exit',
+        'broker-exit',
+        'app-exit',
+      ].map((mode) => [
+        mode,
+        {
+          mode,
+          status: 'PASS',
+          packaged: true,
+          diagnosticBuild: true,
+          windowInputIsolated: true,
+          closureConfirmed: true,
+          contentExcluded: true,
+          noDiagnosticAudit: true,
+          before: { status: 4201, present: false },
+          after: { status: 4201, present: false },
+          presence: { status: 0, present: true },
+          failureVisible: true,
+          noAutomaticRestart: true,
+          abruptAppExit: mode === 'app-exit',
+          appExitCode: 73,
+          restartBlocked: !mode.startsWith('collector-before-'),
+          summary: {
+            recoveryVerified: mode.startsWith('collector-before-'),
+            capture: null,
+            finalTotals: null,
+            observationGap: true,
+            collectorExit: 70,
+            exitCode: mode.startsWith('collector-before-') ? 4 : mode === 'broker-exit' ? 72 : 2,
+            finalCounters: mode.startsWith('collector-before-')
+              ? { queryStatus: mode === 'collector-before-start' ? 4201 : 0 }
+              : null,
+          },
+        },
+      ]),
+    ),
+  };
+}
+describe('packaged ETW failure boundaries', () => {
+  it('requires all five boundaries plus actual attribution and fresh-session regression', () => {
+    expect(etwFailuresPassed(failureReceipt())).toBe(true);
+  });
+  it.each([
+    (r) => {
+      delete r.cases['guard-exit'];
+    },
+    (r) => {
+      r.cases['collector-before-arm'].summary.recoveryVerified = false;
+    },
+    (r) => {
+      r.cases['collector-before-start'].summary.finalCounters.queryStatus = 0;
+    },
+    (r) => {
+      r.cases['guard-exit'].restartBlocked = false;
+    },
+    (r) => {
+      r.cases['broker-exit'].summary.finalCounters = { queryStatus: 0 };
+    },
+    (r) => {
+      r.cases['guard-exit'].after = { status: 5, present: false };
+    },
+    (r) => {
+      r.cases['app-exit'].appExitCode = 0;
+    },
+    (r) => {
+      r.cases['app-exit'].presence = { status: 4201, present: false };
+    },
+    (r) => {
+      r.regression.normal.asyncProof.native.pending = 0;
+    },
+  ])('rejects missing, unknown or inconsistent boundary evidence (%#)', (mutate) => {
+    const r = failureReceipt();
+    mutate(r);
+    expect(etwFailuresPassed(r)).toBe(false);
+  });
+});
 
 describe('packaged ETW recovery qualification', () => {
   it('requires separate failed-but-cleaned and normally stopped captures with independent read witnesses', () => {

@@ -183,6 +183,12 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 
 ## Current evidence and limits
 
+The [failure-boundary follow-up](../../docs/roadmap/etw-failure-boundaries.md)
+adds pre-start GUID reservation and the `--etw-failures` packaged profile for
+pre-ready collector, guard, broker and abrupt Electron exits. It preserves blocked
+retry after unverified cleanup and does not qualify simultaneous collector/guard
+loss or protected recovery authority.
+
 See [backend implementation record](../../docs/roadmap/etw-file-backend.md).
 The [packaged issuer/recovery record](../../docs/recon/evidence/etw-packaged-issuer-recovery.json)
 binds the two-capture Windows PASS to `c4d4cf472c3f594d179d531830c5a046c16827c5`.

@@ -26,6 +26,14 @@ function createRuntime({
   const roots = argv.filter((value) => value.startsWith(prefix));
   const root = roots[0]?.slice(prefix.length);
   const faults = argv.filter((value) => value.startsWith('--etw-file-diagnostic-fault='));
+  const faultModes = {
+    'collector-exit': 'broker-crash-check',
+    'collector-before-start': 'broker-prestart-check',
+    'collector-before-arm': 'broker-prearm-check',
+    'guard-exit': 'broker-guard-check',
+    'broker-exit': 'broker-exit-check',
+  };
+  const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;
   const executable =
     app.isPackaged && diagnosticPackage
@@ -40,7 +48,7 @@ function createRuntime({
     spawnBroker: (launchId, sessionId) =>
       spawnProcess(
         executable,
-        [faults.length ? 'broker-crash-check' : 'broker', launchId, sessionId, root],
+        [faults.length ? faultModes[fault] : 'broker', launchId, sessionId, root],
         {
           windowsHide: true,
           shell: false,
@@ -70,7 +78,7 @@ function createRuntime({
     (!app.isPackaged ||
       !diagnosticPackage ||
       faults.length !== 1 ||
-      faults[0] !== '--etw-file-diagnostic-fault=collector-exit')
+      !Object.hasOwn(faultModes, fault))
   )
     sensor.setUnavailable('FAILED', 'invalid-diagnostic-fault');
   else if (!exists(executable)) sensor.setUnavailable('FAILED', 'diagnostic-broker-missing');
