@@ -53,6 +53,12 @@ label. Preserve the baseline and all applicable decisions outside the task.
 
 ## Verification
 
+The genuine-agent sensitive-read brief adds a metadata table to Events when a
+diagnostic capture is explicitly enabled. Use the existing semantic theme tokens
+and file-channel filters. Keep candidate path, unverified issuer, potential risk,
+loss and retained-state labels visible. This table does not alter scored events
+or audit history; see the [journey contract](../../docs/development/agent-sensitive-read.md).
+
 Follow [Observatory instructions](AGENTS.md) and the
 [verification workflow](../../docs/development/workflow.md#selecting-verification).
 Compare affected rendered states with the applicable reference at matching

@@ -132,6 +132,6 @@
     margin-top: var(--space-1);
   }
   .sensitive {
-    color: var(--warning);
+    color: var(--amber);
   }
 </style>

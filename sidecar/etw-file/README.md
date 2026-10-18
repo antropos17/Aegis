@@ -99,9 +99,13 @@ node scripts/launch.js '--etw-file-diagnostic-root=X:\tmp\my-fixture'
 ```
 
 Without this flag no broker is spawned and the `etw-file` leaf is DISABLED.
-Only health enters the existing app-health payload; diagnostic observations remain
-in the main-process runtime's bounded `getDiagnostics()` ring. No renderer IPC was
-added. Pause, suspend and quit request stop and erase the ring. Resume/unpause never
+Health enters the existing app-health payload. A bounded metadata projection also
+enters the existing stats channel for the Events read view; raw witnesses remain
+in the main-process runtime's bounded `getDiagnostics()` ring. No IPC channel was
+added. See the [genuine-agent read journey](../../docs/development/agent-sensitive-read.md)
+for candidate-path labels, worker-thread proof and privacy checks.
+Pause, suspend and quit request stop and erase the raw ring. Display rows remain
+labelled as retained until a new capture clears them. Resume/unpause never
 automatically prompt for UAC. The internal runtime supports explicit restart after
 verified stop and child exit; a new app invocation is currently the user-facing
 way to start another capture. A verified guard recovery and broker exit 4 also
