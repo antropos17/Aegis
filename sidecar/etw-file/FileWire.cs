@@ -15,7 +15,7 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
         internal Envelope Message { get; } = message;
         internal Task Forward(Stream stream, CancellationToken token) => WriteBody(stream, body, token);
     }
-    internal const string Protocol = "etw-file/8", Profile = "home-26200-diagnostic-v1";
+    internal const string Protocol = "etw-file/9", Profile = "home-26200-diagnostic-v1";
     internal const int Limit = 256 * 1024;
     internal static readonly string[] Schemas = ["10:0", "12:1", "13:1", "14:1", "15:1"];
     private static readonly UTF8Encoding Utf8 = new(false, true);

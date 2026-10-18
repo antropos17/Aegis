@@ -61,6 +61,20 @@ function assertPrivate(h) {
 }
 
 describe('main-held ETW group custody', () => {
+  it('retains only copied original native IDs for closure observation and clears them on retry', () => {
+    const h = setup(),
+      old = begin(h);
+    const ids = lease(old).peers.map((p) => p.pid);
+    expect(h.sensor.getDiagnostics().nativeProcessIds).toEqual(ids);
+    h.sensor.getDiagnostics().nativeProcessIds.push(999999);
+    expect(h.sensor.getDiagnostics().nativeProcessIds).toEqual(ids);
+    assertPrivate(h);
+    old.message('recovered', 3);
+    old.emit('close', 4);
+    expect(h.sensor.getDiagnostics().nativeProcessIds).toEqual(ids);
+    h.sensor.restart();
+    expect(h.sensor.getDiagnostics().nativeProcessIds).toEqual([]);
+  });
   it('continues cleanup after the original broker and helper transport are lost, without capture retry', () => {
     const h = setup(),
       old = begin(h);

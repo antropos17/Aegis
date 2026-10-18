@@ -20,10 +20,10 @@ internal static class FileRecoveryConsent
         limit.CancelAfter(TimeSpan.FromSeconds(120));
         using var expiry = limit.Token.Register(() => pipe.Dispose());
         limit.Token.ThrowIfCancellationRequested();
-        using var child = Process.Start(info) ?? throw new IOException();
-        var peer = Security.Observe(child);
+        using var child = await FileNativeChild.Start(info);
+        var peer = Security.Observe(child.SafeHandle, child.Id);
         await pipe.WaitForConnectionAsync(limit.Token);
-        Security.Verify(pipe, child, peer.Birth, true, true);
+        Security.Verify(pipe, child.SafeHandle, child.Id, peer.Birth, true, true);
         await FileGuardWire.Write(pipe, new FileGuardCommand("recover-owned", null, reservation), limit.Token);
         var receipt = await FileGuardWire.Read<FileGuardResult>(pipe, limit.Token);
         await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));

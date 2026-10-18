@@ -26,10 +26,10 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/8`. Each telemetry sample includes
+The matching main/helper now require `etw-file/9`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–7 are rejected; rebuild the helper together with the main reader.
+Versions 1–8 are rejected; rebuild the helper together with the main reader.
 Marked diagnostic packages retain private references to the original broker and
 three elevated helpers in the surviving main before capture authorization. See
 [main-held recovery custody](../../docs/roadmap/etw-main-custody.md) for the
@@ -187,6 +187,16 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
   and failed process exit cannot certify cleanup. Failure never auto-relaunches.
 
 ## Current evidence and limits
+
+Current protocol `etw-file/9` adds a [temporary elevated custodian](../../docs/roadmap/etw-orphan-recovery.md)
+before capture in marked packages. It holds five original process references and
+can clean up only after original main, broker, collector, guard and fallback exit.
+Its original capture elevation is retained; no service or machine setting is changed.
+The twenty-eight-capture profile passed in one final frozen-package sweep, using
+one consent for its temporary launch host and thirty worker launches. The host
+holds no reservation or recovery handles. See the linked contract and evidence
+for retained earlier failures and qualification limits. Historical v8 evidence
+below remains unchanged.
 
 The [all-helper recovery](../../docs/roadmap/etw-total-recovery.md) retains the
 original reservation in the existing normal broker. It requires all three original

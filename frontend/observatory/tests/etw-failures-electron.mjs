@@ -10,6 +10,8 @@ import { etwFailuresPassed } from '../../../tools/development/etw-failure-contra
 import { etwDualPassed } from '../../../tools/development/etw-dual-contract.mjs';
 import { etwTotalPassed } from '../../../tools/development/etw-total-contract.mjs';
 import { etwGroupPassed } from '../../../tools/development/etw-group-contract.mjs';
+import { ORPHAN_MODES, etwOrphanPassed } from '../../../tools/development/etw-orphan-contract.mjs';
+import { runOrphanFailure } from './etw-orphan-scenario.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -18,6 +20,7 @@ const { values } = parseArgs({
     dual: { type: 'boolean', default: false },
     total: { type: 'boolean', default: false },
     group: { type: 'boolean', default: false },
+    orphan: { type: 'boolean', default: false },
   },
 });
 assert(process.platform === 'win32' && process.arch === 'x64');
@@ -26,7 +29,8 @@ const out = path.resolve(values.output);
 fs.mkdirSync(out);
 fs.mkdirSync(path.join(out, 'temp'));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const total = values.total || values.group,
+const group = values.group || values.orphan,
+  total = values.total || group,
   dual = values.dual || total;
 const r = {
   status: 'FAIL',
@@ -34,26 +38,39 @@ const r = {
   startedAt: new Date().toISOString(),
   productionAdmission: false,
   cases: {},
-  scope: values.group
-    ? 'Five broker-plus-helper loss cases with surviving main plus seventeen earlier cases'
-    : total
-      ? 'Six all-three-helper loss cases plus eleven existing packaged regressions'
-      : dual
-        ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
-        : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
+  scope: values.orphan
+    ? 'Five original-main-plus-four-native losses, custodian-only loss, and twenty-two earlier captures; temporary elevated custodian survives the original five'
+    : group
+      ? 'Five broker-plus-helper loss cases with surviving main plus seventeen earlier cases'
+      : total
+        ? 'Six all-three-helper loss cases plus eleven existing packaged regressions'
+        : dual
+          ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
+          : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
   simultaneousGuardCollectorLoss: dual ? 'four planned local diagnostic captures' : 'not-run',
   allThreeElevatedPeersLost: total
     ? 'six planned local diagnostic captures; original normal broker survives'
     : 'not-run',
-  lossOfBrokerAndAllElevatedPeers: values.group
+  lossOfBrokerAndAllElevatedPeers: group
     ? 'five planned main-custody captures'
     : 'not-qualified by this profile',
-  lossOfMainAndAllNativePeers: 'not-qualified; requires protected durable recovery authority',
+  lossOfMainAndAllNativePeers: values.orphan
+    ? 'Five original processes lost; separate temporary custodian survives. Loss of custodian together with originals remains unqualified.'
+    : 'not-qualified by this profile',
   protectedInstallationSleepWakeAndPathAdmission: 'not-qualified',
 };
 try {
+  if (values.orphan)
+    for (const mode of ORPHAN_MODES) {
+      r.cases[mode] = await runOrphanFailure({
+        executable: values.executable,
+        out: path.join(out, mode),
+        mode,
+      });
+      assert.equal(r.cases[mode].status, 'PASS', 'Orphan case incomplete; no next planned capture');
+    }
   for (const mode of [
-    ...(values.group
+    ...(group
       ? [
           'group-before-start',
           'group-before-arm',
@@ -118,7 +135,8 @@ try {
   assert(etwFailuresPassed(r), 'Incomplete boundary qualification');
   if (dual) assert(etwDualPassed(r), 'Incomplete dual-loss qualification');
   if (total) assert(etwTotalPassed(r), 'Incomplete all-helper-loss qualification');
-  if (values.group) assert(etwGroupPassed(r), 'Incomplete main-custody group qualification');
+  if (group) assert(etwGroupPassed(r), 'Incomplete main-custody group qualification');
+  if (values.orphan) assert(etwOrphanPassed(r), 'Incomplete original-main loss qualification');
 } catch (e) {
   r.status = 'FAIL';
   r.failure = e.message;

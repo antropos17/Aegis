@@ -1,5 +1,10 @@
 # Recovery after broker and all three elevated helpers exit
 
+This document retains the v8 implementation and evidence. Current v9 marked
+packages also use a [separate custodian](etw-orphan-recovery.md) for loss of
+the original main and four native processes. Its twenty-eight packaged captures
+passed with the temporary custodian surviving outside that original group.
+
 The surviving Electron main holds the capture's original reservation and four
 original process-object references. Before StartTrace, the authenticated normal
 broker duplicates query-limited + synchronize references into the actual normal

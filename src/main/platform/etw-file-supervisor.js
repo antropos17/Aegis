@@ -56,6 +56,7 @@ function createSupervisor({
     custodyObserved = false,
     consentAckPending = false,
     cleanupAttemptObserved = false;
+  let nativeProcessIds = [];
   let completion = Promise.resolve(false),
     resolveCompletion = null;
   let diagnostics = createDiagnostics(profileClock);
@@ -153,6 +154,7 @@ function createSupervisor({
       )
         throw new Error('custody');
       privateLease = structuredClone(message.data);
+      nativeProcessIds = message.data.peers.map((peer) => peer.pid);
       custodyObserved = true;
       receivedAt = mono();
       if (!send('escrow-ack', {})) throw new Error('write-busy');
@@ -333,6 +335,7 @@ function createSupervisor({
     failedAt = null;
     failureGraceMs = 15000;
     privateLease = null;
+    nativeProcessIds = [];
     custodyObserved = false;
     cleanupAttemptObserved = false;
     consentAckPending = false;
@@ -426,6 +429,7 @@ function createSupervisor({
         recoveryPending: (current?.recoveryPending === true || rescuing) && !closed,
         cleanupConsentPending: current?.recoveryPending === true && !closed,
         custodyObserved,
+        nativeProcessIds: [...nativeProcessIds], // IDs only; private handles, births and GUID never leave custody.
         phase: current?.phase || 'disabled',
         pendingBytes: decoder?.allocatedBytes() || 0,
       })),

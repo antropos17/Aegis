@@ -24,9 +24,11 @@ const { values } = parseArgs({
     'etw-dual-recovery': { type: 'boolean', default: false },
     'etw-total-recovery': { type: 'boolean', default: false },
     'etw-group-recovery': { type: 'boolean', default: false },
+    'etw-orphan-recovery': { type: 'boolean', default: false },
   },
 });
-const etwGroup = values['etw-group-recovery'];
+const etwOrphan = values['etw-orphan-recovery'];
+const etwGroup = values['etw-group-recovery'] || etwOrphan;
 const etwTotal = values['etw-total-recovery'] || etwGroup;
 const etwDual = values['etw-dual-recovery'] || etwTotal;
 const etwFailures = values['etw-failures'] || etwDual;
@@ -36,13 +38,14 @@ if (
     values['etw-failures'],
     values['etw-dual-recovery'],
     values['etw-total-recovery'],
-    etwGroup,
+    values['etw-group-recovery'],
+    etwOrphan,
   ].filter(Boolean).length > 1
 )
   throw new Error('Select one ETW profile');
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw | --etw-failures | --etw-dual-recovery | --etw-total-recovery | --etw-group-recovery]',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw | --etw-failures | --etw-dual-recovery | --etw-total-recovery | --etw-group-recovery | --etw-orphan-recovery]',
   );
 const output = path.resolve(values.output);
 if (
@@ -98,29 +101,33 @@ const receipt = {
       ? 'monitoring-with-ordinary-current-user-and-playwright'
       : 'not-run',
     fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
-    etw: etwGroup
-      ? 'twenty-two-planned-main-custody-and-regression-captures'
-      : etwTotal
-        ? 'seventeen-planned-all-helper-loss-and-regression-captures'
-        : etwDual
-          ? 'eleven-planned-dual-loss-and-regression-captures'
-          : etwFailures
-            ? 'seven-planned-failure-and-regression-captures'
-            : values.etw
-              ? 'live-diagnostic-candidates-only'
-              : 'not-run',
+    etw: etwOrphan
+      ? 'twenty-eight-planned-original-main-loss-custodian-loss-and-regression-captures'
+      : etwGroup
+        ? 'twenty-two-planned-main-custody-and-regression-captures'
+        : etwTotal
+          ? 'seventeen-planned-all-helper-loss-and-regression-captures'
+          : etwDual
+            ? 'eleven-planned-dual-loss-and-regression-captures'
+            : etwFailures
+              ? 'seven-planned-failure-and-regression-captures'
+              : values.etw
+                ? 'live-diagnostic-candidates-only'
+                : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
-    uac: etwGroup
-      ? 'twenty-two-planned-captures-plus-two-cleanup-consents-and-query-only-witness-if-denied'
-      : etwTotal
-        ? 'seventeen-planned-captures-plus-one-cleanup-consent-and-query-only-witness-if-denied'
-        : etwDual
-          ? 'eleven-planned-same-account-captures-and-query-only-witness-if-denied'
-          : etwFailures
-            ? 'seven-planned-same-account-captures-and-query-only-witness-if-denied'
-            : values.etw
-              ? 'two-planned-interactive-same-account-captures'
-              : 'not-run',
+    uac: etwOrphan
+      ? 'twenty-eight-capture-consents-plus-two-earlier-cleanup-consents-and-query-only-witness-if-denied'
+      : etwGroup
+        ? 'twenty-two-planned-captures-plus-two-cleanup-consents-and-query-only-witness-if-denied'
+        : etwTotal
+          ? 'seventeen-planned-captures-plus-one-cleanup-consent-and-query-only-witness-if-denied'
+          : etwDual
+            ? 'eleven-planned-same-account-captures-and-query-only-witness-if-denied'
+            : etwFailures
+              ? 'seven-planned-same-account-captures-and-query-only-witness-if-denied'
+              : values.etw
+                ? 'two-planned-interactive-same-account-captures'
+                : 'not-run',
     guiEnrollment: false,
     realGuestProvider: 'not-run',
     elapsedThirtyMinuteExpiry: 'not-run',
@@ -299,7 +306,17 @@ try {
   if (values.etw || etwFailures) {
     Object.assign(
       receipt,
-      await qualifyEtw(root, output, candidate, command, etwFailures, etwDual, etwTotal, etwGroup),
+      await qualifyEtw(
+        root,
+        output,
+        candidate,
+        command,
+        etwFailures,
+        etwDual,
+        etwTotal,
+        etwGroup,
+        etwOrphan,
+      ),
     );
   }
   if (

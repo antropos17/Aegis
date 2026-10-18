@@ -176,9 +176,13 @@ The dependency is those observations, not the absence of a Windows host.
    passes five broker-plus-helper loss targets with the original main surviving.
    All twenty-two cases passed across fourteen original captures and two bounded
    four-capture continuations on the same immutable package; failed attempts remain
-   recorded and no single-sweep PASS is claimed. Loss of main together with
-   all native peers, production/path admission, protected durable recovery, actual
+   recorded and no single-sweep PASS is claimed. Loss of the temporary custodian together with
+   all originals, production/path admission, protected durable recovery, actual
    reuse and sleep/wake remain open.
+   The [v9 original-main-loss follow-up](docs/roadmap/etw-orphan-recovery.md) adds a
+   temporary custodian. All twenty-eight packaged captures passed in one final
+   frozen-package sweep with one launch-host consent; earlier failed attempts remain
+   recorded. The custodian must survive outside the original five-process loss set.
 
 ## C — existing rules coverage
 

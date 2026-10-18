@@ -19,10 +19,11 @@ internal static class FileCollector
         var performance = new FilePerformance();
         var send = new FileWire(args[1], args[2], performance);
         var read = new FileWire(args[1], args[2]);
+        bool orphanFault = args[0].StartsWith("orphan-", StringComparison.Ordinal);
         using var lifetime = new CancellationTokenSource();
         using var trace = live ? new FileTrace() : null;
         using var capture = live ? new FileCapture(ingress) : null;
-        string guardMode = args[0] switch
+        string guardMode = orphanFault ? "exit-with-owner" : args[0] switch
         {
             "guard-loss-collector" or "dual-guard-collector" or "triple-guard-collector" => "exit-after-arm",
             "dual-collector" or "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or
@@ -32,7 +33,8 @@ internal static class FileCollector
             trace!.Reservation, guardMode) : null;
         await using var fallback = live ? await FileGuardOwner.Start(args[9], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, args[0] == "triple-fallback-collector" ? "exit-after-reserve" :
-                args[0].StartsWith("triple-", StringComparison.Ordinal) || args[0] == "group-parent-collector" ? "exit-with-owner" : "normal", guard!.Identity) : null;
+                args[0].StartsWith("triple-", StringComparison.Ordinal) || args[0] == "group-parent-collector" || orphanFault ? "exit-with-owner" : "normal", guard!.Identity) : null;
+        using var orphan = await FileOrphanCollector.Start(args, pipe, parent, guard, fallback, trace?.Reservation);
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
         string? stopRequest = null;
@@ -53,7 +55,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-8-main-custody" : "etw-file-synthetic-check-8",
+                build = live ? "etw-file-diagnostic-9-orphan-custody" : "etw-file-synthetic-check-9",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -63,10 +65,12 @@ internal static class FileCollector
             if (start.t != "start") throw new InvalidDataException();
             if (trace != null)
             {
-                if (guard?.Alive != true || fallback?.Alive != true) throw new IOException();
+                if (guard?.Alive != true || fallback?.Alive != true || args.Length == 11 && orphan?.Alive != true) throw new IOException();
+                if (args[0] == "orphan-prestart-collector") await FileOrphanCollector.Pause(orphan, "before-start", pipe, read);
                 if (args[0] is "prestart-collector" or "dual-prestart-collector" or "triple-prestart-collector") Environment.Exit(70);
                 stats = trace.Start(); owns = true;
                 if (stats.Status != 0 || stats.Buffers == null || stats.Size == null) throw new InvalidOperationException();
+                if (args[0] == "orphan-prearm-collector") await FileOrphanCollector.Pause(orphan, "before-arm", pipe, read);
                 if (args[0] is "prearm-collector" or "dual-prearm-collector" or "triple-prearm-collector") Environment.Exit(70);
                 await guard!.Arm(trace.Token); // Ready is impossible before the independent guard is armed.
                 capture!.Start(); trace.Enable(); stats = trace.Query();
@@ -93,8 +97,9 @@ internal static class FileCollector
                 buffers = new { count = stats.Buffers ?? 256, sizeKiB = stats.Size ?? 64 },
                 telemetry = Telemetry()
             }, lifetime.Token);
+            if (orphan != null) await orphan.Phase("running");
             var stopSignal = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (args[0] is "crash-collector" or "dual-collector" or "triple-collector") _ = Task.Run(async () =>
+            if (args[0] is "crash-collector" or "dual-collector" or "triple-collector" or "orphan-native-collector") _ = Task.Run(async () =>
             {
                 try { await Task.Delay(30000, lifetime.Token); Environment.Exit(70); } // Own process, no finally or WER dump.
                 catch (OperationCanceledException) { }
@@ -117,6 +122,7 @@ internal static class FileCollector
             while (!stopSignal.Task.IsCompleted)
             {
                 lifetime.Token.ThrowIfCancellationRequested();
+                if (orphan?.Alive == false) throw new IOException();
                 if (capture?.Consumer?.IsCompleted == true) throw new IOException();
                 if (guard?.Alive == false)
                 {
@@ -163,6 +169,7 @@ internal static class FileCollector
         }
         finally
         {
+            if (orphanFault) Environment.Exit(70); // Diagnostic: retain the trace for surviving custodian authority.
             if (args[0] == "group-parent-collector" && owns)
             {
                 // Pipe EOF can cancel the observer before process exit signals.

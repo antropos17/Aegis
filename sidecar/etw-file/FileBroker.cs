@@ -9,6 +9,7 @@ internal static class FileBroker
         bool live = args[0] is not ("check-broker" or "check-loss-broker");
         if (Security.Current().Elevated || !FileWire.Id(args[1]) || !FileWire.Id(args[2])) return 3;
         var scope = new FileScope(args[3]); // Validate before any UAC request.
+        if (args.Length == 6) FileOrphanWire.Observer(args[5]);
         string pipeId = Guid.NewGuid().ToString("N");
         using var pipe = Security.Server(pipeId);
         string recoveryId = Guid.NewGuid().ToString("N");
@@ -29,11 +30,16 @@ internal static class FileBroker
             "broker-triple-prestart-check" => "triple-prestart-collector",
             "broker-group-prestart-check" => "triple-prestart-collector", "broker-group-prearm-check" => "triple-prearm-collector",
             "broker-group-first-check" => "group-parent-collector", "broker-group-triple-check" or "broker-group-denial-check" => "triple-collector",
+            "broker-orphan-prestart-check" => "orphan-prestart-collector", "broker-orphan-prearm-check" => "orphan-prearm-collector",
+            "broker-orphan-main-check" => "orphan-main-collector", "broker-orphan-native-check" => "orphan-native-collector",
+            "broker-orphan-denial-check" => "orphan-denial-collector", "broker-custodian-exit-check" => "custodian-exit-collector",
             _ => "collector" } :
             args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
         var info = Program.Child(collector, args[1], args[2], pipeId,
             self.Pid.ToString(), self.Birth.ToString(), scope.Root, FileWire.Profile);
         if (live) { info.ArgumentList.Add(recoveryId); info.ArgumentList.Add(fallbackId); }
+        bool mainEscrow = args.Length >= 5 && args[4] == "main-escrow";
+        if (live && mainEscrow) info.ArgumentList.Add("orphan-custody");
         if (live)
         {
             info.UseShellExecute = true; info.Verb = "runas"; info.WindowStyle = ProcessWindowStyle.Hidden;
@@ -44,7 +50,7 @@ internal static class FileBroker
         using var lifetime = new CancellationTokenSource();
         using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         using var expire = startup.Token.Register(() => pipe.Dispose());
-        using var child = Process.Start(info) ?? throw new InvalidOperationException();
+        using var child = await FileNativeChild.Start(info);
         using var recoveryLifetime = new CancellationTokenSource();
         FileGuardPeer? guard = null;
         FileGuardPeer? fallback = null;
@@ -52,12 +58,14 @@ internal static class FileBroker
         Task<FileGuardResult>? fallbackRecovery = null;
         string? reservation = null;
         FileMainCustody? mainCustody = null;
+        FileGuardPeer? custodian = null;
+        Task? custodianWatch = null;
         Stream input = Console.OpenStandardInput(), output = Console.OpenStandardOutput();
         try
         {
-            var identity = Security.Observe(child);
+            var identity = Security.Observe(child.SafeHandle, child.Id);
             await pipe.WaitForConnectionAsync(startup.Token);
-            Security.Verify(pipe, child, identity.Birth, true, live);
+            Security.Verify(pipe, child.SafeHandle, child.Id, identity.Birth, true, live);
             startup.CancelAfter(Timeout.InfiniteTimeSpan);
             if (recoveryPipe != null)
             {
@@ -79,15 +87,20 @@ internal static class FileBroker
                 fallback.Verify(fallbackPipe, secondBirth);
                 reservation = FileBrokerRecovery.Reservation(hello.guid, second.guid);
                 fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
-                if (args.Length == 5 && args[4] == "main-escrow")
+                if (mainEscrow)
                 {
                     using var originalBroker = Process.GetCurrentProcess();
                     mainCustody = FileMainCustody.Deposit(reservation,
                         [(self.Pid, originalBroker.SafeHandle), (child.Id, child.SafeHandle),
                          (guard.Id, guard.Handle), (fallback.Id, fallback.Handle)]);
+                    // Collector cannot start until this independent authority and main both acknowledge custody.
+                    await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
+                    connect.CancelAfter(Timeout.InfiniteTimeSpan);
+                    custodian = await FileOrphanBroker.Reserve(pipe, mainCustody, args.Length == 6 ? args[5] : null);
                     await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody.Reservation, connect.Token);
+                    custodianWatch = FileOrphanBroker.Watch(custodian, pipe, lifetime.Token);
                 }
-                await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
+                else await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
             }
             var read = new FileWire(args[1], args[2]);
             var controls = new FileWire(args[1], args[2]);
@@ -149,6 +162,7 @@ internal static class FileBroker
                     await Task.WhenAll(guard.WaitForExitAsync(TimeSpan.FromSeconds(12)),
                         fallback.WaitForExitAsync(TimeSpan.FromSeconds(12)));
                     if (args[0].StartsWith("broker-group-", StringComparison.Ordinal)) Environment.Exit(75);
+                    await FileOrphanBroker.FaultExit(args[0], mainCustody);
                     FileGuardResult? primary = null;
                     try { primary = await recovery.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
                     FileGuardResult? secondary = null;
@@ -248,6 +262,9 @@ internal static class FileBroker
             if (recovery != null) { try { await recovery; } catch { } }
             if (fallbackRecovery != null) { try { await fallbackRecovery; } catch { } }
             mainCustody?.Dispose();
+            lifetime.Cancel();
+            if (custodianWatch != null) { try { await custodianWatch; } catch { } }
+            custodian?.Dispose(); // Never wait for its exit: this broker is one of the original five.
         }
     }
 }

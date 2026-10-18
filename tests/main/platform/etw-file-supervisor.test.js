@@ -448,6 +448,56 @@ describe('ETW backend runtime gate', () => {
     ]);
     expect(sensor.getHealth().lastError).toBe('launch-failed');
   });
+  it('routes the main-loss fault and a read-only observer only in a marked package', () => {
+    const spawnProcess = vi.fn(() => {
+      throw new Error('test launch failure');
+    });
+    const endpoint = '12345678123456781234567812345678:71:1000';
+    const { sensor } = make({
+      app: { isPackaged: true },
+      packageMetadata: { aegisEtwDiagnostic: true },
+      resourcesPath: 'C:\\candidate\\resources',
+      spawnProcess,
+      argv: [
+        '--etw-file-diagnostic-root=C:\\fixture',
+        '--etw-file-diagnostic-fault=orphan-main-first',
+        '--etw-file-diagnostic-observer=' + endpoint,
+      ],
+    });
+    sensor.start();
+    expect(spawnProcess).toHaveBeenCalledOnce();
+    expect(spawnProcess.mock.calls[0][1]).toEqual([
+      'broker-orphan-main-check',
+      expect.any(String),
+      expect.any(String),
+      'C:\\fixture',
+      'main-escrow',
+      endpoint,
+    ]);
+  });
+  it.each([
+    '',
+    'foreign',
+    '0'.repeat(32) + ':71:1000',
+    '12345678123456781234567812345678:0:1000',
+    '12345678123456781234567812345678:71:01000',
+    '12345678123456781234567812345678:71:9223372036854775808',
+  ])('refuses malformed observer addresses before any process launch (%s)', (endpoint) => {
+    const { sensor, spawnProcess } = make({
+      app: { isPackaged: true },
+      packageMetadata: { aegisEtwDiagnostic: true },
+      resourcesPath: 'C:\\candidate\\resources',
+      argv: [
+        '--etw-file-diagnostic-root=C:\\fixture',
+        '--etw-file-diagnostic-fault=orphan-main-first',
+        '--etw-file-diagnostic-observer=' + endpoint,
+      ],
+    });
+    expect(sensor.start()).toBe(false);
+    expect(spawnProcess).not.toHaveBeenCalled();
+    expect(sensor.getHealth().state).toBe('FAILED');
+    expect(sensor.getHealth().detail).toBe('invalid-diagnostic-observer');
+  });
   it.each([
     { app: { isPackaged: false } },
     { argv: ['--etw-file-diagnostic-root=C:\\fixture', '--etw-file-diagnostic-fault=unknown'] },

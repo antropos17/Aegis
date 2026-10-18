@@ -9,6 +9,20 @@ import { exitWithin } from './sensor-support.mjs';
 /** @param {number} ms @returns {Promise<void>} @since v0.19.2 */
 export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Wait for an actual reliable scan; shared consent no longer supplies a human startup delay.
+ * @param {object} page Actual renderer. @returns {Promise<object>} Observed application health.
+ * @since v0.19.2
+ */
+export async function reliableHealth(page) {
+  const until = Date.now() + 30000;
+  do {
+    const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
+    if (health.populationReliable === true) return health;
+    await delay(100);
+  } while (Date.now() < until);
+  throw new Error('Reliable process snapshot not observed within 30 seconds');
+}
+
 /** Read the actual main owner; no backend/record injection or preload addition.
  * @param {object} app @returns {Promise<object>} @since v0.19.2
  */
@@ -193,11 +207,13 @@ export function scenarioPaths(out, canary) {
 
 /** Observe descendants of the retained app roots, including elevated collector/guard.
  * These PIDs are existence witnesses only; no intervention uses them.
- * @param {number[]} roots @param {object} env @returns {number[]} @since v0.19.2
+ * @param {number[]} roots @param {object} env @param {number[]} nativeIds Original custody IDs.
+ * @returns {number[]} @since v0.19.2
  */
-export function traceHelpers(roots, env) {
-  let parents = [...roots];
-  const helpers = [];
+export function traceHelpers(roots, env, nativeIds = []) {
+  assert(nativeIds.length <= 4 && nativeIds.every((pid) => Number.isSafeInteger(pid) && pid > 0));
+  let parents = [...new Set([...roots, ...nativeIds])];
+  const helpers = [...nativeIds];
   for (let depth = 0; depth < 4 && parents.length; depth++) {
     assert(parents.every((pid) => Number.isInteger(pid) && pid > 0));
     const filter = parents.map((pid) => `ParentProcessId = ${pid}`).join(' OR ');
