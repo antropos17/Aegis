@@ -195,9 +195,13 @@ UAC decision if ordinary control is denied. It adds the `--etw-total-recovery`
 seventeen-capture profile. Its [current evidence](../../docs/recon/evidence/etw-packaged-total-recovery.json)
 records all six new target cases PASS at `6b66655a`. All seventeen cases passed
 across thirteen retained captures and a four-capture continuation on the same
-immutable package; the earlier startup failures remain recorded. Loss of the broker
-together with every elevated peer still needs protected durable recovery. Ordinary
-packages remain disabled.
+immutable package; the earlier startup failures remain recorded. That evidence
+uses a surviving original broker. The [main-held custody follow-up](../../docs/roadmap/etw-main-custody.md)
+adds `--etw-group-recovery`: five broker-plus-helper loss targets pass with main
+surviving, while the complete twenty-two-case regression check remains incomplete
+at fourteen PASS cases and eight awaiting fresh UAC decisions. Main loss together
+with all native peers still needs protected durable recovery. Ordinary packages
+remain disabled.
 
 The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
 elevated fallback reserved before StartTrace. It waits for both original collector

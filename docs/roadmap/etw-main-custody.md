@@ -97,3 +97,43 @@ helpers, protected durable authority/installation, actual declined consent, alte
 credentials, actual sleep/wake, complete I/O coverage, forced real PID/TID reuse and
 production/path admission remain separate qualification gates. This is a mutable
 local diagnostic authority, with production ETW disabled by default.
+
+## Current result
+
+The 2026-10-18 [packaged evidence](../recon/evidence/etw-packaged-main-custody.json)
+records all five target cases PASS at runtime/harness source
+`d05ecd0c9c8176277cb250d57e3ff64db5590a2c`. Both early boundaries and both ready
+loss orders recovered through surviving original main custody. Original exits were
+75/70/71/74, the cleanup controller exited 4 and independent queries confirmed
+absence. Ready cases first observed session presence. Actual restricted-token
+status 5 required separate elevated cleanup, and main observed pending consent.
+Sensors stayed FAILED, stage totals remained null and no capture restarted itself.
+
+The full qualification is incomplete. Fourteen of twenty-two cases passed before
+the earlier `dual-collector-first` regression failed its PID-only CIM closure
+witness. Native original-helper exits and controller exit 4 were verified;
+subsequent enumeration found all observed IDs absent and a separate query returned
+absence 4201. The discrepancy remains unclassified, and no product fix is claimed.
+A continuation then expired before ready while awaiting UAC. Both failed attempts
+are retained. The same immutable package is prepared for the remaining eight
+scenarios; they require fresh human UAC decisions.
+
+Earlier attempts also retain a NuGet runtime-download timeout before capture and
+a harness PID mismatch after successful early cleanup. A no-ETW normal-package
+probe showed that Playwright's Windows child is `cmd.exe`, while Electron main has
+a different PID. The harness now records the actual main PID at launch; the current
+package was frozen after that correction. All 231 archived main/shared JS/JSON files
+match frozen runtime source, the native DLL matches publication and no mutation
+fixture entered the archive. Later changes are confined to documentation and
+evidence; the runtime and harness stay frozen.
+
+Published native self-tests passed 91 cases and the focused JS suite passed 259.
+Normal-token original-object lifetime, limited rights, high-bit Windows exits and
+synthetic transport were checked. Effective typecheck, Svelte check, renderer
+build, formatting, lint and tracked-source counts passed. Runtime-head CI passed
+8,685 tests with 1,218 skipped and both witness gates; that initial job failed only
+four stale derived counts in two MD declarations, subsequently corrected. The
+separate full local Windows coverage attempt reported failures in AppContainer,
+gateway and installed-owner suites and reached its 300-second limit without completion.
+One isolated installed-owner control passed afterward; the full Windows result is
+not claimed fixed. Local Semgrep remains unavailable (`ENOENT`).

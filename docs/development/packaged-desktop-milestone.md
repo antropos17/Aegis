@@ -256,6 +256,25 @@ native/stage drops and 78 main-ring evictions. Source/package identity, failed
 attempts and nineteen profile audit scans are retained. The surviving broker path
 does not qualify its own loss together with all elevated peers or durable authority.
 
+### ETW main-held recovery custody
+
+The optional `--etw-group-recovery` profile plans twenty-two captures with a
+32-minute parent deadline: five broker-plus-helper loss cases and seventeen earlier
+regressions. It requires twenty-two capture consents and two cleanup consents;
+query-only witnesses can require additional consent. See [main-held custody](../roadmap/etw-main-custody.md)
+for the original-object gate, private handoff, one permitted cleanup consent and
+remaining main-plus-all-native loss boundary.
+
+The [2026-10-18 evidence](../recon/evidence/etw-packaged-main-custody.json) records
+five target PASS cases at runtime/harness source `d05ecd0c`. Fourteen of twenty-two
+cases passed before a PID-only CIM closure check reported a survivor in
+`dual-collector-first`, despite a verified native terminal and controller exit 4.
+Subsequent enumeration found the original IDs absent, and an independent query
+confirmed ETW absence. The discrepancy remains unclassified. A bounded continuation
+then expired before ready while awaiting UAC; its failure is retained. Eight real
+scenarios remain unqualified pending fresh human UAC decisions. No complete-sweep
+or full twenty-two-case PASS is claimed.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation
