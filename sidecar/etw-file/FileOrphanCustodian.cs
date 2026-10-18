@@ -39,7 +39,13 @@ internal static class FileOrphanCustodian
             while (true)
             {
                 var exits = custody.Exits;
-                if (args[4] == "total-exit-check" && exits[0]) Environment.Exit(76); // Leave cleanup to the next explicit launch.
+                if (args[4] == "total-exit-check")
+                {
+                    // Pipe EOF can precede main's kernel-object exit. This fault
+                    // must never take the ordinary pre-start absence/retirement path.
+                    if (exits[0]) Environment.Exit(76);
+                    await Task.Delay(100); continue;
+                }
                 if (!tripleObserved && exits.Skip(2).All(gone => gone))
                 {
                     tripleObserved = true;

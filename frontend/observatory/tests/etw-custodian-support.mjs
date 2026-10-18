@@ -51,7 +51,16 @@ export function observeCustodian(helper, out, env, total = false) {
       if (error) throw error;
       const value = messages.find(predicate);
       if (value) return value;
-      if (child.exitCode !== null) throw Error('Observer ended before expected observation');
+      if (child.exitCode !== null)
+        throw Error(
+          'Observer ended before expected observation: exit ' +
+            child.exitCode +
+            '; events ' +
+            messages
+              .filter((m) => m.type !== 'endpoint')
+              .map((m) => m.type + (m.custodianExit === undefined ? '' : ':' + m.custodianExit))
+              .join(','),
+        );
       await delay(100);
     }
     throw Error('Observer observation deadline');

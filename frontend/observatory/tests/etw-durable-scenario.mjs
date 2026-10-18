@@ -168,6 +168,8 @@ export async function runDurableFailure({ executable, out, mode }) {
   } catch (error) {
     r.status = 'FAIL';
     r.failure = error.message;
+    if (first) r.observerEvents = first.observer.events();
+    if (next) r.recoveryObserverEvents = next.observer.events();
     for (const launch of [first, next].filter(Boolean)) {
       try {
         if (launch.child.exitCode === null) await durableExit(launch);
