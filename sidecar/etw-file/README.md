@@ -26,10 +26,10 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/8`. Each telemetry sample includes
+The matching main/helper now require `etw-file/9`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–7 are rejected; rebuild the helper together with the main reader.
+Versions 1–8 are rejected; rebuild the helper together with the main reader.
 Marked diagnostic packages retain private references to the original broker and
 three elevated helpers in the surviving main before capture authorization. See
 [main-held recovery custody](../../docs/roadmap/etw-main-custody.md) for the

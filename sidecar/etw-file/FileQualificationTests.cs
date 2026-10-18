@@ -28,6 +28,28 @@ internal static class FileQualificationTests
             foreach (string mode in new[] { "custodian", "rescue", "inspect-elevated", "self-test", "check-collector" })
             { var value = (string[])capture.Clone(); value[0] = mode; Reject(() => Validate(value)); }
         });
+        test("qualification witness survives delayed reader until explicit acceptance before disconnect", () =>
+        {
+            static async Task Transfer()
+            {
+                string pipeId = Guid.NewGuid().ToString("N");
+                using var server = Security.Server(pipeId);
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var client = Task.Run(async () =>
+                {
+                    using var pipe = Security.Client(pipeId);
+                    await Task.Delay(100, deadline.Token); // Force unread bytes at the old Disconnect.
+                    var witness = await FileGuardWire.Read<FileMainWitness>(pipe, deadline.Token);
+                    if (witness != new FileMainWitness(71, "1000", "10")) throw new InvalidDataException();
+                    await FileGuardWire.Write(pipe, new FileGuardCommand("accepted"), deadline.Token);
+                });
+                await server.WaitForConnectionAsync(deadline.Token);
+                await FileQualificationHost.Offer(server, new(71, "1000", "10"), deadline.Token);
+                server.Disconnect();
+                await client;
+            }
+            Transfer().GetAwaiter().GetResult();
+        });
     }
     private static void Reject(Action action) { bool rejected = false; try { action(); } catch { rejected = true; } if (!rejected) throw new InvalidOperationException(); }
 }

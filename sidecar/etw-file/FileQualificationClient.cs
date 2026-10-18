@@ -33,6 +33,7 @@ internal static class FileQualificationClient
                 throw new UnauthorizedAccessException();
             FileQualificationDiagnostic.Step = 5;
             FileMainHandles.Release(self, witness); // Only the fully verified local deposit; never retry.
+            await FileGuardWire.Write(pipe, new FileGuardCommand("accepted"), limit.Token);
             FileQualificationDiagnostic.Step = 6;
             return new(witness.pid, handle);
         }

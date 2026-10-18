@@ -80,6 +80,14 @@ closure. Internal main diagnostics expose only four original native process IDs
 for existence observations across this changed parent relationship; GUID, births
 and process handles remain private.
 
+The host waits for explicit acceptance after the caller validates its deposited
+query-only reference. This is necessary because
+[DisconnectNamedPipe discards unread bytes](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-disconnectnamedpipe);
+an asynchronous flush alone cannot establish receipt. A real native delayed-reader
+test failed with immediate disconnect and passed with acknowledgment. Selected
+qualification processes retain finite failure checkpoint exit codes; no raw
+exception, reservation or identity data is emitted.
+
 Original main exits 73; broker/collector/guard/fallback deliberately exit
 75/70/71/74 without cleanup in the five total-loss cases. These are coordinated
 exit orders, not instruction-level simultaneous death or actual unhandled SEH.
@@ -92,12 +100,18 @@ pending overlapped read attribution and acknowledged normal stop.
 
 ## Current evidence
 
-Implementation and offline checks are prepared. Native self-tests passed 98 cases;
-the prior implementation passed 319 focused JS tests across ten files; the launch
-host extension and copied-ID observation tests require refreshed checks. Effective typecheck, Svelte check,
-renderer build, formatting, lint and tracked counts passed. Normal-token synthetic
-transport passed. Semgrep is unavailable (`ENOENT`). Actual packaged qualification
-is pending; no new live recovery PASS or production admission is claimed here.
+Implementation and offline checks are prepared. Native self-tests passed 99 cases;
+320 focused JS tests passed across ten files, and all 16 protected GUI Windows
+tests passed locally. Effective typecheck, Svelte check, renderer build,
+formatting, lint and tracked counts passed for the earlier revision. Its six
+hosted contexts passed; Windows fixtures required a retry after a natural-exit
+observation failure outside this patch. Current-head checks must be refreshed.
+Normal-token synthetic transport passed. Semgrep is unavailable (`ENOENT`).
+One host consent expired; two approved host batches failed before reservation,
+with actual session absence and zero remaining launch-host children recorded.
+These attempts are retained. The latter exposed the unread-pipe race above.
+Packaged qualification of its correction is pending; no new live recovery PASS
+or production admission is claimed here.
 
 Protected installation, loss of the custodian with the originals, actual sleep/wake,
 forced real PID/TID reuse, complete I/O coverage and production/path admission

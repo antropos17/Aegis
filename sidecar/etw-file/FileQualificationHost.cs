@@ -8,6 +8,14 @@ namespace Aegis.EtwLifecycle;
 // There is no ETW, arbitrary executable, file writer, termination, service or policy API here.
 internal static class FileQualificationHost
 {
+    internal static async Task Offer(Stream pipe, FileMainWitness witness, CancellationToken token)
+    {
+        await FileGuardWire.Write(pipe, witness, token);
+        var ack = await FileGuardWire.Read<FileGuardCommand>(pipe, token);
+        if (ack.kind != "accepted" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
+        // DisconnectNamedPipe discards unread data. FlushAsync alone cannot prove
+        // that the normal caller received and verified the deposited reference.
+    }
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint pid);
     internal static async Task<int> Run(string[] args)
     {
@@ -60,7 +68,7 @@ internal static class FileQualificationHost
                     var witness = FileMainHandles.Deposit(client, child.SafeHandle, child.Id);
                     // An ambiguous delivery is never remotely closed/retried. At worst the
                     // authenticated normal client retains one query-only reference until exit.
-                    await FileGuardWire.Write(server, witness, request.Token);
+                    await Offer(server, witness, request.Token);
                 }
                 catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { break; }
                 catch { /* Reject this connection without broadening launch authority. */ }
