@@ -26,6 +26,16 @@ function createRuntime({
   const roots = argv.filter((value) => value.startsWith(prefix));
   const root = roots[0]?.slice(prefix.length);
   const faults = argv.filter((value) => value.startsWith('--etw-file-diagnostic-fault='));
+  const observers = argv.filter((value) => value.startsWith('--etw-file-diagnostic-observer='));
+  const observer = observers[0]?.slice('--etw-file-diagnostic-observer='.length);
+  const observerParts = observer?.split(':') ?? [];
+  const validObserver =
+    typeof observer === 'string' &&
+    observer.length <= 80 &&
+    /^[0-9a-f]{32}:[1-9]\d{0,9}:[1-9]\d{0,18}$/.test(observer) &&
+    observerParts[0] !== '0'.repeat(32) &&
+    Number(observerParts[1]) <= 0x7fffffff &&
+    BigInt(observerParts[2]) <= 0x7fffffffffffffffn;
   const faultModes = {
     'collector-exit': 'broker-crash-check',
     'collector-before-start': 'broker-prestart-check',
@@ -47,6 +57,12 @@ function createRuntime({
     'group-broker-first': 'broker-group-first-check',
     'group-triple-first': 'broker-group-triple-check',
     'group-access-denied': 'broker-group-denial-check',
+    'orphan-before-start': 'broker-orphan-prestart-check',
+    'orphan-before-arm': 'broker-orphan-prearm-check',
+    'orphan-main-first': 'broker-orphan-main-check',
+    'orphan-native-first': 'broker-orphan-native-check',
+    'orphan-access-denied': 'broker-orphan-denial-check',
+    'custodian-exit': 'broker-custodian-exit-check',
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;
@@ -69,6 +85,7 @@ function createRuntime({
           sessionId,
           root,
           ...(app.isPackaged && diagnosticPackage ? ['main-escrow'] : []),
+          ...(observer === undefined ? [] : [observer]),
         ],
         {
           windowsHide: true,
@@ -115,6 +132,15 @@ function createRuntime({
       !Object.hasOwn(faultModes, fault))
   )
     sensor.setUnavailable('FAILED', 'invalid-diagnostic-fault');
+  else if (
+    observers.length &&
+    (!app.isPackaged ||
+      !diagnosticPackage ||
+      observers.length !== 1 ||
+      !validObserver ||
+      !(fault?.startsWith('orphan-') || fault === 'custodian-exit'))
+  )
+    sensor.setUnavailable('FAILED', 'invalid-diagnostic-observer');
   else if (!exists(executable)) sensor.setUnavailable('FAILED', 'diagnostic-broker-missing');
   else permitted = true;
   let paused = false,

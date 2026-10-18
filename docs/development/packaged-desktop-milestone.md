@@ -281,6 +281,15 @@ workloads exercised 160 synchronous and 160 actually pending reads with issuer
 attribution; the fresh normal capture stopped with acknowledgment. Its bounded ring
 evicted 79 records, so this does not establish complete I/O coverage.
 
+### ETW original-main-loss custody
+
+The optional `--etw-orphan-recovery` profile adds six scenarios to the twenty-two
+earlier cases, using a temporary elevated custodian outside the five originals.
+Its ETW deadline is forty minutes, with twenty-eight planned capture consents and
+two earlier cleanup consents. See [the original-main-loss contract](../roadmap/etw-orphan-recovery.md)
+for the restricted read-only observer, original-object gate and pending packaged
+qualification. No protected installation or durable recovery is qualified.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation

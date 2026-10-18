@@ -14,6 +14,8 @@ internal sealed class FileGuardOwner : IAsyncDisposable
     private bool fallback;
     internal bool Ended => ended;
     internal bool Alive => !child.HasExited;
+    internal int Id => child.Id;
+    internal Microsoft.Win32.SafeHandles.SafeProcessHandle Handle => child.SafeHandle;
     private FileGuardOwner(NamedPipeServerStream channel, Process guard) { pipe = channel; child = guard; }
     internal static async Task<FileGuardOwner> Start(string recoveryPipe, Process broker, ulong brokerBirth, Stream data,
         string reservation, string diagnosticMode, FileGuardHello? primary = null)

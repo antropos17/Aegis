@@ -139,7 +139,7 @@ export function message(t = 'hello', seq = '1', data) {
   };
   return {
     t,
-    proto: 'etw-file/8',
+    proto: 'etw-file/9',
     launchId: 'launch-1',
     sessionId: 'session-1',
     seq,

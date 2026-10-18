@@ -179,6 +179,9 @@ The dependency is those observations, not the absence of a Windows host.
    recorded and no single-sweep PASS is claimed. Loss of main together with
    all native peers, production/path admission, protected durable recovery, actual
    reuse and sleep/wake remain open.
+   The [v9 original-main-loss follow-up](docs/roadmap/etw-orphan-recovery.md) adds a
+   temporary custodian and a twenty-eight-capture profile; packaged qualification
+   is pending.
 
 ## C — existing rules coverage
 

@@ -188,6 +188,13 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 
 ## Current evidence and limits
 
+Current protocol `etw-file/9` adds a [temporary elevated custodian](../../docs/roadmap/etw-orphan-recovery.md)
+before capture in marked packages. It holds five original process references and
+can clean up only after original main, broker, collector, guard and fallback exit.
+Its original capture elevation is retained; no service or machine setting is changed.
+The new twenty-eight-capture profile is implemented; actual packaged qualification
+is pending. The historical v8 evidence below remains unchanged.
+
 The [all-helper recovery](../../docs/roadmap/etw-total-recovery.md) retains the
 original reservation in the existing normal broker. It requires all three original
 elevated peer exits before recovery, and requests one cleanup-only same-account

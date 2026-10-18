@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/8';
+const PROTOCOL = 'etw-file/9';
 const { validMainLease } = require('./etw-file-custody');
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;

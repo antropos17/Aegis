@@ -9,6 +9,7 @@ internal sealed class FileMainCustody : IDisposable
     private bool released;
     internal FileMainReservation Reservation { get; }
     internal bool OwnerGone => FileMainHandles.Gone(owner.Handle);
+    internal PeerIdentity OwnerIdentity => owner.Identity;
     private FileMainCustody(FileMainParent parent, FileMainReservation reservation) { owner = parent; Reservation = reservation; }
 
     internal static FileMainCustody Deposit(string reservation, (int Pid, SafeProcessHandle Handle)[] originals)
