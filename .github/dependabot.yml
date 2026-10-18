@@ -26,3 +26,13 @@ updates:
         update-types:
           - minor
           - patch
+  # The optional development tools have a separate manifest and lockfile.
+  - package-ecosystem: npm
+    directory: /tools/development
+    schedule:
+      interval: weekly
+    groups:
+      development-minor-patch:
+        update-types:
+          - minor
+          - patch

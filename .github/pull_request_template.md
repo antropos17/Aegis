@@ -1,18 +1,18 @@
-## Description
-What does this PR do?
+## Change
 
-## Type of change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
+Describe the problem and resulting behavior. Link related issues; use a closing
+keyword only when the PR completes the issue's acceptance criteria.
 
-## Testing
-How was this tested?
+## Verification
 
-## Checklist
-- [ ] Follows code style guidelines (CommonJS main, Svelte 5 renderer)
-- [ ] No console.log in production code
-- [ ] New files stay focused and follow the applicable AGENTS.md conventions
-- [ ] I ran the applicable checks and recorded their results above (both renderer builds and frontend:test for visual changes)
-- [ ] This code has been reviewed by a human (not solely AI-generated)
+Record the checks actually run and their results. For platform or packaged
+behavior, identify the tested source/package and environment. State checks that
+were skipped or unavailable; CI and fixture results alone do not establish a
+successful live scenario. Follow [the verification guide](https://github.com/antropos17/Aegis/blob/master/docs/development/workflow.md#selecting-verification).
+
+## Limits and review
+
+Describe remaining limitations, compatibility concerns and who reviewed the
+change. Distinguish self-review, independent review and tool-assisted checks;
+claim human review only when it occurred. Keep credentials, private fixture
+contents and raw diagnostic artifacts out of the PR.

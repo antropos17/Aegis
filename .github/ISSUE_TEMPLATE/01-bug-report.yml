@@ -1,13 +1,18 @@
-name: "🐛 Bug Report"
+name: '🐛 Bug Report'
 description: "Something isn't working"
-labels: ["bug"]
+labels: ['bug']
 body:
+  - type: markdown
+    attributes:
+      value: |
+        For a suspected security vulnerability, use [private reporting](https://github.com/antropos17/Aegis/security/advisories/new).
+        Remove credentials, private file contents and sensitive paths from public reports and screenshots.
   - type: input
     id: aegis-version
     attributes:
       label: AEGIS version or source commit
       description: Include whether this is an installed build, a source checkout or the simulated preview.
-      placeholder: "e.g. installer version or source commit SHA"
+      placeholder: 'e.g. installer version or source commit SHA'
     validations:
       required: true
   - type: dropdown
@@ -27,7 +32,7 @@ body:
     attributes:
       label: Node.js version
       description: Only needed for source checkouts; the project requires Node.js 24.x.
-      placeholder: "e.g. 24.11.1"
+      placeholder: 'e.g. 24.11.1'
 
   - type: textarea
     id: steps
@@ -40,11 +45,15 @@ body:
     id: expected
     attributes:
       label: Expected behavior
+    validations:
+      required: true
 
   - type: textarea
     id: actual
     attributes:
       label: Actual behavior
+    validations:
+      required: true
 
   - type: textarea
     id: logs
