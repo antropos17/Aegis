@@ -17,25 +17,29 @@ internal sealed class FileGeneration : IDisposable
     private readonly Dictionary<uint, Entry> pins = new();
     private readonly Func<uint, IFileIssuerPin?> open;
     private readonly Func<long> clock;
+    private readonly Func<uint, IEnumerable<uint>> peers;
+    private readonly HashSet<uint> primed = new();
     private readonly long ttl;
     private readonly int cap;
     internal int Count => pins.Count;
     internal FileGeneration(Func<uint, IFileIssuerPin?>? factory = null, Func<long>? timestamp = null,
-        long? lifetime = null, int capacity = 128)
+        long? lifetime = null, int capacity = 128, Func<uint, IEnumerable<uint>>? siblings = null)
     {
         open = factory ?? NativePin.Open;
+        peers = siblings ?? (factory == null ? FileThreadIds.InProcess : _ => []);
         clock = timestamp ?? Stopwatch.GetTimestamp;
         ttl = lifetime ?? Stopwatch.Frequency * 30;
         cap = capacity;
     }
     internal FileObservation Observe(FileObservation value)
     {
-        if (value.eventId != 15 || value.version != 1 || value.issuingTid is not { } tid ||
+        if (value.path == null || value.eventId != 15 || value.version != 1 || value.issuingTid is not { } tid ||
             tid is 0 or uint.MaxValue || !long.TryParse(value.qpc, out long eventTime) || eventTime < 0)
             return value;
         long now = clock();
         foreach (var key in pins.Where(pair => now - pair.Value.From > ttl).Select(pair => pair.Key).ToArray())
         { pins[key].Pin.Dispose(); pins.Remove(key); }
+        primed.RemoveWhere(pid => !pins.Values.Any(entry => entry.Pin.Pid == pid));
         if (pins.TryGetValue(tid, out var entry) && !entry.Pin.Alive())
         { entry.Pin.Dispose(); pins.Remove(tid); entry = null; }
         if (entry == null)
@@ -45,8 +49,10 @@ internal sealed class FileGeneration : IDisposable
             try { pin = open(tid); } catch { return value; }
             if (pin == null) return value;
             pins.Add(tid, new(pin, clock()));
+            Prime(value, pin);
             return value; // The lookup happened after this event: no retrospective proof.
         }
+        Prime(value, entry.Pin);
         if (eventTime <= entry.From || eventTime > now) return value;
         long from = clock();
         ulong birth = entry.Pin.Birth();
@@ -60,10 +66,36 @@ internal sealed class FileGeneration : IDisposable
             generationInterval = new { fromQpc = from.ToString(), toQpc = to.ToString() }
         };
     }
+    private void Prime(FileObservation value, IFileIssuerPin owner)
+    {
+        // A scoped read identifies an owner through a held thread, never the ETW
+        // header PID. Hold its existing workers before their FUTURE reads. This
+        // bounded snapshot is once per retained owner, outside the mapper lock.
+        if (value.path == null || !owner.Alive() || !primed.Add(owner.Pid)) return;
+        try
+        {
+            foreach (uint tid in peers(owner.Pid).Take(cap))
+            {
+                if (pins.Count >= cap || !owner.Alive()) break;
+                if (tid is 0 or uint.MaxValue || pins.ContainsKey(tid)) continue;
+                IFileIssuerPin? pin = null;
+                try
+                {
+                    pin = open(tid);
+                    if (pin == null || pin.Pid != owner.Pid || !pin.Alive() || !owner.Alive()) continue;
+                    pins.Add(tid, new(pin, clock()));
+                    pin = null; // Ownership transferred to the bounded pin table.
+                }
+                finally { pin?.Dispose(); }
+            }
+        }
+        catch { /* Denied snapshots/handles leave the remaining workers unresolved. */ }
+    }
     public void Dispose()
     {
         foreach (var entry in pins.Values) entry.Pin.Dispose();
         pins.Clear();
+        primed.Clear();
     }
     private sealed class NativePin(SafeWaitHandle thread, SafeProcessHandle process, uint pid) : IFileIssuerPin
     {

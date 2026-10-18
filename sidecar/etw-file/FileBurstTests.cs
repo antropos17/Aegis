@@ -78,6 +78,17 @@ internal static class FileBurstTests
             Check(third?.generationWitness == "2" && probes == 2, "fresh-witness");
             Check(first is { agent: null, instanceId: null }, "attribution");
         });
+        test("unresolved paths do not consume the scoped process probe budget", () =>
+        {
+            var ingress = new FileIngress(); int probes = 0;
+            using var pipeline = new FilePipeline(ingress, new FileScope(@"C:\fixture", false), true,
+                value => value with { generationWitness = (++probes).ToString() }, () => Stopwatch.Frequency);
+            Feed(ingress, 15, 1);
+            Feed(ingress, 12, 2, @"C:\fixture\a"); Feed(ingress, 15, 3);
+            Finish(pipeline);
+            Check(pipeline.Take()?.generationWitness == null && probes == 0, "unscoped-probe");
+            Check(pipeline.Take()?.generationWitness == "1" && probes == 1, "scoped-probe-starved");
+        });
         foreach (bool decoderGap in new[] { false, true })
         {
             test(decoderGap ? "decoder gap retires an in-flight witness" : "native loss retires an in-flight witness", () =>
