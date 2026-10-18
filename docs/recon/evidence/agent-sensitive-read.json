@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "scope": "packaged genuine agent sensitive-read journey",
+  "status": "PASS",
+  "productionAdmission": false,
+  "completedAt": "2026-10-18T17:57:44.033Z",
+  "source": {
+    "head": "0b5af2b46aff3a3af6c765cf50f735e8126a9a85",
+    "tree": "db04b872d96e33459b4dd8985674f52e15767e07",
+    "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+  },
+  "packageManifestSha256": "591597487f7299a1e2d2320c58a4b1221f5fd6723540d1690f027baba5376d8c",
+  "nativeDllSha256": "ac7fffa9864cead0e1b662b3e61bde4d2d782dff5c7399dd8a332bb9a5fd0398",
+  "nativeSelfTests": 112,
+  "receiptSha256": "970474884d26013f613fcde2bca148707b116a708f66608d89a5699b7a53dfb4",
+  "sourceFiles": [
+    {
+      "path": "frontend/observatory/components/Events.svelte",
+      "sha256": "0f9ecfbdc5e0f72909bd1175921dd23aaa172634dcfad855657af3f12e2f2b03"
+    },
+    {
+      "path": "frontend/observatory/components/FileReadObservations.svelte",
+      "sha256": "ff495dd8c18aed6c2fcb438528b28d684d40894ef70aa996c1acaebff68fba46"
+    },
+    {
+      "path": "frontend/observatory/tests/agent-read-electron.mjs",
+      "sha256": "41507c527531ff4a059af79f31ac863ab778a9bc9248515c645ee6eb059eaf1f"
+    },
+    {
+      "path": "frontend/observatory/translations/pt-BR.json",
+      "sha256": "f5649c79b72d9d2a6ca4c4da6236929af0d220ad091066b2f12bb86e4e778e6f"
+    },
+    {
+      "path": "sidecar/etw-file/FileBurstTests.cs",
+      "sha256": "6a8d4ca7546d64ee99fa1940f9baafb4c473aa94eba757dfe620ac2670c76f1b"
+    },
+    {
+      "path": "sidecar/etw-file/FileGeneration.cs",
+      "sha256": "5a0d2cd94296e7e670e73c61ae544bdef5dbdc975c5154c176f173bf428fc713"
+    },
+    {
+      "path": "sidecar/etw-file/FileIssuerTests.cs",
+      "sha256": "66f84f2b77181eec22c84fe3699e511b92ca1fdeb45355bb6c8bd37e748c679a"
+    },
+    {
+      "path": "sidecar/etw-file/FileMapping.cs",
+      "sha256": "516b6a8096adb877a017833b3996d9d1cf9180020becd0938abad7e85742b005"
+    },
+    {
+      "path": "sidecar/etw-file/FilePipeline.cs",
+      "sha256": "2bb73aa2fc580db2c5b539cc444837311e140c50285caacc225c9fe529c90d31"
+    },
+    {
+      "path": "sidecar/etw-file/FileTests.cs",
+      "sha256": "31bb869c9b7ab9df51e4920faee4b4a25ccc5bf0fa74a87d4f4043c8a3b9da08"
+    },
+    {
+      "path": "sidecar/etw-file/FileThreadIds.cs",
+      "sha256": "0c8800dc14d3462051ac2df2f06f6a25c55181ddc35d1d89aba76605a5beaf70"
+    },
+    {
+      "path": "src/main/main.js",
+      "sha256": "8914641074145cca799ecf35c8ae66f1b3b96eaec8154fa41060b7d2acff74c9"
+    },
+    {
+      "path": "src/main/platform/etw-file-attribution.js",
+      "sha256": "13f15b40e60fc940345cfc786e0ab556975ea82f9ab52db4b8c07f2cb859a72f"
+    },
+    {
+      "path": "src/main/platform/etw-file-runtime.js",
+      "sha256": "37f911e55df31678d819ea7e49816fc60f6fc7e6c4b785e813b657d1eb6eb668"
+    },
+    {
+      "path": "src/main/platform/etw-file-schema.js",
+      "sha256": "713a524461b099020f8777f321a18d66fde69735831a30ed574d3d6533855c4a"
+    },
+    {
+      "path": "src/main/platform/etw-file-supervisor.js",
+      "sha256": "0369cd8e0ae1086779cc678692e6affe00776600e3d962ae395c900e383793f5"
+    },
+    {
+      "path": "tests/main/agent-read-package.test.js",
+      "sha256": "a81216780e9c812690fe64fedcbc00cfab7592aba41857ece8bf9cca46f8ac9e"
+    },
+    {
+      "path": "tests/main/platform/etw-file-read-view.test.js",
+      "sha256": "54749c170212cc13ba5dc3994c2b5d5560c39c5b27dfaf2b86b6971d22c7a5d5"
+    },
+    {
+      "path": "tests/renderer/components/FileReadObservations.test.ts",
+      "sha256": "1545785b9de9d29cc606471106d11e4664dfd09d656489b9cc986b630b12d456"
+    },
+    {
+      "path": "tools/development/agent-read-contract.mjs",
+      "sha256": "3f99b2a4988a2d500eb7ac2bc0d24137e56ce05d618955f3482ca5d1ede7a883"
+    }
+  ],
+  "subject": {
+    "agent": "Claude Code",
+    "version": "2.1.292 (Claude Code)",
+    "model": "claude-opus-5-5",
+    "existingAccountAndDefaultModel": true,
+    "fixtureOnly": true,
+    "workflow": "persistent Read of an owned README, then a newly created synthetic .env",
+    "actualToolRead": true,
+    "onlyRequestedReads": true,
+    "returnedUnpromptedSyntheticValue": true
+  },
+  "nativeProof": {
+    "eventId": 15,
+    "version": 1,
+    "pathEvidence": "candidate-object",
+    "issuerStatus": "verified",
+    "generationSource": "createTime100ns",
+    "exactFullWitnessMatched": true,
+    "heldThreadIntervalCoversEvent": true,
+    "firstStandaloneReadQualified": false
+  },
+  "display": {
+    "visibleReadAndPotentialRisk": true,
+    "agentAndInstanceMatched": true,
+    "pathStillCandidate": true,
+    "observedReadCount": 1,
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "screenshots": [
+      {
+        "name": "reads-dark.png",
+        "sha256": "114cd110001af9e37595f40fe8729583429857f9f1ed0e701ee682741aa871c8"
+      },
+      {
+        "name": "reads-light.png",
+        "sha256": "f6742b5a6219e1ecb9ee08a107fa987724e51b33caf4763981d048b8fa39ee2a"
+      }
+    ]
+  },
+  "privacy": {
+    "contentsExcludedFromAegisProfile": true,
+    "diagnosticReadsExcludedFromAudit": true,
+    "publicProjectionExcludesRawIdentityAndFixtureValues": true
+  },
+  "counters": {
+    "eventsLost": "0",
+    "realTimeBuffersLost": "0",
+    "logBuffersLost": "0",
+    "queryStatus": 0
+  },
+  "totals": {
+    "delivered": "205688",
+    "filtered": "205649",
+    "dropped": "0",
+    "ingressDropped": "0",
+    "outputDropped": "0",
+    "outputOverflowDropped": "0",
+    "outputInvalidatedDropped": "0",
+    "decoderErrors": "0",
+    "mapEpoch": "32",
+    "mapResets": "32",
+    "mapConflicts": "32"
+  },
+  "ringDropped": 0,
+  "cleanup": {
+    "appExit": 0,
+    "agentExit": 0,
+    "stopVerified": true,
+    "stopReason": "shutdown",
+    "nativeExit": 0,
+    "independentAbsenceStatus": 4201,
+    "sessionPresent": false,
+    "remainingNativeProcesses": 0
+  },
+  "frontendBrowser": {
+    "status": "PASS",
+    "logSha256": "31c4bb547fa356680fbb79a60cc566cd2cd52c11c907608ef5fc1a44c787500c"
+  },
+  "earlierAttempts": [
+    {
+      "attempt": "live-1",
+      "status": "FAIL",
+      "receiptSha256": "adda9aa7376232f1cc14797530ac6b6e27d96adb5c4dbbb6edf98250641b6422",
+      "reason": "harness called an unavailable bridge method",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-2",
+      "status": "FAIL",
+      "receiptSha256": "e9536d4caf7d47ed801f3ac31abcd226c0799df3a986b5d28f86b5c411892bbc",
+      "reason": "single genuine read lacked native issuer/path proof",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-3",
+      "status": "FAIL",
+      "receiptSha256": "59a89ff25163f8f8f680a2868e491c15cb054213493862fe88d45ce13b5a5c4f",
+      "reason": "single genuine read had unresolved native paths",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-4",
+      "status": "FAIL",
+      "receiptSha256": "a54c45190f03e118d0532d1cb03cd99337492f349e87c8632d13964390869e02",
+      "reason": "scan subscription missed the initial identity",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-5",
+      "status": "FAIL",
+      "receiptSha256": "1d519db4e9dbd8a310967c8b082b6bbfd7dee3f26652c2e041416794bcc2998f",
+      "reason": "single genuine read lacked native proof after the first mapping fix",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-6",
+      "status": "FAIL",
+      "receiptSha256": "bd34b0b65746250adac0ed2a49c81c8f6d54b95be763ccc19238cee8bc31d536",
+      "reason": "newly created fixture still lacked native proof",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-7",
+      "status": "FAIL",
+      "receiptSha256": "8c3a0dc257332b416a23387ec4902f4a387a065d10bce2ea166913dfe8f4388b",
+      "reason": "private control compiler received an invalid source path",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-8",
+      "status": "FAIL",
+      "receiptSha256": "7f053a066dade0705b25a617de69365c07ea63d3b8b78432d880ecde67442d6d",
+      "reason": "native control lacked issuer proof; concurrent compiler caused counted loss",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "live-9",
+      "status": "FAIL",
+      "receiptSha256": "0a9eceaceef7bfbaa6fa769a3ac609bd63a827b9cba87955d575bf42846b2d8f",
+      "reason": "instrumented diagnostic control; genuine agent turn exceeded its deadline",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "journey-10",
+      "status": "FAIL",
+      "receiptSha256": "b129bf4201d1c81f29c9a1546a1ec3f42e2ab5cd2194dd7aaea3c8808dbc3f0c",
+      "reason": "manual startup consent expired",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "journey-11",
+      "status": "FAIL",
+      "receiptSha256": "8b459e12fccecc2d0f1afc38be7f780d57e5d2a81f5049ed79901c0b83d937d5",
+      "reason": "persistent genuine reads lacked scoped native paths",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "journey-12",
+      "status": "FAIL",
+      "receiptSha256": "1d7862162c920094cc9140561b782ebdc29c469fb0207902d535db73b345554b",
+      "reason": "instrumented diagnostic located same-file parallel-handle mapping loss",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "journey-13",
+      "status": "FAIL",
+      "receiptSha256": "7cdf2ba85c1cfe7492aae9793b5fca2aeec009d3fd197d4d7accfe6d5c52c240",
+      "reason": "scoped native read and potential risk arrived; worker issuer remained unverified",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "journey-14",
+      "status": "FAIL",
+      "receiptSha256": "dc1cda52e384e73ec56732b41a19902f2eb3002b28e831eb6bb4b245e5750b01",
+      "reason": "native issuer and visible row arrived; test selector matched verified and unverified rows",
+      "acceptance": "not accepted"
+    },
+    {
+      "attempt": "journey-15",
+      "status": "PASS",
+      "receiptSha256": "887275dcd38b12a450567cdec05f3efe5a7062e4cb96b40ffd50281cd9b87726",
+      "reason": "genuine journey passed before the final semantic color-token correction",
+      "acceptance": "diagnostic real-agent journey"
+    }
+  ],
+  "limits": [
+    "Marked diagnostic Windows package only; ordinary packaged ETW remains disabled.",
+    "Candidate paths and path-rule potential risk do not establish malicious intent or resolved reparse identity.",
+    "The first read, new workers and unavailable witnesses can remain unverified.",
+    "No risk-score, FileEvent, audit, sequence or baseline admission.",
+    "One local Windows x64 machine and the installed Claude Code version; other agents and platforms unqualified."
+  ],
+  "retention": "Private receipts and unsuccessful attempts preserved; manual review of closed disposable diagnostics after seven days."
+}
