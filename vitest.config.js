@@ -3,6 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
   test: {
+    globalSetup: ['./scripts/prepare-electron.mjs'],
     // Windows native helpers and jsdom compilation share host resources. An
     // unbounded CPU-count pool can exceed unchanged fixture/production deadlines.
     ...(process.platform === 'win32' ? { maxWorkers: 4 } : {}),

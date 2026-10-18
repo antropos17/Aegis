@@ -81,6 +81,18 @@ solution file with an empty file list: bare `npx tsc --noEmit` checks nothing an
 exits 0. Use `npm run typecheck` for main, retained renderer code and Observatory;
 `npm run typecheck:svelte` checks Svelte templates.
 
+Vitest prepares the installed Electron binary once in
+[`globalSetup`](https://vitest.dev/config/globalsetup), before any test workers
+start. [Electron 42+](https://www.electronjs.org/docs/latest/breaking-changes#behavior-changed-electron-no-longer-downloads-itself-via-postinstall-script)
+downloads on first import rather than during `npm ci`; keeping that work outside
+test hooks prevents cold-worktree timeouts.
+The setup awaits Electron's installer asynchronously, keeping Vitest's main loop
+responsive, with a four-minute deadline and bounded installer output. It preserves
+the installer's cache, mirror and checksum settings. A ready binary is reused. Installation
+or readiness failures stop the run before tests; hook timeouts remain unchanged.
+This applies to `npm test`, coverage/watch commands and direct Vitest invocations
+using the repository configuration.
+
 On Windows, run `npm run build:sidecar` before tests that launch native helpers.
 `npm ci` does not compile them; the MCP gateway fails closed when
 `build/sidecar/aegis-mcpjob.exe` is absent.
