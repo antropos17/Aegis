@@ -79,6 +79,7 @@ describe('restart-spanning packaged ETW evidence', () => {
     (p) => (p.scenario.reserved.custodianPid = 11),
     (p) => (p.host.liveChildren = 1),
     (p) => (p.host.childExitCodes = []),
+    (p) => (p.host.childExitCodes = [2]),
     (p) => (p.productionAdmission = true),
   ])('refuses incomplete preparation %#', (mutate) => {
     const p = prepared();
@@ -114,16 +115,22 @@ describe('restart-spanning packaged ETW evidence', () => {
       scenario: { status: 'PASS', recovery: recovery(), normal: recoveryReceipt().normal },
     });
     expect(rebootPassed(p, complete())).toBe(true);
+    const repeatedScope = complete();
+    repeatedScope.scenario.recovery.previousSameScope = true;
+    expect(rebootPassed(p, repeatedScope)).toBe(true);
+    repeatedScope.boot = p.boot;
+    expect(rebootPassed(p, repeatedScope)).toBe(false);
     for (const mutate of [
       (r) => (r.sourceHead = 'd'.repeat(40)),
       (r) => (r.packageManifestSha256 = 'd'.repeat(64)),
       (r) => (r.boot = p.boot),
       (r) => (r.host.exitCode = null),
+      (r) => (r.host.childExitCodes = [70, 2]),
       (r) => (r.scenario.normal.asyncProof.native.pending = 0),
       (r) => (r.scenario.normal.summary.stopVerified = false),
       (r) => (r.phase = 'cancel'),
       (r) => (r.scenario.recovery.previousJournalDigest = 'f'.repeat(64)),
-      (r) => (r.scenario.recovery.previousSameScope = true),
+      (r) => (r.scenario.recovery.previousSameScope = null),
     ]) {
       const r = complete();
       mutate(r);

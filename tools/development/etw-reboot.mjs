@@ -134,7 +134,7 @@ try {
     r.status = 'CANCELLED';
     assert(
       r.scenario?.status === 'CANCELLED' &&
-        rebootHostClosed(r.host, 1) &&
+        rebootHostClosed(r.host, [70]) &&
         r.scenario.recovery?.previousJournalDigest === prior.scenario.reserved.journalDigest,
       'Cancellation incomplete',
     );

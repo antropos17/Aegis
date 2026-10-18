@@ -13,10 +13,17 @@ No runtime defect has been reproduced in that path yet.
 The native read-only observer now reports SHA-256 digests of the entire canonical
 current and previous protected reservation payloads, plus whether the previous
 record matched the custodian's scope. These observations grant no control
-authority. Resume requires the previous digest to match preparation and the
-previous scope to differ. A generic "some journal was recovered" observation
+authority. Resume requires the previous digest to match preparation and records
+the observed scope comparison. A generic "some journal was recovered" observation
 alone could otherwise count a different record. This extends only the private
 qualification notice; public telemetry remains `etw-file/9`.
+
+The scope comparison is a branch observation, not a boot identity. Microsoft
+documents [logon IDs as LUIDs](https://learn.microsoft.com/en-us/windows/win32/secauthn/lsa-logon-sessions)
+and [LUID uniqueness only until restart](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-allocatelocallyuniqueid).
+The qualification therefore permits either observed scope comparison while still
+requiring an independently observed later OS boot and the exact previous record.
+This does not claim that actual logon-SID reuse was forced.
 
 ## Two separately consented phases
 
@@ -53,8 +60,9 @@ node tools/development/etw-reboot.mjs --phase resume --source-sha <same-commit> 
 Before any UAC or capture, the driver queries
 [`Win32_OperatingSystem.LastBootUpTime`](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-operatingsystem).
 It requires a boot timestamp later than completed preparation, with a consistent
-fresh observation timestamp. Same-boot relaunch, unknown observation and a clock
-anomaly fail qualification. This timestamp is a test witness; the runtime never
+fresh observation timestamp. Same-boot relaunch, unknown observations and
+nonincreasing or inconsistent timestamps fail qualification. Clock manipulation
+remains outside this diagnostic. This timestamp is a test witness; the runtime never
 uses it to authorize ETW control. Resume refuses changed package bytes or source.
 
 The session must independently be absent before the new main starts. A fresh

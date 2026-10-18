@@ -7,16 +7,17 @@ const date = (v) => (typeof v === 'string' ? Date.parse(v) : NaN);
 const digest = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 
 /** Require the temporary launch authority to close with every launched child accounted for.
- * @param {object} h Host observation. @param {number} launches Expected launches.
+ * @param {object} h Host observation. @param {number[]} expectedCodes Ordered expected child exits.
  * @returns {boolean} @since v0.19.2
  */
-export function rebootHostClosed(h, launches) {
+export function rebootHostClosed(h, expectedCodes) {
   return Boolean(
     h?.exitCode === 0 &&
-    h.launches === launches &&
+    h.launches === expectedCodes.length &&
     h.liveChildren === 0 &&
-    h.childExitCodes?.length === launches &&
-    h.childExitCodes.every((code) => Number.isInteger(code) && code >= 0),
+    Array.isArray(h.childExitCodes) &&
+    h.childExitCodes.length === expectedCodes.length &&
+    expectedCodes.every((code, index) => h.childExitCodes[index] === code),
   );
 }
 
@@ -37,7 +38,7 @@ export function rebootPrepared(p) {
     /^[a-f0-9]{64}$/.test(p.packageManifestSha256 ?? '') &&
     Number.isFinite(date(p.boot?.lastBootUtc)) &&
     date(p.completedAt) > date(p.boot.lastBootUtc) &&
-    rebootHostClosed(p.host, 1) &&
+    rebootHostClosed(p.host, [70]) &&
     s?.status === 'PREPARED' &&
     digest(s.reserved?.journalDigest) &&
     yes(s, [
@@ -67,7 +68,7 @@ export function rebootPrepared(p) {
   );
 }
 
-/** Observe a later Windows boot after completed preparation. A clock anomaly fails closed.
+/** Observe a later Windows boot after completed preparation; reject inconsistent timestamps.
  * This qualification witness grants no runtime cleanup authority.
  * @param {object} p Preparation. @param {object} boot Fresh fixed CIM observation.
  * @returns {boolean} @since v0.19.2
@@ -97,7 +98,7 @@ export function rebootRecoveryObserved(r) {
     digest(r.journalDigest) &&
     digest(r.previousJournalDigest) &&
     r.journalDigest !== r.previousJournalDigest &&
-    r.previousSameScope === false &&
+    typeof r.previousSameScope === 'boolean' &&
     absent(r.beforeNewMain) &&
     absent(r.beforeNewTrace) &&
     absent(r.afterRecovery) &&
@@ -123,7 +124,7 @@ export function rebootPassed(p, r) {
     r.sourceHead === p.sourceHead &&
     r.packageManifestSha256 === p.packageManifestSha256 &&
     /^[a-f0-9]{64}$/.test(r.preparationSha256 ?? '') &&
-    rebootHostClosed(r.host, 2) &&
+    rebootHostClosed(r.host, [70, 0]) &&
     r.scenario?.status === 'PASS' &&
     r.scenario?.recovery?.previousJournalDigest === p.scenario.reserved.journalDigest &&
     rebootRecoveryObserved(r.scenario?.recovery) &&
