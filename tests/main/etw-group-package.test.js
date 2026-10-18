@@ -51,6 +51,33 @@ describe('packaged main-held ETW recovery qualification', () => {
   it('requires all five four-process losses, seventeen regressions and a surviving original main', () => {
     expect(etwGroupPassed(groupReceipt())).toBe(true);
   });
+  it('accepts an unverified fallback exit only after independently verified main recovery', () => {
+    const r = groupReceipt();
+    r.cases['broker-exit'].summary.recoveryPeers.fallbackExit = 2;
+    expect(etwGroupPassed(r)).toBe(true);
+    r.cases['broker-exit'].summary.recoveryVerified = false;
+    expect(etwGroupPassed(r)).toBe(false);
+  });
+  it.each([
+    (s) => {
+      s.exitCode = 2;
+    },
+    (s) => {
+      s.finalCounters.queryStatus = 5;
+    },
+    (s) => {
+      s.recoveryPeers.fallbackExit = null;
+    },
+    (s) => {
+      s.recoveryPeers.fallbackExit = 3;
+    },
+  ])('rejects incomplete main recovery after an unverified fallback exit (%#)', (mutate) => {
+    const r = groupReceipt();
+    const summary = r.cases['broker-exit'].summary;
+    summary.recoveryPeers.fallbackExit = 2;
+    mutate(summary);
+    expect(etwGroupPassed(r)).toBe(false);
+  });
   it.each([
     (r) => {
       delete r.cases['group-before-start'];

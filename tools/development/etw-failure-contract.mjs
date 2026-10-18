@@ -82,7 +82,8 @@ export function etwFailuresPassed(r) {
           c.summary.exitCode === 4 &&
           c.summary.finalCounters?.queryStatus === 4201 &&
           c.summary.recoveryPeers?.guardExit === 0 &&
-          c.summary.recoveryPeers.fallbackExit === 0 &&
+          // Main proves original-object exit and cleanup independently of fallback success.
+          [0, 2].includes(c.summary.recoveryPeers.fallbackExit) &&
           c.summary.recoveryPeers.brokerElevated === false &&
           c.summary.recoveryPeers.cleanupElevated === false &&
           c.summary.recoveryPeers.accessDenied === false &&

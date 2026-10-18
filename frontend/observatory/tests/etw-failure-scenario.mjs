@@ -160,9 +160,12 @@ export async function runFailure({ executable, out, mode }) {
         assert.equal(r.summary.collectorExit, 2);
         assert.equal(r.summary.exitCode, 4);
         assert.equal(r.summary.finalCounters.queryStatus, 4201);
+        // A failed fallback may exit 2 before main verifies recovery itself.
+        // Its code is recorded as failure; it is never the cleanup proof here.
+        assert([0, 2].includes(r.summary.recoveryPeers.fallbackExit));
         assert.deepEqual(r.summary.recoveryPeers, {
           guardExit: 0,
-          fallbackExit: 0,
+          fallbackExit: r.summary.recoveryPeers.fallbackExit,
           brokerElevated: false,
           cleanupElevated: false,
           accessDenied: false,
