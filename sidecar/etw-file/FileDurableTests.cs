@@ -61,6 +61,14 @@ internal static class FileDurableTests
                 "O:BAG:BAD:P(A;;KA;;;SY)(A;;KA;;;BU)", "O:BAG:BAD:P(A;;KA;;;BA)(A;;KA;;;BA)",
                 "O:BAG:BAD:P(A;;KA;;;SY)(A;;KA;;;BA)(A;;KR;;;WD)" }) Check(!Safe(sddl));
         });
+        test("stale foreign-scope metadata needs independent absence and six proved exits", () =>
+        {
+            Check(FileDurableRecovery.Retirable(Lease(), 4201, _ => true));
+            foreach (uint status in new uint[] { 0, 5, 6, 87, 50 })
+                Check(!FileDurableRecovery.Retirable(Lease(), status, _ => true));
+            Check(!FileDurableRecovery.Retirable(Lease(), 4201, p => p.pid == 71 ? false : true));
+            Check(!FileDurableRecovery.Retirable(Lease(), 4201, p => p.pid == 76 ? null : true));
+        });
         test("durable PID reuse compares full births and never terminates the replacement", () =>
         {
             using var child = Process.Start(Program.Child("lease-test-child")) ?? throw new IOException();

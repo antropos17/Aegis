@@ -112,16 +112,24 @@ internal sealed class FileDurableJournal : IDisposable
         var old = journal.Read(); int recovered = 0; uint? denied = null;
         if (old != null)
         {
-            if (!FileDurableRecovery.SameScope(old, self)) throw new UnauthorizedAccessException();
-            if (denialCheck)
+            if (!FileDurableRecovery.SameScope(old, self))
             {
-                if (!old.peers.All(peer => FileDurableRecovery.Gone(peer) == true)) throw new IOException();
-                var probe = FileRecoveryAccess.RestrictedProbe(() => FileTrace.RecoverReservation(old.guid));
-                if (!FileRecoveryAccess.NeedsConsent(probe)) throw new IOException();
-                denied = 5; // Existing granted token restored; no policy or permission change.
+                if (!FileDurableRecovery.Retirable(old, FileTrace.Lookup().Stats.Status, FileDurableRecovery.Gone))
+                    throw new UnauthorizedAccessException();
             }
-            var result = FileDurableRecovery.Recover(old, FileDurableRecovery.Gone);
-            if (!result.stopped || !result.absent || FileTrace.Lookup().Stats.Status != 4201) throw new IOException();
+            else
+            {
+                if (denialCheck)
+                {
+                    if (!old.peers.All(peer => FileDurableRecovery.Gone(peer) == true)) throw new IOException();
+                    var probe = FileRecoveryAccess.RestrictedProbe(() => FileTrace.RecoverReservation(old.guid));
+                    if (!FileRecoveryAccess.NeedsConsent(probe)) throw new IOException();
+                    denied = 5; // Existing granted token restored; no policy or permission change.
+                }
+                var result = FileDurableRecovery.Recover(old, FileDurableRecovery.Gone);
+                if (!result.stopped || !result.absent) throw new IOException();
+            }
+            if (FileTrace.Lookup().Stats.Status != 4201) throw new IOException();
             recovered = 1;
         }
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(lease);

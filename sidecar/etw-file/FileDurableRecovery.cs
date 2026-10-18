@@ -52,4 +52,12 @@ internal static class FileDurableRecovery
 
     internal static bool SameScope(FileDurableLease lease, PeerIdentity self) =>
         lease.user == self.User && lease.logon == self.Logon && lease.image.Equals(self.Image, StringComparison.OrdinalIgnoreCase);
+
+    // Absence permits retiring stale metadata after a logon/package change,
+    // never controlling a foreign trace. Original identities must still be gone.
+    internal static bool Retirable(FileDurableLease lease, uint queryStatus, Func<FileDurablePeer, bool?> probe)
+    {
+        Validate(lease);
+        return queryStatus == 4201 && lease.peers.All(peer => probe(peer) == true);
+    }
 }
