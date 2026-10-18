@@ -187,7 +187,8 @@ The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an indep
 elevated fallback reserved before StartTrace. It waits for both original collector
 and guard objects to exit before recovery, and the broker verifies its receipt and
 exit separately. `--etw-dual-recovery` plans four pair-loss captures plus the seven
-existing packaged regressions. This remains a mutable local diagnostic authority;
+existing packaged regressions. The [packaged evidence](../../docs/recon/evidence/etw-packaged-dual-recovery.json)
+records all eleven PASS at `5a09b16a`. This remains a mutable local diagnostic authority;
 all-three-peer loss and protected durable recovery are outside its contract.
 
 The [failure-boundary follow-up](../../docs/roadmap/etw-failure-boundaries.md)

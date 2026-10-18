@@ -55,8 +55,10 @@ witness UAC may additionally be needed if ordinary queries are denied. There is 
 Any failed case stops the sequence before another capture. Diagnostic artifacts
 use the existing manual seven-day review policy and preserve failed attempts.
 
-Simultaneous loss of collector and guard still needs protected recovery authority;
-this profile does not deliberately orphan such a session or claim it recovered.
+The original seven-case profile did not qualify simultaneous collector/guard loss.
+The later [dual-loss recovery](etw-dual-recovery.md) adds an independent pre-reserved
+fallback and eleven packaged cases. Loss of all three elevated peers still needs
+protected durable authority; neither profile deliberately orphans that topology.
 Actual sleep/wake, alternate credentials, complete I/O coverage, real forced
 PID/TID reuse and the remaining E1-E8 gates are separate qualification work.
 

@@ -191,7 +191,7 @@ receipt and complete package. The
 manual seven-day retention policy applies. A failure never causes an automatic
 UAC retry, session adoption, name-based session stop or elevated kill. Normal quit
 has a 15-second bound; timeout cannot count as acknowledged cleanup. Independent
-protected installation, pre-arm and simultaneous guard/collector crash, consent
+protected installation, consent
 cancellation, actual sleep/wake, forced real PID/TID reuse, path confirmation,
 complete read coverage and the remaining
 E1–E8 gates remain unqualified. This profile is not production ETW admission.
@@ -224,13 +224,20 @@ The [2026-10-18 evidence](../recon/evidence/etw-packaged-failure-boundaries.json
 records seven actual packaged PASS cases at source `278f0754`, an independently
 exercised elevated query witness and the retained initial pre-capture build failure.
 
-### Other qualification
+### ETW dual-loss recovery
 
 The optional `--etw-dual-recovery` profile plans eleven captures, adding both ready
 collector/guard loss orders and both pre-ready boundaries to the seven regressions.
 It uses a 20-minute parent deadline and the same receipt, storage and UAC boundaries.
 See [dual-loss recovery](../roadmap/etw-dual-recovery.md) for the independent fallback
 authority, verified cleanup requirements and remaining all-peer-loss boundary.
+The [2026-10-18 evidence](../recon/evidence/etw-packaged-dual-recovery.json) records
+eleven PASS captures at source `5a09b16a`. Both ready loss orders and both early
+boundaries recovered with independently observed absence; the fresh normal capture
+retained zero native/stage drops and 77 main-ring evictions. The source and package
+hashes, actual read witnesses and all-profile audit checks are retained in that record.
+
+### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation
 authority. It does not qualify real UAC/linked-principal installation, authenticated
