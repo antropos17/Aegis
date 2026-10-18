@@ -187,16 +187,20 @@ The [all-helper recovery](../../docs/roadmap/etw-total-recovery.md) retains the
 original reservation in the existing normal broker. It requires all three original
 elevated peer exits before recovery, and requests one cleanup-only same-account
 UAC decision if ordinary control is denied. It adds the `--etw-total-recovery`
-seventeen-capture profile. Loss of the broker together with every elevated peer
-still needs protected durable recovery. Ordinary packages remain disabled.
+seventeen-capture profile. Its [current evidence](../../docs/recon/evidence/etw-packaged-total-recovery.json)
+records all six new target cases PASS and thirteen total PASS captures at `6b66655a`;
+four regressions remain incomplete after consent startup expiry, so the PR remains
+draft. Loss of the broker together with every elevated peer still needs protected
+durable recovery. Ordinary packages remain disabled.
 
 The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
 elevated fallback reserved before StartTrace. It waits for both original collector
 and guard objects to exit before recovery, and the broker verifies its receipt and
 exit separately. `--etw-dual-recovery` plans four pair-loss captures plus the seven
 existing packaged regressions. The [packaged evidence](../../docs/recon/evidence/etw-packaged-dual-recovery.json)
-records all eleven PASS at `5a09b16a`. This remains a mutable local diagnostic authority;
-all-three-peer loss and protected durable recovery are outside its contract.
+records all eleven PASS at `5a09b16a`. That historical mutable diagnostic profile
+did not qualify all-three-peer loss or protected durable recovery; current limits
+are described in the all-helper follow-up above.
 
 The [failure-boundary follow-up](../../docs/roadmap/etw-failure-boundaries.md)
 adds pre-start GUID reservation and the `--etw-failures` packaged profile for

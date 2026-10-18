@@ -1,0 +1,1294 @@
+{
+  "schemaVersion": 1,
+  "scope": "Mutable local diagnostic Windows package; no production admission",
+  "source": {
+    "head": "6b66655ac65a9a8976a7a29d72a50219f8a077e9",
+    "tree": "5b186e2d367c1dfe1eaa14292fb72d6e695d0daa",
+    "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+  },
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.11.1",
+    "os": "10.0.26200",
+    "compilerSha256": "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00"
+  },
+  "qualification": {
+    "status": "INCOMPLETE: all six target cases PASS; four regression captures incomplete",
+    "completedAt": "2026-10-18T11:55:26.297Z",
+    "plannedCaptures": 17,
+    "passedCaptures": 13,
+    "targetCasesPassed": 6,
+    "singleSweepPass": false,
+    "incompleteCaptures": ["broker-exit", "app-exit", "collector-after-ready", "normal"],
+    "initialFullAttempt": {
+      "status": "FAIL",
+      "failure": {
+        "phase": "etw",
+        "message": "etw failed; inspect its bounded log"
+      },
+      "receiptSha256": "4e7222bd2eff0e2af65b583eb3514a943e17c2417e6b1150d917571e151507e9",
+      "etwReceiptSha256": "6b7c9481df508bd62e93e2ac04430080b6ee1f83771ef63e2fefc997cf82992d",
+      "failedCaseReceiptSha256": "88134a4c4c4b5226c08a7517e180f488ed1a3bee3a53197c0971bc506d433285"
+    },
+    "continuation": {
+      "status": "FAIL",
+      "failure": "Continuation fault failed; no next capture\n\n'FAIL' !== 'PASS'\n",
+      "receiptSha256": "12fb5affcabfa57bc8f9b6c7333f134a6ee8e8c210e751c6010593a9c324e9de",
+      "failedCase": {
+        "status": "FAIL",
+        "mode": "broker-exit",
+        "failure": "Capture failed before ready",
+        "packaged": true,
+        "diagnosticBuild": true,
+        "windowInputIsolated": true,
+        "before": {
+          "status": 4201,
+          "present": false,
+          "elevatedWitness": false
+        }
+      },
+      "observation": "A consent.exe window and only the normal broker were observed throughout the startup wait; no ready frame or capture was observed before expiry",
+      "earlierHarnessLaunch": {
+        "status": "ERROR before capture",
+        "reason": "Private continuation initially used an incorrect executable basename; corrected to the observed packaged filename without a source or package edit",
+        "logSha256": "0a0a88cc7b29db18935701dc3a5d3584a267e38df0305ae4c836e031968f23c2"
+      }
+    },
+    "unchangedPackageCheck": {
+      "status": "PASS",
+      "sourceHead": "6b66655ac65a9a8976a7a29d72a50219f8a077e9",
+      "packageManifestSha256": "2fa92d5ef2502a5845a1dfbe3569ea3f16c8cda20385b901b17142cd51c18772",
+      "packageAndSourceUnchanged": true,
+      "checkedAt": "2026-10-18T11:55:58.892Z"
+    }
+  },
+  "packageSourceCheck": {
+    "head": "6b66655ac65a9a8976a7a29d72a50219f8a077e9",
+    "trackedRuntimeFiles": 229,
+    "mismatches": [],
+    "mutants": [],
+    "nativeDllMatches": true
+  },
+  "localChecks": {
+    "nativeSelfTests": 86,
+    "focusedJavaScriptTests": 223,
+    "typecheck": true,
+    "syntheticNativeTransport": true,
+    "counts": true,
+    "taskEslint": true,
+    "nativeWhitespace": true,
+    "semgrep": "unavailable: ENOENT"
+  },
+  "cases": {
+    "triple-before-start": {
+      "status": "PASS",
+      "mode": "triple-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 0,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "608694847038"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": null
+      }
+    },
+    "triple-before-arm": {
+      "status": "PASS",
+      "mode": "triple-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 0,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "608810457193"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": null
+      }
+    },
+    "triple-collector-first": {
+      "status": "PASS",
+      "mode": "triple-collector-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "609201629217"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "184410",
+          "filtered": "184384",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "4",
+          "mapResets": "4",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "608900416071",
+            "unixMs": "1792323863930",
+            "uncertaintyQpc": "10492"
+          }
+        }
+      }
+    },
+    "triple-guard-first": {
+      "status": "PASS",
+      "mode": "triple-guard-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "609616990813"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "274429",
+          "filtered": "274402",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "609315325911",
+            "unixMs": "1792323905421",
+            "uncertaintyQpc": "10278"
+          }
+        }
+      }
+    },
+    "triple-fallback-first": {
+      "status": "PASS",
+      "mode": "triple-fallback-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "610030009684"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "363445",
+          "filtered": "363417",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "4",
+          "mapResets": "4",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "609728319842",
+            "unixMs": "1792323946721",
+            "uncertaintyQpc": "10259"
+          }
+        }
+      }
+    },
+    "triple-access-denied": {
+      "status": "PASS",
+      "mode": "triple-access-denied",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "recoveryPendingObserved": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "all-three-helpers-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 74,
+          "brokerElevated": false,
+          "cleanupElevated": true,
+          "accessDenied": true
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "25874",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "610457480706"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "25874",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "487153",
+          "filtered": "487126",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "610136805132",
+            "unixMs": "1792323987569",
+            "uncertaintyQpc": "10379"
+          }
+        }
+      }
+    },
+    "dual-before-start": {
+      "status": "PASS",
+      "mode": "dual-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 0,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "610553878015"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": null
+      }
+    },
+    "dual-before-arm": {
+      "status": "PASS",
+      "mode": "dual-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 0,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "610637333381"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": null
+      }
+    },
+    "dual-guard-first": {
+      "status": "PASS",
+      "mode": "dual-guard-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "611022634672"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "353199",
+          "filtered": "353171",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "610721210097",
+            "unixMs": "1792324046010",
+            "uncertaintyQpc": "10166"
+          }
+        }
+      }
+    },
+    "dual-collector-first": {
+      "status": "PASS",
+      "mode": "dual-collector-first",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "611423794466"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "186053",
+          "filtered": "186026",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "611122765125",
+            "unixMs": "1792324086165",
+            "uncertaintyQpc": "10193"
+          }
+        }
+      }
+    },
+    "collector-before-start": {
+      "status": "PASS",
+      "mode": "collector-before-start",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 0,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-exited",
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "611658884413"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": null
+      }
+    },
+    "collector-before-arm": {
+      "status": "PASS",
+      "mode": "collector-before-arm",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "nativeHelperClosure": "broker verified retained collector, primary guard and fallback exits",
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 0,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-exited",
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "611841791752"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "0",
+          "filtered": "0",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": null
+      }
+    },
+    "guard-exit": {
+      "status": "PASS",
+      "mode": "guard-exit",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": false,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 2,
+        "recoveryCause": "collector-and-guard-exited",
+        "recoveryPeers": {
+          "guardExit": 71,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 4201,
+          "eventsLost": null,
+          "realTimeBuffersLost": null,
+          "logBuffersLost": null,
+          "asOfQpc": "612245389553"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "483212",
+          "filtered": "483186",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "611943701437",
+            "unixMs": "1792324168259",
+            "uncertaintyQpc": "10276"
+          }
+        }
+      }
+    },
+    "broker-exit": {
+      "status": "FAIL",
+      "mode": "broker-exit",
+      "failure": "Capture failed before ready",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      }
+    }
+  },
+  "regression": {
+    "status": "INCOMPLETE",
+    "reason": "The sequence stopped before app-exit, collector-after-ready and fresh normal capture; broker-exit never reached ready in either attempt"
+  },
+  "allProfileAuditCheck": [
+    {
+      "scenario": "triple-before-start",
+      "profilePresent": true,
+      "profileBytes": 8655885,
+      "allAuditRows": 71,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "triple-before-arm",
+      "profilePresent": true,
+      "profileBytes": 8660993,
+      "allAuditRows": 72,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "triple-collector-first",
+      "profilePresent": true,
+      "profileBytes": 8739753,
+      "allAuditRows": 122,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "triple-guard-first",
+      "profilePresent": true,
+      "profileBytes": 8738403,
+      "allAuditRows": 120,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "triple-fallback-first",
+      "profilePresent": true,
+      "profileBytes": 8730542,
+      "allAuditRows": 114,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "triple-access-denied",
+      "profilePresent": true,
+      "profileBytes": 8730528,
+      "allAuditRows": 114,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "dual-before-start",
+      "profilePresent": true,
+      "profileBytes": 8645682,
+      "allAuditRows": 68,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "dual-before-arm",
+      "profilePresent": true,
+      "profileBytes": 8605926,
+      "allAuditRows": 68,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "dual-guard-first",
+      "profilePresent": true,
+      "profileBytes": 8731100,
+      "allAuditRows": 115,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "dual-collector-first",
+      "profilePresent": true,
+      "profileBytes": 8731855,
+      "allAuditRows": 116,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "collector-before-start",
+      "profilePresent": true,
+      "profileBytes": 8731862,
+      "allAuditRows": 116,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "collector-before-arm",
+      "profilePresent": true,
+      "profileBytes": 8732445,
+      "allAuditRows": 117,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "guard-exit",
+      "profilePresent": true,
+      "profileBytes": 8731810,
+      "allAuditRows": 116,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "broker-exit",
+      "profilePresent": true,
+      "profileBytes": 9060133,
+      "allAuditRows": 340,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "continuation-launch-error",
+      "profilePresent": false,
+      "profileBytes": 0,
+      "allAuditRows": 0,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "continuation-expired-startup",
+      "profilePresent": true,
+      "profileBytes": 9101926,
+      "allAuditRows": 362,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    }
+  ],
+  "permissionProbes": {
+    "membership": {
+      "configurationModified": false,
+      "performanceLogUsersEnabled": true
+    },
+    "emptySession": {
+      "elevated": false,
+      "query": 0,
+      "identityMatched": true,
+      "ordinaryStop": 0,
+      "elevatedCleanup": "4201",
+      "ownerExit": 0,
+      "after": 4201
+    },
+    "kernelFileProvider": {
+      "providerEnabled": true,
+      "elevated": false,
+      "query": 0,
+      "identityMatched": true,
+      "ordinaryStop": 0,
+      "elevatedCleanup": "4201",
+      "ownerExit": 0,
+      "after": 4201
+    },
+    "restrictedEffectiveToken": {
+      "restrictedProbe": true,
+      "providerEnabled": true,
+      "elevated": false,
+      "query": 0,
+      "identityMatched": true,
+      "ordinaryStop": 5,
+      "elevatedCleanup": "0",
+      "ownerExit": 0,
+      "after": 4201
+    },
+    "scope": "Separate native permission probes retained the original elevated owner; packaged denied-controller recovery is in its actual target case"
+  },
+  "regressionDevelopment": {
+    "nativeRedTest": "Ordinary-broker reservation recovery failed before implementation; 86 self-tests passed after implementation",
+    "nativeRedReceiptSha256": "f90f8b9309acb8ba01c1674807223e5a821a73c597c67073597036bcd0fc8782"
+  },
+  "limits": [
+    "The seventeen-capture sweep and continuation both remain FAIL before broker-exit capture; four regressions need fresh same-account UAC confirmations, so the PR remains draft",
+    "Coordinated original-process exits cover all three first-loss orders; instruction-level simultaneous death is not claimed",
+    "The original normal broker survives; broker/app loss together with all elevated peers still needs protected durable authority",
+    "The host already has Performance Log Users membership; actual status 5 was induced using a restricted effective token without changing machine settings",
+    "Actual user-declined cleanup consent, late OS-dialog cancellation and app exit during cleanup consent remain unqualified",
+    "Protected installation, alternate credentials, actual sleep/wake, complete I/O coverage, forced real PID/TID reuse, production/path admission and remaining E1-E8 gates remain open",
+    "Only all-original-peer exit plus the private original reservation authorizes broker recovery; timeout/EOF grants no authority",
+    "Failed-capture application-stage totals remain null with an observation gap",
+    "Raw receipts/profiles/screenshots stay private under manual seven-day review; projections omit synthetic paths, reservation GUIDs and raw trace handles"
+  ]
+}

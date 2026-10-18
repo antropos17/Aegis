@@ -167,9 +167,13 @@ The dependency is those observations, not the absence of a Windows host.
    seven packaged cases including pre-arm reservation recovery, guard/broker loss
    and abrupt Electron exit. The [dual-loss follow-up](docs/roadmap/etw-dual-recovery.md)
    adds a pre-reserved independent fallback and passes eleven packaged captures,
-   including both collector/guard loss orders and both early boundaries. Production/path
-   admission, loss of all three elevated peers, protected durable recovery, actual
-   reuse and sleep/wake remain open.
+   including both collector/guard loss orders and both early boundaries. The
+   [all-helper follow-up](docs/roadmap/etw-total-recovery.md) passes six new target
+   cases using the surviving normal broker, with cleanup-only UAC after native
+   denial. Four packaged regressions remain incomplete after consent startup expiry;
+   this revision is not fully qualified. Loss of broker plus all elevated peers,
+   production/path admission, protected durable recovery, actual reuse and sleep/wake
+   remain open.
 
 ## C — existing rules coverage
 

@@ -66,8 +66,36 @@ This qualifies a restricted effective token, not alternate credentials. Local
 permission probes retain their original results separately; raw capture receipts,
 profiles and screenshots remain private under manual seven-day diagnostic review.
 
-Qualification results are recorded separately. Broker loss together with all
-elevated peers, refused/abandoned consent, protected durable recovery, protected
-installation, alternate credentials, actual sleep/wake, complete I/O coverage and
-production/path admission remain explicit limits. Ordinary production ETW remains
-disabled by default.
+## Current result
+
+The 2026-10-18 [packaged evidence](../recon/evidence/etw-packaged-total-recovery.json)
+binds six target PASS cases to runtime/harness source
+`6b66655ac65a9a8976a7a29d72a50219f8a077e9`. Both early boundaries and all three
+first-loss orders recovered with original collector/guard/fallback exits 70/71/74.
+The denied-controller case observed pending consent in main, actual native status
+5, elevated replacement cleanup and independently queried absence. The surviving
+broker was normal in every target case. Sensors remained FAILED, final stage totals
+were null and no capture automatically restarted. All target cases independently
+queried absence afterward; ready cases first observed actual session presence.
+
+Thirteen planned captures passed. The full sweep stopped at `broker-exit` before
+ready while a Windows consent window was awaiting a decision. A continuation on
+the identical package reached the same startup expiry. Its earlier private launch
+attempt used an incorrect executable basename and failed before capture. All three
+attempts are retained; no single-sweep PASS is claimed. `broker-exit`, `app-exit`,
+collector-after-ready and fresh normal capture remain incomplete for this revision.
+The PR remains draft until those four regressions receive fresh UAC confirmations.
+
+All 229 archived main/shared JS/JSON files matched frozen source, the native DLL
+matched publication, no mutation fixture entered the package and the full package
+manifest remained unchanged after the attempts. Fifteen created profiles, including
+failed startups, had no diagnostic ETW/fixture audit admission; the failed launch
+created no profile. Native self-tests passed 86 cases and focused JS tests passed
+223. Typecheck, task lint, derived counts, native whitespace and normal-token
+synthetic transport passed. Local Semgrep was unavailable (`ENOENT`). These checks
+do not replace the four missing packaged regressions.
+
+Broker loss together with all elevated peers, refused/abandoned cleanup consent,
+protected durable recovery, protected installation, alternate credentials, actual
+sleep/wake, complete I/O coverage and production/path admission remain explicit
+limits. Ordinary production ETW remains disabled by default.

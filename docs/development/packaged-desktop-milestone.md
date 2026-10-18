@@ -237,6 +237,22 @@ boundaries recovered with independently observed absence; the fresh normal captu
 retained zero native/stage drops and 77 main-ring evictions. The source and package
 hashes, actual read witnesses and all-profile audit checks are retained in that record.
 
+### ETW all-helper recovery
+
+The optional `--etw-total-recovery` profile plans seventeen captures with a 25-minute
+parent deadline. Six new cases cover both early boundaries, each first-loss order
+and actual restricted-token access denial followed by one cleanup-only UAC decision.
+Seventeen capture consents and one cleanup consent are planned; query witnesses may
+need additional consent. See [all-helper recovery](../roadmap/etw-total-recovery.md).
+
+The [2026-10-18 evidence](../recon/evidence/etw-packaged-total-recovery.json) records
+six target PASS cases and thirteen total PASS captures at source `6b66655a`. Both the
+initial sweep and a bounded continuation stopped before `broker-exit` ready while
+Windows consent was pending. That case and the three remaining regressions are
+incomplete; no single-sweep PASS is claimed and the PR remains draft. Source/package
+identity, failed attempts and audit scans are retained. The surviving broker path
+does not qualify its own loss together with all elevated peers or durable authority.
+
 ### Other qualification
 
 Without `--monitoring`, PASS covers the visible packaged-window lifecycle with modeled installation
