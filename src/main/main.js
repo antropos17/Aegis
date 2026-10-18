@@ -576,6 +576,7 @@ function getStats() {
       observationGap: observationGap.snapshot(),
       scanCadence: getScanCadenceStats(),
       auditDelivery: getAuditDelivery(),
+      fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
     };
   }
   const log = scanner.activityLog;
@@ -607,6 +608,7 @@ function getStats() {
     observationGap: observationGap.snapshot(),
     scanCadence: getScanCadenceStats(),
     auditDelivery: getAuditDelivery(),
+    fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
   };
 }
 
@@ -1229,6 +1231,9 @@ app.whenReady().then(() => {
   etwFile = require('./platform/etw-file-runtime').createRuntime({
     app,
     powerMonitor: require('electron').powerMonitor,
+    getAgents: () => latestAgents,
+    getPopulationHealth: getAppHealth,
+    classifySensitive: (file) => watcher?.classifySensitive(file) ?? null,
     onHealthChange: () => {
       if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
         statsUpdateBatcher.pushLazy(getStats);

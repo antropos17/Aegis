@@ -210,6 +210,9 @@ const observationShape = shape({
   agent: oneOf(null),
   instanceId: oneOf(null),
 });
+/** Validate one complete native observation without accepting extra fields.
+ * @param {unknown} v Candidate record. @returns {boolean} Validity. @since v0.19.2
+ */
 const observation = (v) =>
   observationShape(v) &&
   SCHEMAS.includes(`${v.eventId}:${v.version}`) &&
@@ -339,4 +342,5 @@ module.exports = {
   id,
   validEnvelope,
   verifiedIssuer,
+  validObservation: observation,
 };

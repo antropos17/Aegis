@@ -58,6 +58,16 @@ internal static class FileTests
         {
             foreach (int id in new[] { 13, 14 }) { var map = Map(); Name(map, key: 2); map.Accept(Input(id, 2)); Check(map.Accept(Input(15, 3, key: 2))?.path == null); }
         });
+        Test("unrelated object cleanup preserves scoped object names and retires uncertain keys", () =>
+        {
+            foreach (int id in new[] { 13, 14 })
+            {
+                var map = Map(); Name(map, obj: 1); Name(map, 2, 0, 2, @"C:\fixture\key-only");
+                map.Accept(Input(id, 3, obj: 99, key: 0));
+                Check(map.Accept(Input(15, 4, obj: 1))?.path == @"C:\fixture\a");
+                Check(map.Accept(Input(15, 5, obj: 0, key: 2))?.path == null);
+            }
+        });
         Test("conflicting object and key are unresolved", () =>
         {
             var map = Map(); Name(map); Name(map, 2, 0, 2, @"C:\fixture\b");

@@ -23,6 +23,8 @@ function createSupervisor({
   profileClock = process.hrtime.bigint,
   maxCaptureMs = null,
   onHealthChange = () => {},
+  onObservations = () => {},
+  onSessionStart = () => {},
 }) {
   if (maxCaptureMs !== null && (!Number.isSafeInteger(maxCaptureMs) || maxCaptureMs <= 0))
     throw new Error('etw-file:invalid-capture-limit');
@@ -213,6 +215,7 @@ function createSupervisor({
     }
     if (message.t === 'observations' && stopAt === null) {
       diagnostics.retain(message.data.records);
+      onObservations(message.data.records);
     }
     if (message.t === 'stopped') {
       clearRing();
@@ -331,6 +334,7 @@ function createSupervisor({
     pendingWrite = false;
     receivedReady = false;
     diagnostics = createDiagnostics(profileClock);
+    onSessionStart();
     stopSent = false;
     failedAt = null;
     failureGraceMs = 15000;

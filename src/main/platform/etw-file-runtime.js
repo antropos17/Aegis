@@ -4,6 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { createSupervisor } = require('./etw-file-supervisor');
+const { createReadView } = require('./etw-file-attribution');
 
 /** Attach the optional backend to application lifetime without adding renderer IPC.
  * Only a marked diagnostic build may capture in a package; production stays gated.
@@ -21,7 +22,11 @@ function createRuntime({
   packageMetadata = require('../../../package.json'),
   resourcesPath = process.resourcesPath,
   onHealthChange,
+  getAgents = () => [],
+  getPopulationHealth = () => ({}),
+  classifySensitive = () => null,
 }) {
+  const readView = createReadView({ getAgents, getHealth: getPopulationHealth, classifySensitive });
   const prefix = '--etw-file-diagnostic-root=';
   const roots = argv.filter((value) => value.startsWith(prefix));
   const root = roots[0]?.slice(prefix.length);
@@ -81,6 +86,8 @@ function createRuntime({
   const sensor = createSupervisor({
     maxCaptureMs: 60000,
     onHealthChange,
+    onObservations: (records) => readView.accept(records),
+    onSessionStart: () => readView.reset(),
     spawnBroker: (launchId, sessionId) =>
       spawnProcess(
         executable,
@@ -168,6 +175,14 @@ function createRuntime({
     },
     getHealth: sensor.getHealth,
     getDiagnostics: sensor.getDiagnostics,
+    getReadView: () =>
+      permitted
+        ? {
+            ...readView.snapshot(),
+            phase: sensor.getDiagnostics().phase,
+            lossCount: sensor.getHealth().lossCount,
+          }
+        : null,
     isActive: sensor.isActive,
     dispose() {
       powerMonitor.removeListener('suspend', onSuspend);

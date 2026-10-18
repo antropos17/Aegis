@@ -61,13 +61,20 @@ internal sealed class FileMapping(FileScope scope, long frequency, int cap = 327
         var byObject = Lookup(false, input.Object, input.Qpc);
         var byKey = Lookup(true, input.Key, input.Qpc);
         bool conflict = byObject != null && byKey != null && byObject.Path != byKey.Path;
-        bool retire = input.Id is 13 or 14 && (input.Object == 0 || input.Key == 0 ||
+        bool retire = input.Id is 13 or 14 && (input.Object == 0 ||
             names.ContainsKey((false, input.Object)) || names.ContainsKey((true, input.Key)));
         if (retire || conflict)
         {
             // Relationship between object/key lifetimes is unproven; retire whole epoch.
             if (conflict) Conflicts++;
             Reset(input.Qpc);
+        }
+        else if (input.Id is 13 or 14 && input.Key == 0)
+        {
+            // A known, unrelated FileObject cannot close a different retained
+            // object. Its unknown FileKey can alias any key-only name, however.
+            // Retire that uncertain domain without erasing unrelated objects.
+            foreach (var key in names.Keys.Where(key => key.Key).ToArray()) Remove(key);
         }
         if (input.Id != 15) return null;
         return Make(input, conflict ? null : byObject?.Path ?? byKey?.Path,
