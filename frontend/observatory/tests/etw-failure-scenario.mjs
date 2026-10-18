@@ -66,6 +66,7 @@ export async function runFailure({ executable, out, mode }) {
     console.log('Waiting for one same-account capture UAC decision: ' + mode);
     const dual = mode.startsWith('dual-');
     const triple = mode.startsWith('triple-');
+    const group = mode.startsWith('group-');
     const early = mode.includes('-before-');
     let data;
     const readyUntil = Date.now() + 135000;
@@ -77,6 +78,7 @@ export async function runFailure({ executable, out, mode }) {
     } while (Date.now() < readyUntil);
     r.ownedPids = await ownedPids(app, child.pid, env);
     r.helperPids = early ? [] : traceHelpers(r.ownedPids, env);
+    r.mainCustodyObserved = data.custodyObserved === true;
     if (early) {
       r.summary = data.summaries.at(-1);
       assert.equal(r.summary?.recoveryVerified, true, 'Reservation cleanup not verified');
@@ -89,8 +91,14 @@ export async function runFailure({ executable, out, mode }) {
       assert.equal(r.summary.finalCounters.queryStatus, mode.endsWith('before-start') ? 4201 : 0);
       if (dual) assert.equal(r.summary.recoveryCause, 'collector-and-guard-exited');
       if (triple) assert.equal(r.summary.recoveryCause, 'all-three-helpers-exited');
-      r.nativeHelperClosure =
-        'broker verified retained collector, primary guard and fallback exits';
+      if (group) {
+        assert.equal(r.summary.recoveryCause, 'broker-and-all-helpers-exited');
+        assert.equal(r.summary.brokerExit, 75);
+        assert.equal(r.mainCustodyObserved, true);
+      }
+      r.nativeHelperClosure = group
+        ? 'cleanup controller verified all four original main-held process object exits'
+        : 'broker verified retained collector, primary guard and fallback exits';
     } else {
       assert.equal(data.phase, 'running');
       assert(r.helperPids.length >= 4);
@@ -114,16 +122,51 @@ export async function runFailure({ executable, out, mode }) {
       assert.equal(r.appExitCode, 73);
       r.abruptAppExit = true;
     } else {
-      const until = Date.now() + (mode === 'triple-access-denied' ? 185000 : 55000);
+      const until = Date.now() + (mode.endsWith('-access-denied') ? 185000 : 55000);
       while (!data.summaries.length && Date.now() < until) {
         if (data.recoveryPending) r.recoveryPendingObserved = true;
+        if (data.cleanupConsentPending) r.cleanupConsentPendingObserved = true;
         await delay(100);
         data = await diagnostics(app);
       }
       r.summary = data.summaries.at(-1);
       assert(r.summary, 'No ended capture summary');
       assert.equal(data.records.length, 0);
-      if (triple) {
+      if (group) {
+        assert.equal(r.mainCustodyObserved, true);
+        assert.equal(data.restartBlocked, false);
+        assert.equal(r.summary.recoveryVerified, true);
+        assert.equal(r.summary.recoveryCause, 'broker-and-all-helpers-exited');
+        assert.equal(r.summary.brokerExit, 75);
+        assert.equal(r.summary.collectorExit, 70);
+        assert.equal(r.summary.exitCode, 4);
+        assert.equal(r.summary.finalCounters.queryStatus, mode.endsWith('before-start') ? 4201 : 0);
+        assert.equal(r.summary.finalTotals, null);
+        assert.equal(r.summary.observationGap, true);
+        assert.deepEqual(r.summary.recoveryPeers, {
+          guardExit: 71,
+          fallbackExit: 74,
+          brokerElevated: false,
+          cleanupElevated: mode === 'group-access-denied',
+          accessDenied: mode === 'group-access-denied',
+        });
+      } else if (mode === 'broker-exit') {
+        assert.equal(r.mainCustodyObserved, true);
+        assert.equal(data.restartBlocked, false);
+        assert.equal(r.summary.recoveryVerified, true);
+        assert.equal(r.summary.recoveryCause, 'broker-and-all-helpers-exited');
+        assert.equal(r.summary.brokerExit, 72);
+        assert.equal(r.summary.collectorExit, 2);
+        assert.equal(r.summary.exitCode, 4);
+        assert.equal(r.summary.finalCounters.queryStatus, 4201);
+        assert.deepEqual(r.summary.recoveryPeers, {
+          guardExit: 0,
+          fallbackExit: 0,
+          brokerElevated: false,
+          cleanupElevated: false,
+          accessDenied: false,
+        });
+      } else if (triple) {
         assert.equal(data.restartBlocked, false);
         assert.equal(r.summary.recoveryVerified, true);
         assert.equal(r.summary.recoveryCause, 'all-three-helpers-exited');
@@ -161,6 +204,9 @@ export async function runFailure({ executable, out, mode }) {
         r.restartBlocked = true;
       }
       r.restartBlocked = data.restartBlocked;
+      r.mainSurvived =
+        (await app.evaluate(() => process.pid)) === child.pid && child.exitCode === null;
+      assert.equal(r.mainSurvived, true);
       const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
       assert.equal(health.sensors.byId['etw-file'].state, 'FAILED');
       assert.equal(health.populationReliable, true);

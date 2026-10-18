@@ -143,6 +143,8 @@ internal static class FileTests
         FileReservationTests.Run(Test);
         FileRecoveryTests.Run(Test);
         FileBrokerRecoveryTests.Run(Test);
+        FileGroupRecoveryTests.Run(Test);
+        FileMainHandleTests.Run(Test);
         FileOutputTests.Run(Test);
         FilePerformanceTests.Run(Test);
         FileOutputProfileTests.Run(Test);

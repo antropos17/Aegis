@@ -163,7 +163,10 @@ function withTelemetry(state, sample, now) {
 function reduceSession(state, message, now) {
   time(now);
   validateMessage(message, state);
-  if (['start', 'stop', 'ping'].includes(message.t)) error('wrong-direction');
+  if (
+    ['start', 'stop', 'ping', 'escrow-ack', 'consent-ack', 'rescue', 'escrow'].includes(message.t)
+  )
+    error('wrong-direction');
   if (BigInt(message.seq) <= BigInt(state.lastSeq)) error('sequence-replayed');
   if (
     state.phase === 'stopped' ||
@@ -173,7 +176,17 @@ function reduceSession(state, message, now) {
     error('session-terminal');
   if (message.t === 'hello' && (state.helloSeen || state.lastSeq !== '0'))
     error('unexpected-hello');
-  if (message.t !== 'hello' && message.t !== 'error' && !state.helloSeen) error('hello-required');
+  if (
+    message.t !== 'hello' &&
+    message.t !== 'error' &&
+    !state.helloSeen &&
+    !(
+      state.groupRecoveryAuthorized &&
+      ['recovering', 'recovered'].includes(message.t) &&
+      message.data.cause === 'broker-and-all-helpers-exited'
+    )
+  )
+    error('hello-required');
   if (message.t === 'ready' && state.phase !== 'starting') error('unexpected-ready');
   if (
     ['health', 'heartbeat', 'observations', 'stopped'].includes(message.t) &&

@@ -1,0 +1,99 @@
+# Recovery after broker and all three elevated helpers exit
+
+The surviving Electron main holds the capture's original reservation and four
+original process-object references. Before StartTrace, the authenticated normal
+broker duplicates query-limited + synchronize references into the actual normal
+packaged main. They are noninheritable and have no terminate right. Main accepts
+the private tuple only for its own PID and its original owned broker. A one-shot
+acknowledgment precedes the final collector connection and capture authorization.
+
+Custody is in main memory and its kernel handle table. No service, scheduled task,
+account membership, machine permission, durable journal or extra resident process
+is installed. Normal unmarked packages keep ETW disabled. Development and synthetic
+four-argument broker modes keep their earlier contract; this handoff is enabled
+by the fixed `main-escrow` argument in marked diagnostic packages.
+
+## Original object proof
+
+After an unverified original broker close, main creates one normal cleanup
+controller. It verifies its actual packaged main parent's full birth, image,
+user, logon and normal token. It retrieves the four retained objects from that
+main, checking each original PID and full FILETIME through the copied handle.
+It waits for all four original objects to signal exit. A timeout, missing reference,
+wrong birth or live process authorizes no ETW control.
+
+The controller applies the existing original-GUID query, handle recheck, handle-only
+stop and absence query. It cannot select a name/provider/path, create a capture or
+adopt a foreign session. Successful recovery releases the main-held deposits,
+emits a terminal receipt and exits 4. Main requires both receipt and exit; capture
+health remains FAILED, final stage totals stay null and an observation gap remains.
+Only a later explicit retry can start a new capture. Retry during pending recovery
+is refused without queuing a later UAC/capture.
+
+Original broker cleanup releases deposits only after a valid capture/recovery
+terminal. Main processes child `close` after stdout drain. A valid terminal with
+an incorrect exit remains unverified and does not invoke another controller through
+possibly released deposits. Failed imported proofs never close caller-supplied
+main handle values. `DUPLICATE_CLOSE_SOURCE` closes even on API error, so release
+is attempted once for internally created or fully validated references.
+
+## Consent and protocol
+
+Only actual native status 5 permits one cleanup-only same-account UAC attempt.
+Before opening the dialog, either cleanup controller must receive main's private
+`consent-ack`. Main remembers that request and never starts a second controller
+after canceled, timed-out or interrupted original cleanup consent. Other native
+errors and foreign identity never request elevation. The elevated worker retains
+the existing restricted-pipe and full peer-identity checks and accepts only the
+original reserved-GUID cleanup command.
+
+Protocol `etw-file/8` adds a private zero-sequence `escrow` prelude, its acknowledgment,
+cleanup consent acknowledgment, the cleanup request and `broker-and-all-helpers-exited`
+terminal cause. Telemetry starts at hello sequence 1 and keeps the existing
+single-encoding forwarding path. A replacement continues the original observed
+sequence. Native Windows uint32 exits are normalized to signed int32 before matching
+the original broker exit. Rebuild main/helper together; older versions are rejected.
+
+The initial replacement budget is 40 seconds; native original-object waiting is
+bounded at 15 seconds. Pending consent has an 8-second automatic acknowledgment
+budget, one 120-second OS consent deadline and a 145-second main exit budget.
+A verified terminal restores the 15-second exit budget. Native replacement lifetime
+is bounded at 170 seconds. Original main exit cancels the replacement's linked
+pipe deadline. Expiry cannot dismiss Windows consent; late peers still need a
+live authenticated private command. App exit during cleanup consent is unqualified.
+
+The reservation and process-handle values travel only through owned private pipes
+and main's private closure. Diagnostics expose booleans for observed custody and
+pending consent. The tuple never enters the reducer, ring, summary, renderer IPC,
+CLI, persisted output or logging. These process references are separate from the
+ETW control handle, which remains native-only.
+
+## Packaged qualification
+
+`--etw-group-recovery` plans twenty-two captures with a 32-minute ETW parent deadline:
+five new group cases plus the [seventeen earlier cases](etw-total-recovery.md).
+It plans twenty-two capture consents and two cleanup consents; query witnesses may
+need more consent when ordinary queries are denied. Each failed case stops the
+sequence. Private artifacts use manual seven-day diagnostic review and preserve
+failed attempts and verification obligations.
+
+The group cases are before StartTrace, before arm, broker-first, elevated-triple-first
+and restricted-effective-token access denial. Original broker/collector/guard/fallback
+exit themselves with codes 75/70/71/74, skipping cleanup. Fault modes require the
+main handoff before capture. The broker-first collector checks actual original
+broker exit before ordinary finally can stop the trace. Ready cases independently
+observe session presence and all original helper IDs; every case independently
+queries absence after cleanup. The original main must remain alive. No elevated
+kill is used. These are coordinated exit orders, not instruction-level simultaneous
+death or an actual unhandled SEH crash.
+
+The profile also requires the earlier broker-only loss to recover through main
+(original broker 72, collector 2, guards 0, absence 4201), then actual read attribution
+after collector loss and a fresh normal stop. Historical receipts are preserved;
+the new group oracle cannot substitute an earlier blocked broker-loss result.
+
+Qualification results are recorded separately. Main loss together with all native
+helpers, protected durable authority/installation, actual declined consent, alternate
+credentials, actual sleep/wake, complete I/O coverage, forced real PID/TID reuse and
+production/path admission remain separate qualification gates. This is a mutable
+local diagnostic authority, with production ETW disabled by default.

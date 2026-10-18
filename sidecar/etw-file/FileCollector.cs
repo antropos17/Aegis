@@ -26,13 +26,13 @@ internal static class FileCollector
         {
             "guard-loss-collector" or "dual-guard-collector" or "triple-guard-collector" => "exit-after-arm",
             "dual-collector" or "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or
-            "triple-prearm-collector" or "triple-prestart-collector" or "triple-fallback-collector" => "exit-with-owner", _ => "normal"
+            "triple-prearm-collector" or "triple-prestart-collector" or "triple-fallback-collector" or "group-parent-collector" => "exit-with-owner", _ => "normal"
         };
         await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, guardMode) : null;
         await using var fallback = live ? await FileGuardOwner.Start(args[9], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, args[0] == "triple-fallback-collector" ? "exit-after-reserve" :
-                args[0].StartsWith("triple-", StringComparison.Ordinal) ? "exit-with-owner" : "normal", guard!.Identity) : null;
+                args[0].StartsWith("triple-", StringComparison.Ordinal) || args[0] == "group-parent-collector" ? "exit-with-owner" : "normal", guard!.Identity) : null;
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
         string? stopRequest = null;
@@ -41,14 +41,19 @@ internal static class FileCollector
         Task? controls = null;
         var parentGone = Task.Run(async () =>
         {
-            try { await parent.WaitForExitAsync(lifetime.Token); lifetime.Cancel(); }
+            try
+            {
+                await parent.WaitForExitAsync(lifetime.Token);
+                if (args[0] == "group-parent-collector") Environment.Exit(70);
+                lifetime.Cancel();
+            }
             catch (OperationCanceledException) { }
         });
         try
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-7-broker-recovery" : "etw-file-synthetic-check-7",
+                build = live ? "etw-file-diagnostic-8-main-custody" : "etw-file-synthetic-check-8",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -158,6 +163,14 @@ internal static class FileCollector
         }
         finally
         {
+            if (args[0] == "group-parent-collector" && owns)
+            {
+                // Pipe EOF can cancel the observer before process exit signals.
+                // This diagnostic must establish the actual broker exit and skip
+                // cleanup before ordinary finally can stop the trace.
+                try { await parent.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+                if (parent.HasExited) Environment.Exit(70);
+            }
             // All failure paths stop our handle BEFORE waiting for pipe tasks.
             if (owns) { stats = trace!.Stop(); stopped = stats.Status == 0; }
             if (guard != null && stopped) { try { await guard.Disarm(); } catch { } }

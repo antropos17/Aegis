@@ -1,32 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { dualReceipt } from '../fixtures/etw-package-receipts.js';
+import { totalReceipt } from '../fixtures/etw-package-receipts.js';
 import { etwTotalPassed } from '../../tools/development/etw-total-contract.mjs';
-
-function totalReceipt() {
-  const r = dualReceipt();
-  for (const mode of [
-    'triple-before-start',
-    'triple-before-arm',
-    'triple-collector-first',
-    'triple-guard-first',
-    'triple-fallback-first',
-    'triple-access-denied',
-  ]) {
-    const c = structuredClone(r.cases['dual-before-arm']);
-    c.mode = mode;
-    c.summary.recoveryCause = 'all-three-helpers-exited';
-    c.summary.recoveryPeers = {
-      guardExit: 71,
-      fallbackExit: 74,
-      brokerElevated: false,
-      cleanupElevated: mode === 'triple-access-denied',
-      accessDenied: mode === 'triple-access-denied',
-    };
-    c.summary.finalCounters.queryStatus = mode.endsWith('before-start') ? 4201 : 0;
-    r.cases[mode] = c;
-  }
-  return r;
-}
 
 describe('packaged ETW all-helper-loss evidence', () => {
   it('requires original peer exits, ordinary broker cleanup and all eleven regressions', () => {

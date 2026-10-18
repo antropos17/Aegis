@@ -69,6 +69,26 @@ export function etwFailuresPassed(r) {
           c.presence?.status === 0 &&
           c.presence.present === true
         );
+      if (mode === 'broker-exit' && c.summary.recoveryCause === 'broker-and-all-helpers-exited')
+        return (
+          c.restartBlocked === false &&
+          c.mainSurvived === true &&
+          c.mainCustodyObserved === true &&
+          c.summary.phase === 'recovered' &&
+          c.summary.recoveryVerified === true &&
+          c.summary.stopVerified === false &&
+          c.summary.brokerExit === 72 &&
+          c.summary.collectorExit === 2 &&
+          c.summary.exitCode === 4 &&
+          c.summary.finalCounters?.queryStatus === 4201 &&
+          c.summary.recoveryPeers?.guardExit === 0 &&
+          c.summary.recoveryPeers.fallbackExit === 0 &&
+          c.summary.recoveryPeers.brokerElevated === false &&
+          c.summary.recoveryPeers.cleanupElevated === false &&
+          c.summary.recoveryPeers.accessDenied === false &&
+          c.presence?.status === 0 &&
+          c.presence.present === true
+        );
       return (
         c.restartBlocked === true &&
         c.summary.recoveryVerified === false &&

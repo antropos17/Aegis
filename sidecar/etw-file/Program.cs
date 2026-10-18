@@ -23,22 +23,31 @@ internal static class Program
         try
         {
             if (args is ["self-test"]) return FileTests.Run();
+            if (args is ["lease-test-child"])
+            {
+                try { await Console.In.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
+                return 77; // Bounded normal-token self-test child; no ETW or UAC.
+            }
             if (args.Length == 1 && args[0] is "inspect" or "inspect-elevated") return await FileInspect.Run(args);
             if (args.Length == 4 && args[0] == "inspect-peer") return await FileInspect.Run(args);
             if (args.Length == 4 && args[0] == "recover-peer") return await FileRecoveryConsent.Run(args);
-            if (args.Length == 4 && args[0] is "broker" or "broker-crash-check" or "broker-prestart-check" or
+            if (args.Length == 3 && args[0] is "rescue" or "rescue-denial-check") return await FileGroupRescue.Run(args);
+            if (args.Length > 0 && args[0].StartsWith("broker-group-", StringComparison.Ordinal) &&
+                (args.Length != 5 || args[4] != "main-escrow")) return 3;
+            if ((args.Length == 4 || args.Length == 5 && args[4] == "main-escrow") && args[0] is "broker" or "broker-crash-check" or "broker-prestart-check" or
                 "broker-prearm-check" or "broker-guard-check" or "broker-exit-check" or
                 "broker-dual-guard-check" or "broker-dual-collector-check" or "broker-dual-prearm-check" or
                 "broker-dual-prestart-check" or "broker-triple-collector-check" or "broker-triple-guard-check" or
                 "broker-triple-fallback-check" or "broker-triple-prearm-check" or "broker-triple-prestart-check" or
-                "broker-triple-denial-check" or
+                "broker-triple-denial-check" or "broker-group-prestart-check" or "broker-group-prearm-check" or
+                "broker-group-first-check" or "broker-group-triple-check" or "broker-group-denial-check" or
                 "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
             if (args.Length == 8 && args[0] == "guard" && args[7] is "normal" or "exit-after-arm" or "exit-with-owner") return await FileGuard.Run(args);
             if (args.Length == 8 && args[0] == "fallback" && args[7] is "normal" or "exit-with-owner" or "exit-after-reserve") return await FileFallback.Run(args);
             if (args.Length == 10 && args[0] is "collector" or "crash-collector" or "prestart-collector" or
                 "prearm-collector" or "guard-loss-collector" or "dual-guard-collector" or "dual-collector" or
                 "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or "triple-guard-collector" or
-                "triple-fallback-collector" or "triple-prearm-collector" or "triple-prestart-collector") return await FileCollector.Run(args);
+                "triple-fallback-collector" or "triple-prearm-collector" or "triple-prestart-collector" or "group-parent-collector") return await FileCollector.Run(args);
             if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }

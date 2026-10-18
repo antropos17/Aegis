@@ -1,7 +1,8 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/7';
+const PROTOCOL = 'etw-file/8';
+const { validMainLease } = require('./etw-file-custody');
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
 const MAX_DEPTH = 16;
@@ -15,6 +16,8 @@ const ERROR_CODES = Object.freeze([
   'stream-ended',
   'consumer-failed',
   'collector-exited',
+  'broker-recovery-pending',
+  'broker-recovery-unverified',
 ]);
 const REASONS = Object.freeze([
   'mapping-uncertain',
@@ -250,6 +253,10 @@ const messageData = {
   heartbeat: telemetry,
   stop: shape({ requestId: id }),
   ping: shape({}),
+  escrow: validMainLease,
+  'escrow-ack': shape({}),
+  'consent-ack': shape({}),
+  rescue: shape({ lease: validMainLease, lastSeq: uint64 }),
   stopped: shape({
     requestId: id,
     drained: oneOf(true, false),
@@ -259,18 +266,24 @@ const messageData = {
   }),
   error: shape({ requestId: nullable(id), code: oneOf(...ERROR_CODES) }),
   recovering: shape({
-    cause: oneOf('all-three-helpers-exited'),
+    cause: oneOf('all-three-helpers-exited', 'broker-and-all-helpers-exited'),
     queryStatus: oneOf(5),
     consentDeadlineMs: oneOf(120000),
   }),
   recovered: shape({
-    cause: oneOf('collector-exited', 'collector-and-guard-exited', 'all-three-helpers-exited'),
+    cause: oneOf(
+      'collector-exited',
+      'collector-and-guard-exited',
+      'all-three-helpers-exited',
+      'broker-and-all-helpers-exited',
+    ),
     stopped: oneOf(true),
     absent: oneOf(true),
     counters: counts,
     finalTotals: oneOf(null),
     observationGap: oneOf(true),
     collectorExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
+    brokerExit: nullable((v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff),
     peers: shape({
       guardExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
       fallbackExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
@@ -292,7 +305,7 @@ function validEnvelope(message) {
     proto: oneOf(PROTOCOL),
     launchId: id,
     sessionId: id,
-    seq: positive64,
+    seq: (v) => (message.t === 'escrow' ? v === '0' : positive64(v)),
     data: (v) => Object.hasOwn(messageData, message.t) && messageData[message.t](v),
   });
   if (!valid(message)) return false;
@@ -300,7 +313,9 @@ function validEnvelope(message) {
     const { peers, cause } = message.data;
     return (
       peers.cleanupElevated === peers.accessDenied &&
-      (!peers.cleanupElevated || cause === 'all-three-helpers-exited')
+      (!peers.cleanupElevated ||
+        ['all-three-helpers-exited', 'broker-and-all-helpers-exited'].includes(cause)) &&
+      (cause === 'broker-and-all-helpers-exited') === (message.data.brokerExit !== null)
     );
   }
   return true;
