@@ -1053,6 +1053,7 @@ function initDeferredSubsystems(userData) {
   });
 
   scanLoop.init({
+    onAgentsObserved: () => etwFile?.refreshIssuers(),
     scanner,
     procUtil,
     watcher,

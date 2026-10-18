@@ -55,7 +55,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-9-orphan-custody" : "etw-file-synthetic-check-9",
+                build = live ? "etw-file-diagnostic-10-issuer-preparation" : "etw-file-synthetic-check-10",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -114,6 +114,7 @@ internal static class FileCollector
                         lease.CancelAfter(TimeSpan.FromSeconds(10));
                         var command = await read.Read(pipe, true, lease.Token);
                         if (command.t == "stop") { stopSignal.TrySetResult(command.data.GetProperty("requestId").GetString()!); return; }
+                        if (command.t == "prime-issuers") { pipeline.RequestPreparation(FileIssuerRequest.Parse(command.data)); continue; }
                         if (command.t != "ping") throw new InvalidDataException();
                     }
                 }
@@ -228,7 +229,17 @@ internal static class FileCollector
         async Task<bool> Pump(CancellationToken token)
         {
             long start = performance.Now(); bool success = false;
-            try { bool result = await send.WriteObservations(pipe, pipeline.Take, token); success = true; return result; }
+            try
+            {
+                bool prepared = false;
+                if (pipeline.TakePreparation() is { } request)
+                {
+                    await send.Write(pipe, "issuers-primed", pipeline.Prepare(request), token);
+                    prepared = true;
+                }
+                bool result = await send.WriteObservations(pipe, pipeline.Take, token);
+                success = true; return result || prepared;
+            }
             finally { performance.Pump.Record(performance.Now() - start, !success); }
         }
         async Task Idle(CancellationToken token, Task? stop = null, Task? consumer = null)

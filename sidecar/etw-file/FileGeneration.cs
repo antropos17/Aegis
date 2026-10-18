@@ -22,6 +22,55 @@ internal sealed class FileGeneration : IDisposable
     private readonly long ttl;
     private readonly int cap;
     internal int Count => pins.Count;
+    internal FileIssuerPreparation Prepare(FileIssuerRequest request)
+    {
+        Expire(clock());
+        var prepared = new List<FilePreparedIssuer>();
+        foreach (var target in request.issuers)
+        {
+            int matched = 0;
+            if (!ulong.TryParse(target.createTime100ns, out ulong expected) || expected == 0) continue;
+            try
+            {
+                foreach (uint tid in peers(target.pid).Take(cap).Distinct())
+                {
+                    if (tid is 0 or uint.MaxValue) continue;
+                    bool replacing = false;
+                    if (pins.TryGetValue(tid, out var existing) && !existing.Pin.Alive())
+                    { existing.Pin.Dispose(); pins.Remove(tid); existing = null; }
+                    if (existing != null)
+                    {
+                        if (existing.Pin.Pid != target.pid || existing.Pin.Birth() != expected || !existing.Pin.Alive()) continue;
+                        if (clock() - existing.From < ttl / 2) { matched++; continue; }
+                        // Reopen before the original absolute lifetime expires.
+                        // The new interval never certifies older queued events.
+                        existing.Pin.Dispose(); pins.Remove(tid); replacing = true;
+                    }
+                    // Reserve half the default table for directly observed scoped
+                    // issuers; preparing unrelated agents cannot occupy all pins.
+                    if (!replacing && pins.Count >= Math.Min(64, cap)) break;
+                    IFileIssuerPin? pin = null;
+                    try
+                    {
+                        pin = open(tid);
+                        if (pin == null || pin.Pid != target.pid || pin.Birth() != expected || !pin.Alive()) continue;
+                        pins.Add(tid, new(pin, clock())); matched++;
+                        pin = null;
+                    }
+                    finally { pin?.Dispose(); }
+                }
+            }
+            catch { /* Partial/denied inventories do not prepare missing workers. */ }
+            if (matched > 0) prepared.Add(new(target.pid, expected.ToString(), matched));
+        }
+        return new(request.requestId, prepared.ToArray(), clock().ToString());
+    }
+    private void Expire(long now)
+    {
+        foreach (var key in pins.Where(pair => now - pair.Value.From > ttl).Select(pair => pair.Key).ToArray())
+        { pins[key].Pin.Dispose(); pins.Remove(key); }
+        primed.RemoveWhere(pid => !pins.Values.Any(entry => entry.Pin.Pid == pid));
+    }
     internal FileGeneration(Func<uint, IFileIssuerPin?>? factory = null, Func<long>? timestamp = null,
         long? lifetime = null, int capacity = 128, Func<uint, IEnumerable<uint>>? siblings = null)
     {
@@ -37,9 +86,7 @@ internal sealed class FileGeneration : IDisposable
             tid is 0 or uint.MaxValue || !long.TryParse(value.qpc, out long eventTime) || eventTime < 0)
             return value;
         long now = clock();
-        foreach (var key in pins.Where(pair => now - pair.Value.From > ttl).Select(pair => pair.Key).ToArray())
-        { pins[key].Pin.Dispose(); pins.Remove(key); }
-        primed.RemoveWhere(pid => !pins.Values.Any(entry => entry.Pin.Pid == pid));
+        Expire(now);
         if (pins.TryGetValue(tid, out var entry) && !entry.Pin.Alive())
         { entry.Pin.Dispose(); pins.Remove(tid); entry = null; }
         if (entry == null)

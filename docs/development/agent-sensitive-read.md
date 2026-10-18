@@ -18,12 +18,29 @@ risk scores, audit history, baselines or sequence rules.
 An agent label requires a held issuing thread covering the event, a fresh full
 process creation-time witness, and an exact match in a reliable agent population.
 Labels are stamped at intake; later exit or PID reuse cannot relabel history.
-The first scoped read can prime existing worker threads for future events, with
-at most 128 held thread/process pairs and a 30-second lifetime. The bounded
+An acknowledged preparation of detected AI processes can hold existing workers
+before their first scoped read. The first scoped read can also prime workers for
+future events, with
+at most 128 held thread/process pairs and a 30-second witness window. Expired
+pins are disposed on the next observation/preparation or at capture disposal. The bounded
 Toolhelp snapshot inspects at most 32,768 entries and selects at most 128 TIDs;
 every selected thread is independently opened and owner-checked. Unknown paths
 do not consume the scoped probe budget. A late lookup never verifies an earlier
 read. A standalone short read or a newly created worker can remain unverified.
+
+Preparation uses reliable, exact OS identities after the process scan has
+finished stamping. A closed authenticated control exchange selects at most
+sixteen AI processes, newest first. Native handles must independently match the
+requested PID/full creation time. Preparation stops adding pins at 64, leaving
+room for directly observed issuers under the existing 128-pin cap. Requests are
+coalesced, have a five-second acknowledgement deadline, and refresh after twenty
+seconds. Older handles are reopened before their thirty-second witness window expires;
+the new interval never verifies older queued events. Stop takes priority.
+
+Preparation targets and receipts remain in main-only diagnostics. They never
+substitute for the fresh birth query used to stamp an actual read. Outages,
+ambiguous identities, denied handles, limits and workers created after preparation
+can still leave reads unverified.
 
 The view retains at most 64 grouped rows within a conservative 128 KiB budget,
 counts omitted observations, shows measured loss or Unknown, and distinguishes
@@ -39,6 +56,12 @@ decision. Account settings and Claude session persistence stay unchanged.
 ```text
 node frontend/observatory/tests/agent-read-electron.mjs --executable <absolute-diagnostic-AEGIS.exe> --agent-executable <absolute-installed-claude.exe> --output <new-absolute-output>
 ```
+
+Add `--first-read` for the separate first-read scenario. It waits for an actual
+preparation receipt matching the installed agent, creates the synthetic `.env`,
+and permits exactly one Read tool request with no README warmup. The event-time
+issuer proof, visible action/risk, privacy and cleanup requirements still apply.
+The earlier persistent-agent PASS does not qualify this new scenario.
 
 The runner creates disposable fixtures and an AEGIS profile under its output.
 Only Read is available to the CLI. The `.env` is created after capture starts;

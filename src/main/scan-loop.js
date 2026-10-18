@@ -942,6 +942,8 @@ async function doProcessScan() {
     // isFlagged matches the scanned agent's OWN signature + pid).
     for (const a of agents) a.flagged = blocklist.isFlagged(a);
 
+    // Identity and population health are settled before optional readonly preparation.
+    deps.onAgentsObserved?.();
     // Single batched IPC — renderer updates all stores at once
     sendToRenderer('scan-batch', {
       agents,

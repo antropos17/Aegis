@@ -24,7 +24,6 @@ export function agentReadPassed(r) {
       'diagnosticBuild',
       'fixtureOnly',
       'liveReady',
-      'warmupRead',
       'actualToolRead',
       'onlyRequestedReads',
       'returnedCanary',
@@ -33,6 +32,9 @@ export function agentReadPassed(r) {
       'contentExcluded',
       'noDiagnosticAudit',
     ].every((key) => r[key] === true) &&
+    (r.scenario === 'first-read'
+      ? r.firstReadOnly === true && r.warmupRead !== true && r.issuerPreparedBeforeRead === true
+      : r.warmupRead === true) &&
     r.realAgent === 'Claude Code' &&
     schema.verifiedIssuer(native) &&
     proof.issuerPid === r.agentPid &&
