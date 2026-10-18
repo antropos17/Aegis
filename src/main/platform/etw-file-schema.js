@@ -259,7 +259,7 @@ const messageData = {
   }),
   error: shape({ requestId: nullable(id), code: oneOf(...ERROR_CODES) }),
   recovered: shape({
-    cause: oneOf('collector-exited'),
+    cause: oneOf('collector-exited', 'collector-and-guard-exited'),
     stopped: oneOf(true),
     absent: oneOf(true),
     counters: counts,

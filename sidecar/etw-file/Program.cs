@@ -26,10 +26,14 @@ internal static class Program
             if (args.Length == 1 && args[0] is "inspect" or "inspect-elevated") return await FileInspect.Run(args);
             if (args.Length == 4 && args[0] == "inspect-peer") return await FileInspect.Run(args);
             if (args.Length == 4 && args[0] is "broker" or "broker-crash-check" or "broker-prestart-check" or
-                "broker-prearm-check" or "broker-guard-check" or "broker-exit-check" or "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
-            if (args.Length == 8 && args[0] == "guard" && args[7] is "normal" or "exit-after-arm") return await FileGuard.Run(args);
-            if (args.Length == 9 && args[0] is "collector" or "crash-collector" or "prestart-collector" or
-                "prearm-collector" or "guard-loss-collector") return await FileCollector.Run(args);
+                "broker-prearm-check" or "broker-guard-check" or "broker-exit-check" or
+                "broker-dual-guard-check" or "broker-dual-collector-check" or "broker-dual-prearm-check" or
+                "broker-dual-prestart-check" or "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
+            if (args.Length == 8 && args[0] == "guard" && args[7] is "normal" or "exit-after-arm" or "exit-with-owner") return await FileGuard.Run(args);
+            if (args.Length == 8 && args[0] == "fallback" && args[7] == "normal") return await FileFallback.Run(args);
+            if (args.Length == 10 && args[0] is "collector" or "crash-collector" or "prestart-collector" or
+                "prearm-collector" or "guard-loss-collector" or "dual-guard-collector" or "dual-collector" or
+                "dual-prearm-collector" or "dual-prestart-collector") return await FileCollector.Run(args);
             if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }

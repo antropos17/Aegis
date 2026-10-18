@@ -224,7 +224,7 @@ function reduceSession(state, message, now) {
       const reasons = [
         ...new Set([
           ...next.reasons,
-          'collector-exited',
+          message.data.cause,
           'recovery-verified',
           'stage-loss-unmeasured',
           ...(counters.queryStatus === 0 && NATIVE.every((k) => counters[k] !== null)
@@ -242,7 +242,7 @@ function reduceSession(state, message, now) {
         record: health.markFailed(
           { ...next.record, lossCount: Number(losses > MAX_SAFE ? MAX_SAFE : losses) },
           now,
-          { error: 'collector-exited', detail: detail(reasons) },
+          { error: message.data.cause, detail: detail(reasons) },
         ),
       };
     }

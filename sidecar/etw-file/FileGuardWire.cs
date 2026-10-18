@@ -6,7 +6,9 @@ namespace Aegis.EtwLifecycle;
 
 internal sealed record FileGuardHello(int pid, string birth);
 internal sealed record FileGuardCommand(string kind, string? handle = null, string? guid = null);
-internal sealed record FileGuardResult(string kind, bool stopped, bool absent, FileStats? counters, int? collectorExit, string asOfQpc = "0");
+internal sealed record FileFallbackReservation(string guid, int guardPid, string guardBirth);
+internal sealed record FileGuardResult(string kind, bool stopped, bool absent, FileStats? counters, int? collectorExit,
+    string asOfQpc = "0", int? guardExit = null);
 
 // Private mutually authenticated channels only. No raw control handle reaches main,
 // stdout, logs or a path on disk. All packets and waits have a fixed finite budget.

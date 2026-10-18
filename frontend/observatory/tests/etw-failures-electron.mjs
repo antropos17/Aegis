@@ -7,9 +7,14 @@ import { runFailure } from './etw-failure-scenario.mjs';
 import { runScenario } from './etw-scenario.mjs';
 import { compileReadFixture } from './etw-failure-support.mjs';
 import { etwFailuresPassed } from '../../../tools/development/etw-failure-contract.mjs';
+import { etwDualPassed } from '../../../tools/development/etw-dual-contract.mjs';
 
 const { values } = parseArgs({
-  options: { executable: { type: 'string' }, output: { type: 'string' } },
+  options: {
+    executable: { type: 'string' },
+    output: { type: 'string' },
+    dual: { type: 'boolean', default: false },
+  },
 });
 assert(process.platform === 'win32' && process.arch === 'x64');
 assert(path.isAbsolute(values.executable ?? '') && path.isAbsolute(values.output ?? ''));
@@ -23,13 +28,20 @@ const r = {
   startedAt: new Date().toISOString(),
   productionAdmission: false,
   cases: {},
-  scope:
-    'Five remaining fault boundaries plus collector-crash and fresh-capture attribution regression',
-  simultaneousGuardCollectorLoss: 'not-qualified; requires protected recovery authority',
+  scope: values.dual
+    ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
+    : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
+  simultaneousGuardCollectorLoss: values.dual
+    ? 'four planned local diagnostic captures'
+    : 'not-run',
+  allThreeElevatedPeersLost: 'not-qualified; requires protected durable recovery authority',
   protectedInstallationSleepWakeAndPathAdmission: 'not-qualified',
 };
 try {
   for (const mode of [
+    ...(values.dual
+      ? ['dual-before-start', 'dual-before-arm', 'dual-guard-first', 'dual-collector-first']
+      : []),
     'collector-before-start',
     'collector-before-arm',
     'guard-exit',
@@ -71,6 +83,7 @@ try {
   };
   r.status = 'PASS';
   assert(etwFailuresPassed(r), 'Incomplete boundary qualification');
+  if (values.dual) assert(etwDualPassed(r), 'Incomplete dual-loss qualification');
 } catch (e) {
   r.status = 'FAIL';
   r.failure = e.message;

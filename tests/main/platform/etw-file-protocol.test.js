@@ -8,6 +8,13 @@ function decoder(onMessage = () => {}) {
 }
 
 describe('offline ETW envelope', () => {
+  it('accepts the closed dual-loss cause and rejects arbitrary recovery claims', () => {
+    const recovered = message('recovered');
+    recovered.data.cause = 'collector-and-guard-exited';
+    expect(validateMessage(recovered)).toBeTruthy();
+    recovered.data.cause = 'all-processes-recovered';
+    expect(() => validateMessage(recovered)).toThrow('etw-file:invalid-message');
+  });
   it('accepts only a held issuer interval bracketing the event and a fresh generation query', () => {
     const verified = observation({
       qpc: '110',

@@ -58,6 +58,17 @@ export function etwFailuresPassed(r) {
           c.summary.finalCounters?.queryStatus === (mode === 'collector-before-start' ? 4201 : 0) &&
           c.restartBlocked !== true
         );
+      if (mode === 'guard-exit')
+        return (
+          c.restartBlocked !== true &&
+          c.summary.recoveryVerified === true &&
+          c.summary.recoveryCause === 'collector-and-guard-exited' &&
+          c.summary.exitCode === 4 &&
+          c.summary.collectorExit === 2 &&
+          c.summary.finalCounters?.queryStatus === 4201 &&
+          c.presence?.status === 0 &&
+          c.presence.present === true
+        );
       return (
         c.restartBlocked === true &&
         c.summary.recoveryVerified === false &&

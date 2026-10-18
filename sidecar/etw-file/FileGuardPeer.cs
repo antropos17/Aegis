@@ -26,6 +26,13 @@ internal sealed class FileGuardPeer : IDisposable
         if (HasExited) throw new UnauthorizedAccessException();
         Security.Verify(pipe, process, pid, birth, true, true);
     }
+    internal void VerifyIdentity(ulong birth)
+    {
+        if (HasExited) throw new UnauthorizedAccessException();
+        var actual = Security.Observe(process, pid); var self = Security.Current();
+        if (actual.Birth != birth || actual.User != self.User || actual.Logon != self.Logon || !actual.Elevated ||
+            !actual.Image.Equals(Program.Executable, StringComparison.OrdinalIgnoreCase)) throw new UnauthorizedAccessException();
+    }
     internal async Task WaitForExitAsync(TimeSpan timeout)
     {
         long from = Stopwatch.GetTimestamp();
