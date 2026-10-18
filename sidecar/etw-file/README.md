@@ -183,11 +183,19 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 
 ## Current evidence and limits
 
+The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
+elevated fallback reserved before StartTrace. It waits for both original collector
+and guard objects to exit before recovery, and the broker verifies its receipt and
+exit separately. `--etw-dual-recovery` plans four pair-loss captures plus the seven
+existing packaged regressions. The [packaged evidence](../../docs/recon/evidence/etw-packaged-dual-recovery.json)
+records all eleven PASS at `5a09b16a`. This remains a mutable local diagnostic authority;
+all-three-peer loss and protected durable recovery are outside its contract.
+
 The [failure-boundary follow-up](../../docs/roadmap/etw-failure-boundaries.md)
 adds pre-start GUID reservation and the `--etw-failures` packaged profile for
 pre-ready collector, guard, broker and abrupt Electron exits. It preserves blocked
-retry after unverified cleanup and does not qualify simultaneous collector/guard
-loss or protected recovery authority.
+retry after unverified cleanup. Its historical evidence does not qualify the later
+dual-loss path or protected recovery authority.
 
 See [backend implementation record](../../docs/roadmap/etw-file-backend.md).
 The [packaged issuer/recovery record](../../docs/recon/evidence/etw-packaged-issuer-recovery.json)
@@ -205,7 +213,8 @@ guard now carries the original session handle/GUID for bounded collector-crash
 cleanup, with independent handle queries and a separate broker receipt. Recovery
 retains FAILED health, unknown application-stage losses and an observation gap.
 Pre-arm recovery now has the bounded local qualification above; simultaneous
-collector/guard loss and protected recovery authority remain unqualified.
+collector/guard loss is addressed by the follow-up above; protected durable recovery
+authority remains unqualified.
 Warm mmap, Fast I/O and the remaining B1/E4–E8 coverage questions remain open.
 
 The 2026-09-11 [burst-handling follow-up](../../docs/roadmap/etw-burst-handling.md)

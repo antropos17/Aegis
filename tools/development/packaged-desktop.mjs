@@ -21,13 +21,16 @@ const { values } = parseArgs({
     sensors: { type: 'boolean', default: false },
     etw: { type: 'boolean', default: false },
     'etw-failures': { type: 'boolean', default: false },
+    'etw-dual-recovery': { type: 'boolean', default: false },
   },
 });
-const etwFailures = values['etw-failures'];
-if (values.etw && etwFailures) throw new Error('Select one ETW profile');
+const etwDual = values['etw-dual-recovery'];
+const etwFailures = values['etw-failures'] || etwDual;
+if ([values.etw, values['etw-failures'], etwDual].filter(Boolean).length > 1)
+  throw new Error('Select one ETW profile');
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw | --etw-failures]',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw | --etw-failures | --etw-dual-recovery]',
   );
 const output = path.resolve(values.output);
 if (
@@ -83,17 +86,21 @@ const receipt = {
       ? 'monitoring-with-ordinary-current-user-and-playwright'
       : 'not-run',
     fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
-    etw: etwFailures
-      ? 'seven-planned-failure-and-regression-captures'
-      : values.etw
-        ? 'live-diagnostic-candidates-only'
-        : 'not-run',
+    etw: etwDual
+      ? 'eleven-planned-dual-loss-and-regression-captures'
+      : etwFailures
+        ? 'seven-planned-failure-and-regression-captures'
+        : values.etw
+          ? 'live-diagnostic-candidates-only'
+          : 'not-run',
     modeledPrincipalProtectionAccountServiceVmAndJournal: true,
-    uac: etwFailures
-      ? 'seven-planned-same-account-captures-and-query-only-witness-if-denied'
-      : values.etw
-        ? 'two-planned-interactive-same-account-captures'
-        : 'not-run',
+    uac: etwDual
+      ? 'eleven-planned-same-account-captures-and-query-only-witness-if-denied'
+      : etwFailures
+        ? 'seven-planned-same-account-captures-and-query-only-witness-if-denied'
+        : values.etw
+          ? 'two-planned-interactive-same-account-captures'
+          : 'not-run',
     guiEnrollment: false,
     realGuestProvider: 'not-run',
     elapsedThirtyMinuteExpiry: 'not-run',
@@ -270,7 +277,10 @@ try {
     receipt.sensorReceiptSha256 = hash(sensorReceipt);
   }
   if (values.etw || etwFailures) {
-    Object.assign(receipt, await qualifyEtw(root, output, candidate, command, etwFailures));
+    Object.assign(
+      receipt,
+      await qualifyEtw(root, output, candidate, command, etwFailures, etwDual),
+    );
   }
   if (
     hash(manifest) !== receipt.packageManifestSha256 ||

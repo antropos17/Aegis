@@ -64,7 +64,8 @@ export async function runFailure({ executable, out, mode }) {
     await observeQuit(app, final);
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
     console.log('Waiting for one same-account capture UAC decision: ' + mode);
-    const early = mode.startsWith('collector-before-');
+    const dual = mode.startsWith('dual-');
+    const early = mode.startsWith('collector-before-') || mode.startsWith('dual-before-');
     let data;
     const readyUntil = Date.now() + 135000;
     do {
@@ -84,14 +85,13 @@ export async function runFailure({ executable, out, mode }) {
       assert.equal(r.summary.finalTotals, null);
       assert.equal(r.summary.observationGap, true);
       assert.equal(data.restartBlocked, false);
-      assert.equal(
-        r.summary.finalCounters.queryStatus,
-        mode === 'collector-before-start' ? 4201 : 0,
-      );
-      r.nativeHelperClosure = 'broker verified retained collector and guard exits';
+      assert.equal(r.summary.finalCounters.queryStatus, mode.endsWith('before-start') ? 4201 : 0);
+      if (dual) assert.equal(r.summary.recoveryCause, 'collector-and-guard-exited');
+      r.nativeHelperClosure =
+        'broker verified retained collector, primary guard and fallback exits';
     } else {
       assert.equal(data.phase, 'running');
-      assert(r.helperPids.length >= 3);
+      assert(r.helperPids.length >= 4);
       r.liveReady = true;
       r.presence = await inspectSession(helper, out, 'during', env);
       assert.equal(r.presence.present, true);
@@ -120,7 +120,19 @@ export async function runFailure({ executable, out, mode }) {
       r.summary = data.summaries.at(-1);
       assert(r.summary, 'No ended capture summary');
       assert.equal(data.records.length, 0);
-      if (!early) {
+      if (dual || mode === 'guard-exit') {
+        assert.equal(data.restartBlocked, false);
+        assert.equal(r.summary.recoveryVerified, true);
+        assert.equal(r.summary.recoveryCause, 'collector-and-guard-exited');
+        assert.equal(r.summary.exitCode, 4);
+        assert.equal(r.summary.collectorExit, mode === 'guard-exit' ? 2 : 70);
+        assert.equal(
+          r.summary.finalCounters.queryStatus,
+          mode === 'guard-exit' || mode === 'dual-before-start' ? 4201 : 0,
+        );
+        assert.equal(r.summary.finalTotals, null);
+        assert.equal(r.summary.observationGap, true);
+      } else if (!early) {
         assert.equal(data.restartBlocked, true, 'Unverified cleanup permitted retry');
         assert.equal(r.summary.recoveryVerified, false);
         assert.equal(r.summary.exitCode, mode === 'broker-exit' ? 72 : 2);
@@ -129,6 +141,7 @@ export async function runFailure({ executable, out, mode }) {
         assert.equal(r.summary.observationGap, true);
         r.restartBlocked = true;
       }
+      r.restartBlocked = data.restartBlocked;
       const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
       assert.equal(health.sensors.byId['etw-file'].state, 'FAILED');
       assert.equal(health.populationReliable, true);

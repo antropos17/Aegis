@@ -71,6 +71,7 @@ internal static class FileGuard
         ownerPipe.Dispose();
         if (!collector.HasExited)
             try { await collectorGone.WaitAsync(TimeSpan.FromSeconds(7)); } catch { }
+        if (args[7] == "exit-with-owner" && collector.HasExited) Environment.Exit(71); // Diagnostic: skip recovery too.
         if (owned != null) result = FileTrace.Recover(owned);
         else if (reservation != null) result = FileTrace.RecoverReservation(reservation);
         result = result with { collectorExit = collector.HasExited ? collector.ExitCode : null };

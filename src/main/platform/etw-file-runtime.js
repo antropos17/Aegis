@@ -32,6 +32,10 @@ function createRuntime({
     'collector-before-arm': 'broker-prearm-check',
     'guard-exit': 'broker-guard-check',
     'broker-exit': 'broker-exit-check',
+    'dual-guard-first': 'broker-dual-guard-check',
+    'dual-collector-first': 'broker-dual-collector-check',
+    'dual-before-arm': 'broker-dual-prearm-check',
+    'dual-before-start': 'broker-dual-prestart-check',
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;

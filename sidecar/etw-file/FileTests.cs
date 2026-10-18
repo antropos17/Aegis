@@ -141,6 +141,7 @@ internal static class FileTests
         FileIssuerTests.Run(Test);
         FileGuardTests.Run(Test);
         FileReservationTests.Run(Test);
+        FileRecoveryTests.Run(Test);
         FileOutputTests.Run(Test);
         FilePerformanceTests.Run(Test);
         FileOutputProfileTests.Run(Test);

@@ -145,6 +145,30 @@ describe('ETW diagnostic supervisor', () => {
     expect(h.sensor.getDiagnostics().restartBlocked).toBe(false);
     expect(h.sensor.restart()).toBe(true);
   });
+  it.each(['collector-exited', 'collector-and-guard-exited'])(
+    'keeps %s FAILED and unknown stage loss until the verified broker exit',
+    (cause) => {
+      const h = harness();
+      const child = h.running();
+      child.message('recovered', 3, { ...message('recovered').data, cause });
+      expect(h.sensor.getHealth().state).toBe('FAILED');
+      expect(h.sensor.start()).toBe(false);
+      child.emit('close', 4);
+      const d = h.sensor.getDiagnostics();
+      expect(d.restartBlocked).toBe(false);
+      expect(d.records).toEqual([]);
+      expect(d.summaries[0]).toMatchObject({
+        recoveryCause: cause,
+        recoveryVerified: true,
+        stopVerified: false,
+        finalTotals: null,
+        observationGap: true,
+        collectorExit: 70,
+        exitCode: 4,
+      });
+      expect(d.summaries[0].reasons).toContain(cause);
+    },
+  );
   it('cannot infer cleanup from exit code 4 alone or a failed broker after a recovery frame', () => {
     for (const terminal of [false, true]) {
       const h = harness();
@@ -478,6 +502,10 @@ describe('ETW backend runtime gate', () => {
     ['collector-before-arm', 'broker-prearm-check'],
     ['guard-exit', 'broker-guard-check'],
     ['broker-exit', 'broker-exit-check'],
+    ['dual-guard-first', 'broker-dual-guard-check'],
+    ['dual-collector-first', 'broker-dual-collector-check'],
+    ['dual-before-arm', 'broker-dual-prearm-check'],
+    ['dual-before-start', 'broker-dual-prestart-check'],
   ])(
     'selects only fixed crash mode %s in a marked explicit diagnostic package',
     (fault, command) => {

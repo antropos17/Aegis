@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { etwPassed, etwRecoveryPassed } from '../../tools/development/etw-package.mjs';
 import { etwFailuresPassed } from '../../tools/development/etw-failure-contract.mjs';
+import { etwDualPassed } from '../../tools/development/etw-dual-contract.mjs';
 
 function receipt() {
   return {
@@ -183,17 +184,26 @@ function failureReceipt() {
           noAutomaticRestart: true,
           abruptAppExit: mode === 'app-exit',
           appExitCode: 73,
-          restartBlocked: !mode.startsWith('collector-before-'),
+          restartBlocked: mode === 'broker-exit',
           summary: {
-            recoveryVerified: mode.startsWith('collector-before-'),
+            recoveryVerified: mode.startsWith('collector-before-') || mode === 'guard-exit',
+            recoveryCause:
+              mode === 'guard-exit' ? 'collector-and-guard-exited' : 'collector-exited',
             capture: null,
             finalTotals: null,
             observationGap: true,
-            collectorExit: 70,
-            exitCode: mode.startsWith('collector-before-') ? 4 : mode === 'broker-exit' ? 72 : 2,
+            collectorExit: mode === 'guard-exit' ? 2 : 70,
+            exitCode:
+              mode.startsWith('collector-before-') || mode === 'guard-exit'
+                ? 4
+                : mode === 'broker-exit'
+                  ? 72
+                  : 2,
             finalCounters: mode.startsWith('collector-before-')
               ? { queryStatus: mode === 'collector-before-start' ? 4201 : 0 }
-              : null,
+              : mode === 'guard-exit'
+                ? { queryStatus: 4201 }
+                : null,
           },
         },
       ]),
@@ -215,7 +225,7 @@ describe('packaged ETW failure boundaries', () => {
       r.cases['collector-before-start'].summary.finalCounters.queryStatus = 0;
     },
     (r) => {
-      r.cases['guard-exit'].restartBlocked = false;
+      r.cases['guard-exit'].restartBlocked = true;
     },
     (r) => {
       r.cases['broker-exit'].summary.finalCounters = { queryStatus: 0 };
@@ -236,6 +246,70 @@ describe('packaged ETW failure boundaries', () => {
     const r = failureReceipt();
     mutate(r);
     expect(etwFailuresPassed(r)).toBe(false);
+  });
+});
+
+function dualReceipt() {
+  const r = failureReceipt();
+  for (const mode of [
+    'dual-before-start',
+    'dual-before-arm',
+    'dual-guard-first',
+    'dual-collector-first',
+  ]) {
+    const c = structuredClone(r.cases['collector-before-arm']);
+    c.mode = mode;
+    c.helperPids = [71, 72, 73, 74];
+    c.summary.stopVerified = false;
+    c.summary.phase = 'recovered';
+    c.summary.recoveryCause = 'collector-and-guard-exited';
+    c.summary.finalCounters.queryStatus = mode === 'dual-before-start' ? 4201 : 0;
+    r.cases[mode] = c;
+  }
+  return r;
+}
+describe('packaged ETW dual-loss evidence', () => {
+  it('requires both ready loss orders, both early boundaries and the existing seven regressions', () => {
+    expect(etwDualPassed(dualReceipt())).toBe(true);
+  });
+  it.each([
+    (r) => {
+      delete r.cases['dual-before-arm'];
+    },
+    (r) => {
+      r.cases['dual-guard-first'].helperPids.pop();
+    },
+    (r) => {
+      r.cases['dual-collector-first'].summary.recoveryCause = 'collector-exited';
+    },
+    (r) => {
+      r.cases['dual-before-start'].summary.finalCounters.queryStatus = 0;
+    },
+    (r) => {
+      r.cases['dual-before-arm'].summary.capture = {};
+    },
+    (r) => {
+      r.cases['dual-guard-first'].summary.finalTotals = {};
+    },
+    (r) => {
+      r.cases['dual-collector-first'].after.status = 87;
+    },
+    (r) => {
+      r.cases['dual-guard-first'].restartBlocked = true;
+    },
+    (r) => {
+      r.cases['dual-collector-first'].summary.exitCode = 0;
+    },
+    (r) => {
+      r.cases['dual-guard-first'].noAutomaticRestart = false;
+    },
+    (r) => {
+      r.regression.normal.asyncProof.native.pending = 0;
+    },
+  ])('rejects incomplete or inflated dual-loss evidence (%#)', (mutate) => {
+    const r = dualReceipt();
+    mutate(r);
+    expect(etwDualPassed(r)).toBe(false);
   });
 });
 

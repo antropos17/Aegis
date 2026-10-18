@@ -165,8 +165,11 @@ The dependency is those observations, not the absence of a Windows host.
    narrows E4 and collector-crash cleanup. The subsequent
    [failure-boundary qualification](docs/roadmap/etw-failure-boundaries.md) passes
    seven packaged cases including pre-arm reservation recovery, guard/broker loss
-   and abrupt Electron exit. Production/path admission, simultaneous guard/collector
-   crash, protected recovery, actual reuse and sleep/wake remain open.
+   and abrupt Electron exit. The [dual-loss follow-up](docs/roadmap/etw-dual-recovery.md)
+   adds a pre-reserved independent fallback and passes eleven packaged captures,
+   including both collector/guard loss orders and both early boundaries. Production/path
+   admission, loss of all three elevated peers, protected durable recovery, actual
+   reuse and sleep/wake remain open.
 
 ## C — existing rules coverage
 
