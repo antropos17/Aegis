@@ -6,6 +6,7 @@ import {
   WINDOWS_SUITES,
   validateTestReport,
   describeTestFailure,
+  guiStageDiagnostic,
   parseWorktrees,
   retentionBlockers,
   classifyRun,
@@ -70,6 +71,12 @@ describe('Windows evidence validation', () => {
     expect(result[0].stageFailures).toEqual([{ assertion: 1, ...stage }]);
     expect(JSON.stringify(result)).not.toContain('PRIVATE_CANARY');
     expect(JSON.stringify(result)).not.toContain('X:/private');
+    expect(
+      guiStageDiagnostic(
+        'AEGIS_GUI_STAGE:{"code":"truncated"\nAEGIS_GUI_STAGE:' + JSON.stringify(stage),
+      ),
+    ).toEqual(stage);
+    expect(guiStageDiagnostic('x'.repeat(32769))).toBeNull();
     for (const invalid of [
       { ...stage, first: 'private-path' },
       { ...stage, code: 'PRIVATE_CANARY' },

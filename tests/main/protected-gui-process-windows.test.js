@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { compileProcessLibrary, processCoreSources, runProcessStage } from '../fixtures/protected-gui-process/harness.mjs';
+import { guiStageDiagnostic } from '../../tools/development/verification-contract.mjs';
 
 const project = fileURLToPath(new URL('../../', import.meta.url));
 const product = 'AEGIS - AI Monitoring & Threat Detection.exe';
@@ -166,6 +167,8 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         const { scratch, result } = runProcessStage(project, root, fixture, library, mode);
         attemptedStages.push({ scratch, mode });
         expect(result.error, 'bounded stage fixture execution').toBeUndefined();
+        const diagnostic = guiStageDiagnostic(result.stderr.toString());
+        if (diagnostic) throw new Error('AEGIS_GUI_STAGE:' + JSON.stringify(diagnostic));
         expect(result.stderr.toString(), 'stage fixture diagnostic').toBe('');
         expect(result.status, 'stage fixture exit').toBe(0);
         return JSON.parse(result.stdout.toString());

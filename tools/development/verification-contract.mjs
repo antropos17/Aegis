@@ -80,46 +80,55 @@ const LEASE_PHASES = new Set([
   'principal-release',
 ]);
 
-/** Project only finite failure enums; never copy a raw assertion message.
- * @param {object[]} assertions Native GUI assertions. @returns {object[]} Safe codes.
+/** Read only finite native stage enums before assertion reporters truncate stderr.
+ * @param {unknown} text Private stderr or failure message. @returns {object|null} Safe codes.
+ * @since v0.19.2
+ */
+export function guiStageDiagnostic(text) {
+  if (typeof text !== 'string' || text.length > 32768) return null;
+  let count = 0;
+  for (const marker of text.matchAll(/AEGIS_GUI_STAGE:([^\r\n]{1,1024})/g)) {
+    if (++count > 4) break;
+    try {
+      const v = JSON.parse(marker[1]);
+      const fields = ['first', 'code', 'leasePhase', 'cleanup', 'cleanupCode'];
+      if (
+        !v ||
+        typeof v !== 'object' ||
+        Array.isArray(v) ||
+        Object.keys(v).length !== 5 ||
+        !fields.every((k) => Object.hasOwn(v, k)) ||
+        !STAGE_PHASES.has(v.first) ||
+        !STAGE_CODES.has(v.code) ||
+        !LEASE_PHASES.has(v.leasePhase) ||
+        !STAGE_PHASES.has(v.cleanup) ||
+        !STAGE_CODES.has(v.cleanupCode)
+      )
+        continue;
+      return {
+        first: v.first,
+        code: v.code,
+        leasePhase: v.leasePhase,
+        cleanup: v.cleanup,
+        cleanupCode: v.cleanupCode,
+      };
+    } catch {
+      /* Unknown/malformed diagnostics stay private. */
+    }
+  }
+  return null;
+}
+
+/** Project finite native GUI errors without copying assertion text.
+ * @param {object[]} assertions Native assertions. @returns {object[]} Safe codes.
  * @since v0.19.2
  */
 function stageFailures(assertions) {
   return assertions.slice(0, 32).flatMap((row, index) => {
     if (row?.status !== 'failed' || !Array.isArray(row.failureMessages)) return [];
     for (const text of row.failureMessages.slice(0, 4)) {
-      if (typeof text !== 'string' || text.length > 32768) continue;
-      const marker = /AEGIS_GUI_STAGE:([^\r\n]{1,1024})/.exec(text);
-      if (!marker) continue;
-      try {
-        const v = JSON.parse(marker[1]);
-        const fields = ['first', 'code', 'leasePhase', 'cleanup', 'cleanupCode'];
-        if (
-          !v ||
-          typeof v !== 'object' ||
-          Array.isArray(v) ||
-          Object.keys(v).length !== 5 ||
-          !fields.every((k) => Object.hasOwn(v, k)) ||
-          !STAGE_PHASES.has(v.first) ||
-          !STAGE_CODES.has(v.code) ||
-          !LEASE_PHASES.has(v.leasePhase) ||
-          !STAGE_PHASES.has(v.cleanup) ||
-          !STAGE_CODES.has(v.cleanupCode)
-        )
-          continue;
-        return [
-          {
-            assertion: index + 1,
-            first: v.first,
-            code: v.code,
-            leasePhase: v.leasePhase,
-            cleanup: v.cleanup,
-            cleanupCode: v.cleanupCode,
-          },
-        ];
-      } catch {
-        /* Unknown/malformed diagnostics stay private. */
-      }
+      const diagnostic = guiStageDiagnostic(text);
+      if (diagnostic) return [{ assertion: index + 1, ...diagnostic }];
     }
     return [];
   });
