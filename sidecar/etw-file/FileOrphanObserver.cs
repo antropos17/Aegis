@@ -14,7 +14,7 @@ internal static class FileOrphanObserver
         if (json.Length > 2048) throw new InvalidDataException();
         Console.WriteLine(json);
     }
-    internal static async Task<int> Run()
+    internal static async Task<int> Run(bool total = false)
     {
         if (Security.Current().Elevated) return 3;
         string id = Guid.NewGuid().ToString("N"); var self = Security.Current();
@@ -29,7 +29,8 @@ internal static class FileOrphanObserver
             notice.originalPids.Distinct().Count() != 5) throw new InvalidDataException();
         using var peer = new FileGuardPeer((int)pid);
         peer.Verify(pipe, (ulong)FileMainHandles.Positive(notice.custodianBirth));
-        Print(new { type = "reserved", custodianPid = pid, notice.originalPids });
+        using var originals = total ? new FileOriginalObservation(notice.originalPids) : null;
+        Print(new { type = "reserved", custodianPid = pid, notice.originalPids, originalObjectsObserved = originals != null });
         try
         {
             // Phase and terminal objects use separate closed shapes on the same bounded channel.
@@ -47,7 +48,8 @@ internal static class FileOrphanObserver
         catch (EndOfStreamException)
         {
             await peer.WaitForExitAsync(TimeSpan.FromSeconds(8));
-            Print(new { type = "peer-exit", custodianExit = peer.ExitCode });
+            int[]? originalExits = originals != null ? await originals.Wait() : null;
+            Print(new { type = "peer-exit", custodianExit = peer.ExitCode, originalExits });
             return 0;
         }
     }

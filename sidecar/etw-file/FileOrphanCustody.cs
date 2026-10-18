@@ -11,6 +11,13 @@ internal sealed class FileOrphanCustody : IDisposable
     { Reservation = reservation; Pids = peers.Select(p => p.pid).ToArray(); }
     internal bool[] Exits => copies.Select(FileMainHandles.Gone).ToArray();
     internal int[] Codes => copies.Select(FileMainHandles.ExitCode).ToArray();
+    internal FileDurableLease Durable()
+    {
+        var self = Security.Current();
+        var peers = Pids.Select((pid, index) => new FileDurablePeer(pid, FileMainHandles.Birth(copies[index]).ToString())).ToList();
+        peers.Add(new(self.Pid, self.Birth.ToString()));
+        return new(1, Reservation, self.User, self.Logon, self.Image, peers.ToArray());
+    }
 
     internal static FileOrphanCustody Take(FileOrphanLease lease, int collectorPid, ulong collectorBirth)
     {

@@ -13,7 +13,10 @@ internal static class FileOrphanCustodian
         using var setup = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         var lease = await FileGuardWire.Read<FileOrphanLease>(pipe, setup.Token);
         using var custody = FileOrphanCustody.Take(lease, collectorPid, birth);
+        var durable = FileDurableJournal.Reserve(custody.Durable(), args[4] == "recovery-denial-check");
         using var observation = await FileOrphanObservation.Connect(lease.observer, custody.Pids);
+        if (durable.restrictedProbeStatus == 5) await observation.Send(new FileOrphanPhase("journal-denied"));
+        if (durable.recovered != 0) await observation.Send(new FileOrphanPhase("journal-recovered"));
         await FileGuardWire.Write(pipe, new FileOrphanPhase("reserved"), setup.Token);
         if (args[4] == "exit-check") _ = Task.Run(async () => { await Task.Delay(30000); Environment.Exit(76); });
         using var lifetime = new CancellationTokenSource();
@@ -36,6 +39,7 @@ internal static class FileOrphanCustodian
             while (true)
             {
                 var exits = custody.Exits;
+                if (args[4] == "total-exit-check" && exits[0]) Environment.Exit(76); // Leave cleanup to the next explicit launch.
                 if (!tripleObserved && exits.Skip(2).All(gone => gone))
                 {
                     tripleObserved = true;
@@ -50,6 +54,7 @@ internal static class FileOrphanCustodian
                     var found = FileTrace.Lookup();
                     if (found.Stats.Status == 4201)
                     {
+                        FileDurableJournal.Retire(custody.Reservation);
                         await observation.Send(new FileOrphanTerminal("terminal", false, true, [], 4201, null, true, null));
                         return 0;
                     }
@@ -75,6 +80,7 @@ internal static class FileOrphanCustodian
             }
             var result = Recover();
             if (result.kind != "recovered" || !result.stopped || !result.absent) throw new IOException();
+            FileDurableJournal.Retire(custody.Reservation);
             await observation.Send(new FileOrphanTerminal("terminal", true, true, custody.Codes,
                 result.counters?.Status ?? 50, denied, true, null));
             return 4;

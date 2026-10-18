@@ -13,6 +13,8 @@ internal static class FileOrphanCollector
         using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         var setup = await FileGuardWire.Read<FileOrphanSetup>(pipe, limit.Token);
         var owner = await FileOrphanOwner.Start(setup, reservation, broker, guard, fallback,
+            args[0].StartsWith("orphan-total-", StringComparison.Ordinal) ? "total-exit-check" :
+            args[0] == "orphan-recovery-denial-collector" ? "recovery-denial-check" :
             args[0] == "custodian-exit-collector" ? "exit-check" :
             args[0] == "orphan-denial-collector" ? "denial-check" : "normal");
         try { await FileGuardWire.Write(pipe, owner.Identity, limit.Token); return owner; }

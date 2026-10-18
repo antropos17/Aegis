@@ -4,10 +4,11 @@ import { delay } from './etw-support.mjs';
 
 /** Start a normal-token, read-only native receipt witness; no capture/control API.
  * @param {string} helper @param {string} out @param {object} env
+ * @param {boolean} total Retain all original objects for the six-process-loss witness.
  * @returns {object} Bounded messages and waits. @since v0.19.2
  */
-export function observeCustodian(helper, out, env) {
-  const child = spawn(helper, ['observe-custodian'], {
+export function observeCustodian(helper, out, env, total = false) {
+  const child = spawn(helper, [total ? 'observe-total' : 'observe-custodian'], {
     cwd: out,
     env,
     windowsHide: true,

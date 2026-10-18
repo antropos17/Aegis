@@ -63,6 +63,11 @@ function createRuntime({
     'orphan-native-first': 'broker-orphan-native-check',
     'orphan-access-denied': 'broker-orphan-denial-check',
     'custodian-exit': 'broker-custodian-exit-check',
+    'orphan-total-before-start': 'broker-orphan-total-prestart-check',
+    'orphan-total-before-arm': 'broker-orphan-total-prearm-check',
+    'orphan-total-running': 'broker-orphan-total-running-check',
+    'orphan-total-denial': 'broker-orphan-total-running-check',
+    'orphan-recovery-denial': 'broker-orphan-recovery-denial-check',
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;

@@ -26,7 +26,9 @@ internal static class Program
             if (args.Length == 2 && args[0] == "qualification-launcher") return await FileQualificationClient.Launcher(args[1]);
             if (args.Length == 5 && args[0] == "qualification-host") return await FileQualificationHost.Run(args);
             if (args is ["observe-custodian"]) return await FileOrphanObserver.Run();
-            if (args.Length == 5 && args[0] == "custodian" && args[4] is "normal" or "denial-check" or "exit-check")
+            if (args is ["observe-total"]) return await FileOrphanObserver.Run(true);
+            if (args is ["inspect-journal"]) { Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { writeDenied = FileDurableJournal.NormalWriteDenied() })); return 0; }
+            if (args.Length == 5 && args[0] == "custodian" && args[4] is "normal" or "denial-check" or "exit-check" or "total-exit-check" or "recovery-denial-check")
                 return await FileOrphanCustodian.Run(args);
             if (args is ["lease-test-child"])
             {
@@ -49,6 +51,8 @@ internal static class Program
                 "broker-group-first-check" or "broker-group-triple-check" or "broker-group-denial-check" or
                 "broker-orphan-prestart-check" or "broker-orphan-prearm-check" or "broker-orphan-main-check" or
                 "broker-orphan-native-check" or "broker-orphan-denial-check" or "broker-custodian-exit-check" or
+                "broker-orphan-total-prestart-check" or "broker-orphan-total-prearm-check" or "broker-orphan-total-running-check" or
+                "broker-orphan-recovery-denial-check" or
                 "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
             if (args.Length == 8 && args[0] == "guard" && args[7] is "normal" or "exit-after-arm" or "exit-with-owner") return await FileGuard.Run(args);
             if (args.Length == 8 && args[0] == "fallback" && args[7] is "normal" or "exit-with-owner" or "exit-after-reserve") return await FileFallback.Run(args);

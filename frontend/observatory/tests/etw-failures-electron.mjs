@@ -12,6 +12,11 @@ import { etwTotalPassed } from '../../../tools/development/etw-total-contract.mj
 import { etwGroupPassed } from '../../../tools/development/etw-group-contract.mjs';
 import { ORPHAN_MODES, etwOrphanPassed } from '../../../tools/development/etw-orphan-contract.mjs';
 import { runOrphanFailure } from './etw-orphan-scenario.mjs';
+import {
+  DURABLE_MODES,
+  etwDurablePassed,
+} from '../../../tools/development/etw-durable-contract.mjs';
+import { runDurableFailure } from './etw-durable-scenario.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -21,6 +26,7 @@ const { values } = parseArgs({
     total: { type: 'boolean', default: false },
     group: { type: 'boolean', default: false },
     orphan: { type: 'boolean', default: false },
+    durable: { type: 'boolean', default: false },
   },
 });
 assert(process.platform === 'win32' && process.arch === 'x64');
@@ -29,7 +35,8 @@ const out = path.resolve(values.output);
 fs.mkdirSync(out);
 fs.mkdirSync(path.join(out, 'temp'));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const group = values.group || values.orphan,
+const orphan = values.orphan || values.durable,
+  group = values.group || orphan,
   total = values.total || group,
   dual = values.dual || total;
 const r = {
@@ -38,15 +45,17 @@ const r = {
   startedAt: new Date().toISOString(),
   productionAdmission: false,
   cases: {},
-  scope: values.orphan
-    ? 'Five original-main-plus-four-native losses, custodian-only loss, and twenty-two earlier captures; temporary elevated custodian survives the original five'
-    : group
-      ? 'Five broker-plus-helper loss cases with surviving main plus seventeen earlier cases'
-      : total
-        ? 'Six all-three-helper loss cases plus eleven existing packaged regressions'
-        : dual
-          ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
-          : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
+  scope: values.durable
+    ? 'Four all-six-loss/relaunch cases, one live-owner rejection, and twenty-eight earlier captures; no surviving original recovery authority'
+    : values.orphan
+      ? 'Five original-main-plus-four-native losses, custodian-only loss, and twenty-two earlier captures; temporary elevated custodian survives the original five'
+      : group
+        ? 'Five broker-plus-helper loss cases with surviving main plus seventeen earlier cases'
+        : total
+          ? 'Six all-three-helper loss cases plus eleven existing packaged regressions'
+          : dual
+            ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
+            : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
   simultaneousGuardCollectorLoss: dual ? 'four planned local diagnostic captures' : 'not-run',
   allThreeElevatedPeersLost: total
     ? 'six planned local diagnostic captures; original normal broker survives'
@@ -54,13 +63,28 @@ const r = {
   lossOfBrokerAndAllElevatedPeers: group
     ? 'five planned main-custody captures'
     : 'not-qualified by this profile',
-  lossOfMainAndAllNativePeers: values.orphan
-    ? 'Five original processes lost; separate temporary custodian survives. Loss of custodian together with originals remains unqualified.'
-    : 'not-qualified by this profile',
+  lossOfMainAndAllNativePeers: values.durable
+    ? 'All six originals exit; protected write-ahead journal recovers only at the next explicit same-logon, same-image capture'
+    : values.orphan
+      ? 'Five original processes lost; separate temporary custodian survives. Loss of custodian together with originals remains unqualified.'
+      : 'not-qualified by this profile',
   protectedInstallationSleepWakeAndPathAdmission: 'not-qualified',
 };
 try {
-  if (values.orphan)
+  if (values.durable)
+    for (const mode of DURABLE_MODES) {
+      r.cases[mode] = await runDurableFailure({
+        executable: values.executable,
+        out: path.join(out, mode),
+        mode,
+      });
+      assert.equal(
+        r.cases[mode].status,
+        'PASS',
+        'Durable case incomplete; no next planned capture',
+      );
+    }
+  if (orphan)
     for (const mode of ORPHAN_MODES) {
       r.cases[mode] = await runOrphanFailure({
         executable: values.executable,
@@ -136,7 +160,9 @@ try {
   if (dual) assert(etwDualPassed(r), 'Incomplete dual-loss qualification');
   if (total) assert(etwTotalPassed(r), 'Incomplete all-helper-loss qualification');
   if (group) assert(etwGroupPassed(r), 'Incomplete main-custody group qualification');
-  if (values.orphan) assert(etwOrphanPassed(r), 'Incomplete original-main loss qualification');
+  if (orphan) assert(etwOrphanPassed(r), 'Incomplete original-main loss qualification');
+  if (values.durable)
+    assert(etwDurablePassed(r), 'Incomplete six-process-loss/relaunch qualification');
 } catch (e) {
   r.status = 'FAIL';
   r.failure = e.message;
