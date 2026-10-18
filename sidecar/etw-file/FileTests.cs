@@ -138,6 +138,8 @@ internal static class FileTests
             }
         });
         FileBurstTests.Run(Test);
+        FileIssuerTests.Run(Test);
+        FileGuardTests.Run(Test);
         FileOutputTests.Run(Test);
         FilePerformanceTests.Run(Test);
         FileOutputProfileTests.Run(Test);

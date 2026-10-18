@@ -91,4 +91,33 @@ function createDiagnostics(clock = process.hrtime.bigint) {
     },
   };
 }
-module.exports = { createDiagnostics };
+/** Retain terminal accounting without treating recovered cleanup as a successful capture.
+ * @param {Object} state Session reducer state.
+ * @param {Object} options capture, diagnostics, stopReason, code and endedAt.
+ * @returns {Object} Bounded ended-session summary. @since v0.19.2
+ */
+function createSummary(state, { capture, diagnostics, stopReason, code, endedAt }) {
+  const recoveryVerified =
+    state.phase === 'recovered' && code === 4 && state.recovery?.absent === true;
+  return {
+    launchId: state.launchId,
+    sessionId: state.sessionId,
+    endedAt,
+    phase: state.phase,
+    reasons: [...state.reasons],
+    maxima: { ...state.maxima },
+    capture,
+    finalCounters: structuredClone(state.recovery?.counters ?? state.latest?.counters ?? null),
+    finalTotals: state.recovery ? null : structuredClone(state.latest?.totals ?? null),
+    ringDropped: diagnostics.dropped,
+    collectorPerformance: structuredClone(state.latest?.performance ?? null),
+    mainPerformance: diagnostics.performance(),
+    stopReason,
+    exitCode: code,
+    stopVerified: state.phase === 'stopped' && code === 0,
+    recoveryVerified,
+    observationGap: state.recovery?.observationGap === true,
+    collectorExit: state.recovery?.collectorExit ?? null,
+  };
+}
+module.exports = { createDiagnostics, createSummary };

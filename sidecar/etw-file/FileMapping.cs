@@ -10,7 +10,8 @@ internal sealed record FileInput(ulong Seq, int Id, int Version, long Qpc, uint 
 internal sealed record FileObservation(string eventSeq, string provider, int eventId, int version, string qpc,
     uint headerPid, uint headerTid, uint? issuingTid, uint? payloadTid, string? path, string pathEvidence,
     string issuerStatus = "candidate", string generationStatus = "unresolved", string? generationWitness = null,
-    string? generationSource = null, object? generationInterval = null, object? agent = null, object? instanceId = null);
+    string? generationSource = null, object? generationInterval = null, object? agent = null, object? instanceId = null,
+    uint? issuerPid = null, object? issuerInterval = null);
 
 internal sealed class FileMapping(FileScope scope, long frequency, int cap = 32768, int byteCap = 8 * 1024 * 1024)
 {

@@ -5,7 +5,7 @@ const { performance } = require('node:perf_hooks');
 const wire = require('./etw-file-protocol');
 const model = require('./etw-file-health');
 const health = require('../sensor-health');
-const { createDiagnostics } = require('./etw-file-diagnostics');
+const { createDiagnostics, createSummary } = require('./etw-file-diagnostics');
 
 /** Own one broker at a time, with explicit retry and no elevated kill or replay.
  * @param {Object} deps - spawnBroker, optional clocks/ID factory for deterministic tests.
@@ -19,6 +19,7 @@ function createSupervisor({
   id = randomUUID,
   profileClock = process.hrtime.bigint,
   maxCaptureMs = null,
+  onHealthChange = () => {},
 }) {
   if (maxCaptureMs !== null && (!Number.isSafeInteger(maxCaptureMs) || maxCaptureMs <= 0))
     throw new Error('etw-file:invalid-capture-limit');
@@ -50,6 +51,18 @@ function createSupervisor({
   let summaries = [],
     omittedSummaries = 0;
   let idle = { ...health.createSensorHealth('etw-file'), state: 'DISABLED' };
+  let lastHealth = '';
+  function notify() {
+    const value = current?.record || idle;
+    const signature = JSON.stringify([value.state, value.detail, value.lastError, value.lossCount]);
+    if (signature === lastHealth) return;
+    lastHealth = signature;
+    try {
+      onHealthChange();
+    } catch {
+      /* A UI listener cannot invalidate native ownership. */
+    }
+  }
 
   function clearRing() {
     diagnostics.clear();
@@ -62,6 +75,7 @@ function createSupervisor({
     restartRequested = false;
     clearRing();
     child?.stdin.destroy(); // Broker EOF and collector lease own cleanup.
+    notify();
   }
   function send(t, data) {
     if (!child || closed || pendingWrite) return false;
@@ -133,6 +147,14 @@ function createSupervisor({
       clearRing();
       child.stdin.end();
     }
+    if (message.t === 'recovered') {
+      clearRing();
+      stopAt = null;
+      failedAt = mono(); // Broker still has a bounded deadline to exit with the recovery code.
+      unsafe = true; // A terminal frame alone cannot authorize retry.
+      child.stdin.end();
+    }
+    notify();
   }
   function tick() {
     if (!child || closed) return;
@@ -162,34 +184,26 @@ function createSupervisor({
     closed = true;
     clearInterval(timer);
     timer = null;
-    if (current.phase !== 'stopped' || code !== 0) {
-      current = model.failSession(current, now(), 'stream-ended');
+    if (current.phase === 'recovered' && code === 4) unsafe = false;
+    else if (current.phase !== 'stopped' || code !== 0) {
+      current = model.failSession(
+        current,
+        now(),
+        current.phase === 'stopped' ? 'stop-unverified' : 'stream-ended',
+      );
       // Even pre-ready failure could follow successful enable and a lost ready.
       unsafe = true;
     }
-    summaries.push({
-      launchId: current.launchId,
-      sessionId: current.sessionId,
-      endedAt: now(),
-      phase: current.phase,
-      reasons: [...current.reasons],
-      maxima: { ...current.maxima },
-      capture,
-      finalCounters: structuredClone(current.latest?.counters || null),
-      finalTotals: structuredClone(current.latest?.totals || null),
-      ringDropped: diagnostics.dropped,
-      collectorPerformance: structuredClone(current.latest?.performance || null),
-      mainPerformance: diagnostics.performance(),
-      stopReason,
-      exitCode: code,
-      stopVerified: current.phase === 'stopped' && code === 0,
-    });
+    summaries.push(
+      createSummary(current, { capture, diagnostics, stopReason, code, endedAt: now() }),
+    );
     if (summaries.length > 32) {
       summaries.shift();
       omittedSummaries++;
     }
     child = null;
     clearRing();
+    notify();
     resolveCompletion?.(current.phase === 'stopped' && code === 0);
     resolveCompletion = null;
     if (restartRequested && !unsafe && !disposed) {
@@ -215,12 +229,14 @@ function createSupervisor({
     clearRing();
     startedAt = receivedAt = mono();
     closed = false;
+    notify();
     completion = Promise.resolve(false);
     try {
       child = spawnBroker(current.launchId, current.sessionId);
     } catch {
       current = model.failSession(current, now(), 'launch-failed');
       closed = true;
+      notify();
       return false;
     }
     completion = new Promise((resolve) => {
@@ -247,7 +263,7 @@ function createSupervisor({
       } catch {
         fail('protocol-failed');
       }
-      if (current.phase !== 'stopped') fail('stream-ended');
+      if (!['stopped', 'recovered'].includes(current.phase)) fail('stream-ended');
     });
     target.stdout.on('error', () => {
       if (target === child) fail('stream-ended');
@@ -300,6 +316,7 @@ function createSupervisor({
     isActive: () => child !== null && !closed,
     setUnavailable(state, detail) {
       idle = { ...idle, state, detail };
+      notify();
     },
     getHealth: () => structuredClone(current?.record || idle),
     getDiagnostics: () =>

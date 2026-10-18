@@ -14,6 +14,7 @@ internal sealed class FilePipeline : IDisposable
     private readonly FileMapping map;
     private readonly bool live;
     private readonly Func<FileObservation, FileObservation> observe;
+    private readonly FileGeneration? generation;
     private readonly Func<long> clock;
     private readonly FileOutputProfile profile = new(Stopwatch.Frequency);
     private readonly CancellationTokenSource cancel = new();
@@ -32,7 +33,8 @@ internal sealed class FilePipeline : IDisposable
         Func<FileObservation, FileObservation>? observer = null, Func<long>? timestamp = null)
     {
         ingress = input; map = new(scope, Stopwatch.Frequency); live = native;
-        observe = observer ?? FileGeneration.Observe;
+        generation = native && observer == null ? new FileGeneration() : null;
+        observe = observer ?? (generation == null ? value => value : generation.Observe);
         clock = timestamp ?? Stopwatch.GetTimestamp;
         Worker = Task.Factory.StartNew(Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
@@ -156,5 +158,5 @@ internal sealed class FilePipeline : IDisposable
                 new(outbound.Count, bytes, highRecords, highBytes), profile.Snapshot(clock()));
         }
     }
-    public void Dispose() { cancel.Cancel(); if (Worker.IsCompleted) cancel.Dispose(); }
+    public void Dispose() { cancel.Cancel(); generation?.Dispose(); if (Worker.IsCompleted) cancel.Dispose(); }
 }

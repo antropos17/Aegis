@@ -1229,6 +1229,10 @@ app.whenReady().then(() => {
   etwFile = require('./platform/etw-file-runtime').createRuntime({
     app,
     powerMonitor: require('electron').powerMonitor,
+    onHealthChange: () => {
+      if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
+        statsUpdateBatcher.pushLazy(getStats);
+    },
   });
   // Block B5 — the OS sleep gap. `powerMonitor` is usable only after `ready`, which is
   // where this runs; the module is injected the emitter and a clock and owns the rest.
@@ -1495,7 +1499,12 @@ module.exports = {
   getAppHealth,
   /** Read main-only diagnostic metadata; no preload exposure.
    * @returns {Object|undefined} Bounded diagnostic snapshot. @since v0.19.2 */
-  getEtwFileDiagnostics: () => etwFile?.getDiagnostics(),
+  getEtwFileDiagnostics: () =>
+    require('./platform/etw-file-attribution').attributeDiagnostics(
+      etwFile?.getDiagnostics(),
+      latestAgents,
+      getAppHealth(),
+    ),
   _setWatcherForTest,
   _setEtwFileForTest,
   _setMonitoringPausedForTest: setMonitoringPaused,

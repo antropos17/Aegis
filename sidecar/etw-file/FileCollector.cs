@@ -6,7 +6,7 @@ internal static class FileCollector
 {
     internal static async Task<int> Run(string[] args)
     {
-        bool live = args[0] == "collector";
+        bool live = args[0] is "collector" or "crash-collector";
         if (Security.Current().Elevated != live || !FileWire.Id(args[1]) || !FileWire.Id(args[2]) || args[7] != FileWire.Profile) return 3;
         using var parent = Process.GetProcessById(int.Parse(args[4]));
         using var pipe = Security.Client(args[3]);
@@ -22,6 +22,7 @@ internal static class FileCollector
         using var lifetime = new CancellationTokenSource();
         using var trace = live ? new FileTrace() : null;
         using var capture = live ? new FileCapture(ingress) : null;
+        await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe) : null;
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
         string? stopRequest = null;
@@ -37,7 +38,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-dev-5-forward" : "etw-file-synthetic-check-5-forward",
+                build = live ? "etw-file-diagnostic-6-held-guard" : "etw-file-synthetic-check-6",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -49,6 +50,7 @@ internal static class FileCollector
             {
                 stats = trace.Start(); owns = true;
                 if (stats.Status != 0 || stats.Buffers == null || stats.Size == null) throw new InvalidOperationException();
+                await guard!.Arm(trace.Token); // Ready is impossible before the independent guard is armed.
                 capture!.Start(); trace.Enable(); stats = trace.Query();
                 if (stats.Status != 0) throw new InvalidOperationException();
                 CheckStats();
@@ -74,6 +76,11 @@ internal static class FileCollector
                 telemetry = Telemetry()
             }, lifetime.Token);
             var stopSignal = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (args[0] == "crash-collector") _ = Task.Run(async () =>
+            {
+                try { await Task.Delay(30000, lifetime.Token); Environment.Exit(70); } // Own process, no finally or WER dump.
+                catch (OperationCanceledException) { }
+            });
             controls = Task.Run(async () =>
             {
                 try
@@ -93,6 +100,7 @@ internal static class FileCollector
             {
                 lifetime.Token.ThrowIfCancellationRequested();
                 if (capture?.Consumer?.IsCompleted == true) throw new IOException();
+                if (guard?.Alive == false) throw new IOException();
                 if (pipeline.Worker.IsCompleted) throw new IOException();
                 if (Stopwatch.GetTimestamp() - lastSample >= 2 * Stopwatch.Frequency)
                 {
@@ -104,6 +112,7 @@ internal static class FileCollector
             stopRequest = await stopSignal.Task;
             if (trace != null) { stats = trace.Stop(); stopped = stats.Status == 0; owns = !stopped; CheckStats(); }
             else stopped = true;
+            if (guard != null && stopped) await guard.Disarm();
             using var drain = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             if (capture?.Consumer != null) await capture.Consumer.WaitAsync(drain.Token);
             pipeline.Complete();
@@ -128,6 +137,7 @@ internal static class FileCollector
         {
             // All failure paths stop our handle BEFORE waiting for pipe tasks.
             if (owns) { stats = trace!.Stop(); stopped = stats.Status == 0; }
+            if (guard != null && stopped) { try { await guard.Disarm(); } catch { } }
             lifetime.Cancel();
             pipeline.Cancel();
             pipe.Dispose();

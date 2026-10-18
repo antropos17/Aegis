@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "scope": "Mutable local diagnostic Windows package; no production admission",
+  "source": {
+    "head": "c4d4cf472c3f594d179d531830c5a046c16827c5",
+    "tree": "a85ebc163c5799d6e7c8e203c6eea1a347c3716b",
+    "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+  },
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.11.1",
+    "os": "10.0.26200",
+    "compilerSha256": "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00"
+  },
+  "qualification": {
+    "status": "PASS",
+    "completedAt": "2026-10-17T03:41:48.475Z",
+    "receiptSha256": "6fc6037ca8bf0a216217531447f58a45f9d62e456e3a479ea0d2827768d3d9f7",
+    "etwReceiptSha256": "b97f72b3596f0b59eb7b2b40b8ffe68f6c0b66b2860e908b3a79ee123009d2c5",
+    "packageManifestSha256": "b694bc80379854ea45acabeb68b1b3423b15d438bdaf926e8f2a9504e037f693"
+  },
+  "checks": {
+    "nativeEtwSelfTests": 72,
+    "sharedLifecycleSelfTests": 29,
+    "focusedJavaScriptTests": 131
+  },
+  "crash": {
+    "status": "PASS",
+    "sync": {
+      "native": {
+        "command": "sync",
+        "pid": 49212,
+        "tid": 48560,
+        "birth": "134366820486325744",
+        "reads": 160,
+        "pending": 0,
+        "fromQpc": "1142333624519",
+        "toQpc": "1142383691714"
+      },
+      "observationProjection": {
+        "eventSeq": "87193",
+        "provider": "edd08927-9cc4-4e65-b970-c2560fb5c289",
+        "eventId": 15,
+        "version": 1,
+        "qpc": "1142373373332",
+        "headerPid": 49212,
+        "issuingTid": 48560,
+        "issuerPid": 49212,
+        "issuerStatus": "verified",
+        "issuerInterval": {
+          "fromQpc": "1142353601067",
+          "toQpc": "1142393383768"
+        },
+        "generationStatus": "verified",
+        "generationWitness": "134366820486325744",
+        "generationSource": "createTime100ns",
+        "generationInterval": {
+          "fromQpc": "1142393383034",
+          "toQpc": "1142393383768"
+        },
+        "agent": "Aider",
+        "instanceId": "49212:1792208448632",
+        "pathEvidence": "candidate-object"
+      }
+    },
+    "async": {
+      "native": {
+        "command": "async",
+        "pid": 49212,
+        "tid": 48560,
+        "birth": "134366820486325744",
+        "reads": 160,
+        "pending": 160,
+        "fromQpc": "1142394949717",
+        "toQpc": "1142444991639"
+      },
+      "observationProjection": {
+        "eventSeq": "87499",
+        "provider": "edd08927-9cc4-4e65-b970-c2560fb5c289",
+        "eventId": 15,
+        "version": 1,
+        "qpc": "1142394964657",
+        "headerPid": 49212,
+        "issuingTid": 48560,
+        "issuerPid": 49212,
+        "issuerStatus": "verified",
+        "issuerInterval": {
+          "fromQpc": "1142353601067",
+          "toQpc": "1142413536495"
+        },
+        "generationStatus": "verified",
+        "generationWitness": "134366820486325744",
+        "generationSource": "createTime100ns",
+        "generationInterval": {
+          "fromQpc": "1142413536435",
+          "toQpc": "1142413536495"
+        },
+        "agent": "Aider",
+        "instanceId": "49212:1792208448632",
+        "pathEvidence": "candidate-object"
+      }
+    },
+    "productionAdmission": false,
+    "populationReliable": true,
+    "healthVisible": true,
+    "failureVisible": true,
+    "failureVisibilityMs": 1341,
+    "guardClosureConfirmed": true,
+    "noAutomaticRestart": true,
+    "closureConfirmed": true,
+    "contentExcluded": true,
+    "noDiagnosticAudit": true,
+    "rapidExit": {
+      "native": {
+        "command": "short",
+        "pid": 53204,
+        "tid": 31364,
+        "birth": "134366820628146543",
+        "reads": 64,
+        "pending": 0,
+        "fromQpc": "1142445650246",
+        "toQpc": "1142445680041"
+      },
+      "observedReads": 65,
+      "noWrongGeneration": true,
+      "unresolvedReadProjection": {
+        "eventSeq": "91479",
+        "provider": "edd08927-9cc4-4e65-b970-c2560fb5c289",
+        "eventId": 15,
+        "version": 1,
+        "qpc": "1142445670539",
+        "headerPid": 53204,
+        "issuingTid": 31364,
+        "issuerPid": null,
+        "issuerStatus": "candidate",
+        "issuerInterval": null,
+        "generationStatus": "unresolved",
+        "generationWitness": null,
+        "generationSource": null,
+        "generationInterval": null,
+        "agent": null,
+        "instanceId": null,
+        "pathEvidence": "candidate-object"
+      }
+    },
+    "summary": {
+      "phase": "recovered",
+      "stopReason": null,
+      "exitCode": 4,
+      "stopVerified": false,
+      "recoveryVerified": true,
+      "observationGap": true,
+      "collectorExit": 70,
+      "finalCounters": {
+        "queryStatus": 0,
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "asOfQpc": "1142633230683"
+      },
+      "finalTotals": null,
+      "ringDropped": 156,
+      "maxima": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "delivered": "166552",
+        "filtered": "166141",
+        "dropped": "0",
+        "ingressDropped": "0",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "4",
+        "mapResets": "4",
+        "mapConflicts": "0"
+      }
+    }
+  },
+  "normal": {
+    "status": "PASS",
+    "sync": {
+      "native": {
+        "command": "sync",
+        "pid": 18892,
+        "tid": 53960,
+        "birth": "134366820879052384",
+        "reads": 160,
+        "pending": 0,
+        "fromQpc": "1142724056493",
+        "toQpc": "1142774081557"
+      },
+      "observationProjection": {
+        "eventSeq": "9968",
+        "provider": "edd08927-9cc4-4e65-b970-c2560fb5c289",
+        "eventId": 15,
+        "version": 1,
+        "qpc": "1142753206516",
+        "headerPid": 18892,
+        "issuingTid": 53960,
+        "issuerPid": 18892,
+        "issuerStatus": "verified",
+        "issuerInterval": {
+          "fromQpc": "1142743802094",
+          "toQpc": "1142773471407"
+        },
+        "generationStatus": "verified",
+        "generationWitness": "134366820879052384",
+        "generationSource": "createTime100ns",
+        "generationInterval": {
+          "fromQpc": "1142773461525",
+          "toQpc": "1142773471407"
+        },
+        "agent": "Aider",
+        "instanceId": "18892:1792208487905",
+        "pathEvidence": "candidate-object"
+      }
+    },
+    "async": {
+      "native": {
+        "command": "async",
+        "pid": 18892,
+        "tid": 53960,
+        "birth": "134366820879052384",
+        "reads": 160,
+        "pending": 160,
+        "fromQpc": "1142775342572",
+        "toQpc": "1142825266691"
+      },
+      "observationProjection": {
+        "eventSeq": "14553",
+        "provider": "edd08927-9cc4-4e65-b970-c2560fb5c289",
+        "eventId": 15,
+        "version": 1,
+        "qpc": "1142783148845",
+        "headerPid": 18892,
+        "issuingTid": 53960,
+        "issuerPid": 18892,
+        "issuerStatus": "verified",
+        "issuerInterval": {
+          "fromQpc": "1142743802094",
+          "toQpc": "1142803758422"
+        },
+        "generationStatus": "verified",
+        "generationWitness": "134366820879052384",
+        "generationSource": "createTime100ns",
+        "generationInterval": {
+          "fromQpc": "1142803758371",
+          "toQpc": "1142803758422"
+        },
+        "agent": "Aider",
+        "instanceId": "18892:1792208487905",
+        "pathEvidence": "candidate-object"
+      }
+    },
+    "productionAdmission": false,
+    "populationReliable": true,
+    "healthVisible": true,
+    "quitDuringCapture": true,
+    "closureConfirmed": true,
+    "contentExcluded": true,
+    "noDiagnosticAudit": true,
+    "summary": {
+      "phase": "stopped",
+      "stopReason": "shutdown",
+      "exitCode": 0,
+      "stopVerified": true,
+      "recoveryVerified": false,
+      "observationGap": false,
+      "collectorExit": null,
+      "finalCounters": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "queryStatus": 0,
+        "asOfQpc": "1142877249882"
+      },
+      "finalTotals": {
+        "delivered": "49964",
+        "filtered": "49660",
+        "dropped": "0",
+        "ingressDropped": "0",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "2",
+        "mapResets": "2",
+        "mapConflicts": "0"
+      },
+      "ringDropped": 47,
+      "maxima": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "delivered": "49964",
+        "filtered": "49660",
+        "dropped": "0",
+        "ingressDropped": "0",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "2",
+        "mapResets": "2",
+        "mapConflicts": "0"
+      }
+    }
+  },
+  "newSessionAfterRecovery": true,
+  "previousAttempts": [
+    {
+      "attempt": 1,
+      "status": "FAIL",
+      "sourceSha": "777050f8e0234554338b2cfee62653e4818b573e",
+      "reason": "Main diagnostic join read name instead of the annotated agent display field",
+      "receiptSha256": "7a8bdd9b26727a30ee2c915a6439d012119ffcd9329770a136c6a5d19fe35740"
+    },
+    {
+      "attempt": 2,
+      "status": "FAIL",
+      "sourceSha": "ea72bda1bc0c2c8cf4647e30e72ca5326562e0c4",
+      "reason": "Crash case passed; normal stopped acknowledgement and broker exit 0 observed, but signal-zero helper existence probe returned EPERM",
+      "receiptSha256": "ef9016bd52450e166c7182393f00d3ee63f7a466d387fdb2cc2b45666f0d3425"
+    }
+  ],
+  "limits": [
+    "Read v1 issuer proof is a verified subset, not complete capture",
+    "Path correlation remains candidate evidence",
+    "Real PID/TID reuse modeled only; actual rapid exit separately observed",
+    "Pre-arm and simultaneous collector/guard crash not qualified",
+    "Protected installation, alternate credentials, actual sleep/wake, mmap/Fast I/O and remaining E1-E8 gates open",
+    "Native final counters are measured; crash application-stage losses remain unknown; main ring eviction is separate",
+    "Raw private receipts, screenshots, profiles and failed attempts retained under manual seven-day review; projections omit synthetic absolute paths"
+  ]
+}

@@ -23,8 +23,10 @@ internal static class Program
         try
         {
             if (args is ["self-test"]) return FileTests.Run();
-            if (args.Length == 4 && args[0] is "broker" or "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
-            if (args.Length == 8 && args[0] is "collector" or "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
+            if (args.Length == 4 && args[0] is "broker" or "broker-crash-check" or "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
+            if (args.Length == 7 && args[0] == "guard") return await FileGuard.Run(args);
+            if (args.Length == 9 && args[0] is "collector" or "crash-collector") return await FileCollector.Run(args);
+            if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }
         catch { return 2; } // No raw exception, path, SID or pipe nonce on either stream.

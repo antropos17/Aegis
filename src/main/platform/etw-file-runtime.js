@@ -20,10 +20,12 @@ function createRuntime({
   exists = fs.existsSync,
   packageMetadata = require('../../../package.json'),
   resourcesPath = process.resourcesPath,
+  onHealthChange,
 }) {
   const prefix = '--etw-file-diagnostic-root=';
   const roots = argv.filter((value) => value.startsWith(prefix));
   const root = roots[0]?.slice(prefix.length);
+  const faults = argv.filter((value) => value.startsWith('--etw-file-diagnostic-fault='));
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;
   const executable =
     app.isPackaged && diagnosticPackage
@@ -34,12 +36,17 @@ function createRuntime({
         );
   const sensor = createSupervisor({
     maxCaptureMs: 60000,
+    onHealthChange,
     spawnBroker: (launchId, sessionId) =>
-      spawnProcess(executable, ['broker', launchId, sessionId, root], {
-        windowsHide: true,
-        shell: false,
-        stdio: ['pipe', 'pipe', 'ignore'],
-      }),
+      spawnProcess(
+        executable,
+        [faults.length ? 'broker-crash-check' : 'broker', launchId, sessionId, root],
+        {
+          windowsHide: true,
+          shell: false,
+          stdio: ['pipe', 'pipe', 'ignore'],
+        },
+      ),
   });
   const validRoot =
     typeof root === 'string' &&
@@ -58,6 +65,14 @@ function createRuntime({
     sensor.setUnavailable('DISABLED', 'deployment-gates-pending');
   else if (roots.length !== 1 || !validRoot)
     sensor.setUnavailable('FAILED', 'invalid-diagnostic-root');
+  else if (
+    faults.length &&
+    (!app.isPackaged ||
+      !diagnosticPackage ||
+      faults.length !== 1 ||
+      faults[0] !== '--etw-file-diagnostic-fault=collector-exit')
+  )
+    sensor.setUnavailable('FAILED', 'invalid-diagnostic-fault');
   else if (!exists(executable)) sensor.setUnavailable('FAILED', 'diagnostic-broker-missing');
   else permitted = true;
   let paused = false,

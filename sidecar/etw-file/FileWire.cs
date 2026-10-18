@@ -15,11 +15,13 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
         internal Envelope Message { get; } = message;
         internal Task Forward(Stream stream, CancellationToken token) => WriteBody(stream, body, token);
     }
-    internal const string Protocol = "etw-file/5", Profile = "home-26200-diagnostic-v1";
+    internal const string Protocol = "etw-file/6", Profile = "home-26200-diagnostic-v1";
     internal const int Limit = 256 * 1024;
     internal static readonly string[] Schemas = ["10:0", "12:1", "13:1", "14:1", "15:1"];
     private static readonly UTF8Encoding Utf8 = new(false, true);
     private ulong sent, received;
+    internal ulong LastReceived => received;
+    internal void ContinueAfter(ulong sequence) { if (sent != 0) throw new InvalidOperationException(); sent = sequence; }
     internal static bool Id(string value) => value.Length is > 0 and <= 64 && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     internal static void Shape(JsonElement value, params string[] names)
     {
