@@ -63,8 +63,13 @@ function createReadView({ getAgents, getHealth, classifySensitive, now = Date.no
         if (seq <= lastSeq) continue;
         lastSeq = seq;
         const pid = r.agent === null ? null : r.issuerPid;
-        const key = JSON.stringify([r.path, r.pathEvidence, r.instanceId, pid]);
-        const existing = rows.find((row) => row.key === key);
+        const existing = rows.find(
+          ({ value }) =>
+            value.path === r.path &&
+            value.pathEvidence === r.pathEvidence &&
+            value.instanceId === r.instanceId &&
+            value.pid === pid,
+        );
         if (existing) {
           existing.value.reads++;
           existing.value.observedAt = now();
@@ -92,7 +97,7 @@ function createReadView({ getAgents, getHealth, classifySensitive, now = Date.no
           omitted++;
           continue;
         }
-        rows.push({ key, cost, value });
+        rows.push({ cost, value });
         bytes += cost;
       }
     },

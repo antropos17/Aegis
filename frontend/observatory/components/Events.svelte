@@ -319,6 +319,9 @@
     {/if}
   </div>
 {/if}
+{#if !effectiveNetwork}
+  <FileReadObservations {telemetry} {scope} {query} paused={showingPaused} />
+{/if}
 {#if !effectiveNetwork || networkStatus !== 'unavailable' || networkSeen}
   <ObservationTable
     rows={filtered}
@@ -341,10 +344,6 @@
       scope?.instanceId,
     ])}
   />
-{/if}
-
-{#if !effectiveNetwork}
-  <FileReadObservations {telemetry} {scope} {query} paused={showingPaused} />
 {/if}
 
 <style>
