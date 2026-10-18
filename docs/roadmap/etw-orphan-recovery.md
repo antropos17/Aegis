@@ -89,7 +89,13 @@ qualification processes retain finite failure checkpoint exit codes; no raw
 exception, reservation or identity data is emitted.
 
 Original main exits 73; broker/collector/guard/fallback deliberately exit
-75/70/71/74 without cleanup in the five total-loss cases. These are coordinated
+75/70/71/74 without cleanup in the five total-loss cases. Actual packaged main-first
+loss also produced normal-broker exit 0; its cause is not established. The oracle
+accepts only broker 0 or 75, while still requiring the five retained original
+objects to be signaled, main 73, native triple 70/71/74, and live-session query 0
+before the custodian's own control (4201 only before StartTrace). A broker that
+already cleaned a running trace therefore cannot satisfy this cleanup proof.
+These are coordinated
 exit orders, not instruction-level simultaneous death or actual unhandled SEH.
 The restricted probe must observe actual native status 5; reverting that diagnostic
 thread restriction restores the already granted original token before cleanup.

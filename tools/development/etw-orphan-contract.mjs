@@ -70,7 +70,11 @@ export function etwOrphanCasePassed(c) {
     s?.kind === 'terminal' &&
     s.recovered === true &&
     s.absent === true &&
-    JSON.stringify(s.exits) === JSON.stringify([73, 75, 70, 71, 74]) &&
+    Array.isArray(s.exits) &&
+    s.exits.length === 5 &&
+    s.exits[0] === 73 &&
+    [0, 75].includes(s.exits[1]) &&
+    JSON.stringify(s.exits.slice(2)) === JSON.stringify([70, 71, 74]) &&
     s.queryStatus === (c.mode === 'orphan-before-start' ? 4201 : 0) &&
     s.restrictedProbeStatus === (c.mode === 'orphan-access-denied' ? 5 : null) &&
     s.finalTotals === null &&

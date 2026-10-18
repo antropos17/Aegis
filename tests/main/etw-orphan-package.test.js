@@ -127,4 +127,17 @@ describe('packaged recovery after the original main and four native processes ex
     c.presence.status = 5;
     expect(etwOrphanCasePassed(c)).toBe(false);
   });
+  it('accepts observed normal broker exit only with original-object closure and live-trace cleanup proof', () => {
+    const c = orphanCase('orphan-main-first');
+    c.terminal.receipt.exits[1] = 0;
+    expect(etwOrphanCasePassed(c)).toBe(true);
+    c.terminal.receipt.queryStatus = 4201;
+    expect(etwOrphanCasePassed(c)).toBe(false);
+    c.terminal.receipt.queryStatus = 0;
+    c.terminal.receipt.exits[1] = 2;
+    expect(etwOrphanCasePassed(c)).toBe(false);
+    c.terminal.receipt.exits[1] = 0;
+    c.closureConfirmed = false;
+    expect(etwOrphanCasePassed(c)).toBe(false);
+  });
 });
