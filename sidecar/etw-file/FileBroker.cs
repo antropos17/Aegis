@@ -50,7 +50,7 @@ internal static class FileBroker
         using var lifetime = new CancellationTokenSource();
         using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         using var expire = startup.Token.Register(() => pipe.Dispose());
-        using var child = Process.Start(info) ?? throw new InvalidOperationException();
+        using var child = await FileNativeChild.Start(info);
         using var recoveryLifetime = new CancellationTokenSource();
         FileGuardPeer? guard = null;
         FileGuardPeer? fallback = null;
@@ -63,9 +63,9 @@ internal static class FileBroker
         Stream input = Console.OpenStandardInput(), output = Console.OpenStandardOutput();
         try
         {
-            var identity = Security.Observe(child);
+            var identity = Security.Observe(child.SafeHandle, child.Id);
             await pipe.WaitForConnectionAsync(startup.Token);
-            Security.Verify(pipe, child, identity.Birth, true, live);
+            Security.Verify(pipe, child.SafeHandle, child.Id, identity.Birth, true, live);
             startup.CancelAfter(Timeout.InfiniteTimeSpan);
             if (recoveryPipe != null)
             {

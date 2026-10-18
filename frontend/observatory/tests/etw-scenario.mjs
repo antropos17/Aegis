@@ -172,7 +172,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     await card.scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(out, 'etw.png') });
     r.ownedPids = await ownedPids(app, appProcess.pid, env);
-    r.traceHelperPids = traceHelpers(r.ownedPids, env);
+    r.traceHelperPids = traceHelpers(r.ownedPids, env, (await diagnostics(app)).nativeProcessIds);
     assert(
       r.traceHelperPids.length >= 3,
       'Broker, collector and independent guard were not observed',

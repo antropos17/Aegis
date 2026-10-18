@@ -100,7 +100,7 @@ export async function runOrphanFailure({ executable, out, mode }) {
     assert.equal(r.liveReady, !early);
     r.boundary = phase;
     r.ownedPids = await ownedPids(app, child.pid, env);
-    r.helperPids = traceHelpers(r.ownedPids, env);
+    r.helperPids = traceHelpers(r.ownedPids, env, data.nativeProcessIds);
     assert(r.helperPids.length >= 5 && r.helperPids.includes(r.reserved.custodianPid));
     assert(r.reserved.originalPids.slice(1).every((pid) => r.helperPids.includes(pid)));
     r.presence = await inspectSession(helper, out, 'during', env);

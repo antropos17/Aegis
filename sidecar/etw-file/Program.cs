@@ -23,6 +23,8 @@ internal static class Program
         try
         {
             if (args is ["self-test"]) return FileTests.Run();
+            if (args.Length == 2 && args[0] == "qualification-launcher") return await FileQualificationClient.Launcher(args[1]);
+            if (args.Length == 5 && args[0] == "qualification-host") return await FileQualificationHost.Run(args);
             if (args is ["observe-custodian"]) return await FileOrphanObserver.Run();
             if (args.Length == 5 && args[0] == "custodian" && args[4] is "normal" or "denial-check" or "exit-check")
                 return await FileOrphanCustodian.Run(args);
@@ -50,12 +52,8 @@ internal static class Program
                 "check-broker" or "check-loss-broker") return await FileBroker.Run(args);
             if (args.Length == 8 && args[0] == "guard" && args[7] is "normal" or "exit-after-arm" or "exit-with-owner") return await FileGuard.Run(args);
             if (args.Length == 8 && args[0] == "fallback" && args[7] is "normal" or "exit-with-owner" or "exit-after-reserve") return await FileFallback.Run(args);
-            if ((args.Length == 10 || args.Length == 11 && args[10] == "orphan-custody") && args[0] is "collector" or "crash-collector" or "prestart-collector" or
-                "prearm-collector" or "guard-loss-collector" or "dual-guard-collector" or "dual-collector" or
-                "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or "triple-guard-collector" or
-                "triple-fallback-collector" or "triple-prearm-collector" or "triple-prestart-collector" or "group-parent-collector" or
-                "orphan-prestart-collector" or "orphan-prearm-collector" or "orphan-main-collector" or "orphan-native-collector" or
-                "orphan-denial-collector" or "custodian-exit-collector") return await FileCollector.Run(args);
+            if ((args.Length == 10 || args.Length == 11 && args[10] == "orphan-custody") &&
+                FileQualificationPolicy.Collector(args[0])) return await FileCollector.Run(args);
             if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }

@@ -193,11 +193,13 @@ export function scenarioPaths(out, canary) {
 
 /** Observe descendants of the retained app roots, including elevated collector/guard.
  * These PIDs are existence witnesses only; no intervention uses them.
- * @param {number[]} roots @param {object} env @returns {number[]} @since v0.19.2
+ * @param {number[]} roots @param {object} env @param {number[]} nativeIds Original custody IDs.
+ * @returns {number[]} @since v0.19.2
  */
-export function traceHelpers(roots, env) {
-  let parents = [...roots];
-  const helpers = [];
+export function traceHelpers(roots, env, nativeIds = []) {
+  assert(nativeIds.length <= 4 && nativeIds.every((pid) => Number.isSafeInteger(pid) && pid > 0));
+  let parents = [...new Set([...roots, ...nativeIds])];
+  const helpers = [...nativeIds];
   for (let depth = 0; depth < 4 && parents.length; depth++) {
     assert(parents.every((pid) => Number.isInteger(pid) && pid > 0));
     const filter = parents.map((pid) => `ParentProcessId = ${pid}`).join(' OR ');

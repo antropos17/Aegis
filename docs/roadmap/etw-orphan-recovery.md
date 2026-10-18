@@ -53,6 +53,33 @@ probe, custodian-only exit, and the [twenty-two earlier cases](etw-main-custody.
 It plans twenty-eight capture consents and the two earlier cleanup consents;
 read-only queries denied by Windows may require more consent.
 
+For a local qualification batch, `EtwFile qualification-launcher <qualification-root>`
+offers one explicit UAC consent for a temporary launch host. Its private endpoint
+is passed only through the batch's process environment as `AEGIS_ETW_QUALIFICATION_HOST`.
+The normal launcher owns its bootstrap connection and stdin lifetime. The host
+expires after forty minutes, accepts at most 128 connections and 64 launches, and
+has no service, scheduled task, persistent configuration, file writer or ETW
+control path. It launches only its own executable with the existing collector or
+cleanup-worker argument shapes. Each caller must be the actual normal-token
+same-image, same-user/logon native child of a live normal packaged main. All pipe
+peers are verified with original process handles and full birth times. Capture
+fixtures must remain under the initially authorised ordinary directory tree.
+The normal caller receives only a noninheritable query/synchronize child-object
+reference; no remote TerminateProcess right is granted. Normal main and broker
+remain unelevated. Native collector/guard/custodian validation and reservation
+cleanup are unchanged; the host holds no reservation or recovery handles.
+
+This batch qualifies activation through that temporary host, rather than thirty
+separate ShellExecute consent interactions. It does not independently qualify
+each ordinary UAC activation. The mutable lab package is not a protected-install
+trust boundary. No Windows UAC setting, permission, account or global environment
+variable changes. Closing the normal launcher ends new launch authority; the
+host waits boundedly for existing children and reports any still alive without
+terminating them. A failed batch must preserve its receipt and check trace/helper
+closure. Internal main diagnostics expose only four original native process IDs
+for existence observations across this changed parent relationship; GUID, births
+and process handles remain private.
+
 Original main exits 73; broker/collector/guard/fallback deliberately exit
 75/70/71/74 without cleanup in the five total-loss cases. These are coordinated
 exit orders, not instruction-level simultaneous death or actual unhandled SEH.
@@ -65,8 +92,9 @@ pending overlapped read attribution and acknowledged normal stop.
 
 ## Current evidence
 
-Implementation and offline checks are prepared. Native self-tests passed 96 cases;
-319 focused JS tests passed across ten files. Effective typecheck, Svelte check,
+Implementation and offline checks are prepared. Native self-tests passed 98 cases;
+the prior implementation passed 319 focused JS tests across ten files; the launch
+host extension and copied-ID observation tests require refreshed checks. Effective typecheck, Svelte check,
 renderer build, formatting, lint and tracked counts passed. Normal-token synthetic
 transport passed. Semgrep is unavailable (`ENOENT`). Actual packaged qualification
 is pending; no new live recovery PASS or production admission is claimed here.

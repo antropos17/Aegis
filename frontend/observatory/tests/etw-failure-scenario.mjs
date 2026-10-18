@@ -78,7 +78,7 @@ export async function runFailure({ executable, out, mode }) {
       await delay(100);
     } while (Date.now() < readyUntil);
     r.ownedPids = await ownedPids(app, child.pid, env);
-    r.helperPids = early ? [] : traceHelpers(r.ownedPids, env);
+    r.helperPids = early ? [] : traceHelpers(r.ownedPids, env, data.nativeProcessIds);
     r.mainCustodyObserved = data.custodyObserved === true;
     if (early) {
       r.summary = data.summaries.at(-1);
