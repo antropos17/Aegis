@@ -36,6 +36,12 @@ function createRuntime({
     'dual-collector-first': 'broker-dual-collector-check',
     'dual-before-arm': 'broker-dual-prearm-check',
     'dual-before-start': 'broker-dual-prestart-check',
+    'triple-collector-first': 'broker-triple-collector-check',
+    'triple-guard-first': 'broker-triple-guard-check',
+    'triple-fallback-first': 'broker-triple-fallback-check',
+    'triple-before-arm': 'broker-triple-prearm-check',
+    'triple-before-start': 'broker-triple-prestart-check',
+    'triple-access-denied': 'broker-triple-denial-check',
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;

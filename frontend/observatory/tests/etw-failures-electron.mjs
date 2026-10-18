@@ -8,12 +8,14 @@ import { runScenario } from './etw-scenario.mjs';
 import { compileReadFixture } from './etw-failure-support.mjs';
 import { etwFailuresPassed } from '../../../tools/development/etw-failure-contract.mjs';
 import { etwDualPassed } from '../../../tools/development/etw-dual-contract.mjs';
+import { etwTotalPassed } from '../../../tools/development/etw-total-contract.mjs';
 
 const { values } = parseArgs({
   options: {
     executable: { type: 'string' },
     output: { type: 'string' },
     dual: { type: 'boolean', default: false },
+    total: { type: 'boolean', default: false },
   },
 });
 assert(process.platform === 'win32' && process.arch === 'x64');
@@ -28,18 +30,32 @@ const r = {
   startedAt: new Date().toISOString(),
   productionAdmission: false,
   cases: {},
-  scope: values.dual
-    ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
-    : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
-  simultaneousGuardCollectorLoss: values.dual
-    ? 'four planned local diagnostic captures'
+  scope: values.total
+    ? 'Six all-three-helper loss cases plus eleven existing packaged regressions'
+    : values.dual
+      ? 'Four collector/guard loss boundaries plus seven existing packaged regressions'
+      : 'Five failure boundaries plus collector-crash and fresh-capture attribution regression',
+  simultaneousGuardCollectorLoss:
+    values.dual || values.total ? 'four planned local diagnostic captures' : 'not-run',
+  allThreeElevatedPeersLost: values.total
+    ? 'six planned local diagnostic captures; original normal broker survives'
     : 'not-run',
-  allThreeElevatedPeersLost: 'not-qualified; requires protected durable recovery authority',
+  lossOfBrokerAndAllElevatedPeers: 'not-qualified; requires protected durable recovery authority',
   protectedInstallationSleepWakeAndPathAdmission: 'not-qualified',
 };
 try {
   for (const mode of [
-    ...(values.dual
+    ...(values.total
+      ? [
+          'triple-before-start',
+          'triple-before-arm',
+          'triple-collector-first',
+          'triple-guard-first',
+          'triple-fallback-first',
+          'triple-access-denied',
+        ]
+      : []),
+    ...(values.dual || values.total
       ? ['dual-before-start', 'dual-before-arm', 'dual-guard-first', 'dual-collector-first']
       : []),
     'collector-before-start',
@@ -83,7 +99,8 @@ try {
   };
   r.status = 'PASS';
   assert(etwFailuresPassed(r), 'Incomplete boundary qualification');
-  if (values.dual) assert(etwDualPassed(r), 'Incomplete dual-loss qualification');
+  if (values.dual || values.total) assert(etwDualPassed(r), 'Incomplete dual-loss qualification');
+  if (values.total) assert(etwTotalPassed(r), 'Incomplete all-helper-loss qualification');
 } catch (e) {
   r.status = 'FAIL';
   r.failure = e.message;

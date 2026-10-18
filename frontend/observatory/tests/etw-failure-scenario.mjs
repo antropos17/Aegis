@@ -65,7 +65,8 @@ export async function runFailure({ executable, out, mode }) {
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
     console.log('Waiting for one same-account capture UAC decision: ' + mode);
     const dual = mode.startsWith('dual-');
-    const early = mode.startsWith('collector-before-') || mode.startsWith('dual-before-');
+    const triple = mode.startsWith('triple-');
+    const early = mode.includes('-before-');
     let data;
     const readyUntil = Date.now() + 135000;
     do {
@@ -87,6 +88,7 @@ export async function runFailure({ executable, out, mode }) {
       assert.equal(data.restartBlocked, false);
       assert.equal(r.summary.finalCounters.queryStatus, mode.endsWith('before-start') ? 4201 : 0);
       if (dual) assert.equal(r.summary.recoveryCause, 'collector-and-guard-exited');
+      if (triple) assert.equal(r.summary.recoveryCause, 'all-three-helpers-exited');
       r.nativeHelperClosure =
         'broker verified retained collector, primary guard and fallback exits';
     } else {
@@ -112,15 +114,32 @@ export async function runFailure({ executable, out, mode }) {
       assert.equal(r.appExitCode, 73);
       r.abruptAppExit = true;
     } else {
-      const until = Date.now() + 55000;
+      const until = Date.now() + (mode === 'triple-access-denied' ? 185000 : 55000);
       while (!data.summaries.length && Date.now() < until) {
+        if (data.recoveryPending) r.recoveryPendingObserved = true;
         await delay(100);
         data = await diagnostics(app);
       }
       r.summary = data.summaries.at(-1);
       assert(r.summary, 'No ended capture summary');
       assert.equal(data.records.length, 0);
-      if (dual || mode === 'guard-exit') {
+      if (triple) {
+        assert.equal(data.restartBlocked, false);
+        assert.equal(r.summary.recoveryVerified, true);
+        assert.equal(r.summary.recoveryCause, 'all-three-helpers-exited');
+        assert.deepEqual(r.summary.recoveryPeers, {
+          guardExit: 71,
+          fallbackExit: 74,
+          brokerElevated: false,
+          cleanupElevated: mode === 'triple-access-denied',
+          accessDenied: mode === 'triple-access-denied',
+        });
+        assert.equal(r.summary.exitCode, 4);
+        assert.equal(r.summary.collectorExit, 70);
+        assert.equal(r.summary.finalCounters.queryStatus, mode.endsWith('before-start') ? 4201 : 0);
+        assert.equal(r.summary.finalTotals, null);
+        assert.equal(r.summary.observationGap, true);
+      } else if (dual || mode === 'guard-exit') {
         assert.equal(data.restartBlocked, false);
         assert.equal(r.summary.recoveryVerified, true);
         assert.equal(r.summary.recoveryCause, 'collector-and-guard-exited');

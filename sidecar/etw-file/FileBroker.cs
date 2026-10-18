@@ -24,6 +24,9 @@ internal static class FileBroker
             "broker-prearm-check" => "prearm-collector", "broker-guard-check" => "guard-loss-collector",
             "broker-dual-guard-check" => "dual-guard-collector", "broker-dual-collector-check" => "dual-collector",
             "broker-dual-prearm-check" => "dual-prearm-collector", "broker-dual-prestart-check" => "dual-prestart-collector",
+            "broker-triple-collector-check" or "broker-triple-denial-check" => "triple-collector", "broker-triple-guard-check" => "triple-guard-collector",
+            "broker-triple-fallback-check" => "triple-fallback-collector", "broker-triple-prearm-check" => "triple-prearm-collector",
+            "broker-triple-prestart-check" => "triple-prestart-collector",
             _ => "collector" } :
             args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
         var info = Program.Child(collector, args[1], args[2], pipeId,
@@ -45,6 +48,7 @@ internal static class FileBroker
         FileGuardPeer? fallback = null;
         Task<FileGuardResult>? recovery = null;
         Task<FileGuardResult>? fallbackRecovery = null;
+        string? reservation = null;
         try
         {
             var identity = Security.Observe(child);
@@ -69,6 +73,7 @@ internal static class FileBroker
                 fallback = new FileGuardPeer(second.pid);
                 await fallbackPipe!.WaitForConnectionAsync(connect.Token);
                 fallback.Verify(fallbackPipe, secondBirth);
+                reservation = FileBrokerRecovery.Reservation(hello.guid, second.guid);
                 fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
                 await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
             }
@@ -105,16 +110,41 @@ internal static class FileBroker
                         fallback.WaitForExitAsync(TimeSpan.FromSeconds(12)));
                     FileGuardResult? primary = null;
                     try { primary = await recovery.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
-                    var secondary = await fallbackRecovery.WaitAsync(TimeSpan.FromSeconds(2));
-                    var chosen = FileRecoveryPolicy.Select(child.ExitCode, guard.ExitCode, fallback.ExitCode, primary, secondary);
-                    var receipt = chosen.Receipt;
-                    var counters = receipt.counters ?? new FileStats(50, null, null, null, null, null);
+                    FileGuardResult? secondary = null;
+                    try { secondary = await fallbackRecovery.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
+                    FileGuardResult receipt;
+                    string cause;
+                    bool cleanupElevated = false, accessDenied = false;
                     var terminal = new FileWire(args[1], args[2]);
                     terminal.ContinueAfter(read.LastReceived);
+                    try
+                    {
+                        var chosen = FileRecoveryPolicy.Select(child.ExitCode, guard.ExitCode, fallback.ExitCode, primary, secondary);
+                        receipt = chosen.Receipt;
+                        cause = chosen.Fallback ? "collector-and-guard-exited" : "collector-exited";
+                    }
+                    catch (IOException)
+                    {
+                        FileGuardResult Recover() => FileBrokerRecovery.Recover(reservation, child.HasExited, guard.HasExited, fallback.HasExited);
+                        receipt = args[0] == "broker-triple-denial-check" ? FileRecoveryAccess.RestrictedProbe(Recover) : Recover();
+                        if (FileRecoveryAccess.NeedsConsent(receipt))
+                        {
+                            accessDenied = true;
+                            await terminal.Write(output, "recovering", new
+                            { cause = "all-three-helpers-exited", queryStatus = 5, consentDeadlineMs = 120000 }, lifetime.Token);
+                            receipt = await FileRecoveryConsent.Start(reservation!);
+                            cleanupElevated = true;
+                        }
+                        if (receipt.kind != "recovered" || !receipt.stopped || !receipt.absent) throw new IOException();
+                        cause = "all-three-helpers-exited";
+                    }
+                    var counters = receipt.counters ?? new FileStats(50, null, null, null, null, null);
                     Volatile.Write(ref terminalObserved, 2);
                     await terminal.Write(output, "recovered", new
                     {
-                        cause = chosen.Fallback ? "collector-and-guard-exited" : "collector-exited", stopped = true, absent = true,
+                        cause, stopped = true, absent = true,
+                        peers = new { guardExit = guard.ExitCode, fallbackExit = fallback.ExitCode, brokerElevated = self.Elevated,
+                            cleanupElevated, accessDenied },
                         counters = new { queryStatus = counters.Status, eventsLost = counters.Events?.ToString(),
                             realTimeBuffersLost = counters.RealTime?.ToString(), logBuffersLost = counters.Log?.ToString(),
                             asOfQpc = receipt.asOfQpc },
@@ -127,7 +157,13 @@ internal static class FileBroker
                 var first = await Task.WhenAny(inbound, outbound);
                 // Main closes stdin immediately after accepting stopped. Its EOF may
                 // win the scheduling race with the outbound task completing its flush.
-                if (first == inbound && Volatile.Read(ref terminalObserved) == 0) await inbound;
+                if (first == inbound && Volatile.Read(ref terminalObserved) == 0)
+                {
+                    // A failed ping can win the race with collector EOF. Close
+                    // the data pipe, then let the same outbound recovery path
+                    // establish cleanup before lifetime cancellation.
+                    try { await inbound; } catch { pipe.Dispose(); }
+                }
                 await outbound;
                 await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(7));
                 if (guard != null)
@@ -138,7 +174,7 @@ internal static class FileBroker
                 if (fallback != null)
                 {
                     await fallback.WaitForExitAsync(TimeSpan.FromSeconds(7));
-                    if (fallback.ExitCode != 0) return 2;
+                    if (fallback.ExitCode != 0 && Volatile.Read(ref terminalObserved) != 2) return 2;
                 }
                 if (Volatile.Read(ref terminalObserved) == 2) return 4; // Cleanup succeeded; capture failed.
                 return child.ExitCode == 0 ? 0 : 2;
