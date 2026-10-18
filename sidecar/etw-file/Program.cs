@@ -57,6 +57,6 @@ internal static class Program
             if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }
-        catch { return 2; } // No raw exception, path, SID or pipe nonce on either stream.
+        catch { return FileQualificationDiagnostic.Failure; } // Finite qualification checkpoint only; no raw exception/path/SID/nonce.
     }
 }

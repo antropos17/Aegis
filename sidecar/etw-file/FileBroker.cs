@@ -63,9 +63,11 @@ internal static class FileBroker
         Stream input = Console.OpenStandardInput(), output = Console.OpenStandardOutput();
         try
         {
+            FileQualificationDiagnostic.Step = 10;
             var identity = Security.Observe(child.SafeHandle, child.Id);
             await pipe.WaitForConnectionAsync(startup.Token);
             Security.Verify(pipe, child.SafeHandle, child.Id, identity.Birth, true, live);
+            FileQualificationDiagnostic.Step = 11;
             startup.CancelAfter(Timeout.InfiniteTimeSpan);
             if (recoveryPipe != null)
             {
@@ -76,6 +78,7 @@ internal static class FileBroker
                 guard = new FileGuardPeer(hello.pid);
                 await recoveryPipe.WaitForConnectionAsync(connect.Token);
                 guard.Verify(recoveryPipe, birth);
+                FileQualificationDiagnostic.Step = 12;
                 recovery = FileGuardWire.Read<FileGuardResult>(recoveryPipe, recoveryLifetime.Token);
                 await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
                 var second = await FileGuardWire.Read<FileGuardHello>(pipe, connect.Token);
@@ -85,6 +88,7 @@ internal static class FileBroker
                 fallback = new FileGuardPeer(second.pid);
                 await fallbackPipe!.WaitForConnectionAsync(connect.Token);
                 fallback.Verify(fallbackPipe, secondBirth);
+                FileQualificationDiagnostic.Step = 13;
                 reservation = FileBrokerRecovery.Reservation(hello.guid, second.guid);
                 fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
                 if (mainEscrow)
@@ -93,11 +97,14 @@ internal static class FileBroker
                     mainCustody = FileMainCustody.Deposit(reservation,
                         [(self.Pid, originalBroker.SafeHandle), (child.Id, child.SafeHandle),
                          (guard.Id, guard.Handle), (fallback.Id, fallback.Handle)]);
+                    FileQualificationDiagnostic.Step = 14;
                     // Collector cannot start until this independent authority and main both acknowledge custody.
                     await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
                     connect.CancelAfter(Timeout.InfiniteTimeSpan);
                     custodian = await FileOrphanBroker.Reserve(pipe, mainCustody, args.Length == 6 ? args[5] : null);
+                    FileQualificationDiagnostic.Step = 15;
                     await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody.Reservation, connect.Token);
+                    FileQualificationDiagnostic.Step = 16;
                     custodianWatch = FileOrphanBroker.Watch(custodian, pipe, lifetime.Token);
                 }
                 else await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);

@@ -55,6 +55,7 @@ internal static class FileQualificationHost
                     var info = Program.Child(value.args);
                     info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
                     info.Environment.Remove(FileQualificationPolicy.Variable);
+                    info.Environment["AEGIS_ETW_QUALIFICATION_CHILD"] = "1";
                     var child = Process.Start(info) ?? throw new IOException(); children.Add(child);
                     var witness = FileMainHandles.Deposit(client, child.SafeHandle, child.Id);
                     // An ambiguous delivery is never remotely closed/retried. At worst the
@@ -75,7 +76,8 @@ internal static class FileQualificationHost
         while (children.Any(c => !c.HasExited) && Stopwatch.GetElapsedTime(until).TotalSeconds < 25) await Task.Delay(100);
         int live = children.Count(c => !c.HasExited);
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        try { await FileGuardWire.Write(bootstrap, new FileQualificationFinished(children.Count, live), finish.Token); }
+        try { await FileGuardWire.Write(bootstrap, new FileQualificationFinished(children.Count, live,
+            children.Where(c => c.HasExited).Select(c => c.ExitCode).ToArray()), finish.Token); }
         finally { foreach (var child in children) child.Dispose(); }
         return live == 0 ? 0 : 2;
     }

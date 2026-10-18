@@ -78,8 +78,24 @@ export async function runOrphanFailure({ executable, out, mode }) {
       if (errors.length < 10) errors.push(e.message);
     });
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
-    console.log('Waiting for one same-account capture UAC decision: ' + mode);
-    r.reserved = await observer.until((m) => m.type === 'reserved', 135000);
+    console.log(
+      (env.AEGIS_ETW_QUALIFICATION_HOST
+        ? 'Shared-consent capture: '
+        : 'Waiting for one same-account capture UAC decision: ') + mode,
+    );
+    const reservationUntil = Date.now() + 135000;
+    while (!observer.events().some((m) => m.type === 'reserved') && Date.now() < reservationUntil) {
+      const pending = await diagnostics(app);
+      if (pending.summaries.length) {
+        r.startFailure = pending;
+        throw new Error(
+          'Capture ended before custodian reservation; broker exit ' +
+            pending.summaries.at(-1).exitCode,
+        );
+      }
+      await delay(100);
+    }
+    r.reserved = await observer.until((m) => m.type === 'reserved', 1000);
     assert.equal(r.reserved.originalPids[0], r.mainPid);
     const phase =
       mode === 'orphan-before-start'

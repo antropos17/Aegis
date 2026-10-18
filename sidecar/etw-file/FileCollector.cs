@@ -6,11 +6,13 @@ internal static class FileCollector
 {
     internal static async Task<int> Run(string[] args)
     {
+        FileQualificationDiagnostic.Step = 100;
         bool live = args[0] is not ("check-collector" or "check-loss-collector");
         if (Security.Current().Elevated != live || !FileWire.Id(args[1]) || !FileWire.Id(args[2]) || args[7] != FileWire.Profile) return 3;
         using var parent = Process.GetProcessById(int.Parse(args[4]));
         using var pipe = Security.Client(args[3]);
         Security.Verify(pipe, parent, ulong.Parse(args[5]), false, false);
+        FileQualificationDiagnostic.Step = 101;
         var scope = new FileScope(args[6]);
         var ingress = new FileIngress();
         bool checkLoss = args[0] == "check-loss-collector";
@@ -31,10 +33,13 @@ internal static class FileCollector
         };
         await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, guardMode) : null;
+        FileQualificationDiagnostic.Step = 102;
         await using var fallback = live ? await FileGuardOwner.Start(args[9], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, args[0] == "triple-fallback-collector" ? "exit-after-reserve" :
                 args[0].StartsWith("triple-", StringComparison.Ordinal) || args[0] == "group-parent-collector" || orphanFault ? "exit-with-owner" : "normal", guard!.Identity) : null;
+        FileQualificationDiagnostic.Step = 103;
         using var orphan = await FileOrphanCollector.Start(args, pipe, parent, guard, fallback, trace?.Reservation);
+        FileQualificationDiagnostic.Step = 104;
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
         string? stopRequest = null;

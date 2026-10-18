@@ -5,21 +5,25 @@ namespace Aegis.EtwLifecycle;
 
 internal sealed record FileQualificationRequest(string[] args);
 internal sealed record FileQualificationReady(string address);
-internal sealed record FileQualificationFinished(int launches, int liveChildren);
+internal sealed record FileQualificationFinished(int launches, int liveChildren, int[] childExitCodes);
 
 internal static class FileQualificationClient
 {
     internal static async Task<FileNativeChild> Start(ProcessStartInfo info, string address)
     {
+        FileQualificationDiagnostic.Step = 1;
         if (Security.Current().Elevated || info.FileName != Program.Executable) throw new UnauthorizedAccessException();
         var endpoint = FileOrphanWire.Observer(address) ?? throw new InvalidDataException();
         using var host = new FileGuardPeer(endpoint.pid);
         using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        FileQualificationDiagnostic.Step = 2;
         using var pipe = Security.Client(endpoint.id);
         Security.Verify(pipe, host.Handle, host.Id, ulong.Parse(endpoint.birth), false, true);
+        FileQualificationDiagnostic.Step = 3;
         await FileGuardWire.Write(pipe, new FileQualificationRequest(info.ArgumentList.ToArray()), limit.Token);
         var witness = await FileGuardWire.Read<FileMainWitness>(pipe, limit.Token);
         using var self = new SafeProcessHandle(new IntPtr(-1), false);
+        FileQualificationDiagnostic.Step = 4;
         var handle = FileMainHandles.Retrieve(self, witness);
         try
         {
@@ -27,7 +31,9 @@ internal static class FileQualificationClient
             if (!peer.Elevated || peer.User != current.User || peer.Logon != current.Logon ||
                 !peer.Image.Equals(Program.Executable, StringComparison.OrdinalIgnoreCase) || FileMainHandles.Gone(handle))
                 throw new UnauthorizedAccessException();
+            FileQualificationDiagnostic.Step = 5;
             FileMainHandles.Release(self, witness); // Only the fully verified local deposit; never retry.
+            FileQualificationDiagnostic.Step = 6;
             return new(witness.pid, handle);
         }
         catch { handle.Dispose(); throw; }
@@ -58,7 +64,7 @@ internal static class FileQualificationClient
         await FileGuardWire.Write(pipe, new FileGuardCommand("finish"), finish.Token);
         var result = await FileGuardWire.Read<FileQualificationFinished>(pipe, finish.Token);
         await child.WaitForExitAsync(finish.Token);
-        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { type = "host-finished", result.launches, result.liveChildren, exitCode = child.ExitCode }));
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { type = "host-finished", result.launches, result.liveChildren, result.childExitCodes, exitCode = child.ExitCode }));
         return result.liveChildren == 0 && child.ExitCode == 0 ? 0 : 2;
     }
 }
