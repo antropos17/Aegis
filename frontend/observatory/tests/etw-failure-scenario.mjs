@@ -52,6 +52,7 @@ export async function runFailure({ executable, out, mode }) {
         return {
           packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
           diagnosticBuild: require('./package.json').aegisEtwDiagnostic === true,
+          mainPid: process.pid,
           windowInputIsolated: !w.isFocusable() && !w.isFocused(),
         };
       }),
@@ -205,7 +206,7 @@ export async function runFailure({ executable, out, mode }) {
       }
       r.restartBlocked = data.restartBlocked;
       r.mainSurvived =
-        (await app.evaluate(() => process.pid)) === child.pid && child.exitCode === null;
+        (await app.evaluate(() => process.pid)) === r.mainPid && child.exitCode === null;
       assert.equal(r.mainSurvived, true);
       const health = await page.evaluate(async () => (await window.aegis.getStats()).appHealth);
       assert.equal(health.sensors.byId['etw-file'].state, 'FAILED');
