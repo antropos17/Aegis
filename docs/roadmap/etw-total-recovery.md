@@ -78,22 +78,29 @@ broker was normal in every target case. Sensors remained FAILED, final stage tot
 were null and no capture automatically restarted. All target cases independently
 queried absence afterward; ready cases first observed actual session presence.
 
-Thirteen planned captures passed. The full sweep stopped at `broker-exit` before
-ready while a Windows consent window was awaiting a decision. A continuation on
-the identical package reached the same startup expiry. Its earlier private launch
-attempt used an incorrect executable basename and failed before capture. All three
-attempts are retained; no single-sweep PASS is claimed. `broker-exit`, `app-exit`,
-collector-after-ready and fresh normal capture remain incomplete for this revision.
-The PR remains draft until those four regressions receive fresh UAC confirmations.
+Thirteen planned captures passed in the first attempt. The full sweep stopped at
+`broker-exit` before ready while a Windows consent window was awaiting a decision.
+A continuation on the identical package reached the same startup expiry. Its
+earlier private launch attempt used an incorrect executable basename and failed
+before capture. These failed attempts are retained; no single-sweep PASS is claimed.
+
+After fresh UAC confirmations, a bounded continuation passed `broker-exit`,
+`app-exit`, collector-after-ready and fresh normal capture on the same immutable
+package. The seventeen-case oracle accepted the thirteen retained PASS captures
+plus these four actual PASS captures. The checkout only added documentation after
+the runtime freeze; the harness, runtime and full package manifest stayed unchanged
+before/after the continuation. Both read captures verified synchronous reads and
+160/160 actual pending overlapped reads. The fresh normal capture stopped with
+exit 0, zero sampled native/stage drops and 78 main-ring evictions; complete read
+coverage is not claimed.
 
 All 229 archived main/shared JS/JSON files matched frozen source, the native DLL
 matched publication, no mutation fixture entered the package and the full package
-manifest remained unchanged after the attempts. Fifteen created profiles, including
-failed startups, had no diagnostic ETW/fixture audit admission; the failed launch
-created no profile. Native self-tests passed 86 cases and focused JS tests passed
-223. Typecheck, task lint, derived counts, native whitespace and normal-token
-synthetic transport passed. Local Semgrep was unavailable (`ENOENT`). These checks
-do not replace the four missing packaged regressions.
+manifest remained unchanged after the attempts. Nineteen created profiles,
+including failed startups, had no diagnostic ETW/fixture audit admission; the failed
+launch created no profile. Native self-tests passed 86 cases and focused JS tests
+passed 223. Typecheck, task lint, derived counts, native whitespace and normal-token
+synthetic transport passed. Local Semgrep was unavailable (`ENOENT`).
 
 Broker loss together with all elevated peers, refused/abandoned cleanup consent,
 protected durable recovery, protected installation, alternate credentials, actual

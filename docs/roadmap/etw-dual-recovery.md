@@ -85,7 +85,8 @@ errors and the meaningful native red test are identified in the evidence.
 This historical profile is an in-memory recovery authority in a mutable local
 diagnostic package. It did not qualify loss of all three elevated peers. The
 [all-helper follow-up](etw-total-recovery.md) now records six target PASS cases with
-the original normal broker surviving; four packaged regressions remain incomplete.
+the original normal broker surviving and all seventeen cases accepted across
+retained captures and a bounded continuation on the same immutable package.
 Loss of broker plus all elevated peers, protected/durable service recovery,
 protected installation, alternate credentials and actual sleep/wake remain unqualified.
 Production ETW stays disabled by default. Path confirmation, complete I/O coverage

@@ -246,11 +246,14 @@ Seventeen capture consents and one cleanup consent are planned; query witnesses 
 need additional consent. See [all-helper recovery](../roadmap/etw-total-recovery.md).
 
 The [2026-10-18 evidence](../recon/evidence/etw-packaged-total-recovery.json) records
-six target PASS cases and thirteen total PASS captures at source `6b66655a`. Both the
-initial sweep and a bounded continuation stopped before `broker-exit` ready while
-Windows consent was pending. That case and the three remaining regressions are
-incomplete; no single-sweep PASS is claimed and the PR remains draft. Source/package
-identity, failed attempts and audit scans are retained. The surviving broker path
+six target PASS cases at source `6b66655a` and all seventeen cases accepted across
+thirteen retained captures plus a four-capture continuation on the same immutable
+package. Earlier attempts stopped before `broker-exit` ready while Windows consent
+was pending; those failures remain recorded and no single-sweep PASS is claimed.
+The continuation verified broker/app loss, real sync/pending read attribution after
+collector loss and a fresh normal stop. The normal capture retained zero sampled
+native/stage drops and 78 main-ring evictions. Source/package identity, failed
+attempts and nineteen profile audit scans are retained. The surviving broker path
 does not qualify its own loss together with all elevated peers or durable authority.
 
 ### Other qualification

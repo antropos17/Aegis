@@ -170,10 +170,10 @@ The dependency is those observations, not the absence of a Windows host.
    including both collector/guard loss orders and both early boundaries. The
    [all-helper follow-up](docs/roadmap/etw-total-recovery.md) passes six new target
    cases using the surviving normal broker, with cleanup-only UAC after native
-   denial. Four packaged regressions remain incomplete after consent startup expiry;
-   this revision is not fully qualified. Loss of broker plus all elevated peers,
-   production/path admission, protected durable recovery, actual reuse and sleep/wake
-   remain open.
+   denial. All seventeen cases now pass across thirteen retained captures and a
+   four-capture continuation on the same immutable package; the earlier startup
+   failures remain recorded. Loss of broker plus all elevated peers, production/path
+   admission, protected durable recovery, actual reuse and sleep/wake remain open.
 
 ## C — existing rules coverage
 

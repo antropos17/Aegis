@@ -59,9 +59,10 @@ The original seven-case profile did not qualify simultaneous collector/guard los
 The later [dual-loss recovery](etw-dual-recovery.md) adds an independent pre-reserved
 fallback and eleven packaged cases. Neither historical profile deliberately
 orphans all three elevated peers. The [all-helper follow-up](etw-total-recovery.md)
-records six target PASS cases using the surviving original broker, with four
-regressions still incomplete. Losing that broker together with all elevated peers
-still needs protected durable authority.
+records six target PASS cases using the surviving original broker and all seventeen
+cases accepted across retained captures and a bounded continuation on the same
+immutable package. Losing that broker together with all elevated peers still needs
+protected durable authority.
 Actual sleep/wake, alternate credentials, complete I/O coverage, real forced
 PID/TID reuse and the remaining E1-E8 gates are separate qualification work.
 

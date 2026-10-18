@@ -14,13 +14,18 @@
     "compilerSha256": "46809206887326d2d24db1eff1f3064de972c3451abe766b49111450a5e08e00"
   },
   "qualification": {
-    "status": "INCOMPLETE: all six target cases PASS; four regression captures incomplete",
-    "completedAt": "2026-10-18T11:55:26.297Z",
+    "status": "PASS across retained captures and bounded continuation",
+    "completedAt": "2026-10-18T12:03:06.536Z",
     "plannedCaptures": 17,
-    "passedCaptures": 13,
+    "passedCaptures": 17,
     "targetCasesPassed": 6,
+    "retainedPassCaptures": 13,
+    "continuationPassCaptures": 4,
     "singleSweepPass": false,
-    "incompleteCaptures": ["broker-exit", "app-exit", "collector-after-ready", "normal"],
+    "packageManifestSha256": "2fa92d5ef2502a5845a1dfbe3569ea3f16c8cda20385b901b17142cd51c18772",
+    "packageAndSourceUnchanged": true,
+    "qualificationCheckoutHead": "581fb9d834bd3b549ea5e1243c48c15e387c411c",
+    "documentationOnlyAfterFreeze": true,
     "initialFullAttempt": {
       "status": "FAIL",
       "failure": {
@@ -31,7 +36,7 @@
       "etwReceiptSha256": "6b7c9481df508bd62e93e2ac04430080b6ee1f83771ef63e2fefc997cf82992d",
       "failedCaseReceiptSha256": "88134a4c4c4b5226c08a7517e180f488ed1a3bee3a53197c0971bc506d433285"
     },
-    "continuation": {
+    "earlierContinuation": {
       "status": "FAIL",
       "failure": "Continuation fault failed; no next capture\n\n'FAIL' !== 'PASS'\n",
       "receiptSha256": "12fb5affcabfa57bc8f9b6c7333f134a6ee8e8c210e751c6010593a9c324e9de",
@@ -55,7 +60,12 @@
         "logSha256": "0a0a88cc7b29db18935701dc3a5d3584a267e38df0305ae4c836e031968f23c2"
       }
     },
-    "unchangedPackageCheck": {
+    "finalContinuation": {
+      "status": "PASS",
+      "receiptSha256": "c13491c917f04cd5f854f78a5568ff101808da2e64e926d2b6451d303cccfd4d",
+      "newCaptures": ["broker-exit", "app-exit", "collector-after-ready", "normal"]
+    },
+    "earlierUnchangedPackageCheck": {
       "status": "PASS",
       "sourceHead": "6b66655ac65a9a8976a7a29d72a50219f8a077e9",
       "packageManifestSha256": "2fa92d5ef2502a5845a1dfbe3569ea3f16c8cda20385b901b17142cd51c18772",
@@ -1092,22 +1102,394 @@
       }
     },
     "broker-exit": {
-      "status": "FAIL",
+      "status": "PASS",
       "mode": "broker-exit",
-      "failure": "Capture failed before ready",
       "packaged": true,
       "diagnosticBuild": true,
       "windowInputIsolated": true,
+      "liveReady": true,
       "before": {
         "status": 4201,
         "present": false,
         "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "restartBlocked": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "failed",
+        "exitCode": 72,
+        "collectorExit": null,
+        "recoveryCause": null,
+        "recoveryPeers": null,
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": false,
+        "observationGap": true,
+        "finalCounters": null,
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "83310",
+          "filtered": "83284",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "0",
+          "mapResets": "0",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 0,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "618964318406",
+            "unixMs": "1792324870320",
+            "uncertaintyQpc": "10163"
+          }
+        }
       }
+    },
+    "app-exit": {
+      "status": "PASS",
+      "mode": "app-exit",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "before": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "presence": {
+        "status": 0,
+        "present": true,
+        "elevatedWitness": false
+      },
+      "after": {
+        "status": 4201,
+        "present": false,
+        "elevatedWitness": false
+      },
+      "abruptAppExit": true,
+      "appExitCode": 73,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4
     }
   },
   "regression": {
-    "status": "INCOMPLETE",
-    "reason": "The sequence stopped before app-exit, collector-after-ready and fresh normal capture; broker-exit never reached ready in either attempt"
+    "status": "PASS",
+    "crash": {
+      "status": "PASS",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "failureVisible": true,
+      "noAutomaticRestart": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "recovered",
+        "exitCode": 4,
+        "collectorExit": 70,
+        "recoveryCause": "collector-exited",
+        "recoveryPeers": {
+          "guardExit": 0,
+          "fallbackExit": 0,
+          "brokerElevated": false,
+          "cleanupElevated": false,
+          "accessDenied": false
+        },
+        "stopReason": null,
+        "stopVerified": false,
+        "recoveryVerified": true,
+        "observationGap": true,
+        "finalCounters": {
+          "queryStatus": 0,
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "asOfQpc": "619860084187"
+        },
+        "finalTotals": null,
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "81473",
+          "filtered": "81063",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "3",
+          "mapResets": "3",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 156,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "619559653748",
+            "unixMs": "1792324929854",
+            "uncertaintyQpc": "10177"
+          }
+        }
+      }
+    },
+    "normal": {
+      "status": "PASS",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "windowInputIsolated": true,
+      "liveReady": true,
+      "closureConfirmed": true,
+      "contentExcluded": true,
+      "noDiagnosticAudit": true,
+      "observedAppPids": 5,
+      "observedHelperPids": 4,
+      "summary": {
+        "phase": "stopped",
+        "exitCode": 0,
+        "collectorExit": null,
+        "recoveryCause": null,
+        "recoveryPeers": null,
+        "stopReason": "shutdown",
+        "stopVerified": true,
+        "recoveryVerified": false,
+        "observationGap": false,
+        "finalCounters": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "queryStatus": 0,
+          "asOfQpc": "620104547380"
+        },
+        "finalTotals": {
+          "delivered": "134147",
+          "filtered": "133812",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "2",
+          "mapResets": "2",
+          "mapConflicts": "0"
+        },
+        "maxima": {
+          "eventsLost": "0",
+          "realTimeBuffersLost": "0",
+          "logBuffersLost": "0",
+          "delivered": "134147",
+          "filtered": "133812",
+          "dropped": "0",
+          "ingressDropped": "0",
+          "outputDropped": "0",
+          "outputOverflowDropped": "0",
+          "outputInvalidatedDropped": "0",
+          "decoderErrors": "0",
+          "mapEpoch": "2",
+          "mapResets": "2",
+          "mapConflicts": "0"
+        },
+        "ringDropped": 78,
+        "capture": {
+          "buffers": {
+            "count": 256,
+            "sizeKiB": 64
+          },
+          "frequency": "10000000",
+          "clock": {
+            "qpc": "619947903935",
+            "unixMs": "1792324968679",
+            "uncertaintyQpc": "10159"
+          }
+        }
+      }
+    },
+    "newSessionAfterRecovery": true,
+    "readWitnesses": {
+      "crash": {
+        "sync": {
+          "native": {
+            "command": "sync",
+            "pid": 50084,
+            "tid": 23048,
+            "birth": "134367985246982687",
+            "reads": 160,
+            "pending": 0,
+            "fromQpc": "619560968969",
+            "toQpc": "619610944889"
+          },
+          "observation": {
+            "eventId": 15,
+            "version": 1,
+            "qpc": "619606914230",
+            "issuerStatus": "verified",
+            "issuerPid": 50084,
+            "issuingTid": 23048,
+            "issuerInterval": {
+              "fromQpc": "619600085870",
+              "toQpc": "619630385850"
+            },
+            "generationStatus": "verified",
+            "generationWitness": "134367985246982687",
+            "generationSource": "createTime100ns",
+            "generationInterval": {
+              "fromQpc": "619630379598",
+              "toQpc": "619630385850"
+            },
+            "agent": "Aider",
+            "instanceId": "50084:1792324924698",
+            "pathEvidence": "candidate-object"
+          }
+        },
+        "async": {
+          "native": {
+            "command": "async",
+            "pid": 50084,
+            "tid": 23048,
+            "birth": "134367985246982687",
+            "reads": 160,
+            "pending": 160,
+            "fromQpc": "619631622440",
+            "toQpc": "619681518796"
+          },
+          "observation": {
+            "eventId": 15,
+            "version": 1,
+            "qpc": "619640328657",
+            "issuerStatus": "verified",
+            "issuerPid": 50084,
+            "issuingTid": 23048,
+            "issuerInterval": {
+              "fromQpc": "619600085870",
+              "toQpc": "619660592971"
+            },
+            "generationStatus": "verified",
+            "generationWitness": "134367985246982687",
+            "generationSource": "createTime100ns",
+            "generationInterval": {
+              "fromQpc": "619660592157",
+              "toQpc": "619660592971"
+            },
+            "agent": "Aider",
+            "instanceId": "50084:1792324924698",
+            "pathEvidence": "candidate-object"
+          }
+        }
+      },
+      "normal": {
+        "sync": {
+          "native": {
+            "command": "sync",
+            "pid": 44828,
+            "tid": 43488,
+            "birth": "134367985652240918",
+            "reads": 160,
+            "pending": 0,
+            "fromQpc": "619949519464",
+            "toQpc": "619999351584"
+          },
+          "observation": {
+            "eventId": 15,
+            "version": 1,
+            "qpc": "619977279018",
+            "issuerStatus": "verified",
+            "issuerPid": 44828,
+            "issuingTid": 43488,
+            "issuerInterval": {
+              "fromQpc": "619968553525",
+              "toQpc": "619998436245"
+            },
+            "generationStatus": "verified",
+            "generationWitness": "134367985652240918",
+            "generationSource": "createTime100ns",
+            "generationInterval": {
+              "fromQpc": "619998423961",
+              "toQpc": "619998436245"
+            },
+            "agent": "Aider",
+            "instanceId": "44828:1792324965224",
+            "pathEvidence": "candidate-object"
+          }
+        },
+        "async": {
+          "native": {
+            "command": "async",
+            "pid": 44828,
+            "tid": 43488,
+            "birth": "134367985652240918",
+            "reads": 160,
+            "pending": 160,
+            "fromQpc": "619999506935",
+            "toQpc": "620049554688"
+          },
+          "observation": {
+            "eventId": 15,
+            "version": 1,
+            "qpc": "620008277170",
+            "issuerStatus": "verified",
+            "issuerPid": 44828,
+            "issuingTid": 43488,
+            "issuerInterval": {
+              "fromQpc": "619968553525",
+              "toQpc": "620028536423"
+            },
+            "generationStatus": "verified",
+            "generationWitness": "134367985652240918",
+            "generationSource": "createTime100ns",
+            "generationInterval": {
+              "fromQpc": "620028536377",
+              "toQpc": "620028536423"
+            },
+            "agent": "Aider",
+            "instanceId": "44828:1792324965224",
+            "pathEvidence": "candidate-object"
+          }
+        }
+      }
+    }
   },
   "allProfileAuditCheck": [
     {
@@ -1217,6 +1599,38 @@
     {
       "scenario": "broker-exit",
       "profilePresent": true,
+      "profileBytes": 8818227,
+      "allAuditRows": 172,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "app-exit",
+      "profilePresent": true,
+      "profileBytes": 8652336,
+      "allAuditRows": 71,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "collector-after-ready",
+      "profilePresent": true,
+      "profileBytes": 8739566,
+      "allAuditRows": 122,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "normal",
+      "profilePresent": true,
+      "profileBytes": 8737962,
+      "allAuditRows": 120,
+      "etwTypeRows": 0,
+      "fixtureFileAccessRows": 0
+    },
+    {
+      "scenario": "initial-expired-startup",
+      "profilePresent": true,
       "profileBytes": 9060133,
       "allAuditRows": 340,
       "etwTypeRows": 0,
@@ -1281,7 +1695,7 @@
     "nativeRedReceiptSha256": "f90f8b9309acb8ba01c1674807223e5a821a73c597c67073597036bcd0fc8782"
   },
   "limits": [
-    "The seventeen-capture sweep and continuation both remain FAIL before broker-exit capture; four regressions need fresh same-account UAC confirmations, so the PR remains draft",
+    "The complete seventeen-capture single sweep did not pass; thirteen actual PASS captures were retained and four remaining captures passed on the same immutable package in a bounded continuation",
     "Coordinated original-process exits cover all three first-loss orders; instruction-level simultaneous death is not claimed",
     "The original normal broker survives; broker/app loss together with all elevated peers still needs protected durable authority",
     "The host already has Performance Log Users membership; actual status 5 was induced using a restricted effective token without changing machine settings",

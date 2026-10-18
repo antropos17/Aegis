@@ -188,10 +188,11 @@ original reservation in the existing normal broker. It requires all three origin
 elevated peer exits before recovery, and requests one cleanup-only same-account
 UAC decision if ordinary control is denied. It adds the `--etw-total-recovery`
 seventeen-capture profile. Its [current evidence](../../docs/recon/evidence/etw-packaged-total-recovery.json)
-records all six new target cases PASS and thirteen total PASS captures at `6b66655a`;
-four regressions remain incomplete after consent startup expiry, so the PR remains
-draft. Loss of the broker together with every elevated peer still needs protected
-durable recovery. Ordinary packages remain disabled.
+records all six new target cases PASS at `6b66655a`. All seventeen cases passed
+across thirteen retained captures and a four-capture continuation on the same
+immutable package; the earlier startup failures remain recorded. Loss of the broker
+together with every elevated peer still needs protected durable recovery. Ordinary
+packages remain disabled.
 
 The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
 elevated fallback reserved before StartTrace. It waits for both original collector
