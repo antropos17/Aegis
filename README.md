@@ -122,7 +122,6 @@ together; an explicitly saved Simple choice is retained.
 | --- | --- |
 | See running agents and review their activity | **Monitoring**, then an agent's processes, files or connections |
 | Review a sensitive-file alert | **Alerts** in Observatory, then [inspect the captured evidence](docs/ALERTS-AND-PERMISSIONS.md) |
-| Inspect a Windows diagnostic file read | **Events** in a marked diagnostic build; [setup, evidence and limits](docs/development/agent-sensitive-read.md) |
 | Check a project, skill or agent profile before use | [**Local security**](docs/LOCAL-SECURITY-UI.md): static review, inventory, comparison and offline report import |
 | Check how a selected action matches a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md): choose files and review the captured outcome |
 | Connect selected actions to an agent | [MCP setup](docs/ACTION-MCP-CONFIG.md), explicitly configured from a terminal |
@@ -165,14 +164,6 @@ The Observatory workspace provides a live instance radar, separate agent instanc
 Current source adds [Liveline-inspired charts](frontend/observatory/DESIGN-HISTORY.md#live-chart-refinement--5-october-2026) to Statistics and agent Resources: short smooth updates, endpoint values, interval buttons and actual-point inspection. Missing readings, coverage, pause and reduced motion remain explicit.
 
 </details>
-
-Windows Kernel-File reads use a separate opt-in diagnostic route. A marked build,
-an explicit test root and manual UAC consent are required; ordinary packages keep
-this capture disabled. **Events** can show an observed read, its verified issuing
-agent and a **Potential sensitive read** label from path rules. Paths remain
-candidates, and that label does not establish malicious intent or change risk
-scores. See the [packaged agent-read guide](docs/development/agent-sensitive-read.md)
-for tested scenarios and pending first-read qualification.
 
 ## Monitor-first
 
@@ -259,42 +250,32 @@ work. These controls do not establish provider integration or production readine
 
 ## Latest source
 
-Development through 18 October 2026 adds packaged monitoring and sensor fixes,
-ETW recovery checks and a real Claude Code sensitive-read journey. These changes
-follow the published beta; they are not included in that installer's release tag.
-[Browse all capabilities](docs/CAPABILITIES.md).
+The latest development includes private VM creation, bounded guest execution and monitoring durability fixes. [Browse all capabilities](docs/CAPABILITIES.md).
 
 <details>
-<summary>Merged changes through PR #975 and exact-source evidence</summary>
+<summary>Changes through PR #942 and exact-source evidence</summary>
 
-Merged-source snapshot: [master at `96b63b16`](https://github.com/antropos17/Aegis/tree/96b63b165ac932e9615815f93c587765e6bde1b8).
-See the [release-to-source comparison](https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...96b63b165ac932e9615815f93c587765e6bde1b8)
-for the full diff. Each linked record identifies its tested source and package;
-earlier runs do not automatically qualify later changes.
+Updated 16 October 2026 against [master at `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
+These changes follow the published beta. See the [release-to-source comparison](https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...6001f2c295e42392967a845760c8fce14461b35a)
+for the complete diff. Evidence retains the exact tested revision.
 
 | Area | Current-source change and evidence |
 | --- | --- |
-| Development context and verification | [#960](https://github.com/antropos17/Aegis/pull/960) aligns current context and project skills; [#962](https://github.com/antropos17/Aegis/pull/962) adds Windows fixture CI and lifecycle reports. Start with the [current context](docs/development/current-context.md) and [verification workflow](docs/development/workflow.md). |
-| Packaged desktop and monitoring | [#963](https://github.com/antropos17/Aegis/pull/963) exercises the built window and Start/Query/Stop lifecycle; [#964](https://github.com/antropos17/Aegis/pull/964) fixes startup freshness across planned scan gaps. The [packaged milestone](docs/development/packaged-desktop-milestone.md) distinguishes real application observations from modeled installation authority. |
-| File and network sensors | [#965](https://github.com/antropos17/Aegis/pull/965) queues a fresh TCP observation after settings changes. Its packaged scenario checks owned file changes, separate TCP sockets, instance attribution, visible rows and cleanup. See the [sensor journey](docs/development/packaged-desktop-milestone.md#packaged-file-and-network-sensors). |
-| Diagnostic ETW attribution and recovery | [#966](https://github.com/antropos17/Aegis/pull/966)–[#973](https://github.com/antropos17/Aegis/pull/973) qualify bounded captures and recovery after helper, original-main and custodian loss. [Recovery evidence](docs/roadmap/etw-durable-recovery.md) retains source/package bindings and observation gaps; ordinary packaged capture remains disabled. |
-| Genuine agent read and visible risk | [#975](https://github.com/antropos17/Aegis/pull/975) verifies installed Claude Code reading a newly created synthetic `.env` after a preparatory README read. Events displays the read, verified issuer and potential path-rule risk. The [live record](docs/recon/evidence/agent-sensitive-read.json) qualifies that persistent-agent scenario on its recorded package. |
+| Protected Windows guest and agent | [#942](https://github.com/antropos17/Aegis/pull/942) adds trusted offline disk hydration, identity-bound native start/stop and one bounded guest agent operation. Actual Windows boot, a standard token, quota refusal, descendant cleanup and VM removal passed on the [recorded source](docs/roadmap/enforcement-e2/protected-guest-hosted-evidence-20261016.md). |
+| Private VM and image creation | [#941](https://github.com/antropos17/Aegis/pull/941) creates a fresh Generation 2 VM and private image/disk files, with pending journals, full image hashing and conservative unknown-settlement retention. [Provisioning contract](docs/roadmap/enforcement-e2/protected-vm-creation.md). |
+| Registered VM inspection | [#931](https://github.com/antropos17/Aegis/pull/931)–[#937](https://github.com/antropos17/Aegis/pull/937) bind inspection to the original protected registration, disk identity and private storage; parent-backed disks are refused. [Inspection contract](docs/roadmap/enforcement-e2/installed-vm-registration.md). |
+| Qualification reliability | [#938](https://github.com/antropos17/Aegis/pull/938) recovers from one disappearing scratch child only after a complete fresh traversal; [#939](https://github.com/antropos17/Aegis/pull/939) handles bounded stdio startup population growth. Capacity and scratch limits remain enforced. |
+| Monitoring durability | [#925](https://github.com/antropos17/Aegis/pull/925) bounds initial watch-worker readiness; [#926](https://github.com/antropos17/Aegis/pull/926) excludes discarded writes from durable audit counts. |
+| Observatory and discovery | Instance/resource views, optional Simple navigation, local security reviews and passive WSL/container observations are integrated. See the [capability guide](docs/CAPABILITIES.md) and [design brief](frontend/observatory/DESIGN.md). |
 
-Protected Windows guests remain experimental administrative APIs as described
-above. Ordinary installed-caller launch stays disabled (`launchAllowed=false`);
-independent A1–A4 acceptance remains open in the
-[protection roadmap](docs/roadmap/ai-agent-protection.md).
+**Experimental status:** the new administrative guest run has native hosted
+evidence. Ordinary installed-caller authorization, authenticated runtime
+communication, cancellation/owner-loss supervision and result review still need
+integration and acceptance for the complete protected session. `launchAllowed=false`;
+independent A1–A4 acceptance remains open. The [protection roadmap](docs/roadmap/ai-agent-protection.md)
+tracks these separate gates.
 
 </details>
-
-**Pending qualification:** [#974](https://github.com/antropos17/Aegis/pull/974)
-remains draft until an actual Windows restart and post-restart capture are tested.
-[#976](https://github.com/antropos17/Aegis/pull/976) prepares detected agent threads
-before their first scoped read. Its [checks without elevation](docs/recon/evidence/agent-first-read-preparation.json)
-cover native handles, control exchange and an ordinary packaged launch. The real
-first-read journey without README warmup and the persistent-read regression on
-that candidate still require manual UAC; this PR also remains draft. Neither
-pending package is part of the merged-source snapshot above.
 
 ## The evidence graph
 
