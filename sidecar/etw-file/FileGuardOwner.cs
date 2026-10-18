@@ -34,7 +34,7 @@ internal sealed class FileGuardOwner : IAsyncDisposable
             var identity = Security.Observe(child);
             await pipe.WaitForConnectionAsync(limit.Token);
             Security.Verify(pipe, child, identity.Birth, true, true);
-            owner.Identity = new FileGuardHello(child.Id, identity.Birth.ToString());
+            owner.Identity = new FileGuardHello(child.Id, identity.Birth.ToString(), reservation);
             await FileGuardWire.Write(data, owner.Identity, limit.Token);
             var ack = await FileGuardWire.Read<FileGuardCommand>(data, limit.Token);
             if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();

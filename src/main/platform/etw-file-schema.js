@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/6';
+const PROTOCOL = 'etw-file/7';
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
 const MAX_DEPTH = 16;
@@ -258,14 +258,26 @@ const messageData = {
     telemetry,
   }),
   error: shape({ requestId: nullable(id), code: oneOf(...ERROR_CODES) }),
+  recovering: shape({
+    cause: oneOf('all-three-helpers-exited'),
+    queryStatus: oneOf(5),
+    consentDeadlineMs: oneOf(120000),
+  }),
   recovered: shape({
-    cause: oneOf('collector-exited', 'collector-and-guard-exited'),
+    cause: oneOf('collector-exited', 'collector-and-guard-exited', 'all-three-helpers-exited'),
     stopped: oneOf(true),
     absent: oneOf(true),
     counters: counts,
     finalTotals: oneOf(null),
     observationGap: oneOf(true),
     collectorExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
+    peers: shape({
+      guardExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
+      fallbackExit: (v) => Number.isInteger(v) && v >= -0x80000000 && v <= 0x7fffffff,
+      brokerElevated: oneOf(false),
+      cleanupElevated: oneOf(false, true),
+      accessDenied: oneOf(false, true),
+    }),
   }),
 };
 
@@ -283,7 +295,15 @@ function validEnvelope(message) {
     seq: positive64,
     data: (v) => Object.hasOwn(messageData, message.t) && messageData[message.t](v),
   });
-  return valid(message);
+  if (!valid(message)) return false;
+  if (message.t === 'recovered') {
+    const { peers, cause } = message.data;
+    return (
+      peers.cleanupElevated === peers.accessDenied &&
+      (!peers.cleanupElevated || cause === 'all-three-helpers-exited')
+    );
+  }
+  return true;
 }
 
 /** Check the complete native issuer proof before a main-only agent label join.

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Aegis.EtwLifecycle;
 
-internal sealed record FileGuardHello(int pid, string birth);
+internal sealed record FileGuardHello(int pid, string birth, string guid);
 internal sealed record FileGuardCommand(string kind, string? handle = null, string? guid = null);
 internal sealed record FileFallbackReservation(string guid, int guardPid, string guardBirth);
 internal sealed record FileGuardResult(string kind, bool stopped, bool absent, FileStats? counters, int? collectorExit,

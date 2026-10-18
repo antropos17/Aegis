@@ -24,13 +24,15 @@ internal static class FileCollector
         using var capture = live ? new FileCapture(ingress) : null;
         string guardMode = args[0] switch
         {
-            "guard-loss-collector" or "dual-guard-collector" => "exit-after-arm",
-            "dual-collector" or "dual-prearm-collector" or "dual-prestart-collector" => "exit-with-owner", _ => "normal"
+            "guard-loss-collector" or "dual-guard-collector" or "triple-guard-collector" => "exit-after-arm",
+            "dual-collector" or "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or
+            "triple-prearm-collector" or "triple-prestart-collector" or "triple-fallback-collector" => "exit-with-owner", _ => "normal"
         };
         await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, guardMode) : null;
         await using var fallback = live ? await FileGuardOwner.Start(args[9], parent, ulong.Parse(args[5]), pipe,
-            trace!.Reservation, "normal", guard!.Identity) : null;
+            trace!.Reservation, args[0] == "triple-fallback-collector" ? "exit-after-reserve" :
+                args[0].StartsWith("triple-", StringComparison.Ordinal) ? "exit-with-owner" : "normal", guard!.Identity) : null;
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
         string? stopRequest = null;
@@ -46,7 +48,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-6-dual-recovery" : "etw-file-synthetic-check-6",
+                build = live ? "etw-file-diagnostic-7-broker-recovery" : "etw-file-synthetic-check-7",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -57,10 +59,10 @@ internal static class FileCollector
             if (trace != null)
             {
                 if (guard?.Alive != true || fallback?.Alive != true) throw new IOException();
-                if (args[0] is "prestart-collector" or "dual-prestart-collector") Environment.Exit(70);
+                if (args[0] is "prestart-collector" or "dual-prestart-collector" or "triple-prestart-collector") Environment.Exit(70);
                 stats = trace.Start(); owns = true;
                 if (stats.Status != 0 || stats.Buffers == null || stats.Size == null) throw new InvalidOperationException();
-                if (args[0] is "prearm-collector" or "dual-prearm-collector") Environment.Exit(70);
+                if (args[0] is "prearm-collector" or "dual-prearm-collector" or "triple-prearm-collector") Environment.Exit(70);
                 await guard!.Arm(trace.Token); // Ready is impossible before the independent guard is armed.
                 capture!.Start(); trace.Enable(); stats = trace.Query();
                 if (stats.Status != 0) throw new InvalidOperationException();
@@ -87,7 +89,7 @@ internal static class FileCollector
                 telemetry = Telemetry()
             }, lifetime.Token);
             var stopSignal = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (args[0] is "crash-collector" or "dual-collector") _ = Task.Run(async () =>
+            if (args[0] is "crash-collector" or "dual-collector" or "triple-collector") _ = Task.Run(async () =>
             {
                 try { await Task.Delay(30000, lifetime.Token); Environment.Exit(70); } // Own process, no finally or WER dump.
                 catch (OperationCanceledException) { }
@@ -113,10 +115,14 @@ internal static class FileCollector
                 if (capture?.Consumer?.IsCompleted == true) throw new IOException();
                 if (guard?.Alive == false)
                 {
-                    if (args[0] == "dual-guard-collector") Environment.Exit(70); // Skip the collector's finally too.
+                    if (args[0] is "dual-guard-collector" or "triple-guard-collector") Environment.Exit(70); // Skip finally too.
                     throw new IOException();
                 }
-                if (fallback?.Alive == false) throw new IOException();
+                if (fallback?.Alive == false)
+                {
+                    if (args[0] == "triple-fallback-collector") Environment.Exit(70);
+                    throw new IOException();
+                }
                 if (pipeline.Worker.IsCompleted) throw new IOException();
                 if (Stopwatch.GetTimestamp() - lastSample >= 2 * Stopwatch.Frequency)
                 {

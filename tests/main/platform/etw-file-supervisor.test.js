@@ -145,7 +145,7 @@ describe('ETW diagnostic supervisor', () => {
     expect(h.sensor.getDiagnostics().restartBlocked).toBe(false);
     expect(h.sensor.restart()).toBe(true);
   });
-  it.each(['collector-exited', 'collector-and-guard-exited'])(
+  it.each(['collector-exited', 'collector-and-guard-exited', 'all-three-helpers-exited'])(
     'keeps %s FAILED and unknown stage loss until the verified broker exit',
     (cause) => {
       const h = harness();
@@ -164,6 +164,7 @@ describe('ETW diagnostic supervisor', () => {
         finalTotals: null,
         observationGap: true,
         collectorExit: 70,
+        recoveryPeers: { guardExit: 0, fallbackExit: 0, brokerElevated: false },
         exitCode: 4,
       });
       expect(d.summaries[0].reasons).toContain(cause);
@@ -177,6 +178,49 @@ describe('ETW diagnostic supervisor', () => {
       child.stdout.emit('end');
       child.emit('close', terminal ? 2 : 4);
       expect(h.sensor.getDiagnostics().summaries[0].recoveryVerified).toBe(false);
+      expect(h.sensor.start()).toBe(false);
+    }
+  });
+  it('retains FAILED and blocks retry while one bounded cleanup consent is pending', () => {
+    const h = harness();
+    const child = h.running();
+    child.message('recovering', 3);
+    expect(h.sensor.getHealth().state).toBe('FAILED');
+    expect(h.sensor.getHealth().detail).toContain('recovery-consent-pending');
+    expect(h.sensor.getDiagnostics().recoveryPending).toBe(true);
+    expect(h.sensor.start()).toBe(false);
+    h.advance(120000);
+    expect(child.kill).not.toHaveBeenCalled();
+    child.message('recovered', 4);
+    child.emit('close', 4);
+    expect(h.sensor.getDiagnostics().restartBlocked).toBe(false);
+    expect(h.sensor.getHealth().detail).not.toContain('recovery-consent-pending');
+    expect(h.sensor.getDiagnostics().recoveryPending).toBe(false);
+  });
+  it('never extends the consent deadline from duplicate pending frames', () => {
+    const h = harness();
+    const child = h.running();
+    child.message('recovering', 3);
+    h.advance(120000);
+    child.message('recovering', 4);
+    h.advance(15001);
+    expect(child.kill).toHaveBeenCalledOnce();
+    expect(h.sensor.start()).toBe(false);
+  });
+  it('keeps canceled cleanup unverified and restores the short exit budget after a receipt', () => {
+    for (const receipt of [false, true]) {
+      const h = harness();
+      const child = h.running();
+      child.message('recovering', 3);
+      if (receipt) {
+        child.message('recovered', 4);
+        h.advance(15001);
+        expect(child.kill).toHaveBeenCalledOnce();
+      }
+      child.emit('close', 2);
+      const summary = h.sensor.getDiagnostics().summaries[0];
+      expect(summary.recoveryVerified).toBe(false);
+      expect(summary.finalCounters).toBeNull();
       expect(h.sensor.start()).toBe(false);
     }
   });
@@ -506,6 +550,12 @@ describe('ETW backend runtime gate', () => {
     ['dual-collector-first', 'broker-dual-collector-check'],
     ['dual-before-arm', 'broker-dual-prearm-check'],
     ['dual-before-start', 'broker-dual-prestart-check'],
+    ['triple-collector-first', 'broker-triple-collector-check'],
+    ['triple-guard-first', 'broker-triple-guard-check'],
+    ['triple-fallback-first', 'broker-triple-fallback-check'],
+    ['triple-before-arm', 'broker-triple-prearm-check'],
+    ['triple-before-start', 'broker-triple-prestart-check'],
+    ['triple-access-denied', 'broker-triple-denial-check'],
   ])(
     'selects only fixed crash mode %s in a marked explicit diagnostic package',
     (fault, command) => {

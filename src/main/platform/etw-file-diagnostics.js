@@ -126,6 +126,7 @@ function createSummary(state, { capture, diagnostics, stopReason, code, endedAt 
     observationGap: !stopVerified,
     collectorExit: state.recovery?.collectorExit ?? null,
     recoveryCause: state.recovery?.cause ?? null,
+    recoveryPeers: structuredClone(state.recovery?.peers ?? null),
   };
 }
 module.exports = { createDiagnostics, createSummary };

@@ -26,10 +26,10 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/6`. Each telemetry sample includes
+The matching main/helper now require `etw-file/7`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–5 are rejected; rebuild the helper together with the main reader.
+Versions 1–6 are rejected; rebuild the helper together with the main reader.
 Collector telemetry also requires bounded elapsed-time aggregates and separate
 ingress/output queue depths. Ended reports retain collector and main measurements;
 see [service measurements](../../docs/roadmap/etw-service-timings.md) for clock regions,
@@ -182,6 +182,13 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
   and failed process exit cannot certify cleanup. Failure never auto-relaunches.
 
 ## Current evidence and limits
+
+The [all-helper recovery](../../docs/roadmap/etw-total-recovery.md) retains the
+original reservation in the existing normal broker. It requires all three original
+elevated peer exits before recovery, and requests one cleanup-only same-account
+UAC decision if ordinary control is denied. It adds the `--etw-total-recovery`
+seventeen-capture profile. Loss of the broker together with every elevated peer
+still needs protected durable recovery. Ordinary packages remain disabled.
 
 The [dual-loss follow-up](../../docs/roadmap/etw-dual-recovery.md) adds an independent
 elevated fallback reserved before StartTrace. It waits for both original collector

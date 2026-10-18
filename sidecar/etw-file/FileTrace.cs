@@ -162,7 +162,8 @@ internal sealed class FileTrace : IDisposable
         var found = (lookup ?? Lookup)();
         if (found.Stats.Status == 4201)
             return new("recovered", true, true, found.Stats, null, Stopwatch.GetTimestamp().ToString());
-        if (found.Stats.Status != 0 || found.Identity != expected || found.Handle == 0)
+        if (found.Stats.Status != 0) return new("unverified", false, false, found.Stats, null);
+        if (found.Identity != expected || found.Handle == 0)
             return new("unverified", false, false, null, null);
         // Recover performs another exact handle/GUID query before stopping by
         // handle. The fixed-name query itself never adopts or stops a session.
@@ -179,7 +180,8 @@ internal sealed class FileTrace : IDisposable
         control ??= code => GuardControl(token, code);
         var before = control(0);
         if (GuardAbsent(before.Stats.Status)) return new("recovered", true, true, before.Stats, null, Stopwatch.GetTimestamp().ToString());
-        if (before.Stats.Status != 0 || before.Identity != expected) return new("unverified", false, false, null, null);
+        if (before.Stats.Status != 0) return new("unverified", false, false, before.Stats, null);
+        if (before.Identity != expected) return new("unverified", false, false, null, null);
         var stopped = control(1);
         string asOf = Stopwatch.GetTimestamp().ToString();
         if (stopped.Stats.Status != 0) return new("unverified", false, false, stopped.Stats, null);

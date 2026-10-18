@@ -118,6 +118,7 @@ export function message(t = 'hello', seq = '1', data) {
       telemetry: telemetry(),
     },
     error: { requestId: null, code: 'session-failed' },
+    recovering: { cause: 'all-three-helpers-exited', queryStatus: 5, consentDeadlineMs: 120000 },
     recovered: {
       cause: 'collector-exited',
       stopped: true,
@@ -126,11 +127,18 @@ export function message(t = 'hello', seq = '1', data) {
       finalTotals: null,
       observationGap: true,
       collectorExit: 70,
+      peers: {
+        guardExit: 0,
+        fallbackExit: 0,
+        brokerElevated: false,
+        cleanupElevated: false,
+        accessDenied: false,
+      },
     },
   };
   return {
     t,
-    proto: 'etw-file/6',
+    proto: 'etw-file/7',
     launchId: 'launch-1',
     sessionId: 'session-1',
     seq,

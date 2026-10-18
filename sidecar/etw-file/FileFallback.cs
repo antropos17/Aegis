@@ -24,6 +24,8 @@ internal static class FileFallback
         using var guard = new FileGuardPeer(reservation.guardPid);
         guard.VerifyIdentity(birth); // Retain this original query-limited process object, never reopen its PID.
         await FileGuardWire.Write(ownerPipe, new FileGuardCommand("reserved"), setup.Token);
+        if (args[7] == "exit-after-reserve") _ = Task.Run(async () =>
+        { await Task.Delay(30000); Environment.Exit(74); });
         var collectorGone = collector.WaitForExitAsync();
         var brokerGone = broker.WaitForExitAsync();
         FileGuardResult result = new("unverified", false, false, null, null);
@@ -56,6 +58,7 @@ internal static class FileFallback
                 .WaitAsync(TimeSpan.FromSeconds(12));
         }
         catch { }
+        if (args[7] == "exit-with-owner" && collector.HasExited && guard.HasExited) Environment.Exit(74);
         result = FileRecoveryPolicy.Recover(reservation.guid, collector.HasExited, guard.HasExited) with
         {
             collectorExit = collector.HasExited ? collector.ExitCode : null,

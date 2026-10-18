@@ -42,6 +42,7 @@ function createSupervisor({
     receivedReady = false;
   let stopSent = false,
     failedAt = null;
+  let failureGraceMs = 15000;
   let stopReason = null;
   let capture = null;
   let readyAt = null;
@@ -134,10 +135,17 @@ function createSupervisor({
         clock: message.data.clock,
       });
     }
-    if (current.phase === 'failed') {
+    if (current.phase === 'failed' && message.t !== 'recovering') {
       failedAt = mono();
       unsafe = true;
       child.stdin.destroy();
+      clearRing();
+    }
+    if (message.t === 'recovering') {
+      failedAt = mono();
+      failureGraceMs = 135000; // One native 120 s consent deadline plus bounded exit.
+      stopAt = null;
+      unsafe = true;
       clearRing();
     }
     if (message.t === 'observations' && stopAt === null) {
@@ -151,6 +159,7 @@ function createSupervisor({
       clearRing();
       stopAt = null;
       failedAt = mono(); // Broker still has a bounded deadline to exit with the recovery code.
+      failureGraceMs = 15000;
       unsafe = true; // A terminal frame alone cannot authorize retry.
       child.stdin.end();
     }
@@ -160,7 +169,7 @@ function createSupervisor({
     if (!child || closed) return;
     const elapsed = mono();
     if (failedAt !== null) {
-      if (elapsed - failedAt > 15000) {
+      if (elapsed - failedAt > failureGraceMs) {
         child.kill();
         failedAt = Infinity;
       }
@@ -226,6 +235,7 @@ function createSupervisor({
     diagnostics = createDiagnostics(profileClock);
     stopSent = false;
     failedAt = null;
+    failureGraceMs = 15000;
     clearRing();
     startedAt = receivedAt = mono();
     closed = false;
@@ -325,6 +335,7 @@ function createSupervisor({
         summaries: structuredClone(summaries),
         omittedSummaries,
         restartBlocked: unsafe,
+        recoveryPending: current?.recoveryPending === true && !closed,
         phase: current?.phase || 'disabled',
         pendingBytes: decoder?.allocatedBytes() || 0,
       })),

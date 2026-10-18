@@ -8,10 +8,25 @@ function decoder(onMessage = () => {}) {
 }
 
 describe('offline ETW envelope', () => {
-  it('accepts the closed dual-loss cause and rejects arbitrary recovery claims', () => {
+  it('requires a real denial before cleanup elevation and limits it to all-peer recovery', () => {
+    const r = message('recovered');
+    r.data.cause = 'all-three-helpers-exited';
+    r.data.peers.cleanupElevated = true;
+    expect(() => validateMessage(r)).toThrow('etw-file:invalid-message');
+    r.data.peers.accessDenied = true;
+    expect(validateMessage(r)).toBeTruthy();
+    r.data.cause = 'collector-exited';
+    expect(() => validateMessage(r)).toThrow('etw-file:invalid-message');
+  });
+  it('accepts closed all-peer recovery and rejects arbitrary or elevated-broker claims', () => {
     const recovered = message('recovered');
     recovered.data.cause = 'collector-and-guard-exited';
     expect(validateMessage(recovered)).toBeTruthy();
+    recovered.data.cause = 'all-three-helpers-exited';
+    expect(validateMessage(recovered)).toBeTruthy();
+    recovered.data.peers.brokerElevated = true;
+    expect(() => validateMessage(recovered)).toThrow('etw-file:invalid-message');
+    recovered.data.peers.brokerElevated = false;
     recovered.data.cause = 'all-processes-recovered';
     expect(() => validateMessage(recovered)).toThrow('etw-file:invalid-message');
   });
@@ -51,6 +66,7 @@ describe('offline ETW envelope', () => {
     'stopped',
     'error',
     'recovered',
+    'recovering',
   ])('accepts the closed %s contract', (t) => {
     const frames = [];
     decoder((m) => {
@@ -83,7 +99,8 @@ describe('offline ETW envelope', () => {
     { proto: 'etw-file/1' },
     { proto: 'etw-file/4' },
     { proto: 'etw-file/5' },
-    { proto: 'etw-file/7' },
+    { proto: 'etw-file/6' },
+    { proto: 'etw-file/8' },
     { sessionId: '' },
     { launchId: 'x'.repeat(65) },
     { t: '__proto__' },

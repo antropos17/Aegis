@@ -168,7 +168,7 @@ function reduceSession(state, message, now) {
   if (
     state.phase === 'stopped' ||
     state.phase === 'recovered' ||
-    (state.phase === 'failed' && message.t !== 'recovered')
+    (state.phase === 'failed' && message.t !== 'recovered' && message.t !== 'recovering')
   )
     error('session-terminal');
   if (message.t === 'hello' && (state.helloSeen || state.lastSeq !== '0'))
@@ -213,6 +213,22 @@ function reduceSession(state, message, now) {
       if (next.phase === 'failed') return next;
       return { ...next, phase: 'stopped' };
     }
+    case 'recovering': {
+      if (state.recoveryPending) error('session-terminal');
+      const reasons = [
+        ...new Set([...next.reasons, 'recovery-consent-pending', 'stage-loss-unmeasured']),
+      ];
+      return {
+        ...next,
+        phase: 'failed',
+        recoveryPending: true,
+        reasons,
+        record: health.markFailed(next.record, now, {
+          error: 'recovery-consent-pending',
+          detail: detail(reasons),
+        }),
+      };
+    }
     case 'recovered': {
       const counters = message.data.counters;
       const maxima = { ...next.maxima };
@@ -223,7 +239,7 @@ function reduceSession(state, message, now) {
       const losses = BigInt(maxima.eventsLost);
       const reasons = [
         ...new Set([
-          ...next.reasons,
+          ...next.reasons.filter((reason) => reason !== 'recovery-consent-pending'),
           message.data.cause,
           'recovery-verified',
           'stage-loss-unmeasured',
@@ -235,6 +251,7 @@ function reduceSession(state, message, now) {
       return {
         ...next,
         phase: 'recovered',
+        recoveryPending: false,
         recovery: structuredClone(message.data),
         latest: null,
         maxima,
