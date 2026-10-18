@@ -8,6 +8,7 @@
   import { networkSnapshotStatus } from '../runtime/network-coverage';
   import Icon from './Icon.svelte';
   import ObservationTable from './ObservationTable.svelte';
+  import FileReadObservations from './FileReadObservations.svelte';
   let {
     telemetry,
     network = false,
@@ -317,6 +318,9 @@
       >
     {/if}
   </div>
+{/if}
+{#if !effectiveNetwork}
+  <FileReadObservations {telemetry} {scope} {query} paused={showingPaused} />
 {/if}
 {#if !effectiveNetwork || networkStatus !== 'unavailable' || networkSeen}
   <ObservationTable

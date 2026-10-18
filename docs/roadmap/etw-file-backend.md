@@ -11,12 +11,14 @@ ordinary packaged enablement remains blocked. An optional local diagnostic packa
 profile bundles the self-contained helper for bounded live qualification (see the
 [desktop milestone](../development/packaged-desktop-milestone.md#etw-diagnostic-profile)).
 This profile does not satisfy the remaining E1–E8 production gates.
-No renderer, IPC channel, FileEvent adapter,
-scoring, sequence, baseline or audit consumer receives diagnostic observations.
+The [packaged agent-read follow-up](../development/agent-sensitive-read.md) adds a
+bounded metadata view through the existing stats channel, preserving candidate
+paths and potential-risk labels. It adds no IPC channel; FileEvent adapters,
+scoring, sequence, baseline and audit consumers remain separate.
 The existing app-health composer receives one optional `etw-file` leaf and keeps
 its process-population gate independent.
 
-## What this implements
+## Original B5 baseline
 
 | Part | Behavior | Remaining evidence |
 | --- | --- | --- |

@@ -36,7 +36,9 @@ internal static class FileBurstTests
                     Check(SpinWait.SpinUntil(() => ingress.Snapshot().Records == 0, 2000), "ingress-stalled-on-probe");
                 }
                 // Lifecycle work must finish even after the bounded outbound queue fills.
-                Feed(ingress, 14, ++qpc);
+                // An unidentified close must invalidate the map even while the
+                // native witness is blocked and the outbound queue is full.
+                ingress.Enqueue(new(0, 14, 1, ++qpc, 71, 72, 72, null, 0, 0, null));
                 pipeline.Complete();
                 pipeline.Worker.WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
                 Check(ingress.Totals().Dropped == 0, "raw-loss");
@@ -75,6 +77,17 @@ internal static class FileBurstTests
             Check(second != null && second.generationWitness == null, "budget-or-cached-witness");
             Check(third?.generationWitness == "2" && probes == 2, "fresh-witness");
             Check(first is { agent: null, instanceId: null }, "attribution");
+        });
+        test("unresolved paths do not consume the scoped process probe budget", () =>
+        {
+            var ingress = new FileIngress(); int probes = 0;
+            using var pipeline = new FilePipeline(ingress, new FileScope(@"C:\fixture", false), true,
+                value => value with { generationWitness = (++probes).ToString() }, () => Stopwatch.Frequency);
+            Feed(ingress, 15, 1);
+            Feed(ingress, 12, 2, @"C:\fixture\a"); Feed(ingress, 15, 3);
+            Finish(pipeline);
+            Check(pipeline.Take()?.generationWitness == null && probes == 0, "unscoped-probe");
+            Check(pipeline.Take()?.generationWitness == "1" && probes == 1, "scoped-probe-starved");
         });
         foreach (bool decoderGap in new[] { false, true })
         {

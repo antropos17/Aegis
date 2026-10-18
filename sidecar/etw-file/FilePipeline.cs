@@ -110,7 +110,7 @@ internal sealed class FilePipeline : IDisposable
         // One serial reader owns the probe budget. Never hold the map/queue lock
         // across a native call, and never cache a process creation observation.
         long time = clock();
-        if (live && time - lastGeneration >= Stopwatch.Frequency / 100)
+        if (live && record.path != null && time - lastGeneration >= Stopwatch.Frequency / 100)
         {
             lastGeneration = time;
             record = observe(record);

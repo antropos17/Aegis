@@ -34,6 +34,30 @@ internal static class FileIssuerTests
             Check(owner.Observe(Read(110)).issuerStatus != "verified" && old.Disposed); now = 220;
             Check(owner.Observe(Read(210)).issuerStatus == "verified");
         });
+        test("existing worker threads are pinned for future scoped reads only", () =>
+        {
+            long now = 100; int snapshots = 0;
+            var pins = new Dictionary<uint, Pin>();
+            using var owner = new FileGeneration(tid => pins[tid] = new Pin(tid == 99 ? 88u : 71u),
+                () => now, 1000, 8, _ => { snapshots++; return [73u, 74u, 99u]; });
+            Check(owner.Observe(Read(90)).issuerStatus != "verified");
+            Check(owner.Count == 2 && snapshots == 1 && pins[99].Disposed);
+            Check(owner.Observe(Read(90, 74)).issuerStatus != "verified");
+            now = 120; var future = owner.Observe(Read(110, 74));
+            Check(future.issuerStatus == "verified" && future.issuerPid == 71 && pins[74].Queries == 1);
+            pins[74].Running = false; now = 140;
+            Check(owner.Observe(Read(130, 74)).issuerStatus != "verified");
+        });
+        test("worker priming obeys pin capacity and requires a scoped path", () =>
+        {
+            long now = 100; int snapshots = 0, opens = 0;
+            using var owner = new FileGeneration(_ => { opens++; return new Pin(71); }, () => now, 1000, 2,
+                _ => { snapshots++; return [74u, 75u, 76u]; });
+            owner.Observe(Read(90) with { path = null, pathEvidence = "unresolved" });
+            Check(snapshots == 0 && opens == 0);
+            now = 120; owner.Observe(Read(110));
+            Check(owner.Count == 2 && snapshots == 1 && opens == 2);
+        });
         test("creation time is queried on the stamping pass and never cached", () =>
         {
             long now = 100; var pin = new Pin(71);
