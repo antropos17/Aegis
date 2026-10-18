@@ -11,7 +11,7 @@ npm ci
 npm start
 ```
 
-Requires the Node.js version in `engines` in `package.json` (also pinned in `.nvmrc` and used by CI) and Windows 10/11 for the primary supported monitoring path. macOS/Linux support is experimental; see the [known limits](README.md#known-limits). The Electron app launches a dashboard that detects AI agents, monitors file access, scans network connections, and scores risk.
+Requires Node.js 24.15.0 or later in the 24.x line, as declared in `package.json`. `.nvmrc` pins the minimum supported version for local compatibility checks; CI uses the latest available Node 24. Windows 10/11 is the primary supported monitoring path. macOS/Linux support is experimental; see the [known limits](README.md#known-limits). The Electron app launches a dashboard that detects AI agents, monitors file access, scans network connections, and scores risk.
 
 ## Workflow
 
