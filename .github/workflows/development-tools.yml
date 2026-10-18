@@ -1,0 +1,37 @@
+name: Development tools
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-tools-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  development-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tools/development/package-lock.json
+      - name: Install application dependencies
+        run: npm ci
+      - name: Install separately locked development tools
+        run: npm ci --prefix tools/development --ignore-scripts
+      - name: Check inventory behavior and reject forbidden imports
+        run: npm run dev:tools:test
+      - name: Check the source dependency graph
+        run: npm run dev:map
