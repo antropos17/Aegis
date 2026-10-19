@@ -3000,3 +3000,22 @@ registry packages and retains all twenty other existing package blocks.
 This prerequisite adds no sensor adapter or executable. Native linkage, SDK ABI,
 permissions, live generation semantics, platform versions and full W3 acceptance
 remain open. Portable tests and cross-checks do not establish native execution.
+
+## Session handoff — dormant macOS identity adapter (2026-10-19)
+
+The macOS sensor library now connects the checked libproc wrapper to fresh
+boot/population/unique/BSD/unique/boot reads. It preserves raw birth precision,
+complete generation witnesses and best-effort population; a missing PID supplies
+no authoritative exit. Non-macOS calls return NotSupported. No executable,
+transport, clock producer, capture mode or Darwin JavaScript integration was added.
+
+The frozen adapter passed 20 portable tests, Windows and Apple ARM64 all-target
+checks/Clippy, formatting and two additional assertion mutations. Earlier identity
+mutations remain separate historical evidence. All nine frozen source hashes and
+six wrapper hashes survived the pinned prerequisite merge. Rust-only changes
+cause no JavaScript/TypeScript/Svelte inventory adjustment.
+
+This is a stacked draft on the owner-pending macOS wrapper PR. Target compilation
+does not qualify Apple SDK linkage, ABI offsets, live permissions or macOS runtime
+behavior. Parent and child require separate owner decisions and fresh master CI
+before merging. Full W3 remains open.
