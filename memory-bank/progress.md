@@ -2925,3 +2925,20 @@ passed. The test run contains 28 existing wire tests and zero native-provider
 tests. Native build, privilege/entitlement, lifecycle and coverage qualification
 remain open. Root status documentation now records the completed owner-confirmed
 #990/#996 wire prerequisite and preserves earlier deferral notes as history.
+
+## Session handoff — preceding tool context in Details (2026-10-19)
+
+The Observatory Details overview can display a bounded preceding tool-call capsule
+with session/object evidence and explicit unavailable or ambiguous states. It keeps
+OS attribution separate, downgrades incomplete associations consistently and removes
+private capsule payloads from generic metadata, including nested wrappers.
+
+Independent security, test-quality and copy reviews passed the frozen five-file
+revision. Forty focused component tests, types/Svelte/lint/format/build and fourteen
+targeted synthetic layouts with seven keyboard journeys passed. Three mutations were
+detected: two assertion failures and one TypeError render-crash regression. The
+recorded keyboard journeys do not qualify full Tab traversal or focus trapping.
+
+This display uses synthetic metadata for qualification and states that live tool
+correlation is unavailable. Trusted source selection, runtime production, clock
+measurement, native/Electron qualification, full W4 and W9 remain open.
