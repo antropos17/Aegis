@@ -61,16 +61,62 @@ internal static class FileIssuerTests
             now = 111; owner.Prepare(request);
             Check(opened[0].Disposed && owner.Observe(Read(105)).issuerStatus != "verified");
         });
-        test("preparation renews original handles without backfilling the new interval", () =>
+        test("queued first read keeps the continuously held interval across issuer renewal", () =>
         {
             long now = 100; var opened = new List<Pin>();
             using var owner = new FileGeneration(_ => { var pin = new Pin(71); opened.Add(pin); return pin; },
                 () => now, 10, 8, _ => [73u]);
             var request = new FileIssuerRequest("prepare1", [new(71, "134000000000001111")]);
             owner.Prepare(request); now = 106; owner.Prepare(request);
+            now = 110; var queued = owner.Observe(Read(105));
+            Check(queued.issuerStatus == "verified" && queued.issuerPid == 71);
+            Check(opened.Count == 1 && !opened[0].Disposed && owner.Count == 1);
+            Check(System.Text.Json.JsonSerializer.SerializeToElement(queued.issuerInterval).GetProperty("fromQpc").GetString() == "100");
+        });
+        test("an expired original handle cannot backfill its replacement interval", () =>
+        {
+            long now = 100; var opened = new List<Pin>();
+            using var owner = new FileGeneration(_ => { var pin = new Pin(71); opened.Add(pin); return pin; },
+                () => now, 10, 8, _ => [73u]);
+            var request = new FileIssuerRequest("prepare1", [new(71, "134000000000001111")]);
+            owner.Prepare(request); now = 111; owner.Prepare(request);
             Check(opened.Count == 2 && opened[0].Disposed && owner.Count == 1);
-            now = 110; Check(owner.Observe(Read(105)).issuerStatus != "verified");
-            Check(owner.Observe(Read(107)).issuerStatus == "verified");
+            now = 120; Check(owner.Observe(Read(105)).issuerStatus != "verified");
+            Check(owner.Observe(Read(112)).issuerStatus == "verified");
+        });
+        test("renewal still expires after a missing target refresh", () =>
+        {
+            long now = 100; var opened = new List<Pin>();
+            using var owner = new FileGeneration(_ => { var pin = new Pin(71); opened.Add(pin); return pin; },
+                () => now, 10, 8, _ => [73u]);
+            var request = new FileIssuerRequest("prepare1", [new(71, "134000000000001111")]);
+            owner.Prepare(request); now = 106; owner.Prepare(request);
+            now = 117; Check(owner.Observe(Read(110)).issuerStatus != "verified");
+            Check(opened.Count == 2 && opened[0].Disposed && owner.Count == 1);
+        });
+        test("new workers at capacity cannot starve renewal of an existing worker", () =>
+        {
+            long now = 100;
+            using var owner = new FileGeneration(tid => new Pin(tid == 99 ? 88u : 71u), () => now, 10, 2,
+                pid => pid == 88 ? [99u] : now == 100 ? [73u] : [74u, 73u]);
+            owner.Prepare(new("prepare1", [new(71, "134000000000001111"), new(88, "134000000000001111")]));
+            Check(owner.Count == 2); now = 106;
+            var result = owner.Prepare(new("prepare2", [new(71, "134000000000001111")]));
+            Check(result.prepared.Length == 1 && result.prepared[0].threads == 1 && owner.Count == 2);
+            now = 111; Check(owner.Observe(Read(105)).issuerStatus == "verified" && owner.Count <= 2);
+        });
+        test("repeated renewal bounds handles and never caches the process birth", () =>
+        {
+            long now = 100; int opens = 0; var pin = new Pin(71);
+            using var owner = new FileGeneration(_ => { opens++; return pin; }, () => now, 10, 8, _ => [73u]);
+            var request = new FileIssuerRequest("prepare1", [new(71, pin.Witness.ToString())]);
+            owner.Prepare(request);
+            for (int i = 0; i < 1000; i++) { now += 6; owner.Prepare(request); }
+            now++; var value = owner.Observe(Read(now - 1));
+            Check(value.issuerStatus == "verified" && opens == 1 && owner.Count == 1 && !pin.Disposed);
+            Check(pin.Queries == 1002);
+            pin.Witness++; now++;
+            Check(owner.Observe(Read(now - 1)).generationWitness == pin.Witness.ToString() && pin.Queries == 1003);
         });
         test("preparation leaves native capacity for directly observed scoped issuers", () =>
         {

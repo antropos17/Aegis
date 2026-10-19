@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentReadPassed } from '../../tools/development/agent-read-contract.mjs';
+import { agentReadPassed, idleReadPassed } from '../../tools/development/agent-read-contract.mjs';
 import { observation } from './platform/etw-file-fixtures.js';
 
 // Modeled oracle vectors, not genuine provider or packaged-application evidence.
@@ -68,6 +68,43 @@ function receipt() {
   };
 }
 describe('genuine-agent journey acceptance oracle', () => {
+  it('requires a continuously held original interval beyond the old absolute lease for an idle first read', () => {
+    const r = {
+      ...receipt(),
+      mode: 'ordinary',
+      scenario: 'first-read',
+      firstReadOnly: true,
+      issuerPreparedBeforeRead: true,
+      warmupRead: false,
+      diagnosticBuild: false,
+      noDiagnosticArguments: true,
+      noAutomaticCapture: true,
+      operatorStartedCapture: true,
+      lossAccountingVisible: true,
+      requestedIdleMs: 70000,
+      continuousCaptureMs: 70001,
+    };
+    r.readProof = {
+      ...r.readProof,
+      qpc: '40000',
+      issuerInterval: { fromQpc: '1', toQpc: '50010' },
+      generationInterval: { fromQpc: '50000', toQpc: '50010' },
+    };
+    r.summary.capture = { frequency: '1000' };
+    expect(idleReadPassed(r)).toBe(true);
+    const replacement = {
+      ...r,
+      readProof: { ...r.readProof, issuerInterval: { fromQpc: '39000', toQpc: '50010' } },
+    };
+    expect(agentReadPassed(replacement)).toBe(true);
+    expect(idleReadPassed({ ...replacement, continuousIssuerHoldMs: 999999 })).toBe(false);
+    for (const frequency of [null, '0', '-1', '1e3', '1000.0'])
+      expect(idleReadPassed({ ...r, summary: { ...r.summary, capture: { frequency } } })).toBe(
+        false,
+      );
+    expect(idleReadPassed({ ...r, continuousCaptureMs: 69999 })).toBe(false);
+    expect(idleReadPassed({ ...r, issuerPreparedBeforeRead: false })).toBe(false);
+  });
   it('requires explicit ordinary-package controls and capture beyond one minute', () => {
     const value = {
       ...receipt(),

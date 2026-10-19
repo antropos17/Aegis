@@ -1,7 +1,8 @@
 # Packaged agent sensitive-read journey
 
-This check follows an installed Claude Code process reading an owned README and
-then a newly created synthetic `.env`. Events displays the observed read, its
+This check follows an installed Claude Code process reading a newly created
+synthetic `.env`, either as its first scoped read or after an owned README read.
+Events displays the observed read, its
 issuing agent when verified, and a potential sensitive-file risk.
 
 Ordinary Windows x64 packages now expose explicit scoped Start/Stop in Events;
@@ -9,10 +10,12 @@ see [ordinary file reads](ordinary-file-reads.md). The historical diagnostic
 profile still requires its marker/root flag and retains its minute limit. Both
 use the stats bridge; ordinary controls add one owned-renderer IPC operation.
 
-The [ordinary-package qualification](../recon/evidence/ordinary-agent-sensitive-read.json)
-retains a persistent-read PASS and a separate first-read attribution FAIL after
-65 seconds idle. The latter still displayed a read and potential risk with an
-unverified actor. It is not superseded by the persistent-read result.
+The [idle first-read qualification](../recon/evidence/agent-idle-first-read.json)
+passes genuine first reads after 65, 70 and 85 seconds in an ordinary package,
+including the original held-handle interval, exact issuer, UI risk and cleanup.
+The [earlier ordinary-package record](../recon/evidence/ordinary-agent-sensitive-read.json)
+retains its separate attribution FAIL; see [interpretation](ordinary-file-reads.md)
+for the proven renewal race and the limits of the historical diagnosis.
 
 ## Evidence and interpretation
 
@@ -27,7 +30,7 @@ Labels are stamped at intake; later exit or PID reuse cannot relabel history.
 An acknowledged preparation of detected AI processes can hold existing workers
 before their first scoped read. The first scoped read can also prime workers for
 future events, with
-at most 128 held thread/process pairs and a 30-second witness window. Expired
+at most 128 held thread/process pairs and a 30-second renewable lease. Expired
 pins are disposed on the next observation/preparation or at capture disposal. The bounded
 Toolhelp snapshot inspects at most 32,768 entries and selects at most 128 TIDs;
 every selected thread is independently opened and owner-checked. Unknown paths
@@ -40,8 +43,12 @@ sixteen AI processes, newest first. Native handles must independently match the
 requested PID/full creation time. Preparation stops adding pins at 64, leaving
 room for directly observed issuers under the existing 128-pin cap. Requests are
 coalesced, have a five-second acknowledgement deadline, and refresh after twenty
-seconds. Older handles are reopened before their thirty-second witness window expires;
-the new interval never verifies older queued events. Stop takes priority.
+seconds. Successful preparation renews the lease of the same live OS objects after
+fresh owner/birth checks. Their original held interval stays intact, covering
+reads queued before renewal. New workers at the preparation cap cannot prevent
+renewal of existing workers later in the bounded inventory. Without renewal,
+expiry closes the handles; their replacements cannot verify earlier events.
+Reads alone do not renew a lease. Stop takes priority.
 
 Preparation targets and receipts remain in main-only diagnostics. They never
 substitute for the fresh birth query used to stamp an actual read. Outages,
@@ -74,6 +81,11 @@ preparation receipt matching the installed agent, creates the synthetic `.env`,
 and permits exactly one Read tool request with no README warmup. The event-time
 issuer proof, visible action/risk, privacy and cleanup requirements still apply.
 The earlier persistent-agent PASS does not qualify this new scenario.
+
+For ordinary first reads, `--idle-ms` selects 65,000–120,000 milliseconds (default
+65,000). Qualification also requires the actual original held interval to cover
+more than thirty seconds before the read. A freshly reopened handle and a
+successful UI row alone cannot qualify the idle-renewal regression.
 
 The runner creates disposable fixtures and an AEGIS profile under its output.
 Only Read is available to the CLI. The `.env` is created after capture starts;

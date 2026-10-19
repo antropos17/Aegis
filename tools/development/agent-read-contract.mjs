@@ -82,3 +82,27 @@ export function agentReadPassed(r) {
     summary.finalTotals != null,
   );
 }
+
+/** Require first-read proof across an original held interval exceeding the lease.
+ * A fresh replacement handle after idle cannot qualify this regression. This
+ * retains the complete genuine-agent, privacy and cleanup oracle above.
+ * @param {object} r Bounded private first-read receipt.
+ * @returns {boolean} Whether renewed original handles cover the genuine read.
+ * @since v0.19.2
+ */
+export function idleReadPassed(r) {
+  const frequency = r?.summary?.capture?.frequency;
+  return Boolean(
+    agentReadPassed(r) &&
+    r.mode === 'ordinary' &&
+    r.scenario === 'first-read' &&
+    Number.isSafeInteger(r.requestedIdleMs) &&
+    r.requestedIdleMs >= 65000 &&
+    r.requestedIdleMs <= 120000 &&
+    r.continuousCaptureMs >= r.requestedIdleMs &&
+    typeof frequency === 'string' &&
+    /^[1-9]\d{0,19}$/.test(frequency) &&
+    BigInt(frequency) <= 0xffffffffffffffffn &&
+    BigInt(r.readProof.qpc) - BigInt(r.readProof.issuerInterval.fromQpc) > BigInt(frequency) * 30n,
+  );
+}

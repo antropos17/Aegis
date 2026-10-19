@@ -10,7 +10,10 @@ import { exitWithin, inspectProfile } from './sensor-support.mjs';
 
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { agentReadPassed } from '../../../tools/development/agent-read-contract.mjs';
+import {
+  agentReadPassed,
+  idleReadPassed,
+} from '../../../tools/development/agent-read-contract.mjs';
 const { values } = parseArgs({
   options: {
     executable: { type: 'string' },
@@ -18,9 +21,15 @@ const { values } = parseArgs({
     output: { type: 'string' },
     'first-read': { type: 'boolean', default: false },
     ordinary: { type: 'boolean', default: false },
+    'idle-ms': { type: 'string', default: '65000' },
   },
 });
 assert(process.platform === 'win32' && process.arch === 'x64', 'Windows x64 required');
+const idleMs = Number(values['idle-ms']);
+assert(
+  Number.isSafeInteger(idleMs) && idleMs >= 65000 && idleMs <= 120000,
+  'Idle must be 65–120 seconds',
+);
 for (const value of [values.executable, values['agent-executable'], values.output])
   assert(path.isAbsolute(value ?? ''), 'Absolute paths required');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -58,6 +67,7 @@ const r = {
   realAgent: 'Claude Code',
   fixtureOnly: true,
   mode: values.ordinary ? 'ordinary' : 'diagnostic',
+  requestedIdleMs: idleMs,
   file,
   scenario: values['first-read'] ? 'first-read' : 'persistent',
   workflow: values['first-read']
@@ -185,7 +195,7 @@ try {
   r.liveReady = true;
   if (values.ordinary) {
     const started = performance.now();
-    while (performance.now() - started < 65000) {
+    while (performance.now() - started < idleMs) {
       await delay(1000);
       assert.equal((await diagnostics(app)).phase, 'running', 'Ordinary capture stopped early');
     }
@@ -212,6 +222,7 @@ try {
           row.createTime100ns === r.agentIdentity.createTime100ns &&
           row.threads > 0,
       );
+      if (r.preparationRecord) r.preparationAsOfQpc = snapshot.issuerPreparation.asOfQpc;
       if (r.preparationRecord) break;
       await delay(100);
     } while (Date.now() < until);
@@ -460,7 +471,8 @@ try {
     windowsHide: true,
     maxBuffer: 4096,
   }).trim();
-  if (!agentReadPassed(r)) {
+  const idleJourney = values.ordinary && values['first-read'];
+  if (!(idleJourney ? idleReadPassed(r) : agentReadPassed(r))) {
     r.status = 'FAIL';
     r.failure ??= 'Incomplete journey or cleanup evidence';
     process.exitCode = 1;

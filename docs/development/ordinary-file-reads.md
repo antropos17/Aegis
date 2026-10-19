@@ -39,16 +39,22 @@ separate first/persistent reads. Qualification must bind a clean source revision
 an unmarked normal package, its complete manifest and actual installed-agent
 receipts. Modeled tests alone do not establish this result.
 
-The [19 October ordinary-package record](../recon/evidence/ordinary-agent-sensitive-read.json)
-is **PARTIAL**. The installed Claude Code persistent-read journey passed after 65
-seconds of continuous capture, including exact issuer proof, visible action/risk,
-explicit Stop, privacy and independent session absence. A separate first-read
-journey after the same idle interval returned the genuine synthetic value and
-displayed the read/risk with **Actor unverified**, failing the strict issuer
-oracle despite acknowledged preparation. Its final native and collector drops
-were zero; the exact attribution-gap cause remains unresolved. The failed receipt
-is retained. This feature is usable for experimental observations, without a
-guarantee that every first read is attributed or every read is captured.
+The [idle first-read qualification](../recon/evidence/agent-idle-first-read.json)
+passes three installed Claude Code journeys after 65, 70 and 85 seconds in a clean
+ordinary package. Each used one genuine Read of a new synthetic `.env`, without
+README warmup, and showed the exact issuing agent, action and potential risk.
+The native original-handle interval exceeded thirty seconds in each case,
+qualifying continuous renewal rather than a fresh replacement. Privacy, normal
+quit, native stop acknowledgement and independent session absence also passed.
+
+The [earlier ordinary-package record](../recon/evidence/ordinary-agent-sensitive-read.json)
+retains its persistent-read/explicit Stop PASS and separate first-read FAIL.
+Its unique failure cause was not recoverable from that receipt. A native
+regression independently proved that reopening live handles during renewal could
+exclude already queued reads; renewal now keeps the original handles after fresh
+identity checks. Four instrumented baseline journeys passed, so they do not
+reproduce the historical intermittent failure. Nonzero collector drops and mapping
+resets remain in the new evidence; no every-read or every-worker guarantee follows.
 
 Windows packaging needs the .NET 10 SDK and restore access. The default build hook
 publishes a self-contained folder; end users need no separate runtime. See
