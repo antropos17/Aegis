@@ -3417,6 +3417,18 @@ trusted embedding model. Real profiles, active-writer compatibility, transcript
 provenance, process/session binding, producer clocks and production/full W4
 acceptance remain unqualified. `launchAllowed=false` is unchanged.
 
+## 2026-10-19 — ETW source-summary correction
+
+The two LLM-oriented source summaries now describe ordinary Windows experimental
+file reads with explicit Start, local folder and manual UAC; startup remains off.
+Their earlier checkpoint and diagnostic/idle receipts are labelled historical.
+Changed protocol/package inputs and reboot recovery retain their unqualified
+boundary. Eight existing heading separators were also formatted.
+
+Independent factual review, focused Markdown formatting and five local links
+were checked. This updates documentation only; no capture, runtime activation or
+new qualification evidence was added. `launchAllowed=false` remains unchanged.
+
 ## Session handoff — W5 explicit Cedar execution slice (2026-10-19)
 
 The optional schema-4 execution policy uses the pinned official Cedar WASM
