@@ -14,6 +14,7 @@ not establish workstream acceptance.
 | Compare paired task completion evidence offline | `node bench/paired-task-latency.cjs --help` | [Task outcomes and latency](../bench/PAIRED-TASK-LATENCY.md) |
 | Check dormant Windows Coverage through the real preload | Dedicated Electron fixture below | [Coverage preload fixture](../bench/COVERAGE-PRELOAD.md) |
 | Develop native Windows hook IO with inert owned targets | Owner-prepared development fixture | [Private Windows hook IO](../CLAUDE-HOOK-WINDOWS-IO.md) |
+| Develop Windows context reads from an explicitly selected stable/exported file | Private owner API and local .NET fixture | [Stable-file reader contract](../SESSION-CONTEXT-WINDOWS-IO.md) |
 
 ## WinGet candidate preparation
 

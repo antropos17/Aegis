@@ -3386,3 +3386,33 @@ null metrics. METHOD and Completion tools link to the new contract.
 Supplied declarations/hashes prove no authentic capture, prior freezing, complete
 cohort or independent evaluator. No actual task latency, provider/native run,
 calibrated overhead, reproducibility or full W8 acceptance is claimed.
+
+## 2026-10-19 — W4 Windows explicit stable-file reader
+
+The dormant owner API supplies Windows IO to the existing bounded reader and
+returns the original synchronous parser owner's exact batch after confirmed
+helper/stream closure. It captures that owner and parser before asynchronous IO.
+The fixed read-only apphost retains native file/ancestor handles, full file and
+volume identity, exact Write/Change versions, bounded reads and EOF proof.
+Unknown cleanup remains unavailable. No application caller was added.
+
+The frozen final source passed independent source/security and test/evidence
+reviews. Recorded checks: 19 actual reader controls; 2 isolated metadata and
+1 EOF controls; 7 Node transport and 4 apphost grammar controls; 7 startup
+controls plus a separately observed deleted-import trust limitation. The test
+run logged 126 passes (19 new, 107 existing), with lint, format and main typecheck
+passing. Three copied-source behavioral mutants were killed with clean baselines.
+
+The retained packet binds 41 source inputs and 367 artifacts. Its sealed report's
+blanket successful-receipt sentence is corrected externally: the historical
+failed supplemental driver remains code 1 and is not a mutation kill. Existing
+107-test definitions were archived afterward with unchanged baseline bindings;
+that supplement supplies no pre-run or exhaustive loaded-dependency attestation.
+Maximum-file coverage checks length/availability; the native full-ID control
+does not inject a high-half-only substitution. Counts are derived by the gate.
+
+This route uses explicit stable/exported files and may exclude ordinary writers
+while its lease is held. Prior arbitrary instrumentation remains outside the
+trusted embedding model. Real profiles, active-writer compatibility, transcript
+provenance, process/session binding, producer clocks and production/full W4
+acceptance remain unqualified. `launchAllowed=false` is unchanged.
