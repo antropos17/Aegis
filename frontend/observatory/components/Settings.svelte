@@ -299,6 +299,9 @@
         {$t('Preferences are grouped on this page. Your draft stays until you save or discard it.')}
       </p>
     </div>
+    <button class="button" onclick={() => navigate('coverage')}
+      >{$t('View monitoring coverage')}</button
+    >
     <span class="badge">{$t('Local settings')}</span>
   </div>
   <div class="settings-composition">

@@ -154,12 +154,15 @@ it('starts with all Advanced destinations and a fixed 100% interface on a fresh 
   const { host } = appBridge();
   host.getSettings = async () => ({ darkMode: false, uiScale: 2, scanIntervalSec: 10 });
   render(App, { host });
-  expect(navigation().getAllByRole('button')).toHaveLength(14);
+  expect(navigation().getAllByRole('button')).toHaveLength(15);
+  expect(navigation().getByRole('button', { name: 'Coverage' })).toBeVisible();
   expect(screen.getByRole('heading', { level: 1, name: 'Monitoring' })).toBeVisible();
   await waitFor(() =>
     expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1'),
   );
   expect(localStorage.getItem('aegis-advanced-mode')).toBeNull();
+  await fireEvent.click(navigation().getByRole('button', { name: 'Coverage' }));
+  expect(screen.getByRole('heading', { level: 1, name: 'Coverage' })).toBeVisible();
 });
 
 // Multiple full-workspace transitions use the existing App integration coverage budget.
@@ -203,7 +206,8 @@ it('retains drafts through interface changes and navigation and restores Advance
   mode.focus();
   await fireEvent.click(mode);
   expect(mode).toHaveFocus();
-  expect(navigation().getAllByRole('button')).toHaveLength(14);
+  expect(navigation().getAllByRole('button')).toHaveLength(15);
+  expect(navigation().getByRole('button', { name: 'Coverage' })).toBeVisible();
   await fireEvent.click(navigation().getByRole('button', { name: 'Monitoring' }));
   await fireEvent.click(screen.getByRole('button', { name: 'Back' }));
   expect(screen.getByLabelText('Scan interval (seconds)')).toHaveValue('45');
@@ -214,7 +218,8 @@ it('retains drafts through interface changes and navigation and restores Advance
   mounted.unmount();
   const next = appBridge();
   render(App, { host: next.host });
-  expect(navigation().getAllByRole('button')).toHaveLength(14);
+  expect(navigation().getAllByRole('button')).toHaveLength(15);
+  expect(navigation().getByRole('button', { name: 'Coverage' })).toBeVisible();
   expect(screen.getByRole('heading', { level: 1, name: 'Monitoring' })).toBeVisible();
 }, 15_000);
 
