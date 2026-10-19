@@ -232,6 +232,70 @@ clean-machine install/upgrade/uninstall and submission remain separate evidence.
 Modeled success tests and an actual unsigned-PE refusal do not qualify a signed
 release; that requires an independently pinned real signed artifact.
 
+## Combined Windows candidate verification
+
+`node scripts/verify-windows-candidate.cjs --help` joins the signed release
+manifest and a fresh Authenticode observation for one explicitly selected local
+EXE. Supply the manifest, detached signature, exact signed asset filename,
+expected tag/repository, artifact path and independently approved artifact and
+certificate-DER SHA-256 pins. Only the checkout's
+`keys/aegis-release-pubkey.pub` is accepted; CLI and environment key overrides
+are unsupported. A renamed local artifact is allowed because the explicit
+signed asset selection is bound by size and complete-file digest.
+
+```powershell
+node scripts/verify-windows-candidate.cjs `
+  --manifest X:\owned-downloads\manifest.json `
+  --signature X:\owned-downloads\manifest.json.sig `
+  --asset 'EXACT_SIGNED_INSTALLER_FILENAME.exe' `
+  --tag 'aegis-vREPLACE_WITH_EXPECTED_VERSION' `
+  --repository 'OWNER/REPOSITORY' `
+  --artifact X:\owned-downloads\AEGIS-Setup.exe `
+  --artifact-sha256 'REPLACE_WITH_OWNER_SUPPLIED_FILE_SHA256' `
+  --signer-sha256 'REPLACE_WITH_OWNER_SUPPLIED_CERTIFICATE_DER_SHA256' `
+  --authenticode-output X:\owned-reports\new-candidate-authenticode.json `
+  --output X:\owned-reports\new-candidate-combined.json
+```
+
+All input/output paths must be distinct ordinary absolute local paths with
+trusted, stable ancestors and existing owner-controlled output parents. The
+component's path restrictions and 68-byte..512-MiB artifact bound apply; the
+manifest is limited to 2 MiB and the detached signature to 256 bytes. Existing
+outputs, including imported passing receipts, are refused and preserved.
+Duplicate manifest filenames, including case-only aliases, are refused.
+
+The combined pass binds the SHA-256 of the exact authenticated manifest bytes,
+expected tag/repository, selected signed filename, signed size/digest, independent
+artifact pin and the new component receipt's complete bytes and SHA-256. It
+requires a fresh `Valid` embedded Authenticode observation under the supplied
+certificate pin, observed helper close, successful component receipt flush/close,
+and a final stable artifact hash/size check. Both receipt paths must be new;
+there is no receipt-import option. The component retains its 30-second helper
+deadline, 4096-byte output limit and two-second cleanup grace. All filesystem
+operations rely on the same responsive trusted-filesystem boundary.
+
+Signature/schema refusals use the existing release verifier's diagnostics and
+exit nonzero before any new receipt reservation or helper launch. Other early
+refusals also may produce no receipt. New failures use fixed codes:
+`RELEASE_IDENTITY`, `AMBIGUOUS_ASSET`, `ASSET_MISSING`, `SIGNED_PIN_MISMATCH`,
+`SIGNED_SIZE_MISMATCH`, `AUTHENTICODE_REFUSED`, `AUTHENTICODE_BINDING`,
+`AUTHENTICODE_RECEIPT` and `ARTIFACT_CHANGED`, alongside input/path/output
+refusals. `AUTHENTICODE_REFUSED` leaves the component's reason in its fresh
+receipt when one was written. The combined JSON contains no local paths.
+
+Acceptance requires exit 0, combined `CANDIDATE_VERIFIED`, and both complete
+matching fresh receipts. Failed writes, flushes or closes may leave incomplete
+or pass-looking JSON; the CLI's failed exit always defeats such a file. Preserve
+both receipts and the unchanged candidate artifact for later qualification.
+`launchAllowed` remains `false` on success. This command performs no fetching,
+WinGet YAML preparation, metadata inference, installation, signing or target
+execution. Local trust/cache, revocation and timestamp limits remain those of
+the [component gate](#windows-authenticode-prerequisite). Candidate success
+does not establish published-download identity, payload/publisher metadata,
+WinGet validation, clean-machine install/upgrade/uninstall, submission, W10
+completion or release acceptance. Modeled tests establish the verification
+contract; they do not establish a real signed release's qualification.
+
 ## Release notes
 
 `release-please-config.json` uses `changelog-type: github`: GitHub generates the
