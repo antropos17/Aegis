@@ -1,6 +1,8 @@
 'use strict';
 const { randomUUID } = require('crypto');
 const { EVIDENCE_CODES } = require('./attribution');
+const { projectToolContext, unavailableToolContext } = require('./tool-context-record');
+const { projectNativeObservation, unavailableNativeObservation } = require('./native-observation');
 
 const SENSORS = Object.freeze(['file-watch', 'file-handle', 'process', 'network', 'other']);
 const TYPES = new Set(['file-access', 'config-access', 'agent-enter', 'network-connection']);
@@ -50,6 +52,7 @@ function projectRecord(input) {
     severity: text(d.severity, 32) ?? 'normal',
     attribution: attribution(d.attribution),
   };
+  if (d.toolContext !== undefined) details.toolContext = projectToolContext(d.toolContext);
   const extra = {};
   if (input.type === 'network-connection') {
     for (const key of ['domain', 'remoteIp', 'localIp', 'state', 'verdict', 'verdictReason']) {
@@ -70,6 +73,13 @@ function projectRecord(input) {
     if (d.createTime100ns != null) extra.createTime100ns = text(d.createTime100ns, 32);
     if (Number.isSafeInteger(d.repeatCount) && d.repeatCount > 0) extra.repeatCount = d.repeatCount;
   }
+  const native = Object.getOwnPropertyDescriptor(d, 'nativeObservation');
+  if (native) {
+    const capsule = Object.hasOwn(native, 'value')
+      ? projectNativeObservation(native.value)
+      : unavailableNativeObservation();
+    if (capsule !== undefined) extra.nativeObservation = capsule;
+  }
   details.extra = extra;
   const record = {
     deliveryId: randomUUID(),
@@ -79,6 +89,21 @@ function projectRecord(input) {
     details,
     replayed: false,
   };
+  if (
+    Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES &&
+    extra.nativeObservation !== undefined
+  ) {
+    extra.nativeObservation = unavailableNativeObservation('native-observation-over-budget');
+    if (Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES)
+      delete extra.nativeObservation;
+  }
+  if (
+    Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES &&
+    details.toolContext !== undefined
+  ) {
+    details.toolContext = unavailableToolContext(details.toolContext);
+    if (Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES) delete details.toolContext;
+  }
   if (Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES)
     throw new Error('record-oversize');
   return record;
@@ -92,8 +117,8 @@ function projectRecord(input) {
 function replayRecord(value) {
   if (!/^[a-f0-9-]{36}$/.test(value.deliveryId)) throw new Error('invalid-record');
   const record = projectRecord(value);
-  // File extras are explicitly reintroduced through the same closed input fields.
-  for (const key of ['createTime100ns', 'repeatCount']) {
+  // File and native metadata are reintroduced through the same closed input fields.
+  for (const key of ['createTime100ns', 'repeatCount', 'nativeObservation']) {
     if (value.details?.extra?.[key] !== undefined) {
       const projected = projectRecord({
         ...value,

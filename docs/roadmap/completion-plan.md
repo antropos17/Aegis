@@ -49,11 +49,12 @@ human owner.
 
 Ten-hour execution update (2026-10-19): the owner authorized necessary tooling
 and autonomous development through 15:57 UTC. Rust 1.99.1 MSVC, rustfmt and
-Clippy are installed on X with process-local activation. The pinned workspace
-and pure `aegis-wire` codec are prepared for review; both-language acceptance,
-owner wire confirmation and merge remain required before W1b starts. Local Rust
-checks establish the Windows MSVC crate boundary, not Linux/macOS providers or
-packaged application qualification.
+Clippy are installed on X with process-local activation. W1a JavaScript #990 and
+Rust #996 are merged; both-language wire gates and exact PR/master repository
+checks passed. The owner confirmed the wire merges. W1b can now proceed after
+its two merged prerequisites. Separate Linux/macOS library crate roots prepare
+parallel implementation; native providers, host/session behavior and packaged
+application qualification remain open.
 
 ## 1. Instruction priority
 
@@ -399,9 +400,9 @@ Before freezing the wire, resolve Q4's identity gaps: preserve the raw birth
 precision and composite generation witness in watched roots, expose the existing
 D1 conversion through an owned host contract, and define clock-anchor and
 null/error semantics. Appendix A is a proposal until those decisions are
-recorded and reviewed. Rust installation remains deferred by the owner; design
-and JS work can be prepared, but W1a acceptance needs both language gates and
-cannot be marked complete while its Rust prerequisite is unavailable.
+recorded and reviewed. The earlier Rust deferral was lifted during the authorized ten-hour run. Both
+language codecs are merged and verified (#990 and #996); native provider,
+host/session and packaged-application qualification remain separate.
 
 W1b depends on merged W1a and W1-pipe. Sensor host
 `src/main/platform/sensor-host.js`: spawns the platform sensor
