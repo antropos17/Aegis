@@ -3004,3 +3004,57 @@ no full type-coverage claim follows.
 This is offline arithmetic preparation. No collector, native or Electron run,
 population discovery, provenance authentication, calibration, baseline comparison,
 three-run variance qualification, measured overhead or W8/T8 acceptance is added.
+
+## Session handoff — monitoring coverage view (2026-10-19)
+
+Coverage now has an Advanced sidebar route, command search, a Settings entry and
+sensor-health links. It separates provider health, native event admission and
+coverage, and leaves unreported rates, restart time and action provenance unknown.
+Known binary/restart failures have fixed English and Portuguese explanations;
+unknown diagnostics are suppressed. OS process identity does not imply interception
+or blocking coverage.
+
+Coverage uses current telemetry even when another workspace's view is paused.
+The R2 browser journey verified new agent/loss observations and a later outage,
+then returned to the retained Overview with its resume control intact. Reverting
+the Coverage input to the paused snapshot failed the actual DOM assertion; source
+was restored. Seventy-four affected tests across six files, configured types,
+Svelte, scoped lint/format, both builds and three targeted Edge states passed.
+Earlier R1 and integration matrices remain separate evidence. The existing native
+Electron smoke script now includes the route; only its syntax/lint/format were
+checked in this slice.
+
+Hosted CI then found a missing curated Coverage icon and two navigation tests
+with stale destination counts. R3 adds the pinned MIT Tabler shield-search icon
+with exact provenance, retains the original geometry and uniqueness guards,
+and verifies the fifteenth Advanced destination and Coverage route. All 45
+affected R3 tests passed, with one assertion-killed mapping mutation restored.
+Fresh dark/light renders matched the upstream SVG paths; configured types,
+Svelte, both builds, scoped lint/format and independent review passed. The W8
+master integration preserved all sixteen frozen source hashes.
+
+This view reports the existing host data contract. Native admission remains
+unsupported, and per-agent action provenance, rates and verified blocking remain
+unreported. Real Electron/preload, native/provider and complete W9 acceptance
+remain open; synthetic browser renders do not establish those checks.
+
+## Session handoff — bounded explicit session reader (2026-10-19)
+
+A new injected reader accepts one explicit absolute session-file path and returns
+only the existing metadata parser projection. It requires stable regular-file,
+no-link, volume/file and version metadata on path and handle before and after a
+bounded complete read, an EOF check and successful close. Failed or uncertain
+reads pass null bytes to the parser. Owned buffers are cleared after parsing.
+No source discovery, default filesystem provider or live runtime caller is added.
+
+The focused gate passed 107 tests across three suites, including 41 reader cases.
+Four guard mutations failed behavioral assertions and restored exact source.
+Configured main types, scoped lint/format and independent security/test review
+passed. The disposable Windows/X-drive fixture does not qualify a production
+reparse verifier. Provider operations must bound their own duration; this reader
+adds byte/call limits, not IO cancellation or a total deadline. Buffer clearing
+does not securely erase parser strings or external copies.
+
+Trusted source selection, platform-qualified file IO, observed process/session
+binding, clock calibration and live integration remain open. No new association
+strength, user-log access, IPC, source trust or complete W4 acceptance follows.

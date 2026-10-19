@@ -870,22 +870,16 @@ export async function checkFooter(browser, url, out) {
               await sensor.focus();
               await page.keyboard.press('Enter');
               await main
-                .getByRole('heading', { name: t('Statistics'), level: 1, exact: true })
+                .getByRole('heading', { name: t('Coverage'), level: 1, exact: true })
                 .waitFor();
-              assert.equal(
-                await main
-                  .getByRole('navigation', { name: t('Statistics sections') })
-                  .getByRole('button', { name: t('Sensors'), exact: true })
-                  .getAttribute('aria-current'),
-                'location',
-              );
+              assert.equal(await main.evaluate((node) => document.activeElement === node), true);
               await page.keyboard.press('Alt+ArrowLeft');
               await main
                 .getByRole('heading', { name: t('Audit'), level: 1, exact: true })
                 .waitFor();
               await page.keyboard.press('Alt+ArrowRight');
               await main
-                .getByRole('heading', { name: t('Statistics'), level: 1, exact: true })
+                .getByRole('heading', { name: t('Coverage'), level: 1, exact: true })
                 .waitFor();
               await page
                 .locator('.sidebar')
