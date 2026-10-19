@@ -10,5 +10,8 @@ description = "Registered macOS sensor library root; native provider implementat
 [dependencies]
 aegis-wire.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+aegis-macos-libproc = { path = "native" }
+
 [lints]
 workspace = true
