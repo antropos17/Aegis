@@ -22,6 +22,9 @@ lifecycle identity is invented. CPU percentages, group totals, phase estimates
 and percentiles are absent. `identity.osBirthTime` and `population.complete` are
 explicitly `null` with reasons.
 
+Use [acquisition-window intervals](BRACKETED_RESOURCE_INTERVALS.md) to derive
+conditional own-process CPU bounds and RSS phase admission from these raw readings.
+
 ## APIs, time and raw values
 
 Default collection calls [`process.cpuUsage()`](https://nodejs.org/docs/latest-v24.x/api/process.html#processcpuusagepreviousvalue)
