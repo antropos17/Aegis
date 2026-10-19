@@ -36,6 +36,12 @@ shapes and strict parser decisions. [w1a-js.md](w1a-js.md) records implementatio
 review corrections and scoped verification. This is a JS preparation slice; the
 deferred Rust implementation and both-language gates still prevent full W1a acceptance.
 
+W8 Wave 1 preparation (2026-10-19): [the measurement method](../bench/METHOD.md)
+defines the prospective effectiveness and resource protocol, existing harness
+limits and required admission evidence. This independent documentation milestone
+does not qualify measurements or complete T8. Executable corpus/collector work,
+platform qualification and publication remain later W8 work.
+
 This document is the work order for the orchestrator. It defines the target, the
 fixed constraints, how work is split across agents, each workstream with its
 acceptance criteria, the execution order and the actions that stay with the

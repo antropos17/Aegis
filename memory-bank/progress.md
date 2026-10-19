@@ -2790,3 +2790,24 @@ W1b and native provider acceptance remain open. Preserve the original dirty
 checkout and finite receipts. C: free space fluctuated below the local batch
 threshold; full repository checks use hosted CI, with no global cleanup,
 service/settings changes or claimed permanent fix for that allocation.
+
+## Session handoff — W8 measurement method draft (2026-10-19)
+
+The owner requested the next independent block without Rust, with subagents in a
+fresh worktree through checked merge. The explicit Wave 1 method milestone is
+independent of deferred W1a Rust/W1b and live platform qualification. Its bounded
+result is [METHOD.md](../docs/bench/METHOD.md), linked from the existing bench
+guide. Existing executable scenario/scoring contracts remain in place.
+
+The method separates legacy harness behavior from prospective qualification:
+catalogue-to-independent-oracle confirmation, separate Windows oracle columns,
+unavailable categories, ordinary-task outcomes and false alarms, complete resource
+cohorts, calibrated sampling and three-run summaries. Historical profiles and the
+W1-pipe synthetic delivery qualification retain their existing evidence limits.
+No new effectiveness, overhead or native-platform result is produced by this
+documentation block; full W8/T8 acceptance remains open.
+
+The PR and external completion tracker record the final revision, independent
+documentation review and exact required PR/master gates. This pre-merge handoff
+does not substitute for those results. Rust remains deferred, the original dirty
+checkout is preserved, and finite diagnostics stay on the data drive.

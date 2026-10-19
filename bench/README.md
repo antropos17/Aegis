@@ -6,6 +6,12 @@ the project (`memory-bank/RESEARCH-BASELINE.md` §3, §10).
 
 ## Method
 
+The [W8 measurement-method draft](../docs/bench/METHOD.md) defines a future
+qualification protocol for real-agent tasks, independent oracles and resource
+measurements. It adds no collector, result or W8 acceptance. The Bench V1
+commands, legacy arm definitions and historical evidence below retain their
+existing scope; the draft records the additional prerequisites before publication.
+
 For each scenario the bench **generates an expected-event catalogue as a by-product of
 running a deterministic script**, then confirms every row of that catalogue against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
