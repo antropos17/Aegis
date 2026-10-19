@@ -31,6 +31,19 @@
     "packageAfterLiveJourneys": {
       "unchanged": true,
       "completeManifestRecomputed": true
+    },
+    "installationHelperExitRegression": {
+      "scope": "Independent native installation helper; outside the qualified Electron/ETW package",
+      "status": "PASS",
+      "testsPassed": 16,
+      "sourceSha256": "ef811bb1d4cf36983a0fe51659a02bdb6099e176099b2ddb17e7024dff89cc19",
+      "beforeFix": "The original natural-exit test failed in both the full and isolated Windows runs; private native diagnostics observed image-query refusal during termination.",
+      "failedIsolatedLogSha256": "a5e04ab55834abcdadc921ea0de18c4f726320398c6c9f94f5a2a33d9bb4b20b",
+      "passedLogSha256": "ef3e05d7c9dad4f83f463532d761c4ce3295f6e9f1e927ded6cd067863bf9717",
+      "retainedOriginalHandleWaitMilliseconds": 2000,
+      "signaledOriginalRequired": true,
+      "timeoutAndFailedWaitStillRefused": true,
+      "productionLaunchPermissionChanged": false
     }
   },
   "liveQualification": {
@@ -96,7 +109,7 @@
     "candidatePersistentRegression": {
       "status": "PASS",
       "startedAt": "2026-10-19T00:20:11.953Z",
-      "completedAt": "2026-10-19T00:20:59.270Z",
+      "completedAt": "2026-10-19T00:20:59.27Z",
       "receiptSha256": "e3b645df084ec9f8ad19f243e0eb0af887387b32730b1acef2a4c599785a0c1f",
       "agent": "Claude Code",
       "agentVersion": "2.1.292 (Claude Code)",
@@ -267,7 +280,7 @@
     "Final native loss/drop counters were zero in these captures; mapping resets/conflicts remain reported measurements and are not hidden by the PASS result.",
     "Candidate paths and path-rule potential risk do not establish resolved file identity or malicious intent; no risk-score, FileEvent, audit, baseline or sequence admission.",
     "Ordinary packaged ETW remains disabled; a marked diagnostic package, explicit fixture root and manually approved capture were required.",
-    "The tested runtime is the source revision above. Subsequent evidence and documentation commits do not rebuild or expand that qualification."
+    "The tested runtime is the source revision above. The final documentation, test-diagnostic and installation-helper-only delta leaves Electron/ETW package inputs unchanged and does not expand that qualification."
   ],
   "retention": "Private receipts, screenshots, complete package manifest and unsuccessful build/earlier UAC attempts retained; manual review of closed disposable diagnostics after seven days. No automatic cleanup is claimed."
 }

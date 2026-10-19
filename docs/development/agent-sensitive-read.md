@@ -126,11 +126,22 @@ Both journeys excluded file contents from the AEGIS profile and diagnostic reads
 from audit rows, exited the agent and app normally, acknowledged native stop,
 independently confirmed session absence and left no native helper processes.
 The entire package still matched its frozen manifest after the live checks.
-Later evidence/documentation commits leave these tested runtime inputs unchanged;
-their required PR checks apply separately. Ordinary packaged ETW remains disabled.
+The final documentation, test-diagnostic and installation-helper delta leaves the
+Electron/ETW package inputs unchanged; required PR checks apply separately.
+Ordinary packaged ETW remains disabled.
 
 The record retains the earlier checks without elevation against `41335d2d`,
 including real owned handles with synthetic observations, separately from these
 live results. It also retains the unsuccessful baseline attempt that expired at
 manual UAC before any provider Read. Neither the synthetic checks nor the earlier
 persistent-agent package substitute for the new first-read result.
+
+The Windows verification also exposed a separate installation-helper exit race.
+A live image query could fail during natural termination before the retained
+process handle was signaled, causing a false cleanup-unknown result. The native
+observer now allows up to two seconds for that exact handle to signal; a timeout,
+failed wait or still-live process remains refused. The existing real native
+natural-exit regression failed before this change and passed afterwards. This
+follows the [bounded wait contract](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject)
+and changes no enrollment or production launch permission. The genuine-agent
+captures above qualify the Electron/ETW package, separately from this helper.
