@@ -3116,3 +3116,41 @@ three-case Node batch observed positive/wrong-nonce/duplicate counts 1/0/2; its
 39,594 microseconds measures the whole batch, not transfer latency or overhead.
 R1 evidence remains historical and revision-qualified. No agent/PID authentication,
 native oracle, sensor denominator, scenario declaration or full W8 acceptance.
+
+## W6 private owned hook transaction prerequisite — 2026-10-19
+
+Added an independently callable private transaction session over explicit trusted
+IO. It freezes an exact planner review, binds a process-local confirmation ticket,
+verifies retained backup/manifest bytes, revalidates the target and requires exact
+postwrite readback. Removal uses a fresh narrow plan; uncertain mutation locks the
+session and preserves backups. See [the private IO contract](../docs/CLAUDE-HOOK-WRITER.md).
+
+Validation: 90 tests (40 writer, 50 adjacent planner), twelve assertion mutants
+killed/restored, main types with new-module @ts-check, scoped lint/format, and
+independent source/security/test-evidence reviews. Three frozen source hashes
+survived merge-master integration. Counts: 251 = 208 + 41 + 2.
+
+No filesystem provider, production caller, profile discovery, IPC/UI, policy
+routing or hook activation. Trusted IO qualification, external-writer coordination,
+callback bounds and private-storage durability/recovery remain integration work.
+Configured status supplies no Observed or Blocking verified evidence.
+
+## W9 isolated dormant preload bridge qualification — 2026-10-19
+
+Added an opt-in Windows fixture loading the production Observatory, unchanged
+preload and real Electron IPC with an actual dormant ETW health leaf. The rest
+of the booting stats/settings envelope is explicit fixture data. It checks
+rendered state/reason, native absence, keyboard routes, reduced motion and a real
+IPC omission/restoration control. See [the method and limits](../docs/bench/COVERAGE-PRELOAD.md).
+
+Independent source/security and test/evidence reviews passed after watchdog,
+termination and pipe-drain corrections. R3 adds an assertion-killed/restored
+root-exit guard mutant; R2 deadline/latch mutants remain historical. Final
+affected support controls and five static checks passed. After merge-master, a
+fresh production build and actual bridge journey passed with confirmed shutdown
+and owned-profile cleanup; all four frozen source hashes were preserved.
+
+The final app batch took 13.340 seconds; source hashes cover 642 inputs. Screenshots
+match the reviewed 1200x800 and 900x600 renders. No normal startup, production
+getStats/authorization, descendant supervision, packaged helper, native delivery,
+provider, enforcement or full W9 acceptance is established.
