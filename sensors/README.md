@@ -1,10 +1,12 @@
 # Sensor workspace
 
 This workspace contains `aegis-wire`, the pure `sensor/1` codec, a process-only
-Linux procfs provider with a framed CLI, and the registered macOS library root.
+Linux procfs provider with a framed CLI, the registered macOS sensor root and a
+separate bounded macOS native-read boundary.
 The Linux implementation is described in [its crate guide](aegis-sensor-linux/README.md).
-The macOS root still contains documentation only. Both depend on `aegis-wire`;
-native Linux execution and macOS provider implementation remain unqualified.
+The macOS sensor root still contains documentation only; its provider adapter,
+transport and executable remain separate work. Native Linux execution and macOS
+linkage, ABI and runtime behavior remain unqualified.
 The codec contract is [the sensor wire specification](../docs/roadmap/sensor-wire.md).
 The codec itself has no OS providers, process custody or host session state.
 
@@ -71,11 +73,27 @@ the future host.
 
 The Linux crate pins `rustix` 1.1.5 with its `time` feature and default features
 disabled, only for Linux targets. Its safe `CLOCK_BOOTTIME` API supplies the
-sensor clock without adding unsafe code to the sensor crate. The lock adds seven
-registry packages and updates only the local Linux package's dependency list;
-the thirteen other existing package blocks remain unchanged.
+sensor clock without adding unsafe code to the sensor crate. The Linux clock
+prerequisite added seven registry packages and updated the local Linux package's
+dependency list while retaining its thirteen other existing package blocks.
 
 A locked offline check for `x86_64-unknown-linux-gnu` verifies this dependency
 configuration. That prerequisite alone added no process provider or executable
 and established no native clock measurement or Linux runtime qualification. The
 procfs delivery above uses it without changing that qualification boundary.
+
+## macOS read boundary prerequisite
+
+`aegis-sensor-macos/native` is the dependency-free `aegis-macos-libproc` crate.
+It confines the unsafe libproc/sysctl calls to one macOS-only module and exposes
+bounded safe readers with exact returned-size checks. Wire and sensor crates
+continue to forbid unsafe code. The wrapper documents its Apple source layouts
+and private process-unique-ID flavor in `native/SAFETY.md`.
+
+PID enumeration is explicitly best effort, including underfilled buffers. Every
+consumer must retain that uncertainty; a missing PID cannot establish an exit.
+The sensor crate's native adapter and transport remain separate work.
+
+Portable wrapper tests and an `aarch64-apple-darwin` target check cover this
+prerequisite. They do not verify native linkage, SDK ABI offsets, live permissions,
+boot/process-generation behavior or macOS version support.
