@@ -1,0 +1,17 @@
+[package]
+name = "aegis-sensor-linux"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Registered Linux sensor library root; native provider implementation pending"
+
+[dependencies]
+aegis-wire.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "=1.1.5", default-features = false, features = ["time"] }
+
+[lints]
+workspace = true

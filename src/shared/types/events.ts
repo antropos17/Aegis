@@ -54,6 +54,107 @@ export interface Attribution {
   readonly evidence: readonly AttributionEvidence[];
 }
 
+/** Closed local diagnostic codes for optional metadata custody; separate from actor attribution. */
+export type ToolContextReason =
+  | 'ambiguous-tool-calls'
+  | 'argument-limit'
+  | 'binding-limit'
+  | 'binding-unavailable-or-outside-lifetime'
+  | 'call-limit'
+  | 'candidate-limit'
+  | 'clock-skew-unavailable'
+  | 'duplicate-call-id'
+  | 'duplicate-tool-end'
+  | 'end-time-unavailable'
+  | 'exact-binding-object-and-interval'
+  | 'exact-session-binding'
+  | 'invalid-encoding-or-json'
+  | 'invalid-event-or-bindings'
+  | 'invalid-input'
+  | 'invalid-json-record'
+  | 'invalid-record'
+  | 'invalid-selection'
+  | 'invalid-session-metadata'
+  | 'invalid-time-tolerance'
+  | 'invalid-tool-arguments'
+  | 'invalid-tool-end'
+  | 'invalid-tool-record'
+  | 'no-qualifying-tool-call'
+  | 'object-unavailable'
+  | 'oversize-input'
+  | 'oversize-record'
+  | 'partial-source'
+  | 'process-binding-mismatch'
+  | 'process-identity-unavailable'
+  | 'record-limit'
+  | 'session-binding-inferred'
+  | 'session-binding-mismatch'
+  | 'session-metadata-unavailable'
+  | 'session-mismatch'
+  | 'source-unavailable'
+  | 'time-overlap-without-object-match'
+  | 'timestamp-unavailable'
+  | 'truncated-input'
+  | 'unsupported-format'
+  | 'unsupported-history-edit'
+  | 'unsupported-source'
+  | 'unsupported-tool-record'
+  | 'context-invalid'
+  | 'context-unavailable'
+  | 'context-truncated';
+
+export type ToolContextSource = 'claude-code' | 'codex' | 'gemini-cli';
+export type ToolContextStrength = 'confirmed' | 'inferred' | 'unattributed';
+export type ToolContextTool =
+  | 'Read'
+  | 'Write'
+  | 'Edit'
+  | 'Bash'
+  | 'WebFetch'
+  | 'exec_command'
+  | 'shell_command'
+  | 'shell'
+  | 'read_file'
+  | 'write_file'
+  | 'replace'
+  | 'run_shell_command'
+  | 'web_fetch'
+  | 'other';
+
+/** A source-reported, object-matched preceding call; values are keyed digests, never raw arguments. */
+export interface ToolContextCandidate {
+  readonly source: ToolContextSource;
+  readonly sessionRef: string;
+  readonly callRef: string;
+  readonly toolName: ToolContextTool;
+  readonly argsDigest: string;
+  readonly argsShape: {
+    readonly operation: 'read' | 'write' | 'shell' | 'fetch' | 'other';
+    readonly objectKind: 'path' | 'endpoint' | 'none';
+  };
+  readonly objectDigest: string;
+  readonly startMs: number;
+  readonly endMs: number | null;
+  readonly deltaMs: number;
+  readonly strength: 'confirmed' | 'inferred';
+  readonly reasons: readonly ToolContextReason[];
+}
+
+/** Optional bounded custody projection; association strength never establishes actor attribution or causation. */
+export interface ToolContextCapsule {
+  readonly schemaVersion: 1;
+  readonly relation: 'preceded-by';
+  readonly strength: ToolContextStrength;
+  readonly reasons: readonly ToolContextReason[];
+  /** Original adapter candidates, at most 256; displayed list is at most eight. */
+  readonly candidateCount: number;
+  readonly candidatesTruncated: boolean;
+  readonly ambiguous: boolean;
+  readonly objectMatch: 'matched' | 'unavailable';
+  readonly sessionBinding: 'confirmed' | 'unavailable';
+  readonly candidates: readonly ToolContextCandidate[];
+}
+
 /** File access event from watcher or handle scan */
 export interface FileEvent {
   /** Random UUID of this observation; absent on historical/demo records. */
@@ -102,6 +203,8 @@ export interface FileEvent {
   readonly category: string;
   /** Optional: absent on events emitted before v0.11.0 (older activity-log entries). */
   readonly attribution?: Attribution;
+  /** Optional local preceding-tool metadata; absence means no capsule was recorded. */
+  readonly toolContext?: ToolContextCapsule;
   /**
    * `true` only on events fabricated by the browser demo engine
    * (renderer/lib/stores/demo-data.js, present only in a demo build). Absent on
@@ -143,6 +246,8 @@ export type NetworkVerdictReason =
 export interface NetworkConnection {
   /** Same-snapshot TCP owner evidence; absent on legacy or demo rows. */
   readonly attribution?: Attribution;
+  /** Optional local preceding-tool metadata; absence means no capsule was recorded. */
+  readonly toolContext?: ToolContextCapsule;
   readonly agent: string;
   readonly pid: number;
   /**
@@ -279,6 +384,7 @@ export interface AuditRecordV1 {
   /** Vestigial — always 0 in v1. Retained for shape stability; derive nothing from it. */
   readonly riskScore: number;
   readonly attribution: Attribution | null;
+  readonly toolContext?: ToolContextCapsule;
   readonly details: Record<string, unknown> | null;
   readonly seq: number;
   readonly hash: string;

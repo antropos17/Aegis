@@ -9,6 +9,7 @@
  * @since v0.13.0
  */
 'use strict';
+const { toolContextKey } = require('./tool-context-record');
 
 /**
  * Largest number of `file-access` entries one 150 ms flush window may hold. A window
@@ -104,7 +105,10 @@ function fileAccessCoalesceKey(value) {
     ev.action === 'holding' && isSegment(ev.createTime100ns)
       ? `${KEY_SEP}${ev.createTime100ns}`
       : '';
-  return `${ev.instanceId}${KEY_SEP}${ev.file}${KEY_SEP}${ev.action}${birth}`;
+  const contextKey = toolContextKey(ev.toolContext);
+  if (contextKey === null) return null;
+  const context = ev.toolContext === undefined ? '' : `${KEY_SEP}${contextKey}`;
+  return `${ev.instanceId}${KEY_SEP}${ev.file}${KEY_SEP}${ev.action}${birth}${context}`;
 }
 
 /**
