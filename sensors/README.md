@@ -66,3 +66,15 @@ encoding, exercise every frame split, and cover malformed JSON, terminal errors,
 identity contradictions and boundaries. Hello ordering, active capabilities,
 request correlation, continuity across frames and transport custody belong to
 the future host.
+
+## Linux clock prerequisite
+
+The Linux crate pins `rustix` 1.1.5 with its `time` feature and default features
+disabled, only for Linux targets. Its safe `CLOCK_BOOTTIME` API supplies the
+sensor clock without adding unsafe code to the sensor crate. The lock adds seven
+registry packages and updates only the local Linux package's dependency list;
+the thirteen other existing package blocks remain unchanged.
+
+A locked offline check for `x86_64-unknown-linux-gnu` verifies this dependency
+configuration. This prerequisite adds no process provider or executable and
+establishes no native clock measurement or Linux runtime qualification.
