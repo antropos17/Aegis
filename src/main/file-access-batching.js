@@ -24,6 +24,7 @@
  * @since v0.13.0
  */
 const FILE_ACCESS_CAPACITY = 1000;
+const FILE_ACCESS_BYTE_CAPACITY = 1024 * 1024;
 
 /**
  * Flush window for the `file-access` channel, unchanged since v0.5.0.
@@ -141,7 +142,7 @@ function fileAccessRetain(value) {
  * Frozen and exported as ONE object rather than four loose constants so a test can
  * exercise the production configuration itself instead of re-assembling something that
  * merely looks like it — a re-assembled config proves the values, never the wiring.
- * @type {Readonly<{intervalMs: number, capacity: number,
+ * @type {Readonly<{intervalMs: number, capacity: number, byteCapacity: number,
  *   coalesceKey: (value: unknown) => string | null,
  *   retain: (value: unknown) => boolean}>}
  * @since v0.13.0
@@ -149,12 +150,14 @@ function fileAccessRetain(value) {
 const FILE_ACCESS_BATCHER_OPTIONS = Object.freeze({
   intervalMs: FILE_ACCESS_INTERVAL_MS,
   capacity: FILE_ACCESS_CAPACITY,
+  byteCapacity: FILE_ACCESS_BYTE_CAPACITY,
   coalesceKey: fileAccessCoalesceKey,
   retain: fileAccessRetain,
 });
 
 module.exports = {
   FILE_ACCESS_CAPACITY,
+  FILE_ACCESS_BYTE_CAPACITY,
   FILE_ACCESS_INTERVAL_MS,
   FILE_ACCESS_BATCHER_OPTIONS,
   KEY_SEP,

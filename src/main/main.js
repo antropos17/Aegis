@@ -383,6 +383,7 @@ function getAppHealth() {
     records.push(platform.getSnapshotHealth());
   }
   if (etwFile) records.push(etwFile.getHealth());
+  if (securityEvents) records.push(securityEvents.getStats().health);
   const derived = appHealth.deriveAppHealth({
     bootPhase: true,
     capabilities,
@@ -450,7 +451,10 @@ function getResourceUsage() {
  * @since v0.13.0
  */
 function getIpcStats() {
-  return { fileAccess: fileAccessBatcher.getStats() };
+  return {
+    fileAccess: fileAccessBatcher.getStats(),
+    securityEvents: securityEvents?.getStats() ?? null,
+  };
 }
 
 /**
@@ -630,6 +634,7 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   intervalMs: 1000,
   mode: 'latest',
 });
+let securityEvents = null;
 
 /** Preserve watcher UUIDs; stamp accepted legacy/test events before display or audit. */
 function recordAcceptedFileEvent(event) {
@@ -1052,7 +1057,14 @@ function initDeferredSubsystems(userData) {
     onDetection: onSequenceDetection,
   });
 
+  // Replay acknowledges historical audit only, never live detection or display.
+  audit.init(auditInitOptions(userData));
+  securityEvents = require('./ipc-batcher').createSecurityBatcher({
+    directory: path.join(userData, 'event-spill'),
+    consume: (records) => audit.persistBatch(records),
+  });
   scanLoop.init({
+    securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
     scanner,
     procUtil,
@@ -1140,7 +1152,6 @@ function initDeferredSubsystems(userData) {
       return scores;
     },
   });
-  audit.init(auditInitOptions(userData));
   baselines.loadBaselines();
   startWatchersWhenLoaded(mainWindow.webContents);
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
@@ -1356,6 +1367,7 @@ app.on('before-quit', (event) => {
   // final process teardown; each proxy also handles its termination promise.
   if (watcher?.closeFileWatchers) watcher.closeFileWatchers().catch(() => {});
   logger.info('main', 'App quitting');
+  securityEvents?.destroy();
   if (audit) audit.shutdown();
   if (baselines) baselines.finalizeSession();
   logger.shutdown();

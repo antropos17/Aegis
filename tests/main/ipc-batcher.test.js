@@ -2,6 +2,46 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createBatcher } from '../../src/main/ipc-batcher.js';
 
 describe('ipc-batcher', () => {
+  it('enforces a byte budget for detached display frames and accounts oversize eviction', () => {
+    const send = vi.fn();
+    const batcher = createBatcher('bounded', send, {
+      capacity: 10,
+      byteCapacity: 150,
+      coalesceKey: (value) => value.key,
+      retain: (value) => value.sensitive,
+    });
+    const event = { key: 'one', text: 'x'.repeat(40), sensitive: true };
+    batcher.push(event);
+    event.text = 'PRIVATE_CHANGED'.repeat(1000);
+    batcher.push({ key: 'two', text: 'y'.repeat(40) });
+    batcher.push({ key: 'three', text: 'z'.repeat(400) });
+    expect(batcher.getStats()).toMatchObject({ evicted: 1 });
+    expect(batcher.getStats().bufferedBytes).toBeLessThanOrEqual(150);
+    batcher.flush();
+    expect(JSON.stringify(send.mock.calls)).not.toContain('PRIVATE_CHANGED');
+    expect(batcher.getStats().bufferedBytes).toBe(0);
+    batcher.destroy();
+  });
+
+  it('evicts benign frames under aggregate byte pressure including a growing coalesced replacement', () => {
+    const send = vi.fn();
+    const batcher = createBatcher('bounded', send, {
+      capacity: 10,
+      byteCapacity: 180,
+      coalesceKey: (value) => value.key,
+      retain: (value) => value.sensitive === true,
+    });
+    batcher.push({ key: 'retained', sensitive: true, text: 'a'.repeat(30) });
+    batcher.push({ key: 'old', text: 'b'.repeat(30) });
+    batcher.push({ key: 'new', text: 'c'.repeat(30) });
+    expect(batcher.getStats().evicted).toBe(1);
+    batcher.push({ key: 'new', text: 'c'.repeat(130) });
+    expect(batcher.getStats()).toMatchObject({ coalesced: 1, evicted: 2, buffered: 1 });
+    batcher.flush();
+    expect(send.mock.calls[0][1].map((event) => event.key)).toEqual(['retained']);
+    expect(Buffer.byteLength(JSON.stringify(send.mock.calls[0][1]))).toBeLessThanOrEqual(182);
+    batcher.destroy();
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createRequire } from 'module';
 import Module from 'node:module';
 import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
 
 describe('scan-loop', () => {
   let scanLoop;
@@ -121,6 +123,114 @@ describe('scan-loop', () => {
       ...overrides,
     };
   }
+
+  it('routes real scan security observations through the durable batcher before live dedup', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-scan-pipe-'));
+    const rows = [];
+    const pipeline = require_('../../src/main/ipc-batcher').createSecurityBatcher({
+      directory,
+      intervalMs: 60000,
+      consume: (records) => {
+        rows.push(...records);
+        return true;
+      },
+    });
+    require_('../../src/main/session-tracker')._resetForTest();
+    const agent = {
+      agent: 'Claude Code',
+      process: 'claude.exe',
+      pid: 100,
+      startTime: 1717000000000,
+      instanceId: '100:1717000000000',
+      instanceIdSource: 'os',
+      category: 'ai',
+    };
+    const agents = [agent];
+    const event = {
+      ...agent,
+      file: '/fixture/.ssh/key',
+      action: 'holding',
+      sensitive: true,
+      timestamp: 1717000000100,
+      attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+    };
+    const connection = {
+      ...agent,
+      remoteIp: '203.0.113.1',
+      remotePort: 443,
+      state: 'ESTABLISHED',
+      timestamp: 1717000000200,
+      cmdline: 'PRIVATE_COMMAND',
+    };
+    const sequenceEngine = { ingest: vi.fn(), sweep: vi.fn() };
+    const deps = makeDeps({
+      securityEvents: pipeline,
+      sequenceEngine,
+      scanner: {
+        scanProcesses: vi
+          .fn()
+          .mockResolvedValue({ agents: [agent], reliable: true, changed: false }),
+      },
+      getLatestAgents: () => agents,
+      watcher: {
+        pruneKnownHandles: vi.fn(),
+        scanAllFileHandles: vi.fn().mockResolvedValue([{ ...event }, { ...event }]),
+      },
+      network: {
+        isNetworkScanRunning: () => false,
+        setNetworkScanRunning: vi.fn(),
+        scanNetworkConnections: vi.fn().mockResolvedValue([connection]),
+      },
+    });
+    try {
+      scanLoop.init(deps);
+      const processObservedAt =
+        Date.now() + require_('../../src/main/scan-schedule').STARTUP_MS.process;
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(12000);
+      pipeline.flush();
+      expect(rows.filter((r) => r.type === 'agent-enter')).toHaveLength(1);
+      expect(rows.filter((r) => r.type === 'network-connection')).toHaveLength(1);
+      expect(rows.find((r) => r.type === 'agent-enter')).toMatchObject({
+        timestamp: processObservedAt,
+        sensor: 'process',
+        details: {
+          pid: agent.pid,
+          instanceId: agent.instanceId,
+          extra: { startTime: processObservedAt },
+        },
+      });
+      expect(rows.find((r) => r.type === 'network-connection')).toMatchObject({
+        timestamp: connection.timestamp,
+        sensor: 'network',
+        details: {
+          pid: agent.pid,
+          instanceId: agent.instanceId,
+          path: '203.0.113.1:443',
+          extra: { remoteIp: connection.remoteIp, remotePort: connection.remotePort },
+        },
+      });
+      expect(rows.filter((r) => r.type === 'file-access')).toHaveLength(2);
+      expect(
+        rows
+          .filter((r) => r.type === 'file-access')
+          .every(
+            (r) => r.timestamp === event.timestamp && r.details.instanceId === agent.instanceId,
+          ),
+      ).toBe(true);
+      expect(sequenceEngine.ingest.mock.calls.filter(([r]) => r.file)).toHaveLength(1);
+      expect(
+        deps.audit.log.mock.calls.filter(([type]) =>
+          ['file-access', 'agent-enter', 'network-connection'].includes(type),
+        ),
+      ).toEqual([]);
+      expect(JSON.stringify(rows)).not.toContain('PRIVATE_COMMAND');
+    } finally {
+      scanLoop.stopScanIntervals();
+      pipeline.destroy();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
   it.each(['provider', 'identity', 'birth-time', 'late-suspend', 'confirmed'])(
     'freezes token compaction on %s observation unless the pass is confirmed',

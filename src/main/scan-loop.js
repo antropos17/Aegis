@@ -153,7 +153,10 @@ function updateScanStatus(entering) {
  * @returns {Object|null}
  * @since v0.3.0
  */
-function dedupFileEvent(ev) {
+function dedupFileEvent(ev, sensor = 'file-watch') {
+  // Audit admission precedes live display/sequence dedup. Historical delivery
+  // must not alter which observations the live sequence state machine consumes.
+  if (ev.sensitive === true && deps.securityEvents) logAuditForFile(ev, true, sensor);
   const instanceId =
     typeof ev.instanceId === 'string' && ev.instanceId.length > 0 ? ev.instanceId : null;
   // F-E03: no genuine process key → no shared process bucket.
@@ -203,11 +206,11 @@ function dedupFileEvent(ev) {
   return ev;
 }
 
-/** @param {Object} ev @since v0.3.0 */
-function logAuditForFile(ev) {
+/** @param {Object} ev @param {boolean} [securityAdmission] @param {string} [sensor] @since v0.3.0 */
+function logAuditForFile(ev, securityAdmission = false, sensor = 'file-watch') {
   const type =
     ev.reason && ev.reason.startsWith('AI agent config') ? 'config-access' : 'file-access';
-  deps.audit.log(type, {
+  const details = {
     agent: ev.agent,
     pid: ev.pid ?? null,
     // Carried from the event, never re-derived: null means the event itself has no
@@ -222,7 +225,16 @@ function logAuditForFile(ev) {
     // would break the hash chain. It does not: verifyChain rebuilds each record's
     // preimage from that record's own fields, so v0 and v1 lines coexist in one file.
     attribution: ev.attribution ?? null,
-  });
+  };
+  if (ev.sensitive === true && deps.securityEvents) {
+    if (!securityAdmission) return;
+    deps.securityEvents.push({
+      type,
+      sensor,
+      timestamp: Number.isSafeInteger(ev.timestamp) ? ev.timestamp : Date.now(),
+      details: { ...details, repeatCount: ev.repeatCount ?? 1 },
+    });
+  } else deps.audit.log(type, details);
 }
 
 /**
@@ -513,7 +525,7 @@ function doNetworkScan() {
             conn.remoteIp,
             conn.remotePort,
           );
-          audit.log('network-connection', {
+          const connectionAudit = {
             agent: conn.agent,
             pid: conn.pid ?? null,
             // Carried from the connection, never re-resolved from its pid: null means the
@@ -542,7 +554,15 @@ function doNetworkScan() {
                 ? { localIp: conn.localIp ?? null, localPort: conn.localPort ?? null }
                 : {}),
             },
-          });
+          };
+          if (conn.agent && deps.securityEvents)
+            deps.securityEvents.push({
+              type: 'network-connection',
+              sensor: 'network',
+              timestamp: Number.isSafeInteger(conn.timestamp) ? conn.timestamp : Date.now(),
+              details: connectionAudit,
+            });
+          else audit.log('network-connection', connectionAudit);
           // Tap 3 (roadmap §5): the connection object itself, keyless ones included.
           ingestSequence(conn);
         }
@@ -797,7 +817,7 @@ async function doProcessScan() {
       anomaly.forgetInstances?.(retired.map((session) => session.instanceId));
     }
     for (const s of entered) {
-      audit.log('agent-enter', {
+      const enterAudit = {
         agent: s.agent,
         // pid and instanceId are TOP-LEVEL in v1. They were in `extra` on the belief that
         // a changed field set would break the chain; it does not — each record's hash
@@ -812,7 +832,15 @@ async function doProcessScan() {
         // inferred owner — so `null` means "question does not apply", NOT "owner unknown".
         attribution: null,
         extra: { startTime: s.firstSeen },
-      });
+      };
+      if (deps.securityEvents)
+        deps.securityEvents.push({
+          type: 'agent-enter',
+          sensor: 'process',
+          timestamp: Number.isSafeInteger(s.firstSeen) ? s.firstSeen : Date.now(),
+          details: enterAudit,
+        });
+      else audit.log('agent-enter', enterAudit);
       // Tap 4 (roadmap §5): the session record as session-tracker returned it — no
       // `lastSeen` on an enter, which is how the normalizer tells the two apart.
       ingestSequence(s);
@@ -1201,7 +1229,7 @@ async function doFileScan() {
       isAgentScopeCurrent,
       isScopeCurrent,
     });
-    const events = rawEvents.map(dedupFileEvent).filter(Boolean);
+    const events = rawEvents.map((ev) => dedupFileEvent(ev, 'file-handle')).filter(Boolean);
     if (events.length > 0) {
       for (const ev of events) deps.recordAcceptedFileEvent?.(ev);
       for (const ev of events) deps.fileAccessBatcher.push(ev);
@@ -1254,7 +1282,7 @@ async function doHotReadScan() {
   const t0 = performance.now();
   try {
     const rawEvents = await watcher.scanHotFileHolders(agents);
-    const events = rawEvents.map(dedupFileEvent).filter(Boolean);
+    const events = rawEvents.map((ev) => dedupFileEvent(ev, 'file-handle')).filter(Boolean);
     if (events.length > 0) {
       for (const ev of events) deps.recordAcceptedFileEvent?.(ev);
       for (const ev of events) deps.fileAccessBatcher.push(ev);
