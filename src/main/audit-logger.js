@@ -372,6 +372,107 @@ function _trimToCap() {
   }
 }
 
+/** Append a security batch and acknowledge only after canonical file fsync.
+ * Failed append rolls back to the pre-write length. Failed rollback invalidates
+ * cached chain state so subsequent writes must recover the canonical tail.
+ * @param {Object[]} records Closed security projections owned by the event batcher.
+ * @returns {boolean} Whether every record reached canonical storage.
+ * @since 0.18.0
+ */
+function persistBatch(records) {
+  if (!_logDir || !Array.isArray(records) || records.length === 0 || records.length > 16384)
+    return false;
+  flush();
+  if (_buffer.length || dropTracker.pendingCount()) return false;
+  const fp = getTodayLogPath();
+  const todayDate = _todayDateStr();
+  let fd;
+  let originalSize;
+  let out;
+  let text;
+  try {
+    const entries = records.map((record) => ({
+      schemaVersion: SCHEMA_VERSION,
+      timestamp: new Date(record.timestamp).toISOString(),
+      type: record.type,
+      agent: record.details.agent || '',
+      pid: record.details.pid ?? null,
+      instanceId: record.details.instanceId ?? null,
+      action: record.details.action || '',
+      path: record.details.path || '',
+      severity: record.details.severity || 'normal',
+      riskScore: 0,
+      attribution: record.details.attribution ?? null,
+      details: {
+        ...record.details.extra,
+        deliveryId: record.deliveryId,
+        deliverySensor: record.sensor,
+        replayed: record.replayed === true,
+      },
+    }));
+    let { prevHash, seq } =
+      _chainDate === todayDate ? { prevHash: _prevHash, seq: _seq } : hashchain.seedFromTail(fp);
+    out = entries.map((entry) => {
+      const hash = hashchain.computeHash(prevHash, entry);
+      const line = JSON.stringify({ ...entry, seq, hash });
+      prevHash = hash;
+      seq++;
+      return line;
+    });
+    text = out.join('\n') + '\n';
+    // Windows append-only handles cannot reliably truncate a partial write.
+    // Own a read/write handle and append at the captured length instead.
+    try {
+      fd = fs.openSync(fp, 'r+');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      fd = fs.openSync(fp, 'wx+');
+    }
+    originalSize = fs.fstatSync(fd).size;
+    const encoded = Buffer.from(text, 'utf8');
+    let offset = 0;
+    while (offset < encoded.length) {
+      const written = fs.writeSync(
+        fd,
+        encoded,
+        offset,
+        encoded.length - offset,
+        originalSize + offset,
+      );
+      if (written === 0) throw new Error('audit-write-incomplete');
+      offset += written;
+    }
+    fs.fsyncSync(fd);
+    _prevHash = prevHash;
+    _seq = seq;
+    _chainDate = todayDate;
+    _writeFailed = false;
+    _totalEntries += entries.length;
+    _persistedEntries += entries.length;
+    for (const entry of entries) {
+      if (!_firstEntry || entry.timestamp < _firstEntry) _firstEntry = entry.timestamp;
+      if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
+    }
+  } catch {
+    _writeFailed = true;
+    if (fd !== undefined && originalSize !== undefined) {
+      try {
+        fs.ftruncateSync(fd, originalSize);
+        fs.fsyncSync(fd);
+      } catch {
+        _chainDate = '';
+      }
+    }
+    notifyDeliveryChange();
+    return false;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  _indexAppend(fp, Buffer.byteLength(text, 'utf8'), out);
+  notifyDeliveryChange();
+  return true;
+}
+
 /**
  * Flush the buffer to disk, appending entries to today's log file.
  *
@@ -457,6 +558,10 @@ function flush() {
     dropTracker.clearPending();
   } catch (err) {
     _writeFailed = true;
+    // A failed legacy append may have left bytes behind. Never trust the cached
+    // chain after an ambiguous write: retry must validate the canonical tail.
+    // A torn tail blocks both this buffer and persistBatch's acknowledgement.
+    _chainDate = null;
     if (_onFlushError) _onFlushError(err);
     // Re-queue PRISTINE entries (no seq/hash baked in) and leave chain state
     // unadvanced so the retry produces an unbroken chain. Pending drops are
@@ -890,6 +995,7 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryO
 module.exports = {
   init,
   log,
+  persistBatch,
   flush,
   shutdown,
   getStats,

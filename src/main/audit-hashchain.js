@@ -52,6 +52,9 @@ function readTailLine(filePath) {
       const chunk = Buffer.allocUnsafe(length);
       if (fs.readSync(fd, chunk, 0, length, position) !== length)
         throw Error('audit-tail-unavailable');
+      // A complete JSON object without its final delimiter is still a torn
+      // append. Appending another object would join two records on one line.
+      if (tail.length === 0 && chunk[length - 1] !== 0x0a) throw Error('audit-tail-unavailable');
       tail = Buffer.concat([chunk, tail]);
       const text = tail.toString('utf8').trimEnd();
       const boundary = text.lastIndexOf('\n');

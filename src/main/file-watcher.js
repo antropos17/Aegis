@@ -737,6 +737,7 @@ function handleWatcherEvent(action, filePath) {
   const previous = watcherDebounce.get(debounceKey);
   if (
     previous &&
+    !event.sensitive &&
     previous.signature === signature &&
     now >= previous.at &&
     now - previous.at < 2000

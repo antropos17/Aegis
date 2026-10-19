@@ -25,6 +25,11 @@ briefs. The runtime baseline remains `ae1b8418`; bootstrap PR #987 changes only
 planning, agent definitions and configuration. This session completes Wave 0;
 later implementation starts only within the owner's requested scope.
 
+W1-pipe execution (2026-10-19): the owner authorized this block through merge in
+a fresh worktree. Its delivery contract, qualification and evidence limits are
+recorded in [w1-pipe.md](w1-pipe.md). W1a and W1b remain separate work; Rust
+installation is still deferred.
+
 This document is the work order for the orchestrator. It defines the target, the
 fixed constraints, how work is split across agents, each workstream with its
 acceptance criteria, the execution order and the actions that stay with the

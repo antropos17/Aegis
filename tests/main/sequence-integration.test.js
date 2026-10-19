@@ -15,6 +15,8 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import Module from 'module';
 import os from 'os';
+import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'module';
 import engine from '../../src/main/sequence-engine.js';
 import loader from '../../src/main/sequence-rule-loader.js';
@@ -222,6 +224,36 @@ afterEach(() => {
 });
 
 describe('sequence rules end to end — loader, tap, engine, emission, hot reload', () => {
+  it('main file ingress records both sensitive observations while live sequence dedup remains intact', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-main-pipe-'));
+    const rows = [];
+    const pipeline = require_('../../src/main/ipc-batcher').createSecurityBatcher({
+      directory,
+      consume: (records) => {
+        rows.push(...records);
+        return true;
+      },
+    });
+    const scanLoop = require_('../../src/main/scan-loop');
+    scanLoop.init({ audit, securityEvents: pipeline });
+    const sequence = { ingest: vi.fn() };
+    main._setSequenceEngineForTest(sequence);
+    vi.spyOn(require_('../../src/main/tray-icon'), 'notifySensitive').mockImplementation(() => {});
+    try {
+      main.onFileEvent({ ...fileCarrier(), sensitive: true });
+      main.onFileEvent({ ...fileCarrier(), sensitive: true });
+      pipeline.flush();
+      expect(rows).toHaveLength(2);
+      expect(
+        rows.every((r) => r.details.instanceId === INSTANCE_ID && r.details.path === CREDS_PATH),
+      ).toBe(true);
+      expect(sequence.ingest).toHaveBeenCalledTimes(1);
+      expect(audit.log).not.toHaveBeenCalled();
+    } finally {
+      pipeline.destroy();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
   it('a compiled rule fires once through the real tap and becomes the §5 record; a reload drops the open state and swaps the rule', () => {
     installRules('SEQ001');
 

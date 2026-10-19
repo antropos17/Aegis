@@ -24,6 +24,7 @@
  * @since v0.13.0
  */
 const FILE_ACCESS_CAPACITY = 1000;
+const FILE_ACCESS_BYTE_CAPACITY = 1024 * 1024;
 
 /**
  * Flush window for the `file-access` channel, unchanged since v0.5.0.
@@ -110,15 +111,13 @@ function fileAccessCoalesceKey(value) {
  * Retention predicate for the `file-access` display lane: `true` for a sensitive event,
  * `false` for everything else.
  *
- * WHAT IT GUARANTEES, and its bound. Under capacity pressure ipc-batcher evicts the
- * oldest entry this predicate does not retain, so a sensitive event is delivered to the
- * renderer as long as ANY non-sensitive frame shares its 150 ms window — a burst of
- * self-churn or project-directory noise can no longer push a credential read out of the
- * live list. The bound is the window itself: more than {@link FILE_ACCESS_CAPACITY}
- * sensitive events inside one window evicts the oldest sensitive one, and that loss is
- * counted in `getStats().retainedEvicted` rather than hidden. The record of the event is
- * unaffected either way — the activityLog ring and the audit JSONL hold it before the
- * batcher ever sees it (file-watcher.js, scan-loop.js `logAuditForFile`).
+ * Under count or byte pressure, ipc-batcher evicts non-retained entries first.
+ * Sensitive entries can still be evicted when the remaining entries exceed either
+ * display limit; `getStats().retainedEvicted` counts those evictions. An individually
+ * oversized payload is rejected before retention is considered. Sensitive audit
+ * records enter a separate bounded security pipeline before display batching
+ * (file-watcher.js and scan-loop.js). Admission to that pipeline is distinct from
+ * durable audit acknowledgement; its queue, spill and loss accounting govern custody.
  *
  * `sensitive === true` exactly, the same reading {@link fileAccessCoalesceKey} makes: a
  * merely truthy value is not a sensitive event as file-watcher.js builds one
@@ -141,7 +140,7 @@ function fileAccessRetain(value) {
  * Frozen and exported as ONE object rather than four loose constants so a test can
  * exercise the production configuration itself instead of re-assembling something that
  * merely looks like it — a re-assembled config proves the values, never the wiring.
- * @type {Readonly<{intervalMs: number, capacity: number,
+ * @type {Readonly<{intervalMs: number, capacity: number, byteCapacity: number,
  *   coalesceKey: (value: unknown) => string | null,
  *   retain: (value: unknown) => boolean}>}
  * @since v0.13.0
@@ -149,12 +148,14 @@ function fileAccessRetain(value) {
 const FILE_ACCESS_BATCHER_OPTIONS = Object.freeze({
   intervalMs: FILE_ACCESS_INTERVAL_MS,
   capacity: FILE_ACCESS_CAPACITY,
+  byteCapacity: FILE_ACCESS_BYTE_CAPACITY,
   coalesceKey: fileAccessCoalesceKey,
   retain: fileAccessRetain,
 });
 
 module.exports = {
   FILE_ACCESS_CAPACITY,
+  FILE_ACCESS_BYTE_CAPACITY,
   FILE_ACCESS_INTERVAL_MS,
   FILE_ACCESS_BATCHER_OPTIONS,
   KEY_SEP,

@@ -13,6 +13,7 @@
  * @property {unknown} value
  * @property {string | null} key
  * @property {boolean} keep
+ * @property {number} bytes
  * @property {BufferedEntry | null} previous
  * @property {BufferedEntry | null} next
  * @property {BufferedEntry | null} previousPlain
@@ -26,6 +27,7 @@
  * @property {number} [capacity] - 'append' only. Largest number of entries the buffer
  *   may hold between two flushes; a push beyond it evicts the oldest entry. Absent =
  *   unbounded, which is exactly the behaviour every caller had before v0.13.0.
+ * @property {number} [byteCapacity] - Maximum serialized bytes retained in append mode.
  * @property {(value: unknown) => string | null} [coalesceKey] - 'append' only. Merge key
  *   for a pushed value, or null when the value must never merge.
  * @property {(value: unknown) => boolean} [retain] - 'append' only. Under `capacity`
@@ -43,6 +45,8 @@
  *   buffer held nothing else, lifetime. A subset of `evicted`; stays 0 without `retain`.
  * @property {number} highWater - Largest buffered length ever observed.
  * @property {number} buffered - Entries the next flush would send, right now.
+ * @property {number} [bufferedBytes] - Serialized bytes when a byte budget is configured.
+ * @property {number} [highWaterBytes] - Maximum retained serialized bytes.
  */
 
 /**
@@ -83,11 +87,23 @@ function createBatcher(channel, sendFn, options = {}) {
   const intervalMs = options.intervalMs || 150;
   const mode = options.mode || 'append';
   const capacity = options.capacity;
+  const byteCapacity = options.byteCapacity;
   const coalesceKey = options.coalesceKey;
   const retain = options.retain;
   // The bounded policy lane needs fast key lookup and middle eviction. Unbounded and
   // simple append batchers keep their compact array representation.
-  const useEntries = mode === 'append' && capacity !== undefined && !!(coalesceKey || retain);
+  const useEntries =
+    mode === 'append' && capacity !== undefined && !!(coalesceKey || retain || byteCapacity);
+
+  if (
+    byteCapacity !== undefined &&
+    (mode !== 'append' ||
+      capacity === undefined ||
+      !Number.isSafeInteger(byteCapacity) ||
+      byteCapacity < 1)
+  ) {
+    throw new Error('ipc-batcher: byteCapacity requires append capacity and a positive integer');
+  }
 
   if (capacity !== undefined) {
     if (mode !== 'append') throw new Error("ipc-batcher: capacity requires mode 'append'");
@@ -124,6 +140,8 @@ function createBatcher(channel, sendFn, options = {}) {
   /** @type {Map<string, BufferedEntry> | null} */
   let byKey = coalesceKey && useEntries ? new Map() : null;
   let entryCount = 0;
+  let bufferedBytes = 0;
+  let highWaterBytes = 0;
   /**
    * A pending {@link pushLazy} producer, or null. Held in its own slot rather than in
    * `buffer` so a payload that happens to be a function is still a payload.
@@ -204,15 +222,17 @@ function createBatcher(channel, sendFn, options = {}) {
     if (!entry.keep) removePlain(entry);
     if (entry.key !== null && byKey !== null) byKey.delete(entry.key);
     entryCount--;
+    bufferedBytes -= entry.bytes;
   }
 
-  /** @param {unknown} value @param {string | null} key @param {boolean} keep */
-  function appendEntry(value, key, keep) {
+  /** @param {unknown} value @param {string | null} key @param {boolean} keep @param {number} bytes */
+  function appendEntry(value, key, keep, bytes) {
     /** @type {BufferedEntry} */
     const entry = {
       value,
       key,
       keep,
+      bytes,
       previous: last,
       next: null,
       previousPlain: null,
@@ -224,6 +244,7 @@ function createBatcher(channel, sendFn, options = {}) {
     if (!keep) addPlain(entry);
     if (key !== null && byKey !== null) byKey.set(key, entry);
     entryCount++;
+    bufferedBytes += bytes;
   }
 
   /**
@@ -248,10 +269,28 @@ function createBatcher(channel, sendFn, options = {}) {
       const keep = retain ? retain(value) === true : false;
       pushed++;
       if (useEntries) {
+        let bytes = 0;
+        if (byteCapacity !== undefined) {
+          try {
+            bytes = Buffer.byteLength(JSON.stringify(value) ?? 'null');
+          } catch {
+            bytes = byteCapacity + 1;
+          }
+          if (bytes > byteCapacity) {
+            evicted++;
+            evictedSinceFlush++;
+            if (keep) retainedEvicted++;
+            return;
+          }
+          // Snapshot mutable caller payloads so retained bytes cannot grow later.
+          value = JSON.parse(JSON.stringify(value) ?? 'null');
+        }
         const mergeKey = typeof key === 'string' ? key : null;
         const existing = mergeKey !== null && byKey !== null ? byKey.get(mergeKey) : undefined;
         if (existing !== undefined) {
           existing.value = value;
+          bufferedBytes += bytes - existing.bytes;
+          existing.bytes = bytes;
           if (existing.keep !== keep) {
             if (keep) removePlain(existing);
             else insertPlainAtAge(existing);
@@ -267,8 +306,17 @@ function createBatcher(channel, sendFn, options = {}) {
             evicted++;
             evictedSinceFlush++;
           }
-          appendEntry(value, mergeKey, keep);
+          appendEntry(value, mergeKey, keep, bytes);
         }
+        while (byteCapacity !== undefined && bufferedBytes > byteCapacity) {
+          const victim = firstPlain || first;
+          if (victim === null) break;
+          if (victim.keep) retainedEvicted++;
+          removeEntry(victim);
+          evicted++;
+          evictedSinceFlush++;
+        }
+        highWaterBytes = Math.max(highWaterBytes, bufferedBytes);
         if (entryCount > highWater) highWater = entryCount;
         scheduleFlush();
         return;
@@ -357,6 +405,7 @@ function createBatcher(channel, sendFn, options = {}) {
         for (let entry = first; entry !== null; entry = entry.next) snapshot.push(entry.value);
         first = last = firstPlain = lastPlain = null;
         entryCount = 0;
+        bufferedBytes = 0;
         if (byKey !== null) byKey.clear();
         evictedSinceFlush = 0;
         sendFn(channel, snapshot);
@@ -422,10 +471,14 @@ function createBatcher(channel, sendFn, options = {}) {
       retainedEvicted,
       highWater,
       buffered: bufferedCount(),
+      ...(byteCapacity !== undefined ? { bufferedBytes, highWaterBytes } : {}),
     };
   }
 
   return { push, pushLazy, flush, destroy, getStats };
 }
 
-module.exports = { createBatcher };
+module.exports = {
+  createBatcher,
+  createSecurityBatcher: require('./security-event-pipeline').createSecurityBatcher,
+};

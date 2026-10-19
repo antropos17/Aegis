@@ -201,15 +201,20 @@ describe('orchestration drift — the product side', () => {
     const real = stripCommentsAndStrings(
       fs.readFileSync(path.join(REPO_ROOT, 'src/main/scan-loop.js'), 'utf8'),
     );
-    const mutated = real.replace(
-      'rawEvents.map(dedupFileEvent).filter(Boolean)',
-      'rawEvents.filter(Boolean)',
-    );
+    const anchor = 'async function doFileScan(';
+    const body = bodyAfter(real, anchor);
+    expect(body, 'the doFileScan body must exist before mutation').not.toBeNull();
+    // Replace the one step with an identity function. Both a bare map reference
+    // and a sensor-labelled arrow remain valid code; the dedup step is removed.
+    expect([...body.matchAll(/\bdedupFileEvent\b/g)]).toHaveLength(1);
+    const mutatedBody = body.replace(/\bdedupFileEvent\b/, '(ev => ev)');
+    const mutated = real.replace(body, mutatedBody);
     expect(mutated, 'the mutation anchor still exists in scan-loop.js').not.toBe(real);
-    const before = callSequence(bodyAfter(real, 'async function doFileScan('));
-    const after = callSequence(bodyAfter(mutated, 'async function doFileScan('));
-    expect(before).toContain('dedupFileEvent');
-    expect(after).not.toContain('dedupFileEvent');
+    const before = callSequence(bodyAfter(real, anchor));
+    const after = callSequence(bodyAfter(mutated, anchor));
+    expect(before).toEqual([...harness.ORCHESTRATION['handles.tick']]);
+    expect(after).toEqual(['scanAllFileHandles', 'logAuditForFile']);
+    expect(() => expect(after).toEqual([...harness.ORCHESTRATION['handles.tick']])).toThrow();
   });
 
   it('CAN fail: a vanished anchor is reported as a vanished anchor', () => {

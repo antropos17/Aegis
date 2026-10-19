@@ -231,6 +231,7 @@ export interface NetworkConnection {
  */
 export type AuditEventType =
   | 'file-access'
+  | 'pipeline-loss'
   | 'config-access'
   | 'network-connection'
   | 'anomaly-alert'

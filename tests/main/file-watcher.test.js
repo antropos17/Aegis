@@ -254,6 +254,13 @@ describe('file-watcher event handling', () => {
       expect(state.activityLog).toHaveLength(1);
     });
 
+    it('admits every sensitive notification before the live pipeline can deduplicate it', () => {
+      for (let i = 0; i < 3; i++)
+        fileWatcher.handleWatcherEvent('accessed', '/home/user/.ssh/id_rsa');
+      expect(state.onFileEvent).toHaveBeenCalledTimes(3);
+      expect(state.activityLog.every((event) => event.sensitive)).toBe(true);
+    });
+
     it('preserves rapid create, modify, delete and recreate transitions for the same path', () => {
       const actions = ['created', 'modified', 'deleted', 'created', 'modified'];
       for (const action of actions)

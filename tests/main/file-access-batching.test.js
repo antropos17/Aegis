@@ -232,6 +232,7 @@ describe('FILE_ACCESS_BATCHER_OPTIONS', () => {
     expect(FILE_ACCESS_BATCHER_OPTIONS).toEqual({
       intervalMs: 150,
       capacity: 1000,
+      byteCapacity: 1024 * 1024,
       coalesceKey: fileAccessCoalesceKey,
       retain: fileAccessRetain,
     });
@@ -281,8 +282,8 @@ describe('file-access batcher under the production options', () => {
     expect(payload[0].timestamp).toBe(50);
     expect(payload[0].repeatCount).toBe(50);
 
-    // Delivered untouched — same object, every field intact, in its own slot.
-    expect(payload[1]).toBe(sensitive);
+    // The detached delivery preserves every field in its own slot.
+    expect(payload[1]).toStrictEqual(sensitive);
     expect(payload[1]).toEqual(sensitiveEvent());
 
     const after = batcher.getStats();
@@ -383,7 +384,7 @@ describe('file-access batcher under the production options', () => {
     const payload = send.mock.calls[0][1];
     expect(payload).toHaveLength(FILE_ACCESS_CAPACITY);
     // Same object, still first: retention keeps position as well as presence.
-    expect(payload[0]).toBe(sensitive);
+    expect(payload[0]).toStrictEqual(sensitive);
     // The frame that went instead is the oldest self-churn, f0; f1 now leads the churn.
     expect(payload[1].file).toBe('C:\\Users\\me\\.claude\\f1.json');
     expect(payload[FILE_ACCESS_CAPACITY - 1].file).toBe(
