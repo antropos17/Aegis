@@ -3077,3 +3077,26 @@ Limits are 60 seconds, 60 samples and 128 KiB of serialized output. Synchronous
 work cannot be preempted, so strict wall deadlines require an external supervisor.
 This raw format cannot be passed to the aligned resource evaluator. No product
 or cohort footprint, calibrated overhead, native capture or W8 acceptance follows.
+
+## Session handoff — reversible Claude hook planning (2026-10-19)
+
+A new IO-free planner accepts explicitly supplied configuration bytes and a
+caller-selected hook command. It preserves unrelated bytes and previews only
+exact changed fragments with byte and line/column coordinates. The private
+removal manifest records installation bytes and integrity hashes; those hashes
+do not authenticate ownership. Existing equal hooks remain unowned. Conflicting
+selected-command occurrences are refused before the idempotent result.
+
+Exact rollback requires the recorded installed bytes. With unrelated concurrent
+edits, targeted removal preserves other bytes and requires the exact owned entry
+at its recorded position; changed or ambiguous ownership is refused. A future
+writer still needs owner confirmation of the displayed plan, verified private
+backup, current-file revalidation and written readback.
+
+The R2 gate passed 50 tests, main body types and scoped lint/format. Six mixed
+conflict regressions failed against the old ordering; one restored-R1 mutant
+failed all six and restored exact R2 bytes. Independent source and evidence
+reviews passed. Five R1 mutation kills remain historical. No profile discovery,
+read/write, hook execution, UI, IPC or policy route changed. Configured and
+planned configuration establish neither observation nor verified blocking;
+full W5/W6 and provider qualification remain open.
