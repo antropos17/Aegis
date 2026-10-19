@@ -85,6 +85,32 @@ describe('ordinary packaged ETW file reads', () => {
     expect(h.sensor.getDiagnostics().phase).toBe('running');
     expect(child.writes.some((row) => row.t === 'stop')).toBe(false);
   });
+  it('keeps native, collector and mapping loss counters separate and reports unknown before telemetry', () => {
+    const h = make();
+    expect(Object.values(h.sensor.getReadView().losses).every((value) => value === null)).toBe(
+      true,
+    );
+    const child = h.running();
+    const sample = telemetry();
+    Object.assign(sample.totals, {
+      dropped: '7',
+      ingressDropped: '7',
+      mapResets: '2',
+      mapEpoch: '2',
+    });
+    child.message('heartbeat', 3, sample);
+    child.flush();
+    expect(h.sensor.getReadView()).toMatchObject({
+      lossCount: 0,
+      losses: {
+        kernelEvents: '0',
+        realtimeBuffers: '0',
+        logBuffers: '0',
+        collectorDropped: '7',
+        mappingResets: '2',
+      },
+    });
+  });
   it.each([
     null,
     {},

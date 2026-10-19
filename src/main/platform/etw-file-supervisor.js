@@ -449,6 +449,15 @@ function createSupervisor({
       notify();
     },
     getHealth: () => structuredClone(current?.record || idle),
+    getLossView: () => ({
+      kernelEvents: current?.latest?.counters.queryStatus === 0 ? current.maxima.eventsLost : null,
+      realtimeBuffers:
+        current?.latest?.counters.queryStatus === 0 ? current.maxima.realTimeBuffersLost : null,
+      logBuffers:
+        current?.latest?.counters.queryStatus === 0 ? current.maxima.logBuffersLost : null,
+      collectorDropped: current?.latest ? current.maxima.dropped : null,
+      mappingResets: current?.latest ? current.maxima.mapResets : null,
+    }),
     getDiagnostics: () =>
       diagnostics.measure('snapshot', () => ({
         ...diagnostics.snapshot(),

@@ -76,6 +76,7 @@ describe('genuine-agent journey acceptance oracle', () => {
       noDiagnosticArguments: true,
       noAutomaticCapture: true,
       operatorStartedCapture: true,
+      lossAccountingVisible: true,
       continuousCaptureMs: 65000,
     };
     expect(agentReadPassed(value)).toBe(true);
@@ -84,6 +85,7 @@ describe('genuine-agent journey acceptance oracle', () => {
       noDiagnosticArguments: false,
       noAutomaticCapture: false,
       operatorStartedCapture: false,
+      lossAccountingVisible: false,
       continuousCaptureMs: 59999,
     }))
       expect(agentReadPassed({ ...value, [key]: replacement }), key).toBe(false);

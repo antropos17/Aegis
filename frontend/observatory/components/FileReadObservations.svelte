@@ -26,6 +26,8 @@
   let view = $derived(record(telemetry.stats.fileReadDiagnostics));
   let available = $derived(telemetry.stats.fileReadDiagnostics != null);
   let controls = $derived(record(view.controls));
+  let losses = $derived(record(view.losses));
+  const loss = (key: string) => (losses[key] == null ? $t('Unknown') : String(losses[key]));
   let folder = $state('');
   let pending = $state(false);
   let error = $state('');
@@ -126,7 +128,11 @@
             : view.phase === 'failed'
               ? $t('File read monitoring failed. Review sensor health in Statistics.')
               : $t('Capture is not live · retained observations only')}
-      · {$t('Observed loss')}: {view.lossCount == null ? $t('Unknown') : String(view.lossCount)}
+      · {$t('Kernel events lost')}: {loss('kernelEvents')}
+      · {$t('Realtime buffers lost')}: {loss('realtimeBuffers')}
+      · {$t('Log buffers lost')}: {loss('logBuffers')}
+      · {$t('Collector records dropped')}: {loss('collectorDropped')}
+      · {$t('Mapping resets')}: {loss('mappingResets')}
       · {$t('Omitted observations')}: {String(view.omitted ?? 0)}
     </p>
     {#if paused}<p>{$t('View paused · backend monitoring continues.')}</p>{:else}

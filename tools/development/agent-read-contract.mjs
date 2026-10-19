@@ -22,6 +22,7 @@ export function agentReadPassed(r) {
       r.noDiagnosticArguments === true &&
       r.noAutomaticCapture === true &&
       r.operatorStartedCapture === true &&
+      r.lossAccountingVisible === true &&
       Number.isSafeInteger(r.continuousCaptureMs) &&
       r.continuousCaptureMs >= 65000
     : r?.diagnosticBuild === true;

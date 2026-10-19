@@ -221,6 +221,7 @@ function createRuntime({
             ...readView.snapshot(),
             phase: sensor.getDiagnostics().phase,
             lossCount: sensor.getHealth().lossCount,
+            losses: sensor.getLossView(),
             mode: ordinaryPackage ? 'ordinary' : 'diagnostic',
             ...(ordinaryPackage
               ? {

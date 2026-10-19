@@ -110,7 +110,36 @@ describe('file read observations', () => {
     ])
       expect(panel).toHaveTextContent(text);
     expect(panel).toHaveTextContent('do not change risk scores or audit history');
-    expect(panel).toHaveTextContent('Observed loss: Unknown');
+    expect(panel).toHaveTextContent('Kernel events lost: Unknown');
+    expect(panel).toHaveTextContent('Collector records dropped: Unknown');
+  });
+  it('displays collector drops separately when kernel loss is zero', () => {
+    const value = {
+      ...telemetry(),
+      stats: {
+        fileReadDiagnostics: {
+          ...telemetry().stats.fileReadDiagnostics,
+          lossCount: 0,
+          losses: {
+            kernelEvents: '0',
+            realtimeBuffers: '1',
+            logBuffers: '2',
+            collectorDropped: '7',
+            mappingResets: '3',
+          },
+        },
+      },
+    };
+    render(FileReadObservations, { telemetry: value });
+    const status = screen.getByRole('status');
+    for (const text of [
+      'Kernel events lost: 0',
+      'Realtime buffers lost: 1',
+      'Log buffers lost: 2',
+      'Collector records dropped: 7',
+      'Mapping resets: 3',
+    ])
+      expect(status).toHaveTextContent(text);
   });
   it('preserves uncertainty, selected-instance scope and stopped capture state', async () => {
     const value = telemetry();

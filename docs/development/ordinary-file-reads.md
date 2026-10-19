@@ -20,7 +20,9 @@ not dismissed by app shutdown.
 
 The ordinary capture continues beyond the diagnostic profile's one-minute limit.
 Native queues, identity pins and the main/renderer observation rings remain
-bounded. Loss and omissions are visible. **Read observed** and **Potential sensitive
+bounded. Kernel events/buffers lost, collector records dropped, mapping resets and
+view omissions have separate counters. A zero kernel-loss count does not establish
+loss-free capture. **Read observed** and **Potential sensitive
 read** describe a kernel read candidate and enabled path rules. Contents and
 malicious intent are not inspected. Agent labels require an event-time thread
 witness, full process birth match and reliable population. Reads can remain

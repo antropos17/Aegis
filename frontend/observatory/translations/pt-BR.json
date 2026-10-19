@@ -1917,5 +1917,10 @@
   "Resume monitoring before starting file reads": "Retome o monitoramento antes de iniciar as leituras",
   "Wait for the previous capture to finish cleanup": "Aguarde a limpeza da captura anterior",
   "Choose an existing folder without a reparse alias": "Escolha uma pasta existente sem um alias de redirecionamento",
-  "File read monitoring could not start": "Não foi possível iniciar o monitoramento de leituras"
+  "File read monitoring could not start": "Não foi possível iniciar o monitoramento de leituras",
+  "Kernel events lost": "Eventos do kernel perdidos",
+  "Realtime buffers lost": "Buffers em tempo real perdidos",
+  "Log buffers lost": "Buffers de log perdidos",
+  "Collector records dropped": "Registros descartados pelo coletor",
+  "Mapping resets": "Reinicializações do mapeamento"
 }

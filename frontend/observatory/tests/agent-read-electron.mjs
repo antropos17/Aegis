@@ -333,6 +333,16 @@ try {
   ])
     assert(text.includes(expected), 'Missing visible evidence: ' + expected);
   r.uiReadAndRisk = true;
+  if (values.ordinary) {
+    const status = await panel.getByRole('status').innerText();
+    assert(/Kernel events lost: \d+/.test(status));
+    assert(/Collector records dropped: \d+/.test(status));
+    assert(/Mapping resets: \d+/.test(status));
+    r.lossAccountingVisible = true;
+    r.visibleLosses = (
+      await page.evaluate(() => window.aegis.getStats())
+    ).fileReadDiagnostics.losses;
+  }
   await panel.scrollIntoViewIfNeeded();
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
   await panel.screenshot({ path: path.join(out, 'reads-dark.png') });
