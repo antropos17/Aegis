@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Registered Linux sensor library root; native provider implementation pending"
+description = "Process-only Linux procfs provider and sensor/1 framed service"
 
 [dependencies]
 aegis-wire.workspace = true
