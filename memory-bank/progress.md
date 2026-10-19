@@ -2827,3 +2827,18 @@ restored controls passed. The external run receipts bind the frozen test and
 source hashes. PR/master CI and independent review are recorded separately; this
 prerequisite does not implement Cedar or complete W5. The Rust toolchain is now
 installed on X:, while full W1a and native platform acceptance remain open.
+
+## Session handoff — W8 synthetic fixture corpus (2026-10-19)
+
+Four bounded synthetic controls extend the existing benchmark runner/catalogue
+with exclusive fixture writes and selected fixture deletion. Compartment labels
+remain inside the owned run directory; they establish no real outside-project or
+host-persistence boundary. Existing independent-oracle admission still controls
+scoring, and unconfirmed observations remain unavailable.
+
+Focused checks passed 118 tests across five files, including 13 new cases.
+Two source mutations failed through behavioral assertions; restored tests passed.
+Independent security and test-quality reviews passed within the exclusive-run
+fixture boundary. PR/master gates and documentation review are recorded separately.
+Real-agent execution, read/transfer stimuli, qualified oracles and W8/T8 acceptance
+remain open.

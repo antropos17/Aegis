@@ -352,6 +352,41 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": {
+              "kind": {
+                "const": "write-fixture"
+              }
+            }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["target", "name", "content"],
+                "additionalProperties": false,
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "enum": ["project", "outside-project", "persistence-location"]
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^canary-[a-z0-9-]{1,40}\\.txt$"
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     }

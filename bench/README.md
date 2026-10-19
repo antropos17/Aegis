@@ -31,6 +31,11 @@ Two rules are non-negotiable and are the reason the harness is shaped this way:
 The actor's catalogue states intent and the fact of execution. It never confirms itself:
 every row it writes is confirmed by an oracle before any metric counts it.
 
+The [executable synthetic corpus controls](../docs/bench/CORPUS.md) extend the
+existing actor with bounded project, outside-project, deletion and inert
+persistence-location canaries. They remain harness controls; real-agent tasks
+and independent native qualification are still pending.
+
 ## Windows-only
 
 Sysmon, Procmon, the Restart Manager path and `reg query` are all Windows facilities. The
