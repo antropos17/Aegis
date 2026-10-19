@@ -2925,3 +2925,61 @@ passed. The test run contains 28 existing wire tests and zero native-provider
 tests. Native build, privilege/entitlement, lifecycle and coverage qualification
 remain open. Root status documentation now records the completed owner-confirmed
 #990/#996 wire prerequisite and preserves earlier deferral notes as history.
+
+## Session handoff — sensor host factory (2026-10-19)
+
+A sensor/1 host factory now owns fixed platform binary selection, handshake,
+framed transport, atomic watch/path replacement, mode/capability admission,
+contiguous sequence/loss accounting and bounded child custody/restarts. Health
+requires an explicit sensor observation; spawn and hello do not establish readiness.
+
+Independent security and test-quality reviews passed the corrected revision.
+Fifty-four focused tests and eleven assertion mutations passed with source restored;
+lint, formatting and the configured main typecheck passed. That typecheck has
+checkJs disabled. The real W1-pipe fixture proves supported file/network ingress
+and raw identity at ingress, without establishing its persistence.
+
+This factory has no production startup or sink caller yet. Polling, aggregate
+health and UI remain unchanged. Startup/pipeline integration and native/provider/
+packaged qualification remain open; this slice does not complete W1b.
+
+## Session handoff — preceding tool context in Details (2026-10-19)
+
+The Observatory Details overview can display a bounded preceding tool-call capsule
+with separate session/object evidence and explicit unavailable or ambiguous states.
+Incomplete associations use limited wording throughout; nested generic metadata
+excludes private capsule payloads. New Portuguese vocabulary, numeric timing and
+fixed limit markers use the active translator while OS values stay literal.
+
+Independent security and test reviews accepted the localization delta. Forty-four
+component/localization tests, test-inclusive renderer/frontend types, Svelte, lint,
+formatting and build passed. Two Portuguese built-renderer states were inspected
+with a recorded served-asset hash. Earlier R2 evidence covers fourteen targeted
+synthetic layouts and seven keyboard journeys; its three mutation detections were
+two assertion failures and one TypeError render crash. Full Tab traversal and
+focus trapping remain unqualified.
+
+The visible section states that live tool correlation is unavailable. Trusted
+source selection, runtime production, clock measurement, native/Electron checks,
+complete application localization, full W4 and W9 remain open.
+
+## Session handoff — native provider runtime coordinator (2026-10-19)
+
+Deferred main startup now owns the native provider factory, fresh Linux watch
+replacement, pause/resume, finite shutdown and private status/health publication.
+Only current committed polling observations can update scope; pre-pause provider,
+CWD or model completions cannot relaunch a child after resume. macOS can restart
+a provider while retaining an explicitly unavailable identity scope. Windows
+continues to report no native runtime owner.
+
+The coordinator refuses native-event custody and exposes unsupported admission,
+zero accepted events and lost operational coverage even when a provider reports
+healthy. Polling and launchAllowed=false remain unchanged. Independent R4 review
+accepted both lifecycle corrections. The final local revision passed 259 tests
+across ten files, including 27 coordinator/main tests, and two assertion-killed
+mutants with restored source. Six earlier R3 mutants are separate evidence. Lint,
+formatting, configured main types (checkJs disabled) and sequence gate passed.
+
+Native delivery, identity parity, lifecycle/audit integration, packaged binaries,
+live providers and complete W1b/W9 acceptance remain open. Repository gates and
+source hashes are recorded separately for the final PR and merge.
