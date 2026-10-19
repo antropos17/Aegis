@@ -46,7 +46,7 @@ existing runner, for example:
 
 ```sh
 node bench/run.js --scenario S5-disposable-deletion --arm A
-node bench/score.js --dir <fresh-run-directory>
+node bench/score.js <fresh-run-directory>
 ```
 
 These are future capture commands, not instructions to run on a development host
