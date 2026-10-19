@@ -192,10 +192,18 @@ installation provenance, complete attribution or production admission.
 - Header PID remains metadata. Read v1 issuing-thread proof requires an original
   held live thread/process pair acquired strictly before the event QPC and a fresh
   full process creation FILETIME query while both objects remain live. At most 128
-  pairs survive for 30 seconds; no birth time is cached. First or delayed events
-  outside that interval remain unverified. Main labels a diagnostic copy only on
+  pairs expire thirty seconds after their last successful preparation (or initial
+  acquisition for unrenewed pins). Renewal checks the same live owner and full
+  birth while retaining the original held interval. Reads still query birth
+  afresh; they cannot extend the lease. Expired/dead handles are replaced with a
+  new interval that cannot cover earlier events. New inventory entries at capacity
+  do not starve renewal of existing pins. Main labels an observation copy only on
   an exact full-FILETIME match to a reliable current annotated population. Path
   correlation remains candidate evidence. See [issuer and recovery contract](../../docs/roadmap/etw-issuer-recovery.md).
+  The native identity model uses Windows' distinction between a retained
+  [thread handle and its reusable identifier](https://learn.microsoft.com/en-us/windows/win32/procthread/thread-handles-and-identifiers),
+  with independent liveness checks for both original objects. Retaining a handle
+  alone does not establish that its thread or process is still running.
 - Main retains at most 256 diagnostic records / 1 MiB including UTF-16 storage
   estimates. Eviction has its own counter. Stop/failure clears this ring. At most
   32 ended summaries retain reasons, loss maxima, ready clock/buffers, final sampled

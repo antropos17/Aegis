@@ -13,7 +13,7 @@ internal interface IFileIssuerPin : IDisposable
 
 internal sealed class FileGeneration : IDisposable
 {
-    private sealed record Entry(IFileIssuerPin Pin, long From);
+    private sealed record Entry(IFileIssuerPin Pin, long From, long RenewedAt);
     private readonly Dictionary<uint, Entry> pins = new();
     private readonly Func<uint, IFileIssuerPin?> open;
     private readonly Func<long> clock;
@@ -35,26 +35,24 @@ internal sealed class FileGeneration : IDisposable
                 foreach (uint tid in peers(target.pid).Take(cap).Distinct())
                 {
                     if (tid is 0 or uint.MaxValue) continue;
-                    bool replacing = false;
                     if (pins.TryGetValue(tid, out var existing) && !existing.Pin.Alive())
                     { existing.Pin.Dispose(); pins.Remove(tid); existing = null; }
                     if (existing != null)
                     {
                         if (existing.Pin.Pid != target.pid || existing.Pin.Birth() != expected || !existing.Pin.Alive()) continue;
-                        if (clock() - existing.From < ttl / 2) { matched++; continue; }
-                        // Reopen before the original absolute lifetime expires.
-                        // The new interval never certifies older queued events.
-                        existing.Pin.Dispose(); pins.Remove(tid); replacing = true;
+                        // The original OS objects remain held across renewal. Keep their
+                        // actual interval start so an already queued read is still covered.
+                        pins[tid] = existing with { RenewedAt = clock() }; matched++; continue;
                     }
-                    // Reserve half the default table for directly observed scoped
-                    // issuers; preparing unrelated agents cannot occupy all pins.
-                    if (!replacing && pins.Count >= Math.Min(64, cap)) break;
+                    // New workers cannot consume the reserve or prevent renewal of
+                    // existing workers later in the bounded inventory.
+                    if (pins.Count >= Math.Min(64, cap)) continue;
                     IFileIssuerPin? pin = null;
                     try
                     {
                         pin = open(tid);
                         if (pin == null || pin.Pid != target.pid || pin.Birth() != expected || !pin.Alive()) continue;
-                        pins.Add(tid, new(pin, clock())); matched++;
+                        pins.Add(tid, Hold(pin)); matched++;
                         pin = null;
                     }
                     finally { pin?.Dispose(); }
@@ -65,9 +63,14 @@ internal sealed class FileGeneration : IDisposable
         }
         return new(request.requestId, prepared.ToArray(), clock().ToString());
     }
+    private Entry Hold(IFileIssuerPin pin)
+    {
+        long from = clock();
+        return new(pin, from, from);
+    }
     private void Expire(long now)
     {
-        foreach (var key in pins.Where(pair => now - pair.Value.From > ttl).Select(pair => pair.Key).ToArray())
+        foreach (var key in pins.Where(pair => now - pair.Value.RenewedAt > ttl).Select(pair => pair.Key).ToArray())
         { pins[key].Pin.Dispose(); pins.Remove(key); }
         primed.RemoveWhere(pid => !pins.Values.Any(entry => entry.Pin.Pid == pid));
     }
@@ -95,7 +98,7 @@ internal sealed class FileGeneration : IDisposable
             IFileIssuerPin? pin;
             try { pin = open(tid); } catch { return value; }
             if (pin == null) return value;
-            pins.Add(tid, new(pin, clock()));
+            pins.Add(tid, Hold(pin));
             Prime(value, pin);
             return value; // The lookup happened after this event: no retrospective proof.
         }
@@ -130,7 +133,7 @@ internal sealed class FileGeneration : IDisposable
                 {
                     pin = open(tid);
                     if (pin == null || pin.Pid != owner.Pid || !pin.Alive() || !owner.Alive()) continue;
-                    pins.Add(tid, new(pin, clock()));
+                    pins.Add(tid, Hold(pin));
                     pin = null; // Ownership transferred to the bounded pin table.
                 }
                 finally { pin?.Dispose(); }
