@@ -104,7 +104,9 @@ function resourceInput(input) {
       (phase.kind === 'warmup' && phase.steady) ||
       !integer(phase.startUs) ||
       !integer(phase.endUs) ||
-      phase.endUs <= phase.startUs
+      phase.endUs <= phase.startUs ||
+      phase.startUs < window.startUs ||
+      phase.endUs > window.endUs
     )
       fail();
   }

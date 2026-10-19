@@ -2989,13 +2989,15 @@ source hashes are recorded separately for the final PR and merge.
 A bounded pure benchmark library now derives per-lifetime and aligned cohort
 CPU intervals, resident-memory samples and separate per-run phase estimates.
 It requires explicit units, lifetime/population evidence and a planned sample
-window. Missing members, churn, unobserved helpers or scheduled endpoints retain
+window. Declared phases outside that window are rejected rather than reported
+as complete from a captured subset. Missing members, churn, unobserved helpers or scheduled endpoints retain
 null estimates with reasons. CPU can exceed one core; quantiles use raw samples,
 the even median and nearest-rank p95 without pooling repetitions.
 
-The final focused gate passed 88 tests across three suites, including 35 new
-resource cases. Four final arithmetic/refusal mutants failed assertions with
-source restored; earlier revision receipts remain separate. Scoped lint and
+The final R2 focused gate passed 93 tests across three suites, including 40 resource
+cases. Five final arithmetic/refusal mutants failed assertions with source
+restored. The phase-window counterexample, withdrawn R1 acceptance and earlier
+revision receipts remain separate. Scoped lint and
 formatting passed. Benchmark JavaScript is outside the configured main typecheck;
 no full type-coverage claim follows.
 

@@ -28,14 +28,17 @@ IDs/members, sparse arrays and extra array keys are rejected. Errors contain onl
 | `units` | Exactly `{wall:'us',cpu:'us',memory:'bytes'}`; no implicit conversion |
 | `provenance` | `{collectorId,clockId,sourceSha256}`: IDs plus lowercase SHA-256 |
 | `memory` | `{platform,definition,api,sharedPages}`; mapping below, API ID, exact `may-double-count` caveat |
-| `phases` | Ordered nonoverlapping `{id,kind,steady,startUs,endUs}` windows; positive duration |
+| `phases` | Ordered nonoverlapping `{id,kind,steady,startUs,endUs}` windows; positive duration, wholly inside the inclusive planned sample window |
 | `cohorts` | Unique IDs separating product, workload, oracle, generator and instrumentation as applicable |
 | `lifetimes` | Unique `{id,pid,cohort,startUs,endUs}`; `endUs:null` means still live |
 | `samples` | Ordered raw `{id,scheduledUs,actualUs,populationKnown,members}` records |
 | Sample member | `{lifetime,userUs,kernelUs,residentBytes}`; counters/bytes are safe nonnegative integers or explicit `null` |
 
 Phase kinds are `warmup`, `idle`, `workload`, `burst` and `drain`. The caller
-predeclares the steady flag; warmup cannot be steady. Phase windows may have gaps.
+predeclares the steady flag; warmup cannot be steady. Every phase must satisfy
+`sampleWindow.startUs <= startUs < endUs <= sampleWindow.endUs`; leading, trailing
+and wholly uncovered phase windows are rejected as `resource-input-invalid`.
+Phase windows may have gaps, and their boundaries need not align to cadence.
 Memory snapshots use `[startUs,endUs)`; CPU intervals can end exactly at the phase
 end, provided the entire interval belongs to that single steady phase.
 

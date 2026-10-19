@@ -21,7 +21,7 @@ const fixture = () => ({
     api: 'fixture-rss',
     sharedPages: 'may-double-count',
   },
-  phases: [{ id: 'idle', kind: 'idle', steady: true, startUs: 0, endUs: 10_000_000 }],
+  phases: [{ id: 'idle', kind: 'idle', steady: true, startUs: 0, endUs: 4_000_000 }],
   cohorts: ['product'],
   lifetimes: [
     { id: 'main-1', pid: 71, cohort: 'product', startUs: 0, endUs: null },
@@ -42,6 +42,34 @@ const cpu = (r) => r.estimates.find((x) => x.metric === 'cpu-one-core-pct');
 const memory = (r) => r.estimates.find((x) => x.metric === 'resident-bytes');
 
 describe('offline resource intervals, no collectors', () => {
+  it.each([
+    ['leading', 1_000_000, 4_000_000, 0, 4_000_000],
+    ['trailing root probe', 0, 1_000_000, 0, 10_000_000],
+    ['wholly before', 1_000_000, 4_000_000, 0, 500_000],
+    ['wholly after', 0, 4_000_000, 5_000_000, 6_000_000],
+  ])('rejects declared phase outside the planned window: %s', (_name, start, end, a, b) => {
+    const input = fixture();
+    input.sampleWindow = { startUs: start, endUs: end };
+    input.samples = input.samples.filter((s) => s.scheduledUs >= start && s.scheduledUs <= end);
+    input.phases[0] = { ...input.phases[0], startUs: a, endUs: b };
+    expect(() => evaluateResourceIntervals(input)).toThrow('resource-input-invalid');
+  });
+  it('admits covered phases with gaps and boundaries between scheduled points', () => {
+    const input = fixture();
+    input.phases = [
+      { id: 'idle', kind: 'idle', steady: true, startUs: 0, endUs: 1_000_000 },
+      { id: 'work', kind: 'workload', steady: true, startUs: 1_500_000, endUs: 3_500_000 },
+    ];
+    const r = evaluateResourceIntervals(input);
+    expect(r.missingScheduledUs).toEqual([]);
+    expect(r.intervals.map((x) => x.cohorts[0].value)).toEqual([250, null, 250, null]);
+    expect(
+      r.estimates.find((x) => x.phaseId === 'work' && x.metric === 'cpu-one-core-pct'),
+    ).toMatchObject({ p50: 250, p95: 250, validCount: 1, reason: null });
+    expect(
+      r.estimates.find((x) => x.phaseId === 'work' && x.metric === 'resident-bytes'),
+    ).toMatchObject({ p50: 525, p95: 600, validCount: 2, reason: null });
+  });
   it('sums aligned lifetime deltas on one core and retains raw evidence/definitions', () => {
     const input = fixture(),
       before = structuredClone(input),
@@ -49,7 +77,10 @@ describe('offline resource intervals, no collectors', () => {
     expect(r.intervals[0].members.map((m) => m.value)).toEqual([200, 50]);
     expect(r.intervals.map((x) => x.cohorts[0].value)).toEqual([250, 250, 250, 250]);
     expect(cpu(r)).toMatchObject({ p50: 250, p95: 250, reason: null, unit: 'percent-one-core' });
-    expect(r.memorySamples.map((x) => x.cohorts[0].value)).toEqual([150, 300, 450, 600, 750]);
+    expect(r.memorySamples.map((x) => x.cohorts[0].value)).toEqual([150, 300, 450, 600, null]);
+    expect(memory(r)).toMatchObject({ p50: 375, p95: 600, validCount: 4, reason: null });
+    expect(r.memorySamples[4].reason).toBe('outside-phase');
+    expect(r.intervals[3].cohorts[0].value).toBe(250);
     expect(r.memory).toEqual(input.memory);
     expect(r.samples).toEqual(input.samples);
     expect(r.provenance).toEqual(input.provenance);
@@ -88,7 +119,7 @@ describe('offline resource intervals, no collectors', () => {
     const boundary = fixture();
     boundary.phases = [
       { id: 'idle', kind: 'idle', steady: true, startUs: 0, endUs: 1_500_000 },
-      { id: 'work', kind: 'workload', steady: true, startUs: 1_500_000, endUs: 10_000_000 },
+      { id: 'work', kind: 'workload', steady: true, startUs: 1_500_000, endUs: 4_000_000 },
     ];
     const crossing = evaluateResourceIntervals(boundary);
     expect(crossing.intervals[1].cohorts[0].value).toBeNull();
@@ -97,20 +128,20 @@ describe('offline resource intervals, no collectors', () => {
     const input = fixture();
     input.phases = [
       { id: 'warmup', kind: 'warmup', steady: false, startUs: 0, endUs: 1_500_000 },
-      { id: 'idle', kind: 'idle', steady: true, startUs: 1_500_000, endUs: 4_000_000 },
-      { id: 'work', kind: 'workload', steady: true, startUs: 4_000_000, endUs: 10_000_000 },
+      { id: 'idle', kind: 'idle', steady: true, startUs: 1_500_000, endUs: 3_500_000 },
+      { id: 'work', kind: 'workload', steady: true, startUs: 3_500_000, endUs: 4_000_000 },
     ];
     const r = evaluateResourceIntervals(input);
     expect(r.intervals.map((x) => x.reason)).toEqual([
       'nonsteady-phase',
       'phase-boundary',
       null,
-      null,
+      'phase-boundary',
     ]);
     expect(r.intervals[1].cohorts[0].value).toBeNull();
     expect(
       r.estimates.find((x) => x.phaseId === 'idle' && x.metric === 'cpu-one-core-pct'),
-    ).toMatchObject({ p50: 250, validCount: 2 });
+    ).toMatchObject({ p50: 250, validCount: 1 });
     expect(r.estimates.find((x) => x.phaseId === 'warmup')).toMatchObject({
       p50: null,
       reason: 'nonsteady-phase',
@@ -231,12 +262,13 @@ describe('offline resource intervals, no collectors', () => {
       reason: 'numeric-overflow',
     });
     const precise = fixture();
-    precise.samples = precise.samples.slice(0, 2);
-    precise.sampleWindow.endUs = 1_000_000;
+    precise.samples = precise.samples.slice(0, 3);
+    precise.sampleWindow.endUs = 2_000_000;
+    precise.phases[0].endUs = 2_000_000;
     precise.lifetimes.pop();
     precise.samples.forEach((s, n) => {
       s.members.pop();
-      s.members[0].residentBytes = Number.MAX_SAFE_INTEGER - 1 + n;
+      s.members[0].residentBytes = Number.MAX_SAFE_INTEGER - (n === 0 ? 1 : 0);
     });
     expect(memory(evaluateResourceIntervals(precise))).toMatchObject({
       p50: null,
@@ -254,10 +286,19 @@ describe('offline resource intervals, no collectors', () => {
     const r = evaluateResourceIntervals(input);
     expect(cpu(r)).toMatchObject({ p50: 250, p95: 400, validCount: 4, excludedCount: 0 });
     expect(cpu(r).valid.map((x) => x.value)).toEqual([100, 200, 300, 400]);
-    expect(memory(r)).toMatchObject({ p50: 450, p95: 750 });
+    // [150, 300, 450, 600]: median (300 + 450) / 2; rank ceil(.95 * 4) = 4.
+    expect(memory(r)).toMatchObject({ p50: 375, p95: 600, validCount: 4, reason: null });
+    expect(memory(r).valid.map((x) => x.value)).toEqual([150, 300, 450, 600]);
     input.samples.pop();
     input.sampleWindow.endUs = 3_000_000;
-    expect(memory(evaluateResourceIntervals(input))).toMatchObject({ p50: 375, p95: 600 });
+    input.phases[0].endUs = 3_000_000;
+    // [150, 300, 450]: middle value 300; rank ceil(.95 * 3) = 3.
+    expect(memory(evaluateResourceIntervals(input))).toMatchObject({
+      p50: 300,
+      p95: 450,
+      validCount: 3,
+      reason: null,
+    });
     input.cohorts.push('agent');
     input.lifetimes[1].cohort = 'agent';
     input.samples.forEach((s) => {
