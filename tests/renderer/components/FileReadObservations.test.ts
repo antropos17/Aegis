@@ -94,7 +94,7 @@ describe('file read observations', () => {
     expect(screen.getByRole('textbox')).toHaveValue('C:\\alias');
     expect(screen.getByRole('status')).toHaveTextContent('File read monitoring is off');
   });
-  it('is absent in a normal package without the opt-in capture', () => {
+  it('hides the table when the file-read backend is unavailable', () => {
     render(FileReadObservations, { telemetry: emptyTelemetry() });
     expect(screen.queryByRole('region', { name: 'File read observations' })).toBeNull();
   });
