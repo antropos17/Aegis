@@ -62,8 +62,9 @@ record the exact head and all five required contexts before acceptance.
 
 ## Acceptance boundary
 
-This is JavaScript preparation. The owner has deferred Rust installation; the
-Rust workspace/crate and both-language golden gates remain required for full
+This is JavaScript preparation. The owner subsequently authorized Rust setup;
+Rust 1.99.1 MSVC is installed on X. The workspace/crate is prepared for review;
+its merge and both-language golden gates remain required for full
 W1a acceptance and final wire freeze. W1b's host/session state, custody, active
 capability enforcement and cross-frame continuity remain separate work.
 No live Linux/macOS provider, eBPF/procfs parity, complete Electron application,
