@@ -17,11 +17,47 @@ import {
   reliableHealth,
 } from './etw-support.mjs';
 
+/** Run the actual read loop, with an optional owner-harness preparation barrier.
+ * Missing callback preserves the prior workload sequence. A rejected barrier
+ * never reaches fixture.command. @param {object} options Workload resources.
+ * @returns {Promise<void>} @since v0.19.2
+ */
+export async function runReadWorkloads({
+  fixture,
+  witness,
+  observer,
+  app,
+  receipt: r,
+  beforeRead,
+  now = Date.now,
+  wait = delay,
+}) {
+  if (beforeRead !== undefined) r.beforeReadPreparations = {};
+  for (const mode of ['sync', 'async']) {
+    if (beforeRead !== undefined)
+      r.beforeReadPreparations[mode] = await beforeRead(app, witness, mode);
+    const native = await fixture.command(mode);
+    r[mode + 'Native'] = native;
+    assert.equal(native.command, mode);
+    assert.equal(native.birth, witness.birth);
+    assert.equal(native.tid, witness.tid);
+    if (mode === 'async')
+      assert(native.pending > 0, 'Overlapped fixture never observed ERROR_IO_PENDING');
+    const until = now() + 4000;
+    let proof;
+    while (!(proof = matchingRead(observer.probe.records, native)) && now() < until)
+      await wait(100);
+    assert(proof, `${mode} issuer/generation/agent proof missing`);
+    r[mode + 'Proof'] = { native, record: proof };
+  }
+  if (beforeRead !== undefined) r.issuerPreparedBeforeRead = true;
+}
+
 /** Run one real packaged capture, optionally with a scheduled exit of its own collector.
  * @param {object} options executable, fixtureExe, out, fault.
  * @returns {Promise<object>} Private bounded metadata receipt. @since v0.19.2
  */
-export async function runScenario({ executable, fixtureExe, out, fault }) {
+export async function runScenario({ executable, fixtureExe, out, fault, beforeRead }) {
   const canary = 'AEGIS_ETW_CANARY_' + crypto.randomUUID();
   const locations = scenarioPaths(out, canary);
   const { file, fixture: root, profile, home, temp } = locations;
@@ -95,21 +131,7 @@ export async function runScenario({ executable, fixtureExe, out, fault }) {
     assert.equal(data?.phase, 'running', 'Live collector/guard did not become ready');
     r.liveReady = true;
     observer = observe(app, fixture.child.pid, root, canary);
-    for (const mode of ['sync', 'async']) {
-      const native = await fixture.command(mode);
-      r[mode + 'Native'] = native;
-      assert.equal(native.command, mode);
-      assert.equal(native.birth, witness.birth);
-      assert.equal(native.tid, witness.tid);
-      if (mode === 'async')
-        assert(native.pending > 0, 'Overlapped fixture never observed ERROR_IO_PENDING');
-      const until = Date.now() + 4000;
-      let proof;
-      while (!(proof = matchingRead(observer.probe.records, native)) && Date.now() < until)
-        await delay(100);
-      assert(proof, `${mode} issuer/generation/agent proof missing`);
-      r[mode + 'Proof'] = { native, record: proof };
-    }
+    await runReadWorkloads({ fixture, witness, observer, app, receipt: r, beforeRead });
     r.readCandidate = true;
     r.candidateMetadataOnly = true;
     r.scopeExcluded = true;

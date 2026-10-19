@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 257 CommonJS modules (213 top-level + 42 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 263 CommonJS modules (217 top-level + 44 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.

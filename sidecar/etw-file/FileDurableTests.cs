@@ -11,6 +11,34 @@ internal static class FileDurableTests
         Enumerable.Range(71, 6).Select(pid => new FileDurablePeer(pid, "134000000000001111")).ToArray());
     internal static void Run(Action<string, Action> test)
     {
+        test("qualification digest covers the complete validated canonical protected record", () =>
+        {
+            var lease = Lease(); string digest = FileDurableRecovery.Digest(lease);
+            Check(FileDurableRecovery.ValidDigest(digest));
+            Check(FileDurableRecovery.Digest(FileDurableRecovery.Parse(JsonSerializer.SerializeToUtf8Bytes(lease))) == digest);
+            foreach (var changed in new[] { lease with { guid = "22345678123456781234567812345678" },
+                lease with { user = "other" }, lease with { logon = "other" }, lease with { image = "other" },
+                lease with { peers = [new(81, lease.peers[0].birth), .. lease.peers.Skip(1)] },
+                lease with { peers = [new(71, "134000000000001112"), .. lease.peers.Skip(1)] },
+                lease with { peers = lease.peers.Reverse().ToArray() } })
+                Check(FileDurableRecovery.Digest(changed) != digest);
+            Reject(() => FileDurableRecovery.Digest(lease with { version = 2 }));
+            Check(!FileDurableRecovery.ValidDigest(null) && !FileDurableRecovery.ValidDigest(new('g', 64)));
+        });
+        test("private qualification notice rejects unknown fields and inconsistent digest metadata", () =>
+        {
+            var notice = new FileOrphanNotice("reserved", 76, "134000000000001111", [71, 72, 73, 74, 75],
+                new('a', 64), null, null);
+            Check(FileOrphanWire.ParseNotice(JsonSerializer.SerializeToElement(notice)).previousSameScope == null);
+            foreach (bool same in new[] { true, false }) Check(FileOrphanWire.ParseNotice(
+                JsonSerializer.SerializeToElement(notice with { previousJournalDigest = new('b', 64), previousSameScope = same })).previousSameScope == same);
+            foreach (var invalid in new[] { notice with { journalDigest = "bad" },
+                notice with { previousJournalDigest = new('g', 64), previousSameScope = false },
+                notice with { previousJournalDigest = new('b', 64) }, notice with { previousSameScope = false } })
+                Reject(() => FileOrphanWire.ParseNotice(JsonSerializer.SerializeToElement(invalid)));
+            var text = JsonSerializer.Serialize(notice);
+            Reject(() => FileOrphanWire.ParseNotice(JsonDocument.Parse(text.Replace("\"kind\":", "\"rawRecord\":{},\"kind\":")).RootElement));
+        });
         test("durable recovery covers all six original identities without a survivor", () =>
         {
             int calls = 0;

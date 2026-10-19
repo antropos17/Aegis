@@ -3429,6 +3429,46 @@ Independent factual review, focused Markdown formatting and five local links
 were checked. This updates documentation only; no capture, runtime activation or
 new qualification evidence was added. `launchAllowed=false` remains unchanged.
 
+## Session handoff — W5 explicit Cedar execution slice (2026-10-19)
+
+The optional schema-4 execution policy uses the pinned official Cedar WASM
+runtime and a fixed execution schema. Legacy schemas retain their exact-match
+behavior. The schema-3 translator preserves literal descriptors, ordered rule
+exclusions, defaults, ask decisions and review-required actions. Untrusted
+request fields cannot supply agent identity, sensor health or route authority.
+
+The final revision passed 60 focused tests: 29 Cedar tests and the unchanged 31
+characterization tests. Its seeded 10,000-input comparison made 7,300 real WASM
+authorization calls; 2,500 invalid requests and 200 invalid policies stopped
+earlier. Four targeted behavioral mutations failed assertions and were restored.
+Independent security and test review accepted this execution slice, with an
+availability gap: synchronous WASM has no enforceable CPU or total-memory limit.
+Earlier neighbor and revision-specific mutation receipts remain separate.
+
+Packaged Electron loading, an isolated evaluator, other policy routes, trusted
+identity/health dimensions and full W5 remain open. Owner policy confirmation
+and exact PR/master gates are recorded externally; no live launch qualification
+or broader Protected Session acceptance follows from these fixtures.
+
+## Session handoff — Linux procfs sensor (2026-10-19)
+
+A process-only Linux provider now reads bounded fresh procfs populations and
+serves sensor/1 over stdin/stdout. Raw field-22 ticks and boot witnesses retain
+full u64 precision. Legal non-UTF8 process names affect display only; failed or
+over-budget populations return an error so the host can freeze sessions. Watch
+replacement validates fresh roots atomically. All event capabilities remain
+false, and path subscriptions are unsupported.
+
+Nineteen Windows fixture tests, formatting, Windows/Linux all-target Clippy and
+Linux all-target checks passed. Three earlier R1 assertion mutants and one R2
+non-UTF8 regression mutant were killed with source restored; these are separate
+revision-specific records. Independent R2 security and requirements review passed.
+Linux cross-checking compiled the native branch without linking or running it.
+
+Native procfs/clock behavior, D1 runtime parity, packaged host integration,
+fanotify/eBPF, privileges and full W2 acceptance remain open. This delivery
+does not enable launch authority or replace the existing polling provider.
+
 ## Session handoff — isolated ETW process diagnostics (2026-10-19)
 
 A separate helper and closed collector decode pinned Windows process start, stop
@@ -3447,3 +3487,73 @@ No live ETW callbacks, native delivery, reboot/UAC or packaged qualification fol
 from these fixtures. Synchronous native Stop precedes the consumer wait budget,
 so total shutdown remains unbounded. Authenticated parent/crash cleanup and native
 shutdown qualification remain prerequisites to capture exposure.
+
+## Session handoff — macOS native read boundary (2026-10-19)
+
+A dependency-free libproc/sysctl wrapper now isolates unsafe calls in one
+macOS-only module. Safe readers validate bounded buffers, returned sizes and
+raw birth/process-unique-ID fields. PID populations retain an explicit best-effort
+marker, including underfilled samples; missing processes cannot establish exits.
+The wire and sensor crates continue to forbid unsafe code.
+
+Eleven portable wrapper tests, formatting, and macOS aarch64 all-target checks
+and Clippy passed. Independent source/security and workspace-registration review
+accepted the frozen boundary. The lock adds one local package with no new
+registry packages and retains all twenty other existing package blocks.
+
+This prerequisite adds no sensor adapter or executable. Native linkage, SDK ABI,
+permissions, live generation semantics, platform versions and full W3 acceptance
+remain open. Portable tests and cross-checks do not establish native execution.
+
+## Session handoff — owner restart qualification harness (2026-10-19)
+
+The protocol-10 diagnostic harness prepares an owner-controlled Windows Restart,
+then resumes or cancels after checking immutable boot, source, package,
+configuration, native and saved-preparation bindings before UAC. Live complete
+protected-record correlation uses the authenticated observer after owner consent.
+A supported build-only producer returns before desktop launch or capture. Fixture reads await a matching
+PID/full-birth preparation acknowledgement and retain the event-time oracle.
+Private observer digests add correlation without changing cleanup authority.
+
+Independent R3 review accepted phase-specific cancellation and negative read-barrier
+checks. The final six-suite gate passed 123 tests; three R3 assertion mutants were
+killed and restored. Historical R2 evidence is corrected to ten caught JS mutants
+and one survivor; it is retained separately from R3. Unchanged native inputs reuse
+the R2 zero-warning build, 128 non-capture fixtures and two native mutations.
+
+No actual package build, UAC, Restart, owner recovery or live capture was run.
+Changed native qualification metadata makes the prior #986 native receipt
+historical for this candidate. Current-package qualification, W11/T1 acceptance
+and production admission remain pending; launchAllowed=false is unchanged.
+
+## Session handoff — native observation metadata custody (2026-10-19)
+
+Optional closed sensor metadata now survives security-record projection, disk
+spill/restart replay and canonical audit JSONL hashing. Raw birth, witness,
+sequence and capture timestamps stay separate from normalized identity and the
+audit delivery ID. Missing Linux D1 context retains raw evidence with identity
+unavailable; replay uses only persisted historical proof. Absent clock anchors
+remain null and uncalibrated. Invalid or oversized metadata preserves an otherwise
+admissible legacy event.
+
+The focused gate passed 106 tests across six suites, including 25 new cases.
+Four mutations failed behavioral assertions and restored exact source. Actual
+spill/restart/audit hashing and tamper rejection are tested. Scoped lint/format,
+configured main types and independent security/test review passed. The configured
+typecheck does not check these JavaScript bodies. Three frozen source hashes
+survived master integration.
+
+This adds no producer forwarding, source authentication, actor/session authority,
+calibrated time or native loss-range forwarding. Runtime admission remains
+unsupported with zero accepted native events and coverage lost. No FileEvent,
+risk, UI, provider or complete W1b acceptance follows.
+
+## Session handoff — dormant ETW diagnostic child supervision (2026-10-19)
+
+Added an original-child-handle owner with absolute monotonic deadline, bounded output, one termination attempt and exit/stream-closure cleanup evidence. Sticky unknown cleanup blocks another lifetime. No production caller, IPC, UI, capture route or native admission was added.
+
+R2 has34passing focused tests(23modeled,6actual JavaScript children,5compiled fake-coordinator children) and7final behavioral mutation kills with byte-identical restoration. The compiled blocked Stop has a branch-entry witness; the consumer fixture requires fake cancellation. Independent source/security and test/evidence reviews passed. R1 frozen review was withdrawn before R2. Root preserved the available raw evidence in an external post-run archive; qualification manifest1d1c23bb is revision-bound.
+
+Native ControlTrace duration, ETW session absence after controller death, authenticated crash/orphan cleanup, privileges and capture exposure remain unqualified. Parent responsiveness and OS scheduling limit wall-clock enforcement. launchAllowed=false. This does not complete W11.
+
+Integration update (2026-10-19): parent #1005 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
