@@ -2811,3 +2811,19 @@ The PR and external completion tracker record the final revision, independent
 documentation review and exact required PR/master gates. This pre-merge handoff
 does not substitute for those results. Rust remains deferred, the original dirty
 checkout is preserved, and finite diagnostics stay on the data drive.
+
+## Session handoff — W5 policy characterization prerequisite (2026-10-19)
+
+The ten-hour completion run adds a finite reference for existing policy behavior
+before Cedar integration: disjoint rule order/defaults, whole-policy validation,
+schema-3 review and complete provider/MCP/deletion outputs. Production evaluators,
+launch decisions and dependency files are unchanged. Existing adapter reason
+normalization is preserved, including the distinction between direct evaluator
+and provider/selected-action results.
+
+The focused run passed 31 new tests and 182 tests with neighboring suites; ESLint
+passed. Nine isolated-copy mutations failed through assertions, and clean and
+restored controls passed. The external run receipts bind the frozen test and
+source hashes. PR/master CI and independent review are recorded separately; this
+prerequisite does not implement Cedar or complete W5. The Rust toolchain is now
+installed on X:, while full W1a and native platform acceptance remain open.
