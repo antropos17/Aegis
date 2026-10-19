@@ -3317,3 +3317,24 @@ receipt. The tool performs no explicit trust/configuration writes; normal Window
 trust/cache/network effects remain unmeasured. Actual signed success with an
 independent owner pin, timestamp/revocation policy, release wiring, clean-machine
 installation and full W10 acceptance remain unqualified.
+
+## Session handoff — W4 transcript-to-audit replay (2026-10-19)
+
+A fixture-only replay now composes the explicit transcript reader, parser,
+synthetic process/session binding and skew, correlator and capsule builder through
+real scan audit admission, disk spill/restart, canonical persistence/readback/export
+and display batching. Fixed expected capsules cover complete, missing, ambiguous,
+truncated and unavailable evidence. OS actor attribution remains unchanged;
+prompt/argument/response/environment sentinels stay out of serialized sinks.
+
+The focused suite passed 15 cases. A copied scan source with capsule projection
+removed failed at the actual spill assertion (one failure, fourteen skipped).
+Production source remained unchanged. Independent source/privacy/test/evidence
+reviews passed; three owned sources, three corpus fixtures and 61 loaded source
+dependencies match the freeze. A separate post-run archive binds 24 retained
+artifacts; imported modules are not a coverage claim.
+
+Reader file proofs, binding evidence and clock alignment remain synthetic. This
+manual composition establishes no application wiring, authenticated receiver,
+real-profile/native discovery, Electron delivery, abrupt-crash durability or full
+live W4 acceptance. No UI, policy, production source or launch authority changed.
