@@ -2740,3 +2740,30 @@ merge; the wave closes after the merged-master gate is recorded in the external
 completion tracker. Use PR records and that tracker for final SHAs/results.
 Local PATH Node is below the repository minimum. Diagnostic output stays bounded
 on the data drive; no global cleanup or persistent rotation was installed.
+
+## Session handoff — W1-pipe (2026-10-19)
+
+The owner authorized W1-pipe with subagents through a checked merge, using a
+fresh worktree while preserving the dirty checkout and deferring Rust. Runtime
+candidate `0022e24d28953b58648d48729e14e1c85ce09af4` adds a bounded security-audit
+lane, quota-managed spill, historical replay, exact known-loss bookkeeping and
+display byte limits. See [the delivery and evidence report](../docs/roadmap/w1-pipe.md)
+and [the load method](../docs/bench/w1-pipe-method.md).
+
+The final synthetic workload offered 600,000 events over 30.011 seconds and
+10,000 over 5.010 seconds; all were delivered after draining, with no loss or
+order violation. Qualification at `b3b546387f763721d27f6fc5788c3f03bfe03fee`
+includes the final harness bounds and full drain timer. It qualifies the real
+batcher with a modeled synchronous consumer; it does not measure native sensors,
+the renderer or the real audit consumer's throughput. Focused Windows tests
+passed 424 with four platform skips; fourteen runtime mutations and the separate
+oracle/disabled-spill controls were killed. Independent security and test-quality
+review accepted the runtime after partial-write and retry-loop corrections.
+
+Completion still requires all five required CI contexts on the final PR head
+and a successful merged-master gate. GitHub and
+`X:/AEGIS_COMPLETION_PROGRESS.json` carry the final PR, SHAs and gate status;
+this pre-merge handoff does not substitute for that evidence. Preserve receipts
+under `X:/tmp/aegis-w1-pipe-20261019/`. W1a's Rust prerequisite stays deferred;
+W1b depends on merged W1a as well as W1-pipe. No release, native-sensor acceptance
+or protected-session launch enablement is included.

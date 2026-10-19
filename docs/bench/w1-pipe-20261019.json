@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "status": "pass",
+  "startedAt": "2026-10-19T03:47:49.010Z",
+  "scope": "production-security-batcher-with-synthetic-synchronous-acknowledgement",
+  "mode": "w1-pipe-load-qualification",
+  "sourceRevision": "b3b546387f763721d27f6fc5788c3f03bfe03fee",
+  "sourceHashes": {
+    "package-lock.json": "71121b88e8761aeb14c9a439cec1480652e5883af16c58e4ceec05e82a30ce9a",
+    "package.json": "347a4793e61329c734221596f8004215ee89ec89d2873f8ccbd78f7898ec3bf5",
+    "src/main/attribution.js": "f9a4b30425a00ac8c9ad05f6099e41344f613b40d56ece8661ccd0f9ea8b3236",
+    "src/main/ipc-batcher.js": "2c31e00f487af8b2c6fc6a24a49be5c8270d9771ac3ee54eae7344d7f1bbed30",
+    "src/main/security-event-pipeline.js": "bce342217c659f5bd7bb7f9ea1e6b033451ffbc4b12bc714f05c2055062e3877",
+    "src/main/security-event-record.js": "023df183af370be5af23a0034ebcba1b00b844a0ff89f36d44295b13be90967d",
+    "src/main/security-event-spill.js": "a8e7e9a195807a45fb3090ecea8b702dc033f437a58e875fb7c34ff6ce285f0b",
+    "src/main/sensor-health.js": "79aa9ff87ad6863f411c558b9cdcb889a7dc3074c41bb1e82ff95674f914715f"
+  },
+  "harnessHashes": {
+    "./verify-event-pipeline.mjs": "200f5f3a3fe54ab6912014b9b8a143a9d9a2a2b04e201070e673a54750d92bb8",
+    "./qualification/event-pipeline-oracle.mjs": "f0aaa8459281f49f4ab4af08862bedd5257ea464de9afd357801e18dc5e8c5d8"
+  },
+  "runtime": {
+    "node": "v24.20.0",
+    "platform": "win32",
+    "arch": "x64",
+    "osRelease": "10.0.26200",
+    "cpuModel": "Intel(R) Core(TM) Ultra 9 185H",
+    "logicalCpus": 22
+  },
+  "configuration": {
+    "capacity": 512,
+    "byteCapacity": 1048576,
+    "diskQuotaBytes": 33554432,
+    "maxFiles": 1024,
+    "intervalMs": 150
+  },
+  "limits": {
+    "heapBytes": 268435456,
+    "heapGrowthBytes": 134217728,
+    "sampleIntervalMs": 250,
+    "minimumRateFraction": 0.98,
+    "maxLatenessMs": 1000,
+    "drainDeadlineMs": 5000
+  },
+  "cases": [
+    {
+      "name": "burst-20k",
+      "rate": 20000,
+      "durationMs": 30000,
+      "stallStartMs": 1000,
+      "stallDurationMs": 600,
+      "status": "pass",
+      "schedule": {
+        "offered": 600000,
+        "batches": 1789,
+        "lateBatches": 1211,
+        "maxLatenessMs": 126.09729999999945,
+        "catchUpBatches": 1211,
+        "maxBurstEvents": 400,
+        "tickMs": 10,
+        "maximumAllowedBurstEvents": 400,
+        "offeredPerSecond": [
+          20000,
+          20000,
+          20000,
+          19800,
+          20200,
+          20000,
+          20000,
+          20000,
+          20000,
+          20000,
+          20000,
+          20000,
+          19600,
+          19608,
+          19953,
+          19839,
+          21000,
+          19561,
+          19439,
+          20800,
+          18643,
+          21157,
+          19800,
+          20200,
+          20400,
+          19800,
+          20000,
+          20200,
+          19800,
+          20200,
+          0,
+          0
+        ],
+        "elapsedMs": 30010.5992,
+        "skippedEvents": 0,
+        "actualOfferedPerSecond": 19992.936362296958
+      },
+      "oracle": {
+        "delivered": 600000,
+        "replayed": 488960,
+        "lossMarkers": 0,
+        "declaredLost": 0,
+        "bySensor": {
+          "file-watch": 120000,
+          "file-handle": 120000,
+          "process": 120000,
+          "network": 120000,
+          "other": 120000
+        },
+        "bitmapBytes": 75000
+      },
+      "consumerRefusals": 4,
+      "peaks": {
+        "diskBytes": 3435188,
+        "diskFiles": 4,
+        "pendingRecords": 10240
+      },
+      "baselineHeapBytes": 6321480,
+      "sampledPeakHeapBytes": 79445272,
+      "sampledHeapGrowthBytes": 73123792,
+      "drainMs": 3.1363000000019383,
+      "stats": {
+        "sensors": {
+          "file-watch": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 173184,
+            "accepted": 120000,
+            "delivered": 120000,
+            "lost": 0
+          },
+          "file-handle": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 173696,
+            "accepted": 120000,
+            "delivered": 120000,
+            "lost": 0
+          },
+          "process": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 171648,
+            "accepted": 120000,
+            "delivered": 120000,
+            "lost": 0
+          },
+          "network": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 171648,
+            "accepted": 120000,
+            "delivered": 120000,
+            "lost": 0
+          },
+          "other": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 170624,
+            "accepted": 120000,
+            "delivered": 120000,
+            "lost": 0
+          }
+        },
+        "spill": {
+          "bytes": 0,
+          "files": 0,
+          "records": 0,
+          "quotaBytes": 33554432,
+          "blocked": false
+        },
+        "pendingLoss": 0,
+        "unknownLoss": false,
+        "markerDurable": true,
+        "health": {
+          "sensorId": "event-delivery",
+          "state": "HEALTHY",
+          "lastAttemptAt": 1792381699029,
+          "lastSuccessAt": 1792381699029,
+          "lastError": null,
+          "consecutiveFailures": 0,
+          "lossCount": 0,
+          "detail": null
+        },
+        "replayPending": false
+      }
+    },
+    {
+      "name": "sustained-2k",
+      "rate": 2000,
+      "durationMs": 5000,
+      "stallStartMs": 1000,
+      "stallDurationMs": 2000,
+      "status": "pass",
+      "schedule": {
+        "offered": 10000,
+        "batches": 326,
+        "lateBatches": 174,
+        "maxLatenessMs": 20.997999999995955,
+        "catchUpBatches": 174,
+        "maxBurstEvents": 40,
+        "tickMs": 10,
+        "maximumAllowedBurstEvents": 40,
+        "offeredPerSecond": [
+          2000,
+          1980,
+          2020,
+          2000,
+          2000,
+          0,
+          0
+        ],
+        "elapsedMs": 5009.5324,
+        "skippedEvents": 0,
+        "actualOfferedPerSecond": 1996.194295499516
+      },
+      "oracle": {
+        "delivered": 10000,
+        "replayed": 2560,
+        "lossMarkers": 0,
+        "declaredLost": 0,
+        "bySensor": {
+          "file-watch": 2000,
+          "file-handle": 2000,
+          "process": 2000,
+          "network": 2000,
+          "other": 2000
+        },
+        "bitmapBytes": 1250
+      },
+      "consumerRefusals": 13,
+      "peaks": {
+        "diskBytes": 853677,
+        "diskFiles": 1,
+        "pendingRecords": 2560
+      },
+      "baselineHeapBytes": 41592488,
+      "sampledPeakHeapBytes": 68280320,
+      "sampledHeapGrowthBytes": 26687832,
+      "drainMs": 0.5158999999985099,
+      "stats": {
+        "sensors": {
+          "file-watch": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 171136,
+            "accepted": 2000,
+            "delivered": 2000,
+            "lost": 0
+          },
+          "file-handle": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 171648,
+            "accepted": 2000,
+            "delivered": 2000,
+            "lost": 0
+          },
+          "process": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 169600,
+            "accepted": 2000,
+            "delivered": 2000,
+            "lost": 0
+          },
+          "network": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 169600,
+            "accepted": 2000,
+            "delivered": 2000,
+            "lost": 0
+          },
+          "other": {
+            "capacity": 512,
+            "byteCapacity": 1048576,
+            "buffered": 0,
+            "bufferedBytes": 0,
+            "highWater": 512,
+            "highWaterBytes": 168576,
+            "accepted": 2000,
+            "delivered": 2000,
+            "lost": 0
+          }
+        },
+        "spill": {
+          "bytes": 0,
+          "files": 0,
+          "records": 0,
+          "quotaBytes": 33554432,
+          "blocked": false
+        },
+        "pendingLoss": 0,
+        "unknownLoss": false,
+        "markerDurable": true,
+        "health": {
+          "sensorId": "event-delivery",
+          "state": "HEALTHY",
+          "lastAttemptAt": 1792381704042,
+          "lastSuccessAt": 1792381704042,
+          "lastError": null,
+          "consecutiveFailures": 0,
+          "lossCount": 0,
+          "detail": null
+        },
+        "replayPending": false
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic metadata only; no native sensor, Electron renderer or real audit consumer.",
+    "Heap and independent disk peaks are sampled; queue high-water counters cover between-sample queue peaks.",
+    "Restart, full-disk and corruption semantics require the separately recorded focused runtime tests."
+  ],
+  "completedAt": "2026-10-19T03:48:24.045Z"
+}
