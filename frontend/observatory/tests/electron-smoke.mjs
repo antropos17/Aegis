@@ -30,7 +30,7 @@ try {
     .waitFor({ timeout: 30000 });
   assert.equal(
     await window.locator('.sidebar nav button').count(),
-    14,
+    15,
     'fresh profile must show the Advanced interface',
   );
   await window.screenshot({ path: resolve(out, 'advanced-home-native.png') });
@@ -38,7 +38,7 @@ try {
   await window.getByRole('checkbox', { name: 'Simple interface', exact: true }).check();
   assert.equal(await window.locator('.sidebar nav button').count(), 3);
   await window.getByRole('checkbox', { name: 'Simple interface', exact: true }).uncheck();
-  assert.equal(await window.locator('.sidebar nav button').count(), 14);
+  assert.equal(await window.locator('.sidebar nav button').count(), 15);
   assert.equal(await window.evaluate(() => localStorage.getItem('aegis-advanced-mode')), 'true');
   await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   const deadline = Date.now() + 55000;
@@ -155,6 +155,7 @@ try {
     'Reports',
     'Audit',
     'Statistics',
+    'Coverage',
     'Settings',
   ]) {
     await window.locator('.sidebar').getByRole('button', { name, exact: true }).click();
@@ -296,7 +297,7 @@ try {
         errors,
         exported,
         tested:
-          '11 workspaces; real sensors; settings save; six native export handlers; configuration import; isolated profile; no process intervention or provider request',
+          '12 workspaces; real sensors; settings save; six native export handlers; configuration import; isolated profile; no process intervention or provider request',
       },
       null,
       2,
@@ -306,7 +307,7 @@ try {
     JSON.stringify({
       agents: stats.agents,
       populationReliable: stats.health.populationReliable,
-      workspaces: 11,
+      workspaces: 12,
       hardening,
       errors,
     }),

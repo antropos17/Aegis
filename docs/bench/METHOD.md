@@ -75,6 +75,8 @@ technique or claimed to provide current ATT&CK coverage by this draft.
 
 ## Catalogue, oracle and sensor columns
 
+[Offline ordinary-task evaluator and input contract](TASK-FALSE-ALARMS.md).
+
 The sequence remains catalogue -> independent oracle confirmation -> sensor
 scoring. Confirm each catalogue row from the same run before admitting it to a
 sensor denominator. Keep oracle columns separate; never diff live streams or use
@@ -201,6 +203,10 @@ the workload delta. Measure instrumentation cost in separate matched collector
 on/off calibration runs using an independent resource reference, with uncertainty.
 Keep raw enabled, baseline and calibration observations; an uncalibrated collector
 cannot support a calibrated overhead claim. Legacy arm C supplies neither control.
+
+The [offline paired task scorer](PAIRED-TASK-LATENCY.md) retains planned outcomes
+and computes completion-latency estimates separately for each repetition. It
+collects no tasks and supplies no measured or calibrated overhead acceptance.
 
 ## Estimation, variance and refusal
 

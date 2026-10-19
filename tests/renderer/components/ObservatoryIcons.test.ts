@@ -16,6 +16,11 @@ describe('curated navigation icons', () => {
       return JSON.stringify(icons[workspace.icon]);
     });
     expect(new Set(shapes).size).toBe(workspaces.length);
+    const coverage = workspaces.find((workspace) => workspace.id === 'coverage')!;
+    expect(coverage.icon).toBe('shieldSearch');
+    expect(icons[coverage.icon]).toEqual(
+      tablerPaths.shieldSearch.map((d) => ({ tag: 'path', attrs: { d } })),
+    );
     for (const task of [...guidedTasks, ...moreTasks])
       expect(task.icon, task.title).toBe(workspaces.find((item) => item.id === task.target)?.icon);
   });
