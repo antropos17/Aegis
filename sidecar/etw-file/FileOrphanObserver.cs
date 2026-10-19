@@ -23,14 +23,15 @@ internal static class FileOrphanObserver
         Print(new { type = "endpoint", address = $"{id}:{self.Pid}:{self.Birth}" });
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(240));
         await pipe.WaitForConnectionAsync(deadline.Token);
-        var notice = await FileGuardWire.Read<FileOrphanNotice>(pipe, deadline.Token);
+        var notice = FileOrphanWire.ParseNotice(await FileGuardWire.Read<JsonElement>(pipe, deadline.Token));
         if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint pid) || pid > int.MaxValue || pid != notice.custodianPid ||
             notice.kind != "reserved" || notice.originalPids.Length != 5 || notice.originalPids.Any(p => p <= 0 || p == pid) ||
             notice.originalPids.Distinct().Count() != 5) throw new InvalidDataException();
         using var peer = new FileGuardPeer((int)pid);
         peer.Verify(pipe, (ulong)FileMainHandles.Positive(notice.custodianBirth));
         using var originals = total ? new FileOriginalObservation(notice.originalPids) : null;
-        Print(new { type = "reserved", custodianPid = pid, notice.originalPids, originalObjectsObserved = originals != null });
+        Print(new { type = "reserved", custodianPid = pid, notice.originalPids, originalObjectsObserved = originals != null,
+            notice.journalDigest, notice.previousJournalDigest, notice.previousSameScope });
         try
         {
             // Phase and terminal objects use separate closed shapes on the same bounded channel.
