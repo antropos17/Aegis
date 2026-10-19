@@ -1,6 +1,7 @@
 /** @file Owned sensor/1 host factory; platform startup/polling integration is separate. @since 0.19.2-beta */
 'use strict';
 const { performance } = require('node:perf_hooks');
+const { randomUUID } = require('node:crypto');
 const { isPromise } = require('node:util').types;
 const healthModel = require('../sensor-health');
 const { createLauncher } = require('./sensor-host-launch');
@@ -10,7 +11,7 @@ const { createSession } = require('./sensor-host-session');
 const LIMIT = Number.MAX_SAFE_INTEGER;
 
 /** Build an isolated host using trusted startup dependencies, never IPC options.
- * sink({generation,platform,mode,event,identity}) must synchronously return true.
+ * sink({generation,platform,mode,event,identity,nativeObservation}) must return true synchronously.
  * getLinuxContext must read the existing adapter's latest validated D1 context.
  * _test is a process-local fixture seam; production resolution uses fixed names.
  * @param {object} deps Sink, platform selection and optional lifecycle observers.
@@ -18,6 +19,7 @@ const LIMIT = Number.MAX_SAFE_INTEGER;
  * @since 0.19.2-beta
  */
 function createSensorHost(deps) {
+  const ownerEpoch = randomUUID();
   const platform = deps.platform ?? process.platform;
   const test = deps._test ?? {};
   const mono = test.mono ?? (() => performance.now());
@@ -173,6 +175,7 @@ function createSensorHost(deps) {
       complete = resolve;
     });
     item.session = createSession({
+      ownerEpoch,
       platform,
       pid: child.pid,
       generation,

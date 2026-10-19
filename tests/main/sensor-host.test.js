@@ -137,6 +137,15 @@ describe('owned sensor host admission and status', () => {
       fileOpen: 'coverage-lost',
       tcpConnect: 'coverage-lost',
     });
+    expect(f.sink.mock.calls[0][0].nativeObservation).toMatchObject({
+      state: 'recorded',
+      platform: 'darwin',
+      mode: 'libproc',
+      birthContext: null,
+      observation: observed,
+      identity: { rawBirth: '1700000000000123', witnessSource: 'macosUniqueId' },
+      clockAnchor: { clock: 'mach-continuous', monotonicUsec: '0', unixUsec: '1700000000000000' },
+    });
   });
   it('keeps hello STARTING, binds PID, sends exact replacements and admits fresh D1 identity', () => {
     const f = fixture();
@@ -172,6 +181,10 @@ describe('owned sensor host admission and status', () => {
         witness: context.bootId + ':12345',
         witnessSource: 'linuxStartTicks',
       },
+      nativeObservation: expect.objectContaining({
+        state: 'recorded',
+        source: { ownerEpoch: expect.stringMatching(/^[a-f0-9-]{36}$/), generation: 1 },
+      }),
     });
     expect(f.api.getStatus()).toMatchObject({
       qualification: 'unverified',

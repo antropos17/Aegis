@@ -3099,3 +3099,17 @@ This adds no producer forwarding, source authentication, actor/session authority
 calibrated time or native loss-range forwarding. Runtime admission remains
 unsupported with zero accepted native events and coverage lost. No FileEvent,
 risk, UI, provider or complete W1b acceptance follows.
+
+## W1b internal native-observation forwarding prerequisite — 2026-10-19
+
+The host now forwards closed historical native metadata to configured trusted
+sinks: one epoch per owner, actual child generation, copied D1 context and
+validated hello anchor. Existing wire/admission/identity gates and synchronous
+acknowledgement remain unchanged. See [the scope and verification](../docs/NATIVE-OBSERVATION-FORWARDING.md).
+
+Validation: 135 tests across nine suites, eight new tests plus existing macOS
+assertions; four assertion mutants killed/restored; independent source/security
+and test/evidence reviews passed. The actual fixture covers spill, graceful
+shutdown, restart and canonical audit hashing, not abrupt-crash completeness.
+No production activation, source authentication, calibrated time, actor
+attribution or native qualification. Parent custody review remains owner-pending.
