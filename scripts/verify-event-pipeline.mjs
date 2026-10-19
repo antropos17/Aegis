@@ -15,7 +15,7 @@ const MiB = 1024 * 1024;
 const defaults = { capacity: 512, byteCapacity: MiB, diskQuotaBytes: 32 * MiB,
   maxFiles: 1024, intervalMs: 150 };
 const limits = { heapBytes: 256 * MiB, heapGrowthBytes: 128 * MiB,
-  sampleIntervalMs: 250, minimumRateFraction: 0.98, maxLatenessMs: 1000 };
+  sampleIntervalMs: 250, minimumRateFraction: 0.98, maxLatenessMs: 1000, drainDeadlineMs: 5000 };
 
 function safeDirectory(directory) {
   for (let cursor = directory;; cursor = path.dirname(cursor)) {
@@ -111,14 +111,16 @@ async function loadCase(factory, runRoot, definition) {
     const schedule = await pacedFeed({ rate, durationMs,
       push: (index) => { assert.equal(batcher.push(fixtureEvent(index, epoch, rate)), true, 'admission-required'); },
       tick: sample });
-    batcher.flush();
     const drainStart = performance.now();
-    while (oracle.snapshot().delivered < expected && performance.now() - drainStart < 5000) {
+    batcher.flush();
+    while (oracle.snapshot().delivered < expected && performance.now() - drainStart < limits.drainDeadlineMs) {
       sample(performance.now() - started, true);
       await sleep(10);
       batcher.flush();
     }
     sample(performance.now() - started, true);
+    const drainMs = performance.now() - drainStart;
+    assert.ok(drainMs <= limits.drainDeadlineMs, 'drain-deadline');
     oracle.assertComplete();
     assert.ok(refusals > 0, 'consumer-stall-exercised');
     assert.ok(peaks.diskBytes > 0 && peaks.pendingRecords > 0, 'real-disk-spill-required');
@@ -136,7 +138,7 @@ async function loadCase(factory, runRoot, definition) {
     }
     return { ...definition, status: 'pass', schedule, oracle: oracle.snapshot(),
       consumerRefusals: refusals, peaks, baselineHeapBytes: baselineHeap, sampledPeakHeapBytes: peakHeap,
-      sampledHeapGrowthBytes: peakHeap - baselineHeap, drainMs: performance.now() - drainStart, stats };
+      sampledHeapGrowthBytes: peakHeap - baselineHeap, drainMs, stats };
   } finally { batcher.destroy(); }
 }
 
