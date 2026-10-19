@@ -3230,14 +3230,14 @@ leases; helper-only DPAPI references map to opaque live JS objects. Debug modes,
 late responses, unknown exit/drain and transport failures close admission. See
 [the fixture provider contract](../docs/CLAUDE-HOOK-WINDOWS-IO.md).
 
-The exact frozen-source build passed31 actual Windows groups, including the
+The fixture against the exact frozen-source build passed 31 actual Windows groups, including the
 real writer review/confirm/backup/inert-install/fresh-removal/exact-restoration
 loop. Twenty transport cases are synthetic. Mutations establish three expected-
 group behavioral kills and one explicit synthetic assertion kill; integration
 logs do not preserve individual assertion kinds. Frozen build/scoped lint/format
 and independent source/security/test/evidence reviews passed. Configured main
-types and derived counts passed; checkJs:false supplies no JS-body type claim.
-Counts253=210+41+2; source files over300lines46.
+types and derived counts passed; `checkJs: false` supplies no JS-body type claim.
+Derived counts: 253 main modules (210 + 41 + 2); 46 source files exceed 300 lines.
 
 Eleven owned sources, three JS dependencies and seventeen actual checkout
 prerequisites survived merge master unchanged. Those seventeen checkout files
