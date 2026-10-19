@@ -3058,3 +3058,22 @@ does not securely erase parser strings or external copies.
 Trusted source selection, platform-qualified file IO, observed process/session
 binding, clock calibration and live integration remain open. No new association
 strength, user-log access, IPC, source trust or complete W4 acceptance follows.
+
+## Session handoff — own-process resource sampling (2026-10-19)
+
+A new opt-in library records the calling Node process's cumulative CPU and
+current RSS with separate monotonic acquisition brackets. It retains missed
+scheduled points, lateness, unavailable readings and cancellation/cleanup status.
+Each acquisition is refused at or after the declared end. It neither discovers
+other processes nor invents common capture times, OS birth or population proof.
+
+The final R2 gate passed 68 focused tests and scoped lint/format. Three boundary
+regressions failed before correction; four boundary cases then passed. Removing
+the new admission guard failed three assertions, with exact source restored.
+Independent R2 review passed. The earlier R1 four-point, 3.010142-second Node
+instrumentation smoke and six mutations remain separately archived evidence.
+
+Limits are 60 seconds, 60 samples and 128 KiB of serialized output. Synchronous
+work cannot be preempted, so strict wall deadlines require an external supervisor.
+This raw format cannot be passed to the aligned resource evaluator. No product
+or cohort footprint, calibrated overhead, native capture or W8 acceptance follows.
