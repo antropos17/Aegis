@@ -12,6 +12,11 @@ measurements. It adds no collector, result or W8 acceptance. The Bench V1
 commands, legacy arm definitions and historical evidence below retain their
 existing scope; the draft records the additional prerequisites before publication.
 
+[Offline resource interval arithmetic](RESOURCE_INTERVALS.md) supplies a pure,
+bounded preparation library for per-lifetime CPU, resident memory and per-run
+estimates. Its fixture tests qualify arithmetic and refusal behavior only; it
+adds no collector, measured overhead or W8 acceptance.
+
 For each scenario the bench **generates an expected-event catalogue as a by-product of
 running a deterministic script**, then confirms every row of that catalogue against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
