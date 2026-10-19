@@ -52,6 +52,7 @@
   import { guidedTasks, moreTasks } from './runtime/task-guide';
   import Reports from './components/Reports.svelte';
   import Settings from './components/Settings.svelte';
+  import CoveragePanel from './components/CoveragePanel.svelte';
   import Statistics from './components/Statistics.svelte';
   import Details from './components/Details.svelte';
   import AgentContext from './components/AgentContext.svelte';
@@ -120,6 +121,9 @@
     if (scope.agent !== agent) changeScope({ agent, instanceId: '' });
     scrolls.stats = 0;
     void navigate('stats');
+  }
+  function openCoverage() {
+    void navigate('coverage');
   }
   function openSensors() {
     sectionRequests.stats = { id: 'sensors', revision: ++sectionRevision };
@@ -194,7 +198,7 @@
     ['overview', 'agents', 'events', 'network', 'stats'].includes(view),
   );
   let needsObservations = $derived(
-    !['guide', 'local-security', 'action-control', 'settings'].includes(view),
+    !['guide', 'local-security', 'action-control', 'coverage', 'settings'].includes(view),
   );
   let requestedView = 'overview';
   let renderedView = 'overview';
@@ -536,7 +540,7 @@
       {/each}
     </nav>
     <div class="sidebar-bottom">
-      {#if advanced}<button class="sensor-mini" onclick={openSensors}
+      {#if advanced}<button class="sensor-mini" onclick={openCoverage}
           ><span class="sensor-indicator"><Icon name="shield" /></span><span
             >{$t('Sensors')}<small>{$t(healthCaption)}</small></span
           ><Icon name="chevron" /></button
@@ -865,6 +869,9 @@
                 currentTheme={(dark ? 'dark' : 'light') + (contrast ? '-hc' : '')}
               />
             </div>{/if}
+          {#if tabs.includes('coverage')}<div hidden={view !== 'coverage'}>
+              <CoveragePanel {telemetry} {navigate} openSensorDetails={openSensors} {preview} />
+            </div>{/if}
           <div hidden={view !== 'stats'}>
             <Statistics
               telemetry={displayTelemetry}
@@ -889,7 +896,7 @@
         onfocus={(event) =>
           event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
         onkeydown={scrollFooter}
-        onclick={openSensors}
+        onclick={openCoverage}
         ><Icon name="shield" />{$t(
           observationStatusLabel(record(telemetry.stats.appHealth).state),
         )}</button

@@ -1,19 +1,21 @@
 # Sensor workspace
 
-This workspace contains `aegis-wire`, the pure `sensor/1` codec, a registered
-Linux sensor root, and a macOS identity library with a separate safe native-read
-boundary. The macOS library connects fresh libproc observations to its identity
-consumer; sensor executables and transport integration remain separate work.
-The codec contract is
-[the sensor wire specification](../docs/roadmap/sensor-wire.md). The codec itself
-has no OS providers, process custody or host session state.
+This workspace contains `aegis-wire`, the pure `sensor/1` codec, a process-only
+Linux procfs provider with a framed CLI, and a macOS identity library with a
+separate bounded native-read boundary.
+The Linux implementation is described in [its crate guide](aegis-sensor-linux/README.md).
+The macOS library connects fresh libproc observations to its identity consumer;
+its executable and transport integration remain separate work. Native Linux
+execution and macOS linkage, ABI and runtime behavior remain unqualified.
+The codec contract is [the sensor wire specification](../docs/roadmap/sensor-wire.md).
+The codec itself has no OS providers, process custody or host session state.
 
 The platform roots inherit workspace package metadata and lints. All members
 share `Cargo.lock`, following [Cargo's workspace model](https://doc.rust-lang.org/cargo/reference/workspaces.html).
 Shared-file changes have one owner and land before dependent platform work,
 as required by [the ownership plan](../docs/roadmap/completion-plan.md#53-worktrees-and-path-ownership).
 The future eBPF crate and capability installer in that plan are not present.
-Registering these roots prepares build metadata and does not complete W2 or W3.
+The procfs delivery does not complete W2; W3 implementation remains separate.
 
 Rust **1.99.1** is pinned in `rust-toolchain.toml`, with the minimal profile,
 Clippy and rustfmt. The initial local qualification used Rust 1.99.1 on Windows
@@ -76,8 +78,9 @@ prerequisite added seven registry packages and updated the local Linux package's
 dependency list while retaining its thirteen other existing package blocks.
 
 A locked offline check for `x86_64-unknown-linux-gnu` verifies this dependency
-configuration. This prerequisite adds no process provider or executable and
-establishes no native clock measurement or Linux runtime qualification.
+configuration. That prerequisite alone added no process provider or executable
+and established no native clock measurement or Linux runtime qualification. The
+procfs delivery above uses it without changing that qualification boundary.
 
 ## macOS read boundary prerequisite
 

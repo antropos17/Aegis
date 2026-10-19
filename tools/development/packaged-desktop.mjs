@@ -11,6 +11,7 @@ import { processCoreSources } from '../../tests/fixtures/protected-gui-process/h
 import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest.mjs';
 import { prepareEtwPackage } from './etw-package.mjs';
 import { qualifyEtw } from './etw-qualification.mjs';
+import { writeRebootBuild } from './etw-reboot-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
@@ -20,6 +21,7 @@ const { values } = parseArgs({
     monitoring: { type: 'boolean', default: false },
     sensors: { type: 'boolean', default: false },
     etw: { type: 'boolean', default: false },
+    'etw-build-only': { type: 'boolean', default: false },
     'etw-failures': { type: 'boolean', default: false },
     'etw-dual-recovery': { type: 'boolean', default: false },
     'etw-total-recovery': { type: 'boolean', default: false },
@@ -29,6 +31,7 @@ const { values } = parseArgs({
   },
 });
 const etwDurable = values['etw-durable-recovery'];
+const etwBuildOnly = values['etw-build-only'];
 const etwOrphan = values['etw-orphan-recovery'] || etwDurable;
 const etwGroup = values['etw-group-recovery'] || etwOrphan;
 const etwTotal = values['etw-total-recovery'] || etwGroup;
@@ -37,6 +40,7 @@ const etwFailures = values['etw-failures'] || etwDual;
 if (
   [
     values.etw,
+    etwBuildOnly,
     values['etw-failures'],
     values['etw-dual-recovery'],
     values['etw-total-recovery'],
@@ -46,9 +50,11 @@ if (
   ].filter(Boolean).length > 1
 )
   throw new Error('Select one ETW profile');
+if (etwBuildOnly && (values.monitoring || values.sensors))
+  throw new Error('Build-only cannot select live observation profiles');
 if (!path.isAbsolute(values.output ?? '') || !/^[a-f0-9]{40}$/.test(values['source-sha'] ?? ''))
   throw new Error(
-    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw | --etw-failures | --etw-dual-recovery | --etw-total-recovery | --etw-group-recovery | --etw-orphan-recovery | --etw-durable-recovery]',
+    'Usage: node tools/development/packaged-desktop.mjs --source-sha <40-hex> --output <new-absolute-directory> [--monitoring] [--sensors] [--etw-build-only | --etw | --etw-failures | --etw-dual-recovery | --etw-total-recovery | --etw-group-recovery | --etw-orphan-recovery | --etw-durable-recovery]',
   );
 const output = path.resolve(values.output);
 if (
@@ -79,6 +85,7 @@ const env = {
   DOTNET_CLI_HOME: path.join(output, 'cache/dotnet-home'),
   DOTNET_CLI_TELEMETRY_OPTOUT: '1',
   DOTNET_NOLOGO: '1',
+  DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false',
   NUGET_PACKAGES: path.join(output, 'cache/nuget'),
   NUGET_HTTP_CACHE_PATH: path.join(output, 'cache/nuget-http'),
 };
@@ -98,28 +105,30 @@ const receipt = {
   host: { platform: process.platform, arch: process.arch, node: process.version, os: os.release() },
   commands: [],
   scope: {
-    packagedElectron: true,
-    windowObservation: true,
+    packagedElectron: !etwBuildOnly,
+    windowObservation: !etwBuildOnly,
     rendererInteractions: values.monitoring
       ? 'monitoring-with-ordinary-current-user-and-playwright'
       : 'not-run',
     fileNetworkSensors: values.sensors ? 'native-owned-fixture-and-public-tcp' : 'not-run',
-    etw: etwDurable
-      ? 'four-all-six-loss-relaunch-cases-one-live-owner-rejection-and-twenty-eight-earlier-captures'
-      : etwOrphan
-        ? 'twenty-eight-planned-original-main-loss-custodian-loss-and-regression-captures'
-        : etwGroup
-          ? 'twenty-two-planned-main-custody-and-regression-captures'
-          : etwTotal
-            ? 'seventeen-planned-all-helper-loss-and-regression-captures'
-            : etwDual
-              ? 'eleven-planned-dual-loss-and-regression-captures'
-              : etwFailures
-                ? 'seven-planned-failure-and-regression-captures'
-                : values.etw
-                  ? 'live-diagnostic-candidates-only'
-                  : 'not-run',
-    modeledPrincipalProtectionAccountServiceVmAndJournal: true,
+    etw: etwBuildOnly
+      ? 'build-only-no-capture'
+      : etwDurable
+        ? 'four-all-six-loss-relaunch-cases-one-live-owner-rejection-and-twenty-eight-earlier-captures'
+        : etwOrphan
+          ? 'twenty-eight-planned-original-main-loss-custodian-loss-and-regression-captures'
+          : etwGroup
+            ? 'twenty-two-planned-main-custody-and-regression-captures'
+            : etwTotal
+              ? 'seventeen-planned-all-helper-loss-and-regression-captures'
+              : etwDual
+                ? 'eleven-planned-dual-loss-and-regression-captures'
+                : etwFailures
+                  ? 'seven-planned-failure-and-regression-captures'
+                  : values.etw
+                    ? 'live-diagnostic-candidates-only'
+                    : 'not-run',
+    modeledPrincipalProtectionAccountServiceVmAndJournal: !etwBuildOnly,
     uac: etwDurable
       ? 'thirty-seven-capture-consents-plus-two-earlier-cleanup-consents-and-query-only-witness-if-denied'
       : etwOrphan
@@ -161,6 +170,7 @@ async function command(name, executable, args, timeoutMs) {
   receipt.commands.push({ name, ...result });
   if (result.code !== 0 || result.reason || result.error)
     throw new Error(`${name} failed; inspect its bounded log`);
+  return result;
 }
 try {
   if (
@@ -190,6 +200,13 @@ try {
   };
   if (receipt.freeBefore.source < 3 * 1024 ** 3)
     throw new Error('Less than 3 GiB free on source volume');
+  if (etwBuildOnly) {
+    await command('etw-sdk-version', 'dotnet', ['--version'], 15000);
+    const versionLog = path.join(output, 'etw-sdk-version.log');
+    if (fs.statSync(versionLog).size > 4096) throw new Error('Invalid bounded SDK version');
+    receipt.dotnetSdk = fs.readFileSync(versionLog, 'utf8').trim();
+    if (!/^10\.\d+\.\d+$/.test(receipt.dotnetSdk)) throw new Error('Invalid bounded SDK version');
+  }
   await command(
     'electron-install',
     process.execPath,
@@ -197,7 +214,10 @@ try {
     240000,
   );
   const etwConfig =
-    values.etw || etwFailures ? await prepareEtwPackage(root, output, command) : null;
+    values.etw || etwFailures || etwBuildOnly
+      ? await prepareEtwPackage(root, output, command)
+      : null;
+  const configSha256 = etwConfig ? hash(etwConfig) : null;
   await command(
     'package',
     process.execPath,
@@ -217,129 +237,162 @@ try {
   const manifest = path.join(evidence, 'manifest.json');
   fs.writeFileSync(manifest, produceGuiManifest(candidate), { flag: 'wx' });
   receipt.packageManifestSha256 = hash(manifest);
-  const compiler = path.join(
-    process.env.WINDIR ?? 'C:/Windows',
-    'Microsoft.NET/Framework64/v4.0.30319/csc.exe',
-  );
-  receipt.host.compilerSha256 = hash(compiler);
-  const library = path.join(output, 'desktop.dll');
-  await command(
-    'compile-probe',
-    compiler,
-    [
-      '/nologo',
-      '/target:library',
-      '/platform:x64',
-      '/warnaserror+',
-      '/reference:System.Drawing.dll',
-      '/define:PROTECTED_GUI_TEST;PROTECTED_GUI_PROCESS_TEST',
-      `/out:${library}`,
-      ...processCoreSources(root),
-      path.join(root, 'tests/fixtures/protected-gui-process/DesktopObservation.cs'),
-    ],
-    30000,
-  );
-  await command(
-    'desktop',
-    path.join(process.env.WINDIR ?? 'C:/Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-File',
-      path.join(root, 'tests/fixtures/protected-gui-process/desktop.ps1'),
-      '-Project',
+  if (etwBuildOnly) {
+    phase = 'reboot-build-projection';
+    const versionFile = path.join(root, 'node_modules/electron/dist/version');
+    if (fs.statSync(versionFile).size > 64) throw new Error('Invalid Electron version');
+    const electronVersion = fs.readFileSync(versionFile, 'utf8').trim();
+    if (
+      electronVersion !==
+      JSON.parse(fs.readFileSync(path.join(root, 'node_modules/electron/package.json'))).version
+    )
+      throw new Error('Installed Electron version mismatch');
+    writeRebootBuild(
       root,
-      '-Assembly',
-      library,
-      '-Source',
       candidate,
-      '-Manifest',
-      manifest,
-      '-Scratch',
-      path.join(output, 'scratch'),
-      '-Evidence',
-      evidence,
-    ],
-    120000,
-  );
-  phase = 'receipt';
-  const observation = path.join(evidence, 'desktop.json');
-  if (fs.statSync(observation).size > 65536) throw new Error('Desktop receipt too large');
-  receipt.desktop = JSON.parse(fs.readFileSync(observation, 'utf8').replace(/^\uFEFF/, ''));
-  if (!desktopPassed(receipt.desktop)) throw new Error('Desktop lifecycle incomplete');
-  if (fs.statSync(path.join(evidence, 'window.png')).size > 8 * 1024 ** 2)
-    throw new Error('Window image too large');
-  receipt.screenshotSha256 = hash(path.join(evidence, 'window.png'));
-  if (values.monitoring) {
-    await command(
-      'monitoring',
-      process.execPath,
-      [
-        path.join(root, 'frontend/observatory/tests/monitoring-electron.mjs'),
-        '--executable',
-        path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
-        '--output',
-        path.join(output, 'monitoring'),
-      ],
-      180000,
+      values['source-sha'],
+      etwConfig,
+      {
+        ...receipt,
+        configSha256,
+        electronVersion,
+      },
+      path.join(evidence, 'reboot-build.json'),
     );
-    const monitoringReceipt = path.join(output, 'monitoring/receipt.json');
-    if (fs.statSync(monitoringReceipt).size > 262144)
-      throw new Error('Monitoring receipt too large');
-    receipt.monitoring = JSON.parse(fs.readFileSync(monitoringReceipt, 'utf8'));
-    if (!monitoringPassed(receipt.monitoring))
-      throw new Error('Packaged monitoring scenario incomplete');
-    receipt.monitoringReceiptSha256 = hash(monitoringReceipt);
-  }
-  if (values.sensors) {
-    await command(
-      'sensors',
-      process.execPath,
-      [
-        path.join(root, 'frontend/observatory/tests/sensors-electron.mjs'),
-        '--executable',
-        path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
-        '--output',
-        path.join(output, 'sensors'),
-      ],
-      240000,
+    receipt.status = 'BUILD_PASS';
+  } else {
+    const compiler = path.join(
+      process.env.WINDIR ?? 'C:/Windows',
+      'Microsoft.NET/Framework64/v4.0.30319/csc.exe',
     );
-    const sensorReceipt = path.join(output, 'sensors/receipt.json');
-    if (fs.statSync(sensorReceipt).size > 262144) throw new Error('Sensor receipt too large');
-    receipt.sensors = JSON.parse(fs.readFileSync(sensorReceipt, 'utf8'));
-    if (!sensorsPassed(receipt.sensors)) throw new Error('Packaged sensor scenario incomplete');
-    receipt.sensorReceiptSha256 = hash(sensorReceipt);
-  }
-  if (values.etw || etwFailures) {
-    Object.assign(
-      receipt,
-      await qualifyEtw(
-        root,
-        output,
-        candidate,
-        command,
-        etwFailures,
-        etwDual,
-        etwTotal,
-        etwGroup,
-        etwOrphan,
-        etwDurable,
+    receipt.host.compilerSha256 = hash(compiler);
+    const library = path.join(output, 'desktop.dll');
+    await command(
+      'compile-probe',
+      compiler,
+      [
+        '/nologo',
+        '/target:library',
+        '/platform:x64',
+        '/warnaserror+',
+        '/reference:System.Drawing.dll',
+        '/define:PROTECTED_GUI_TEST;PROTECTED_GUI_PROCESS_TEST',
+        `/out:${library}`,
+        ...processCoreSources(root),
+        path.join(root, 'tests/fixtures/protected-gui-process/DesktopObservation.cs'),
+      ],
+      30000,
+    );
+    await command(
+      'desktop',
+      path.join(
+        process.env.WINDIR ?? 'C:/Windows',
+        'System32/WindowsPowerShell/v1.0/powershell.exe',
       ),
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        path.join(root, 'tests/fixtures/protected-gui-process/desktop.ps1'),
+        '-Project',
+        root,
+        '-Assembly',
+        library,
+        '-Source',
+        candidate,
+        '-Manifest',
+        manifest,
+        '-Scratch',
+        path.join(output, 'scratch'),
+        '-Evidence',
+        evidence,
+      ],
+      120000,
     );
+    phase = 'receipt';
+    const observation = path.join(evidence, 'desktop.json');
+    if (fs.statSync(observation).size > 65536) throw new Error('Desktop receipt too large');
+    receipt.desktop = JSON.parse(fs.readFileSync(observation, 'utf8').replace(/^\uFEFF/, ''));
+    if (!desktopPassed(receipt.desktop)) throw new Error('Desktop lifecycle incomplete');
+    if (fs.statSync(path.join(evidence, 'window.png')).size > 8 * 1024 ** 2)
+      throw new Error('Window image too large');
+    receipt.screenshotSha256 = hash(path.join(evidence, 'window.png'));
+    if (values.monitoring) {
+      await command(
+        'monitoring',
+        process.execPath,
+        [
+          path.join(root, 'frontend/observatory/tests/monitoring-electron.mjs'),
+          '--executable',
+          path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
+          '--output',
+          path.join(output, 'monitoring'),
+        ],
+        180000,
+      );
+      const monitoringReceipt = path.join(output, 'monitoring/receipt.json');
+      if (fs.statSync(monitoringReceipt).size > 262144)
+        throw new Error('Monitoring receipt too large');
+      receipt.monitoring = JSON.parse(fs.readFileSync(monitoringReceipt, 'utf8'));
+      if (!monitoringPassed(receipt.monitoring))
+        throw new Error('Packaged monitoring scenario incomplete');
+      receipt.monitoringReceiptSha256 = hash(monitoringReceipt);
+    }
+    if (values.sensors) {
+      await command(
+        'sensors',
+        process.execPath,
+        [
+          path.join(root, 'frontend/observatory/tests/sensors-electron.mjs'),
+          '--executable',
+          path.join(candidate, 'AEGIS - AI Monitoring & Threat Detection.exe'),
+          '--output',
+          path.join(output, 'sensors'),
+        ],
+        240000,
+      );
+      const sensorReceipt = path.join(output, 'sensors/receipt.json');
+      if (fs.statSync(sensorReceipt).size > 262144) throw new Error('Sensor receipt too large');
+      receipt.sensors = JSON.parse(fs.readFileSync(sensorReceipt, 'utf8'));
+      if (!sensorsPassed(receipt.sensors)) throw new Error('Packaged sensor scenario incomplete');
+      receipt.sensorReceiptSha256 = hash(sensorReceipt);
+    }
+    if (values.etw || etwFailures) {
+      Object.assign(
+        receipt,
+        await qualifyEtw(
+          root,
+          output,
+          candidate,
+          command,
+          etwFailures,
+          etwDual,
+          etwTotal,
+          etwGroup,
+          etwOrphan,
+          etwDurable,
+        ),
+      );
+    }
+    if (
+      hash(manifest) !== receipt.packageManifestSha256 ||
+      !produceGuiManifest(candidate).equals(fs.readFileSync(manifest))
+    )
+      throw new Error('Package changed during observation');
+    if (
+      git('rev-parse', 'HEAD') !== receipt.source.head ||
+      git('status', '--porcelain', '--untracked-files=normal')
+    )
+      throw new Error('Source changed during qualification');
+    receipt.status = 'PASS';
   }
-  if (
-    hash(manifest) !== receipt.packageManifestSha256 ||
-    !produceGuiManifest(candidate).equals(fs.readFileSync(manifest))
-  )
-    throw new Error('Package changed during observation');
-  if (
-    git('rev-parse', 'HEAD') !== receipt.source.head ||
-    git('status', '--porcelain', '--untracked-files=normal')
-  )
-    throw new Error('Source changed during qualification');
-  receipt.status = 'PASS';
 } catch (error) {
-  receipt.failure = { phase, message: error.message };
+  receipt.failure = {
+    phase,
+    message: etwBuildOnly
+      ? 'Bounded diagnostic build failed; inspect private evidence'
+      : error.message,
+  };
   process.exitCode = 1;
 } finally {
   receipt.completedAt = new Date().toISOString();

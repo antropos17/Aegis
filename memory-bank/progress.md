@@ -2984,6 +2984,510 @@ Native delivery, identity parity, lifecycle/audit integration, packaged binaries
 live providers and complete W1b/W9 acceptance remain open. Repository gates and
 source hashes are recorded separately for the final PR and merge.
 
+## Session handoff — offline resource interval arithmetic (2026-10-19)
+
+A bounded pure benchmark library now derives per-lifetime and aligned cohort
+CPU intervals, resident-memory samples and separate per-run phase estimates.
+It requires explicit units, lifetime/population evidence and a planned sample
+window. Declared phases outside that window are rejected rather than reported
+as complete from a captured subset. Missing members, churn, unobserved helpers or scheduled endpoints retain
+null estimates with reasons. CPU can exceed one core; quantiles use raw samples,
+the even median and nearest-rank p95 without pooling repetitions.
+
+The final R2 focused gate passed 93 tests across three suites, including 40 resource
+cases. Five final arithmetic/refusal mutants failed assertions with source
+restored. The phase-window counterexample, withdrawn R1 acceptance and earlier
+revision receipts remain separate. Scoped lint and
+formatting passed. Benchmark JavaScript is outside the configured main typecheck;
+no full type-coverage claim follows.
+
+This is offline arithmetic preparation. No collector, native or Electron run,
+population discovery, provenance authentication, calibration, baseline comparison,
+three-run variance qualification, measured overhead or W8/T8 acceptance is added.
+
+## Session handoff — monitoring coverage view (2026-10-19)
+
+Coverage now has an Advanced sidebar route, command search, a Settings entry and
+sensor-health links. It separates provider health, native event admission and
+coverage, and leaves unreported rates, restart time and action provenance unknown.
+Known binary/restart failures have fixed English and Portuguese explanations;
+unknown diagnostics are suppressed. OS process identity does not imply interception
+or blocking coverage.
+
+Coverage uses current telemetry even when another workspace's view is paused.
+The R2 browser journey verified new agent/loss observations and a later outage,
+then returned to the retained Overview with its resume control intact. Reverting
+the Coverage input to the paused snapshot failed the actual DOM assertion; source
+was restored. Seventy-four affected tests across six files, configured types,
+Svelte, scoped lint/format, both builds and three targeted Edge states passed.
+Earlier R1 and integration matrices remain separate evidence. The existing native
+Electron smoke script now includes the route; only its syntax/lint/format were
+checked in this slice.
+
+Hosted CI then found a missing curated Coverage icon and two navigation tests
+with stale destination counts. R3 adds the pinned MIT Tabler shield-search icon
+with exact provenance, retains the original geometry and uniqueness guards,
+and verifies the fifteenth Advanced destination and Coverage route. All 45
+affected R3 tests passed, with one assertion-killed mapping mutation restored.
+Fresh dark/light renders matched the upstream SVG paths; configured types,
+Svelte, both builds, scoped lint/format and independent review passed. The W8
+master integration preserved all sixteen frozen source hashes.
+
+This view reports the existing host data contract. Native admission remains
+unsupported, and per-agent action provenance, rates and verified blocking remain
+unreported. Real Electron/preload, native/provider and complete W9 acceptance
+remain open; synthetic browser renders do not establish those checks.
+
+## Session handoff — bounded explicit session reader (2026-10-19)
+
+A new injected reader accepts one explicit absolute session-file path and returns
+only the existing metadata parser projection. It requires stable regular-file,
+no-link, volume/file and version metadata on path and handle before and after a
+bounded complete read, an EOF check and successful close. Failed or uncertain
+reads pass null bytes to the parser. Owned buffers are cleared after parsing.
+No source discovery, default filesystem provider or live runtime caller is added.
+
+The focused gate passed 107 tests across three suites, including 41 reader cases.
+Four guard mutations failed behavioral assertions and restored exact source.
+Configured main types, scoped lint/format and independent security/test review
+passed. The disposable Windows/X-drive fixture does not qualify a production
+reparse verifier. Provider operations must bound their own duration; this reader
+adds byte/call limits, not IO cancellation or a total deadline. Buffer clearing
+does not securely erase parser strings or external copies.
+
+Trusted source selection, platform-qualified file IO, observed process/session
+binding, clock calibration and live integration remain open. No new association
+strength, user-log access, IPC, source trust or complete W4 acceptance follows.
+
+## Session handoff — own-process resource sampling (2026-10-19)
+
+A new opt-in library records the calling Node process's cumulative CPU and
+current RSS with separate monotonic acquisition brackets. It retains missed
+scheduled points, lateness, unavailable readings and cancellation/cleanup status.
+Each acquisition is refused at or after the declared end. It neither discovers
+other processes nor invents common capture times, OS birth or population proof.
+
+The final R2 gate passed 68 focused tests and scoped lint/format. Three boundary
+regressions failed before correction; four boundary cases then passed. Removing
+the new admission guard failed three assertions, with exact source restored.
+Independent R2 review passed. The earlier R1 four-point, 3.010142-second Node
+instrumentation smoke and six mutations remain separately archived evidence.
+
+Limits are 60 seconds, 60 samples and 128 KiB of serialized output. Synchronous
+work cannot be preempted, so strict wall deadlines require an external supervisor.
+This raw format cannot be passed to the aligned resource evaluator. No product
+or cohort footprint, calibrated overhead, native capture or W8 acceptance follows.
+
+## Session handoff — reversible Claude hook planning (2026-10-19)
+
+A new IO-free planner accepts explicitly supplied configuration bytes and a
+caller-selected hook command. It preserves unrelated bytes and previews only
+exact changed fragments with byte and line/column coordinates. The private
+removal manifest records installation bytes and integrity hashes; those hashes
+do not authenticate ownership. Existing equal hooks remain unowned. Conflicting
+selected-command occurrences are refused before the idempotent result.
+
+Exact rollback requires the recorded installed bytes. With unrelated concurrent
+edits, targeted removal preserves other bytes and requires the exact owned entry
+at its recorded position; changed or ambiguous ownership is refused. A future
+writer still needs owner confirmation of the displayed plan, verified private
+backup, current-file revalidation and written readback.
+
+The R2 gate passed 50 tests, main body types and scoped lint/format. Six mixed
+conflict regressions failed against the old ordering; one restored-R1 mutant
+failed all six and restored exact R2 bytes. Independent source and evidence
+reviews passed. Five R1 mutation kills remain historical. No profile discovery,
+read/write, hook execution, UI, IPC or policy route changed. Configured and
+planned configuration establish neither observation nor verified blocking;
+full W5/W6 and provider qualification remain open.
+
+## W8 owned Node loopback controls — 2026-10-19
+
+Added an opt-in fixed inert canary sender and independent byte/hash/count receiver
+on owned 127.0.0.1 ephemeral sockets. Connections require peer EOF before a
+complete-count claim; ordinary requests, expectations and parser faults share a
+bounded admission counter. Existing corpus, scenario/scoring and runtime paths
+remain unchanged. See [the protocol and limits](../docs/bench/LOOPBACK_CONTROL.md).
+
+Validation: 52 focused tests, seven R2 assertion mutants killed/restored, strict
+scoped checkJs, lint/format and independent source/security/evidence reviews.
+All four frozen source hashes survived merge-master integration. A final-source
+three-case Node batch observed positive/wrong-nonce/duplicate counts 1/0/2; its
+39,594 microseconds measures the whole batch, not transfer latency or overhead.
+R1 evidence remains historical and revision-qualified. No agent/PID authentication,
+native oracle, sensor denominator, scenario declaration or full W8 acceptance.
+
+## W6 private owned hook transaction prerequisite — 2026-10-19
+
+Added an independently callable private transaction session over explicit trusted
+IO. It freezes an exact planner review, binds a process-local confirmation ticket,
+verifies retained backup/manifest bytes, revalidates the target and requires exact
+postwrite readback. Removal uses a fresh narrow plan; uncertain mutation locks the
+session and preserves backups. See [the private IO contract](../docs/CLAUDE-HOOK-WRITER.md).
+
+Validation: 90 tests (40 writer, 50 adjacent planner), twelve assertion mutants
+killed/restored, main types with new-module @ts-check, scoped lint/format, and
+independent source/security/test-evidence reviews. Three frozen source hashes
+survived merge-master integration. Counts: 251 = 208 + 41 + 2.
+
+No filesystem provider, production caller, profile discovery, IPC/UI, policy
+routing or hook activation. Trusted IO qualification, external-writer coordination,
+callback bounds and private-storage durability/recovery remain integration work.
+Configured status supplies no Observed or Blocking verified evidence.
+
+## W9 isolated dormant preload bridge qualification — 2026-10-19
+
+Added an opt-in Windows fixture loading the production Observatory, unchanged
+preload and real Electron IPC with an actual dormant ETW health leaf. The rest
+of the booting stats/settings envelope is explicit fixture data. It checks
+rendered state/reason, native absence, keyboard routes, reduced motion and a real
+IPC omission/restoration control. See [the method and limits](../docs/bench/COVERAGE-PRELOAD.md).
+
+Independent source/security and test/evidence reviews passed after watchdog,
+termination and pipe-drain corrections. R3 adds an assertion-killed/restored
+root-exit guard mutant; R2 deadline/latch mutants remain historical. Final
+affected support controls and five static checks passed. After merge-master, a
+fresh production build and actual bridge journey passed with confirmed shutdown
+and owned-profile cleanup; all four frozen source hashes were preserved.
+
+The final app batch took 13.340 seconds; source hashes cover 642 inputs. Screenshots
+match the reviewed 1200x800 and 900x600 renders. No normal startup, production
+getStats/authorization, descendant supervision, packaged helper, native delivery,
+provider, enforcement or full W9 acceptance is established.
+
+## W6 Windows owned-target IO prerequisite — 2026-10-19
+
+Added a framework-only existing-file transaction library with retained original
+identity, exact current-byte comparison, guarded in-place write, flush/readback
+and conservative uncertain outcomes. Ordinary writer/deleter sharing is excluded
+during commit; native modification timestamps remain visible. See
+[the supported environment and limits](../docs/CLAUDE-HOOK-WINDOWS-TARGET.md).
+
+Validation on Windows10.0.26200 x64/.NET10.0.10: fourteen native fixture groups
+passed and eight copied-source mutants failed their intended assertions. Build
+reported zero warnings/errors. Independent source/security/test/docs reviews
+passed; all eight frozen raw source hashes survived merge-master integration.
+Original mutation evidence binds source, build, run and logs. A separately
+verified supplement records retained executable/DLL/input hashes after execution;
+it does not supply pre-execution binary attestation. Unchanged native checks
+were reused after unrelated main/renderer changes.
+
+No production caller, Node bridge, profile discovery, backup store, installer,
+hook execution or complete W6/IO-provider qualification. Trusted local NTFS
+targets only; hostile metadata/security actors, crash-atomicity and reader
+isolation remain outside the qualified contract. No existing ACL changes.
+
+## W6 Windows private backup prerequisite — 2026-10-19
+
+Added an explicit local NTFS backup store with current-user DPAPI ciphertext,
+verified protected current-user/SYSTEM DACLs on newly created objects, pinned
+roots, live opaque references and independent exact-byte digests. Persistent
+logical quota includes partial/orphan records: eight records or 2 MiB per root,
+with no automatic pruning. See [the contract](../docs/CLAUDE-HOOK-PRIVATE-BACKUP.md).
+
+Independent source/security/test/docs reviews passed. Final Windows native
+build reported zero warnings/errors and sixteen fixture groups passed. R2
+strengthens the byte-quota test to require Capacity/null, unchanged inventory
+and the same refusal after reopening. Its new status mutant fails before the
+eight-record limit. Five R1 assertion kills remain source/build/run/log-bound
+with post-run binary hashes; R2 baseline/new-mutant load-folder DLL/apphost
+hashes match immediately before/after execution. The .NET host/runtime is not
+attested by those hashes. All nine frozen sources survived merge master.
+
+No existing ACL modification, real profile, production caller, target writer,
+installation/removal authority after restart, hook execution or complete W6/IO
+provider. Same-user malicious code is outside this boundary; process-local refs
+and ownership are not recovered from disk. Logical quota is not protection from
+an external filesystem owner, and no power-loss durability is established.
+
+## W10 offline WinGet candidate preparation — 2026-10-19
+
+Added a standalone CLI that reuses repository release-manifest verification and
+the pinned Ed25519 public key, binds the selected installer bytes to an explicit
+signed asset/version/tag/URL and writes three candidate YAML manifests into a
+new output directory. Metadata and payload architecture require explicit caller
+inputs; no registry values or installation scope are inferred. See
+[usage and remaining qualification](../packaging/winget/README.md).
+
+Validation:37 focused offline tests, three copied-source assertion mutants,
+scoped lint/format and independent source/security/test/evidence reviews passed.
+The synthetic fixture uses an ephemeral test key through the private test seam;
+the production CLI rejects it. Final mutation logs/config/drivers/dependency
+copies are separately bound by a post-run archive supplement. Four frozen raw
+sources and verifier/key/package/lock dependencies survived merge master. The
+CLI help was directly checked with no installer or native activity.
+
+This prepares candidates only. Actual WinGet/schema validation, published URL
+fetch, real installer/publisher metadata, Authenticode, installation/upgrade/
+uninstall and submission remain unqualified. No release/signing secret, download,
+workflow change, package submission or full W10 completion is established.
+
+## W6 Windows private IO fixture integration — 2026-10-19
+
+Connected the private writer to a framework-only Windows helper through bounded
+private stdio. Separate original-object witnesses survive fresh read/commit
+leases; helper-only DPAPI references map to opaque live JS objects. Debug modes,
+late responses, unknown exit/drain and transport failures close admission. See
+[the fixture provider contract](../docs/CLAUDE-HOOK-WINDOWS-IO.md).
+
+The fixture against the exact frozen-source build passed 31 actual Windows groups, including the
+real writer review/confirm/backup/inert-install/fresh-removal/exact-restoration
+loop. Twenty transport cases are synthetic. Mutations establish three expected-
+group behavioral kills and one explicit synthetic assertion kill; integration
+logs do not preserve individual assertion kinds. Frozen build/scoped lint/format
+and independent source/security/test/evidence reviews passed. Configured main
+types and derived counts passed; `checkJs: false` supplies no JS-body type claim.
+Derived counts: 253 main modules (210 + 41 + 2); 46 source files exceed 300 lines.
+
+Eleven owned sources, three JS dependencies and seventeen actual checkout
+prerequisites survived merge master unchanged. Those seventeen checkout files
+have CRLF while their archived qualification inputs have LF; exact normalized
+bytes and immutable Git blobs match. Actual compiled bytes and five load-file
+pre/post observations are separately bound. Runtime hash observations require
+stable trusted directories; they do not authenticate atomic loading.
+
+No production caller, real profile, IPC/UI/installer/policy wiring, command
+execution, ownership adoption, automatic rollback or sensitive activation.
+Interrupted writes, crash recovery, hostile metadata and full W6/product
+qualification remain open. launchAllowed=false.
+
+## W8 ordinary-task false-alarm scoring — 2026-10-19
+
+Added an offline scorer and explicit evidence-file CLI for false-alarm incidence
+over the same eligible started-task cohort. Failed, refused and timed-out tasks
+retain denominator membership. Incomplete observation produces null incidence;
+it cannot shrink the denominator or become measured zero. See
+[the input contract and provenance limits](../docs/bench/TASK-FALSE-ALARMS.md).
+
+Validation: 58 focused tests, three copied-source behavioral mutants, six frozen
+CLI fixtures, scoped lint/format and independent source/security/test/evidence
+reviews passed. All four frozen raw source hashes survived merge master. Rubric
+freeze precedes actual starts; actual-start roster sealing follows them. Earlier
+prospective-roster timing was corrected before acceptance, with old evidence
+retained as superseded history. Direct CLI help was checked in 75 milliseconds.
+
+Only supplied arithmetic, schema and refusal behavior is qualified. Hashes, IDs
+and timestamps cannot prove independence, complete actual-start reconciliation
+or truthful native collection. Real measurements still require those externally
+held records and review. No live/native measurement, existing recall/precision
+change, task execution or full W8 acceptance is established.
+
+## W8 acquisition-window resource intervals — 2026-10-19
+
+Added an own-Node consumer for the existing raw resource sampler. CPU rates retain
+separate acquisition windows and exact rational timing bounds; RSS uses its own
+whole reading window. Explicit phases, missing points and the unobserved terminal
+tail remain evidence. No aligned capture or closing sample is manufactured. See
+[the input and timing contract](../bench/BRACKETED_RESOURCE_INTERVALS.md).
+
+Validation: 36 focused tests, four copied-source assertion mutants, scoped format
+and lint, and independent source/test/evidence reviews passed. One actual Node
+24.20.0 call took 4012.1163 milliseconds for five scheduled observations, four
+conditional CPU intervals and five RSS admissions. The plan was retained before
+sampling; the last CPU enclosure ended at 4010691 microseconds of the declared
+five-second window. The remaining planned tail is unobserved. Root independently
+checked 47 artifact bindings, mutant reconstruction and archived arithmetic.
+
+All four frozen raw sources survived merge master. The measurement-method change
+was a link only. Supplied source hashes and phase declarations do not authenticate
+an independent collector or truthful workload execution. Calibrated CPU accuracy,
+complete process/helper population, aligned cohorts, paired product baselines,
+percentiles, overhead and full W8 acceptance remain open.
+
+## W10 explicit Windows Authenticode verification — 2026-10-19
+
+Added a read-only CLI for one selected EXE and independently supplied artifact
+and signer-certificate DER SHA-256 pins. It requires Windows to report a valid
+embedded signature, stable selected bytes and observed helper closure. The
+bounded inbox PowerShell child runs without profiles, interaction or execution
+policy changes. The EXE is read, never launched. The development tools guide
+links to the complete release-verification contract.
+
+Validation: 63 focused modeled tests, four JavaScript assertion mutants and one
+actual unsigned-control assertion against a forged helper observation passed
+independent source/security/test/evidence review. The actual 162816-byte unsigned
+control returned NotSigned/None and refusal with helper closure observed. Root
+verified 55 frozen artifact bindings and reconstructed all five source mutations.
+Six reviewed raw source hashes survived merge master unchanged.
+
+Review corrected a timer-only deadline with absolute monotonic launch/drain
+checks and late-close/clock-failure controls. A failed receipt flush can leave
+pass-looking JSON: acceptance requires exit 0 together with the matching complete
+receipt. The tool performs no explicit trust/configuration writes; normal Windows
+trust/cache/network effects remain unmeasured. Actual signed success with an
+independent owner pin, timestamp/revocation policy, release wiring, clean-machine
+installation and full W10 acceptance remain unqualified.
+
+## Session handoff — W4 transcript-to-audit replay (2026-10-19)
+
+A fixture-only replay now composes the explicit transcript reader, parser,
+synthetic process/session binding and skew, correlator and capsule builder through
+real scan audit admission, disk spill/restart, canonical persistence/readback/export
+and display batching. Fixed expected capsules cover complete, missing, ambiguous,
+truncated and unavailable evidence. OS actor attribution remains unchanged;
+prompt/argument/response/environment sentinels stay out of serialized sinks.
+
+The focused suite passed 15 cases. A copied scan source with capsule projection
+removed failed at the actual spill assertion (one failure, fourteen skipped).
+Production source remained unchanged. Independent source/privacy/test/evidence
+reviews passed; three owned sources, three corpus fixtures and 61 loaded source
+dependencies match the freeze. A separate post-run archive binds 24 retained
+artifacts; imported modules are not a coverage claim.
+
+Reader file proofs, binding evidence and clock alignment remain synthetic. This
+manual composition establishes no application wiring, authenticated receiver,
+real-profile/native discovery, Electron delivery, abrupt-crash durability or full
+live W4 acceptance. No UI, policy, production source or launch authority changed.
+
+## Session handoff — combined Windows candidate verification (2026-10-19)
+
+The verification-only CLI now binds an authenticated signed manifest and selected
+installer to independent artifact/certificate-DER pins and fresh Authenticode
+observations. Exact release tag/repository, asset name, signed size/digest,
+verified manifest bytes, serialized component receipt and final artifact bytes
+must agree. Both receipt outputs are new; imported receipts supply no authority.
+Signature/schema failures occur before output reservation or helper launch.
+
+R1 passed 108 focused tests (45 candidate and 63 unchanged Authenticode cases).
+Two copied-source mutants failed the intended identity/digest assertions (2/1).
+Independent source/security/test/evidence reviews passed. R2 corrected CLI help
+only; direct help and formatting passed without repeating unchanged tests.
+Five frozen sources, 24 unchanged bindings and all 49 R1/10 R2 artifacts match.
+
+Success for the combined gate remains modeled. The unchanged component's actual
+unsigned-file refusal is retained as component-only evidence. No combined native
+observation, independently pinned signed success, timestamp/fresh-revocation,
+installer execution, release or full W10 acceptance is supplied. Only explicit
+trust/configuration writes are excluded; normal Windows cache/network effects
+remain unmeasured. Acceptance requires exit 0 plus matching complete fresh
+receipts; pass-looking output after a failed flush/close is insufficient.
+
+## Session handoff — offline paired task latency (2026-10-19)
+
+A bounded evaluator and CLI now compare three declared alternating enabled/
+disabled task pairs. Common identities and explicit monitoring treatment are
+separate. All planned rows/outcomes remain visible; missing, non-success,
+unverified or incomparable eligible evidence suppresses whole-cohort latency.
+Each repetition retains its own median p50, nearest-rank p95, signed deltas and
+paired ratios. Zero baseline percentages remain null; no repetitions are pooled.
+
+Independent review found that R1 admitted successful completions beyond their
+planned timeout/exposure. R2 adds fixed suppression reasons while retaining raw
+outcomes and elapsed time; exact equality is allowed and no tolerance is inferred.
+Three new controls failed before the fix; the final affected suite passed 70.
+A copied deadline-guard mutant failed its intended assertion. R1's 120 tests
+(62 new/58 unchanged dependency) and two other mutants remain historical.
+
+Source/correctness and test/evidence reviews accepted R2. Four frozen sources,
+25 R2 artifacts, 20 reuse bindings and 63 preserved R1 inputs match. The guide's
+executed example is synthetic (100/120 ms); the explicit incomplete packet keeps
+null metrics. METHOD and Completion tools link to the new contract.
+
+Supplied declarations/hashes prove no authentic capture, prior freezing, complete
+cohort or independent evaluator. No actual task latency, provider/native run,
+calibrated overhead, reproducibility or full W8 acceptance is claimed.
+
+## 2026-10-19 — W4 Windows explicit stable-file reader
+
+The dormant owner API supplies Windows IO to the existing bounded reader and
+returns the original synchronous parser owner's exact batch after confirmed
+helper/stream closure. It captures that owner and parser before asynchronous IO.
+The fixed read-only apphost retains native file/ancestor handles, full file and
+volume identity, exact Write/Change versions, bounded reads and EOF proof.
+Unknown cleanup remains unavailable. No application caller was added.
+
+The frozen final source passed independent source/security and test/evidence
+reviews. Recorded checks: 19 actual reader controls; 2 isolated metadata and
+1 EOF controls; 7 Node transport and 4 apphost grammar controls; 7 startup
+controls plus a separately observed deleted-import trust limitation. The test
+run logged 126 passes (19 new, 107 existing), with lint, format and main typecheck
+passing. Three copied-source behavioral mutants were killed with clean baselines.
+
+The retained packet binds 41 source inputs and 367 artifacts. Its sealed report's
+blanket successful-receipt sentence is corrected externally: the historical
+failed supplemental driver remains code 1 and is not a mutation kill. Existing
+107-test definitions were archived afterward with unchanged baseline bindings;
+that supplement supplies no pre-run or exhaustive loaded-dependency attestation.
+Maximum-file coverage checks length/availability; the native full-ID control
+does not inject a high-half-only substitution. Counts are derived by the gate.
+
+This route uses explicit stable/exported files and may exclude ordinary writers
+while its lease is held. Prior arbitrary instrumentation remains outside the
+trusted embedding model. Real profiles, active-writer compatibility, transcript
+provenance, process/session binding, producer clocks and production/full W4
+acceptance remain unqualified. `launchAllowed=false` is unchanged.
+
+## 2026-10-19 — ETW source-summary correction
+
+The two LLM-oriented source summaries now describe ordinary Windows experimental
+file reads with explicit Start, local folder and manual UAC; startup remains off.
+Their earlier checkpoint and diagnostic/idle receipts are labelled historical.
+Changed protocol/package inputs and reboot recovery retain their unqualified
+boundary. Eight existing heading separators were also formatted.
+
+Independent factual review, focused Markdown formatting and five local links
+were checked. This updates documentation only; no capture, runtime activation or
+new qualification evidence was added. `launchAllowed=false` remains unchanged.
+
+## Session handoff — W5 explicit Cedar execution slice (2026-10-19)
+
+The optional schema-4 execution policy uses the pinned official Cedar WASM
+runtime and a fixed execution schema. Legacy schemas retain their exact-match
+behavior. The schema-3 translator preserves literal descriptors, ordered rule
+exclusions, defaults, ask decisions and review-required actions. Untrusted
+request fields cannot supply agent identity, sensor health or route authority.
+
+The final revision passed 60 focused tests: 29 Cedar tests and the unchanged 31
+characterization tests. Its seeded 10,000-input comparison made 7,300 real WASM
+authorization calls; 2,500 invalid requests and 200 invalid policies stopped
+earlier. Four targeted behavioral mutations failed assertions and were restored.
+Independent security and test review accepted this execution slice, with an
+availability gap: synchronous WASM has no enforceable CPU or total-memory limit.
+Earlier neighbor and revision-specific mutation receipts remain separate.
+
+Packaged Electron loading, an isolated evaluator, other policy routes, trusted
+identity/health dimensions and full W5 remain open. Owner policy confirmation
+and exact PR/master gates are recorded externally; no live launch qualification
+or broader Protected Session acceptance follows from these fixtures.
+
+## Session handoff — Linux procfs sensor (2026-10-19)
+
+A process-only Linux provider now reads bounded fresh procfs populations and
+serves sensor/1 over stdin/stdout. Raw field-22 ticks and boot witnesses retain
+full u64 precision. Legal non-UTF8 process names affect display only; failed or
+over-budget populations return an error so the host can freeze sessions. Watch
+replacement validates fresh roots atomically. All event capabilities remain
+false, and path subscriptions are unsupported.
+
+Nineteen Windows fixture tests, formatting, Windows/Linux all-target Clippy and
+Linux all-target checks passed. Three earlier R1 assertion mutants and one R2
+non-UTF8 regression mutant were killed with source restored; these are separate
+revision-specific records. Independent R2 security and requirements review passed.
+Linux cross-checking compiled the native branch without linking or running it.
+
+Native procfs/clock behavior, D1 runtime parity, packaged host integration,
+fanotify/eBPF, privileges and full W2 acceptance remain open. This delivery
+does not enable launch authority or replace the existing polling provider.
+
+## Session handoff — isolated ETW process diagnostics (2026-10-19)
+
+A separate helper and closed collector decode pinned Windows process start, stop
+and rundown payloads. Subject PID and exact decimal birth values come from provider
+payloads; header PID and later process-handle reads do not supply identity. Image,
+command-line and SID data are discarded. No production import or capture command
+is exposed; current ETW file admission and process polling are unchanged.
+
+The unchanged compiled helper passed 209 fixture assertions. The discovered Vitest
+suite passed twelve cases with the retained compiled fixture; without it, eleven
+pure cases run and the compiled case is explicitly skipped. A required-missing
+control failed as intended, and five collector mutations failed assertions with
+source restored. Independent security and test review accepted this scoped slice.
+
+No live ETW callbacks, native delivery, reboot/UAC or packaged qualification follows
+from these fixtures. Synchronous native Stop precedes the consumer wait budget,
+so total shutdown remains unbounded. Authenticated parent/crash cleanup and native
+shutdown qualification remain prerequisites to capture exposure.
+
 ## Session handoff — macOS native read boundary (2026-10-19)
 
 A dependency-free libproc/sysctl wrapper now isolates unsafe calls in one
@@ -3000,6 +3504,49 @@ registry packages and retains all twenty other existing package blocks.
 This prerequisite adds no sensor adapter or executable. Native linkage, SDK ABI,
 permissions, live generation semantics, platform versions and full W3 acceptance
 remain open. Portable tests and cross-checks do not establish native execution.
+
+## Session handoff — owner restart qualification harness (2026-10-19)
+
+The protocol-10 diagnostic harness prepares an owner-controlled Windows Restart,
+then resumes or cancels after checking immutable boot, source, package,
+configuration, native and saved-preparation bindings before UAC. Live complete
+protected-record correlation uses the authenticated observer after owner consent.
+A supported build-only producer returns before desktop launch or capture. Fixture reads await a matching
+PID/full-birth preparation acknowledgement and retain the event-time oracle.
+Private observer digests add correlation without changing cleanup authority.
+
+Independent R3 review accepted phase-specific cancellation and negative read-barrier
+checks. The final six-suite gate passed 123 tests; three R3 assertion mutants were
+killed and restored. Historical R2 evidence is corrected to ten caught JS mutants
+and one survivor; it is retained separately from R3. Unchanged native inputs reuse
+the R2 zero-warning build, 128 non-capture fixtures and two native mutations.
+
+No actual package build, UAC, Restart, owner recovery or live capture was run.
+Changed native qualification metadata makes the prior #986 native receipt
+historical for this candidate. Current-package qualification, W11/T1 acceptance
+and production admission remain pending; launchAllowed=false is unchanged.
+
+## Session handoff — native observation metadata custody (2026-10-19)
+
+Optional closed sensor metadata now survives security-record projection, disk
+spill/restart replay and canonical audit JSONL hashing. Raw birth, witness,
+sequence and capture timestamps stay separate from normalized identity and the
+audit delivery ID. Missing Linux D1 context retains raw evidence with identity
+unavailable; replay uses only persisted historical proof. Absent clock anchors
+remain null and uncalibrated. Invalid or oversized metadata preserves an otherwise
+admissible legacy event.
+
+The focused gate passed 106 tests across six suites, including 25 new cases.
+Four mutations failed behavioral assertions and restored exact source. Actual
+spill/restart/audit hashing and tamper rejection are tested. Scoped lint/format,
+configured main types and independent security/test review passed. The configured
+typecheck does not check these JavaScript bodies. Three frozen source hashes
+survived master integration.
+
+This adds no producer forwarding, source authentication, actor/session authority,
+calibrated time or native loss-range forwarding. Runtime admission remains
+unsupported with zero accepted native events and coverage lost. No FileEvent,
+risk, UI, provider or complete W1b acceptance follows.
 
 ## Session handoff — dormant macOS identity adapter (2026-10-19)
 
@@ -3019,3 +3566,5 @@ This is a stacked draft on the owner-pending macOS wrapper PR. Target compilatio
 does not qualify Apple SDK linkage, ABI offsets, live permissions or macOS runtime
 behavior. Parent and child require separate owner decisions and fresh master CI
 before merging. Full W3 remains open.
+
+Integration update (2026-10-19): parent #1006 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
