@@ -17,6 +17,8 @@
   import Metadata from './Metadata.svelte';
   import ObservationIdentity from './ObservationIdentity.svelte';
   import SequenceEvidence from './SequenceEvidence.svelte';
+  import ToolContext from './ToolContext.svelte';
+  import { hasToolContext, withoutToolContext } from '../runtime/tool-context-display';
   let {
     row,
     telemetry,
@@ -182,19 +184,16 @@
 {#if section === 'attributes'}
   <section class="detail-section">
     <h3>{kind === 'resource' ? $t('Recorded evidence') : $t('Attributes')}</h3>
-    <Metadata value={attributes} />
+    <Metadata value={withoutToolContext(attributes, $t('Additional metadata unavailable'))} />
   </section>
 {:else if section === 'signatures'}
   <section class="detail-section">
     <h3>{$t('Recognition patterns')}</h3>
     <Metadata
-      value={selectFields(row, [
-        'names',
-        'knownDomains',
-        'knownPorts',
-        'configPaths',
-        'parentEditors',
-      ])}
+      value={withoutToolContext(
+        selectFields(row, ['names', 'knownDomains', 'knownPorts', 'configPaths', 'parentEditors']),
+        $t('Additional metadata unavailable'),
+      )}
     />
   </section>
 {:else}
@@ -238,8 +237,11 @@
           ? $t('Observation summary')
           : $t('Overview')}
     </h3>
-    <Metadata value={overview} />
+    <Metadata value={withoutToolContext(overview, $t('Additional metadata unavailable'))} />
   </section>
+  {#if kind === 'resource' || hasToolContext(row)}
+    <ToolContext {row} />
+  {/if}
 {/if}
 
 <style>
