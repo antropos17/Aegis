@@ -8,6 +8,7 @@ not establish workstream acceptance.
 | Need | Entry point | Contract |
 | --- | --- | --- |
 | Prepare WinGet candidate YAML from a local signed release | `node scripts/prepare-winget.cjs --help` | [WinGet preparation](../../packaging/winget/README.md) |
+| Check an explicitly pinned local EXE's embedded Authenticode observation on Windows | `node scripts/verify-authenticode.cjs --help` | [Authenticode prerequisite](../RELEASE-VERIFICATION.md#windows-authenticode-prerequisite) |
 | Evaluate ordinary-task false-alarm evidence offline | `node bench/task-false-alarms.cjs --help` | [Task evidence and scoring](../bench/TASK-FALSE-ALARMS.md) |
 | Check dormant Windows Coverage through the real preload | Dedicated Electron fixture below | [Coverage preload fixture](../bench/COVERAGE-PRELOAD.md) |
 | Develop native Windows hook IO with inert owned targets | Owner-prepared development fixture | [Private Windows hook IO](../CLAUDE-HOOK-WINDOWS-IO.md) |

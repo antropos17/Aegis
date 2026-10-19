@@ -3293,3 +3293,27 @@ was a link only. Supplied source hashes and phase declarations do not authentica
 an independent collector or truthful workload execution. Calibrated CPU accuracy,
 complete process/helper population, aligned cohorts, paired product baselines,
 percentiles, overhead and full W8 acceptance remain open.
+
+## W10 explicit Windows Authenticode verification — 2026-10-19
+
+Added a read-only CLI for one selected EXE and independently supplied artifact
+and signer-certificate DER SHA-256 pins. It requires Windows to report a valid
+embedded signature, stable selected bytes and observed helper closure. The
+bounded inbox PowerShell child runs without profiles, interaction or execution
+policy changes. The EXE is read, never launched. The development tools guide
+links to the complete release-verification contract.
+
+Validation: 63 focused modeled tests, four JavaScript assertion mutants and one
+actual unsigned-control assertion against a forged helper observation passed
+independent source/security/test/evidence review. The actual 162816-byte unsigned
+control returned NotSigned/None and refusal with helper closure observed. Root
+verified 55 frozen artifact bindings and reconstructed all five source mutations.
+Six reviewed raw source hashes survived merge master unchanged.
+
+Review corrected a timer-only deadline with absolute monotonic launch/drain
+checks and late-close/clock-failure controls. A failed receipt flush can leave
+pass-looking JSON: acceptance requires exit 0 together with the matching complete
+receipt. The tool performs no explicit trust/configuration writes; normal Windows
+trust/cache/network effects remain unmeasured. Actual signed success with an
+independent owner pin, timestamp/revocation policy, release wiring, clean-machine
+installation and full W10 acceptance remain unqualified.
