@@ -104,6 +104,13 @@ export const workspaces: Workspace[] = [
     keywords: 'custom recognition catalog',
   },
   {
+    id: 'coverage',
+    label: 'Coverage',
+    icon: 'shield',
+    group: 'configure',
+    keywords: 'sensors health loss restart native polling coverage blocking',
+  },
+  {
     id: 'settings',
     label: 'Settings',
     icon: 'settings',
