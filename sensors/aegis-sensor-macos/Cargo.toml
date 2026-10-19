@@ -13,5 +13,8 @@ aegis-wire.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 aegis-macos-libproc = { path = "native" }
 
+[dev-dependencies]
+aegis-macos-libproc = { path = "native" }
+
 [lints]
 workspace = true
