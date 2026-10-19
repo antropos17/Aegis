@@ -984,6 +984,20 @@ async function doProcessScan() {
 
     // Identity and population health are settled before optional readonly preparation.
     deps.onAgentsObserved?.();
+    // This pass owns the raw process map and the identity stamps. Never publish
+    // a cached birth/context as authority during a failed/outage pass.
+    deps.onProcessScanCommitted?.({
+      agents,
+      processMap: result.processMap,
+      reliable: result.reliable === true,
+      identityDegraded,
+      gapStraddled,
+      snapshotCurrent:
+        resourceGeneration === resourceScanGeneration &&
+        snapshotCurrent &&
+        (gapBefore === null ||
+          deps.observationGap.snapshot().suspendCount === gapBefore.suspendCount),
+    });
     // Single batched IPC — renderer updates all stores at once
     sendToRenderer('scan-batch', {
       agents,
@@ -1082,6 +1096,7 @@ async function doProcessScan() {
     // observation succeeded). Log only: no leaf here names delivery or persistence, and
     // inventing one would answer a question this record was never asked.
     deps.sequenceEngine?.observePopulation?.([], false);
+    deps.onProcessObservationUnavailable?.();
     logger.error('main', 'Process scan failed', { error: 'process-scan-failed' });
   } finally {
     updateScanStatus(false);

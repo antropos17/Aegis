@@ -146,6 +146,7 @@ const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
 let etwFile;
+let nativeSensor = null;
 const { createBatcher } = require('./ipc-batcher');
 // Pure domain modules — no I/O, no Electron, no timers — so they cost nothing to load
 // on the fast path to a visible window. `file-access-batching` must be here rather than
@@ -215,6 +216,7 @@ let isQuitting = false,
 function setMonitoringPaused(paused) {
   monitoringPaused = paused;
   etwFile?.setPaused(paused);
+  nativeSensor?.setPaused(paused);
   if (paused) {
     wslInventory?.cancelRefresh();
     dockerDiscovery?.cancelRefresh();
@@ -383,6 +385,7 @@ function getAppHealth() {
     records.push(platform.getSnapshotHealth());
   }
   if (etwFile) records.push(etwFile.getHealth());
+  if (nativeSensor) records.push(nativeSensor.getHealth());
   if (securityEvents) records.push(securityEvents.getStats().health);
   const derived = appHealth.deriveAppHealth({
     bootPhase: true,
@@ -581,6 +584,7 @@ function getStats() {
       scanCadence: getScanCadenceStats(),
       auditDelivery: getAuditDelivery(),
       fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
+      nativeSensor: nativeSensor?.getStatus() ?? null,
     };
   }
   const log = scanner.activityLog;
@@ -613,6 +617,7 @@ function getStats() {
     scanCadence: getScanCadenceStats(),
     auditDelivery: getAuditDelivery(),
     fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
+    nativeSensor: nativeSensor?.getStatus() ?? null,
   };
 }
 
@@ -1066,6 +1071,8 @@ function initDeferredSubsystems(userData) {
   scanLoop.init({
     securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
+    onProcessScanCommitted: (pass) => nativeSensor?.onProcessScanCommitted(pass),
+    onProcessObservationUnavailable: () => nativeSensor?.onProcessObservationUnavailable(),
     scanner,
     procUtil,
     watcher,
@@ -1154,6 +1161,7 @@ function initDeferredSubsystems(userData) {
   });
   baselines.loadBaselines();
   startWatchersWhenLoaded(mainWindow.webContents);
+  startNativeSensor();
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
   scanLoop.staggeredStartup(ms, monitoringPaused);
 
@@ -1171,6 +1179,25 @@ function initDeferredSubsystems(userData) {
       }
     }
   }, 60_000);
+}
+
+/** Start the platform owner through the same path used by production deferred startup.
+ * @returns {object|null} The current runtime owner.
+ * @since 0.19.2-beta
+ */
+function startNativeSensor() {
+  if (!nativeSensor) {
+    nativeSensor = require('./platform/sensor-runtime').createSensorRuntime({
+      adapter: platform,
+      packaged: app.isPackaged === true,
+      onStatus: () => {
+        if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+      },
+    });
+    nativeSensor?.setPaused(monitoringPaused);
+    nativeSensor?.start();
+  }
+  return nativeSensor;
 }
 
 app.whenReady().then(() => {
@@ -1317,7 +1344,11 @@ app.on('before-quit', (event) => {
     return;
   }
   const etwActive = etwFile?.isActive?.() === true;
-  if (!alertQuitDrainStarted && (sensitiveAlertJournal?.hasPending() || etwActive)) {
+  const nativeActive = nativeSensor?.isActive() === true;
+  if (
+    !alertQuitDrainStarted &&
+    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive)
+  ) {
     event.preventDefault();
     alertQuitDrainStarted = true;
     isQuitting = true;
@@ -1338,11 +1369,11 @@ app.on('before-quit', (event) => {
       }
     };
     Promise.race([
-      Promise.all([drain(), etwFile?.dispose()]),
+      Promise.all([drain(), etwFile?.dispose(), nativeSensor?.dispose()]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.
         // Pending UAC or an unresponsive collector still cannot hold quit forever.
-        timeout = setTimeout(resolve, etwActive ? 15000 : 2000);
+        timeout = setTimeout(resolve, etwActive ? 15000 : nativeActive ? 2500 : 2000);
       }),
     ])
       .catch(() => {})
@@ -1357,6 +1388,7 @@ app.on('before-quit', (event) => {
   closeRuleWatchers();
   cancelFileWatchRetry();
   etwFile?.dispose();
+  nativeSensor?.dispose();
   updates?.dispose();
   if (oomIntervalId) {
     clearInterval(oomIntervalId);
@@ -1502,6 +1534,13 @@ function _loadDeferredModulesForTest() {
 // Exported for the startup-ordering and stats-shape regression tests only — nothing in
 // the app requires main.js. Electron runs it as the entry point.
 module.exports = {
+  _initDeferredSubsystemsForTest: initDeferredSubsystems,
+  /** Drop the test owner after observing bounded child cleanup.
+   * @returns {Promise<void>} Fixture cleanup. @since 0.19.2-beta */
+  _resetSensorRuntimeForTest: async () => {
+    await nativeSensor?.dispose();
+    nativeSensor = null;
+  },
   createWindow,
   startWatchers,
   startWatchersWhenLoaded,
