@@ -3271,3 +3271,25 @@ and timestamps cannot prove independence, complete actual-start reconciliation
 or truthful native collection. Real measurements still require those externally
 held records and review. No live/native measurement, existing recall/precision
 change, task execution or full W8 acceptance is established.
+
+## W8 acquisition-window resource intervals — 2026-10-19
+
+Added an own-Node consumer for the existing raw resource sampler. CPU rates retain
+separate acquisition windows and exact rational timing bounds; RSS uses its own
+whole reading window. Explicit phases, missing points and the unobserved terminal
+tail remain evidence. No aligned capture or closing sample is manufactured. See
+[the input and timing contract](../bench/BRACKETED_RESOURCE_INTERVALS.md).
+
+Validation: 36 focused tests, four copied-source assertion mutants, scoped format
+and lint, and independent source/test/evidence reviews passed. One actual Node
+24.20.0 call took 4012.1163 milliseconds for five scheduled observations, four
+conditional CPU intervals and five RSS admissions. The plan was retained before
+sampling; the last CPU enclosure ended at 4010691 microseconds of the declared
+five-second window. The remaining planned tail is unobserved. Root independently
+checked 47 artifact bindings, mutant reconstruction and archived arithmetic.
+
+All four frozen raw sources survived merge master. The measurement-method change
+was a link only. Supplied source hashes and phase declarations do not authenticate
+an independent collector or truthful workload execution. Calibrated CPU accuracy,
+complete process/helper population, aligned cohorts, paired product baselines,
+percentiles, overhead and full W8 acceptance remain open.
