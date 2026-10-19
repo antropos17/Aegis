@@ -1,0 +1,14 @@
+[package]
+name = "aegis-sensor-linux"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Registered Linux sensor library root; native provider implementation pending"
+
+[dependencies]
+aegis-wire.workspace = true
+
+[lints]
+workspace = true

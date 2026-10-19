@@ -3,6 +3,20 @@
 version = 4
 
 [[package]]
+name = "aegis-sensor-linux"
+version = "0.1.0"
+dependencies = [
+ "aegis-wire",
+]
+
+[[package]]
+name = "aegis-sensor-macos"
+version = "0.1.0"
+dependencies = [
+ "aegis-wire",
+]
+
+[[package]]
 name = "aegis-wire"
 version = "0.1.0"
 dependencies = [
