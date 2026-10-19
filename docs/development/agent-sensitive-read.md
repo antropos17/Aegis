@@ -100,26 +100,37 @@ The [source/package-bound live record](../recon/evidence/agent-sensitive-read.js
 retains the result and earlier unsuccessful attempts separately from modeled
 tests. Production admission remains open.
 
-## First-read preparation status
+## First-read qualification
 
-The [first-read preparation record](../recon/evidence/agent-first-read-preparation.json)
-binds the checks without elevation to runtime source `41335d2d` and its complete
-package manifest. It records 122 passing native self-tests, 722 passing
-platform/scan tests with one skipped, and successful CI at that runtime revision.
-Later documentation-only commits leave these tested runtime inputs unchanged;
-their current PR checks still apply separately.
+The [first-read record](../recon/evidence/agent-first-read-preparation.json) binds
+two passing live journeys to runtime source `f1a53f4a` and the same complete
+285-file diagnostic package manifest. The package uses Electron 44.7.2 and the
+installed Claude Code 2.1.292 with its existing account and default model. Both
+captures received manual UAC approval on one local Windows x64 machine.
 
-An unelevated Windows probe invoked the unmodified packaged native preparation
-code with its default dependencies. Two cycles each held 26 real threads of the
-probe process, rejected a mismatched full birth time, left an earlier synthetic
-event unverified, verified a later synthetic event and disposed the retained
-handles. This checks native handle access with synthetic observations. Separate
-normal-token control round trips and the ordinary packaged launch also passed;
-the latter kept capture disabled and exited normally.
+The first journey waited for the real agent's preparation acknowledgement before
+creating the synthetic `.env`. It made exactly one Read tool call without a
+README warmup. The returned unpredictable value, native PID/full creation-time
+witness and renderer identity agreed. The UI showed two verified read
+observations for that request, the candidate path and potential sensitive-read
+risk. Screenshots in both themes were visually reviewed.
 
-Live qualification remains pending. The baseline attempt expired at manual UAC
-before any provider Read. The candidate's genuine first-read journey and its
-persistent-read regression have not run; the user deferred checks requiring UAC.
-Keep the PR in draft until those packaged journeys pass, including visible
-action/risk, privacy and owned cleanup. The earlier live record above qualifies
-its original persistent-read package only.
+The second journey kept the agent alive across a genuine README Read and a Read
+of a newly created synthetic `.env`. The sensitive read had a verified agent row
+and potential risk. An additional observation remained visibly unverified; this
+result does not establish attribution of every operation. Final native loss and
+drop counters were zero in both journeys. Mapping resets/conflicts remain
+reported in the record and can invalidate uncertain evidence.
+
+Both journeys excluded file contents from the AEGIS profile and diagnostic reads
+from audit rows, exited the agent and app normally, acknowledged native stop,
+independently confirmed session absence and left no native helper processes.
+The entire package still matched its frozen manifest after the live checks.
+Later evidence/documentation commits leave these tested runtime inputs unchanged;
+their required PR checks apply separately. Ordinary packaged ETW remains disabled.
+
+The record retains the earlier checks without elevation against `41335d2d`,
+including real owned handles with synthetic observations, separately from these
+live results. It also retains the unsuccessful baseline attempt that expired at
+manual UAC before any provider Read. Neither the synthetic checks nor the earlier
+persistent-agent package substitute for the new first-read result.
