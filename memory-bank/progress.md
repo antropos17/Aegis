@@ -3428,3 +3428,24 @@ boundary. Eight existing heading separators were also formatted.
 Independent factual review, focused Markdown formatting and five local links
 were checked. This updates documentation only; no capture, runtime activation or
 new qualification evidence was added. `launchAllowed=false` remains unchanged.
+
+## Session handoff — W5 explicit Cedar execution slice (2026-10-19)
+
+The optional schema-4 execution policy uses the pinned official Cedar WASM
+runtime and a fixed execution schema. Legacy schemas retain their exact-match
+behavior. The schema-3 translator preserves literal descriptors, ordered rule
+exclusions, defaults, ask decisions and review-required actions. Untrusted
+request fields cannot supply agent identity, sensor health or route authority.
+
+The final revision passed 60 focused tests: 29 Cedar tests and the unchanged 31
+characterization tests. Its seeded 10,000-input comparison made 7,300 real WASM
+authorization calls; 2,500 invalid requests and 200 invalid policies stopped
+earlier. Four targeted behavioral mutations failed assertions and were restored.
+Independent security and test review accepted this execution slice, with an
+availability gap: synchronous WASM has no enforceable CPU or total-memory limit.
+Earlier neighbor and revision-specific mutation receipts remain separate.
+
+Packaged Electron loading, an isolated evaluator, other policy routes, trusted
+identity/health dimensions and full W5 remain open. Owner policy confirmation
+and exact PR/master gates are recorded externally; no live launch qualification
+or broader Protected Session acceptance follows from these fixtures.
