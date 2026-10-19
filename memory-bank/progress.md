@@ -2962,3 +2962,22 @@ focus trapping remain unqualified.
 The visible section states that live tool correlation is unavailable. Trusted
 source selection, runtime production, clock measurement, native/Electron checks,
 complete application localization, full W4 and W9 remain open.
+
+## Session handoff — Linux procfs sensor (2026-10-19)
+
+A process-only Linux provider now reads bounded fresh procfs populations and
+serves sensor/1 over stdin/stdout. Raw field-22 ticks and boot witnesses retain
+full u64 precision. Legal non-UTF8 process names affect display only; failed or
+over-budget populations return an error so the host can freeze sessions. Watch
+replacement validates fresh roots atomically. All event capabilities remain
+false, and path subscriptions are unsupported.
+
+Nineteen Windows fixture tests, formatting, Windows/Linux all-target Clippy and
+Linux all-target checks passed. Three earlier R1 assertion mutants and one R2
+non-UTF8 regression mutant were killed with source restored; these are separate
+revision-specific records. Independent R2 security and requirements review passed.
+Linux cross-checking compiled the native branch without linking or running it.
+
+Native procfs/clock behavior, D1 runtime parity, packaged host integration,
+fanotify/eBPF, privileges and full W2 acceptance remain open. This delivery
+does not enable launch authority or replace the existing polling provider.
