@@ -2932,3 +2932,31 @@ returned allow/forbid, refused missing WASM and confirmed worker exits. This doe
 not qualify the actual packaged caller. Worker threads share process memory;
 there is no total WASM/external-memory containment. Caller activation still needs
 post-await binding checks, parent policy approval and actual runtime qualification.
+
+## Session handoff — dormant capped Windows Cedar process owner (2026-10-19)
+
+A private Windows facade and normal-user helper now evaluate one Cedar request
+inside a queried resource Job. A new non-breakaway retention Job preserves the
+admitted inherited chain. Both owned memberships and caps are checked while the
+child is suspended; revoke/resume share a lock. Cleanup retains original handles,
+requires an empty resource Job, and keeps uncertain closure/transcripts refused.
+
+Configured limits are 256 MiB committed virtual memory, one active process,
+two seconds of periodically checked user CPU and a ten-second native wall target.
+They exclude helper/facade, physical/kernel memory and whole-application availability.
+No existing Job, launcher, permission or production policy route changed.
+
+R4 retained 14 actual native controls, six capped ASAR decision/refusal cases,
+ten pure profile cases and two assertion mutants that ran only nonlaunch profile
+checks. Four final layout builds passed; three production builds each recorded
+one CS0414 warning, while the fixture and mutant builds recorded zero warnings.
+The initial development allow is separately bound. R2 JavaScript/pipe checks and
+R1/R2/R3 blocked observations remain historical with exact reuse bindings.
+
+Independent source/security review passed; final evidence review and its external
+errata accompany publication. The sealed packet contains a wrong WASM length and
+zero-warning summary; the errata preserve the original seal and correct those
+claims against archived bytes/logs. Fourteen frozen sources and eight dependencies
+remain preserved. This is a stacked draft on the unmerged Cedar worker/runtime;
+separate owner decisions, fresh master gates, product packaging and activation
+remain pending. launchAllowed=false; full W5/W6 acceptance is absent.
