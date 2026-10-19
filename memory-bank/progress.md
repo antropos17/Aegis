@@ -2983,3 +2983,23 @@ formatting, configured main types (checkJs disabled) and sequence gate passed.
 Native delivery, identity parity, lifecycle/audit integration, packaged binaries,
 live providers and complete W1b/W9 acceptance remain open. Repository gates and
 source hashes are recorded separately for the final PR and merge.
+## Session handoff — bounded explicit session reader (2026-10-19)
+
+A new injected reader accepts one explicit absolute session-file path and returns
+only the existing metadata parser projection. It requires stable regular-file,
+no-link, volume/file and version metadata on path and handle before and after a
+bounded complete read, an EOF check and successful close. Failed or uncertain
+reads pass null bytes to the parser. Owned buffers are cleared after parsing.
+No source discovery, default filesystem provider or live runtime caller is added.
+
+The focused gate passed 107 tests across three suites, including 41 reader cases.
+Four guard mutations failed behavioral assertions and restored exact source.
+Configured main types, scoped lint/format and independent security/test review
+passed. The disposable Windows/X-drive fixture does not qualify a production
+reparse verifier. Provider operations must bound their own duration; this reader
+adds byte/call limits, not IO cancellation or a total deadline. Buffer clearing
+does not securely erase parser strings or external copies.
+
+Trusted source selection, platform-qualified file IO, observed process/session
+binding, clock calibration and live integration remain open. No new association
+strength, user-log access, IPC, source trust or complete W4 acceptance follows.
