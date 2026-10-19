@@ -44,7 +44,8 @@ or status written here or in `docs/`, read it from source.
 AEGIS closes the measured gaps against AgentSight, Sage, Leash and the Microsoft
 Agent Governance Toolkit while keeping the properties that already distinguish
 it: independent OS-level observation without agent cooperation, per-instance
-attribution with stated evidence, local-only data, and a desktop interface for
+attribution with stated evidence, local processing by default with explicit
+opt-in for external analysis, and a desktop interface for
 people who do not live in a terminal.
 
 The plan is complete when all of the following hold on merged master:
@@ -55,7 +56,7 @@ The plan is complete when all of the following hold on merged master:
 | T2 | Linux event sensor in Rust (eBPF, then fanotify, then procfs) behind the sidecar wire contract | Linux support is experimental |
 | T3 | macOS sensor in Rust with a process-generation witness, libproc/kqueue/FSEvents baseline and an Endpoint Security mode that activates when the entitlement exists | macOS has no birth-time witness |
 | T4 | Alert explanation: each file, network and process alert links to the agent tool call that preceded it, when local session data allows | No intent visibility |
-| T5 | Cedar as the action-policy language for allow/ask/deny, equivalent to policy schema 3 on every existing case | YAML-only policy |
+| T5 | Cedar as the action-policy language for allow/ask/deny, equivalent to policy schema 3 on every existing case | Separate JSON policy families |
 | T6 | Guard mode: one-step installation of native pre-execution hooks for supported agents, with "Blocking verified" shown only after qualification | No pre-execution blocking by default |
 | T7 | Protected Session reaches its acceptance review with every stage evidenced; enabling launch stays a human decision | Sandbox launch is disabled |
 | T8 | Published measurements: per-platform recall against an independent oracle, false-alarm rate on ordinary work, CPU/RAM overhead with a written method | Nothing measured |
