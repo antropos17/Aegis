@@ -3468,3 +3468,22 @@ Linux cross-checking compiled the native branch without linking or running it.
 Native procfs/clock behavior, D1 runtime parity, packaged host integration,
 fanotify/eBPF, privileges and full W2 acceptance remain open. This delivery
 does not enable launch authority or replace the existing polling provider.
+
+## Session handoff — isolated ETW process diagnostics (2026-10-19)
+
+A separate helper and closed collector decode pinned Windows process start, stop
+and rundown payloads. Subject PID and exact decimal birth values come from provider
+payloads; header PID and later process-handle reads do not supply identity. Image,
+command-line and SID data are discarded. No production import or capture command
+is exposed; current ETW file admission and process polling are unchanged.
+
+The unchanged compiled helper passed 209 fixture assertions. The discovered Vitest
+suite passed twelve cases with the retained compiled fixture; without it, eleven
+pure cases run and the compiled case is explicitly skipped. A required-missing
+control failed as intended, and five collector mutations failed assertions with
+source restored. Independent security and test review accepted this scoped slice.
+
+No live ETW callbacks, native delivery, reboot/UAC or packaged qualification follows
+from these fixtures. Synchronous native Stop precedes the consumer wait budget,
+so total shutdown remains unbounded. Authenticated parent/crash cleanup and native
+shutdown qualification remain prerequisites to capture exposure.
