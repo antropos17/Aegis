@@ -38,6 +38,10 @@ function absolute(value) {
   );
 }
 
+/** Validate the legacy exact execution descriptor without normalization.
+ * @param {unknown} action Candidate action.
+ * @returns {boolean} Whether the whole descriptor is valid.
+ * @since v0.19.2 */
 function validAction(action) {
   if (
     !keys(action, ['executable', 'cwd', 'args', 'env']) ||
@@ -65,6 +69,10 @@ function validAction(action) {
   return true;
 }
 
+/** Validate the unchanged schema-2/3 policy contract, including duplicates.
+ * @param {unknown} policy Candidate policy.
+ * @returns {boolean} Whether every rule and review reference is valid.
+ * @since v0.19.2 */
 function validPolicy(policy) {
   if (
     ![2, 3].includes(policy?.schemaVersion) ||
@@ -111,6 +119,24 @@ function validPolicy(policy) {
   return true;
 }
 
+/** Evaluate the current exact policy contract without file I/O or launch.
+ * @param {unknown} policy Schema 2 or 3 policy.
+ * @param {unknown} action Exact execution descriptor.
+ * @returns {{decision: string, reason: string}} Fixed legacy metadata.
+ * @since v0.19.2 */
+function evaluateExecutionPolicy(policy, action) {
+  if (!validAction(action)) return { decision: 'deny', reason: 'request-invalid' };
+  if (!validPolicy(policy)) return { decision: 'deny', reason: 'policy-invalid' };
+  const rule = policy.rules.find((candidate) => equalActionValue(candidate.action, action));
+  const selected = rule ? rule.decision : policy.defaultDecision;
+  const reviewRequired =
+    policy.schemaVersion === 3 &&
+    policy.reviewRequired.some((candidate) => equalActionValue(candidate, action));
+  const decision = reviewRequired && selected === 'allow' ? 'ask' : selected;
+  const reason = reviewRequired && selected === 'allow' ? 'review-required' : `policy-${decision}`;
+  return { decision, reason };
+}
+
 async function selectedJson(filename, check) {
   const bytes = await readActionFile(filename);
   try {
@@ -125,7 +151,7 @@ async function selectedJson(filename, check) {
  * Prepare a private direct-execution descriptor from two explicitly selected
  * files. Only the execution owner may consume launch; never serialize it into a
  * report. A matching rule binds strings, not executable bytes or filesystem state.
- * @param {string} policyPath Schema 2 exact execution policy.
+ * @param {string} policyPath Schema 2/3 exact policy or explicit schema 4 Cedar policy.
  * @param {string} requestPath Schema 1 direct execution request.
  * @param {{binding?: object, review?: boolean}} [options] Binding and trusted private-review mode.
  * @returns {Promise<object>} Fixed decision and optional private launch descriptor.
@@ -143,6 +169,7 @@ async function prepareExecution(policyPath, requestPath, options = {}) {
       : undefined;
   let request;
   let policy;
+  let cedar;
   try {
     request = await selectedJson(requestPath, check('request'));
     if (
@@ -152,7 +179,10 @@ async function prepareExecution(policyPath, requestPath, options = {}) {
     )
       return { decision: 'deny', reason: 'request-invalid' };
     policy = await selectedJson(policyPath, check('policy'));
-    if (!validPolicy(policy)) return { decision: 'deny', reason: 'policy-invalid' };
+    if (policy?.schemaVersion === 4) {
+      cedar = require('./cedar-runtime').compileCedarPolicy(policy);
+      if (!cedar.ok) return { decision: 'deny', reason: cedar.reason };
+    } else if (!validPolicy(policy)) return { decision: 'deny', reason: 'policy-invalid' };
   } catch (error) {
     if (pinned) {
       revokeExecutionBinding(binding);
@@ -166,20 +196,23 @@ async function prepareExecution(policyPath, requestPath, options = {}) {
     }
     return { decision: 'deny', reason: 'input-unavailable' };
   }
-  const rule = policy.rules.find((candidate) => equalActionValue(candidate.action, request.action));
-  const selected = rule ? rule.decision : policy.defaultDecision;
-  const reviewRequired =
-    policy.schemaVersion === 3 &&
-    policy.reviewRequired.some((action) => equalActionValue(action, request.action));
-  const decision = reviewRequired && selected === 'allow' ? 'ask' : selected;
-  const reason = reviewRequired && selected === 'allow' ? 'review-required' : `policy-${decision}`;
-  if (decision !== 'allow' && !(review && decision === 'ask')) return { decision, reason };
+  const result = cedar
+    ? cedar.evaluate(request.action)
+    : evaluateExecutionPolicy(policy, request.action);
+  const { decision } = result;
+  if (decision !== 'allow' && !(review && decision === 'ask')) return result;
   // Node/libuv otherwise silently copy these names from the parent's environment.
   const env = Object.create(null);
   for (const name of process.platform === 'win32' ? WINDOWS_DEFAULTS : []) env[name] = '';
   env.NODE_V8_COVERAGE = '';
   for (const [name, value] of Object.entries(request.action.env)) env[name] = value;
-  return { decision, reason, launch: { ...request.action, env } };
+  return { ...result, launch: { ...request.action, env } };
 }
 
-module.exports = { prepareExecution, LIMITS };
+module.exports = {
+  prepareExecution,
+  LIMITS,
+  evaluateExecutionPolicy,
+  validateExecutionAction: validAction,
+  validateExecutionPolicy: validPolicy,
+};

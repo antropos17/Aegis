@@ -44,6 +44,7 @@ desktop's agent catalog contains recognition signatures.
 | Capability | Contract |
 | --- | --- |
 | Exact action policy and CLI execution | [Execution](ACTION-EXECUTION.md) |
+| Opt-in Cedar policy for direct execution | [Cedar policy and runtime limits](ACTION-POLICY-CEDAR.md) |
 | Offline Windows isolation in a new workspace | [AppContainer launch](ACTION-APPCONTAINER.md) |
 | Fresh approval for one launch | [Terminal confirmation](ACTION-CONFIRMATION.md) |
 | Connect one selected action via MCP | [Selected-action MCP](ACTION-MCP.md) |
