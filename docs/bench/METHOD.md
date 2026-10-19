@@ -75,6 +75,8 @@ technique or claimed to provide current ATT&CK coverage by this draft.
 
 ## Catalogue, oracle and sensor columns
 
+[Offline ordinary-task evaluator and input contract](TASK-FALSE-ALARMS.md).
+
 The sequence remains catalogue -> independent oracle confirmation -> sensor
 scoring. Confirm each catalogue row from the same run before admitting it to a
 sensor denominator. Keep oracle columns separate; never diff live streams or use
