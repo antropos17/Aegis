@@ -3,6 +3,16 @@
 These small synthetic, privacy-sentinel fixtures model selected fields from actual
 provider formats. They contain no real prompts, credentials or user transcripts.
 
+`replay-cases.cjs` copies these source fixtures with distinct privacy sentinels and
+declares independent synthetic process/verifier/skew evidence plus fixed expected
+capsules. `tests/main/tool-context-replay.test.js` composes the explicit reader,
+parser, binder, correlator and capsule builder through scan audit admission, disk
+spill/restart, canonical audit readback/export and the live file-access batcher.
+It checks bounded source degradation and ambiguity without upgrading OS actor
+attribution. Its injected file stamps, verified-binding labels and clock skew are
+fixture evidence; they establish no native reader, receiver authentication,
+production wiring, trusted live binding or launch acceptance (`launchAllowed=false`).
+
 Claude Code's assistant `message.content[].tool_use` and user `tool_result` shapes
 follow the existing Claude transcript usage adapter and the official hook/SDK
 transcript documentation: https://platform.claude.com/docs/en/agent-sdk/sessions

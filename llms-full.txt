@@ -10,7 +10,7 @@ Monitoring runs locally without telemetry or an account. Optional AI analysis se
 
 This document describes current source. Installed releases can lag behind it; consult the release tag and README limitations.
 
-Source checkpoint: 18 October 2026, merged master 96b63b165ac932e9615815f93c587765e6bde1b8 (PR #975). Packaged monitoring and file/TCP fixtures have source-bound results. A persistent installed Claude Code session read a synthetic .env after a preparatory README read; Events displayed the read, verified issuer and potential path-rule risk. Windows Kernel-File capture remains diagnostic-only and disabled in ordinary packages. Candidate paths and diagnostic potential risk do not update risk scores, audit, baselines or sequences. PR #974 (actual Windows restart) and PR #976 (first-read preparation) remain draft; their outstanding live checks are not qualified by fixture tests. See [the agent-read guide](docs/development/agent-sensitive-read.md) and the README's current-development section.
+Historical source checkpoint: 18 October 2026, merged master 96b63b165ac932e9615815f93c587765e6bde1b8 (PR #975). Packaged monitoring and file/TCP fixtures have source-bound results. Current Windows x64 source packages include experimental Kernel-File reads in Events, with an explicit local folder, Start and manual UAC consent. Capture stays off on startup; Stop, monitoring pause, suspend or quit request cleanup. Candidate paths and potential path-rule risk do not inspect contents or update risk scores, audit, baselines or sequences. Historical qualification includes the #975 warmup read, #976 diagnostic first/persistent reads and ordinary idle first reads after 65, 70 and 85 seconds on source 5249c10a. These receipts do not qualify changed protocol-10/package/harness inputs or a Windows restart; #974 reboot recovery remains pending. See [ordinary file reads](docs/development/ordinary-file-reads.md), [the agent-read guide](docs/development/agent-sensitive-read.md) and [Windows recovery admission](docs/roadmap/windows-recovery-admission.md).
 
 ## Installation
 
@@ -26,27 +26,35 @@ Building from source requires Node.js 24.x, as declared in package.json and pinn
 ## Features
 
 ### Process Monitoring
+
 Tracks 112 known AI agents (265 process-name signatures across their `names` arrays) with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
 
 ### File System Access
+
 Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and the 35 AI agent config paths registered in AGENT_CONFIG_PATHS for file activity. Database configPaths metadata does not register watch roots automatically.
 
 ### Network Activity
+
 Logs eligible observed TCP endpoints per detected agent PID with forward-confirmed reverse DNS and allowlisted, unknown or flagged verdicts. Provider outages and polling gaps limit coverage; an unresolved endpoint is not assumed safe.
 
 ### Behavioral Analysis
+
 Applies 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates) with rolling 10-session baselines and 4-axis anomaly scoring (Network/FS/Process/Baseline).
 
 ### Trust Scoring
+
 Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
 
 ### Dashboard
+
 Radar overview, summary cards, filtered/grouped activity feeds, network panel, expandable agent/application cards and footer sensor health. Monitoring presets: Paranoid, Strict, Balanced, Developer. Presets do not enforce OS-level blocking.
 
 ### Export and Audit
+
 JSON, CSV, HTML reports, one-click ZIP archive and hash-chained JSONL audit logging with daily rotation and 30-day retention. Settings JSON and diagnostic ZIP exports omit the configured API key. Paths, endpoints and agent metadata in exports remain sensitive.
 
 ### YAML Rulesets
+
 73 sensitive-path detection rules, validated against rules/_schema.json. Existing ruleset edits hot-reload in unpacked runs; packaged ASAR watchers are disabled. Extend by adding a .yaml to rules/ and reloading or restarting; sensitive-rule IDs must be unique and duplicates are skipped. Sequence correlations live separately in rules/sequences/: keep their IDs unique across files because the sequence loader currently does not reject cross-file duplicates.
 
 ## Documentation
