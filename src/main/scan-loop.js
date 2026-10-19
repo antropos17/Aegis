@@ -18,6 +18,7 @@ const tokenTracker = require('./token-tracker');
 const { collectTokenCosts, getTokenCostDelivery } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
+const { projectToolContext, toolContextKey } = require('./tool-context-record');
 const { identify } = require('./process-identity');
 const { STARTUP_MS, WARMUP_MS, warmupProcessSchedule } = require('./scan-schedule');
 
@@ -154,6 +155,7 @@ function updateScanStatus(entering) {
  * @since v0.3.0
  */
 function dedupFileEvent(ev, sensor = 'file-watch') {
+  if (ev.toolContext !== undefined) ev.toolContext = projectToolContext(ev.toolContext);
   // Audit admission precedes live display/sequence dedup. Historical delivery
   // must not alter which observations the live sequence state machine consumes.
   if (ev.sensitive === true && deps.securityEvents) logAuditForFile(ev, true, sensor);
@@ -161,6 +163,11 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
     typeof ev.instanceId === 'string' && ev.instanceId.length > 0 ? ev.instanceId : null;
   // F-E03: no genuine process key → no shared process bucket.
   if (instanceId === null) {
+    if (ev.repeatCount == null) ev.repeatCount = 1;
+    return ev;
+  }
+  const contextKey = toolContextKey(ev.toolContext);
+  if (contextKey === null) {
     if (ev.repeatCount == null) ev.repeatCount = 1;
     return ev;
   }
@@ -181,6 +188,7 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
     ev.category,
     attribution?.status,
     evidence,
+    contextKey,
   ]);
   const now = Date.now();
   const prev = eventDedupMap.get(key);
@@ -225,6 +233,7 @@ function logAuditForFile(ev, securityAdmission = false, sensor = 'file-watch') {
     // would break the hash chain. It does not: verifyChain rebuilds each record's
     // preimage from that record's own fields, so v0 and v1 lines coexist in one file.
     attribution: ev.attribution ?? null,
+    ...(ev.toolContext === undefined ? {} : { toolContext: projectToolContext(ev.toolContext) }),
   };
   if (ev.sensitive === true && deps.securityEvents) {
     if (!securityAdmission) return;
@@ -525,6 +534,8 @@ function doNetworkScan() {
             conn.remoteIp,
             conn.remotePort,
           );
+          if (conn.toolContext !== undefined)
+            conn.toolContext = projectToolContext(conn.toolContext);
           const connectionAudit = {
             agent: conn.agent,
             pid: conn.pid ?? null,
@@ -532,6 +543,7 @@ function doNetworkScan() {
             // socket matched no agent in that scan.
             instanceId: conn.instanceId ?? null,
             action: conn.state,
+            ...(conn.toolContext === undefined ? {} : { toolContext: conn.toolContext }),
             path: `${conn.remoteIp}:${conn.remotePort}`,
             severity: conn.flagged ? 'high' : 'normal',
             // The owner came from the OS connection table and was matched inside this same
