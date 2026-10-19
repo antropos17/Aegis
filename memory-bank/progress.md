@@ -3134,3 +3134,23 @@ No filesystem provider, production caller, profile discovery, IPC/UI, policy
 routing or hook activation. Trusted IO qualification, external-writer coordination,
 callback bounds and private-storage durability/recovery remain integration work.
 Configured status supplies no Observed or Blocking verified evidence.
+
+## W9 isolated dormant preload bridge qualification — 2026-10-19
+
+Added an opt-in Windows fixture loading the production Observatory, unchanged
+preload and real Electron IPC with an actual dormant ETW health leaf. The rest
+of the booting stats/settings envelope is explicit fixture data. It checks
+rendered state/reason, native absence, keyboard routes, reduced motion and a real
+IPC omission/restoration control. See [the method and limits](../docs/bench/COVERAGE-PRELOAD.md).
+
+Independent source/security and test/evidence reviews passed after watchdog,
+termination and pipe-drain corrections. R3 adds an assertion-killed/restored
+root-exit guard mutant; R2 deadline/latch mutants remain historical. Final
+affected support controls and five static checks passed. After merge-master, a
+fresh production build and actual bridge journey passed with confirmed shutdown
+and owned-profile cleanup; all four frozen source hashes were preserved.
+
+The final app batch took 13.340 seconds; source hashes cover 642 inputs. Screenshots
+match the reviewed 1200x800 and 900x600 renders. No normal startup, production
+getStats/authorization, descendant supervision, packaged helper, native delivery,
+provider, enforcement or full W9 acceptance is established.
