@@ -3361,3 +3361,28 @@ installer execution, release or full W10 acceptance is supplied. Only explicit
 trust/configuration writes are excluded; normal Windows cache/network effects
 remain unmeasured. Acceptance requires exit 0 plus matching complete fresh
 receipts; pass-looking output after a failed flush/close is insufficient.
+
+## Session handoff — offline paired task latency (2026-10-19)
+
+A bounded evaluator and CLI now compare three declared alternating enabled/
+disabled task pairs. Common identities and explicit monitoring treatment are
+separate. All planned rows/outcomes remain visible; missing, non-success,
+unverified or incomparable eligible evidence suppresses whole-cohort latency.
+Each repetition retains its own median p50, nearest-rank p95, signed deltas and
+paired ratios. Zero baseline percentages remain null; no repetitions are pooled.
+
+Independent review found that R1 admitted successful completions beyond their
+planned timeout/exposure. R2 adds fixed suppression reasons while retaining raw
+outcomes and elapsed time; exact equality is allowed and no tolerance is inferred.
+Three new controls failed before the fix; the final affected suite passed 70.
+A copied deadline-guard mutant failed its intended assertion. R1's 120 tests
+(62 new/58 unchanged dependency) and two other mutants remain historical.
+
+Source/correctness and test/evidence reviews accepted R2. Four frozen sources,
+25 R2 artifacts, 20 reuse bindings and 63 preserved R1 inputs match. The guide's
+executed example is synthetic (100/120 ms); the explicit incomplete packet keeps
+null metrics. METHOD and Completion tools link to the new contract.
+
+Supplied declarations/hashes prove no authentic capture, prior freezing, complete
+cohort or independent evaluator. No actual task latency, provider/native run,
+calibrated overhead, reproducibility or full W8 acceptance is claimed.
