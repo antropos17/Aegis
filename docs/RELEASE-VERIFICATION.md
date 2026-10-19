@@ -136,6 +136,19 @@ that was renamed on upload *and* altered afterwards shows up as exactly that pai
 In every one of those cases, do not run the installer. Re-download from the Release page
 and check again; if it still fails, open an issue with the output.
 
+## Offline WinGet candidate preparation
+
+`node scripts/prepare-winget.cjs --help` describes an offline generator for three
+candidate WinGet manifests. It reuses this release verifier to authenticate the
+local manifest with the repository public key and check the explicitly selected
+installer's bytes. Its URL checks bind caller-supplied GitHub repository/tag/file
+metadata without fetching that URL. Publisher, package metadata and payload
+architecture remain explicit caller inputs; registry/scope values are omitted.
+See [the WinGet preparation guide](../packaging/winget/README.md) for inputs,
+output ownership and remaining download, metadata, WinGet validation and
+clean-machine install/upgrade/uninstall qualification. Candidate preparation
+does not establish Authenticode signing or complete packaging workstream W10.
+
 ## Release notes
 
 `release-please-config.json` uses `changelog-type: github`: GitHub generates the
