@@ -207,19 +207,15 @@ it('keeps the section in the existing modal overview and preserves keyboard tab 
     refreshFalsePositives: vi.fn(),
   });
   expect(await screen.findByRole('region', { name: 'Preceding tool call' })).toBeInTheDocument();
-  const overview = screen.getByRole('tab', { name: 'Overview', exact: true });
+  const overview = screen.getByRole('tab', { name: 'Overview' });
   overview.focus();
   await fireEvent.keyDown(overview, { key: 'ArrowRight' });
-  await waitFor(() =>
-    expect(screen.getByRole('tab', { name: 'Attributes', exact: true })).toHaveFocus(),
-  );
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'Attributes' })).toHaveFocus());
   expect(screen.queryByRole('region', { name: 'Preceding tool call' })).toBeNull();
-  await fireEvent.keyDown(screen.getByRole('tab', { name: 'Attributes', exact: true }), {
+  await fireEvent.keyDown(screen.getByRole('tab', { name: 'Attributes' }), {
     key: 'Home',
   });
-  await waitFor(() =>
-    expect(screen.getByRole('tab', { name: 'Overview', exact: true })).toHaveFocus(),
-  );
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'Overview' })).toHaveFocus());
   expect(screen.getByRole('region', { name: 'Preceding tool call' })).toBeInTheDocument();
   expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
 });
