@@ -3154,3 +3154,25 @@ The final app batch took 13.340 seconds; source hashes cover 642 inputs. Screens
 match the reviewed 1200x800 and 900x600 renders. No normal startup, production
 getStats/authorization, descendant supervision, packaged helper, native delivery,
 provider, enforcement or full W9 acceptance is established.
+
+## W6 Windows owned-target IO prerequisite — 2026-10-19
+
+Added a framework-only existing-file transaction library with retained original
+identity, exact current-byte comparison, guarded in-place write, flush/readback
+and conservative uncertain outcomes. Ordinary writer/deleter sharing is excluded
+during commit; native modification timestamps remain visible. See
+[the supported environment and limits](../docs/CLAUDE-HOOK-WINDOWS-TARGET.md).
+
+Validation on Windows10.0.26200 x64/.NET10.0.10: fourteen native fixture groups
+passed and eight copied-source mutants failed their intended assertions. Build
+reported zero warnings/errors. Independent source/security/test/docs reviews
+passed; all eight frozen raw source hashes survived merge-master integration.
+Original mutation evidence binds source, build, run and logs. A separately
+verified supplement records retained executable/DLL/input hashes after execution;
+it does not supply pre-execution binary attestation. Unchanged native checks
+were reused after unrelated main/renderer changes.
+
+No production caller, Node bridge, profile discovery, backup store, installer,
+hook execution or complete W6/IO-provider qualification. Trusted local NTFS
+targets only; hostile metadata/security actors, crash-atomicity and reader
+isolation remain outside the qualified contract. No existing ACL changes.
