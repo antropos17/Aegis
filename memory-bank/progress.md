@@ -3024,6 +3024,15 @@ Earlier R1 and integration matrices remain separate evidence. The existing nativ
 Electron smoke script now includes the route; only its syntax/lint/format were
 checked in this slice.
 
+Hosted CI then found a missing curated Coverage icon and two navigation tests
+with stale destination counts. R3 adds the pinned MIT Tabler shield-search icon
+with exact provenance, retains the original geometry and uniqueness guards,
+and verifies the fifteenth Advanced destination and Coverage route. All 45
+affected R3 tests passed, with one assertion-killed mapping mutation restored.
+Fresh dark/light renders matched the upstream SVG paths; configured types,
+Svelte, both builds, scoped lint/format and independent review passed. The W8
+master integration preserved all sixteen frozen source hashes.
+
 This view reports the existing host data contract. Native admission remains
 unsupported, and per-agent action provenance, rates and verified blocking remain
 unreported. Real Electron/preload, native/provider and complete W9 acceptance
