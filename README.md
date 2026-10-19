@@ -55,8 +55,9 @@ install 0.15.0-alpha or newer manually before using signed in-app updates.
 
 ### From source
 
-Requires Node.js 24.x. Source uses Electron 44 and 64-bit platforms; macOS requires
-version 13 or later. Windows 10/11 is primary; macOS/Linux remain experimental.
+Requires Node.js 24.16.0 or later in the 24.x line. Source uses Electron 44 and
+64-bit platforms; macOS requires version 13 or later. Windows 10/11 is primary;
+macOS/Linux remain experimental.
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git

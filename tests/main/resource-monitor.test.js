@@ -141,13 +141,22 @@ describe('resource-monitor', () => {
   });
 
   describe('_parseGpuCsv()', () => {
-    it('sums repeated PID readings across GPU rows independently of row order', () => {
-      const rows = ['100, N/A', '100, 512', '200, 1024', '100, 256', '100, 0', '100, N/A'];
+    it('sums complete repeated PID readings across GPU rows independently of row order', () => {
+      const rows = ['100, 512', '200, 1024', '100, 256', '100, 0'];
       for (const orderedRows of [rows, [...rows].reverse()]) {
         const map = _parseGpuCsv(orderedRows.join('\n'));
         expect(map.get(100)).toBe(768);
         expect(map.get(200)).toBe(1024);
         expect(map.size).toBe(2);
+      }
+    });
+
+    it('does not report a partial total when any GPU row for that PID is unavailable', () => {
+      for (const unavailable of ['N/A', '[N/A]', '[Not Supported]', '', '-1', '12oops']) {
+        const rows = ['100, 512', `100, ${unavailable}`, '200, 1024', '100, 256'];
+        for (const orderedRows of [rows, [...rows].reverse()]) {
+          expect([..._parseGpuCsv(orderedRows.join('\n'))]).toEqual([[200, 1024]]);
+        }
       }
     });
 
@@ -194,6 +203,21 @@ describe('resource-monitor', () => {
   });
 
   describe('getResourcesByPid() — happy path', () => {
+    it('retains CPU/RAM and identity while an incomplete multi-GPU total stays unknown', async () => {
+      const exec = makeExec({ gpu: true });
+      _setExecForTest((command, args, options) =>
+        args[0].includes('query-compute-apps')
+          ? Promise.resolve('100, 512\n100, [N/A]\n200, 0')
+          : exec(command, args, options),
+      );
+      const rows = await getResourcesForPids([
+        { pid: 100, instanceId: '100:birth' },
+        { pid: 200, instanceId: '200:birth' },
+      ]);
+      expect(rows[0]).toMatchObject({ instanceId: '100:birth', memMb: 72, gpu: null });
+      expect(rows[1]).toMatchObject({ instanceId: '200:birth', gpu: { memMb: 0 } });
+    });
+
     it('returns normalized cpu, memMb, and per-PID gpu memory', async () => {
       _setExecForTest(makeExec({ gpu: true }));
       const r = await getResourcesByPid(100);
