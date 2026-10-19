@@ -204,6 +204,10 @@ on/off calibration runs using an independent resource reference, with uncertaint
 Keep raw enabled, baseline and calibration observations; an uncalibrated collector
 cannot support a calibrated overhead claim. Legacy arm C supplies neither control.
 
+The [offline paired task scorer](PAIRED-TASK-LATENCY.md) retains planned outcomes
+and computes completion-latency estimates separately for each repetition. It
+collects no tasks and supplies no measured or calibrated overhead acceptance.
+
 ## Estimation, variance and refusal
 
 For this future protocol, p50 is the median of sorted valid samples, averaging
