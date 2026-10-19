@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(CedarLayoutFile)" Condition="Exists('$(CedarLayoutFile)')" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>aegis-cedar-job</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseSharedCompilation>false</UseSharedCompilation>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Native.cs;RetentionJob.cs;OwnedJob.cs;Child.cs;Protocol.cs;Program.cs;Layout.cs" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CedarRuntime</_Parameter1><_Parameter2>$(CedarRuntimePath)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CedarRuntimeHash</_Parameter1><_Parameter2>$(CedarRuntimeHash)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CedarEntry</_Parameter1><_Parameter2>$(CedarEntryPath)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CedarEntryAsset</_Parameter1><_Parameter2>$(CedarEntryAsset)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CedarEntryHash</_Parameter1><_Parameter2>$(CedarEntryHash)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <Target Name="RequireCedarLayout" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(CedarLayoutFile)') Or '$(CedarRuntimePath)' == '' Or '$(CedarRuntimeHash)' == '' Or '$(CedarEntryPath)' == '' Or '$(CedarEntryAsset)' == '' Or '$(CedarEntryHash)' == ''" Text="Explicit owner-generated Cedar layout and pins required." />
+  </Target>
+</Project>
