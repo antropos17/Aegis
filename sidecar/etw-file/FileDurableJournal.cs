@@ -110,6 +110,7 @@ internal sealed class FileDurableJournal : IDisposable
             throw new UnauthorizedAccessException();
         using var journal = new FileDurableJournal();
         var old = journal.Read(); int recovered = 0; uint? denied = null;
+        bool? previousSameScope = old == null ? null : FileDurableRecovery.SameScope(old, self);
         if (old != null)
         {
             if (!FileDurableRecovery.SameScope(old, self))
@@ -138,7 +139,8 @@ internal sealed class FileDurableJournal : IDisposable
         if (status != 0) throw new Win32Exception(status);
         status = RegFlushKey(journal.key); // Durable before the reserved ACK allows StartTrace.
         if (status != 0) throw new Win32Exception(status);
-        return new(recovered, denied, true, null);
+        return new(recovered, denied, true, null, FileDurableRecovery.Digest(lease),
+            old == null ? null : FileDurableRecovery.Digest(old), previousSameScope);
     }
 
     internal static void Retire(string reservation)

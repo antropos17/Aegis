@@ -5,13 +5,24 @@ namespace Aegis.EtwLifecycle;
 internal sealed record FileOrphanEndpoint(string id, int pid, string birth);
 internal sealed record FileOrphanSetup(int mainPid, string mainBirth, string? observer);
 internal sealed record FileOrphanLease(string guid, JsonElement peers, string? observer);
-internal sealed record FileOrphanNotice(string kind, int custodianPid, string custodianBirth, int[] originalPids);
+internal sealed record FileOrphanNotice(string kind, int custodianPid, string custodianBirth, int[] originalPids,
+    string journalDigest, string? previousJournalDigest, bool? previousSameScope);
 internal sealed record FileOrphanPhase(string kind);
 internal sealed record FileOrphanTerminal(string kind, bool recovered, bool absent, int[] exits,
     uint queryStatus, uint? restrictedProbeStatus, bool observationGap, object? finalTotals);
 
 internal static class FileOrphanWire
 {
+    internal static FileOrphanNotice ParseNotice(JsonElement value)
+    {
+        FileWire.Shape(value, "kind", "custodianPid", "custodianBirth", "originalPids",
+            "journalDigest", "previousJournalDigest", "previousSameScope");
+        var notice = value.Deserialize<FileOrphanNotice>() ?? throw new InvalidDataException();
+        if (!FileDurableRecovery.ValidDigest(notice.journalDigest) ||
+            (notice.previousJournalDigest != null && !FileDurableRecovery.ValidDigest(notice.previousJournalDigest)) ||
+            (notice.previousJournalDigest == null) != (notice.previousSameScope == null)) throw new InvalidDataException();
+        return notice;
+    }
     internal static FileOrphanEndpoint? Observer(string? value)
     {
         if (value == null) return null;

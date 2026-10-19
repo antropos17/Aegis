@@ -3504,3 +3504,24 @@ registry packages and retains all twenty other existing package blocks.
 This prerequisite adds no sensor adapter or executable. Native linkage, SDK ABI,
 permissions, live generation semantics, platform versions and full W3 acceptance
 remain open. Portable tests and cross-checks do not establish native execution.
+
+## Session handoff — owner restart qualification harness (2026-10-19)
+
+The protocol-10 diagnostic harness prepares an owner-controlled Windows Restart,
+then resumes or cancels after checking immutable boot, source, package,
+configuration, native and saved-preparation bindings before UAC. Live complete
+protected-record correlation uses the authenticated observer after owner consent.
+A supported build-only producer returns before desktop launch or capture. Fixture reads await a matching
+PID/full-birth preparation acknowledgement and retain the event-time oracle.
+Private observer digests add correlation without changing cleanup authority.
+
+Independent R3 review accepted phase-specific cancellation and negative read-barrier
+checks. The final six-suite gate passed 123 tests; three R3 assertion mutants were
+killed and restored. Historical R2 evidence is corrected to ten caught JS mutants
+and one survivor; it is retained separately from R3. Unchanged native inputs reuse
+the R2 zero-warning build, 128 non-capture fixtures and two native mutations.
+
+No actual package build, UAC, Restart, owner recovery or live capture was run.
+Changed native qualification metadata makes the prior #986 native receipt
+historical for this candidate. Current-package qualification, W11/T1 acceptance
+and production admission remain pending; launchAllowed=false is unchanged.
