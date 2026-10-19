@@ -2873,6 +2873,24 @@ Independent documentation/source review passed. The selected runtime and receipt
 hashes were rechecked after merging current master. No restart, elevated capture,
 package qualification or runtime change was performed by this documentation block.
 
+## Session handoff — W1a Rust wire codec (2026-10-19)
+
+The pinned Rust workspace contains only shared files and the pure `aegis-wire`
+crate. Its typed codec and terminal framed decoder use the same 27 literal
+sensor-wire goldens as JavaScript. Admission rejects unknown protocols,
+duplicate keys, invalid identities and over-budget structures before building
+excess JSON nodes. Array, object and structural-node limits are explicit.
+
+Local Windows MSVC checks passed 28 tests, rustfmt and all-target Clippy. The
+resource-limit revision passed three targeted assertion mutations after earlier
+revision-specific mutation checks; restored source hashes and separate security,
+test-quality and documentation reviews are retained in external receipts. The
+installed pinned compiler matches the qualified 1.99.1 compiler bytes.
+
+This block provides no native provider, sensor host/session state or packaged
+application acceptance. Full W1a and owner wire confirmation remain open until
+the reviewed PR and exact required repository gates complete.
+
 ## Session handoff — W5 explicit Cedar execution slice (2026-10-19)
 
 The optional schema-4 execution policy uses the pinned official Cedar WASM

@@ -16,8 +16,8 @@ separate states for implemented, verified and owner-pending work.
 Execution refresh (2026-10-19): Wave 0 starts from master `ae1b8418`, which
 includes #986's idle first-read attribution fix and qualification. W0 must
 evaluate that evidence before scheduling W11 block 1. The source package's
-`bf65076` baseline above is retained as revision history. Rust installation is
-deferred; this bootstrap and Wave 0 do not install a Rust toolchain.
+`bf65076` baseline above is retained as revision history. At that bootstrap
+checkpoint Rust installation was deferred; Wave 0 installed no Rust toolchain.
 
 Wave 0 findings are recorded in [completion-baseline.md](completion-baseline.md).
 Its Q1–Q11 rows establish the implementation and evidence boundaries for later
@@ -28,13 +28,13 @@ later implementation starts only within the owner's requested scope.
 W1-pipe execution (2026-10-19): the owner authorized this block through merge in
 a fresh worktree. Its delivery contract, qualification and evidence limits are
 recorded in [w1-pipe.md](w1-pipe.md). W1a and W1b remain separate work; Rust
-installation is still deferred.
+installation was still deferred at that checkpoint.
 
 W1a JavaScript preparation (2026-10-19): [sensor-wire.md](sensor-wire.md)
 records the resolved identity representation, owned D1 context, exact message
 shapes and strict parser decisions. [w1a-js.md](w1a-js.md) records implementation,
 review corrections and scoped verification. This is a JS preparation slice; the
-deferred Rust implementation and both-language gates still prevent full W1a acceptance.
+Rust implementation and both-language gates remain required for full W1a acceptance.
 
 W8 Wave 1 preparation (2026-10-19): [the measurement method](../bench/METHOD.md)
 defines the prospective effectiveness and resource protocol, existing harness
@@ -46,6 +46,14 @@ This document is the work order for the orchestrator. It defines the target, the
 fixed constraints, how work is split across agents, each workstream with its
 acceptance criteria, the execution order and the actions that stay with the
 human owner.
+
+Ten-hour execution update (2026-10-19): the owner authorized necessary tooling
+and autonomous development through 15:57 UTC. Rust 1.99.1 MSVC, rustfmt and
+Clippy are installed on X with process-local activation. The pinned workspace
+and pure `aegis-wire` codec are prepared for review; both-language acceptance,
+owner wire confirmation and merge remain required before W1b starts. Local Rust
+checks establish the Windows MSVC crate boundary, not Linux/macOS providers or
+packaged application qualification.
 
 ## 1. Instruction priority
 
@@ -729,7 +737,7 @@ Wave 0  W0 (parallel researchers) -> completion-baseline.md merged
         -> plan deviations recorded before any writer starts
 Wave 1  W1-pipe; Q4 identity decisions before W1a wire freeze
         W1a (JS codec + shared Rust files + aegis-wire;
-             completion waits for the deferred Rust prerequisite)
+             completion waits for both-language wire acceptance)
         -> W1b after both prerequisites merge (integration-engineer)
         W11 blocks 1-2 (Windows writer)
         W8 measurement method drafted (bench-engineer)
