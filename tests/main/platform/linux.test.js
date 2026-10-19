@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import linux from '../../../src/main/platform/linux.js';
+import fs from 'node:fs';
+import identity from '../../../src/main/platform/sensor-identity.js';
 
 describe('linux exec-based functions', () => {
   let mockExecFile;
@@ -11,6 +13,59 @@ describe('linux exec-based functions', () => {
 
   afterEach(() => {
     linux._setExecFileForTest(null);
+    vi.restoreAllMocks();
+  });
+
+  it('shares its actual reader pinned context with sensor conversion and withdraws it on failure', async () => {
+    const bootId = '11111111-1111-4111-8111-111111111111';
+    let seconds = '1700000000';
+    let broken = false;
+    const read = fs.readFileSync.bind(fs);
+    const readdir = fs.readdirSync.bind(fs);
+    const fields = Array(20).fill('0');
+    fields[0] = 'S';
+    fields[1] = '1';
+    fields[19] = '12345';
+    const record = `100 (node) ${fields.join(' ')}`;
+    const readSpy = vi.spyOn(fs, 'readFileSync').mockImplementation((file, ...args) => {
+      if (file === '/proc/sys/kernel/random/boot_id') return bootId;
+      if (file === '/proc/stat') return `btime ${seconds}\n`;
+      if (file === '/proc/100/stat') return broken ? 'invalid' : record;
+      return read(file, ...args);
+    });
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dir, ...args) =>
+      dir === '/proc' ? ['100'] : readdir(dir, ...args),
+    );
+    mockExecFile.mockImplementation((cmd, _args, _opts, cb) =>
+      cb(null, cmd === 'getconf' ? '100' : '100 1 node\n'),
+    );
+    expect(linux.getProcessBirthContext()).toBeNull();
+    const first = await linux.getParentProcessMap();
+    const context = linux.getProcessBirthContext();
+    expect(context).toEqual({ bootId, bootTimeSeconds: '1700000000', clockTicks: '100' });
+    expect(Object.isFrozen(context)).toBe(true);
+    const reads = readSpy.mock.calls.length;
+    expect(linux.getProcessBirthContext()).not.toBe(context);
+    expect(readSpy).toHaveBeenCalledTimes(reads);
+    seconds = '1700003600';
+    const second = await linux.getParentProcessMap();
+    const converted = identity.convertSensorIdentity(
+      {
+        birth: '12345',
+        identityError: null,
+        witness: { kind: 'linux-start-ticks', bootId, startTicks: '12345' },
+      },
+      { platform: 'linux', linuxContext: linux.getProcessBirthContext() },
+    );
+    expect(second.get(100)).toEqual(first.get(100));
+    expect(converted.startTime).toBe(1700000123450);
+    expect(converted.witness).toBe(second.get(100).witness);
+    broken = true;
+    expect((await linux.getParentProcessMap()).get(100).startTime).toBeNull();
+    expect(linux.getProcessBirthContext()).toBeNull();
+    broken = false;
+    await linux.getParentProcessMap();
+    expect(linux.getProcessBirthContext()).toEqual(context);
   });
 
   describe('PID validation', () => {

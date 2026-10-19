@@ -238,6 +238,7 @@ module.exports = {
   listProcesses,
   getParentProcessMap: processMapReader.getParentProcessMap,
   getSnapshotHealth: processMapReader.getSnapshotHealth,
+  getProcessBirthContext: processMapReader.getBirthContext,
   getRawTcpConnections,
   getFileHandles,
   getProcessCwd,

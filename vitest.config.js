@@ -190,6 +190,7 @@ export default defineConfig({
         'src/main/llm-runtime-detector.js',
         'src/main/platform/posix-shared.js',
         'src/main/platform/proc-snapshot-protocol.js',
+        'src/main/platform/sensor-*.js',
         'src/main/platform/etw-file-protocol.js',
         'src/main/platform/etw-file-schema.js',
         'src/main/platform/etw-file-health.js',

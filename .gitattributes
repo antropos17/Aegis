@@ -10,6 +10,9 @@
 # these are excluded from conversion in both directions.
 tests/fixtures/bench/** -text
 
+# Sensor wire goldens are byte-exact length-prefixed UTF-8 payloads.
+tests/fixtures/sensor-wire/*.bin -text
+
 # The release signing public key is compared and parsed byte for byte. `* text=auto`
 # above would hand a Windows checkout - including the windows-latest release runner -
 # a CRLF PEM, so this file is excluded from conversion in both directions.

@@ -2767,3 +2767,26 @@ this pre-merge handoff does not substitute for that evidence. Preserve receipts
 under `X:/tmp/aegis-w1-pipe-20261019/`. W1a's Rust prerequisite stays deferred;
 W1b depends on merged W1a as well as W1-pipe. No release, native-sensor acceptance
 or protected-session launch enablement is included.
+
+## Session handoff — W1a JavaScript preparation (2026-10-19)
+
+Continuation after merged W1-pipe prepares the JavaScript half of W1a in a fresh
+worktree from master `dbeb5edc`. The pure wire codec, raw/composite identity
+helpers, host-owned Linux D1 context and independent binary/JSON fixtures are
+described in [sensor-wire.md](../docs/roadmap/sensor-wire.md) and
+[the scoped evidence report](../docs/roadmap/w1a-js.md).
+
+Independent review corrections cover accessor/array projection bypasses,
+native-Promise classification and its explicit rejection-observation limit,
+exact framing oracles, proxied chunks and linear unknown-key admission.
+Author-run focused tests and private mutation controls are recorded with frozen
+input hashes. The PR and external completion tracker carry the final revision,
+required hosted CI result and owner-review status; this handoff does not assert
+a completed merge or replace those gates.
+
+Rust installation remains deferred. The Rust workspace/crate and both-language
+golden gates are prerequisites for full W1a acceptance and final wire freeze;
+W1b and native provider acceptance remain open. Preserve the original dirty
+checkout and finite receipts. C: free space fluctuated below the local batch
+threshold; full repository checks use hosted CI, with no global cleanup,
+service/settings changes or claimed permanent fix for that allocation.

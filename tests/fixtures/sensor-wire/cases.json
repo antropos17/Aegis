@@ -1,0 +1,137 @@
+[
+  {
+    "name": "hello-ebpf",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"hello\",\"proto\":\"sensor/1\",\"platform\":\"linux\",\"mode\":\"ebpf\",\"modes\":[\"ebpf\"],\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"bpf-start-boottime-ticks\",\"witness\":\"boot-id\"},\"versions\":{\"sensor\":\"fixture/1\",\"kernel\":\"fixture-os\",\"clockAnchor\":{\"clock\":\"boottime\",\"monotonicUsec\":\"0\",\"unixUsec\":\"1700000000000000\"}},\"pid\":42}"
+  },
+  {
+    "name": "mode-ebpf",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"mode\",\"mode\":\"ebpf\",\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"bpf-start-boottime-ticks\",\"witness\":\"boot-id\"},\"reason\":\"requested\",\"seq\":\"9007199254740993\"}"
+  },
+  {
+    "name": "hello-fanotify",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"hello\",\"proto\":\"sensor/1\",\"platform\":\"linux\",\"mode\":\"fanotify\",\"modes\":[\"fanotify\"],\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"procfs-ticks\",\"witness\":\"boot-id\"},\"versions\":{\"sensor\":\"fixture/1\",\"kernel\":\"fixture-os\",\"clockAnchor\":{\"clock\":\"boottime\",\"monotonicUsec\":\"0\",\"unixUsec\":\"1700000000000000\"}},\"pid\":42}"
+  },
+  {
+    "name": "mode-fanotify",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"mode\",\"mode\":\"fanotify\",\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"procfs-ticks\",\"witness\":\"boot-id\"},\"reason\":\"requested\",\"seq\":\"9007199254740993\"}"
+  },
+  {
+    "name": "hello-procfs",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"hello\",\"proto\":\"sensor/1\",\"platform\":\"linux\",\"mode\":\"procfs\",\"modes\":[\"procfs\"],\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"procfs-ticks\",\"witness\":\"boot-id\"},\"versions\":{\"sensor\":\"fixture/1\",\"kernel\":\"fixture-os\",\"clockAnchor\":{\"clock\":\"boottime\",\"monotonicUsec\":\"0\",\"unixUsec\":\"1700000000000000\"}},\"pid\":42}"
+  },
+  {
+    "name": "mode-procfs",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"mode\",\"mode\":\"procfs\",\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"procfs-ticks\",\"witness\":\"boot-id\"},\"reason\":\"requested\",\"seq\":\"9007199254740993\"}"
+  },
+  {
+    "name": "hello-endpoint-security",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"hello\",\"proto\":\"sensor/1\",\"platform\":\"darwin\",\"mode\":\"endpoint-security\",\"modes\":[\"endpoint-security\"],\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"pbi-start-usec\",\"witness\":\"p-uniqueid\"},\"versions\":{\"sensor\":\"fixture/1\",\"os\":\"fixture-os\",\"clockAnchor\":{\"clock\":\"mach-continuous\",\"monotonicUsec\":\"0\",\"unixUsec\":\"1700000000000000\"}},\"pid\":42}"
+  },
+  {
+    "name": "mode-endpoint-security",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"mode\",\"mode\":\"endpoint-security\",\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":true,\"tcpConnect\":false,\"identity\":\"pbi-start-usec\",\"witness\":\"p-uniqueid\"},\"reason\":\"requested\",\"seq\":\"9007199254740993\"}"
+  },
+  {
+    "name": "hello-libproc",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"hello\",\"proto\":\"sensor/1\",\"platform\":\"darwin\",\"mode\":\"libproc\",\"modes\":[\"libproc\"],\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":false,\"tcpConnect\":false,\"identity\":\"pbi-start-usec\",\"witness\":\"p-uniqueid\"},\"versions\":{\"sensor\":\"fixture/1\",\"os\":\"fixture-os\",\"clockAnchor\":{\"clock\":\"mach-continuous\",\"monotonicUsec\":\"0\",\"unixUsec\":\"1700000000000000\"}},\"pid\":42}"
+  },
+  {
+    "name": "mode-libproc",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"mode\",\"mode\":\"libproc\",\"caps\":{\"exec\":true,\"exit\":true,\"fork\":true,\"fileOpen\":false,\"tcpConnect\":false,\"identity\":\"pbi-start-usec\",\"witness\":\"p-uniqueid\"},\"reason\":\"requested\",\"seq\":\"9007199254740993\"}"
+  },
+  {
+    "name": "events-linux",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"evs\",\"from\":\"9007199254740993\",\"to\":\"9007199254740997\",\"events\":[{\"seq\":\"9007199254740993\",\"kind\":\"exec\",\"pid\":42,\"ppid\":1,\"birth\":\"12345\",\"witness\":{\"kind\":\"linux-start-ticks\",\"bootId\":\"11111111-1111-4111-8111-111111111111\",\"startTicks\":\"12345\"},\"identityError\":null,\"ts\":\"0\",\"exe\":\"/fixture/agent\",\"argc\":3},{\"seq\":\"9007199254740994\",\"kind\":\"open\",\"pid\":42,\"ppid\":1,\"birth\":\"12345\",\"witness\":{\"kind\":\"linux-start-ticks\",\"bootId\":\"11111111-1111-4111-8111-111111111111\",\"startTicks\":\"12345\"},\"identityError\":null,\"ts\":\"1700000000000123\",\"path\":\"/fixture/δοκιμή/🧪.txt\",\"access\":\"read-write\"},{\"seq\":\"9007199254740995\",\"kind\":\"connect\",\"pid\":42,\"ppid\":1,\"birth\":null,\"witness\":null,\"identityError\":\"read-failed\",\"ts\":\"1700000000000123\",\"family\":4,\"daddr\":\"192.0.2.1\",\"dport\":443,\"saddr\":\"192.0.2.2\",\"sport\":0},{\"seq\":\"9007199254740996\",\"kind\":\"fork\",\"pid\":42,\"ppid\":1,\"birth\":null,\"witness\":null,\"identityError\":\"process-gone\",\"ts\":\"1700000000000123\"},{\"seq\":\"9007199254740997\",\"kind\":\"exit\",\"pid\":42,\"ppid\":1,\"birth\":null,\"witness\":null,\"identityError\":\"not-supported\",\"ts\":\"1700000000000123\"}]}"
+  },
+  {
+    "name": "snapshot-linux",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"snap\",\"id\":4294967295,\"procs\":[{\"pid\":42,\"ppid\":1,\"name\":\"fixture-δοκιμή-🧪\",\"birth\":\"12345\",\"witness\":{\"kind\":\"linux-start-ticks\",\"bootId\":\"11111111-1111-4111-8111-111111111111\",\"startTicks\":\"12345\"},\"identityError\":null},{\"pid\":43,\"ppid\":42,\"name\":\"fixture-unavailable\",\"birth\":null,\"witness\":null,\"identityError\":\"read-failed\"}]}"
+  },
+  {
+    "name": "watch-linux",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"watch\",\"id\":1,\"roots\":[{\"pid\":42,\"birth\":\"0\",\"witness\":{\"kind\":\"linux-start-ticks\",\"bootId\":\"11111111-1111-4111-8111-111111111111\",\"startTicks\":\"0\"}}],\"descendants\":true}"
+  },
+  {
+    "name": "events-darwin",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"evs\",\"from\":\"9007199254740993\",\"to\":\"9007199254740997\",\"events\":[{\"seq\":\"9007199254740993\",\"kind\":\"exec\",\"pid\":42,\"ppid\":1,\"birth\":\"1700000000000123\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"},\"identityError\":null,\"ts\":\"0\",\"exe\":\"/fixture/agent\",\"argc\":3},{\"seq\":\"9007199254740994\",\"kind\":\"open\",\"pid\":42,\"ppid\":1,\"birth\":\"1700000000000123\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"},\"identityError\":null,\"ts\":\"1700000000000123\",\"path\":\"/fixture/δοκιμή/🧪.txt\",\"access\":\"read-write\"},{\"seq\":\"9007199254740995\",\"kind\":\"connect\",\"pid\":42,\"ppid\":1,\"birth\":\"1700000000000123\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"},\"identityError\":null,\"ts\":\"1700000000000123\",\"family\":6,\"daddr\":\"2001:db8::1\",\"dport\":443,\"saddr\":\"2001:db8::2\",\"sport\":0},{\"seq\":\"9007199254740996\",\"kind\":\"fork\",\"pid\":42,\"ppid\":1,\"birth\":\"1700000000000123\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"},\"identityError\":null,\"ts\":\"1700000000000123\"},{\"seq\":\"9007199254740997\",\"kind\":\"exit\",\"pid\":42,\"ppid\":1,\"birth\":\"1700000000000123\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"},\"identityError\":null,\"ts\":\"1700000000000123\"}]}"
+  },
+  {
+    "name": "snapshot-darwin",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"snap\",\"id\":4294967295,\"procs\":[{\"pid\":42,\"ppid\":1,\"name\":\"fixture-δοκιμή-🧪\",\"birth\":\"1700000000000123\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"},\"identityError\":null},{\"pid\":43,\"ppid\":42,\"name\":\"fixture-unavailable\",\"birth\":null,\"witness\":null,\"identityError\":\"read-failed\"}]}"
+  },
+  {
+    "name": "watch-darwin",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"watch\",\"id\":1,\"roots\":[{\"pid\":42,\"birth\":\"1700000000000999\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"9007199254740993\"}}],\"descendants\":true}"
+  },
+  {
+    "name": "loss-u64",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"loss\",\"from\":\"1\",\"to\":\"18446744073709551615\",\"count\":\"18446744073709551615\",\"reason\":\"ring-full\"}"
+  },
+  {
+    "name": "health",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"health\",\"state\":\"DEGRADED\",\"detail\":\"loss-observed\"}"
+  },
+  {
+    "name": "error",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"err\",\"id\":1,\"code\":\"root-mismatch\"}"
+  },
+  {
+    "name": "ack",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"ack\",\"id\":1}"
+  },
+  {
+    "name": "paths",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"paths\",\"id\":1,\"prefixes\":[\"/fixture/δοκιμή/🧪\",\"/fixture/other\"]}"
+  },
+  {
+    "name": "snapshot-request",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"snap\",\"id\":1}"
+  },
+  {
+    "name": "stop",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"stop\",\"id\":1}"
+  },
+  {
+    "name": "watch-empty",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"watch\",\"id\":1,\"roots\":[],\"descendants\":true}"
+  },
+  {
+    "name": "snapshot-empty",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"snap\",\"id\":1,\"procs\":[]}"
+  },
+  {
+    "name": "paths-empty",
+    "direction": "host-to-sensor",
+    "json": "{\"t\":\"paths\",\"id\":1,\"prefixes\":[]}"
+  },
+  {
+    "name": "event-u64-max",
+    "direction": "sensor-to-host",
+    "json": "{\"t\":\"evs\",\"from\":\"18446744073709551615\",\"to\":\"18446744073709551615\",\"events\":[{\"seq\":\"18446744073709551615\",\"kind\":\"exit\",\"pid\":2147483647,\"ppid\":0,\"birth\":\"18446744073709551615\",\"witness\":{\"kind\":\"macos-unique-id\",\"bootSessionId\":\"11111111-1111-4111-8111-111111111111\",\"pUniqueId\":\"18446744073709551615\"},\"identityError\":null,\"ts\":\"18446744073709551615\"}]}"
+  }
+]

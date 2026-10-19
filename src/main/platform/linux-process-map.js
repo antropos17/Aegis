@@ -7,6 +7,7 @@
 
 const sensor = require('../sensor-health');
 const { parseParentProcessMapFromPs } = require('./posix-shared');
+const { createLinuxBirthConverter } = require('./sensor-identity');
 
 /**
  * Parse one complete stat record. comm may contain spaces, parentheses or newlines;
@@ -38,7 +39,7 @@ function parseStat(text, expectedPid) {
  * Epoch values are therefore estimates in the first observed boot reference;
  * fresh kernel start ticks, not the wall clock, prove each process generation.
  * @param {{fs: typeof import('fs'), execFile: Function}} deps
- * @returns {{getParentProcessMap: Function, getSnapshotHealth: Function}}
+ * @returns {{getParentProcessMap: Function, getSnapshotHealth: Function, getBirthContext: Function}}
  * @since 0.15.0
  */
 function createProcessMapReader({ fs, execFile }) {
@@ -97,8 +98,14 @@ function createProcessMapReader({ fs, execFile }) {
       const match = fs.readFileSync('/proc/stat', 'utf8').match(/^btime (\d+)$/m);
       if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) <= 0)
         throw Error('boot-time');
-      if (!bootReference || bootReference.id !== bootId)
-        bootReference = { id: bootId, seconds: BigInt(match[1]) };
+      if (!bootReference || bootReference.id !== bootId) {
+        const context = Object.freeze({
+          bootId,
+          bootTimeSeconds: String(Number(match[1])),
+          clockTicks: String(hz),
+        });
+        bootReference = { id: bootId, context, convert: createLinuxBirthConverter(context) };
+      }
       const entries = fs.readdirSync('/proc').filter((entry) => /^\d+$/.test(entry));
       const map = new Map();
       for (const entry of entries) {
@@ -113,12 +120,11 @@ function createProcessMapReader({ fs, execFile }) {
         }
         const parsed = parseStat(text, pid);
         if (!parsed) throw Error('process-stat');
-        const millis = bootReference.seconds * 1000n + (parsed.ticks * 1000n) / BigInt(hz);
-        if (millis <= 0n || millis > BigInt(Number.MAX_SAFE_INTEGER)) throw Error('process-time');
+        const millis = bootReference.convert(parsed.ticks);
         map.set(pid, {
           name: parsed.name,
           ppid: parsed.ppid,
-          startTime: Number(millis),
+          startTime: millis,
           witness: `${bootId}:${parsed.ticks}`,
           witnessSource: 'linuxStartTicks',
         });
@@ -143,7 +149,19 @@ function createProcessMapReader({ fs, execFile }) {
     return sensor.toPlain(health);
   }
 
-  return { getParentProcessMap, getSnapshotHealth };
+  /**
+   * Expose this reader's pinned host anchor only after a successful verified pass.
+   * This getter performs no I/O and cannot recover authority from a failed pass.
+   * @returns {Readonly<{bootId: string, bootTimeSeconds: string, clockTicks: string}>|null}
+   * @since 0.19.2-beta
+   */
+  function getBirthContext() {
+    return health.state === 'HEALTHY' && bootReference
+      ? Object.freeze({ ...bootReference.context })
+      : null;
+  }
+
+  return { getParentProcessMap, getSnapshotHealth, getBirthContext };
 }
 
 module.exports = { createProcessMapReader };

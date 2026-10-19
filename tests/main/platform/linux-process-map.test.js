@@ -137,6 +137,51 @@ describe('Linux procfs birth observations', () => {
     expect(second.get(100)).toEqual(first.get(100));
   });
 
+  it('exposes a fresh frozen host context only after verified procfs success', async () => {
+    expect(reader.getBirthContext()).toBeNull();
+    expect(fs.readFileSync).not.toHaveBeenCalled();
+    await reader.getParentProcessMap();
+    const first = reader.getBirthContext();
+    expect(first).toEqual({ bootId: BOOT_ID, bootTimeSeconds: '1700000000', clockTicks: '100' });
+    const reads = fs.readFileSync.mock.calls.length;
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(Reflect.set(first, 'bootTimeSeconds', '1')).toBe(false);
+    expect(reader.getBirthContext()).not.toBe(first);
+    expect(reader.getBirthContext()).toEqual(first);
+    expect(fs.readFileSync).toHaveBeenCalledTimes(reads);
+    files.set('/proc/stat', `btime ${BOOT_SECONDS + 3600}\n`);
+    await reader.getParentProcessMap();
+    expect(reader.getBirthContext()).toEqual(first);
+    const original = files.get('/proc/100/stat');
+    files.set('/proc/100/stat', 'malformed');
+    await reader.getParentProcessMap();
+    expect(reader.getBirthContext()).toBeNull();
+    files.set('/proc/100/stat', original);
+    expect((await reader.getParentProcessMap()).get(100).startTime).toBe(1700000123450);
+    expect(reader.getBirthContext()).toEqual(first);
+    const nextBoot = '22222222-2222-4222-8222-222222222222';
+    files.set(BOOT_PATH, nextBoot);
+    await reader.getParentProcessMap();
+    expect(reader.getBirthContext()).toEqual({
+      bootId: nextBoot,
+      bootTimeSeconds: String(BOOT_SECONDS + 3600),
+      clockTicks: '100',
+    });
+  });
+
+  it('preserves raw tick zero and ticks above wire u64 when the runtime quotient is safe', async () => {
+    exec.mockImplementation((_cmd, _args, _opts, cb) => cb(null, '9007199254740991\n'));
+    files.set('/proc/100/stat', stat(100, 'claude', 200, '18446744073709551616'));
+    files.set('/proc/200/stat', stat(200, 'node', 1, '0000'));
+    const map = await reader.getParentProcessMap();
+    expect(map.get(100)).toMatchObject({
+      startTime: 1700002048000,
+      witness: `${BOOT_ID}:18446744073709551616`,
+    });
+    expect(map.get(200)).toMatchObject({ startTime: 1700000000000, witness: `${BOOT_ID}:0` });
+    expect(reader.getSnapshotHealth().state).toBe('HEALTHY');
+  });
+
   it('binds the reference and witness to the observed boot ID', async () => {
     const first = await reader.getParentProcessMap();
     const nextBoot = '22222222-2222-4222-8222-222222222222';

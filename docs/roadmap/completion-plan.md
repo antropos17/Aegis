@@ -30,6 +30,12 @@ a fresh worktree. Its delivery contract, qualification and evidence limits are
 recorded in [w1-pipe.md](w1-pipe.md). W1a and W1b remain separate work; Rust
 installation is still deferred.
 
+W1a JavaScript preparation (2026-10-19): [sensor-wire.md](sensor-wire.md)
+records the resolved identity representation, owned D1 context, exact message
+shapes and strict parser decisions. [w1a-js.md](w1a-js.md) records implementation,
+review corrections and scoped verification. This is a JS preparation slice; the
+deferred Rust implementation and both-language gates still prevent full W1a acceptance.
+
 This document is the work order for the orchestrator. It defines the target, the
 fixed constraints, how work is split across agents, each workstream with its
 acceptance criteria, the execution order and the actions that stay with the
@@ -770,6 +776,10 @@ lines. Commit messages, PR text and docs carry no AI attribution lines.
 
 ## Appendix A — Rust workspace and `sensor/1`
 
+The detailed JavaScript preparation contract in [sensor-wire.md](sensor-wire.md)
+supersedes the schematic shapes below where it adds precision or resolves an
+ambiguity. Final wire freeze still requires both language implementations.
+
 ### Layout
 
 ```
@@ -837,7 +847,7 @@ skew.
 
 Host to sensor:
 
-- `{t:'watch', id, roots:[{pid, birth}], descendants:true}` — replace the set of
+- `{t:'watch', id, roots:[{pid, birth, witness}], descendants:true}` — replace the set of
   watched roots. A root whose birth does not match is ignored and reported in
   `err`.
 - `{t:'paths', id, prefixes:[...]}` — replace sensitive path prefixes.
@@ -848,7 +858,7 @@ Host to sensor:
 
 Linux: `/proc/<pid>/stat` field 22 is the process start in clock ticks since
 boot. The eBPF sensor reads `task->start_boottime` (nanoseconds since boot) and
-emits `birth = start_boottime / (1e9 / CLK_TCK)` as an integer tick count, the
+emits `birth = floor(start_boottime * CLK_TCK / 1e9)` as an integer tick count, the
 same quantity procfs reports. The host converts ticks to epoch milliseconds with
 the existing D1 code; the sensor never computes epoch time.
 
