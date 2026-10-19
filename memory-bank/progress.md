@@ -3176,3 +3176,48 @@ No production caller, Node bridge, profile discovery, backup store, installer,
 hook execution or complete W6/IO-provider qualification. Trusted local NTFS
 targets only; hostile metadata/security actors, crash-atomicity and reader
 isolation remain outside the qualified contract. No existing ACL changes.
+
+## W6 Windows private backup prerequisite — 2026-10-19
+
+Added an explicit local NTFS backup store with current-user DPAPI ciphertext,
+verified protected current-user/SYSTEM DACLs on newly created objects, pinned
+roots, live opaque references and independent exact-byte digests. Persistent
+logical quota includes partial/orphan records: eight records or 2 MiB per root,
+with no automatic pruning. See [the contract](../docs/CLAUDE-HOOK-PRIVATE-BACKUP.md).
+
+Independent source/security/test/docs reviews passed. Final Windows native
+build reported zero warnings/errors and sixteen fixture groups passed. R2
+strengthens the byte-quota test to require Capacity/null, unchanged inventory
+and the same refusal after reopening. Its new status mutant fails before the
+eight-record limit. Five R1 assertion kills remain source/build/run/log-bound
+with post-run binary hashes; R2 baseline/new-mutant load-folder DLL/apphost
+hashes match immediately before/after execution. The .NET host/runtime is not
+attested by those hashes. All nine frozen sources survived merge master.
+
+No existing ACL modification, real profile, production caller, target writer,
+installation/removal authority after restart, hook execution or complete W6/IO
+provider. Same-user malicious code is outside this boundary; process-local refs
+and ownership are not recovered from disk. Logical quota is not protection from
+an external filesystem owner, and no power-loss durability is established.
+
+## W10 offline WinGet candidate preparation — 2026-10-19
+
+Added a standalone CLI that reuses repository release-manifest verification and
+the pinned Ed25519 public key, binds the selected installer bytes to an explicit
+signed asset/version/tag/URL and writes three candidate YAML manifests into a
+new output directory. Metadata and payload architecture require explicit caller
+inputs; no registry values or installation scope are inferred. See
+[usage and remaining qualification](../packaging/winget/README.md).
+
+Validation:37 focused offline tests, three copied-source assertion mutants,
+scoped lint/format and independent source/security/test/evidence reviews passed.
+The synthetic fixture uses an ephemeral test key through the private test seam;
+the production CLI rejects it. Final mutation logs/config/drivers/dependency
+copies are separately bound by a post-run archive supplement. Four frozen raw
+sources and verifier/key/package/lock dependencies survived merge master. The
+CLI help was directly checked with no installer or native activity.
+
+This prepares candidates only. Actual WinGet/schema validation, published URL
+fetch, real installer/publisher metadata, Authenticode, installation/upgrade/
+uninstall and submission remain unqualified. No release/signing secret, download,
+workflow change, package submission or full W10 completion is established.
