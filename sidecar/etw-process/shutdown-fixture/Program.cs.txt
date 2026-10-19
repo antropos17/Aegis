@@ -1,0 +1,50 @@
+// Explicit compile input avoids adding a second Main to the parent helper project.
+// Links the original coordinator unchanged; all interfaces below are fake.
+using System.Text.Json;
+using Aegis.EtwProcess;
+
+if (args.Length != 2 || !new[] { "normal", "blocked-stop", "blocked-consumer", "partial", "malformed" }.Contains(args[0]))
+    return 2;
+string mode = args[0], generation = args[1];
+if (!Guid.TryParseExact(generation, "N", out var id) || id == Guid.Empty || id.ToString("N") != generation)
+    return 2;
+var consumer = new FakeConsumer();
+var session = new FakeSession(mode, consumer);
+var capture = new ProcessCapture(session, consumer, new ProcessLedger(generation));
+capture.Start();
+// The real coordinator invokes FakeSession.Stop synchronously here. In the
+// blocked-stop case no terminal output is possible without process termination.
+var frames = await capture.Stop(TimeSpan.FromMilliseconds(100));
+if (mode == "blocked-consumer" && !consumer.Cancelled) return 3;
+if (mode == "partial") Console.Write("[");
+else if (mode == "malformed") Console.Write("{\"private\":\"must-not-escape\"}");
+else Console.Write(JsonSerializer.Serialize(frames, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+return 0;
+
+internal sealed class FakeSession(string mode, FakeConsumer consumer) : IProcessSession
+{
+    public string Name => "aegis-fake-session";
+    public void Start() { }
+    public void Enable() { }
+    public (uint Status, ProcessLoss Loss) Stop()
+    {
+        if (mode == "blocked-stop")
+        {
+            Console.Error.WriteLine("fixture-blocked-stop-entered");
+            Thread.Sleep(Timeout.Infinite);
+        }
+        if (mode != "blocked-consumer") consumer.Done.TrySetResult(true);
+        return (0, new(0, 0));
+    }
+    public void Dispose() { }
+}
+internal sealed class FakeConsumer : IProcessConsumer
+{
+    internal readonly TaskCompletionSource<bool> Done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal bool Cancelled;
+    public Task<bool>? Completion => Done.Task;
+    public void Start(string name, ProcessLedger ledger) { }
+    // Mimics a permanently blocked consumer after cancellation; no native code.
+    public void Cancel() { Cancelled = true; }
+    public void Dispose() { }
+}
