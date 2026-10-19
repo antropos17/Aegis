@@ -86,6 +86,12 @@
       "sha256": "143f23cedafe4966bebf9c1cf997ca05f411ded8489a562554f3b2908069aba0"
     },
     {
+      "key": "shieldSearch",
+      "name": "shield-search",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/shield-search.svg",
+      "sha256": "1d86bcb4d3441c91003183b68397b43bc705d849db2eb67a71c168322f04f67b"
+    },
+    {
       "key": "settings",
       "name": "settings",
       "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/settings.svg",

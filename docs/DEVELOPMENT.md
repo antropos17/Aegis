@@ -3,6 +3,9 @@
 Practical reference for contributors. Covers stack versions, patterns, gotchas,
 and IPC architecture specific to this codebase.
 
+For WinGet preparation, ordinary-task evidence scoring, dormant Coverage checks
+and native hook IO fixtures, start with [Completion tools](development/completion-tools.md).
+
 ---
 
 ## Stack
@@ -223,7 +226,7 @@ Verify ordinary and high-contrast light/dark themes and supported UI scales.
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 44 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
+- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 46 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`

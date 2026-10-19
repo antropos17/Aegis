@@ -136,6 +136,166 @@ that was renamed on upload *and* altered afterwards shows up as exactly that pai
 In every one of those cases, do not run the installer. Re-download from the Release page
 and check again; if it still fails, open an issue with the output.
 
+## Offline WinGet candidate preparation
+
+`node scripts/prepare-winget.cjs --help` describes an offline generator for three
+candidate WinGet manifests. It reuses this release verifier to authenticate the
+local manifest with the repository public key and check the explicitly selected
+installer's bytes. Its URL checks bind caller-supplied GitHub repository/tag/file
+metadata without fetching that URL. Publisher, package metadata and payload
+architecture remain explicit caller inputs; registry/scope values are omitted.
+See [the WinGet preparation guide](../packaging/winget/README.md) for inputs,
+output ownership and remaining download, metadata, WinGet validation and
+clean-machine install/upgrade/uninstall qualification. Candidate preparation
+does not establish Authenticode signing or complete packaging workstream W10.
+
+## Windows Authenticode prerequisite
+
+`node scripts/verify-authenticode.cjs --help` describes a read-only gate for one
+owner-selected local EXE. It requires the expected SHA-256 of the complete file
+and the expected SHA-256 of the signer's DER-encoded certificate (`RawData`).
+Obtain both pins independently from the owner-approved release/signing evidence.
+The certificate pin is neither its usual SHA-1 thumbprint nor the Ed25519 release
+public key. The tool discovers no expected pin and has no default signing key.
+
+```powershell
+node scripts/verify-authenticode.cjs `
+  --artifact X:\owned-downloads\AEGIS-Setup.exe `
+  --artifact-sha256 'REPLACE_WITH_OWNER_SUPPLIED_FILE_SHA256' `
+  --signer-sha256 'REPLACE_WITH_OWNER_SUPPLIED_CERTIFICATE_DER_SHA256' `
+  --output X:\owned-reports\new-authenticode-receipt.json
+```
+
+Use an ordinary, responsive local filesystem with trusted, stable directories
+for the artifact, checkout, runtime and output parent. Supply absolute paths of
+at most 240 characters. UNC/device paths, ADS syntax, dot segments, reserved
+names, trailing dots/spaces, symlink/junction ancestors and artifact hardlinks
+are refused. Drive mappings, mount configuration and concurrent privileged
+filesystem changes are outside this contract. The EXE must have DOS/PE magic
+and be between 68 bytes and 512 MiB; this check is not a full PE parser.
+The output must be a new file under an existing owner-controlled parent.
+Existing output is preserved. A refusal after output reservation may leave a
+refusal, incomplete receipt, or even a pass-looking JSON file when the later
+flush/close fails. A leftover file alone is never acceptance; retain it as
+diagnostic evidence and require the successful CLI exit together with its receipt.
+
+The CLI hashes the artifact before and after its fresh child observation and
+compares file identity, size and change timestamps. The inbox Windows PowerShell
+helper opens the same literal path with `FileShare.Read`, holds that stream
+across its own two full hashes and `Get-AuthenticodeSignature`, and binds its
+observation to the supplied artifact digest. This sharing mode denies ordinary
+writes/deletes while the stream is held. Path checks and before/after comparisons
+do not provide an atomic proof against a hostile filesystem or later changes.
+The observed artifact must be preserved unchanged for subsequent qualification.
+
+Pass requires the OS-reported status `Valid`, signature type `Authenticode`
+(embedded), and the exact independently supplied certificate and artifact pins.
+`Catalog` is refused, including a file for which Windows chooses a catalog over
+an embedded signature. Only exit 0 together with the matching complete receipt
+confirms success, including receipt flush/close. The JSON has a closed schema,
+fixed refusal codes, hashes, byte count, observed enums, `timestampPresent`,
+`checkedAt` and `childCleanup`; it contains no paths, subjects or provider errors.
+Malformed arguments exit 2 with `INVALID_ARGUMENTS`; verification refusals exit 1.
+
+The child uses `-NoLogo -NoProfile -NonInteractive -File`, an inbox-only
+`PSModulePath`, a 30-second deadline, 4096 combined stdout/stderr bytes and a
+two-second drain/termination grace. Absolute monotonic deadlines are checked
+when output, exit and close are observed, including delayed event-loop turns;
+unavailable or regressing clocks fail closed. Startup, policy denial, unknown/truncated
+output, excess output and timeout fail closed. `childCleanup: unconfirmed` means
+close was not observed within the grace: the gate refuses and cannot certify
+that the child is gone. These limits cover the owned child; synchronous local
+filesystem access relies on the responsive filesystem contract above. The tool
+does not explicitly change execution policy, existing permissions,
+trust/configuration stores, credentials or profiles. Normal Windows trust/cache/network effects
+during signature verification are unmeasured.
+The selected EXE is never launched.
+
+`Valid` is the local cmdlet's result under the machine's current Windows policy,
+clock, trust configuration and available cache/network state. This tool adds no
+fresh online revocation requirement, independent certificate-chain validation,
+publisher authorization or policy attestation. `timestampPresent` records only
+whether Windows returned a timestamp authority certificate; timestamp presence
+is not required by this gate and its time, algorithm, authority and validity are
+not independently qualified. An expired signing certificate may remain valid
+under Windows timestamp semantics. Review the signing and timestamp policy
+separately for the intended release environment.
+
+See Microsoft's [cmdlet contract](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/get-authenticodesignature?view=powershell-5.1),
+[signature types](https://learn.microsoft.com/dotnet/api/system.management.automation.signaturetype),
+[status enum](https://learn.microsoft.com/dotnet/api/system.management.automation.signaturestatus),
+[sharing modes](https://learn.microsoft.com/dotnet/api/system.io.fileshare)
+and [timestamp semantics](https://learn.microsoft.com/windows/win32/seccrypto/time-stamping-authenticode-signatures).
+The gate supplies one W10 prerequisite. Ed25519 manifest verification, candidate
+WinGet YAML, published-download validation, payload/publisher metadata,
+clean-machine install/upgrade/uninstall and submission remain separate evidence.
+Modeled success tests and an actual unsigned-PE refusal do not qualify a signed
+release; that requires an independently pinned real signed artifact.
+
+## Combined Windows candidate verification
+
+`node scripts/verify-windows-candidate.cjs --help` joins the signed release
+manifest and a fresh Authenticode observation for one explicitly selected local
+EXE. Supply the manifest, detached signature, exact signed asset filename,
+expected tag/repository, artifact path and independently approved artifact and
+certificate-DER SHA-256 pins. Only the checkout's
+`keys/aegis-release-pubkey.pub` is accepted; CLI and environment key overrides
+are unsupported. A renamed local artifact is allowed because the explicit
+signed asset selection is bound by size and complete-file digest.
+
+```powershell
+node scripts/verify-windows-candidate.cjs `
+  --manifest X:\owned-downloads\manifest.json `
+  --signature X:\owned-downloads\manifest.json.sig `
+  --asset 'EXACT_SIGNED_INSTALLER_FILENAME.exe' `
+  --tag 'aegis-vREPLACE_WITH_EXPECTED_VERSION' `
+  --repository 'OWNER/REPOSITORY' `
+  --artifact X:\owned-downloads\AEGIS-Setup.exe `
+  --artifact-sha256 'REPLACE_WITH_OWNER_SUPPLIED_FILE_SHA256' `
+  --signer-sha256 'REPLACE_WITH_OWNER_SUPPLIED_CERTIFICATE_DER_SHA256' `
+  --authenticode-output X:\owned-reports\new-candidate-authenticode.json `
+  --output X:\owned-reports\new-candidate-combined.json
+```
+
+All input/output paths must be distinct ordinary absolute local paths with
+trusted, stable ancestors and existing owner-controlled output parents. The
+component's path restrictions and 68-byte..512-MiB artifact bound apply; the
+manifest is limited to 2 MiB and the detached signature to 256 bytes. Existing
+outputs, including imported passing receipts, are refused and preserved.
+Duplicate manifest filenames, including case-only aliases, are refused.
+
+The combined pass binds the SHA-256 of the exact authenticated manifest bytes,
+expected tag/repository, selected signed filename, signed size/digest, independent
+artifact pin and the new component receipt's complete bytes and SHA-256. It
+requires a fresh `Valid` embedded Authenticode observation under the supplied
+certificate pin, observed helper close, successful component receipt flush/close,
+and a final stable artifact hash/size check. Both receipt paths must be new;
+there is no receipt-import option. The component retains its 30-second helper
+deadline, 4096-byte output limit and two-second cleanup grace. All filesystem
+operations rely on the same responsive trusted-filesystem boundary.
+
+Signature/schema refusals use the existing release verifier's diagnostics and
+exit nonzero before any new receipt reservation or helper launch. Other early
+refusals also may produce no receipt. New failures use fixed codes:
+`RELEASE_IDENTITY`, `AMBIGUOUS_ASSET`, `ASSET_MISSING`, `SIGNED_PIN_MISMATCH`,
+`SIGNED_SIZE_MISMATCH`, `AUTHENTICODE_REFUSED`, `AUTHENTICODE_BINDING`,
+`AUTHENTICODE_RECEIPT` and `ARTIFACT_CHANGED`, alongside input/path/output
+refusals. `AUTHENTICODE_REFUSED` leaves the component's reason in its fresh
+receipt when one was written. The combined JSON contains no local paths.
+
+Acceptance requires exit 0, combined `CANDIDATE_VERIFIED`, and both complete
+matching fresh receipts. Failed writes, flushes or closes may leave incomplete
+or pass-looking JSON; the CLI's failed exit always defeats such a file. Preserve
+both receipts and the unchanged candidate artifact for later qualification.
+`launchAllowed` remains `false` on success. This command performs no fetching,
+WinGet YAML preparation, metadata inference, installation, signing or target
+execution. Local trust/cache, revocation and timestamp limits remain those of
+the [component gate](#windows-authenticode-prerequisite). Candidate success
+does not establish published-download identity, payload/publisher metadata,
+WinGet validation, clean-machine install/upgrade/uninstall, submission, W10
+completion or release acceptance. Modeled tests establish the verification
+contract; they do not establish a real signed release's qualification.
+
 ## Release notes
 
 `release-please-config.json` uses `changelog-type: github`: GitHub generates the
