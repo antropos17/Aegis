@@ -100,8 +100,9 @@ allocation or an application-wide budget.
 The receipt used the integration checkout's harness and runtime. Source and
 harness hashes matched before and after the run. The final drain clock includes
 the initial synchronous flush, subsequent polling and the final sample; passing
-requires that whole interval to remain within five seconds. Later changes only
-record the documentation and receipt.
+requires that whole interval to remain within five seconds. Later changes record
+documentation and the receipt, and align existing IPC-statistics and trace-mutation
+tests with the added lane and ingress ordering. Production runtime stays unchanged.
 
 The restored focused suite passed **424 tests with four platform skips across
 eight files**. It covers the actual watcher/main/scan-loop ingress, original
@@ -112,6 +113,10 @@ rollback and complete JSON missing its final newline. Twenty repeated cleanup
 failures produce one delivery per acknowledged batch/marker and bounded fault
 reporting in the same process; separate restart tests preserve the at-least-once
 boundary.
+
+The existing IPC-statistics and orchestration-drift files also pass all 15 tests.
+Their copied-source dropped-step control still fails the declared sequence
+comparison. This verifies the static orchestration contract, not live execution.
 
 The writer ran these fourteen controls; each failed through an assertion and
 the original source bytes were restored and hash-verified:
@@ -143,6 +148,7 @@ Local evidence root: `X:/tmp/aegis-w1-pipe-20261019/`. Retain these receipts:
 - `qualification/no-spill-control-W9CsHR/mutation-receipt.json`.
 - `qualification/oracle-mutant-bg2ivJ/mutation-receipt.json`.
 - `reports/pipeline-final-restored-v3.json` and `reports/pipeline-mutations.json`.
+- `reports/ci989-regressions-restored.json` and `reports/ci989-drift-mutation.json`.
 
 The local checks used an isolated worktree and its own `npm ci` dependencies.
 Rust was not installed. The original dirty checkout, lockfile, workflows and

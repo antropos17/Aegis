@@ -57,13 +57,15 @@ process.argv = ['node', 'main.js'];
 const require_ = createRequire(import.meta.url);
 const main = require_('../../src/main/main.js');
 
-/** The seven fields ipc-batcher's getStats() publishes, sorted. */
+/** The production file-access batcher's count and byte accounting, sorted. */
 const BATCHER_STATS_KEYS = [
   'buffered',
+  'bufferedBytes',
   'coalesced',
   'evicted',
   'evictedSinceFlush',
   'highWater',
+  'highWaterBytes',
   'pushed',
   'retainedEvicted',
 ];
@@ -90,15 +92,23 @@ afterAll(() => {
   process.argv = originalArgv;
 });
 
-describe('getStats().ipc — display-lane delivery accounting', () => {
-  it('the scanner-absent branch carries the full seven-field batcher shape', () => {
+describe('getStats().ipc — display and security delivery accounting', () => {
+  it('the scanner-absent branch carries bounded display counters and an unavailable security lane', () => {
     const stats = main.getStats();
     expect(stats).toHaveProperty('ipc');
-    expect(Object.keys(stats.ipc)).toEqual(['fileAccess']);
+    expect(Object.keys(stats.ipc)).toEqual(['fileAccess', 'securityEvents']);
+    // Deferred initialization has not run: a zeroed security lookalike would
+    // incorrectly claim a running audit consumer and healthy storage.
+    expect(stats.ipc.securityEvents).toBeNull();
     expect(Object.keys(stats.ipc.fileAccess).sort()).toEqual(BATCHER_STATS_KEYS);
     for (const key of BATCHER_STATS_KEYS) {
-      expect(typeof stats.ipc.fileAccess[key], `${key} must be a number`).toBe('number');
+      expect(Number.isSafeInteger(stats.ipc.fileAccess[key]), `${key} must be an integer`).toBe(
+        true,
+      );
+      expect(stats.ipc.fileAccess[key]).toBeGreaterThanOrEqual(0);
     }
+    expect(stats.ipc.fileAccess.bufferedBytes).toBeLessThanOrEqual(1024 * 1024);
+    expect(stats.ipc.fileAccess.highWaterBytes).toBeLessThanOrEqual(1024 * 1024);
   });
 
   it('the loaded branch carries the same shape', () => {
@@ -107,7 +117,8 @@ describe('getStats().ipc — display-lane delivery accounting', () => {
     // Proof the branch actually changed: the booting literal hardcodes 0 here, the
     // loaded one reads the stub. Without this the next assertion would pass on either.
     expect(stats.peakAgents).toBe(3);
-    expect(Object.keys(stats.ipc)).toEqual(['fileAccess']);
+    expect(Object.keys(stats.ipc)).toEqual(['fileAccess', 'securityEvents']);
+    expect(stats.ipc.securityEvents).toBeNull();
     expect(Object.keys(stats.ipc.fileAccess).sort()).toEqual(BATCHER_STATS_KEYS);
   });
 
@@ -115,6 +126,8 @@ describe('getStats().ipc — display-lane delivery accounting', () => {
     const booting = main.getStats().ipc;
     main._setScannerForTest(scannerStub());
     const loaded = main.getStats().ipc;
+    expect(Object.keys(loaded)).toEqual(Object.keys(booting));
+    expect(loaded.securityEvents).toBe(booting.securityEvents);
     expect(Object.keys(loaded.fileAccess).sort()).toEqual(Object.keys(booting.fileAccess).sort());
   });
 
