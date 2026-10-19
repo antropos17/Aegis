@@ -2942,3 +2942,23 @@ and raw identity at ingress, without establishing its persistence.
 This factory has no production startup or sink caller yet. Polling, aggregate
 health and UI remain unchanged. Startup/pipeline integration and native/provider/
 packaged qualification remain open; this slice does not complete W1b.
+
+## Session handoff — preceding tool context in Details (2026-10-19)
+
+The Observatory Details overview can display a bounded preceding tool-call capsule
+with separate session/object evidence and explicit unavailable or ambiguous states.
+Incomplete associations use limited wording throughout; nested generic metadata
+excludes private capsule payloads. New Portuguese vocabulary, numeric timing and
+fixed limit markers use the active translator while OS values stay literal.
+
+Independent security and test reviews accepted the localization delta. Forty-four
+component/localization tests, test-inclusive renderer/frontend types, Svelte, lint,
+formatting and build passed. Two Portuguese built-renderer states were inspected
+with a recorded served-asset hash. Earlier R2 evidence covers fourteen targeted
+synthetic layouts and seven keyboard journeys; its three mutation detections were
+two assertion failures and one TypeError render crash. Full Tab traversal and
+focus trapping remain unqualified.
+
+The visible section states that live tool correlation is unavailable. Trusted
+source selection, runtime production, clock measurement, native/Electron checks,
+complete application localization, full W4 and W9 remain open.
