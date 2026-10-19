@@ -3338,3 +3338,26 @@ Reader file proofs, binding evidence and clock alignment remain synthetic. This
 manual composition establishes no application wiring, authenticated receiver,
 real-profile/native discovery, Electron delivery, abrupt-crash durability or full
 live W4 acceptance. No UI, policy, production source or launch authority changed.
+
+## Session handoff — combined Windows candidate verification (2026-10-19)
+
+The verification-only CLI now binds an authenticated signed manifest and selected
+installer to independent artifact/certificate-DER pins and fresh Authenticode
+observations. Exact release tag/repository, asset name, signed size/digest,
+verified manifest bytes, serialized component receipt and final artifact bytes
+must agree. Both receipt outputs are new; imported receipts supply no authority.
+Signature/schema failures occur before output reservation or helper launch.
+
+R1 passed 108 focused tests (45 candidate and 63 unchanged Authenticode cases).
+Two copied-source mutants failed the intended identity/digest assertions (2/1).
+Independent source/security/test/evidence reviews passed. R2 corrected CLI help
+only; direct help and formatting passed without repeating unchanged tests.
+Five frozen sources, 24 unchanged bindings and all 49 R1/10 R2 artifacts match.
+
+Success for the combined gate remains modeled. The unchanged component's actual
+unsigned-file refusal is retained as component-only evidence. No combined native
+observation, independently pinned signed success, timestamp/fresh-revocation,
+installer execution, release or full W10 acceptance is supplied. Only explicit
+trust/configuration writes are excluded; normal Windows cache/network effects
+remain unmeasured. Acceptance requires exit 0 plus matching complete fresh
+receipts; pass-looking output after a failed flush/close is insufficient.
