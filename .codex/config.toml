@@ -6,4 +6,7 @@ network_access = true
 
 [features.network_proxy]
 enabled = true
-domains = { "github.com" = "allow", "api.github.com" = "allow" }
+domains = { "github.com" = "allow", "api.github.com" = "allow", "crates.io" = "allow", "index.crates.io" = "allow", "static.crates.io" = "allow", "registry.npmjs.org" = "allow" }
+
+[agents]
+max_concurrent_threads_per_session = 6
