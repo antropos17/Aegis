@@ -2963,6 +2963,27 @@ The visible section states that live tool correlation is unavailable. Trusted
 source selection, runtime production, clock measurement, native/Electron checks,
 complete application localization, full W4 and W9 remain open.
 
+## Session handoff — native provider runtime coordinator (2026-10-19)
+
+Deferred main startup now owns the native provider factory, fresh Linux watch
+replacement, pause/resume, finite shutdown and private status/health publication.
+Only current committed polling observations can update scope; pre-pause provider,
+CWD or model completions cannot relaunch a child after resume. macOS can restart
+a provider while retaining an explicitly unavailable identity scope. Windows
+continues to report no native runtime owner.
+
+The coordinator refuses native-event custody and exposes unsupported admission,
+zero accepted events and lost operational coverage even when a provider reports
+healthy. Polling and launchAllowed=false remain unchanged. Independent R4 review
+accepted both lifecycle corrections. The final local revision passed 259 tests
+across ten files, including 27 coordinator/main tests, and two assertion-killed
+mutants with restored source. Six earlier R3 mutants are separate evidence. Lint,
+formatting, configured main types (checkJs disabled) and sequence gate passed.
+
+Native delivery, identity parity, lifecycle/audit integration, packaged binaries,
+live providers and complete W1b/W9 acceptance remain open. Repository gates and
+source hashes are recorded separately for the final PR and merge.
+
 ## Session handoff — isolated ETW process diagnostics (2026-10-19)
 
 A separate helper and closed collector decode pinned Windows process start, stop
