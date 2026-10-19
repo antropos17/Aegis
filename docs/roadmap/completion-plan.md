@@ -365,7 +365,8 @@ oversize-frame and bad-JSON cases; unknown protocol is a hard stop.
 
 W1b depends on merged W1a and W1-pipe. Sensor host
 `src/main/platform/sensor-host.js`: spawns the platform sensor
-binary, performs the hello handshake, selects the best announced mode, sends
+binary, performs the hello handshake, validates the sensor-selected active mode
+and its announced capabilities, sends
 `watch` and `paths` updates as agent detection changes, feeds events into the
 W1-pipe queues, and reports health through the state machine from W0 question 3.
 Supervision follows the ETW supervisor's model: bounded restart budget, budget
