@@ -97,6 +97,7 @@ describe('linux-process-map boot-ID races', () => {
     // Health must be FAILED.
     expect(reader.getSnapshotHealth().state).toBe('FAILED');
     expect(reader.getSnapshotHealth().lastError).toBe('linux-proc-identity-unavailable');
+    expect(reader.getBirthContext()).toBeNull();
 
     // Recovery: stable boot ID B, btime B. Recovery uses the new boot reference.
     bootReadCount = 0;
@@ -111,6 +112,11 @@ describe('linux-process-map boot-ID races', () => {
 
     const recovered = await reader.getParentProcessMap();
     expect(reader.getSnapshotHealth().state).toBe('HEALTHY');
+    expect(reader.getBirthContext()).toEqual({
+      bootId: BOOT_ID_B,
+      bootTimeSeconds: String(BOOT_SECONDS_B),
+      clockTicks: '100',
+    });
     // Witness must reference the new boot ID.
     for (const entry of recovered.values()) {
       expect(entry.witness).toMatch(new RegExp(`^${BOOT_ID_B}:`));
@@ -152,8 +158,8 @@ describe('linux-process-map boot-ID races', () => {
     // Neither new nor previous boot reference ticks leak into the fallback.
     const json = JSON.stringify(result);
     expect(json).not.toContain('"witness"');
-    expect(json).not.toContain('"startTime":' + (BOOT_SECONDS_A * 1000));
-    expect(json).not.toContain('"startTime":' + (BOOT_SECONDS_B * 1000));
+    expect(json).not.toContain('"startTime":' + BOOT_SECONDS_A * 1000);
+    expect(json).not.toContain('"startTime":' + BOOT_SECONDS_B * 1000);
   });
 
   // ─── Test 3: two concurrent calls share a single CLK_TCK probe ─────────────
