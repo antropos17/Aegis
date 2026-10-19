@@ -2987,9 +2987,10 @@ source hashes are recorded separately for the final PR and merge.
 ## Session handoff — owner restart qualification harness (2026-10-19)
 
 The protocol-10 diagnostic harness prepares an owner-controlled Windows Restart,
-then resumes or cancels with exact boot, source, package, configuration, native
-and complete protected-record bindings checked before UAC. A supported build-only
-producer returns before desktop launch or capture. Fixture reads await a matching
+then resumes or cancels after checking immutable boot, source, package,
+configuration, native and saved-preparation bindings before UAC. Live complete
+protected-record correlation uses the authenticated observer after owner consent.
+A supported build-only producer returns before desktop launch or capture. Fixture reads await a matching
 PID/full-birth preparation acknowledgement and retain the event-time oracle.
 Private observer digests add correlation without changing cleanup authority.
 
