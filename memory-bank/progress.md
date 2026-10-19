@@ -3250,3 +3250,24 @@ No production caller, real profile, IPC/UI/installer/policy wiring, command
 execution, ownership adoption, automatic rollback or sensitive activation.
 Interrupted writes, crash recovery, hostile metadata and full W6/product
 qualification remain open. launchAllowed=false.
+
+## W8 ordinary-task false-alarm scoring — 2026-10-19
+
+Added an offline scorer and explicit evidence-file CLI for false-alarm incidence
+over the same eligible started-task cohort. Failed, refused and timed-out tasks
+retain denominator membership. Incomplete observation produces null incidence;
+it cannot shrink the denominator or become measured zero. See
+[the input contract and provenance limits](../docs/bench/TASK-FALSE-ALARMS.md).
+
+Validation: 58 focused tests, three copied-source behavioral mutants, six frozen
+CLI fixtures, scoped lint/format and independent source/security/test/evidence
+reviews passed. All four frozen raw source hashes survived merge master. Rubric
+freeze precedes actual starts; actual-start roster sealing follows them. Earlier
+prospective-roster timing was corrected before acceptance, with old evidence
+retained as superseded history. Direct CLI help was checked in 75 milliseconds.
+
+Only supplied arithmetic, schema and refusal behavior is qualified. Hashes, IDs
+and timestamps cannot prove independence, complete actual-start reconciliation
+or truthful native collection. Real measurements still require those externally
+held records and review. No live/native measurement, existing recall/precision
+change, task execution or full W8 acceptance is established.
