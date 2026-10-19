@@ -2983,3 +2983,24 @@ formatting, configured main types (checkJs disabled) and sequence gate passed.
 Native delivery, identity parity, lifecycle/audit integration, packaged binaries,
 live providers and complete W1b/W9 acceptance remain open. Repository gates and
 source hashes are recorded separately for the final PR and merge.
+
+## Session handoff — offline resource interval arithmetic (2026-10-19)
+
+A bounded pure benchmark library now derives per-lifetime and aligned cohort
+CPU intervals, resident-memory samples and separate per-run phase estimates.
+It requires explicit units, lifetime/population evidence and a planned sample
+window. Declared phases outside that window are rejected rather than reported
+as complete from a captured subset. Missing members, churn, unobserved helpers or scheduled endpoints retain
+null estimates with reasons. CPU can exceed one core; quantiles use raw samples,
+the even median and nearest-rank p95 without pooling repetitions.
+
+The final R2 focused gate passed 93 tests across three suites, including 40 resource
+cases. Five final arithmetic/refusal mutants failed assertions with source
+restored. The phase-window counterexample, withdrawn R1 acceptance and earlier
+revision receipts remain separate. Scoped lint and
+formatting passed. Benchmark JavaScript is outside the configured main typecheck;
+no full type-coverage claim follows.
+
+This is offline arithmetic preparation. No collector, native or Electron run,
+population discovery, provenance authentication, calibration, baseline comparison,
+three-run variance qualification, measured overhead or W8/T8 acceptance is added.
