@@ -2962,3 +2962,20 @@ focus trapping remain unqualified.
 The visible section states that live tool correlation is unavailable. Trusted
 source selection, runtime production, clock measurement, native/Electron checks,
 complete application localization, full W4 and W9 remain open.
+
+## Session handoff — macOS native read boundary (2026-10-19)
+
+A dependency-free libproc/sysctl wrapper now isolates unsafe calls in one
+macOS-only module. Safe readers validate bounded buffers, returned sizes and
+raw birth/process-unique-ID fields. PID populations retain an explicit best-effort
+marker, including underfilled samples; missing processes cannot establish exits.
+The wire and sensor crates continue to forbid unsafe code.
+
+Eleven portable wrapper tests, formatting, and macOS aarch64 all-target checks
+and Clippy passed. Independent source/security and workspace-registration review
+accepted the frozen boundary. The lock adds one local package with no new
+registry packages and retains all twenty other existing package blocks.
+
+This prerequisite adds no sensor adapter or executable. Native linkage, SDK ABI,
+permissions, live generation semantics, platform versions and full W3 acceptance
+remain open. Portable tests and cross-checks do not establish native execution.
