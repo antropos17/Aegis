@@ -95,6 +95,10 @@ and actual provider rundown have not been exercised by synthetic fixtures.
 
 ## Focused checks
 
+The separate [dormant process-owner prerequisite](shutdown-fixture/README.md)
+adds fixed nonprivileged child supervision and an optional linked fake shutdown
+fixture. It does not expose capture or qualify native ETW cleanup.
+
 Build the standalone project with .NET 10 and run the compiled DLL with
 `--self-test`. Run `npx vitest run tests/main/etw-process-protocol.test.js --project main`
 for the protocol boundary. The existing main-project include discovers its
