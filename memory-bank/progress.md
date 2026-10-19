@@ -2710,3 +2710,33 @@ prevention remain open. Continue in `X:/tmp/aegis-ai-protection-plan`; preserve
 the original dirty checkout. Receipts and filesystem/disk limitations are listed
 in the dedicated handoff. C: diagnostic growth remains unresolved; no persistent
 global rotation was installed by this task.
+
+## Session handoff — Completion Wave 0 (2026-10-19)
+
+The active work order is [completion-plan.md](../docs/roadmap/completion-plan.md).
+The owner requested the W1a-before-W1b correction, Windows W11/W7 role update,
+configuration application in an isolated worktree and read-only Wave 0 with
+subagents. Rust installation remains deferred; preserve the original dirty
+checkout. No Wave 1 runtime implementation started.
+
+Bootstrap PR [#987](https://github.com/antropos17/Aegis/pull/987) merged as
+`dc1601b2410495e6ac0f56419bcb7cfcd2361c49`. Its reviewed head
+`e6c36cf733f6d3a39ae0382f5088d1e8bb8712ea` passed all five required contexts in
+[CI 39190211789](https://github.com/antropos17/Aegis/actions/runs/39190211789).
+The runtime baseline remains `ae1b8418c4e6b43678ce98f547142e9673a0fdf8` (#986).
+
+[Completion baseline](../docs/roadmap/completion-baseline.md) records all eleven
+research questions and separate implementation/evidence/missing states for
+T1–T10. Key scheduling changes: resolve Q4 identity representation before wire
+freeze; keep W1b behind merged W1a and W1-pipe; adopt #986 evidence before
+rescheduling first-read repair. W1a's Rust golden gate remains a deferred
+prerequisite. W1b must add its restart budget; W5 preserves separate exact-match
+policy families; W8 builds on existing limited measurements.
+
+The baseline is documentation/source reconnaissance with existing receipts,
+without new native, provider, installer or live UI qualification. Required CI
+and independent consistency review must pass on its final PR revision before
+merge; the wave closes after the merged-master gate is recorded in the external
+completion tracker. Use PR records and that tracker for final SHAs/results.
+Local PATH Node is below the repository minimum. Diagnostic output stays bounded
+on the data drive; no global cleanup or persistent rotation was installed.

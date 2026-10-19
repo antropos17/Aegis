@@ -19,6 +19,12 @@ evaluate that evidence before scheduling W11 block 1. The source package's
 `bf65076` baseline above is retained as revision history. Rust installation is
 deferred; this bootstrap and Wave 0 do not install a Rust toolchain.
 
+Wave 0 findings are recorded in [completion-baseline.md](completion-baseline.md).
+Its Q1–Q11 rows establish the implementation and evidence boundaries for later
+briefs. The runtime baseline remains `ae1b8418`; bootstrap PR #987 changes only
+planning, agent definitions and configuration. This session completes Wave 0;
+later implementation starts only within the owner's requested scope.
+
 This document is the work order for the orchestrator. It defines the target, the
 fixed constraints, how work is split across agents, each workstream with its
 acceptance criteria, the execution order and the actions that stay with the
@@ -59,7 +65,7 @@ The plan is complete when all of the following hold on merged master:
 | T5 | Cedar as the action-policy language for allow/ask/deny, equivalent to policy schema 3 on every existing case | Separate JSON policy families |
 | T6 | Guard mode: one-step installation of native pre-execution hooks for supported agents, with "Blocking verified" shown only after qualification | No pre-execution blocking by default |
 | T7 | Protected Session reaches its acceptance review with every stage evidenced; enabling launch stays a human decision | Sandbox launch is disabled |
-| T8 | Published measurements: per-platform recall against an independent oracle, false-alarm rate on ordinary work, CPU/RAM overhead with a written method | Nothing measured |
+| T8 | Published measurements: per-platform recall against an independent oracle, false-alarm rate on ordinary work, CPU/RAM overhead with a written method | Current per-platform acceptance measurements missing |
 | T9 | Observatory shows per-platform, per-sensor coverage: Observed, Blocking verified, Coverage lost, and the active sensor mode | Coverage state is partly hidden |
 | T10 | Installable artifacts for Windows, Linux and macOS with verification instructions; signing steps prepared for the owner | Install friction |
 
@@ -364,15 +370,24 @@ as binary files plus a JSON description; both the JS codec and the Rust
 round-trip and golden tests in both languages; split-frame, multi-frame,
 oversize-frame and bad-JSON cases; unknown protocol is a hard stop.
 
+Before freezing the wire, resolve Q4's identity gaps: preserve the raw birth
+precision and composite generation witness in watched roots, expose the existing
+D1 conversion through an owned host contract, and define clock-anchor and
+null/error semantics. Appendix A is a proposal until those decisions are
+recorded and reviewed. Rust installation remains deferred by the owner; design
+and JS work can be prepared, but W1a acceptance needs both language gates and
+cannot be marked complete while its Rust prerequisite is unavailable.
+
 W1b depends on merged W1a and W1-pipe. Sensor host
 `src/main/platform/sensor-host.js`: spawns the platform sensor
 binary, performs the hello handshake, validates the sensor-selected active mode
 and its announced capabilities, sends
 `watch` and `paths` updates as agent detection changes, feeds events into the
 W1-pipe queues, and reports health through the state machine from W0 question 3.
-Supervision follows the ETW supervisor's model: bounded restart budget, budget
-reset only after an observed HEALTHY state, custody of the child process, and a
-visible coverage gap while the sensor is absent. When no sensor binary exists or
+Reuse the ETW supervisor's custody and deadline handling. Add a bounded automatic
+restart budget with reset only after an observed HEALTHY state; Q3 found no such
+budget in the existing supervisor. Preserve the current aggregate/leaf health
+contracts and show a visible coverage gap while the sensor is absent. When no sensor binary exists or
 the handshake fails, the platform module keeps its current polling path and the
 coverage view says so. Acceptance: tests with a fake sensor process for normal
 operation, crash, hang, garbage output, protocol mismatch and restart budget.
@@ -531,6 +546,12 @@ Design:
   evaluators' decisions for rule order, `ask`, `defaultDecision`, schema 3
   review-required actions, malformed policies and unknown fields. Those tests
   become the equivalence reference.
+- Q6 distinguishes Claude action schema 1 from execution schemas 2/3 and the
+  separate Gemini, deletion and MCP contracts. Preserve their validation and
+  adapter outputs, including reason, review classification and launch eligibility.
+  Existing exact predicates cannot overlap in a valid policy; equivalent
+  duplicates are rejected. New principals, sensor-health fields and routes need
+  explicit trusted-input provenance before they influence authorization.
 - Policy schema 4 is a Cedar policy set plus an AEGIS Cedar schema. Principals
   are agent instances; actions are `exec`, `mcp_call`, `delete_file`,
   `net_connect` and the other routes that exist in source; resources are paths,
@@ -548,8 +569,9 @@ Design:
   schema 4 and for translated policies once equivalence holds.
 - Equivalence: every characterization test runs against both paths, and a
   property test generates requests across every field schema 3 reads (including
-  overlapping rules and the default) and asserts identical decision, ask and
-  review-required outcomes.
+  literal equality and default cases) and asserts identical decision, ask and
+  review-required outcomes. Generate duplicate/overlapping inputs as invalid
+  cases where the current validator rejects them; compare those failures too.
 - Evaluation stays deterministic and local. Explanations name the Cedar policy
   IDs that decided.
 
@@ -688,7 +710,9 @@ mode, polling mode or a mix; the documented coverage limits in README and
 ```
 Wave 0  W0 (parallel researchers) -> completion-baseline.md merged
         -> plan deviations recorded before any writer starts
-Wave 1  W1-pipe and W1a (JS codec + shared Rust files + aegis-wire)
+Wave 1  W1-pipe; Q4 identity decisions before W1a wire freeze
+        W1a (JS codec + shared Rust files + aegis-wire;
+             completion waits for the deferred Rust prerequisite)
         -> W1b after both prerequisites merge (integration-engineer)
         W11 blocks 1-2 (Windows writer)
         W8 measurement method drafted (bench-engineer)
@@ -832,7 +856,7 @@ The host computes `startTime(ms)` by integer division by 1000. The witness is
 Brief (orchestrator to worker), plain text:
 
 ```
-WORKSTREAM: W2 Linux sensor, block 1 of 3: workspace and aegis-wire crate
+WORKSTREAM: W1a shared wire contract: Cargo workspace and aegis-wire crate
 GOAL: <one sentence: the outcome when this block is done>
 BASELINE: <rows from docs/roadmap/completion-baseline.md that apply>
 OWNED PATHS: <paths this worker may change>
