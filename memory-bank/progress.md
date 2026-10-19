@@ -3548,6 +3548,16 @@ calibrated time or native loss-range forwarding. Runtime admission remains
 unsupported with zero accepted native events and coverage lost. No FileEvent,
 risk, UI, provider or complete W1b acceptance follows.
 
+## Session handoff — dormant ETW diagnostic child supervision (2026-10-19)
+
+Added an original-child-handle owner with absolute monotonic deadline, bounded output, one termination attempt and exit/stream-closure cleanup evidence. Sticky unknown cleanup blocks another lifetime. No production caller, IPC, UI, capture route or native admission was added.
+
+R2 has34passing focused tests(23modeled,6actual JavaScript children,5compiled fake-coordinator children) and7final behavioral mutation kills with byte-identical restoration. The compiled blocked Stop has a branch-entry witness; the consumer fixture requires fake cancellation. Independent source/security and test/evidence reviews passed. R1 frozen review was withdrawn before R2. Root preserved the available raw evidence in an external post-run archive; qualification manifest1d1c23bb is revision-bound.
+
+Native ControlTrace duration, ETW session absence after controller death, authenticated crash/orphan cleanup, privileges and capture exposure remain unqualified. Parent responsiveness and OS scheduling limit wall-clock enforcement. launchAllowed=false. This does not complete W11.
+
+Integration update (2026-10-19): parent #1005 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
 ## W1b internal native-observation forwarding prerequisite — 2026-10-19
 
 The host now forwards closed historical native metadata to configured trusted
