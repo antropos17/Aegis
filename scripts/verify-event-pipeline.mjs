@@ -31,7 +31,7 @@ function diskSample(directory) {
   const iterator = fs.opendirSync(directory);
   try {
     for (let entry; (entry = iterator.readSync());) {
-      assert.ok(++files <= defaults.maxFiles + 2, 'disk-file-bound');
+      assert.ok(++files <= defaults.maxFiles, 'disk-file-bound');
       const stat = fs.lstatSync(path.join(directory, entry.name));
       assert.ok(stat.isFile() && !stat.isSymbolicLink(), 'plain-spill-file-required');
       bytes += stat.size;
