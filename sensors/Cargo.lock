@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "aegis-macos-libproc"
+version = "0.1.0"
+
+[[package]]
 name = "aegis-sensor-linux"
 version = "0.1.0"
 dependencies = [
@@ -14,6 +18,7 @@ dependencies = [
 name = "aegis-sensor-macos"
 version = "0.1.0"
 dependencies = [
+ "aegis-macos-libproc",
  "aegis-wire",
 ]
 
