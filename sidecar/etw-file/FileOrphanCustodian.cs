@@ -14,7 +14,7 @@ internal static class FileOrphanCustodian
         var lease = await FileGuardWire.Read<FileOrphanLease>(pipe, setup.Token);
         using var custody = FileOrphanCustody.Take(lease, collectorPid, birth);
         var durable = FileDurableJournal.Reserve(custody.Durable(), args[4] == "recovery-denial-check");
-        using var observation = await FileOrphanObservation.Connect(lease.observer, custody.Pids);
+        using var observation = await FileOrphanObservation.Connect(lease.observer, custody.Pids, durable);
         if (durable.restrictedProbeStatus == 5) await observation.Send(new FileOrphanPhase("journal-denied"));
         if (durable.recovered != 0) await observation.Send(new FileOrphanPhase("journal-recovered"));
         await FileGuardWire.Write(pipe, new FileOrphanPhase("reserved"), setup.Token);

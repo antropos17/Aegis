@@ -20,8 +20,8 @@ source authentication or actor attribution is added.
 
 The production coordinator still refuses all native events with
 `unsupported-admission`, accepted zero and coverage lost. This prerequisite is a
-child of the owner-pending native-custody PR; it neither resolves that review nor
-activates production delivery.
+child of the native-custody change merged in #1012. This child requires its own
+separate owner confirmation and does not activate production delivery.
 
 ## Verification
 
