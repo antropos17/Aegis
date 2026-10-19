@@ -79,9 +79,10 @@ function fixture(platform) {
 
 /** Check a finite synthetic browser matrix against the production renderer bundle.
  * @param {import('playwright').Browser} browser Browser @param {string} url Static renderer URL
- * @param {string} out Owned artifact directory @returns {Promise<object[]>} Evidence @since 0.19.2-beta
+ * @param {string} out Owned artifact directory @param {string[]} only Optional scenario identities
+ * @returns {Promise<object[]>} Evidence @since 0.19.2-beta
  */
-export async function checkCoverage(browser, url, out) {
+export async function checkCoverage(browser, url, out, only = []) {
   await mkdir(out, { recursive: true });
   const results = [];
   for (const scenario of [
@@ -162,7 +163,25 @@ export async function checkCoverage(browser, url, out) {
       width: 390,
       height: 560,
     },
-  ]) {
+    {
+      id: 'binary-missing-pt-short',
+      platform: 'linux',
+      state: 'factory-missing',
+      theme: 'light',
+      locale: 'pt',
+      width: 390,
+      height: 560,
+    },
+    {
+      id: 'restart-pt-short',
+      platform: 'linux',
+      state: 'factory-restart',
+      theme: 'dark',
+      locale: 'pt',
+      width: 390,
+      height: 560,
+    },
+  ].filter((scenario) => !only.length || only.includes(scenario.id))) {
     const page = await browser.newPage({
       viewport: { width: scenario.width, height: scenario.height },
       reducedMotion: scenario.motion === 'full' ? 'no-preference' : 'reduce',
@@ -171,6 +190,16 @@ export async function checkCoverage(browser, url, out) {
     page.on('pageerror', (error) => errors.push(error.message));
     const data = fixture(scenario.platform);
     if (scenario.platform === 'missing') delete data.stats.nativeSensor;
+    if (scenario.state === 'factory-missing' || scenario.state === 'factory-restart') {
+      Object.assign(data.stats.nativeSensor, {
+        phase: scenario.state === 'factory-missing' ? 'unavailable' : 'waiting',
+        reason: scenario.state === 'factory-missing' ? 'binary-missing' : 'restart-pending',
+        mode: null,
+        modeReason: null,
+        providerState: 'FAILED',
+      });
+      data.stats.appHealth.sensors.byId['native-sensor'].state = 'FAILED';
+    }
     if (scenario.state === 'hostile') {
       data.stats.nativeSensor.mode = 'C:/fixture-private-path';
       data.stats.nativeSensor.reason = 'C:/fixture-private-path';
@@ -190,6 +219,7 @@ export async function checkCoverage(browser, url, out) {
           localStorage.setItem('aegis.language', scenario.locale);
           const listeners = new Map();
           window.coverageFixtureUpdate = (stats) => listeners.get('onStatsUpdate')?.(stats);
+          window.coverageFixtureBatch = (batch) => listeners.get('onScanBatch')?.(batch);
           window.aegis = new Proxy(
             {},
             {
@@ -297,7 +327,27 @@ export async function checkCoverage(browser, url, out) {
       assert.equal(await panel.locator('img').count(), 0, 'agent display text interpreted as HTML');
       await page.screenshot({ path: resolve(out, `synthetic-${scenario.id}.png`) });
       await panel.locator('section').nth(1).scrollIntoViewIfNeeded();
+      if (scenario.state === 'factory-missing')
+        await panel
+          .getByText('O executável do sensor está ausente', { exact: true })
+          .scrollIntoViewIfNeeded();
+      if (scenario.state === 'factory-restart') {
+        await panel.getByText('Aguardando reinicialização', { exact: true }).waitFor();
+        await panel.getByText('Reinicialização agendada', { exact: true }).waitFor();
+        await panel.getByText('Reinicialização agendada', { exact: true }).scrollIntoViewIfNeeded();
+      }
       await page.screenshot({ path: resolve(out, `synthetic-${scenario.id}-native.png`) });
+      if (scenario.state === 'factory-restart') {
+        Object.assign(data.stats.nativeSensor, {
+          phase: 'failed',
+          reason: 'restart-exhausted',
+          restart: { used: 3, remaining: 0, lastAt: null },
+        });
+        await page.evaluate((stats) => window.coverageFixtureUpdate(stats), data.stats);
+        await panel.getByText('Limite de reinicializações atingido', { exact: true }).waitFor();
+        await panel.getByText('Detalhe do provedor', { exact: true }).scrollIntoViewIfNeeded();
+        await page.screenshot({ path: resolve(out, 'synthetic-restart-exhausted-pt-short.png') });
+      }
       await panel.locator('.agent-list').scrollIntoViewIfNeeded();
       await page.screenshot({ path: resolve(out, `synthetic-${scenario.id}-agents.png`) });
       assert.deepEqual(errors, [], scenario.id + ' page errors');
@@ -359,6 +409,82 @@ export async function checkCoverage(browser, url, out) {
           'visible focus indicator',
         );
         await page.screenshot({ path: resolve(out, 'synthetic-keyboard-focus.png') });
+        await page
+          .locator('.sidebar')
+          .getByRole('button', { name: 'Monitoring', exact: true })
+          .click();
+        await page.getByRole('button', { name: 'Pause view', exact: true }).click();
+        const current = structuredClone(data.stats);
+        Object.assign(current.nativeSensor, {
+          lossCount: 29,
+          providerState: 'FAILED',
+          reason: 'binary-missing',
+          phase: 'unavailable',
+        });
+        await page.evaluate(({ stats, agents }) => window.coverageFixtureBatch({ stats, agents }), {
+          stats: current,
+          agents: [
+            { ...data.agents[0], agent: 'Synthetic latest Codex', pid: 43, instanceId: '43:999' },
+          ],
+        });
+        await page.locator('footer button').first().focus();
+        await page.keyboard.press('Enter');
+        await panel.waitFor({ state: 'visible' });
+        const native = panel.getByRole('region', { name: 'Native platform sensor' });
+        assert.equal(
+          await native
+            .getByText('Observed loss', { exact: true })
+            .evaluate((node) => node.nextElementSibling.textContent),
+          '29',
+        );
+        await native.getByText('Sensor executable is missing', { exact: true }).waitFor();
+        await panel
+          .getByRole('region', { name: 'Per-agent coverage' })
+          .getByText('Synthetic latest Codex', { exact: true })
+          .waitFor();
+        await native.getByText('Provider detail', { exact: true }).scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: resolve(out, 'synthetic-paused-overview-current-coverage.png'),
+        });
+        current.nativeSensor.lossCount = 41;
+        current.appHealth.populationReliable = false;
+        await page.evaluate((stats) => window.coverageFixtureUpdate(stats), current);
+        await panel
+          .getByText('Retained coverage readings. Current observation is unavailable.', {
+            exact: true,
+          })
+          .waitFor();
+        assert.equal(
+          await native
+            .getByText('Observed loss', { exact: true })
+            .evaluate((node) => node.nextElementSibling.textContent),
+          '41',
+        );
+        await page.screenshot({
+          path: resolve(out, 'synthetic-paused-overview-current-outage.png'),
+        });
+        await page.keyboard.press('Alt+ArrowLeft');
+        await page.getByRole('button', { name: 'Resume view', exact: true }).waitFor();
+        const retained = page.getByRole('complementary', { name: 'Observed agents' });
+        assert(
+          (await retained.innerText()).includes('Synthetic Codex'),
+          'paused Overview population was replaced',
+        );
+        assert(
+          !(await retained.innerText()).includes('Synthetic latest Codex'),
+          'paused Overview advanced to current population',
+        );
+        await page.screenshot({
+          path: resolve(out, 'synthetic-overview-still-paused-retained.png'),
+        });
+        results.at(-1).pauseNavigation = {
+          currentLoss: 29,
+          outageLoss: 41,
+          overviewStillPaused: true,
+          overviewRetainedAgent: 'Synthetic Codex',
+          currentCoverageAgent: 'Synthetic latest Codex',
+        };
+        assert.deepEqual(errors, [], 'pause navigation page errors');
       }
     } finally {
       await page.close();
@@ -407,6 +533,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       browser,
       `http://127.0.0.1:${server.address().port}/`,
       resolve(process.argv[2] ?? 'out/coverage-browser'),
+      process.argv[4]?.split(',') ?? [],
     );
     console.log(
       `Coverage: ${rows.length} synthetic layouts, keyboard routes and focus passed. Browser ${browser.version()}.`,

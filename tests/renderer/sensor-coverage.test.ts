@@ -18,6 +18,59 @@ import {
 import portuguese from '../../frontend/observatory/translations/pt-BR.json';
 
 describe('closed runtime coverage projection', () => {
+  it('covers the checked-in factory lifecycle and fixed launcher/transport failure vocabulary', () => {
+    const paths = [
+      'sensor-host.js',
+      'sensor-host-launch.js',
+      'sensor-host-transport.js',
+      'sensor-host-updates.js',
+    ];
+    for (const path of paths) {
+      const source = readFileSync('src/main/platform/' + path, 'utf8');
+      for (const [, phase] of source.matchAll(/setState\('([^']+)'/g))
+        expect(coverageLabel(coveragePhases, phase), path + ': ' + phase).not.toBe('Not reported');
+      const reasons = [
+        ...source.matchAll(/(?:failed|fail)\('([^']+)'/g),
+        ...source.matchAll(/setState\('[^']+', '([^']+)'/g),
+        ...source.matchAll(/\{ error: '([^']+)' \}/g),
+      ];
+      for (const [, reason] of reasons)
+        expect(coverageLabel(coverageReasons, reason), path + ': ' + reason).not.toBe(
+          'Not reported',
+        );
+    }
+  });
+  it.each([
+    ['unavailable', 'binary-missing', 'Unavailable', 'Sensor executable is missing'],
+    ['unavailable', 'launch-failed', 'Unavailable', 'Sensor could not start'],
+    ['waiting', 'restart-pending', 'Waiting for restart', 'Restart scheduled'],
+    ['failed', 'restart-exhausted', 'Failed', 'Restart limit reached'],
+    ['closing', 'stream-failed', 'Closing', 'Sensor communication failed'],
+    ['closing', 'protocol-failed', 'Closing', 'Invalid sensor communication'],
+    ['closing', 'stream-ended', 'Closing', 'Sensor communication ended'],
+    ['closing', 'request-encoding-failed', 'Closing', 'Sensor request could not be encoded'],
+    ['closing', 'write-failed', 'Closing', 'Sensor request could not be sent'],
+    ['closing', 'request-timeout', 'Closing', 'Sensor request timed out'],
+    ['closing', 'session-invalid', 'Closing', 'Invalid sensor session'],
+    ['closing', 'snapshot-rejected', 'Closing', 'Process snapshot request rejected'],
+    ['closing', 'stop-rejected', 'Closing', 'Sensor stop request rejected'],
+    ['closing', 'update-rejected', 'Closing', 'Sensor scope update rejected'],
+    ['closing', 'snapshot-consumer-failed', 'Closing', 'Process snapshot could not be handled'],
+    ['closing', 'request-id-exhausted', 'Closing', 'Sensor request limit reached'],
+  ])(
+    'shows factory launch/restart/transport result %s / %s',
+    (phase, reason, expectedPhase, expectedReason) => {
+      const input = coverageFixture();
+      const native = record(input.stats.nativeSensor);
+      Object.assign(native, { phase, reason, providerState: 'FAILED' });
+      const view = sensorCoverage(input);
+      expect.soft(view.phase).toBe(expectedPhase);
+      expect.soft(view.reason).toBe(expectedReason);
+      expect(view.provider).toBe('Failed');
+      expect(view.admission).toBe('Native event delivery is not qualified');
+      expect(view.surfaces.every((surface) => surface.state === 'Coverage lost')).toBe(true);
+    },
+  );
   it('keeps healthy provider separate from unqualified native delivery and blocking', () => {
     const input = coverageFixture();
     record(record(input.stats.nativeSensor).coverage).exec = 'observed';

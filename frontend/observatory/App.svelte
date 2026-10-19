@@ -870,12 +870,7 @@
               />
             </div>{/if}
           {#if tabs.includes('coverage')}<div hidden={view !== 'coverage'}>
-              <CoveragePanel
-                telemetry={displayTelemetry}
-                {navigate}
-                openSensorDetails={openSensors}
-                {preview}
-              />
+              <CoveragePanel {telemetry} {navigate} openSensorDetails={openSensors} {preview} />
             </div>{/if}
           <div hidden={view !== 'stats'}>
             <Statistics

@@ -2067,5 +2067,22 @@
   "Stopped": "Parado",
   "Process identity": "Identidade do processo",
   "Permission denied": "Permissão negada",
-  "Linux fanotify is a reduced mode. Native event delivery remains unqualified.": "O fanotify do Linux é um modo reduzido. A entrega de eventos nativos continua sem qualificação."
+  "Linux fanotify is a reduced mode. Native event delivery remains unqualified.": "O fanotify do Linux é um modo reduzido. A entrega de eventos nativos continua sem qualificação.",
+  "Sensor executable is missing": "O executável do sensor está ausente",
+  "Sensor could not start": "Não foi possível iniciar o sensor",
+  "Restart scheduled": "Reinicialização agendada",
+  "Restart limit reached": "Limite de reinicializações atingido",
+  "Waiting for restart": "Aguardando reinicialização",
+  "Sensor communication failed": "Falha na comunicação do sensor",
+  "Invalid sensor communication": "Comunicação inválida do sensor",
+  "Sensor communication ended": "A comunicação do sensor foi encerrada",
+  "Sensor request could not be encoded": "Não foi possível codificar a solicitação do sensor",
+  "Sensor request could not be sent": "Não foi possível enviar a solicitação do sensor",
+  "Sensor request timed out": "O tempo limite da solicitação do sensor foi excedido",
+  "Invalid sensor session": "Sessão inválida do sensor",
+  "Process snapshot request rejected": "Solicitação de instantâneo de processos rejeitada",
+  "Sensor stop request rejected": "Solicitação de parada do sensor rejeitada",
+  "Sensor scope update rejected": "Atualização do escopo do sensor rejeitada",
+  "Process snapshot could not be handled": "Não foi possível processar o instantâneo de processos",
+  "Sensor request limit reached": "Limite de solicitações do sensor atingido"
 }

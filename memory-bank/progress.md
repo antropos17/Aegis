@@ -2983,3 +2983,27 @@ formatting, configured main types (checkJs disabled) and sequence gate passed.
 Native delivery, identity parity, lifecycle/audit integration, packaged binaries,
 live providers and complete W1b/W9 acceptance remain open. Repository gates and
 source hashes are recorded separately for the final PR and merge.
+
+## Session handoff — monitoring coverage view (2026-10-19)
+
+Coverage now has an Advanced sidebar route, command search, a Settings entry and
+sensor-health links. It separates provider health, native event admission and
+coverage, and leaves unreported rates, restart time and action provenance unknown.
+Known binary/restart failures have fixed English and Portuguese explanations;
+unknown diagnostics are suppressed. OS process identity does not imply interception
+or blocking coverage.
+
+Coverage uses current telemetry even when another workspace's view is paused.
+The R2 browser journey verified new agent/loss observations and a later outage,
+then returned to the retained Overview with its resume control intact. Reverting
+the Coverage input to the paused snapshot failed the actual DOM assertion; source
+was restored. Seventy-four affected tests across six files, configured types,
+Svelte, scoped lint/format, both builds and three targeted Edge states passed.
+Earlier R1 and integration matrices remain separate evidence. The existing native
+Electron smoke script now includes the route; only its syntax/lint/format were
+checked in this slice.
+
+This view reports the existing host data contract. Native admission remains
+unsupported, and per-agent action provenance, rates and verified blocking remain
+unreported. Real Electron/preload, native/provider and complete W9 acceptance
+remain open; synthetic browser renders do not establish those checks.
