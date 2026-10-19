@@ -106,7 +106,7 @@ export const workspaces: Workspace[] = [
   {
     id: 'coverage',
     label: 'Coverage',
-    icon: 'shield',
+    icon: 'shieldSearch',
     group: 'configure',
     keywords: 'sensors health loss restart native polling coverage blocking',
   },
