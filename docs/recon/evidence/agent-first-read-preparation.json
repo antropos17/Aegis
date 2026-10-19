@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "scope": "Packaged genuine first sensitive-file read without warmup and persistent-read regression",
+  "status": "PASS",
+  "productionAdmission": false,
+  "recordedAt": "2026-10-19T00:21:48.542Z",
+  "source": {
+    "head": "f1a53f4a2f6c08785b05b1942d054324bf4ba742",
+    "tree": "4a563236efee4640f90abf4b5c8341d7cd60d50c",
+    "lockSha256": "71121b88e8761aeb14c9a439cec1480652e5883af16c58e4ceec05e82a30ce9a"
+  },
+  "packageManifestSha256": "25d39a048ef07d2a4250cfcf7237b9c78cfbc563647b908b687bb3ab70ccd757",
+  "packageFiles": 285,
+  "nativeDllSha256": "9ef285d65ce4a6bb620d2ec7a4dd1413097d1df3b00f206ccd56d9bcfcdf10e4",
+  "buildReceiptSha256": "5954644869c8cd00bcf715f500f4f8d08c75b35ade9b95805fd2490dac15dddb",
+  "nodeVersion": "24.16.0",
+  "electronVersion": "44.7.2",
+  "runnerSha256": "f9ded20d1357b847a7f78f172854c9c6e44de6bb355c9f811699afdebc69af92",
+  "oracleSha256": "68ea141fa5608bf75ce3970634c8e412d020e2fa41feaf12b6faee8e8945fabd",
+  "checks": {
+    "nativeSelfTests": {
+      "passed": 122,
+      "liveEtw": false,
+      "logSha256": "2d8aa0183c04b747d217efb8f7e5e84f7386d85eb548540b7de0eb9167431190"
+    },
+    "focusedIssuerProtocolScanAndOracle": {
+      "passed": 211,
+      "failed": 0,
+      "logSha256": "be4101c3e042c0d9e4b7e15acc2607515a932f979e144d3a563573dd5282c141"
+    },
+    "packageAfterLiveJourneys": {
+      "unchanged": true,
+      "completeManifestRecomputed": true
+    },
+    "installationHelperExitRegression": {
+      "scope": "Independent native installation helper; outside the qualified Electron/ETW package",
+      "status": "PASS",
+      "testsPassed": 16,
+      "sourceSha256": "ef811bb1d4cf36983a0fe51659a02bdb6099e176099b2ddb17e7024dff89cc19",
+      "beforeFix": "The original natural-exit test failed in both the full and isolated Windows runs; private native diagnostics observed image-query refusal during termination.",
+      "failedIsolatedLogSha256": "a5e04ab55834abcdadc921ea0de18c4f726320398c6c9f94f5a2a33d9bb4b20b",
+      "passedLogSha256": "ef3e05d7c9dad4f83f463532d761c4ce3295f6e9f1e927ded6cd067863bf9717",
+      "retainedOriginalHandleWaitMilliseconds": 2000,
+      "signaledOriginalRequired": true,
+      "timeoutAndFailedWaitStillRefused": true,
+      "productionLaunchPermissionChanged": false
+    }
+  },
+  "liveQualification": {
+    "candidateFirstRead": {
+      "status": "PASS",
+      "startedAt": "2026-10-19T00:19:37.079Z",
+      "completedAt": "2026-10-19T00:19:57.739Z",
+      "receiptSha256": "26ab9b91f5715d3008c22a8d17d7017b812944fc39813d1d110a1d69914ba0c2",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292 (Claude Code)",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "fixtureOnly": true,
+      "actualToolRead": true,
+      "onlyRequestedReads": true,
+      "returnedUnpredictableSyntheticValue": true,
+      "fullNativeIssuerBirthMatchesObservedAgent": true,
+      "nativeProofAcceptedByCurrentOracle": true,
+      "pathEvidence": "candidate-object",
+      "visibleActionAndPotentialRisk": true,
+      "verifiedSensitiveReadObservationsInUi": 2,
+      "contentExcludedFromAegisProfile": true,
+      "diagnosticReadExcludedFromAudit": true,
+      "agentExit": 0,
+      "appExit": 0,
+      "nativeStopAcknowledged": true,
+      "independentSessionAbsent": true,
+      "remainingNativeProcesses": 0,
+      "finalCounters": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "queryStatus": 0
+      },
+      "finalTotals": {
+        "delivered": "338121",
+        "filtered": "338102",
+        "dropped": "0",
+        "ingressDropped": "0",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "19",
+        "mapResets": "19",
+        "mapConflicts": "19"
+      },
+      "screenshotsVisuallyReviewed": true,
+      "screenshots": [
+        {
+          "name": "reads-dark.png",
+          "sha256": "d8b66f2f269741173a56fe061bf4099911b1a8573e18dca3e3d2431688164620"
+        },
+        {
+          "name": "reads-light.png",
+          "sha256": "22516186f3856bce3f7aa2fa4d5f964b183dded0f6d2494540fa5b757d64687f"
+        }
+      ],
+      "exactlyOneReadToolCall": true,
+      "warmupRead": false,
+      "issuerPreparedBeforeRead": true
+    },
+    "candidatePersistentRegression": {
+      "status": "PASS",
+      "startedAt": "2026-10-19T00:20:11.953Z",
+      "completedAt": "2026-10-19T00:20:59.27Z",
+      "receiptSha256": "e3b645df084ec9f8ad19f243e0eb0af887387b32730b1acef2a4c599785a0c1f",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292 (Claude Code)",
+      "packaged": true,
+      "diagnosticBuild": true,
+      "fixtureOnly": true,
+      "actualToolRead": true,
+      "onlyRequestedReads": true,
+      "returnedUnpredictableSyntheticValue": true,
+      "fullNativeIssuerBirthMatchesObservedAgent": true,
+      "nativeProofAcceptedByCurrentOracle": true,
+      "pathEvidence": "candidate-object",
+      "visibleActionAndPotentialRisk": true,
+      "verifiedSensitiveReadObservationsInUi": 1,
+      "contentExcludedFromAegisProfile": true,
+      "diagnosticReadExcludedFromAudit": true,
+      "agentExit": 0,
+      "appExit": 0,
+      "nativeStopAcknowledged": true,
+      "independentSessionAbsent": true,
+      "remainingNativeProcesses": 0,
+      "finalCounters": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "queryStatus": 0
+      },
+      "finalTotals": {
+        "delivered": "1036323",
+        "filtered": "1036276",
+        "dropped": "0",
+        "ingressDropped": "0",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "24",
+        "mapResets": "24",
+        "mapConflicts": "24"
+      },
+      "screenshotsVisuallyReviewed": true,
+      "screenshots": [
+        {
+          "name": "reads-dark.png",
+          "sha256": "588028b655f5fbb2c0aac1efcc7321322fbc31e9fd822f0fb369d1b9505cd1da"
+        },
+        {
+          "name": "reads-light.png",
+          "sha256": "ba09589fcb814026f06fbb94b22487d7ec7f31752d79d5e888f48aaf2215e550"
+        }
+      ],
+      "warmupRead": true,
+      "additionalUnverifiedObservationVisible": true
+    }
+  },
+  "priorPreparation": {
+    "schemaVersion": 1,
+    "scope": "First scoped read issuer preparation: verification without elevation",
+    "status": "PREPARED_LIVE_PENDING",
+    "productionAdmission": false,
+    "recordedAt": "2026-10-18T19:02:26.312Z",
+    "source": {
+      "head": "41335d2d4f9f4c6d9182f1351f9a8face853744e",
+      "tree": "075b92e814a2653b7e2fda114d2737581fc5382e",
+      "lockSha256": "836c4cb4b3791d8822845443668354f7a025b937c1f751542e762c1940634df6"
+    },
+    "packageManifestSha256": "aef8bf14cb95172f9e9743bbd5296969299eb91f6a38241964c51835ef4dc52e",
+    "nativeDllSha256": "097744904d9eb454bc50bf20db2b45b47770d5862d1b16c629f74d194c16e8ed",
+    "checks": {
+      "nativeSelfTests": {
+        "passed": 122,
+        "liveEtw": false,
+        "logSha256": "f2f80f9ca4ba53f5aaf5230435db4dd6361fb06fc6f8feb6feda7d3795002e28"
+      },
+      "platformAndScanTests": {
+        "passed": 722,
+        "skipped": 1,
+        "failed": 0,
+        "reportSha256": "2f83871f838596f5c3d54de5d92b872fd719fd4e0da11636c956900360431f5b"
+      },
+      "hosted": {
+        "head": "41335d2d4f9f4c6d9182f1351f9a8face853744e",
+        "requiredContexts": "SUCCESS (build, lint, svelte-check, test, audit)",
+        "nativeFixtures": "SUCCESS",
+        "ciRun": "https://github.com/antropos17/Aegis/actions/runs/39156077945",
+        "nativeRun": "https://github.com/antropos17/Aegis/actions/runs/39156077910"
+      },
+      "nativeOwnedHandles": {
+        "status": "PASS",
+        "elevated": false,
+        "realWindowsHandles": true,
+        "liveEtw": false,
+        "genuineAgentRead": false,
+        "method": "Private reflection harness invokes the unmodified packaged FileGeneration with default native dependencies; observations are synthetic.",
+        "cycles": [
+          {
+            "preparedThreads": 26,
+            "wrongBirthRejected": true,
+            "earlierEventUnverified": true,
+            "syntheticLaterEventVerified": true,
+            "freshBirthMatched": true,
+            "disposed": true
+          },
+          {
+            "preparedThreads": 26,
+            "wrongBirthRejected": true,
+            "earlierEventUnverified": true,
+            "syntheticLaterEventVerified": true,
+            "freshBirthMatched": true,
+            "disposed": true
+          }
+        ],
+        "receiptSha256": "6de3cb90ac2473cb7cc26aa5f403335d26d7618554c8e98b60c03d651e719c05",
+        "harnessSha256": "36b53ae5c5b6d9a82609e785790ff305c9eb6b04fe81a0b27553939db33b4424"
+      },
+      "normalTokenControl": {
+        "status": "PASS",
+        "cycles": 2,
+        "synthetic": true,
+        "liveEtw": false,
+        "nativeThreadPreparation": false,
+        "description": "Actual source-build check-broker/check-collector processes acknowledge the version-10 control and stop normally with synthetic targets.",
+        "receiptSha256": "44f3ac341d0a7f95065dad607ddc3dab3d6eed8eeef21b874c3b8c737c21c4f0"
+      },
+      "ordinaryPackagedLaunch": {
+        "status": "PASS",
+        "liveEtw": false,
+        "providerRequested": false,
+        "reliablePopulation": true,
+        "diagnosticStats": null,
+        "capture": "disabled",
+        "appExit": 0,
+        "independentSessionAbsent": true,
+        "receiptSha256": "9b7824b29d938b504d932beed1c73280907bfd0e32494ee0258d4256b673c103"
+      },
+      "finalIntegrity": {
+        "status": "PASS",
+        "packageFiles": 283,
+        "packageUnchanged": true,
+        "primaryStatusUnchanged": true,
+        "primaryFilesUnchanged": 8,
+        "independentSessionAbsent": true
+      }
+    },
+    "liveQualification": {
+      "baseline": {
+        "status": "FAIL",
+        "reason": "Manual UAC expired before capture ready and before any provider Read; this is unavailable live baseline evidence.",
+        "receiptSha256": "5458c58f6fbe133ed3d6ae230e78aed052af4afce8ee162e857c3dac87e6a2d0"
+      },
+      "candidateFirstRead": "NOT_RUN: manual UAC deferred by the user",
+      "candidatePersistentRegression": "NOT_RUN: manual UAC deferred by the user"
+    },
+    "limits": [
+      "These checks do not qualify genuine-agent first-read capture, visible action/risk or the persistent-read regression on this package.",
+      "Earlier persistent-agent live evidence belongs to its original package and does not qualify this first-read implementation.",
+      "Ordinary packaged ETW remains disabled; marked diagnostic package and explicit fixture root are required.",
+      "Denied handles, unavailable witnesses, bounded capacity and workers created after preparation can leave reads unverified.",
+      "Candidate paths and path-rule potential risk do not establish resolved file identity or malicious intent; no risk-score, FileEvent, audit, baseline or sequence admission.",
+      "One local Windows x64 machine; no other platform or agent qualification."
+    ],
+    "retention": "Private receipts, private harness and unsuccessful attempts retained; manual review of closed disposable diagnostics after seven days."
+  },
+  "limits": [
+    "One local Windows x64 machine and installed Claude Code 2.1.292; no other platform or agent qualification.",
+    "One first-read journey with exactly one Read tool call and one persistent two-turn journey; complete operation capture is not established.",
+    "The persistent journey also showed an unverified observation kept separate from the verified agent row. New workers, unavailable witnesses, handle caps and mapping resets can leave observations unverified.",
+    "Final native loss/drop counters were zero in these captures; mapping resets/conflicts remain reported measurements and are not hidden by the PASS result.",
+    "Candidate paths and path-rule potential risk do not establish resolved file identity or malicious intent; no risk-score, FileEvent, audit, baseline or sequence admission.",
+    "Ordinary packaged ETW remains disabled; a marked diagnostic package, explicit fixture root and manually approved capture were required.",
+    "The tested runtime is the source revision above. The final documentation, test-diagnostic and installation-helper-only delta leaves Electron/ETW package inputs unchanged and does not expand that qualification."
+  ],
+  "retention": "Private receipts, screenshots, complete package manifest and unsuccessful build/earlier UAC attempts retained; manual review of closed disposable diagnostics after seven days. No automatic cleanup is claimed."
+}

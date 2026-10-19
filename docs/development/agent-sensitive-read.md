@@ -18,12 +18,29 @@ risk scores, audit history, baselines or sequence rules.
 An agent label requires a held issuing thread covering the event, a fresh full
 process creation-time witness, and an exact match in a reliable agent population.
 Labels are stamped at intake; later exit or PID reuse cannot relabel history.
-The first scoped read can prime existing worker threads for future events, with
-at most 128 held thread/process pairs and a 30-second lifetime. The bounded
+An acknowledged preparation of detected AI processes can hold existing workers
+before their first scoped read. The first scoped read can also prime workers for
+future events, with
+at most 128 held thread/process pairs and a 30-second witness window. Expired
+pins are disposed on the next observation/preparation or at capture disposal. The bounded
 Toolhelp snapshot inspects at most 32,768 entries and selects at most 128 TIDs;
 every selected thread is independently opened and owner-checked. Unknown paths
 do not consume the scoped probe budget. A late lookup never verifies an earlier
 read. A standalone short read or a newly created worker can remain unverified.
+
+Preparation uses reliable, exact OS identities after the process scan has
+finished stamping. A closed authenticated control exchange selects at most
+sixteen AI processes, newest first. Native handles must independently match the
+requested PID/full creation time. Preparation stops adding pins at 64, leaving
+room for directly observed issuers under the existing 128-pin cap. Requests are
+coalesced, have a five-second acknowledgement deadline, and refresh after twenty
+seconds. Older handles are reopened before their thirty-second witness window expires;
+the new interval never verifies older queued events. Stop takes priority.
+
+Preparation targets and receipts remain in main-only diagnostics. They never
+substitute for the fresh birth query used to stamp an actual read. Outages,
+ambiguous identities, denied handles, limits and workers created after preparation
+can still leave reads unverified.
 
 The view retains at most 64 grouped rows within a conservative 128 KiB budget,
 counts omitted observations, shows measured loss or Unknown, and distinguishes
@@ -39,6 +56,12 @@ decision. Account settings and Claude session persistence stay unchanged.
 ```text
 node frontend/observatory/tests/agent-read-electron.mjs --executable <absolute-diagnostic-AEGIS.exe> --agent-executable <absolute-installed-claude.exe> --output <new-absolute-output>
 ```
+
+Add `--first-read` for the separate first-read scenario. It waits for an actual
+preparation receipt matching the installed agent, creates the synthetic `.env`,
+and permits exactly one Read tool request with no README warmup. The event-time
+issuer proof, visible action/risk, privacy and cleanup requirements still apply.
+The earlier persistent-agent PASS does not qualify this new scenario.
 
 The runner creates disposable fixtures and an AEGIS profile under its output.
 Only Read is available to the CLI. The `.env` is created after capture starts;
@@ -76,3 +99,49 @@ the snapshot alone is never identity proof.
 The [source/package-bound live record](../recon/evidence/agent-sensitive-read.json)
 retains the result and earlier unsuccessful attempts separately from modeled
 tests. Production admission remains open.
+
+## First-read qualification
+
+The [first-read record](../recon/evidence/agent-first-read-preparation.json) binds
+two passing live journeys to runtime source `f1a53f4a` and the same complete
+285-file diagnostic package manifest. The package uses Electron 44.7.2 and the
+installed Claude Code 2.1.292 with its existing account and default model. Both
+captures received manual UAC approval on one local Windows x64 machine.
+
+The first journey waited for the real agent's preparation acknowledgement before
+creating the synthetic `.env`. It made exactly one Read tool call without a
+README warmup. The returned unpredictable value, native PID/full creation-time
+witness and renderer identity agreed. The UI showed two verified read
+observations for that request, the candidate path and potential sensitive-read
+risk. Screenshots in both themes were visually reviewed.
+
+The second journey kept the agent alive across a genuine README Read and a Read
+of a newly created synthetic `.env`. The sensitive read had a verified agent row
+and potential risk. An additional observation remained visibly unverified; this
+result does not establish attribution of every operation. Final native loss and
+drop counters were zero in both journeys. Mapping resets/conflicts remain
+reported in the record and can invalidate uncertain evidence.
+
+Both journeys excluded file contents from the AEGIS profile and diagnostic reads
+from audit rows, exited the agent and app normally, acknowledged native stop,
+independently confirmed session absence and left no native helper processes.
+The entire package still matched its frozen manifest after the live checks.
+The final documentation, test-diagnostic and installation-helper delta leaves the
+Electron/ETW package inputs unchanged; required PR checks apply separately.
+Ordinary packaged ETW remains disabled.
+
+The record retains the earlier checks without elevation against `41335d2d`,
+including real owned handles with synthetic observations, separately from these
+live results. It also retains the unsuccessful baseline attempt that expired at
+manual UAC before any provider Read. Neither the synthetic checks nor the earlier
+persistent-agent package substitute for the new first-read result.
+
+The Windows verification also exposed a separate installation-helper exit race.
+A live image query could fail during natural termination before the retained
+process handle was signaled, causing a false cleanup-unknown result. The native
+observer now allows up to two seconds for that exact handle to signal; a timeout,
+failed wait or still-live process remains refused. The existing real native
+natural-exit regression failed before this change and passed afterwards. This
+follows the [bounded wait contract](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject)
+and changes no enrollment or production launch permission. The genuine-agent
+captures above qualify the Electron/ETW package, separately from this helper.

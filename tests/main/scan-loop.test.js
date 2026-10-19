@@ -184,6 +184,36 @@ describe('scan-loop', () => {
     },
   );
 
+  it('prepares the settled identity before publishing the agent batch', async () => {
+    const order = [],
+      agents = [{ agent: 'Claude Code', process: 'claude.exe', pid: 71 }];
+    let published = [];
+    const deps = makeDeps({
+      scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents, reliable: true }) },
+      getLatestAgents: () => published,
+      setAgents: (rows) => {
+        published = rows;
+      },
+      onAgentsObserved: vi.fn(() => {
+        order.push('prepare');
+        expect(published[0].createTime100ns).toBe('134333333333333337');
+      }),
+      sendToRenderer: vi.fn((channel) => {
+        if (channel === 'scan-batch') order.push('batch');
+      }),
+    });
+    deps.procUtil.enrichWithParentChains.mockImplementation(async (rows) => {
+      rows[0].createTime100ns = '134333333333333337';
+      rows[0].instanceId = '71:1788859733333';
+      order.push('stamp');
+    });
+    scanLoop.init(deps);
+    scanLoop.startScanIntervals(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(deps.onAgentsObserved).toHaveBeenCalled();
+    expect(order.slice(0, 3)).toEqual(['stamp', 'prepare', 'batch']);
+  });
+
   it('publishes the fresh population before a slow identity stamp can leave stale PIDs', async () => {
     const agents = [{ agent: 'Claude Code', process: 'claude.exe', pid: 100 }];
     let published = [

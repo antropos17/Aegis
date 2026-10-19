@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/9';
+const PROTOCOL = 'etw-file/10';
 const { validMainLease } = require('./etw-file-custody');
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
@@ -57,6 +57,21 @@ const shape = (fields) => (v) =>
 const clock = shape({ qpc: uint64, unixMs: uint64, uncertaintyQpc: uint64 });
 const interval = shape({ fromQpc: uint64, toQpc: uint64 });
 const intervalOrdered = (v) => interval(v) && BigInt(v.fromQpc) <= BigInt(v.toQpc);
+const issuerTarget = shape({
+  pid: (v) => uint32(v) && v > 0 && v < 0xffffffff,
+  createTime100ns: positive64,
+});
+const issuerList = (v) =>
+  array(issuerTarget, 16)(v) && new Set(v.map((row) => row.pid)).size === v.length;
+const preparedIssuer = shape({
+  pid: (v) => uint32(v) && v > 0 && v < 0xffffffff,
+  createTime100ns: positive64,
+  threads: (v) => Number.isInteger(v) && v > 0 && v <= 128,
+});
+const preparation = (v) =>
+  shape({ requestId: id, prepared: array(preparedIssuer, 16), asOfQpc: uint64 })(v) &&
+  new Set(v.prepared.map((row) => row.pid)).size === v.prepared.length &&
+  v.prepared.reduce((sum, row) => sum + row.threads, 0) <= 128;
 const counts = shape({
   eventsLost: nullable(uint64),
   realTimeBuffersLost: nullable(uint64),
@@ -256,6 +271,8 @@ const messageData = {
   heartbeat: telemetry,
   stop: shape({ requestId: id }),
   ping: shape({}),
+  'prime-issuers': shape({ requestId: id, issuers: issuerList }),
+  'issuers-primed': preparation,
   escrow: validMainLease,
   'escrow-ack': shape({}),
   'consent-ack': shape({}),

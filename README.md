@@ -176,11 +176,13 @@ Each evidence record identifies its own tested revision and package.
 
 **Pending:** [#974](https://github.com/antropos17/Aegis/pull/974) remains draft until
 an actual Windows restart and post-restart capture pass.
+
 [#976](https://github.com/antropos17/Aegis/pull/976) prepares detected threads
-before the first scoped read. Its [checks without elevation](https://github.com/antropos17/Aegis/blob/c3cd47fcac79cab022b1865b5930854e857cd22d/docs/recon/evidence/agent-first-read-preparation.json)
-passed; the genuine first-read journey without README warmup and the persistent-read
-regression on that candidate still await manual UAC. Neither draft is in the
-merged snapshot above.
+before the first scoped read. Its [live qualification](docs/recon/evidence/agent-first-read-preparation.json)
+passed the genuine first-read journey without README warmup and the persistent-read
+regression on one diagnostic Windows package. Both showed a verified agent read
+and potential risk; additional observations can remain unverified. This candidate
+is separate from the merged snapshot above; ordinary packaged ETW remains disabled.
 
 <a id="the-evidence-graph"></a>
 

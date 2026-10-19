@@ -16,6 +16,7 @@ const { values } = parseArgs({
     executable: { type: 'string' },
     'agent-executable': { type: 'string' },
     output: { type: 'string' },
+    'first-read': { type: 'boolean', default: false },
   },
 });
 assert(process.platform === 'win32' && process.arch === 'x64', 'Windows x64 required');
@@ -56,7 +57,10 @@ const r = {
   realAgent: 'Claude Code',
   fixtureOnly: true,
   file,
-  workflow: 'persistent genuine Read of README, then a newly created synthetic .env',
+  scenario: values['first-read'] ? 'first-read' : 'persistent',
+  workflow: values['first-read']
+    ? 'first genuine Read of a newly created synthetic .env, without a prior fixture read'
+    : 'persistent genuine Read of README, then a newly created synthetic .env',
 };
 let app,
   appProcess,
@@ -174,6 +178,25 @@ try {
     r.agentIdentity?.instanceId && r.agentIdentity.agent === 'Claude Code',
     'Real agent identity not observed',
   );
+  if (values['first-read'] && Object.hasOwn(d, 'issuerPreparation')) {
+    const until = Date.now() + 10000;
+    do {
+      const snapshot = await diagnostics(app);
+      r.preparationRecord = snapshot.issuerPreparation?.prepared?.find(
+        (row) =>
+          row.pid === agent.pid &&
+          row.createTime100ns === r.agentIdentity.createTime100ns &&
+          row.threads > 0,
+      );
+      if (r.preparationRecord) break;
+      await delay(100);
+    } while (Date.now() < until);
+    r.issuerPreparedBeforeRead = !!r.preparationRecord;
+    assert(
+      r.issuerPreparedBeforeRead,
+      'Real agent workers were not prepared before its first read',
+    );
+  }
   poll = (async () => {
     while (polling) {
       try {
@@ -234,12 +257,14 @@ try {
       'Genuine Read turn did not return its marker',
     );
   };
-  fs.writeFileSync(warmup, ('AEGIS_WARMUP_TOKEN=' + warmupMarker + '\n# ').padEnd(4096, 'x'));
-  await turn(warmup, warmupMarker, 'AEGIS_WARMUP_TOKEN');
-  r.warmupRead = true;
-  console.log('Real agent read the owned README; creating the synthetic sensitive file.');
-  assert(!done, 'The real agent did not remain available between turns');
-  await delay(1800);
+  if (!values['first-read']) {
+    fs.writeFileSync(warmup, ('AEGIS_WARMUP_TOKEN=' + warmupMarker + '\n# ').padEnd(4096, 'x'));
+    await turn(warmup, warmupMarker, 'AEGIS_WARMUP_TOKEN');
+    r.warmupRead = true;
+    console.log('Real agent read the owned README; creating the synthetic sensitive file.');
+    assert(!done, 'The real agent did not remain available between turns');
+    await delay(1800);
+  }
   fs.writeFileSync(file, ('AEGIS_FIXTURE_TOKEN=' + marker + '\n# ').padEnd(4096, 'x'));
   await turn(file, marker, 'AEGIS_FIXTURE_TOKEN');
   r.returnedCanary = true;
@@ -253,8 +278,11 @@ try {
   r.onlyRequestedReads = tools.every(
     (block) =>
       block.name === 'Read' &&
-      [canonical(file), canonical(warmup)].includes(canonical(block.input?.file_path ?? '')),
+      [canonical(file), ...(values['first-read'] ? [] : [canonical(warmup)])].includes(
+        canonical(block.input?.file_path ?? ''),
+      ),
   );
+  r.firstReadOnly = values['first-read'] && tools.length === 1 && r.onlyRequestedReads;
   assert(r.actualToolRead && r.onlyRequestedReads);
   r.providerModel = messages().find(
     (row) => row.type === 'system' && row.subtype === 'init',

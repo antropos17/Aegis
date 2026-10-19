@@ -164,7 +164,16 @@ function reduceSession(state, message, now) {
   time(now);
   validateMessage(message, state);
   if (
-    ['start', 'stop', 'ping', 'escrow-ack', 'consent-ack', 'rescue', 'escrow'].includes(message.t)
+    [
+      'start',
+      'stop',
+      'ping',
+      'prime-issuers',
+      'escrow-ack',
+      'consent-ack',
+      'rescue',
+      'escrow',
+    ].includes(message.t)
   )
     error('wrong-direction');
   if (BigInt(message.seq) <= BigInt(state.lastSeq)) error('sequence-replayed');
@@ -189,7 +198,7 @@ function reduceSession(state, message, now) {
     error('hello-required');
   if (message.t === 'ready' && state.phase !== 'starting') error('unexpected-ready');
   if (
-    ['health', 'heartbeat', 'observations', 'stopped'].includes(message.t) &&
+    ['health', 'heartbeat', 'observations', 'issuers-primed', 'stopped'].includes(message.t) &&
     state.phase !== 'running'
   )
     error('ready-required');
@@ -206,6 +215,8 @@ function reduceSession(state, message, now) {
     case 'health':
     case 'heartbeat':
       return withTelemetry(next, message.data, now);
+    case 'issuers-primed':
+      return next; // Preparation is not capture coverage or process-population health.
     case 'observations': {
       const records = message.data.records;
       if (records.length && BigInt(records[0].eventSeq) <= BigInt(state.lastEventSeq))

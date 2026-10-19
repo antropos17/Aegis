@@ -83,7 +83,7 @@ describe.skipIf(process.platform !== 'win32' || process.arch !== 'x64')(
         ),
       );
       expect(result.error).toBeUndefined();
-      expect(result.status).toBe(0);
+      expect(result.status, result.stderr.toString()).toBe(0);
       expect(result.stderr.length).toBe(0);
       expect(
         fs.readFileSync(path.join(directory, 'control/supervisor-job-empty.txt'), 'utf8'),

@@ -7,6 +7,7 @@ const model = require('./etw-file-health');
 const health = require('../sensor-health');
 const { createDiagnostics, createSummary } = require('./etw-file-diagnostics');
 const { bindTransport } = require('./etw-file-transport');
+const { createIssuerPreparation } = require('./etw-file-issuer-preparation');
 
 /** Own one broker at a time, with explicit retry and no elevated kill or replay.
  * @param {Object} deps - spawnBroker, optional clocks/ID factory for deterministic tests.
@@ -25,6 +26,7 @@ function createSupervisor({
   onHealthChange = () => {},
   onObservations = () => {},
   onSessionStart = () => {},
+  getIssuerTargets = null,
 }) {
   if (maxCaptureMs !== null && (!Number.isSafeInteger(maxCaptureMs) || maxCaptureMs <= 0))
     throw new Error('etw-file:invalid-capture-limit');
@@ -66,6 +68,20 @@ function createSupervisor({
     omittedSummaries = 0;
   let idle = { ...health.createSensorHealth('etw-file'), state: 'DISABLED' };
   let lastHealth = '';
+  const issuerPreparation = createIssuerPreparation({
+    getTargets: getIssuerTargets,
+    mono,
+    id,
+    send,
+  });
+  function refreshIssuers() {
+    if (!child || closed || pendingWrite || stopAt !== null || current?.phase !== 'running') return;
+    try {
+      issuerPreparation.flush();
+    } catch {
+      fail('consumer-failed');
+    }
+  }
   function notify() {
     const value = current?.record || idle;
     const signature = JSON.stringify([value.state, value.detail, value.lastError, value.lossCount]);
@@ -117,6 +133,7 @@ function createSupervisor({
         flushStart();
         flushConsentAck();
         flushStop();
+        refreshIssuers();
       });
     } catch {
       fail('protocol-failed');
@@ -217,6 +234,7 @@ function createSupervisor({
       diagnostics.retain(message.data.records);
       onObservations(message.data.records);
     }
+    if (message.t === 'issuers-primed') issuerPreparation.accept(message.data);
     if (message.t === 'stopped') {
       clearRing();
       child.stdin.end();
@@ -230,6 +248,7 @@ function createSupervisor({
       child.stdin.end();
     }
     notify();
+    refreshIssuers();
   }
   function tick() {
     if (!child || closed) return;
@@ -252,7 +271,10 @@ function createSupervisor({
       elapsed - readyAt >= maxCaptureMs
     )
       stop('duration-limit');
-    if (current.phase === 'running' && stopAt === null) send('ping', {});
+    if (current.phase === 'running' && stopAt === null) {
+      refreshIssuers();
+      if (current.phase === 'running' && stopAt === null) send('ping', {});
+    }
   }
   function finish(target, code) {
     if (target !== child || closed) return;
@@ -291,6 +313,7 @@ function createSupervisor({
       }
     }
     closed = true;
+    issuerPreparation.reset();
     clearInterval(timer);
     timer = null;
     if (current.phase === 'recovered' && code === 4) unsafe = false;
@@ -330,6 +353,7 @@ function createSupervisor({
     stopReason = null;
     capture = null;
     readyAt = null;
+    issuerPreparation.reset();
     sent = 0n;
     pendingWrite = false;
     receivedReady = false;
@@ -403,6 +427,7 @@ function createSupervisor({
     start,
     stop,
     tick,
+    refreshIssuers,
     restart() {
       if (unsafe || (rescuing && child)) return false;
       stop('restart');
@@ -433,6 +458,8 @@ function createSupervisor({
         recoveryPending: (current?.recoveryPending === true || rescuing) && !closed,
         cleanupConsentPending: current?.recoveryPending === true && !closed,
         custodyObserved,
+        issuerPreparation:
+          current?.phase === 'running' && stopAt === null ? issuerPreparation.snapshot() : null,
         nativeProcessIds: [...nativeProcessIds], // IDs only; private handles, births and GUID never leave custody.
         phase: current?.phase || 'disabled',
         pendingBytes: decoder?.allocatedBytes() || 0,

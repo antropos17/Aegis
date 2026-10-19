@@ -23,6 +23,28 @@ internal sealed class FilePipeline : IDisposable
     private ulong filtered, outputOverflowDropped, outputInvalidatedDropped;
     private ulong invalidation;
     private long lastGeneration;
+    private FileIssuerRequest? preparation;
+    internal void RequestPreparation(FileIssuerRequest request)
+    {
+        lock (gate)
+        {
+            if (preparation != null) throw new InvalidDataException();
+            preparation = request;
+            outputReady.TrySetResult(true);
+        }
+    }
+    internal FileIssuerRequest? TakePreparation()
+    {
+        lock (gate)
+        {
+            var value = preparation; preparation = null;
+            if (outbound.Count == 0) outputReady = NewReady();
+            return value;
+        }
+    }
+    // The serial reader owns all thread pins; control and mapper never probe.
+    internal FileIssuerPreparation Prepare(FileIssuerRequest request) =>
+        generation?.Prepare(request) ?? new(request.requestId, [], clock().ToString());
     internal ulong OutputDropped { get { lock (gate) return outputOverflowDropped + outputInvalidatedDropped; } }
     internal Task Worker { get; }
     // Level-triggered under the queue lock: enqueue before or after registration
@@ -46,7 +68,7 @@ internal sealed class FilePipeline : IDisposable
             invalidation++;
             profile.Invalidate(clock());
             outputInvalidatedDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
-            if (outputReady.Task.IsCompleted) outputReady = NewReady();
+            if (outputReady.Task.IsCompleted && preparation == null) outputReady = NewReady();
         }
     }
     internal void Complete() { lock (gate) completed = true; }
@@ -105,7 +127,7 @@ internal sealed class FilePipeline : IDisposable
             if (!outbound.TryDequeue(out var item)) return null;
             profile.Dequeue(clock(), item.Bytes);
             bytes -= item.Bytes; record = item.Record; epoch = invalidation;
-            if (outbound.Count == 0) outputReady = NewReady();
+            if (outbound.Count == 0 && preparation == null) outputReady = NewReady();
         }
         // One serial reader owns the probe budget. Never hold the map/queue lock
         // across a native call, and never cache a process creation observation.

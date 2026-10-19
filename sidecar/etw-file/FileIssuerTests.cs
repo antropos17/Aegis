@@ -17,6 +17,71 @@ internal static class FileIssuerTests
         FileObservation Read(long qpc, uint tid = 73) => new("1", FileCapture.Provider.ToString(), 15, 1,
             qpc.ToString(), 4, 99, tid, null, @"C:\fixture\a", "candidate-object");
         void Check(bool value) { if (!value) throw new InvalidOperationException("issuer-proof"); }
+        test("a detected full-witness owner can prepare its first scoped worker read", () =>
+        {
+            long now = 100; var worker = new Pin(71);
+            using var owner = new FileGeneration(_ => worker, () => now, 1000, 8, _ => [73u]);
+            var result = owner.Prepare(new("prepare1", [new(71, worker.Witness.ToString())]));
+            Check(result.prepared.Length == 1 && result.prepared[0].threads == 1 && worker.Queries == 1);
+            now = 120; var value = owner.Observe(Read(110));
+            Check(value.issuerStatus == "verified" && value.issuerPid == 71 && worker.Queries == 2);
+        });
+        test("preparation cannot certify events preceding its held worker interval", () =>
+        {
+            long now = 100; var worker = new Pin(71);
+            using var owner = new FileGeneration(_ => worker, () => now, 1000, 8, _ => [73u]);
+            owner.Prepare(new("prepare1", [new(71, worker.Witness.ToString())])); now = 120;
+            Check(owner.Observe(Read(90)).issuerStatus != "verified");
+        });
+        test("preparation rejects denied handles, another owner and a different full birth", () =>
+        {
+            foreach (var worker in new Pin?[] { null, new(88), new(71) { Witness = 134000000000001112 } })
+            {
+                using var owner = new FileGeneration(_ => worker, () => 100, 1000, 8, _ => [73u]);
+                var result = owner.Prepare(new("prepare1", [new(71, "134000000000001111")]));
+                Check(result.prepared.Length == 0 && owner.Count == 0 && (worker == null || worker.Disposed));
+            }
+        });
+        test("preparation refresh cannot borrow an exited process generation", () =>
+        {
+            long now = 100; var old = new Pin(71); var fresh = new Pin(71) { Witness = old.Witness + 1 }; int opens = 0;
+            using var owner = new FileGeneration(_ => ++opens == 1 ? old : fresh, () => now, 1000, 8, _ => [73u]);
+            owner.Prepare(new("prepare1", [new(71, old.Witness.ToString())])); old.Running = false; now = 120;
+            Check(owner.Prepare(new("prepare2", [new(71, old.Witness.ToString())])).prepared.Length == 0);
+            Check(old.Disposed && fresh.Disposed && owner.Count == 0);
+        });
+        test("preparation deduplicates inventory and respects capacity and expiry", () =>
+        {
+            long now = 100; var opened = new List<Pin>();
+            using var owner = new FileGeneration(_ => { var pin = new Pin(71); opened.Add(pin); return pin; },
+                () => now, 10, 2, _ => [73u, 73u, 74u, 75u]);
+            var request = new FileIssuerRequest("prepare1", [new(71, "134000000000001111")]);
+            var result = owner.Prepare(request);
+            Check(owner.Count == 1 && opened.Count == 1 && result.prepared[0].threads == 1);
+            now = 111; owner.Prepare(request);
+            Check(opened[0].Disposed && owner.Observe(Read(105)).issuerStatus != "verified");
+        });
+        test("preparation renews original handles without backfilling the new interval", () =>
+        {
+            long now = 100; var opened = new List<Pin>();
+            using var owner = new FileGeneration(_ => { var pin = new Pin(71); opened.Add(pin); return pin; },
+                () => now, 10, 8, _ => [73u]);
+            var request = new FileIssuerRequest("prepare1", [new(71, "134000000000001111")]);
+            owner.Prepare(request); now = 106; owner.Prepare(request);
+            Check(opened.Count == 2 && opened[0].Disposed && owner.Count == 1);
+            now = 110; Check(owner.Observe(Read(105)).issuerStatus != "verified");
+            Check(owner.Observe(Read(107)).issuerStatus == "verified");
+        });
+        test("preparation leaves native capacity for directly observed scoped issuers", () =>
+        {
+            long now = 100;
+            using var owner = new FileGeneration(_ => new Pin(71), () => now, 1000, 128,
+                _ => Enumerable.Range(1, 128).Select(value => (uint)value));
+            var result = owner.Prepare(new("prepare1", [new(71, "134000000000001111")]));
+            Check(owner.Count == 64 && result.prepared[0].threads == 64);
+            Check(owner.Observe(Read(90, 200)).issuerStatus != "verified" && owner.Count > 64);
+            now = 120; Check(owner.Observe(Read(110, 200)).issuerStatus == "verified");
+        });
         test("late thread lookup cannot prove the preceding event", () =>
         {
             long now = 100; var pin = new Pin(71);

@@ -68,6 +68,19 @@ function receipt() {
   };
 }
 describe('genuine-agent journey acceptance oracle', () => {
+  it('accepts a separately identified first read only without fixture warmup', () => {
+    const value = {
+      ...receipt(),
+      scenario: 'first-read',
+      firstReadOnly: true,
+      issuerPreparedBeforeRead: true,
+      warmupRead: false,
+    };
+    expect(agentReadPassed(value)).toBe(true);
+    expect(agentReadPassed({ ...value, firstReadOnly: false })).toBe(false);
+    expect(agentReadPassed({ ...value, warmupRead: true })).toBe(false);
+    expect(agentReadPassed({ ...value, issuerPreparedBeforeRead: false })).toBe(false);
+  });
   it('accepts consistent evidence without upgrading the candidate path', () => {
     const value = receipt();
     expect(agentReadPassed(value)).toBe(true);

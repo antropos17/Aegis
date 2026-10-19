@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { createSupervisor } = require('./etw-file-supervisor');
 const { createReadView } = require('./etw-file-attribution');
+const { selectIssuerTargets } = require('./etw-file-issuer-preparation');
 
 /** Attach the optional backend to application lifetime without adding renderer IPC.
  * Only a marked diagnostic build may capture in a package; production stays gated.
@@ -88,6 +89,7 @@ function createRuntime({
     onHealthChange,
     onObservations: (records) => readView.accept(records),
     onSessionStart: () => readView.reset(),
+    getIssuerTargets: () => selectIssuerTargets(getAgents(), getPopulationHealth()),
     spawnBroker: (launchId, sessionId) =>
       spawnProcess(
         executable,
@@ -169,6 +171,7 @@ function createRuntime({
   return {
     start: () => permitted && !paused && !suspended && sensor.start(),
     restart: () => permitted && !paused && !suspended && sensor.restart(),
+    refreshIssuers: () => permitted && !paused && !suspended && sensor.refreshIssuers(),
     setPaused(value) {
       paused = value;
       if (paused) sensor.stop('pause');

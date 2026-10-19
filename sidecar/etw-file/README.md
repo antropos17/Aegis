@@ -26,10 +26,15 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/9`. Each telemetry sample includes
+The matching main/helper now require `etw-file/10`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–8 are rejected; rebuild the helper together with the main reader.
+Versions 1–9 are rejected; rebuild the helper together with the main reader.
+Version 10 adds the closed `prime-issuers` / `issuers-primed` exchange. Reliable
+OS process witnesses select at most sixteen AI processes, newest first. The
+collector checks each selected thread's actual owner and full process creation
+time before holding it for future reads. A preparation receipt is not an
+event-time witness and stays in main-only diagnostics.
 Marked diagnostic packages retain private references to the original broker and
 three elevated helpers in the surviving main before capture authorization. See
 [main-held recovery custody](../../docs/roadmap/etw-main-custody.md) for the
@@ -192,7 +197,7 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 
 ## Current evidence and limits
 
-Marked protocol `etw-file/9` packages use a [temporary custodian](../../docs/roadmap/etw-orphan-recovery.md)
+Marked diagnostic packages use a [temporary custodian](../../docs/roadmap/etw-orphan-recovery.md)
 and a [protected write-ahead reservation](../../docs/roadmap/etw-durable-recovery.md).
 After loss of all six original processes, the next explicitly consented capture
 can recover the reserved session before another StartTrace. One bounded

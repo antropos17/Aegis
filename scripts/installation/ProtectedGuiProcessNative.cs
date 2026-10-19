@@ -154,7 +154,12 @@ internal sealed class ProtectedGuiProcessNative : IDisposable
         CheckHandles(); uint state = WaitForSingleObject(process, 0); Need(state == 0 || state == 0x102);
         if (state == 0x102) {
             try { CheckLiveImageAndJob(); }
-            catch { Need(WaitForSingleObject(process, 0) == 0); state = 0; }
+            catch {
+                // Image queries can fail while the original process is still
+                // completing termination. Wait only for that retained handle;
+                // a live, failed or timed-out witness still refuses observation.
+                Need(WaitForSingleObject(process, 2000) == 0); state = 0;
+            }
         }
         // A live query can race natural termination. Only the original signaled
         // process handle permits the exited branch; no live check is waived.
