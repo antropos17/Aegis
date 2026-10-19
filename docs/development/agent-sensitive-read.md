@@ -9,6 +9,11 @@ see [ordinary file reads](ordinary-file-reads.md). The historical diagnostic
 profile still requires its marker/root flag and retains its minute limit. Both
 use the stats bridge; ordinary controls add one owned-renderer IPC operation.
 
+The [ordinary-package qualification](../recon/evidence/ordinary-agent-sensitive-read.json)
+retains a persistent-read PASS and a separate first-read attribution FAIL after
+65 seconds idle. The latter still displayed a read and potential risk with an
+unverified actor. It is not superseded by the persistent-read result.
+
 ## Evidence and interpretation
 
 Paths remain `candidate-object` or `candidate-key`, visibly labelled **Candidate

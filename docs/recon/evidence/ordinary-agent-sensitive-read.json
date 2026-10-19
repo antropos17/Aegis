@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "scope": "Ordinary Windows x64 package: explicit scoped ETW capture and genuine agent sensitive-file reads",
+  "status": "PARTIAL",
+  "ordinaryPackageActivation": "PASS",
+  "persistentRealAgentRead": "PASS",
+  "firstReadAttribution": "FAIL",
+  "productionAdmission": false,
+  "recordedAt": "2026-10-19T01:13:19.052Z",
+  "source": {
+    "head": "fca4020bbc50ccb8aceea1786d18691a1a542f67",
+    "tree": "2850dc2821dee52c4a574f7c43455febb41bbaae",
+    "lockSha256": "71121b88e8761aeb14c9a439cec1480652e5883af16c58e4ceec05e82a30ce9a"
+  },
+  "packageManifestSha256": "a0578262d3628de6ee3380c75313255a7c6ab5983208f2834cbd865efd27d649",
+  "packageFiles": 285,
+  "nativeDllSha256": "ba86d0191bc748768ca6c276423e881f8ad4852b2ee13850c6a5b647e43b63a8",
+  "buildReceiptSha256": "f67bb6b8bb1e6f50d09dbe1ec555e7654014a6e0c61c72f94fd7749f163a058d",
+  "nativeSelfTests": 122,
+  "nodeVersion": "24.16.0",
+  "electronVersion": "44.7.2",
+  "runnerSha256": "cfb1800074198622a2775436e2854a2b7054391e89b773476484bf4a4366a87f",
+  "oracleSha256": "b264721f7edae4397e94a067384fe8ef32dd863b8973a1049cf5746ef0ecc506",
+  "buildUsesDefaultPackageProfile": true,
+  "privateOverrides": [
+    "Output directory",
+    "Already installed official Electron distribution"
+  ],
+  "packageManifestRecomputedAfterLiveAndUnchanged": true,
+  "liveQualification": {
+    "firstRead": {
+      "status": "FAIL",
+      "receiptSha256": "172300c780fb16ea8c50adb6af8e81f9c9dd16879df4d126ed6917ef7e39d17e",
+      "failure": "No verified kernel read for the real agent and synthetic .env",
+      "noDiagnosticArguments": true,
+      "noAutomaticCapture": true,
+      "operatorStartedCapture": true,
+      "continuousCaptureMs": 65259,
+      "genuineReadTool": true,
+      "onlyRequestedReads": true,
+      "firstReadOnly": true,
+      "issuerPreparationAcknowledged": true,
+      "preparedThreads": 35,
+      "returnedUnpredictableSyntheticValue": true,
+      "scopedKernelReadObserved": true,
+      "issuingActorVerified": false,
+      "pathEvidence": "candidate-object",
+      "visibleActionPotentialRiskAndActorUnverified": "Manually reviewed in the retained failure screenshot; not a verified-issuer PASS",
+      "screenshotSha256": "0cfaa0942bbafc6f8504b21741acfc1f043252b4c6516c9e4099214eb6671c7f",
+      "contentExcluded": true,
+      "readExcludedFromAudit": true,
+      "appExit": 0,
+      "agentExit": 0,
+      "stopReason": "shutdown",
+      "stopVerified": true,
+      "independentSessionAbsent": true,
+      "remainingNativeProcesses": 0,
+      "finalCounters": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "queryStatus": 0
+      },
+      "finalTotals": {
+        "delivered": "570371",
+        "filtered": "570286",
+        "dropped": "0",
+        "ingressDropped": "0",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "9",
+        "mapResets": "9",
+        "mapConflicts": "9"
+      },
+      "interpretation": "Retained attribution gap after an idle minute despite acknowledged preparation and zero final native/stage drops. Exact cause not established. Do not infer loss-free or fully attributed capture."
+    },
+    "persistentReadAndStop": {
+      "status": "PASS",
+      "startedAt": "2026-10-19T01:04:48.888Z",
+      "completedAt": "2026-10-19T01:06:20.408Z",
+      "receiptSha256": "5b93588d1219b3c7bf60d3515f4ea8d7a3e4045b485eef0069999f6ca3db462b",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.292 (Claude Code)",
+      "mode": "ordinary",
+      "packaged": true,
+      "diagnosticBuild": false,
+      "noDiagnosticArguments": true,
+      "noAutomaticCapture": true,
+      "operatorStartedCapture": true,
+      "continuousCaptureMs": 65136,
+      "scenario": "persistent",
+      "firstReadOnly": false,
+      "warmupRead": true,
+      "issuerPreparedBeforeRead": null,
+      "genuineReadTool": true,
+      "onlyRequestedReads": true,
+      "returnedUnpredictableSyntheticValue": true,
+      "nativeIssuerMatchesExactOsAgentIdentity": true,
+      "pathEvidence": "candidate-object",
+      "visibleActionAndPotentialRisk": true,
+      "verifiedObservationsInUi": 1,
+      "lossAccountingVisible": true,
+      "visibleLosses": {
+        "kernelEvents": "0",
+        "realtimeBuffers": "0",
+        "logBuffers": "0",
+        "collectorDropped": "8809",
+        "mappingResets": "11"
+      },
+      "screenshots": {
+        "darkSha256": "c7c0455a9b67c16073c7eb7f03ad8856dd5af3e88bb7629950a08264e1849400",
+        "lightSha256": "e1c14938bdea09939054eff82b15fadb109d6250f7de9009faa69c51c51c706d",
+        "visuallyReviewed": true
+      },
+      "contentExcluded": true,
+      "readExcludedFromAudit": true,
+      "agentExit": 0,
+      "appExit": 0,
+      "stopReason": "operator-stop",
+      "operatorStoppedCapture": true,
+      "nativeStopAcknowledged": true,
+      "independentSessionAbsent": true,
+      "remainingNativeProcesses": 0,
+      "finalCounters": {
+        "eventsLost": "0",
+        "realTimeBuffersLost": "0",
+        "logBuffersLost": "0",
+        "queryStatus": 0
+      },
+      "finalTotals": {
+        "delivered": "499836",
+        "filtered": "490942",
+        "dropped": "8809",
+        "ingressDropped": "8809",
+        "outputDropped": "0",
+        "outputOverflowDropped": "0",
+        "outputInvalidatedDropped": "0",
+        "decoderErrors": "0",
+        "mapEpoch": "13",
+        "mapResets": "13",
+        "mapConflicts": "11"
+      }
+    }
+  },
+  "checks": {
+    "controls-tests-2": {
+      "exitCode": 0,
+      "elapsedMs": 4011,
+      "logSha256": "09f8ce70931cb1dc5719077dd4c6c486af0143875f67437cd5e3f049379faa94"
+    },
+    "controls-tests-3": {
+      "exitCode": 0,
+      "elapsedMs": 2888,
+      "logSha256": "2a50963267a7815016f1cee73ecf940908169bbd4c05393800df0e9e31e87310"
+    },
+    "typecheck-3": {
+      "exitCode": 0,
+      "elapsedMs": 8032,
+      "logSha256": "6fe2d75af4e2f0403eedf5501f44bdedd7fdcf8603f2673ec080ca5e1c83bd32"
+    },
+    "svelte-check-2": {
+      "exitCode": 0,
+      "elapsedMs": 25500,
+      "logSha256": "808ba000c50ca58024ce9f50f44d3c218050d8bf9f91ccad660c1cd312b96406"
+    },
+    "format-check-2": {
+      "exitCode": 0,
+      "elapsedMs": 12236,
+      "logSha256": "714ae4642d577e33dfd72d9142786b036a95b1d7cbba60f37027f0f1b1878ee7"
+    },
+    "lint-2": {
+      "exitCode": 0,
+      "elapsedMs": 22094,
+      "logSha256": "84829048a9e0d138fbd20100f589decee2ff766a5f5515f91702fb2c83630f60"
+    },
+    "coverage-1": {
+      "exitCode": 0,
+      "elapsedMs": 334329,
+      "logSha256": "c8459606c2d47d55c27404ce9f5ecdf8358eecce855bc8a6f7957b3b3e4f0534"
+    },
+    "witness-gate-1": {
+      "exitCode": 0,
+      "elapsedMs": 6974,
+      "logSha256": "4c9aa213b826ab0ceaa5cb58a23a209323987c67bcac61c4de174931ddb6ea52"
+    },
+    "sequence-gate-1": {
+      "exitCode": 0,
+      "elapsedMs": 6918,
+      "logSha256": "7336a1ce93c9bde0a298b2e1db85e22150205f992a3655028c97139337bf5f22"
+    },
+    "counts-3": {
+      "exitCode": 0,
+      "elapsedMs": 393,
+      "logSha256": "077cd3607db025e828bd1d2e1fe46d47175284b4f25365e5daf6acf235a03d55"
+    },
+    "audit-1": {
+      "exitCode": 0,
+      "elapsedMs": 1044,
+      "logSha256": "6d8c5c8f3d7684adb070417bd608d01ae90aa3dc26a65af03ffda4955f38d9a3"
+    },
+    "native-audit-1": {
+      "exitCode": 0,
+      "elapsedMs": 4077,
+      "logSha256": "10a996e1dbe01f8f88807f4fdff7fc7be184c9ff1593febcc56166b24c90d6db"
+    }
+  },
+  "earlierAttempts": [
+    {
+      "status": "FAIL",
+      "scope": "Build qualification",
+      "receiptSha256": "de25b39b841e8f6b56fd4df50ec292160188c3377001a53b22a8b75971ac4bc6",
+      "reason": "Packaging and 122 native self-tests passed, but generated self-contained output was not ignored by Git; fixed before rebuilding."
+    },
+    {
+      "status": "PASS before loss-display correction",
+      "scope": "First ordinary read",
+      "receiptSha256": "4ed837c2d2efcf9bc8c177374557e8034a193af2411e786775b44de100949a4f",
+      "qualifiedFinalInputs": false
+    },
+    {
+      "status": "PASS before loss-display correction",
+      "scope": "Persistent ordinary read and explicit stop",
+      "receiptSha256": "d6295f4e2ce46eb3601831ab717443fe588e6b3bedbe636116924e68929faa48",
+      "qualifiedFinalInputs": false
+    }
+  ],
+  "limits": [
+    "One Windows x64 host and installed Claude Code/default account model; no cross-platform or provider-wide claim.",
+    "Native loss, collector drops and mapping resets are independent. Nonzero values remain recorded; these passes do not establish complete or loss-free capture.",
+    "The final first-read attribution journey failed: a genuine read was visible with potential risk and Actor unverified after 65 seconds idle. Its strict FAIL is retained; a persistent-read PASS does not qualify this case. Exact attribution-gap cause remains unresolved.",
+    "Paths remain candidates; short-lived/new workers and denied or ambiguous identities can remain unverified.",
+    "Potential risk uses path rules and does not establish malicious intent, inspect contents, or update risk scores, FileEvents, audit history, baselines or sequence rules.",
+    "Normal package availability does not qualify protected installation/release provenance, every recovery path, Windows reboot or long-term resource behavior.",
+    "Screenshots and receipts are private; public evidence omits process identifiers, births, local paths, synthetic values, provider output and credentials.",
+    "Per-command logs have a 2 MiB cap and deadlines. Review disposable closed diagnostics after seven days; no automatic rotation claim."
+  ]
+}

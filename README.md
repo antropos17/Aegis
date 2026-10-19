@@ -186,6 +186,12 @@ and potential risk; additional observations can remain unverified. This candidat
 was tested with the diagnostic profile. Ordinary packaged controls have their own
 [setup and qualification](docs/development/ordinary-file-reads.md).
 
+The [ordinary-package record](docs/recon/evidence/ordinary-agent-sensitive-read.json)
+passes explicit capture, a genuine persistent-agent sensitive read and Stop. Its
+separate first-read attribution check failed with **Actor unverified**, so overall
+qualification remains partial. Collector drops are reported independently of
+kernel loss; this does not establish complete capture.
+
 <a id="the-evidence-graph"></a>
 
 ## Known limits

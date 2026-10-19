@@ -16,7 +16,8 @@ Resume and unpause require another explicit Start and consent. Cancelling consen
 or an occupied ETW session produces a failed capture; review Statistics sensor
 health. If cleanup remains unverified, the runtime blocks a new capture. Do not
 treat an unverified stop as session absence. A pending Windows consent window is
-not dismissed by app shutdown.
+not dismissed by app shutdown. Emergency cleanup can require additional Windows
+consent; enabling ordinary capture does not qualify every recovery path.
 
 The ordinary capture continues beyond the diagnostic profile's one-minute limit.
 Native queues, identity pins and the main/renderer observation rings remain
@@ -37,6 +38,17 @@ The [genuine-agent runner](agent-sensitive-read.md#run) supports `--ordinary` an
 separate first/persistent reads. Qualification must bind a clean source revision,
 an unmarked normal package, its complete manifest and actual installed-agent
 receipts. Modeled tests alone do not establish this result.
+
+The [19 October ordinary-package record](../recon/evidence/ordinary-agent-sensitive-read.json)
+is **PARTIAL**. The installed Claude Code persistent-read journey passed after 65
+seconds of continuous capture, including exact issuer proof, visible action/risk,
+explicit Stop, privacy and independent session absence. A separate first-read
+journey after the same idle interval returned the genuine synthetic value and
+displayed the read/risk with **Actor unverified**, failing the strict issuer
+oracle despite acknowledged preparation. Its final native and collector drops
+were zero; the exact attribution-gap cause remains unresolved. The failed receipt
+is retained. This feature is usable for experimental observations, without a
+guarantee that every first read is attributed or every read is captured.
 
 Windows packaging needs the .NET 10 SDK and restore access. The default build hook
 publishes a self-contained folder; end users need no separate runtime. See
