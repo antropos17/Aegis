@@ -3199,3 +3199,54 @@ installation/removal authority after restart, hook execution or complete W6/IO
 provider. Same-user malicious code is outside this boundary; process-local refs
 and ownership are not recovered from disk. Logical quota is not protection from
 an external filesystem owner, and no power-loss durability is established.
+
+## W10 offline WinGet candidate preparation — 2026-10-19
+
+Added a standalone CLI that reuses repository release-manifest verification and
+the pinned Ed25519 public key, binds the selected installer bytes to an explicit
+signed asset/version/tag/URL and writes three candidate YAML manifests into a
+new output directory. Metadata and payload architecture require explicit caller
+inputs; no registry values or installation scope are inferred. See
+[usage and remaining qualification](../packaging/winget/README.md).
+
+Validation:37 focused offline tests, three copied-source assertion mutants,
+scoped lint/format and independent source/security/test/evidence reviews passed.
+The synthetic fixture uses an ephemeral test key through the private test seam;
+the production CLI rejects it. Final mutation logs/config/drivers/dependency
+copies are separately bound by a post-run archive supplement. Four frozen raw
+sources and verifier/key/package/lock dependencies survived merge master. The
+CLI help was directly checked with no installer or native activity.
+
+This prepares candidates only. Actual WinGet/schema validation, published URL
+fetch, real installer/publisher metadata, Authenticode, installation/upgrade/
+uninstall and submission remain unqualified. No release/signing secret, download,
+workflow change, package submission or full W10 completion is established.
+
+## W6 Windows private IO fixture integration — 2026-10-19
+
+Connected the private writer to a framework-only Windows helper through bounded
+private stdio. Separate original-object witnesses survive fresh read/commit
+leases; helper-only DPAPI references map to opaque live JS objects. Debug modes,
+late responses, unknown exit/drain and transport failures close admission. See
+[the fixture provider contract](../docs/CLAUDE-HOOK-WINDOWS-IO.md).
+
+The fixture against the exact frozen-source build passed 31 actual Windows groups, including the
+real writer review/confirm/backup/inert-install/fresh-removal/exact-restoration
+loop. Twenty transport cases are synthetic. Mutations establish three expected-
+group behavioral kills and one explicit synthetic assertion kill; integration
+logs do not preserve individual assertion kinds. Frozen build/scoped lint/format
+and independent source/security/test/evidence reviews passed. Configured main
+types and derived counts passed; `checkJs: false` supplies no JS-body type claim.
+Derived counts: 253 main modules (210 + 41 + 2); 46 source files exceed 300 lines.
+
+Eleven owned sources, three JS dependencies and seventeen actual checkout
+prerequisites survived merge master unchanged. Those seventeen checkout files
+have CRLF while their archived qualification inputs have LF; exact normalized
+bytes and immutable Git blobs match. Actual compiled bytes and five load-file
+pre/post observations are separately bound. Runtime hash observations require
+stable trusted directories; they do not authenticate atomic loading.
+
+No production caller, real profile, IPC/UI/installer/policy wiring, command
+execution, ownership adoption, automatic rollback or sensitive activation.
+Interrupted writes, crash recovery, hostile metadata and full W6/product
+qualification remain open. launchAllowed=false.
