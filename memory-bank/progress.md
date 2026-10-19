@@ -3077,3 +3077,25 @@ Limits are 60 seconds, 60 samples and 128 KiB of serialized output. Synchronous
 work cannot be preempted, so strict wall deadlines require an external supervisor.
 This raw format cannot be passed to the aligned resource evaluator. No product
 or cohort footprint, calibrated overhead, native capture or W8 acceptance follows.
+
+## Session handoff — native observation metadata custody (2026-10-19)
+
+Optional closed sensor metadata now survives security-record projection, disk
+spill/restart replay and canonical audit JSONL hashing. Raw birth, witness,
+sequence and capture timestamps stay separate from normalized identity and the
+audit delivery ID. Missing Linux D1 context retains raw evidence with identity
+unavailable; replay uses only persisted historical proof. Absent clock anchors
+remain null and uncalibrated. Invalid or oversized metadata preserves an otherwise
+admissible legacy event.
+
+The focused gate passed 106 tests across six suites, including 25 new cases.
+Four mutations failed behavioral assertions and restored exact source. Actual
+spill/restart/audit hashing and tamper rejection are tested. Scoped lint/format,
+configured main types and independent security/test review passed. The configured
+typecheck does not check these JavaScript bodies. Three frozen source hashes
+survived master integration.
+
+This adds no producer forwarding, source authentication, actor/session authority,
+calibrated time or native loss-range forwarding. Runtime admission remains
+unsupported with zero accepted native events and coverage lost. No FileEvent,
+risk, UI, provider or complete W1b acceptance follows.
