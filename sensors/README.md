@@ -1,9 +1,19 @@
-# Sensor wire workspace
+# Sensor workspace
 
-This workspace currently contains `aegis-wire`, the pure `sensor/1` codec shared
-by future sensor binaries. The contract is
+This workspace contains `aegis-wire`, the pure `sensor/1` codec shared by future
+sensor binaries, and registered library roots `aegis-sensor-linux` and
+`aegis-sensor-macos`. The platform roots contain documentation only and depend
+on `aegis-wire`; native providers, public provider APIs and sensor binaries are
+not implemented. The codec contract is
 [the sensor wire specification](../docs/roadmap/sensor-wire.md). It has no OS
 providers, process custody or host session state.
+
+The platform roots inherit workspace package metadata and lints. All members
+share `Cargo.lock`, following [Cargo's workspace model](https://doc.rust-lang.org/cargo/reference/workspaces.html).
+Shared-file changes have one owner and land before dependent platform work,
+as required by [the ownership plan](../docs/roadmap/completion-plan.md#53-worktrees-and-path-ownership).
+The future eBPF crate and capability installer in that plan are not present.
+Registering these roots prepares build metadata and does not complete W2 or W3.
 
 Rust **1.99.1** is pinned in `rust-toolchain.toml`, with the minimal profile,
 Clippy and rustfmt. The initial local qualification used Rust 1.99.1 on Windows
@@ -12,6 +22,7 @@ From this directory:
 
 ```sh
 cargo fmt --all -- --check
+cargo check --workspace --all-targets --locked --offline
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```

@@ -2911,3 +2911,17 @@ No production transcript reader, trusted session verifier, measured clock
 calibration, native provider or live correlation was added. UI integration and
 full W4 acceptance remain separate. Exact PR/master gates and source hashes are
 retained in the external receipts.
+
+## Session handoff — separate Rust platform crate roots (2026-10-19)
+
+Two library-only crate roots now have inherited workspace metadata and local
+wire dependencies, so Linux and macOS implementation can proceed under separate
+owners. Their sources contain documentation only; no native sensor or executable
+is introduced. The targeted lock change adds only the two local package entries;
+all twelve prior package blocks and wire/toolchain inputs remain unchanged.
+
+Workspace formatting, locked offline check/tests/Clippy and metadata checks
+passed. The test run contains 28 existing wire tests and zero native-provider
+tests. Native build, privilege/entitlement, lifecycle and coverage qualification
+remain open. Root status documentation now records the completed owner-confirmed
+#990/#996 wire prerequisite and preserves earlier deferral notes as history.
