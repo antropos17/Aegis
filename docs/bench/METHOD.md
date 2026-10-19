@@ -9,9 +9,11 @@ accuracy or overhead figures, W8 acceptance or T8 completion.
 ## Existing evidence and reusable tooling
 
 [Q9](../roadmap/completion-baseline.md#q9--benchmark-method-corpus-and-oracles)
-inventories the current boundary. Bench V1 has two bounded synthetic scenarios:
+inventories the baseline boundary: two process-based synthetic scenarios,
 a renamed lifecycle process and a renamed Node process holding an inert file.
-They do not constitute a real-agent task corpus. Reuse
+The [fixture corpus](CORPUS.md) adds four bounded write/deletion controls in
+exclusively owned run directories. These six controls do not constitute a
+real-agent task corpus. Reuse
 `bench/scenario.schema.json`, `bench/lib/actor.js`, `bench/lib/catalogue.js` and
 their existing validation. The schema defines scenario shape; the actor checks
 executable step kinds and expectation compatibility before execution. Preserve

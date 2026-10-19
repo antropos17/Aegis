@@ -43,6 +43,7 @@ const Ajv = require('ajv');
 
 const catalogue = require('./catalogue');
 const manifest = require('./manifest');
+const { writeFixture } = require('./fixture');
 
 /** @type {string} Where scenario directories live. */
 const SCENARIOS_DIR = path.join(manifest.ROOT, 'bench', 'scenarios');
@@ -89,6 +90,7 @@ const SEEDED_SECRET_BYTES = ['{"bench":"seeded secret file — inert, not a cred
  */
 const STEP_KINDS = Object.freeze({
   'copy-binary': 'file.creation',
+  'write-fixture': 'file.creation',
   'spawn-process': 'process.start',
   wait: null,
   'terminate-process': 'process.end',
@@ -101,14 +103,14 @@ const STEP_KINDS = Object.freeze({
 const KIND_NAMES = Object.freeze(Object.keys(STEP_KINDS));
 
 /**
- * Which kind a step's `with.fromStep` has to name. A kind absent from this map
+ * Which kind(s) a step's `with.fromStep` has to name. A kind absent from this map
  * takes no back-reference.
- * @type {Readonly<Object<string, string>>}
+ * @type {Readonly<Object<string, string|string[]>>}
  */
 const FROM_STEP_KIND = Object.freeze({
   'spawn-process': 'copy-binary',
   'terminate-process': 'spawn-process',
-  'delete-file': 'copy-binary',
+  'delete-file': ['copy-binary', 'write-fixture'],
   'hold-secret-file': 'copy-binary',
 });
 
@@ -278,7 +280,7 @@ function validateSteps(scenario) {
           `step "${step.id}" refers to step "${step.with.fromStep}", which does not appear before it`,
         );
       }
-      if (target.kind !== requiredKind) {
+      if (![requiredKind].flat().includes(target.kind)) {
         throw new Error(
           `step "${step.id}" (kind "${step.kind}") needs a "${requiredKind}" step but ` +
             `"${step.with.fromStep}" is a "${target.kind}" step`,
@@ -377,6 +379,7 @@ function isInsideStageDir(resolvedPath, resolvedStageDir, platform = process.pla
  * @type {Readonly<Object<string, function(Object, Object): Promise<Object>>>}
  */
 const KIND_IMPL = Object.freeze({
+  'write-fixture': async (step, ctx) => writeFixture(step.with, ctx.runDir),
   'copy-binary': async (step, ctx) => {
     const from = expandEnv(step.with.from);
     if (!fs.existsSync(from) || !fs.statSync(from).isFile()) {
@@ -607,6 +610,7 @@ function cleanup(children, log) {
 async function execute(scenario, opts) {
   const log = opts.log ?? (() => {});
   const ctx = {
+    runDir: opts.runDir,
     stageDir: path.join(opts.runDir, STAGE_DIRNAME),
     // The run-scoped home the sensor was pointed at, when this scenario asked for
     // one. `null` for every scenario that did not: a step that needs it fails by
