@@ -1,0 +1,2 @@
+{"type":"assistant","sessionId":"session-local","cwd":"/work","timestamp":"2026-10-19T10:00:01.000Z","message":{"content":[{"type":"text","text":"PRIVATE_PROMPT"},{"type":"tool_use","id":"call-local","name":"Read","input":{"file_path":"/work/private.env","environment":{"KEY":"PRIVATE_ENV"},"note":"PRIVATE_ARGUMENT"}}]}}
+{"type":"user","sessionId":"session-local","cwd":"/work","timestamp":"2026-10-19T10:00:01.600Z","message":{"content":[{"type":"tool_result","tool_use_id":"call-local","content":"PRIVATE_RESPONSE"}]}}

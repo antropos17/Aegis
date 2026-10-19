@@ -2842,3 +2842,20 @@ Independent security and test-quality reviews passed within the exclusive-run
 fixture boundary. PR/master gates and documentation review are recorded separately.
 Real-agent execution, read/transfer stimuli, qualified oracles and W8/T8 acceptance
 remain open.
+
+## Session handoff — W4 bounded metadata adapter (2026-10-19)
+
+The pure CommonJS layer parses bounded Claude/Codex/Gemini record fixtures into
+closed metadata with keyed references. Associations require session-binding
+provenance, matching objects and explicit timing; ambiguity, incomplete sources
+and exhausted selected evidence cannot produce a confirmed association. Raw
+prompt, response and argument values remain outside returned projections.
+
+Focused checks passed 66 tests and scoped lint/format. Independent security
+review accepted the corrected resource/completeness boundaries; test review
+accepted the final Windows, ambiguity and serialized privacy assertions. Current
+three production modules match the security-reviewed revision; the last changes
+strengthen tests only. Exact revision/mutation history and PR/master gates live
+in the external receipts. Derived module declarations were updated by counts.
+This layer supplies no filesystem discovery, trusted OS/session verifier,
+measured clock calibration, runtime/UI hookup or live/native W4 acceptance.

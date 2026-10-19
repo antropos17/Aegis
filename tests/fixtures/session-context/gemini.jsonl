@@ -1,0 +1,2 @@
+{"sessionId":"session-local","projectHash":"PRIVATE_PROJECT","startTime":"2026-10-19T10:00:00.000Z","lastUpdated":"2026-10-19T10:00:01.000Z"}
+{"id":"message-local","timestamp":"2026-10-19T10:00:01.000Z","type":"gemini","content":"PRIVATE_PROMPT","thoughts":[{"description":"PRIVATE_THOUGHT"}],"toolCalls":[{"id":"call-local","name":"read_file","args":{"file_path":"/work/private.env","note":"PRIVATE_ARGUMENT","env":{"KEY":"PRIVATE_ENV"}},"result":"PRIVATE_RESPONSE","status":"success","timestamp":"2026-10-19T10:00:01.000Z"}]}
