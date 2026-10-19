@@ -18,6 +18,11 @@ the system. AEGIS does not interpret argument semantics. Use only a deliberately
 reviewed command.
 No provider configuration or installed application is changed automatically.
 
+An explicitly selected [Cedar execution policy](ACTION-POLICY-CEDAR.md) uses
+schema 4 on this direct-execution preparation route. The guide explains its fixed
+schema, decision/error codes and synchronous runtime availability limits. Existing
+schema-2/3 policies keep their current evaluator; no migration is automatic.
+
 ## Files and invocation
 
 The request uses schema 1 and exactly `schemaVersion` and `action`. An action has
