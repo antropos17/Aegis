@@ -1,7 +1,8 @@
 # Packaged agent sensitive-read journey
 
-This check follows an installed Claude Code process reading an owned README and
-then a newly created synthetic `.env`. Events displays the observed read, its
+This check follows an installed Claude Code process reading a newly created
+synthetic `.env`, either as its first scoped read or after an owned README read.
+Events displays the observed read, its
 issuing agent when verified, and a potential sensitive-file risk.
 
 Ordinary Windows x64 packages now expose explicit scoped Start/Stop in Events;
@@ -9,10 +10,12 @@ see [ordinary file reads](ordinary-file-reads.md). The historical diagnostic
 profile still requires its marker/root flag and retains its minute limit. Both
 use the stats bridge; ordinary controls add one owned-renderer IPC operation.
 
-The [ordinary-package qualification](../recon/evidence/ordinary-agent-sensitive-read.json)
-retains a persistent-read PASS and a separate first-read attribution FAIL after
-65 seconds idle. The latter still displayed a read and potential risk with an
-unverified actor. It is not superseded by the persistent-read result.
+The [idle first-read qualification](../recon/evidence/agent-idle-first-read.json)
+passes genuine first reads after 65, 70 and 85 seconds in an ordinary package,
+including the original held-handle interval, exact issuer, UI risk and cleanup.
+The [earlier ordinary-package record](../recon/evidence/ordinary-agent-sensitive-read.json)
+retains its separate attribution FAIL; see [interpretation](ordinary-file-reads.md)
+for the proven renewal race and the limits of the historical diagnosis.
 
 ## Evidence and interpretation
 

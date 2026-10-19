@@ -186,11 +186,12 @@ and potential risk; additional observations can remain unverified. This candidat
 was tested with the diagnostic profile. Ordinary packaged controls have their own
 [setup and qualification](docs/development/ordinary-file-reads.md).
 
-The [ordinary-package record](docs/recon/evidence/ordinary-agent-sensitive-read.json)
-passes explicit capture, a genuine persistent-agent sensitive read and Stop. Its
-separate first-read attribution check failed with **Actor unverified**, so overall
-qualification remains partial. Collector drops are reported independently of
-kernel loss; this does not establish complete capture.
+The [idle first-read qualification](docs/recon/evidence/agent-idle-first-read.json)
+passes genuine Claude Code reads after 65, 70 and 85 seconds in an ordinary package,
+with verified issuer, visible action/potential risk and cleanup. It covers renewed
+original handles; the [earlier attribution failure](docs/recon/evidence/ordinary-agent-sensitive-read.json)
+is retained. Collector drops remain separate from kernel loss; these passes do
+not establish complete capture or attribution of every worker.
 
 <a id="the-evidence-graph"></a>
 
