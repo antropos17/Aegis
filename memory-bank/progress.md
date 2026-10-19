@@ -2890,3 +2890,24 @@ installed pinned compiler matches the qualified 1.99.1 compiler bytes.
 This block provides no native provider, sensor host/session state or packaged
 application acceptance. Full W1a and owner wire confirmation remain open until
 the reviewed PR and exact required repository gates complete.
+
+## Session handoff — W4 private tool-context custody (2026-10-19)
+
+Optional closed tool metadata now survives supported file/network event routing,
+live deduplication, canonical audit and security spill/replay. The capsule has an
+8 KiB UTF-8 budget, at most eight displayed candidates and explicit total,
+ambiguity and truncation. Incomplete candidate/global evidence cannot retain a
+confirmed association. Invalid optional metadata and whole-record budget fallback
+preserve the underlying OS evidence; actor attribution remains separate.
+
+Independent security and test-quality reviews accepted the corrected boundaries.
+R2 passed 247 affected tests across six suites; the final test-only revision
+passed 30 focused cases with complete persisted/exported capsule and delivery-ID
+assertions, capsule-only chain tamper detection and invalid undisplayed input.
+Mutation/restoration records are revision-specific: eight R1, three R2 correction
+mutants and one final sink-omission mutant; they were not all rerun on one head.
+
+No production transcript reader, trusted session verifier, measured clock
+calibration, native provider or live correlation was added. UI integration and
+full W4 acceptance remain separate. Exact PR/master gates and source hashes are
+retained in the external receipts.

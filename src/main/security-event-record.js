@@ -1,6 +1,7 @@
 'use strict';
 const { randomUUID } = require('crypto');
 const { EVIDENCE_CODES } = require('./attribution');
+const { projectToolContext, unavailableToolContext } = require('./tool-context-record');
 
 const SENSORS = Object.freeze(['file-watch', 'file-handle', 'process', 'network', 'other']);
 const TYPES = new Set(['file-access', 'config-access', 'agent-enter', 'network-connection']);
@@ -50,6 +51,7 @@ function projectRecord(input) {
     severity: text(d.severity, 32) ?? 'normal',
     attribution: attribution(d.attribution),
   };
+  if (d.toolContext !== undefined) details.toolContext = projectToolContext(d.toolContext);
   const extra = {};
   if (input.type === 'network-connection') {
     for (const key of ['domain', 'remoteIp', 'localIp', 'state', 'verdict', 'verdictReason']) {
@@ -79,6 +81,13 @@ function projectRecord(input) {
     details,
     replayed: false,
   };
+  if (
+    Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES &&
+    details.toolContext !== undefined
+  ) {
+    details.toolContext = unavailableToolContext(details.toolContext);
+    if (Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES) delete details.toolContext;
+  }
   if (Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES)
     throw new Error('record-oversize');
   return record;

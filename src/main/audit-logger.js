@@ -20,6 +20,7 @@ const { normalizeAuditEntry } = require('./audit-normalize');
 const auditIndex = require('./audit-index');
 const indexRebuild = require('./audit-index-rebuild');
 const counterSeed = require('./audit-counter-seed');
+const { projectToolContext } = require('./tool-context-record');
 let _counterTask = null;
 let _historyReadState = 'uninitialized';
 let _initGeneration = 0;
@@ -335,6 +336,9 @@ function log(type, details) {
     severity: details.severity || 'normal',
     riskScore: details.riskScore || 0,
     attribution: details.attribution ?? null,
+    ...(details.toolContext === undefined
+      ? {}
+      : { toolContext: projectToolContext(details.toolContext) }),
     details: details.extra || null,
   };
   // Whether the buffer was ALREADY at the cap before this push. Once it is, the
@@ -403,6 +407,9 @@ function persistBatch(records) {
       severity: record.details.severity || 'normal',
       riskScore: 0,
       attribution: record.details.attribution ?? null,
+      ...(record.details.toolContext === undefined
+        ? {}
+        : { toolContext: projectToolContext(record.details.toolContext) }),
       details: {
         ...record.details.extra,
         deliveryId: record.deliveryId,
