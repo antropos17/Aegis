@@ -2859,3 +2859,16 @@ strengthen tests only. Exact revision/mutation history and PR/master gates live
 in the external receipts. Derived module declarations were updated by counts.
 This layer supplies no filesystem discovery, trusted OS/session verifier,
 measured clock calibration, runtime/UI hookup or live/native W4 acceptance.
+
+## Session handoff — W11 recovery admission decision (2026-10-19)
+
+The source-bound decision in `docs/roadmap/windows-recovery-admission.md` accepts
+only #986's existing idle-first-read proof and records which #974 restart checks
+remain necessary. Its protocol-9 draft harness must be adapted to the current
+protocol-10 package and correlated source/package/harness receipts before the
+owner's prepare, Windows Restart and resume sequence. File-read admission still
+waits for that qualification; process-event capture is a separate lane.
+
+Independent documentation/source review passed. The selected runtime and receipt
+hashes were rechecked after merging current master. No restart, elevated capture,
+package qualification or runtime change was performed by this documentation block.
