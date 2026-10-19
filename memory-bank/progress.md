@@ -3100,3 +3100,37 @@ reviews passed. Five R1 mutation kills remain historical. No profile discovery,
 read/write, hook execution, UI, IPC or policy route changed. Configured and
 planned configuration establish neither observation nor verified blocking;
 full W5/W6 and provider qualification remain open.
+
+## W8 owned Node loopback controls — 2026-10-19
+
+Added an opt-in fixed inert canary sender and independent byte/hash/count receiver
+on owned 127.0.0.1 ephemeral sockets. Connections require peer EOF before a
+complete-count claim; ordinary requests, expectations and parser faults share a
+bounded admission counter. Existing corpus, scenario/scoring and runtime paths
+remain unchanged. See [the protocol and limits](../docs/bench/LOOPBACK_CONTROL.md).
+
+Validation: 52 focused tests, seven R2 assertion mutants killed/restored, strict
+scoped checkJs, lint/format and independent source/security/evidence reviews.
+All four frozen source hashes survived merge-master integration. A final-source
+three-case Node batch observed positive/wrong-nonce/duplicate counts 1/0/2; its
+39,594 microseconds measures the whole batch, not transfer latency or overhead.
+R1 evidence remains historical and revision-qualified. No agent/PID authentication,
+native oracle, sensor denominator, scenario declaration or full W8 acceptance.
+
+## W6 private owned hook transaction prerequisite — 2026-10-19
+
+Added an independently callable private transaction session over explicit trusted
+IO. It freezes an exact planner review, binds a process-local confirmation ticket,
+verifies retained backup/manifest bytes, revalidates the target and requires exact
+postwrite readback. Removal uses a fresh narrow plan; uncertain mutation locks the
+session and preserves backups. See [the private IO contract](../docs/CLAUDE-HOOK-WRITER.md).
+
+Validation: 90 tests (40 writer, 50 adjacent planner), twelve assertion mutants
+killed/restored, main types with new-module @ts-check, scoped lint/format, and
+independent source/security/test-evidence reviews. Three frozen source hashes
+survived merge-master integration. Counts: 251 = 208 + 41 + 2.
+
+No filesystem provider, production caller, profile discovery, IPC/UI, policy
+routing or hook activation. Trusted IO qualification, external-writer coordination,
+callback bounds and private-storage durability/recovery remain integration work.
+Configured status supplies no Observed or Blocking verified evidence.
