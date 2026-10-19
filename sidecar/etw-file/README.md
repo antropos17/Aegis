@@ -1,11 +1,11 @@
-# Diagnostic Kernel-File backend
+# Experimental Kernel-File backend
 
-Development opt-in only. This is the first connected file producer, distinct from
+Explicit scoped capture. This is the first connected file producer, distinct from
 the frozen `etw-probe` measurements and the empty-session `etw-lifecycle` harness.
 It does not emit FileEvents, update risk/baselines/sequences, or
-persist paths. Ordinary packages refuse capture; the separately marked local
-diagnostic profile below permits bounded qualification before production gates
-close. No installer, service or default production buffer budget changes.
+persist paths. Ordinary Windows x64 packages include user-controlled capture;
+the marked diagnostic profile retains bounded fault qualification. Protected
+installation and complete attribution gates remain open. No service is installed.
 
 Build on Windows x64 with .NET 10:
 
@@ -35,7 +35,7 @@ OS process witnesses select at most sixteen AI processes, newest first. The
 collector checks each selected thread's actual owner and full process creation
 time before holding it for future reads. A preparation receipt is not an
 event-time witness and stays in main-only diagnostics.
-Marked diagnostic packages retain private references to the original broker and
+Packaged captures retain private references to the original broker and
 three elevated helpers in the surviving main before capture authorization. See
 [main-held recovery custody](../../docs/roadmap/etw-main-custody.md) for the
 four-process exit gate, cleanup consent acknowledgment, deadlines and qualification
@@ -96,40 +96,48 @@ final native counters and verified stop; positive losses are retained and allowe
 in this overload measurement. It does not certify loss-free capture. See the
 [repeatable-load record](../../docs/roadmap/etw-repeatable-load.md) for results and limits.
 
-After building the renderer, explicitly enable an app diagnostic session with a
-single local subdirectory (not an entire drive, UNC root, dot-segment or relative path):
+## Ordinary Windows packages
+
+Windows x64 packaging publishes the self-contained helper to `resources/etw-file`.
+Building a Windows package requires the .NET 10 SDK and restore access; the normal
+build hook fails if publishing fails. Users do not need a separately installed
+.NET runtime. The Linux/macOS packaging hook does not publish this helper.
+
+In Events, enter an existing local subdirectory in **Folder to monitor**, then
+choose **Start file read monitoring** and approve Windows consent. No diagnostic
+metadata or command-line flag is needed. The folder cannot be an entire drive,
+UNC path or reparse alias. This launch-time check does not resolve identities of
+later candidate file paths. Capture stays off at startup, resume and unpause.
+**Stop file read monitoring**, monitoring pause, suspend and normal quit request
+owned cleanup. Ordinary capture has no diagnostic minute limit; all queues,
+records and identity pins retain their existing bounds.
+
+The existing stats bridge carries bounded observations; the new
+`file-reads:control` operation accepts only explicit Start/Stop from the owned
+renderer. Raw witnesses remain in main-only diagnostics. Retained rows stay labelled
+until the next capture clears them. Failed cleanup blocks an unsafe restart.
+See [ordinary setup and qualification](../../docs/development/ordinary-file-reads.md)
+and [genuine-agent evidence semantics](../../docs/development/agent-sensitive-read.md).
+
+## Diagnostic app profile
+
+For development, after building the renderer:
 
 ```powershell
 node scripts/launch.js '--etw-file-diagnostic-root=X:\tmp\my-fixture'
 ```
 
-Without this flag no broker is spawned and the `etw-file` leaf is DISABLED.
-Health enters the existing app-health payload. A bounded metadata projection also
-enters the existing stats channel for the Events read view; raw witnesses remain
-in the main-process runtime's bounded `getDiagnostics()` ring. No IPC channel was
-added. See the [genuine-agent read journey](../../docs/development/agent-sensitive-read.md)
-for candidate-path labels, worker-thread proof and privacy checks.
-Pause, suspend and quit request stop and erase the raw ring. Display rows remain
-labelled as retained until a new capture clears them. Resume/unpause never
-automatically prompt for UAC. The internal runtime supports explicit restart after
-verified stop and child exit; a new app invocation is currently the user-facing
-way to start another capture. A verified guard recovery and broker exit 4 also
-allow an explicit new capture; a failed capture never automatically restarts.
-
-An ordinary package still refuses capture, including when the root flag is present.
-For a local packaged diagnostic use the optional `--etw` qualification profile in
+Packaged fault/recovery checks retain the marked `aegisEtwDiagnostic` profile in
 [the desktop milestone](../../docs/development/packaged-desktop-milestone.md#etw-diagnostic-profile).
-It bundles a self-contained .NET folder under `resources/etw-file` and marks only
-that build with the boolean `aegisEtwDiagnostic` metadata. The root flag remains
-mandatory. This is a mutable local diagnostic build, without production provenance
-or attribution admission. It does not change the default release profile.
+Its root flag remains mandatory. Ordinary packages refuse diagnostic root/fault/
+observer arguments; they cannot select fault injection through the UI.
+Diagnostic captures stop after 60 seconds from ready on the supervisor tick.
 
-App diagnostics request stop after 60 seconds from `ready` on the two-second
-supervisor tick, excluding time spent awaiting UAC. Normal quit waits for the stopped acknowledgement and normal broker exit,
-with a 15-second outer deadline. A timeout permits app exit and supplies no verified
-cleanup result; a pending Windows consent dialog is not dismissed. Candidate paths
-are cleared on stop; the bounded final counters/summary stay in main memory until
-exit. The read-only main-module getter used by qualification adds no renderer IPC.
+Normal quit waits for stop acknowledgement and broker exit, with a 15-second
+outer deadline. A timeout permits app exit without verified cleanup; a pending
+Windows consent dialog is not dismissed. The raw ring clears on stop; bounded
+final summaries remain in main memory. Neither deployment mode grants protected
+installation provenance, complete attribution or production admission.
 
 ## Boundaries and accounting
 
@@ -197,7 +205,7 @@ exit. The read-only main-module getter used by qualification adds no renderer IP
 
 ## Current evidence and limits
 
-Marked diagnostic packages use a [temporary custodian](../../docs/roadmap/etw-orphan-recovery.md)
+Packaged captures use a [temporary custodian](../../docs/roadmap/etw-orphan-recovery.md)
 and a [protected write-ahead reservation](../../docs/roadmap/etw-durable-recovery.md).
 After loss of all six original processes, the next explicitly consented capture
 can recover the reserved session before another StartTrace. One bounded

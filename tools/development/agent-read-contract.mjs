@@ -16,12 +16,20 @@ export function agentReadPassed(r) {
     typeof a === 'string' &&
     typeof b === 'string' &&
     path.win32.normalize(a).toLowerCase() === path.win32.normalize(b).toLowerCase();
+  const ordinary = r?.mode === 'ordinary';
+  const packageReady = ordinary
+    ? r.diagnosticBuild === false &&
+      r.noDiagnosticArguments === true &&
+      r.noAutomaticCapture === true &&
+      r.operatorStartedCapture === true &&
+      Number.isSafeInteger(r.continuousCaptureMs) &&
+      r.continuousCaptureMs >= 65000
+    : r?.diagnosticBuild === true;
   return Boolean(
     r?.status === 'PASS' &&
     r.productionAdmission === false &&
     [
       'packaged',
-      'diagnosticBuild',
       'fixtureOnly',
       'liveReady',
       'actualToolRead',
@@ -32,6 +40,7 @@ export function agentReadPassed(r) {
       'contentExcluded',
       'noDiagnosticAudit',
     ].every((key) => r[key] === true) &&
+    packageReady &&
     (r.scenario === 'first-read'
       ? r.firstReadOnly === true && r.warmupRead !== true && r.issuerPreparedBeforeRead === true
       : r.warmupRead === true) &&
@@ -66,7 +75,8 @@ export function agentReadPassed(r) {
     summary?.phase === 'stopped' &&
     summary.exitCode === 0 &&
     summary.stopVerified === true &&
-    summary.stopReason === 'shutdown' &&
+    (summary.stopReason === 'shutdown' ||
+      (ordinary && r.operatorStoppedCapture === true && summary.stopReason === 'operator-stop')) &&
     summary.finalCounters?.queryStatus === 0 &&
     summary.finalTotals != null,
   );

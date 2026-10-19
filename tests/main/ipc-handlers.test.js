@@ -379,6 +379,24 @@ describe('ipc-handlers', () => {
     return registerOwnedRenderer();
   }
 
+  it('allows file read controls only from the owned top-level renderer and hides native errors', () => {
+    const controlFileReads = vi.fn(() => ({ success: true }));
+    const { event } = registerOwnedRenderer({ controlFileReads });
+    const request = { action: 'start', root: 'C:\\fixture' };
+    expect(getHandler('file-reads:control')({ ...event, senderFrame: {} }, request)).toMatchObject({
+      success: false,
+    });
+    expect(controlFileReads).not.toHaveBeenCalled();
+    expect(getHandler('file-reads:control')(event, request)).toEqual({ success: true });
+    expect(controlFileReads).toHaveBeenCalledWith(request);
+    controlFileReads.mockImplementationOnce(() => {
+      throw new Error('PRIVATE_NATIVE_PATH');
+    });
+    const failure = getHandler('file-reads:control')(event, request);
+    expect(failure.success).toBe(false);
+    expect(JSON.stringify(failure)).not.toContain('PRIVATE_NATIVE_PATH');
+  });
+
   function selectedConfigFile(content) {
     threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-config-import-test-'));
     const selected = path.join(threatTempRoot, 'selected.json');

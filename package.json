@@ -68,6 +68,14 @@
           "filter": [
             "**/*"
           ]
+        },
+        {
+          "from": "build/etw-file",
+          "to": "etw-file",
+          "filter": [
+            "**/*",
+            "!**/*.pdb"
+          ]
         }
       ]
     },

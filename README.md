@@ -95,7 +95,7 @@ offers investigation, file checks and settings; a saved Simple choice is retaine
 | --- | --- |
 | See agents and their activity | **Monitoring**, then an agent's processes, files or connections |
 | Review a sensitive-file alert | **Alerts**, then [inspect the captured evidence](docs/ALERTS-AND-PERMISSIONS.md) |
-| Inspect a diagnostic Windows file read | **Events** in a marked diagnostic build; [setup and limits](docs/development/agent-sensitive-read.md) |
+| Inspect a Windows file read | **Events** → **Folder to monitor** → **Start file read monitoring**; [setup and limits](docs/development/ordinary-file-reads.md) |
 | Review a project, skill or profile | [**Local security**](docs/LOCAL-SECURITY-UI.md) |
 | Check a selected action against a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md) |
 | Configure selected-action MCP tools | [Terminal setup](docs/ACTION-MCP-CONFIG.md) |
@@ -108,9 +108,10 @@ offers investigation, file checks and settings; a saved Simple choice is retaine
 These are simulated source UI captures from 11 October 2026.
 [All screenshots and provenance](docs/screenshots/README.md).
 
-Windows Kernel-File reads use a separate diagnostic route. Capture requires a
-marked build, an explicit test root and manual UAC consent; ordinary packages
-keep it disabled. Events can display a read, its verified issuing agent and
+Windows x64 packages include experimental Kernel-File reads. In **Events**, choose
+a local folder and explicitly start capture with manual UAC consent. It stays off
+on startup and stops on Stop, monitoring pause, suspend or quit. Events can display
+a read, its verified issuing agent and
 **Potential sensitive read** from path rules. Paths remain candidates, and the
 label does not establish malicious intent or change risk scores.
 
@@ -182,7 +183,8 @@ before the first scoped read. Its [live qualification](docs/recon/evidence/agent
 passed the genuine first-read journey without README warmup and the persistent-read
 regression on one diagnostic Windows package. Both showed a verified agent read
 and potential risk; additional observations can remain unverified. This candidate
-is separate from the merged snapshot above; ordinary packaged ETW remains disabled.
+was tested with the diagnostic profile. Ordinary packaged controls have their own
+[setup and qualification](docs/development/ordinary-file-reads.md).
 
 <a id="the-evidence-graph"></a>
 

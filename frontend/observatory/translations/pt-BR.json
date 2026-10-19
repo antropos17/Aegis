@@ -1902,5 +1902,20 @@
   "Radar viewport": "Área do radar",
   "Observed editor ancestry": "Ancestralidade observada do editor",
   "Observed under {value0} · PID {value1}": "Observado sob {value0} · PID {value1}",
-  "Observed ancestry does not establish communication or an authenticated host.": "A ancestralidade observada não estabelece comunicação nem um host autenticado."
+  "Observed ancestry does not establish communication or an authenticated host.": "A ancestralidade observada não estabelece comunicação nem um host autenticado.",
+  "Folder to monitor": "Pasta a monitorar",
+  "Start file read monitoring": "Iniciar monitoramento de leituras",
+  "Stop file read monitoring": "Parar monitoramento de leituras",
+  "Choose a local folder. Start asks Windows for permission; monitoring continues until stopped, paused or suspended.": "Escolha uma pasta local. Iniciar solicita permissão do Windows; o monitoramento continua até ser parado, pausado ou suspenso.",
+  "Selected folder": "Pasta selecionada",
+  "Waiting for Windows permission": "Aguardando permissão do Windows",
+  "File read monitoring is off": "O monitoramento de leituras está desativado",
+  "File read monitoring failed. Review sensor health in Statistics.": "O monitoramento de leituras falhou. Confira a integridade dos sensores em Estatísticas.",
+  "File read monitoring is unavailable in this build": "O monitoramento de leituras não está disponível nesta compilação",
+  "Invalid file read monitoring request": "Solicitação inválida de monitoramento de leituras",
+  "Choose a local folder, not an entire drive": "Escolha uma pasta local, não uma unidade inteira",
+  "Resume monitoring before starting file reads": "Retome o monitoramento antes de iniciar as leituras",
+  "Wait for the previous capture to finish cleanup": "Aguarde a limpeza da captura anterior",
+  "Choose an existing folder without a reparse alias": "Escolha uma pasta existente sem um alias de redirecionamento",
+  "File read monitoring could not start": "Não foi possível iniciar o monitoramento de leituras"
 }

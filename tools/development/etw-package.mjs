@@ -3,7 +3,7 @@ import path from 'node:path';
 import { matchingRead } from '../../frontend/observatory/tests/etw-support.mjs';
 
 /** Publish the existing pinned helper as a self-contained folder for one diagnostic build.
- * The normal packaging profile has no SDK or ETW dependency. No single-file extraction
+ * Normal Windows packaging publishes the same helper through its build hook. No single-file extraction
  * or globally installed .NET runtime is needed by the elevated collector.
  * @param {string} root Source checkout. @param {string} output Private qualification output.
  * @param {Function} command Bounded command runner.
@@ -38,7 +38,7 @@ export async function prepareEtwPackage(root, output, command) {
   );
   config.extraMetadata = { ...config.extraMetadata, aegisEtwDiagnostic: true };
   config.win.extraResources = [
-    ...(config.win.extraResources ?? []),
+    ...(config.win.extraResources ?? []).filter((entry) => entry?.to !== 'etw-file'),
     { from: publish, to: 'etw-file', filter: ['**/*', '!**/*.pdb'] },
   ];
   const file = path.join(output, 'etw-builder.json');

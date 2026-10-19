@@ -53,8 +53,10 @@ label. Preserve the baseline and all applicable decisions outside the task.
 
 ## Verification
 
-The genuine-agent sensitive-read brief adds a metadata table to Events when a
-diagnostic capture is explicitly enabled. Use the existing semantic theme tokens
+The genuine-agent sensitive-read brief adds a metadata table to Events. Ordinary
+Windows packages provide an explicit folder field and Start/Stop controls; startup,
+resume and unpause never start capture. Diagnostic capture retains its CLI profile.
+Use the existing semantic theme tokens
 and file-channel filters. Keep candidate path, unverified issuer, potential risk,
 loss and retained-state labels visible. This table does not alter scored events
 or audit history; see the [journey contract](../../docs/development/agent-sensitive-read.md).

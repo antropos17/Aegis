@@ -1,20 +1,52 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
-  import { record, records, type RecordData, type Telemetry } from '../runtime/host';
+  import {
+    record,
+    records,
+    invoke,
+    confirmed,
+    type Host,
+    type RecordData,
+    type Telemetry,
+  } from '../runtime/host';
   import type { AgentScope } from '../runtime/agent-scope';
   let {
     telemetry,
     scope,
     query = '',
     paused = false,
+    host = null,
   }: {
     telemetry: Telemetry;
     scope?: AgentScope;
     query?: string;
     paused?: boolean;
+    host?: Host | null;
   } = $props();
   let view = $derived(record(telemetry.stats.fileReadDiagnostics));
   let available = $derived(telemetry.stats.fileReadDiagnostics != null);
+  let controls = $derived(record(view.controls));
+  let folder = $state('');
+  let pending = $state(false);
+  let error = $state('');
+  async function control(action: 'start' | 'stop'): Promise<void> {
+    if (pending) return;
+    pending = true;
+    error = '';
+    try {
+      confirmed(
+        await invoke(
+          host,
+          'controlFileReads',
+          action === 'start' ? { action, root: folder } : { action },
+        ),
+      );
+    } catch (failure) {
+      error = failure instanceof Error ? failure.message : 'File read monitoring could not start';
+    } finally {
+      pending = false;
+    }
+  }
   let rows = $derived(
     records(view.reads).filter(
       (row) =>
@@ -36,10 +68,64 @@
       )}
       {$t('These observations do not change risk scores or audit history.')}
     </p>
+    {#if view.mode === 'ordinary' && host}
+      <form
+        class="read-controls"
+        onsubmit={(event) => {
+          event.preventDefault();
+          void control('start');
+        }}
+      >
+        <label>
+          <span>{$t('Folder to monitor')}</span>
+          <input
+            bind:value={folder}
+            maxlength="1024"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="C:\Users\you\project"
+            disabled={pending || controls.canStop === true}
+            aria-describedby="file-read-scope-help"
+          />
+        </label>
+        {#if controls.canStop === true}
+          <button
+            class="button"
+            type="button"
+            disabled={pending || telemetry.stale}
+            onclick={() => void control('stop')}>{$t('Stop file read monitoring')}</button
+          >
+        {:else}
+          <button
+            class="button"
+            type="submit"
+            disabled={pending || !folder || telemetry.stale || controls.canStart !== true}
+          >
+            {$t('Start file read monitoring')}</button
+          >
+        {/if}
+      </form>
+      <p id="file-read-scope-help">
+        {$t(
+          'Choose a local folder. Start asks Windows for permission; monitoring continues until stopped, paused or suspended.',
+        )}
+      </p>
+      {#if telemetry.stats.monitoringPaused}<p>
+          {$t('Resume monitoring before starting file reads')}
+        </p>{/if}
+      {#if view.root}<p>{$t('Selected folder')}: {String(view.root)}</p>{/if}
+      {#if error}<p role="alert">{$t(error)}</p>{/if}
+    {/if}
     <p role="status">
       {view.phase === 'running' && !telemetry.stale && !telemetry.stats.monitoringPaused
         ? $t('Capture running')
-        : $t('Capture is not live · retained observations only')}
+        : view.phase === 'starting'
+          ? $t('Waiting for Windows permission')
+          : view.phase === 'disabled'
+            ? $t('File read monitoring is off')
+            : view.phase === 'failed'
+              ? $t('File read monitoring failed. Review sensor health in Statistics.')
+              : $t('Capture is not live · retained observations only')}
       · {$t('Observed loss')}: {view.lossCount == null ? $t('Unknown') : String(view.lossCount)}
       · {$t('Omitted observations')}: {String(view.omitted ?? 0)}
     </p>
@@ -109,6 +195,28 @@
   .read-table {
     overflow: auto;
     max-height: 320px;
+  }
+  .read-controls {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .read-controls label {
+    display: grid;
+    flex: 1 1 240px;
+    gap: var(--space-1);
+    min-width: 0;
+    color: var(--muted);
+  }
+  input {
+    min-width: 0;
+    height: 28px;
+    padding: 0 var(--space-2);
+    background: var(--panel);
+    border: 1px solid var(--strong-border);
+    color: var(--text);
+    font: inherit;
   }
   table {
     width: 100%;

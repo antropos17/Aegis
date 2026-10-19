@@ -395,6 +395,7 @@ describe('ETW backend runtime gate', () => {
       app: { isPackaged: false },
       powerMonitor,
       platform: 'win32',
+      resourcesPath: 'C:\\candidate\\resources',
       argv: [],
       exists: () => true,
       spawnProcess,

@@ -4,9 +4,10 @@ This check follows an installed Claude Code process reading an owned README and
 then a newly created synthetic `.env`. Events displays the observed read, its
 issuing agent when verified, and a potential sensitive-file risk.
 
-The ETW deployment gate remains in force: capture requires a marked diagnostic
-Windows package and an explicit fixture root. Ordinary packages keep capture
-disabled. The view uses the existing stats bridge and adds no IPC channel.
+Ordinary Windows x64 packages now expose explicit scoped Start/Stop in Events;
+see [ordinary file reads](ordinary-file-reads.md). The historical diagnostic
+profile still requires its marker/root flag and retains its minute limit. Both
+use the stats bridge; ordinary controls add one owned-renderer IPC operation.
 
 ## Evidence and interpretation
 
@@ -56,6 +57,12 @@ decision. Account settings and Claude session persistence stay unchanged.
 ```text
 node frontend/observatory/tests/agent-read-electron.mjs --executable <absolute-diagnostic-AEGIS.exe> --agent-executable <absolute-installed-claude.exe> --output <new-absolute-output>
 ```
+
+For an ordinary package, add `--ordinary` and use its normal executable. The
+runner enters the fixture folder and clicks Start through the actual UI, proves
+no automatic capture or diagnostic marker/arguments, then observes at least 65
+seconds of continuous capture. The persistent case clicks Stop; the first-read
+case verifies normal quit during capture.
 
 Add `--first-read` for the separate first-read scenario. It waits for an actual
 preparation receipt matching the installed agent, creates the synthetic `.env`,

@@ -13,6 +13,7 @@ export type IpcInvokeChannel =
   | 'updates:download'
   | 'updates:install'
   | 'get-stats'
+  | 'file-reads:control'
   | 'sensitive-alerts:list'
   | 'sensitive-alerts:set-reviewed'
   | 'get-resource-usage'

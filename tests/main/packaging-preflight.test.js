@@ -27,7 +27,7 @@ describe('packaging production preflight', () => {
     const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
     const beforeBuild = require(hookPath);
     expect(beforeBuild({ platform: { name: 'windows' } })).toBe(true);
-    expect(build).toHaveBeenCalledTimes(2);
+    expect(build).toHaveBeenCalledTimes(3);
     const [executable, args, options] = build.mock.calls[0];
     expect(executable).toBe(process.execPath);
     expect(args).toContain('build');
@@ -35,5 +35,21 @@ describe('packaging production preflight', () => {
     expect(options.cwd).toBe(projectRoot);
     expect(options.env.NODE_ENV).toBe('production');
     expect(build.mock.calls[1][1]).toEqual([path.join(projectRoot, 'scripts/build-sidecar.js')]);
+    expect(build.mock.calls[2][1]).toEqual([
+      path.join(projectRoot, 'scripts/build-etw-sidecar.js'),
+    ]);
+  });
+
+  it('refuses Windows packaging when the self-contained read helper cannot publish', () => {
+    const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
+    build
+      .mockImplementationOnce(() => Buffer.alloc(0))
+      .mockImplementationOnce(() => Buffer.alloc(0))
+      .mockImplementationOnce(() => {
+        throw new Error('ETW publish failed');
+      });
+    expect(() => require(hookPath)({ platform: { name: 'windows' } })).toThrow(
+      'ETW publish failed',
+    );
   });
 });

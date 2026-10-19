@@ -68,6 +68,31 @@ function receipt() {
   };
 }
 describe('genuine-agent journey acceptance oracle', () => {
+  it('requires explicit ordinary-package controls and capture beyond one minute', () => {
+    const value = {
+      ...receipt(),
+      mode: 'ordinary',
+      diagnosticBuild: false,
+      noDiagnosticArguments: true,
+      noAutomaticCapture: true,
+      operatorStartedCapture: true,
+      continuousCaptureMs: 65000,
+    };
+    expect(agentReadPassed(value)).toBe(true);
+    for (const [key, replacement] of Object.entries({
+      diagnosticBuild: true,
+      noDiagnosticArguments: false,
+      noAutomaticCapture: false,
+      operatorStartedCapture: false,
+      continuousCaptureMs: 59999,
+    }))
+      expect(agentReadPassed({ ...value, [key]: replacement }), key).toBe(false);
+    value.summary.stopReason = 'operator-stop';
+    expect(agentReadPassed(value)).toBe(false);
+    value.operatorStoppedCapture = true;
+    expect(agentReadPassed(value)).toBe(true);
+    expect(agentReadPassed({ ...value, mode: 'diagnostic', diagnosticBuild: true })).toBe(false);
+  });
   it('accepts a separately identified first read only without fixture warmup', () => {
     const value = {
       ...receipt(),
