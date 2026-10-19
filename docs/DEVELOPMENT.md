@@ -3,6 +3,9 @@
 Practical reference for contributors. Covers stack versions, patterns, gotchas,
 and IPC architecture specific to this codebase.
 
+For WinGet preparation, ordinary-task evidence scoring, dormant Coverage checks
+and native hook IO fixtures, start with [Completion tools](development/completion-tools.md).
+
 ---
 
 ## Stack
