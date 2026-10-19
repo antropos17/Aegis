@@ -184,7 +184,7 @@
 {#if section === 'attributes'}
   <section class="detail-section">
     <h3>{kind === 'resource' ? $t('Recorded evidence') : $t('Attributes')}</h3>
-    <Metadata value={withoutToolContext(attributes)} />
+    <Metadata value={withoutToolContext(attributes, $t('Additional metadata unavailable'))} />
   </section>
 {:else if section === 'signatures'}
   <section class="detail-section">
@@ -192,6 +192,7 @@
     <Metadata
       value={withoutToolContext(
         selectFields(row, ['names', 'knownDomains', 'knownPorts', 'configPaths', 'parentEditors']),
+        $t('Additional metadata unavailable'),
       )}
     />
   </section>
@@ -236,7 +237,7 @@
           ? $t('Observation summary')
           : $t('Overview')}
     </h3>
-    <Metadata value={withoutToolContext(overview)} />
+    <Metadata value={withoutToolContext(overview, $t('Additional metadata unavailable'))} />
   </section>
   {#if kind === 'resource' || hasToolContext(row)}
     <ToolContext {row} />

@@ -5,6 +5,7 @@ interface CandidateView {
   provider: string;
   tool: string;
   timing: string;
+  deltaMs: number;
   association: string;
   relation: string;
   complete: boolean;
@@ -176,8 +177,9 @@ function candidateView(value: unknown, index: number): CandidateView | null {
     tool: value.toolName === 'other' ? 'Other tool' : value.toolName,
     timing:
       value.endMs === null || value.reasons.includes('end-time-unavailable')
-        ? `Observation ${value.deltaMs.toLocaleString()} ms after reported tool start; completion time unavailable`
-        : `Observation ${value.deltaMs.toLocaleString()} ms after reported tool start; within reported tool window`,
+        ? 'Observation {deltaMs} ms after reported tool start; completion time unavailable'
+        : 'Observation {deltaMs} ms after reported tool start; within reported tool window',
+    deltaMs: value.deltaMs,
     association: association(value.endMs === null ? 'inferred' : value.strength),
     relation: 'Recorded tool candidate',
     complete: value.strength === 'confirmed' && value.endMs !== null && value.reasons.length === 0,
@@ -291,11 +293,13 @@ export function hasToolContext(row: RecordData): boolean {
 }
 
 /** Keep tool capsules out of generic attribute rendering, including historical wrappers.
- * @param row Detail attributes @returns Attributes without the capsule @since 0.19.2
+ * @param row Detail attributes @param marker Fixed translated limit marker @returns Attributes without the capsule @since 0.19.2
  */
-export function withoutToolContext(row: RecordData): RecordData {
+export function withoutToolContext(
+  row: RecordData,
+  marker = 'Additional metadata unavailable',
+): RecordData {
   const seen = new WeakSet<object>();
-  const marker = 'Additional metadata unavailable';
   let items = 0;
   let bytes = 0;
   const size = (text: string): number =>

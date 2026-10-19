@@ -4,6 +4,7 @@ import DetailSummary from '../../../frontend/observatory/components/DetailSummar
 import Details from '../../../frontend/observatory/components/Details.svelte';
 import { emptyTelemetry, type RecordData } from '../../../frontend/observatory/runtime/host';
 import { withoutToolContext } from '../../../frontend/observatory/runtime/tool-context-display';
+import { language } from '../../../frontend/observatory/runtime/i18n';
 
 const candidate = (extra: RecordData = {}) => ({
   source: 'claude-code',
@@ -302,4 +303,37 @@ it.each([
   expect(serialized).not.toContain('DO-NOT-DISPLAY');
   expect(serialized.length).toBeLessThan(65536);
   expect(serialized).toContain('Additional metadata unavailable');
+});
+
+it('renders Portuguese timing and bounded metadata markers while retaining literal evidence and tool names', async () => {
+  language.set('pt');
+  try {
+    const { rerender, container } = show(observation({ toolContext: capsule() }));
+    const section = screen.getByRole('region', { name: 'Chamada de ferramenta anterior' });
+    expect(within(section).getByText('Claude Code · Read')).toBeInTheDocument();
+    expect(section).toHaveTextContent(
+      'Observação 250 ms após o início informado da ferramenta; dentro do intervalo informado da ferramenta',
+    );
+    expect(section).not.toHaveTextContent('Observation 250');
+    await rerender({
+      row: observation({
+        toolContext: capsule({
+          candidates: [candidate({ endMs: null, reasons: ['end-time-unavailable'] })],
+        }),
+      }),
+      telemetry: emptyTelemetry(),
+    });
+    expect(section).toHaveTextContent('horário de conclusão indisponível');
+    const limited: RecordData = { toolContext: { prompt: 'DO-NOT-DISPLAY' } };
+    limited.cycle = limited;
+    await rerender({
+      row: { source: 'OS evidence retained', detail: limited },
+      telemetry: emptyTelemetry(),
+    });
+    expect(screen.getAllByText('Metadados adicionais indisponíveis').length).toBeGreaterThan(0);
+    expect(screen.getByText('OS evidence retained')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Additional metadata unavailable|DO-NOT-DISPLAY/);
+  } finally {
+    language.set('en');
+  }
 });

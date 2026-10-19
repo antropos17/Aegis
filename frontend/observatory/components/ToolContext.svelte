@@ -49,11 +49,13 @@
       {#each context.candidates as candidate (candidate.key)}
         <li>
           <div class="candidate-heading">
-            <strong>{candidate.provider} · {candidate.tool}</strong><span
-              >{$t(candidate.association)}</span
-            >
+            <strong
+              >{candidate.provider} · {candidate.tool === 'Other tool'
+                ? $t('Other tool')
+                : candidate.tool}</strong
+            ><span>{$t(candidate.association)}</span>
           </div>
-          <p>{$t(candidate.relation)} · {candidate.timing}</p>
+          <p>{$t(candidate.relation)} · {$t(candidate.timing, { deltaMs: candidate.deltaMs })}</p>
         </li>
       {/each}
     </ol>
