@@ -3221,3 +3221,32 @@ This prepares candidates only. Actual WinGet/schema validation, published URL
 fetch, real installer/publisher metadata, Authenticode, installation/upgrade/
 uninstall and submission remain unqualified. No release/signing secret, download,
 workflow change, package submission or full W10 completion is established.
+
+## W6 Windows private IO fixture integration — 2026-10-19
+
+Connected the private writer to a framework-only Windows helper through bounded
+private stdio. Separate original-object witnesses survive fresh read/commit
+leases; helper-only DPAPI references map to opaque live JS objects. Debug modes,
+late responses, unknown exit/drain and transport failures close admission. See
+[the fixture provider contract](../docs/CLAUDE-HOOK-WINDOWS-IO.md).
+
+The exact frozen-source build passed31 actual Windows groups, including the
+real writer review/confirm/backup/inert-install/fresh-removal/exact-restoration
+loop. Twenty transport cases are synthetic. Mutations establish three expected-
+group behavioral kills and one explicit synthetic assertion kill; integration
+logs do not preserve individual assertion kinds. Frozen build/scoped lint/format
+and independent source/security/test/evidence reviews passed. Configured main
+types and derived counts passed; checkJs:false supplies no JS-body type claim.
+Counts253=210+41+2; source files over300lines46.
+
+Eleven owned sources, three JS dependencies and seventeen actual checkout
+prerequisites survived merge master unchanged. Those seventeen checkout files
+have CRLF while their archived qualification inputs have LF; exact normalized
+bytes and immutable Git blobs match. Actual compiled bytes and five load-file
+pre/post observations are separately bound. Runtime hash observations require
+stable trusted directories; they do not authenticate atomic loading.
+
+No production caller, real profile, IPC/UI/installer/policy wiring, command
+execution, ownership adoption, automatic rollback or sensitive activation.
+Interrupted writes, crash recovery, hostile metadata and full W6/product
+qualification remain open. launchAllowed=false.
