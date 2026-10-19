@@ -765,6 +765,7 @@
           {#if tabs.includes('events')}<div hidden={!advanced || view !== 'events'}>
               <Events
                 {advanced}
+                {host}
                 combined={!advanced}
                 visible={advanced && view === 'events'}
                 viewPaused={paused}

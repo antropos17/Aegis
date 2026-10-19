@@ -1269,6 +1269,7 @@ app.whenReady().then(() => {
   });
   ipc.init({
     sensitiveAlertJournal,
+    controlFileReads: (request) => etwFile.control(request),
     updates,
     getWindow: () => mainWindow,
     getStats,

@@ -149,6 +149,19 @@ function register() {
     Boolean(event) && ownsTopLevelRenderer(event, window, deps.rendererUrl);
   const denied = () => ({ success: false, error: 'Renderer request denied' });
   const stillOwned = (event, window) => deps.getWindow?.() === window && isOwned(event, window);
+  ipcMain.handle('file-reads:control', (event, request) => {
+    if (!isOwned(event)) return denied();
+    try {
+      return (
+        deps.controlFileReads?.(request) ?? {
+          success: false,
+          error: 'File read monitoring is unavailable',
+        }
+      );
+    } catch {
+      return { success: false, error: 'File read monitoring could not start' };
+    }
+  });
   ipcMain.handle('local-security:review', (event, request) => localSecurity.handle(event, request));
   // Only the owned top-level renderer may request an update operation. No URLs,
   // file paths, versions, command arguments or updater options cross this boundary.

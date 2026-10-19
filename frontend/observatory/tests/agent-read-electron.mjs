@@ -17,6 +17,7 @@ const { values } = parseArgs({
     'agent-executable': { type: 'string' },
     output: { type: 'string' },
     'first-read': { type: 'boolean', default: false },
+    ordinary: { type: 'boolean', default: false },
   },
 });
 assert(process.platform === 'win32' && process.arch === 'x64', 'Windows x64 required');
@@ -56,6 +57,7 @@ const r = {
   productionAdmission: false,
   realAgent: 'Claude Code',
   fixtureOnly: true,
+  mode: values.ordinary ? 'ordinary' : 'diagnostic',
   file,
   scenario: values['first-read'] ? 'first-read' : 'persistent',
   workflow: values['first-read']
@@ -124,7 +126,10 @@ try {
   r.agentPid = agent.pid;
   app = await electron.launch({
     executablePath: values.executable,
-    args: ['--user-data-dir=' + profile, '--etw-file-diagnostic-root=' + workspace],
+    args: [
+      '--user-data-dir=' + profile,
+      ...(values.ordinary ? [] : ['--etw-file-diagnostic-root=' + workspace]),
+    ],
     env: { ...env, HOME: home, USERPROFILE: home },
     timeout: 30000,
   });
@@ -142,10 +147,11 @@ try {
       return {
         packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
         diagnosticBuild: require('./package.json').aegisEtwDiagnostic === true,
+        noDiagnosticArguments: !process.argv.some((value) => value.startsWith('--etw-file-')),
       };
     }),
   );
-  assert(r.packaged && r.diagnosticBuild);
+  assert(r.packaged && r.diagnosticBuild === !values.ordinary);
   await observeQuit(app, path.join(out, 'shutdown.json'));
   page = await app.firstWindow();
   await page.evaluate((pid) => {
@@ -158,6 +164,15 @@ try {
     });
   }, agent.pid);
   await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
+  if (values.ordinary) {
+    const before = await diagnostics(app);
+    r.noAutomaticCapture = before.phase === 'disabled' && before.summaries.length === 0;
+    assert(r.noAutomaticCapture && r.noDiagnosticArguments);
+    await page.locator('.sidebar').getByRole('button', { name: 'Events', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Folder to monitor', exact: true }).fill(workspace);
+    await page.getByRole('button', { name: 'Start file read monitoring', exact: true }).click();
+    r.operatorStartedCapture = true;
+  }
   console.log('Waiting for one manually confirmed UAC window.');
   let d;
   const readyUntil = Date.now() + 135000;
@@ -168,6 +183,15 @@ try {
   } while (Date.now() < readyUntil);
   assert.equal(d.phase, 'running');
   r.liveReady = true;
+  if (values.ordinary) {
+    const started = performance.now();
+    while (performance.now() - started < 65000) {
+      await delay(1000);
+      assert.equal((await diagnostics(app)).phase, 'running', 'Ordinary capture stopped early');
+    }
+    r.continuousCaptureMs = Math.floor(performance.now() - started);
+    console.log('Ordinary capture stayed live beyond the diagnostic minute limit.');
+  }
   const identityUntil = Date.now() + 25000;
   do {
     r.agentIdentity = await page.evaluate(() => window.__realAgent);
@@ -309,11 +333,29 @@ try {
   ])
     assert(text.includes(expected), 'Missing visible evidence: ' + expected);
   r.uiReadAndRisk = true;
+  if (values.ordinary) {
+    const status = await panel.getByRole('status').innerText();
+    assert(/Kernel events lost: \d+/.test(status));
+    assert(/Collector records dropped: \d+/.test(status));
+    assert(/Mapping resets: \d+/.test(status));
+    r.lossAccountingVisible = true;
+    r.visibleLosses = (
+      await page.evaluate(() => window.aegis.getStats())
+    ).fileReadDiagnostics.losses;
+  }
   await panel.scrollIntoViewIfNeeded();
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
   await panel.screenshot({ path: path.join(out, 'reads-dark.png') });
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
   await panel.screenshot({ path: path.join(out, 'reads-light.png') });
+  if (values.ordinary && !values['first-read']) {
+    await panel.getByRole('button', { name: 'Stop file read monitoring', exact: true }).click();
+    const until = Date.now() + 20000;
+    while ((await diagnostics(app)).phase !== 'stopped' && Date.now() < until) await delay(100);
+    const stopped = await diagnostics(app);
+    r.operatorStoppedCapture = stopped.phase === 'stopped' && !stopped.restartBlocked;
+    assert(r.operatorStoppedCapture, 'Explicit Stop did not complete owned cleanup');
+  }
   r.status = 'PASS';
 } catch (e) {
   r.failure = e.message;

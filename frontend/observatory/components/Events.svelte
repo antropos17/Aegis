@@ -2,7 +2,7 @@
   import { t } from '../runtime/i18n';
   import { untrack } from 'svelte';
 
-  import { instances, type Telemetry, type RecordData } from '../runtime/host';
+  import { instances, type Telemetry, type RecordData, type Host } from '../runtime/host';
   import { describeObservation } from '../../../src/shared/observation-display.js';
   import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
   import { networkSnapshotStatus } from '../runtime/network-coverage';
@@ -11,6 +11,7 @@
   import FileReadObservations from './FileReadObservations.svelte';
   let {
     telemetry,
+    host = null,
     network = false,
     showPause = true,
     viewPaused = false,
@@ -24,6 +25,7 @@
     captureContext = false,
   }: {
     telemetry: Telemetry;
+    host?: Host | null;
     network?: boolean;
     showPause?: boolean;
     viewPaused?: boolean;
@@ -320,7 +322,7 @@
   </div>
 {/if}
 {#if !effectiveNetwork}
-  <FileReadObservations {telemetry} {scope} {query} paused={showingPaused} />
+  <FileReadObservations {host} {telemetry} {scope} {query} paused={showingPaused} />
 {/if}
 {#if !effectiveNetwork || networkStatus !== 'unavailable' || networkSeen}
   <ObservationTable

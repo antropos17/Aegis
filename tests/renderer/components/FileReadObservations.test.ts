@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import FileReadObservations from '../../../frontend/observatory/components/FileReadObservations.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 const telemetry = () => ({
@@ -27,7 +27,74 @@ const telemetry = () => ({
   },
 });
 describe('file read observations', () => {
-  it('is absent in a normal package without the opt-in capture', () => {
+  it('requires explicit scoped start, preserves its draft through permission updates and sends stop without a path', async () => {
+    const controlFileReads = vi.fn(async () => ({ success: true }));
+    const value = {
+      ...emptyTelemetry(),
+      stale: false,
+      stats: {
+        fileReadDiagnostics: {
+          mode: 'ordinary',
+          phase: 'disabled',
+          controls: { canStart: true, canStop: false },
+          reads: [],
+        },
+      },
+    };
+    const mounted = render(FileReadObservations, { telemetry: value, host: { controlFileReads } });
+    const input = screen.getByRole('textbox', { name: 'Folder to monitor' });
+    const start = screen.getByRole('button', { name: 'Start file read monitoring' });
+    expect(start).toBeDisabled();
+    expect(controlFileReads).not.toHaveBeenCalled();
+    await fireEvent.input(input, { target: { value: 'C:\\fixture' } });
+    await fireEvent.click(start);
+    await waitFor(() =>
+      expect(controlFileReads).toHaveBeenCalledWith({ action: 'start', root: 'C:\\fixture' }),
+    );
+    await mounted.rerender({
+      telemetry: {
+        ...value,
+        stats: {
+          fileReadDiagnostics: {
+            ...value.stats.fileReadDiagnostics,
+            phase: 'starting',
+            controls: { canStart: false, canStop: true },
+          },
+        },
+      },
+    });
+    expect(input).toHaveValue('C:\\fixture');
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for Windows permission');
+    await fireEvent.click(screen.getByRole('button', { name: 'Stop file read monitoring' }));
+    await waitFor(() => expect(controlFileReads).toHaveBeenLastCalledWith({ action: 'stop' }));
+  });
+  it('shows a refused start without claiming capture or discarding the selected folder', async () => {
+    const controlFileReads = vi.fn(async () => ({
+      success: false,
+      error: 'Choose an existing folder without a reparse alias',
+    }));
+    render(FileReadObservations, {
+      host: { controlFileReads },
+      telemetry: {
+        ...emptyTelemetry(),
+        stale: false,
+        stats: {
+          fileReadDiagnostics: {
+            mode: 'ordinary',
+            phase: 'disabled',
+            controls: { canStart: true },
+            reads: [],
+          },
+        },
+      },
+    });
+    await fireEvent.input(screen.getByRole('textbox'), { target: { value: 'C:\\alias' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Start file read monitoring' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose an existing folder');
+    expect(screen.getByRole('textbox')).toHaveValue('C:\\alias');
+    expect(screen.getByRole('status')).toHaveTextContent('File read monitoring is off');
+  });
+  it('hides the table when the file-read backend is unavailable', () => {
     render(FileReadObservations, { telemetry: emptyTelemetry() });
     expect(screen.queryByRole('region', { name: 'File read observations' })).toBeNull();
   });
@@ -43,7 +110,36 @@ describe('file read observations', () => {
     ])
       expect(panel).toHaveTextContent(text);
     expect(panel).toHaveTextContent('do not change risk scores or audit history');
-    expect(panel).toHaveTextContent('Observed loss: Unknown');
+    expect(panel).toHaveTextContent('Kernel events lost: Unknown');
+    expect(panel).toHaveTextContent('Collector records dropped: Unknown');
+  });
+  it('displays collector drops separately when kernel loss is zero', () => {
+    const value = {
+      ...telemetry(),
+      stats: {
+        fileReadDiagnostics: {
+          ...telemetry().stats.fileReadDiagnostics,
+          lossCount: 0,
+          losses: {
+            kernelEvents: '0',
+            realtimeBuffers: '1',
+            logBuffers: '2',
+            collectorDropped: '7',
+            mappingResets: '3',
+          },
+        },
+      },
+    };
+    render(FileReadObservations, { telemetry: value });
+    const status = screen.getByRole('status');
+    for (const text of [
+      'Kernel events lost: 0',
+      'Realtime buffers lost: 1',
+      'Log buffers lost: 2',
+      'Collector records dropped: 7',
+      'Mapping resets: 3',
+    ])
+      expect(status).toHaveTextContent(text);
   });
   it('preserves uncertainty, selected-instance scope and stopped capture state', async () => {
     const value = telemetry();

@@ -48,5 +48,10 @@ module.exports = function beforeBuild(context) {
     cwd: projectRoot,
     stdio: 'inherit',
   });
+  console.log('[before-build] publishing the self-contained Windows file-read helper');
+  execFileSync(process.execPath, [path.join(__dirname, 'build-etw-sidecar.js')], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
   return true;
 };

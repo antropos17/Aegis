@@ -11,6 +11,11 @@ Derive current module and IPC counts with `npm run counts:check`.
 Shared contracts live in `src/shared/types/` (8 TS files); this declaration is
 checked by that gate.
 
+Windows packaging also requires the .NET 10 SDK: its build hook publishes the
+self-contained ETW helper before assembling the package. Ordinary tests and the
+inbox process-helper build do not require this SDK. See
+[the helper guide](../../sidecar/etw-file/README.md#ordinary-windows-packages).
+
 ## Skills and tool selection
 
 Load the skill for the current task and only references needed for its decision.

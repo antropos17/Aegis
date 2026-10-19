@@ -1,4 +1,4 @@
-/** @file Explicit opt-in ETW diagnostics. Candidate paths stay in main memory. */
+/** @file Explicit scoped ETW capture. Candidate paths stay in main memory. */
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
@@ -6,9 +6,10 @@ const { spawn } = require('node:child_process');
 const { createSupervisor } = require('./etw-file-supervisor');
 const { createReadView } = require('./etw-file-attribution');
 const { selectIssuerTargets } = require('./etw-file-issuer-preparation');
+const scope = require('./etw-file-scope');
 
-/** Attach the optional backend to application lifetime without adding renderer IPC.
- * Only a marked diagnostic build may capture in a package; production stays gated.
+/** Attach the scoped backend to application lifetime.
+ * Ordinary packages capture only after an explicit scoped operator request.
  * @param {Object} options - app, powerMonitor, argv and optional process test seams.
  * @returns {Object} Sensor runtime; no filesystem activity is routed downstream.
  * @since v0.14.2
@@ -18,6 +19,7 @@ function createRuntime({
   powerMonitor,
   argv = process.argv,
   platform = process.platform,
+  arch = process.arch,
   spawnProcess = spawn,
   exists = fs.existsSync,
   packageMetadata = require('../../../package.json'),
@@ -26,11 +28,14 @@ function createRuntime({
   getAgents = () => [],
   getPopulationHealth = () => ({}),
   classifySensitive = () => null,
+  checkRoot = scope.checkRoot,
+  now,
+  mono,
 }) {
   const readView = createReadView({ getAgents, getHealth: getPopulationHealth, classifySensitive });
   const prefix = '--etw-file-diagnostic-root=';
   const roots = argv.filter((value) => value.startsWith(prefix));
-  const root = roots[0]?.slice(prefix.length);
+  let root = roots[0]?.slice(prefix.length);
   const faults = argv.filter((value) => value.startsWith('--etw-file-diagnostic-fault='));
   const observers = argv.filter((value) => value.startsWith('--etw-file-diagnostic-observer='));
   const observer = observers[0]?.slice('--etw-file-diagnostic-observer='.length);
@@ -77,15 +82,14 @@ function createRuntime({
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;
-  const executable =
-    app.isPackaged && diagnosticPackage
-      ? path.join(resourcesPath, 'etw-file', 'EtwFile.exe')
-      : path.resolve(
-          __dirname,
-          '../../../sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe',
-        );
+  const ordinaryPackage = app.isPackaged && !diagnosticPackage;
+  const executable = app.isPackaged
+    ? path.join(resourcesPath, 'etw-file', 'EtwFile.exe')
+    : path.resolve(__dirname, '../../../sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
   const sensor = createSupervisor({
-    maxCaptureMs: 60000,
+    maxCaptureMs: ordinaryPackage ? null : 60000,
+    now,
+    mono,
     onHealthChange,
     onObservations: (records) => readView.accept(records),
     onSessionStart: () => readView.reset(),
@@ -98,7 +102,7 @@ function createRuntime({
           launchId,
           sessionId,
           root,
-          ...(app.isPackaged && diagnosticPackage ? ['main-escrow'] : []),
+          ...(app.isPackaged ? ['main-escrow'] : []),
           ...(observer === undefined ? [] : [observer]),
         ],
         {
@@ -107,36 +111,33 @@ function createRuntime({
           stdio: ['pipe', 'pipe', 'ignore'],
         },
       ),
-    spawnRecovery:
-      app.isPackaged && diagnosticPackage
-        ? (launchId, sessionId) =>
-            spawnProcess(
-              executable,
-              [
-                fault === 'group-access-denied' ? 'rescue-denial-check' : 'rescue',
-                launchId,
-                sessionId,
-              ],
-              { windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] },
-            )
-        : null,
+    spawnRecovery: app.isPackaged
+      ? (launchId, sessionId) =>
+          spawnProcess(
+            executable,
+            [
+              fault === 'group-access-denied' ? 'rescue-denial-check' : 'rescue',
+              launchId,
+              sessionId,
+            ],
+            { windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] },
+          )
+      : null,
   });
-  const validRoot =
-    typeof root === 'string' &&
-    /^[A-Za-z]:\\[^\\]/.test(root) &&
-    root.length <= 1024 &&
-    !/[\p{Cc}/]/u.test(root) &&
-    !root.slice(3).includes(':') &&
-    root
-      .split('\\')
-      .slice(1)
-      .every((part) => part !== '.' && part !== '..' && !/[. ]$/.test(part));
   let permitted = false;
-  if (platform !== 'win32') sensor.setUnavailable('UNSUPPORTED', 'windows-only');
-  else if (roots.length === 0) sensor.setUnavailable('DISABLED', 'diagnostic-opt-in-required');
+  if (platform !== 'win32' || arch !== 'x64')
+    sensor.setUnavailable('UNSUPPORTED', 'windows-x64-only');
+  else if (ordinaryPackage && roots.length === 0 && faults.length === 0 && observers.length === 0) {
+    root = undefined;
+    if (!exists(executable)) sensor.setUnavailable('FAILED', 'file-read-helper-missing');
+    else {
+      permitted = true;
+      sensor.setUnavailable('DISABLED', 'operator-start-required');
+    }
+  } else if (roots.length === 0) sensor.setUnavailable('DISABLED', 'diagnostic-opt-in-required');
   else if (app.isPackaged && !diagnosticPackage)
     sensor.setUnavailable('DISABLED', 'deployment-gates-pending');
-  else if (roots.length !== 1 || !validRoot)
+  else if (roots.length !== 1 || !scope.validRoot(root))
     sensor.setUnavailable('FAILED', 'invalid-diagnostic-root');
   else if (
     faults.length &&
@@ -168,9 +169,45 @@ function createRuntime({
   }; // Explicit restart only; never another surprise UAC.
   powerMonitor.on('suspend', onSuspend);
   powerMonitor.on('resume', onResume);
+  function control(request) {
+    const fail = (error) => ({ success: false, error });
+    if (!ordinaryPackage || !permitted)
+      return fail('File read monitoring is unavailable in this build');
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      Array.isArray(request) ||
+      !Object.hasOwn(request, 'action')
+    )
+      return fail('Invalid file read monitoring request');
+    const keys = Object.keys(request);
+    if (request.action === 'stop' && keys.length === 1) {
+      sensor.stop();
+      return { success: true };
+    }
+    if (
+      request.action !== 'start' ||
+      keys.length !== 2 ||
+      !Object.hasOwn(request, 'root') ||
+      !scope.validRoot(request.root)
+    )
+      return fail('Choose a local folder, not an entire drive');
+    if (paused || suspended) return fail('Resume monitoring before starting file reads');
+    if (sensor.isActive() || sensor.getDiagnostics().restartBlocked)
+      return fail('Wait for the previous capture to finish cleanup');
+    if (!checkRoot(request.root)) return fail('Choose an existing folder without a reparse alias');
+    const previousRoot = root;
+    root = request.root;
+    if (!sensor.start()) {
+      root = previousRoot;
+      return fail('File read monitoring could not start');
+    }
+    return { success: true };
+  }
   return {
-    start: () => permitted && !paused && !suspended && sensor.start(),
-    restart: () => permitted && !paused && !suspended && sensor.restart(),
+    start: () => !ordinaryPackage && permitted && !paused && !suspended && sensor.start(),
+    restart: () => !ordinaryPackage && permitted && !paused && !suspended && sensor.restart(),
+    control,
     refreshIssuers: () => permitted && !paused && !suspended && sensor.refreshIssuers(),
     setPaused(value) {
       paused = value;
@@ -184,6 +221,21 @@ function createRuntime({
             ...readView.snapshot(),
             phase: sensor.getDiagnostics().phase,
             lossCount: sensor.getHealth().lossCount,
+            losses: sensor.getLossView(),
+            mode: ordinaryPackage ? 'ordinary' : 'diagnostic',
+            ...(ordinaryPackage
+              ? {
+                  root: root ?? '',
+                  controls: {
+                    canStart:
+                      !paused &&
+                      !suspended &&
+                      !sensor.isActive() &&
+                      !sensor.getDiagnostics().restartBlocked,
+                    canStop: sensor.isActive(),
+                  },
+                }
+              : {}),
           }
         : null,
     isActive: sensor.isActive,
