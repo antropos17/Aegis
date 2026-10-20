@@ -3600,3 +3600,19 @@ CI remain merge gates.
 
 No production caller, launch authority or total WASM/external-memory containment
 was added. Packaged caller, native and full-target qualification remain open.
+
+## W1b internal native-observation forwarding prerequisite — 2026-10-19
+
+The host now forwards closed historical native metadata to configured trusted
+sinks: one epoch per owner, actual child generation, copied D1 context and
+validated hello anchor. Existing wire/admission/identity gates and synchronous
+acknowledgement remain unchanged. See [the scope and verification](../docs/NATIVE-OBSERVATION-FORWARDING.md).
+
+Validation: 135 tests across nine suites, eight new tests plus existing macOS
+assertions; four assertion mutants killed/restored; independent source/security
+and test/evidence reviews passed. The actual fixture covers spill, graceful
+shutdown, restart and canonical audit hashing, not abrupt-crash completeness.
+No production activation, source authentication, calibrated time, actor
+attribution or native qualification. Parent custody review remains owner-pending.
+
+Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. Separately confirmed Cedar lifecycle fix #1038 is also merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.
