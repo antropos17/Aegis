@@ -3558,6 +3558,29 @@ Native ControlTrace duration, ETW session absence after controller death, authen
 
 Integration update (2026-10-19): parent #1005 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
 
+## Session handoff — dormant Cedar worker adapter (2026-10-19)
+
+A separate one-shot worker adapter runs the existing Cedar evaluator behind a
+parent deadline and one outstanding lifetime. Replies require a clean confirmed
+exit; timeouts, cancellation and errors invalidate delivery, with new admission
+closed until exit is confirmed. No production caller uses the adapter, so the
+existing synchronous preparation route is unchanged.
+
+The final R2 gate passed 35 tests, main body typechecking, scoped lint/format and
+two assertion mutations with source restored. R2 rejects effective cached Worker
+diagnostics before private input copying/construction and rejects Proxies before
+bounded dense-array reflection. Independent correction review passed. Earlier R1
+evidence is archived: three assertion kills, one test-timeout kill and a redundant
+guard survivor; those mutants were not rerun.
+
+A final-source Electron embedded-Node ASAR fixture loaded official Cedar WASM,
+returned allow/forbid, refused missing WASM and confirmed worker exits. This does
+not qualify the actual packaged caller. Worker threads share process memory;
+there is no total WASM/external-memory containment. Caller activation still needs
+post-await binding checks, parent policy approval and actual runtime qualification.
+
+Integration update (2026-10-19): parent #997 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
 ## W1b internal native-observation forwarding prerequisite — 2026-10-19
 
 The host now forwards closed historical native metadata to configured trusted
@@ -3572,4 +3595,4 @@ shutdown, restart and canonical audit hashing, not abrupt-crash completeness.
 No production activation, source authentication, calibrated time, actor
 attribution or native qualification. Parent custody review remains owner-pending.
 
-Integration update (2026-10-19): parent #1012 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.
