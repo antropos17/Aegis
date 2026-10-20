@@ -101,11 +101,9 @@ export function calculateRiskScore(agent) {
 /**
  * Map a risk score to a **letter trust grade** (A+…F).
  *
- * DISPLAY ONLY. A grade is printed as a letter — Reports' grade column, the
- * Activity group badge — and decides nothing else. Every colour in the renderer,
- * including the colour that letter is printed in, comes from the risk **bands**
- * (low/medium/high) in trust-badge-utils `getRiskInfo`, reached via
- * `pickByRiskBand`. The two threshold sets are not interchangeable and the
+ * DISPLAY ONLY. Letter grades must not decide risk colours. Observatory uses
+ * `riskBand` in frontend/observatory/runtime/radar.ts to classify low/medium/high.
+ * The two threshold sets are not interchangeable and the
  * grades are finer-grained: score 60 is grade D but band medium, which is
  * exactly how the Radar once drew a red dot beside an amber badge (F-W10).
  *
