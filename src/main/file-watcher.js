@@ -589,8 +589,14 @@ function bindWatcherEvents(watcher, rootId, generation) {
   // no record either.
   watcher.on('ready', () => {
     if (!current()) return;
-    clearTimeout(_rootRecovery.get(rootId).readyTimer);
+    const recovery = _rootRecovery.get(rootId);
+    clearTimeout(recovery.readyTimer);
+    recovery.readyTimer = null;
     if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
+  });
+  watcher.on('progress', () => {
+    if (!current() || rootId !== 'project-dir' || !_rootRecovery.get(rootId).readyTimer) return;
+    armRootReadyTimeout(rootId, watcher, generation);
   });
   watcher.on('loss', (amount) => {
     if (!current()) return;
@@ -648,12 +654,23 @@ function scheduleRootRecovery(rootId, generation) {
 /** Bound readiness for initial and replacement workers. @returns {void} @since v0.14.0 */
 function armRootReadyTimeout(rootId, watcher, generation) {
   const recovery = _rootRecovery.get(rootId);
-  recovery.readyTimer = setTimeout(() => {
-    if (generation !== _watchGeneration || recovery.watcher !== watcher) return;
-    markRootTerminated(rootId, 'watch-root-ready-timeout');
-    applyWatchPlaneHealth(Date.now());
-    retireRootWatcher(rootId, watcher, generation);
-  }, 10000);
+  // Large native project scans may still be traversing after ten seconds. Only
+  // scan progress renews that idle allowance; one worker can never exceed a minute.
+  // Readiness and health still require the provider's actual ready notification.
+  if (recovery.startingWatcher !== watcher) {
+    recovery.startingWatcher = watcher;
+    recovery.readyDeadline = Date.now() + (rootId === 'project-dir' ? 60000 : 10000);
+  }
+  clearTimeout(recovery.readyTimer);
+  recovery.readyTimer = setTimeout(
+    () => {
+      if (generation !== _watchGeneration || recovery.watcher !== watcher) return;
+      markRootTerminated(rootId, 'watch-root-ready-timeout');
+      applyWatchPlaneHealth(Date.now());
+      retireRootWatcher(rootId, watcher, generation);
+    },
+    Math.min(10000, Math.max(0, recovery.readyDeadline - Date.now())),
+  );
 }
 
 function handleWatcherEvent(action, filePath) {
@@ -865,6 +882,7 @@ async function setupFileWatchers() {
             usePolling: false,
             followSymlinks: false,
             depth: 5,
+            startupProgress: true,
           }),
       ],
       [

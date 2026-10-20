@@ -12,6 +12,7 @@ function createQueue(send, { maxEvents = 512, maxBytes = 1024 * 1024, batchSize 
   let bytes = 0;
   let dropped = 0;
   let ready = false;
+  let progress = 0;
   let error = null;
   let dirty = false;
   let inFlight = 0;
@@ -26,7 +27,14 @@ function createQueue(send, { maxEvents = 512, maxBytes = 1024 * 1024, batchSize 
     for (const event of batch) bytes -= event.bytes;
     dirty = false;
     inFlight = ++seq;
-    send({ seq, events: batch.map(({ type, path }) => ({ type, path })), ready, error, dropped });
+    send({
+      seq,
+      events: batch.map(({ type, path }) => ({ type, path })),
+      ready,
+      error,
+      dropped,
+      progress,
+    });
   };
   const schedule = () => {
     if (closed || scheduled || inFlight) return;
@@ -44,6 +52,12 @@ function createQueue(send, { maxEvents = 512, maxBytes = 1024 * 1024, batchSize 
         pending.push({ type, path, bytes: size });
         bytes += size;
       }
+      schedule();
+    },
+    progress(value) {
+      if (closed || ready || error || !Number.isSafeInteger(value) || value <= progress) return;
+      progress = value;
+      dirty = true;
       schedule();
     },
     ready() {

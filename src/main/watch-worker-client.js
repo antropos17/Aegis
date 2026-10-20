@@ -26,6 +26,7 @@ function watch(paths, options, { WorkerClass = Worker } = {}) {
   let failed = false;
   let terminalNotified = false;
   let ready = false;
+  let progress = 0;
   let dropped = 0;
   let sequence = 0;
   let closing;
@@ -55,6 +56,16 @@ function watch(paths, options, { WorkerClass = Worker } = {}) {
       if (batch.ready && !ready) {
         ready = true;
         emitter.emit('ready');
+      }
+      if (
+        !closed &&
+        !failed &&
+        !ready &&
+        Number.isSafeInteger(batch.progress) &&
+        batch.progress > progress
+      ) {
+        progress = batch.progress;
+        emitter.emit('progress', progress);
       }
       for (const event of batch.events) {
         if (closed) break;

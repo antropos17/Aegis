@@ -25,6 +25,32 @@ const batch = (seq, extra = {}) => ({
 });
 
 describe('worker watcher lifetime', () => {
+  it('forwards only increasing safe startup progress before readiness or failure', async () => {
+    for (const terminal of ['ready', 'error', 'close']) {
+      const { proxy, worker } = create();
+      const seen = [];
+      proxy.on('progress', (n) => seen.push(n));
+      proxy.on('error', () => {});
+      let seq = 0;
+      for (const progress of [2, 2, 1, NaN, Infinity, '3', 2.5, -1, 4]) {
+        worker.emit('message', batch(++seq, { progress }));
+      }
+      expect(seen).toEqual([2, 4]);
+      if (terminal === 'close') await proxy.close();
+      else
+        worker.emit(
+          'message',
+          batch(++seq, {
+            [terminal]: terminal === 'ready' ? true : 'watch-worker-provider-error',
+            progress: 8,
+          }),
+        );
+      worker.emit('message', batch(seq + 1, { progress: 9 }));
+      expect(seen).toEqual([2, 4]);
+      await proxy.close();
+    }
+  });
+
   it('delivers ordered events, ready once and loss deltas before acknowledging', () => {
     const { proxy, worker } = create();
     const observed = [];
