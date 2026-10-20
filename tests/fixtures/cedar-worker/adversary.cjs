@@ -74,6 +74,23 @@ if (isMainThread) {
     const reply = { decision: 'allow', reason: 'policy-allow', policyIds: ['allow'] };
     parentPort.postMessage(reply);
     parentPort.postMessage(reply);
+  } else if (mode === 'candidate-stall' || mode === 'delayed-duplicate') {
+    const reply = { decision: 'allow', reason: 'policy-allow', policyIds: ['allow'] };
+    parentPort.postMessage(reply);
+    // The parent acknowledges observing the first reply before this lifetime continues.
+    Atomics.wait(marker, 1, 0);
+    Atomics.store(marker, 0, 2);
+    if (mode === 'candidate-stall') {
+      while (true) {
+        /* valid candidate without clean exit */
+      }
+    }
+    setTimeout(() => {
+      Atomics.store(marker, 0, 3);
+      parentPort.postMessage(reply);
+      parentPort.close();
+    }, 25);
+    return;
   } else if (mode === 'evaluation-hang') {
     const runtime = require(
       require('node:path').join(require('node:path').dirname(entry), 'cedar-runtime.js'),

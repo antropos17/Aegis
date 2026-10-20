@@ -3580,3 +3580,23 @@ there is no total WASM/external-memory containment. Caller activation still need
 post-await binding checks, parent policy approval and actual runtime qualification.
 
 Integration update (2026-10-19): parent #997 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
+
+## Cedar worker candidate delivery after natural exit — 2026-10-20
+
+The dormant Cedar worker adapter now retains its first valid candidate without
+terminating the worker. Delivery requires natural exit code 0; malformed or
+additional replies, errors, cancellation and deadline expiration still deny.
+Admission remains held until worker exit. This closes the early forced-exit path
+that could deliver a candidate before later worker behavior was observed.
+
+Two real-worker regressions first failed against the unchanged client, receiving
+allow for a candidate followed by a stall or an acknowledged delayed duplicate.
+The unchanged regression bodies and fixture passed after the minimal fix. Focused
+verification passed 27 client and 40 Cedar neighbor tests, scoped lint/format and
+explicit body types. The original red run is the negative control; no separate
+post-fix source mutation is claimed. Independent final review and exact required
+CI remain merge gates.
+
+No production caller, launch authority or total WASM/external-memory containment
+was added. Packaged caller, native and full-target qualification remain open.

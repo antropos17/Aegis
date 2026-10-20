@@ -131,14 +131,13 @@ function createCedarWorkerClient({ WorkerClass = Worker } = {}) {
           const reply = metadataReply(message, Object.keys(snapshot.request.policy.policies));
           if (candidate || !reply) return fail('cedar-worker-protocol');
           candidate = reply;
-          terminate();
         });
         worker.once('exit', (code) => {
           exited = true;
           if (active === lifetime) active = null;
           if (invalid) return;
           if (performance.now() >= deadline) return fail('cedar-worker-timeout');
-          if (code !== 0 && !(terminating && code === 1)) return fail('cedar-worker-failed');
+          if (code !== 0) return fail('cedar-worker-failed');
           settle(candidate || deny('cedar-worker-failed'));
         });
         // Drain without retaining or forwarding private runtime output.
