@@ -3661,3 +3661,46 @@ local startup observed a healthy class-5 process snapshot and reliable process
 population. Original files and the verified external archive remain preserved.
 These observations do not qualify ETW, all sensors, enforcement, packaging,
 signing or a release. Exact required PR CI remains the merge gate.
+
+## Session handoff — dormant capped Windows Cedar process owner (2026-10-19)
+
+A private Windows facade and normal-user helper now evaluate one Cedar request
+inside a queried resource Job. A new non-breakaway retention Job preserves the
+admitted inherited chain. Both owned memberships and caps are checked while the
+child is suspended; revoke/resume share a lock. Cleanup retains original handles,
+requires an empty resource Job, and keeps uncertain closure/transcripts refused.
+
+Configured limits are 256 MiB committed virtual memory, one active process,
+two seconds of periodically checked user CPU and a ten-second native wall target.
+They exclude helper/facade, physical/kernel memory and whole-application availability.
+No existing Job, launcher, permission or production policy route changed.
+
+R4 retained 14 actual native controls, six capped ASAR decision/refusal cases,
+ten pure profile cases and two assertion mutants that ran only nonlaunch profile
+checks. Four final layout builds passed; three production builds each recorded
+one CS0414 warning, while the fixture and mutant builds recorded zero warnings.
+The initial development allow is separately bound. R2 JavaScript/pipe checks and
+R1/R2/R3 blocked observations remain historical with exact reuse bindings.
+
+Independent source/security review passed; final evidence review and its external
+errata accompany publication. The sealed packet contains a wrong WASM length and
+zero-warning summary; the errata preserve the original seal and correct those
+claims against archived bytes/logs: the WASM asset is 4,318,628 bytes and the three
+production layout builds each emitted one CS0414 warning. The thirteen frozen
+implementation/project/test files remain unchanged; the process-owner document
+is updated for integration provenance.
+
+Integration update (2026-10-20): Cedar runtime #997, worker #1013 and lifecycle
+fix #1038 are merged. Of the eight historical preserved dependencies, only
+cedar-worker-client.js changed; the new process entrypoint imports the unchanged
+cedar-worker-thread.js validation/evaluation path directly. The client now waits
+for natural exit code 0 and retains #1038 behavior. Master also updated Electron
+to 44.8.0 and js-yaml to 5.5.0. The earlier native/ASAR receipts used Electron
+44.7.2 and remain historical fixture evidence, without qualifying the current
+Electron runtime. Exact required CI, product packaging and activation remain
+pending. launchAllowed=false; full W5/W6 acceptance is absent.
+
+The merged-input local check passed 62 process/client/thread tests, scoped
+lint/format and derived counts (267 main modules). #1038's real-worker
+regressions are included. Node 24.20.0 and prepared Electron 44.8.0 were used;
+no current native helper/ASAR matrix is claimed. Required hosted CI is pending.
