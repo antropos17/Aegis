@@ -118,10 +118,11 @@ describe('Cedar worker admission and delivery ownership', () => {
       stderr: true,
     });
     worker.emit('message', allow);
-    expect(worker.terminate).toHaveBeenCalledTimes(1);
+    expect(worker.terminate).not.toHaveBeenCalled();
     expect(await value.evaluate(policy(), action())).toEqual(deny('cedar-worker-busy'));
-    worker.emit('exit', 1);
+    worker.emit('exit', 0);
     expect(await pending).toEqual(allow);
+    expect(worker.terminate).not.toHaveBeenCalled();
     expect(worker.stdout.resume).toHaveBeenCalledOnce();
     expect(worker.stderr.resume).toHaveBeenCalledOnce();
   });
@@ -137,15 +138,17 @@ describe('Cedar worker admission and delivery ownership', () => {
     worker.emit('message', allow);
     await Promise.resolve();
     expect(delivered).toBe(false);
+    expect(worker.terminate).not.toHaveBeenCalled();
     worker.emit('message', allow);
     expect(await pending).toEqual(deny('cedar-worker-protocol'));
+    expect(worker.terminate).toHaveBeenCalledOnce();
     expect(await value.evaluate(policy(), action())).toEqual(deny('cedar-worker-busy'));
     worker.emit('exit', 1);
     const next = value.evaluate(policy(), action());
     worker.emit('message', allow);
     worker.emit('error', Error('PRIVATE_LATE_ERROR'));
     last().emit('message', allow);
-    last().emit('exit', 1);
+    last().emit('exit', 0);
     expect(await next).toEqual(allow);
   });
 
@@ -166,7 +169,7 @@ describe('Cedar worker admission and delivery ownership', () => {
       }
       const next = value.evaluate(policy(), action());
       last().emit('message', allow);
-      last().emit('exit', 1);
+      last().emit('exit', 0);
       expect(await next).toEqual(allow);
     },
   );
@@ -183,18 +186,14 @@ describe('Cedar worker admission and delivery ownership', () => {
           ? Promise.reject(Error('PRIVATE_TERMINATION'))
           : Promise.resolve(1);
       });
-      if (mode === 'resolve-without-exit') {
-        worker.emit('error', Error('PRIVATE'));
-        expect(await pending).toEqual(deny('cedar-worker-failed'));
-      } else {
-        worker.emit('message', allow);
-        expect(await pending).toEqual(deny('cedar-worker-cleanup-failed'));
-      }
+      worker.emit('error', Error('PRIVATE'));
+      expect(await pending).toEqual(deny('cedar-worker-failed'));
+      expect(worker.terminate).toHaveBeenCalledOnce();
       expect(await value.evaluate(policy(), action())).toEqual(deny('cedar-worker-busy'));
       worker.emit('exit', 1);
       const next = value.evaluate(policy(), action());
       last().emit('message', allow);
-      last().emit('exit', 1);
+      last().emit('exit', 0);
       expect(await next).toEqual(allow);
     },
   );
@@ -228,11 +227,11 @@ describe('Cedar worker admission and delivery ownership', () => {
     },
   );
 
-  it('denies abnormal exit even after valid metadata', async () => {
+  it.each([1, 2])('denies abnormal exit %s even after valid metadata', async (code) => {
     const value = client();
     const pending = value.evaluate(policy(), action());
     last().emit('message', allow);
-    last().emit('exit', 2);
+    last().emit('exit', code);
     expect(await pending).toEqual(deny('cedar-worker-failed'));
   });
 
@@ -306,6 +305,31 @@ function actualClient(mode, marker) {
 }
 
 describe('Cedar real worker availability boundary', () => {
+  it.each(['candidate-stall', 'delayed-duplicate'])(
+    'denies %s after the parent observes a valid candidate',
+    async (mode) => {
+      const marker = new Int32Array(new SharedArrayBuffer(8));
+      const value = actualClient(mode, marker);
+      const pending = value.evaluate(policy(), action(), { timeoutMs: 700 });
+      const worker = realWorkers.at(-1);
+      const exited = new Promise((resolve) => worker.once('exit', resolve));
+      const messages = [];
+      worker.on('message', (reply) => {
+        messages.push(reply);
+        if (messages.length === 1) {
+          Atomics.store(marker, 1, 1);
+          Atomics.notify(marker, 1);
+        }
+      });
+      expect(await pending).toEqual(
+        deny(mode === 'candidate-stall' ? 'cedar-worker-timeout' : 'cedar-worker-protocol'),
+      );
+      await exited;
+      expect(messages).toEqual(mode === 'candidate-stall' ? [allow] : [allow, allow]);
+      expect(Atomics.load(marker, 0)).toBe(mode === 'candidate-stall' ? 2 : 3);
+    },
+  );
+
   it.each(['startup-hang', 'evaluation-hang'])(
     'keeps the parent heartbeat live during %s and confirms exit',
     async (mode) => {
