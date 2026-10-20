@@ -3558,6 +3558,27 @@ Native ControlTrace duration, ETW session absence after controller death, authen
 
 Integration update (2026-10-19): parent #1005 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
 
+## Session handoff — dormant macOS identity adapter (2026-10-19)
+
+The macOS sensor library now connects the checked libproc wrapper to fresh
+boot/population/unique/BSD/unique/boot reads. It preserves raw birth precision,
+complete generation witnesses and best-effort population; a missing PID supplies
+no authoritative exit. Non-macOS calls return NotSupported. No executable,
+transport, clock producer, capture mode or Darwin JavaScript integration was added.
+
+The frozen adapter passed 20 portable tests, Windows and Apple ARM64 all-target
+checks/Clippy, formatting and two additional assertion mutations. Earlier identity
+mutations remain separate historical evidence. All nine frozen source hashes and
+six wrapper hashes survived the pinned prerequisite merge. Rust-only changes
+cause no JavaScript/TypeScript/Svelte inventory adjustment.
+
+This is a stacked draft on the owner-pending macOS wrapper PR. Target compilation
+does not qualify Apple SDK linkage, ABI offsets, live permissions or macOS runtime
+behavior. Parent and child require separate owner decisions and fresh master CI
+before merging. Full W3 remains open.
+
+Integration update (2026-10-19): parent #1006 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
 ## Session handoff — dormant Cedar worker adapter (2026-10-19)
 
 A separate one-shot worker adapter runs the existing Cedar evaluator behind a

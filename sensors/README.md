@@ -1,12 +1,12 @@
 # Sensor workspace
 
 This workspace contains `aegis-wire`, the pure `sensor/1` codec, a process-only
-Linux procfs provider with a framed CLI, the registered macOS sensor root and a
-separate bounded macOS native-read boundary.
+Linux procfs provider with a framed CLI, and a macOS identity library with a
+separate bounded native-read boundary.
 The Linux implementation is described in [its crate guide](aegis-sensor-linux/README.md).
-The macOS sensor root still contains documentation only; its provider adapter,
-transport and executable remain separate work. Native Linux execution and macOS
-linkage, ABI and runtime behavior remain unqualified.
+The macOS library connects fresh libproc observations to its identity consumer;
+its executable and transport integration remain separate work. Native Linux
+execution and macOS linkage, ABI and runtime behavior remain unqualified.
 The codec contract is [the sensor wire specification](../docs/roadmap/sensor-wire.md).
 The codec itself has no OS providers, process custody or host session state.
 
@@ -92,7 +92,10 @@ and private process-unique-ID flavor in `native/SAFETY.md`.
 
 PID enumeration is explicitly best effort, including underfilled buffers. Every
 consumer must retain that uncertainty; a missing PID cannot establish an exit.
-The sensor crate's native adapter and transport remain separate work.
+The sensor crate's `read_native_snapshot()` library entrypoint uses this boundary
+on macOS and returns `NotSupported` elsewhere. It preserves best-effort population,
+raw birth and generation witnesses. See [the identity contract](aegis-sensor-macos/IDENTITY.md).
+Transport, clock integration and active capture modes remain separate work.
 
 Portable wrapper tests and an `aarch64-apple-darwin` target check cover this
 prerequisite. They do not verify native linkage, SDK ABI offsets, live permissions,
