@@ -4,8 +4,10 @@ import {
   groupResource,
   groupActivity,
   groupEvidence,
+  riskBand,
 } from '../../frontend/observatory/runtime/radar';
 import { emptyTelemetry } from '../../frontend/observatory/runtime/host';
+import { getTrustGrade } from '../../src/renderer/lib/utils/risk-scoring';
 const instance = (id, pid, risk = 0) => ({
   agent: 'Claude Code',
   name: 'Claude Code',
@@ -19,6 +21,9 @@ describe('Grouped radar observations', () => {
     const groups = radarGroups(rows);
     expect(groups).toHaveLength(1);
     expect(groups[0].risk).toBe(60);
+    // F-W10: a letter grade must not turn a medium-risk radar group red.
+    expect(getTrustGrade(groups[0].risk)).toBe('D');
+    expect(riskBand(groups[0].risk)).toBe('medium');
     expect(groups[0].members.map((a) => a.instanceId)).toEqual(['b', 'a', null]);
     expect(rows[0].instanceId).toBe('a');
   });
@@ -57,6 +62,24 @@ describe('Grouped radar observations', () => {
       ],
     };
     expect(groupActivity(g, state, 300000).flatMap((b) => b.events)).toEqual([state.events[0]]);
+  });
+});
+
+describe('Observatory risk bands', () => {
+  it.each([
+    [-50, 'low'],
+    [0, 'low'],
+    [20, 'low'],
+    [34, 'low'],
+    [35, 'medium'],
+    [50, 'medium'],
+    [65, 'medium'],
+    [66, 'high'],
+    [80, 'high'],
+    [100, 'high'],
+    [200, 'high'],
+  ])('classifies score %s as %s', (score, band) => {
+    expect(riskBand(score)).toBe(band);
   });
 });
 
