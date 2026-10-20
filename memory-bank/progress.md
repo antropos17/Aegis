@@ -3449,3 +3449,194 @@ Packaged Electron loading, an isolated evaluator, other policy routes, trusted
 identity/health dimensions and full W5 remain open. Owner policy confirmation
 and exact PR/master gates are recorded externally; no live launch qualification
 or broader Protected Session acceptance follows from these fixtures.
+
+## Session handoff — Linux procfs sensor (2026-10-19)
+
+A process-only Linux provider now reads bounded fresh procfs populations and
+serves sensor/1 over stdin/stdout. Raw field-22 ticks and boot witnesses retain
+full u64 precision. Legal non-UTF8 process names affect display only; failed or
+over-budget populations return an error so the host can freeze sessions. Watch
+replacement validates fresh roots atomically. All event capabilities remain
+false, and path subscriptions are unsupported.
+
+Nineteen Windows fixture tests, formatting, Windows/Linux all-target Clippy and
+Linux all-target checks passed. Three earlier R1 assertion mutants and one R2
+non-UTF8 regression mutant were killed with source restored; these are separate
+revision-specific records. Independent R2 security and requirements review passed.
+Linux cross-checking compiled the native branch without linking or running it.
+
+Native procfs/clock behavior, D1 runtime parity, packaged host integration,
+fanotify/eBPF, privileges and full W2 acceptance remain open. This delivery
+does not enable launch authority or replace the existing polling provider.
+
+## Session handoff — isolated ETW process diagnostics (2026-10-19)
+
+A separate helper and closed collector decode pinned Windows process start, stop
+and rundown payloads. Subject PID and exact decimal birth values come from provider
+payloads; header PID and later process-handle reads do not supply identity. Image,
+command-line and SID data are discarded. No production import or capture command
+is exposed; current ETW file admission and process polling are unchanged.
+
+The unchanged compiled helper passed 209 fixture assertions. The discovered Vitest
+suite passed twelve cases with the retained compiled fixture; without it, eleven
+pure cases run and the compiled case is explicitly skipped. A required-missing
+control failed as intended, and five collector mutations failed assertions with
+source restored. Independent security and test review accepted this scoped slice.
+
+No live ETW callbacks, native delivery, reboot/UAC or packaged qualification follows
+from these fixtures. Synchronous native Stop precedes the consumer wait budget,
+so total shutdown remains unbounded. Authenticated parent/crash cleanup and native
+shutdown qualification remain prerequisites to capture exposure.
+
+## Session handoff — macOS native read boundary (2026-10-19)
+
+A dependency-free libproc/sysctl wrapper now isolates unsafe calls in one
+macOS-only module. Safe readers validate bounded buffers, returned sizes and
+raw birth/process-unique-ID fields. PID populations retain an explicit best-effort
+marker, including underfilled samples; missing processes cannot establish exits.
+The wire and sensor crates continue to forbid unsafe code.
+
+Eleven portable wrapper tests, formatting, and macOS aarch64 all-target checks
+and Clippy passed. Independent source/security and workspace-registration review
+accepted the frozen boundary. The lock adds one local package with no new
+registry packages and retains all twenty other existing package blocks.
+
+This prerequisite adds no sensor adapter or executable. Native linkage, SDK ABI,
+permissions, live generation semantics, platform versions and full W3 acceptance
+remain open. Portable tests and cross-checks do not establish native execution.
+
+## Session handoff — owner restart qualification harness (2026-10-19)
+
+The protocol-10 diagnostic harness prepares an owner-controlled Windows Restart,
+then resumes or cancels after checking immutable boot, source, package,
+configuration, native and saved-preparation bindings before UAC. Live complete
+protected-record correlation uses the authenticated observer after owner consent.
+A supported build-only producer returns before desktop launch or capture. Fixture reads await a matching
+PID/full-birth preparation acknowledgement and retain the event-time oracle.
+Private observer digests add correlation without changing cleanup authority.
+
+Independent R3 review accepted phase-specific cancellation and negative read-barrier
+checks. The final six-suite gate passed 123 tests; three R3 assertion mutants were
+killed and restored. Historical R2 evidence is corrected to ten caught JS mutants
+and one survivor; it is retained separately from R3. Unchanged native inputs reuse
+the R2 zero-warning build, 128 non-capture fixtures and two native mutations.
+
+No actual package build, UAC, Restart, owner recovery or live capture was run.
+Changed native qualification metadata makes the prior #986 native receipt
+historical for this candidate. Current-package qualification, W11/T1 acceptance
+and production admission remain pending; launchAllowed=false is unchanged.
+
+## Session handoff — native observation metadata custody (2026-10-19)
+
+Optional closed sensor metadata now survives security-record projection, disk
+spill/restart replay and canonical audit JSONL hashing. Raw birth, witness,
+sequence and capture timestamps stay separate from normalized identity and the
+audit delivery ID. Missing Linux D1 context retains raw evidence with identity
+unavailable; replay uses only persisted historical proof. Absent clock anchors
+remain null and uncalibrated. Invalid or oversized metadata preserves an otherwise
+admissible legacy event.
+
+The focused gate passed 106 tests across six suites, including 25 new cases.
+Four mutations failed behavioral assertions and restored exact source. Actual
+spill/restart/audit hashing and tamper rejection are tested. Scoped lint/format,
+configured main types and independent security/test review passed. The configured
+typecheck does not check these JavaScript bodies. Three frozen source hashes
+survived master integration.
+
+This adds no producer forwarding, source authentication, actor/session authority,
+calibrated time or native loss-range forwarding. Runtime admission remains
+unsupported with zero accepted native events and coverage lost. No FileEvent,
+risk, UI, provider or complete W1b acceptance follows.
+
+## Session handoff — dormant ETW diagnostic child supervision (2026-10-19)
+
+Added an original-child-handle owner with absolute monotonic deadline, bounded output, one termination attempt and exit/stream-closure cleanup evidence. Sticky unknown cleanup blocks another lifetime. No production caller, IPC, UI, capture route or native admission was added.
+
+R2 has34passing focused tests(23modeled,6actual JavaScript children,5compiled fake-coordinator children) and7final behavioral mutation kills with byte-identical restoration. The compiled blocked Stop has a branch-entry witness; the consumer fixture requires fake cancellation. Independent source/security and test/evidence reviews passed. R1 frozen review was withdrawn before R2. Root preserved the available raw evidence in an external post-run archive; qualification manifest1d1c23bb is revision-bound.
+
+Native ControlTrace duration, ETW session absence after controller death, authenticated crash/orphan cleanup, privileges and capture exposure remain unqualified. Parent responsiveness and OS scheduling limit wall-clock enforcement. launchAllowed=false. This does not complete W11.
+
+Integration update (2026-10-19): parent #1005 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
+## Session handoff — dormant Cedar worker adapter (2026-10-19)
+
+A separate one-shot worker adapter runs the existing Cedar evaluator behind a
+parent deadline and one outstanding lifetime. Replies require a clean confirmed
+exit; timeouts, cancellation and errors invalidate delivery, with new admission
+closed until exit is confirmed. No production caller uses the adapter, so the
+existing synchronous preparation route is unchanged.
+
+The final R2 gate passed 35 tests, main body typechecking, scoped lint/format and
+two assertion mutations with source restored. R2 rejects effective cached Worker
+diagnostics before private input copying/construction and rejects Proxies before
+bounded dense-array reflection. Independent correction review passed. Earlier R1
+evidence is archived: three assertion kills, one test-timeout kill and a redundant
+guard survivor; those mutants were not rerun.
+
+A final-source Electron embedded-Node ASAR fixture loaded official Cedar WASM,
+returned allow/forbid, refused missing WASM and confirmed worker exits. This does
+not qualify the actual packaged caller. Worker threads share process memory;
+there is no total WASM/external-memory containment. Caller activation still needs
+post-await binding checks, parent policy approval and actual runtime qualification.
+
+Integration update (2026-10-19): parent #997 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
+
+## Cedar worker candidate delivery after natural exit — 2026-10-20
+
+The dormant Cedar worker adapter now retains its first valid candidate without
+terminating the worker. Delivery requires natural exit code 0; malformed or
+additional replies, errors, cancellation and deadline expiration still deny.
+Admission remains held until worker exit. This closes the early forced-exit path
+that could deliver a candidate before later worker behavior was observed.
+
+Two real-worker regressions first failed against the unchanged client, receiving
+allow for a candidate followed by a stall or an acknowledged delayed duplicate.
+The unchanged regression bodies and fixture passed after the minimal fix. Focused
+verification passed 27 client and 40 Cedar neighbor tests, scoped lint/format and
+explicit body types. The original red run is the negative control; no separate
+post-fix source mutation is claimed. Independent final review and exact required
+CI remain merge gates.
+
+No production caller, launch authority or total WASM/external-memory containment
+was added. Packaged caller, native and full-target qualification remain open.
+
+## W1b internal native-observation forwarding prerequisite — 2026-10-19
+
+The host now forwards closed historical native metadata to configured trusted
+sinks: one epoch per owner, actual child generation, copied D1 context and
+validated hello anchor. Existing wire/admission/identity gates and synchronous
+acknowledgement remain unchanged. See [the scope and verification](../docs/NATIVE-OBSERVATION-FORWARDING.md).
+
+Validation: 135 tests across nine suites, eight new tests plus existing macOS
+assertions; four assertion mutants killed/restored; independent source/security
+and test/evidence reviews passed. The actual fixture covers spill, graceful
+shutdown, restart and canonical audit hashing, not abrupt-crash completeness.
+No production activation, source authentication, calibrated time, actor
+attribution or native qualification. Parent custody review remains owner-pending.
+
+Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. Separately confirmed Cedar lifecycle fix #1038 is also merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.
+
+## Local checkout transition — 2026-10-20
+
+Reconciled the preserved local UI work against current Observatory in an
+independent working copy. Current artwork, shell, agent views and radar cover
+the useful prototype intent. The historical eight-slot radar behavior remains
+archived; the approved current radar uses population-based angles and paging.
+Restored live-search and existing project MCP preferences without changing
+sandbox, approval, network rules or agent limits. Marked the Fancy proposal as
+archived and updated the artwork provenance description.
+
+Browser verification exposed stale pre-Coverage counts in two harnesses. They
+now expect 15 Advanced routes and 25 command destinations and explicitly check
+Coverage. Simple-mode behavior assertions remain intact; no product component
+or stylesheet changed.
+
+Validation: configured TypeScript and Svelte checks, production/preview builds,
+focused lint/format and the complete browser gate passed, including 132
+viewport/theme views. Isolated Electron startup verified the real preload,
+keyboard mode transitions and sandbox. After inbox-helper compilation, one
+local startup observed a healthy class-5 process snapshot and reliable process
+population. Original files and the verified external archive remain preserved.
+These observations do not qualify ETW, all sensors, enforcement, packaging,
+signing or a release. Exact required PR CI remains the merge gate.

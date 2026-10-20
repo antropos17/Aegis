@@ -1,17 +1,28 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace Aegis.EtwLifecycle;
 
 internal sealed record FileDurablePeer(int pid, string birth);
 internal sealed record FileDurableLease(int version, string guid, string user, string logon, string image, FileDurablePeer[] peers);
-internal sealed record FileDurableSummary(int recovered, uint? restrictedProbeStatus, bool observationGap, object? finalTotals);
+internal sealed record FileDurableSummary(int recovered, uint? restrictedProbeStatus, bool observationGap, object? finalTotals,
+    string journalDigest, string? previousJournalDigest, bool? previousSameScope);
 
 // A protected write-ahead reservation survives every original process. Recovery
 // runs only at the next explicitly consented capture; no resident seventh helper.
 internal static class FileDurableRecovery
 {
+    // Complete validated protected-record correlation for the private qualification
+    // observer only. The digest supplies no cleanup or capture authority.
+    internal static string Digest(FileDurableLease lease)
+    {
+        Validate(lease);
+        return Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(lease)));
+    }
+    internal static bool ValidDigest(string? value) => value?.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
     internal static FileDurableLease Parse(byte[] bytes)
     {
         if (bytes.Length is 0 or > 8192) throw new InvalidDataException();

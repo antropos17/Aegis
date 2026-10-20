@@ -1,5 +1,5 @@
 [workspace]
-members = ["aegis-wire", "aegis-sensor-linux", "aegis-sensor-macos"]
+members = ["aegis-wire", "aegis-sensor-linux", "aegis-sensor-macos", "aegis-sensor-macos/native"]
 resolver = "3"
 
 [workspace.package]

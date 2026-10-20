@@ -125,9 +125,10 @@ export async function checkSimpleExperience(browser, url, out) {
         const navigation = page.getByRole('navigation', { name: 'Main navigation' });
         assert.equal(
           await navigation.getByRole('button').count(),
-          14,
+          15,
           'Fresh profiles default to Advanced',
         );
+        assert(await navigation.getByRole('button', { name: 'Coverage', exact: true }).isVisible());
         assert.equal(
           await page.evaluate(() => document.documentElement.style.getPropertyValue('--ui-scale')),
           '1',
@@ -216,7 +217,8 @@ export async function checkSimpleExperience(browser, url, out) {
         await interval.fill('45');
         const simple = page.getByRole('checkbox', { name: 'Simple interface', exact: true });
         await simple.uncheck();
-        assert.equal(await navigation.getByRole('button').count(), 14);
+        assert.equal(await navigation.getByRole('button').count(), 15);
+        assert(await navigation.getByRole('button', { name: 'Coverage', exact: true }).isVisible());
         assert.equal(await interval.inputValue(), '45');
         assert.equal(
           await page.evaluate(() => localStorage.getItem('aegis-advanced-mode')),

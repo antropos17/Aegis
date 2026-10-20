@@ -1,0 +1,232 @@
+{
+  "provider": "22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716",
+  "metadataSha256": "abc3fcccaae3f445ac8e5cf10d64f75fd2888a38bca7faf1d5499a9e08deeee5",
+  "source": {
+    "observedAt": "2026-10-19T07:17:07Z",
+    "osVersion": "10.0.26200.0",
+    "resourceName": "Microsoft-Windows-System-Events.dll",
+    "resourceFileVersion": "10.0.26100.8457",
+    "resourceSha256": "f48a3db1a42c02b79d78ce36dfe3f1d4a1c092ef90d25347b650f4735cdfe311"
+  },
+  "pins": [
+    {
+      "id": 1,
+      "version": 4,
+      "opcode": 1,
+      "task": 1,
+      "fields": [
+        {
+          "name": "ProcessID",
+          "type": 8
+        },
+        {
+          "name": "ProcessSequenceNumber",
+          "type": 10
+        },
+        {
+          "name": "CreateTime",
+          "type": 17
+        },
+        {
+          "name": "ParentProcessID",
+          "type": 8
+        },
+        {
+          "name": "ParentProcessSequenceNumber",
+          "type": 10
+        },
+        {
+          "name": "SessionID",
+          "type": 8
+        },
+        {
+          "name": "Flags",
+          "type": 8
+        },
+        {
+          "name": "ProcessTokenElevationType",
+          "type": 8
+        },
+        {
+          "name": "ProcessTokenIsElevated",
+          "type": 8
+        },
+        {
+          "name": "MandatoryLabel",
+          "type": 19
+        },
+        {
+          "name": "ImageName",
+          "type": 1
+        },
+        {
+          "name": "ImageChecksum",
+          "type": 8
+        },
+        {
+          "name": "TimeDateStamp",
+          "type": 8
+        },
+        {
+          "name": "PackageFullName",
+          "type": 1
+        },
+        {
+          "name": "PackageRelativeAppId",
+          "type": 1
+        },
+        {
+          "name": "SecurityMitigations",
+          "type": 8
+        }
+      ],
+      "fingerprint": "da78180313632ae9438043da94f8f2d17712805b8d4a792bcde7478bc170eb7b"
+    },
+    {
+      "id": 2,
+      "version": 2,
+      "opcode": 2,
+      "task": 2,
+      "fields": [
+        {
+          "name": "ProcessID",
+          "type": 8
+        },
+        {
+          "name": "ProcessSequenceNumber",
+          "type": 10
+        },
+        {
+          "name": "CreateTime",
+          "type": 17
+        },
+        {
+          "name": "ExitTime",
+          "type": 17
+        },
+        {
+          "name": "ExitCode",
+          "type": 8
+        },
+        {
+          "name": "TokenElevationType",
+          "type": 8
+        },
+        {
+          "name": "HandleCount",
+          "type": 8
+        },
+        {
+          "name": "CommitCharge",
+          "type": 10
+        },
+        {
+          "name": "CommitPeak",
+          "type": 10
+        },
+        {
+          "name": "CPUCycleCount",
+          "type": 10
+        },
+        {
+          "name": "ReadOperationCount",
+          "type": 8
+        },
+        {
+          "name": "WriteOperationCount",
+          "type": 8
+        },
+        {
+          "name": "ReadTransferKiloBytes",
+          "type": 8
+        },
+        {
+          "name": "WriteTransferKiloBytes",
+          "type": 8
+        },
+        {
+          "name": "HardFaultCount",
+          "type": 8
+        },
+        {
+          "name": "ImageName",
+          "type": 2
+        }
+      ],
+      "fingerprint": "648bb84991d5766527eab559e6e9a5e6a0fdeca7df0774f658def5e0c40b5c50"
+    },
+    {
+      "id": 15,
+      "version": 2,
+      "opcode": 0,
+      "task": 15,
+      "fields": [
+        {
+          "name": "ProcessID",
+          "type": 8
+        },
+        {
+          "name": "ProcessSequenceNumber",
+          "type": 10
+        },
+        {
+          "name": "CreateTime",
+          "type": 17
+        },
+        {
+          "name": "ParentProcessID",
+          "type": 8
+        },
+        {
+          "name": "ParentProcessSequenceNumber",
+          "type": 10
+        },
+        {
+          "name": "SessionID",
+          "type": 8
+        },
+        {
+          "name": "Flags",
+          "type": 8
+        },
+        {
+          "name": "ProcessTokenElevationType",
+          "type": 8
+        },
+        {
+          "name": "ProcessTokenIsElevated",
+          "type": 8
+        },
+        {
+          "name": "MandatoryLabel",
+          "type": 19
+        },
+        {
+          "name": "ImageName",
+          "type": 1
+        },
+        {
+          "name": "ImageChecksum",
+          "type": 8
+        },
+        {
+          "name": "TimeDateStamp",
+          "type": 8
+        },
+        {
+          "name": "PackageFullName",
+          "type": 1
+        },
+        {
+          "name": "PackageRelativeAppId",
+          "type": 1
+        },
+        {
+          "name": "SecurityMitigations",
+          "type": 8
+        }
+      ],
+      "fingerprint": "da78180313632ae9438043da94f8f2d17712805b8d4a792bcde7478bc170eb7b"
+    }
+  ]
+}
