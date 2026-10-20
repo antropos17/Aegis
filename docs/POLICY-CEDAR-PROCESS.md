@@ -1,10 +1,9 @@
 # Dormant Windows Cedar process owner
 
-Status: stacked draft preparation on the unmerged Cedar runtime and worker
-changes. There is no application, main-process or IPC caller. Existing policy
-routes, the Cedar translator/runtime/worker, action execution, approvals and
-`launchAllowed=false` are unchanged. This does not inherit owner acceptance of
-either parent change or complete W5/W6.
+Status: dormant process-owner integration after Cedar runtime #997, worker #1013
+and lifecycle fix #1038 merged. There is no application, main-process or IPC
+caller. Existing policy routes, action execution, approvals and
+`launchAllowed=false` are unchanged. This does not complete W5/W6.
 
 `createCedarProcessClient()` is a Windows-only private evaluator facade. It owns
 one evaluation at a time without a queue, retry, ownership adoption or synchronous
@@ -153,7 +152,7 @@ choose an arbitrary executable or command. Its allocation case requests at most
 256 MiB in 4 MiB chunks. Each external fixture has a 14-second harness deadline;
 only one resource child may run at a time.
 
-## Current evidence and limits
+## Historical evidence and limits
 
 The new facade's focused tests cover framing, private transport, provisional
 allow, busy/closed admission, cached diagnostics, cancellation/deadline,
@@ -184,8 +183,9 @@ bytes). The stricter owned retention fixture refused after 120 MiB at its 128 Mi
 cap (peak 132,173,824 bytes). These are committed-memory observations with ample
 available host memory, not physical-memory or global stress claims. CPU control
 terminated at an observed 3.0625 seconds of user time under a queried 2-second
-periodically checked limit; the independent wall control terminated at about
-10 seconds. Neither figure is an exact scheduling guarantee.
+periodically checked limit; the independent wall control terminated at an observed
+10.151 seconds under its 10-second target. Neither figure is an exact scheduling
+guarantee.
 
 Descendant refusal, whole-resource-Job closure, four suspended pre-resume refusal
 controls and suspended helper-loss cleanup passed. The latter retains an original
@@ -204,8 +204,11 @@ ran these six cases through the actual native capped ASAR facade, asserting each
 exact decision, reason, policy-ID list, closed receipt and clean helper exit.
 These qualify the retained fixture layouts and local resource path. They do not
 establish application packaging, all opaque host policies, provider behavior or
-production acceptance. The existing JavaScript/transport checks remain bound to
-their unchanged R2 sources; historical mutants remain historical.
+production acceptance. The historical JavaScript/transport checks remain bound to
+their unchanged R2 sources; historical mutants remain historical. The corrected
+WASM asset length is 4,318,628 bytes. Three production layout builds each emitted
+one CS0414 warning; fixture and mutant builds emitted zero warnings. The errata
+correct the sealed packet's length and zero-warning summary without changing it.
 
 Official semantics: [Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects),
 [extended committed-memory limits](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information),
@@ -214,3 +217,41 @@ and [creation attributes](https://learn.microsoft.com/en-us/windows/win32/api/pr
 
 Inherited-chain semantics also use [Nested Jobs](https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs)
 and [the immediate-Job NULL query contract](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject).
+
+## Integration provenance (2026-10-20)
+
+The integration merges master `e94542f30ea4f13f597b17df4392feb8f79dc7b2`
+into process-owner source `97f234e8740279121168cdef8d0c1dad99ea06a0`.
+The thirteen implementation/project/test files are unchanged; this document is
+updated for integration provenance. Of the eight historical preserved
+dependencies, only `src/main/cedar-worker-client.js` changed on master,
+through #1038. Its first candidate is retained until natural exit code 0;
+subsequent invalid behavior, deadline expiration and cancellation deny. This
+integration preserves that implementation and its real-worker regressions.
+
+The process entrypoint imports `evaluateRequest` from `cedar-worker-thread.js`
+directly and never imports `cedar-worker-client.js`. The seven unchanged
+dependency files are `cedar-worker-thread.js`,
+`cedar-runtime.js`, `cedar-schema.js`, `cedar-translator.js`,
+`execution-policy.js`, `execution-binding.js` and `action-policy.js`, all under
+`src/main/`. This includes the shared worker-thread validation/evaluation path.
+This source comparison supports reusing the unchanged historical implementation
+observations; it does not turn the old native receipts into current-runtime
+qualification.
+
+Master now declares Electron 44.8.0 and js-yaml 5.5.0. The R4 native and ASAR
+observations above used Electron 44.7.2 / embedded Node 24.21.0 and Cedar 4.13.0;
+they remain historical evidence for those retained fixture layouts. No native
+matrix or ASAR qualification on Electron 44.8.0 is claimed by this integration.
+The immediate-ambient and two-owned-Job observations do not prove every opaque
+ancestor policy. The suspended helper-loss witness establishes termination of
+that observed child, without supplying a missing helper closure receipt or a
+universal parent-loss guarantee. Product packaging, activation, provider behavior
+and full W5/W6 acceptance remain open.
+
+The merged-input local check passed 62 tests across `policy-cedar-process`,
+`cedar-worker-client` and `cedar-worker-thread`, including #1038's real-worker
+regressions, with one concurrent worker. Scoped ESLint/Prettier and the derived
+count gate passed. Node was 24.20.0; test setup confirmed Electron 44.8.0 ready.
+These checks exercise JavaScript contracts and real worker threads; no native
+helper or capped ASAR matrix was rerun. Required hosted CI remains the merge gate.

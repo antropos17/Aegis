@@ -178,7 +178,7 @@
     "@typescript-eslint/eslint-plugin": "^8.71.2",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^5.0.5",
-    "electron": "^44.7.2",
+    "electron": "^44.8.0",
     "electron-builder": "^26.15.3",
     "eslint-plugin-svelte": "^3.23.1",
     "globals": "^17.13.0",
@@ -189,7 +189,7 @@
     "prettier-plugin-svelte": "^4.1.1",
     "sharp": "^0.35.5",
     "svelte": "^5.57.2",
-    "svelte-check": "^4.7.6",
+    "svelte-check": "^4.7.7",
     "typescript": "^6.0.3",
     "vite": "^7.3.7",
     "vitest": "^5.0.3"
@@ -201,7 +201,7 @@
     "ajv": "^6.14.0",
     "chokidar": "4.0.3",
     "electron-updater": "6.8.9",
-    "js-yaml": "^5.4.3",
+    "js-yaml": "^5.5.0",
     "jsonc-parser": "3.3.1",
     "semver": "^7.8.5",
     "smol-toml": "1.9.1"

@@ -62,10 +62,10 @@ record the exact head and all five required contexts before acceptance.
 
 ## Acceptance boundary
 
-This is JavaScript preparation. The owner subsequently authorized Rust setup;
-Rust 1.99.1 MSVC is installed on X. The workspace/crate is prepared for review;
-its merge and both-language golden gates remain required for full
-W1a acceptance and final wire freeze. W1b's host/session state, custody, active
+This document qualifies the JavaScript preparation slice. The owner subsequently
+authorized Rust setup; Rust 1.99.1 MSVC is installed on X. The Rust workspace and
+codec merged in #996 after owner confirmation. Both-language golden gates and
+exact PR/master checks passed, completing the scoped W1a wire prerequisite. W1b's host/session state, custody, active
 capability enforcement and cross-frame continuity remain separate work.
 No live Linux/macOS provider, eBPF/procfs parity, complete Electron application,
 installer or production acceptance is established by these fixtures.

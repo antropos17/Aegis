@@ -1,6 +1,8 @@
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 
+web_search = "live"
+
 [sandbox_workspace_write]
 network_access = true
 
@@ -10,3 +12,10 @@ domains = { "github.com" = "allow", "api.github.com" = "allow", "crates.io" = "a
 
 [agents]
 max_concurrent_threads_per_session = 6
+
+# Reuse the existing user-level server registrations in this checkout.
+[mcp_servers.aegis_serena]
+enabled = true
+
+[mcp_servers.aegis_context7]
+enabled = true
