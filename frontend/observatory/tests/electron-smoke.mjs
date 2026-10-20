@@ -135,8 +135,9 @@ try {
     assert.equal(snapshot?.detail, 'class5', 'native process snapshot did not use class 5');
   }
   const methods = await window.evaluate(() => Object.keys(window.aegis));
-  // Current bridge: 49 invoke methods + 11 subscriptions, including confirmed exit.
-  assert.equal(methods.length, 60);
+  // Current bridge: 50 invoke methods + 11 subscriptions, including confirmed exit.
+  assert.equal(methods.length, 61);
+  assert(methods.includes('controlFileReads'));
   assert(methods.includes('quitApp'));
   assert(await window.getByRole('button', { name: 'Quit AEGIS', exact: true }).isEnabled());
   assert(methods.includes('localSecurityReview'));
