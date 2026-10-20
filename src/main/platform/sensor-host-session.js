@@ -1,6 +1,7 @@
 /** @file Sensor/1 session ordering, active capabilities and fresh identity. @since 0.19.2-beta */
 'use strict';
 const { convertSensorIdentity } = require('./sensor-identity');
+const { projectNativeObservation } = require('../native-observation');
 const { isPromise } = require('node:util').types;
 const CAPABILITY = {
   exec: 'exec',
@@ -14,13 +15,14 @@ function invalid() {
 }
 
 /** Admit only frames belonging to the selected child and contiguous sequence.
- * sink receives {generation, platform, mode, event, identity}; it must return
+ * sink receives {generation,platform,mode,event,identity,nativeObservation}; it must return
  * exactly true synchronously after admission. No audit type/attribution is inferred.
  * @param {object} options Pinned owner context, admission and status callbacks.
  * @returns {object} Frame admission, mode/capability and readiness views.
  * @since 0.19.2-beta
  */
 function createSession({
+  ownerEpoch,
   platform,
   pid,
   generation,
@@ -32,7 +34,16 @@ function createSession({
   reply,
   active,
 }) {
+  const birthContext =
+    platform === 'linux' && linuxContext
+      ? {
+          bootId: linuxContext.bootId,
+          bootTimeSeconds: linuxContext.bootTimeSeconds,
+          clockTicks: linuxContext.clockTicks,
+        }
+      : null;
   let hello = null;
+  let clockAnchor = null;
   let mode = null;
   let caps = null;
   let modeReason = null;
@@ -40,13 +51,34 @@ function createSession({
   function identity(observation) {
     return convertSensorIdentity(observation, {
       platform,
-      ...(platform === 'linux' ? { linuxContext } : {}),
+      ...(platform === 'linux' ? { linuxContext: birthContext } : {}),
     });
+  }
+  function observation(event) {
+    // Identity preflight remains mandatory; optional custody metadata cannot bypass it.
+    const normalized = identity(event);
+    const { seq, kind, pid, ppid, birth, witness, identityError, ts } = event;
+    const nativeObservation = projectNativeObservation({
+      version: 'native-observation/1',
+      state: 'recorded',
+      source: { ownerEpoch, generation },
+      platform,
+      mode,
+      observation: { seq, kind, pid, ppid, birth, witness, identityError, ts },
+      identity: normalized,
+      birthContext,
+      clockAnchor,
+    });
+    return { generation, platform, mode, event, identity: normalized, nativeObservation };
   }
   function accept(message) {
     if (!hello) {
       if (message.t !== 'hello' || message.pid !== pid || message.platform !== platform) invalid();
       hello = message;
+      const anchor = message.versions?.clockAnchor;
+      clockAnchor = anchor
+        ? { clock: anchor.clock, monotonicUsec: anchor.monotonicUsec, unixUsec: anchor.unixUsec }
+        : null;
       mode = message.mode;
       caps = message.caps;
       onHello();
@@ -64,7 +96,7 @@ function createSession({
       // Preflight the complete batch before admitting any observation.
       const rows = message.events.map((event) => {
         if (!caps[CAPABILITY[event.kind]]) invalid();
-        return { generation, platform, mode, event, identity: identity(event) };
+        return observation(event);
       });
       next = BigInt(message.to) + 1n;
       for (let index = 0; index < rows.length; index++) {

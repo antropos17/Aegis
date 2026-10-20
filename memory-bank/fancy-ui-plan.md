@@ -1,4 +1,7 @@
 # FANCY AEGIS — Master Redesign Plan (v1)
+
+> **ARCHIVED — superseded design proposal.** The versions, measurements, missing-feature list and implementation prompts below describe the March 2026 baseline. Do not execute them as current instructions. Follow the current user brief and [Observatory design contract](../frontend/observatory/DESIGN.md), including its [approved reference](../frontend/observatory/reference/README.md).
+
 > Created: March 3, 2026 | Target: v0.5.0-alpha
 > Goal: Make Aegis look like enterprise EDR that happens to be open-source. Reddit/X wow-effect.
 

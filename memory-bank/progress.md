@@ -3578,3 +3578,86 @@ behavior. Parent and child require separate owner decisions and fresh master CI
 before merging. Full W3 remains open.
 
 Integration update (2026-10-19): parent #1006 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
+## Session handoff — dormant Cedar worker adapter (2026-10-19)
+
+A separate one-shot worker adapter runs the existing Cedar evaluator behind a
+parent deadline and one outstanding lifetime. Replies require a clean confirmed
+exit; timeouts, cancellation and errors invalidate delivery, with new admission
+closed until exit is confirmed. No production caller uses the adapter, so the
+existing synchronous preparation route is unchanged.
+
+The final R2 gate passed 35 tests, main body typechecking, scoped lint/format and
+two assertion mutations with source restored. R2 rejects effective cached Worker
+diagnostics before private input copying/construction and rejects Proxies before
+bounded dense-array reflection. Independent correction review passed. Earlier R1
+evidence is archived: three assertion kills, one test-timeout kill and a redundant
+guard survivor; those mutants were not rerun.
+
+A final-source Electron embedded-Node ASAR fixture loaded official Cedar WASM,
+returned allow/forbid, refused missing WASM and confirmed worker exits. This does
+not qualify the actual packaged caller. Worker threads share process memory;
+there is no total WASM/external-memory containment. Caller activation still needs
+post-await binding checks, parent policy approval and actual runtime qualification.
+
+Integration update (2026-10-19): parent #997 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
+
+## Cedar worker candidate delivery after natural exit — 2026-10-20
+
+The dormant Cedar worker adapter now retains its first valid candidate without
+terminating the worker. Delivery requires natural exit code 0; malformed or
+additional replies, errors, cancellation and deadline expiration still deny.
+Admission remains held until worker exit. This closes the early forced-exit path
+that could deliver a candidate before later worker behavior was observed.
+
+Two real-worker regressions first failed against the unchanged client, receiving
+allow for a candidate followed by a stall or an acknowledged delayed duplicate.
+The unchanged regression bodies and fixture passed after the minimal fix. Focused
+verification passed 27 client and 40 Cedar neighbor tests, scoped lint/format and
+explicit body types. The original red run is the negative control; no separate
+post-fix source mutation is claimed. Independent final review and exact required
+CI remain merge gates.
+
+No production caller, launch authority or total WASM/external-memory containment
+was added. Packaged caller, native and full-target qualification remain open.
+
+## W1b internal native-observation forwarding prerequisite — 2026-10-19
+
+The host now forwards closed historical native metadata to configured trusted
+sinks: one epoch per owner, actual child generation, copied D1 context and
+validated hello anchor. Existing wire/admission/identity gates and synchronous
+acknowledgement remain unchanged. See [the scope and verification](../docs/NATIVE-OBSERVATION-FORWARDING.md).
+
+Validation: 135 tests across nine suites, eight new tests plus existing macOS
+assertions; four assertion mutants killed/restored; independent source/security
+and test/evidence reviews passed. The actual fixture covers spill, graceful
+shutdown, restart and canonical audit hashing, not abrupt-crash completeness.
+No production activation, source authentication, calibrated time, actor
+attribution or native qualification. Parent custody review remains owner-pending.
+
+Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. Separately confirmed Cedar lifecycle fix #1038 is also merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.
+
+## Local checkout transition — 2026-10-20
+
+Reconciled the preserved local UI work against current Observatory in an
+independent working copy. Current artwork, shell, agent views and radar cover
+the useful prototype intent. The historical eight-slot radar behavior remains
+archived; the approved current radar uses population-based angles and paging.
+Restored live-search and existing project MCP preferences without changing
+sandbox, approval, network rules or agent limits. Marked the Fancy proposal as
+archived and updated the artwork provenance description.
+
+Browser verification exposed stale pre-Coverage counts in two harnesses. They
+now expect 15 Advanced routes and 25 command destinations and explicitly check
+Coverage. Simple-mode behavior assertions remain intact; no product component
+or stylesheet changed.
+
+Validation: configured TypeScript and Svelte checks, production/preview builds,
+focused lint/format and the complete browser gate passed, including 132
+viewport/theme views. Isolated Electron startup verified the real preload,
+keyboard mode transitions and sandbox. After inbox-helper compilation, one
+local startup observed a healthy class-5 process snapshot and reliable process
+population. Original files and the verified external archive remain preserved.
+These observations do not qualify ETW, all sensors, enforcement, packaging,
+signing or a release. Exact required PR CI remains the merge gate.
