@@ -155,6 +155,57 @@ function readyAll() {
 describe('chokidar watch-root registry (step B)', () => {
   let state;
 
+  it('lets a progressing project scan finish without claiming readiness from progress', async () => {
+    vi.useFakeTimers();
+    try {
+      await fileWatcher.setupFileWatchers();
+      const project = fakeWatchers[2];
+      for (const watcher of fakeWatchers.filter((w) => w !== project)) watcher.emit('ready');
+      await vi.advanceTimersByTimeAsync(9000);
+      project.emit('progress', 10);
+      await vi.advanceTimersByTimeAsync(9000);
+      expect(project.close).not.toHaveBeenCalled();
+      expect(fileWatcher.getWatchPlan().state).toBe('STARTING');
+      expect(chokidarHealth().lastSuccessAt).toBeNull();
+      project.emit('ready');
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(project.close).not.toHaveBeenCalled();
+      expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('caps a progressing project scan at one minute and still times out an idle project', async () => {
+    vi.useFakeTimers();
+    try {
+      await fileWatcher.setupFileWatchers();
+      const project = fakeWatchers[2];
+      for (const watcher of fakeWatchers.filter((w) => w !== project)) watcher.emit('ready');
+      for (let n = 1; n <= 6; n++) {
+        await vi.advanceTimersByTimeAsync(9000);
+        project.emit('progress', n);
+        expect(project.close).not.toHaveBeenCalled();
+      }
+      await vi.advanceTimersByTimeAsync(5999);
+      expect(project.close).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(project.close).toHaveBeenCalledOnce();
+      expect(root(fileWatcher.getWatchPlan(), 'project-dir').lastError).toBe(
+        'watch-root-ready-timeout',
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      const replacement = fakeWatchers.at(-1);
+      project.emit('progress', 1000);
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(replacement.close).toHaveBeenCalledOnce();
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
+  });
+
   it('retires an initial root that never becomes ready and recovers beside ready survivors', async () => {
     vi.useFakeTimers();
     try {
