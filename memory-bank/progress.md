@@ -3557,3 +3557,26 @@ R2 has34passing focused tests(23modeled,6actual JavaScript children,5compiled fa
 Native ControlTrace duration, ETW session absence after controller death, authenticated crash/orphan cleanup, privileges and capture exposure remain unqualified. Parent responsiveness and OS scheduling limit wall-clock enforcement. launchAllowed=false. This does not complete W11.
 
 Integration update (2026-10-19): parent #1005 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
+
+## Session handoff — dormant Cedar worker adapter (2026-10-19)
+
+A separate one-shot worker adapter runs the existing Cedar evaluator behind a
+parent deadline and one outstanding lifetime. Replies require a clean confirmed
+exit; timeouts, cancellation and errors invalidate delivery, with new admission
+closed until exit is confirmed. No production caller uses the adapter, so the
+existing synchronous preparation route is unchanged.
+
+The final R2 gate passed 35 tests, main body typechecking, scoped lint/format and
+two assertion mutations with source restored. R2 rejects effective cached Worker
+diagnostics before private input copying/construction and rejects Proxies before
+bounded dense-array reflection. Independent correction review passed. Earlier R1
+evidence is archived: three assertion kills, one test-timeout kill and a redundant
+guard survivor; those mutants were not rerun.
+
+A final-source Electron embedded-Node ASAR fixture loaded official Cedar WASM,
+returned allow/forbid, refused missing WASM and confirmed worker exits. This does
+not qualify the actual packaged caller. Worker threads share process memory;
+there is no total WASM/external-memory containment. Caller activation still needs
+post-await binding checks, parent policy approval and actual runtime qualification.
+
+Integration update (2026-10-19): parent #997 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
