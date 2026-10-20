@@ -7,7 +7,7 @@ import {
   produceGuiManifest,
   GUI_EXECUTABLE,
 } from '../../scripts/produce-protected-gui-manifest.mjs';
-import { createPackage } from '@electron/asar';
+import { createFixtureAsar } from '../fixtures/asar-package.mjs';
 import { writeRebootBuild, rebootHash } from '../../tools/development/etw-reboot-support.mjs';
 
 const folders = [];
@@ -106,7 +106,7 @@ async function producer({
           fs.writeFileSync(path.join(candidate, GUI_EXECUTABLE), 'never-executed');
           for (const file of ['EtwFile.exe', 'EtwFile.dll'])
             fs.writeFileSync(path.join(candidate, 'resources/etw-file', file), file);
-          await createPackage(root, path.join(candidate, 'resources/app.asar'));
+          await createFixtureAsar(root, path.join(candidate, 'resources/app.asar'));
           if (drift) fs.appendFileSync(path.join(output, 'etw-builder.json'), ' ');
           if (sourceDrift)
             fs.appendFileSync(path.join(root, 'src/main/main.js'), '// changed after archive');
