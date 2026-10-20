@@ -3616,3 +3616,27 @@ No production activation, source authentication, calibrated time, actor
 attribution or native qualification. Parent custody review remains owner-pending.
 
 Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. Separately confirmed Cedar lifecycle fix #1038 is also merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.
+
+## Local checkout transition — 2026-10-20
+
+Reconciled the preserved local UI work against current Observatory in an
+independent working copy. Current artwork, shell, agent views and radar cover
+the useful prototype intent. The historical eight-slot radar behavior remains
+archived; the approved current radar uses population-based angles and paging.
+Restored live-search and existing project MCP preferences without changing
+sandbox, approval, network rules or agent limits. Marked the Fancy proposal as
+archived and updated the artwork provenance description.
+
+Browser verification exposed stale pre-Coverage counts in two harnesses. They
+now expect 15 Advanced routes and 25 command destinations and explicitly check
+Coverage. Simple-mode behavior assertions remain intact; no product component
+or stylesheet changed.
+
+Validation: configured TypeScript and Svelte checks, production/preview builds,
+focused lint/format and the complete browser gate passed, including 132
+viewport/theme views. Isolated Electron startup verified the real preload,
+keyboard mode transitions and sandbox. After inbox-helper compilation, one
+local startup observed a healthy class-5 process snapshot and reliable process
+population. Original files and the verified external archive remain preserved.
+These observations do not qualify ETW, all sensors, enforcement, packaging,
+signing or a release. Exact required PR CI remains the merge gate.
