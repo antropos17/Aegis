@@ -3581,6 +3581,26 @@ post-await binding checks, parent policy approval and actual runtime qualificati
 
 Integration update (2026-10-19): parent #997 is now merged. The original source handoff above is retained as history; this child still requires separate final review, exact required CI and its own owner decision. No activation or native qualification is inferred.
 
+
+## Cedar worker candidate delivery after natural exit — 2026-10-20
+
+The dormant Cedar worker adapter now retains its first valid candidate without
+terminating the worker. Delivery requires natural exit code 0; malformed or
+additional replies, errors, cancellation and deadline expiration still deny.
+Admission remains held until worker exit. This closes the early forced-exit path
+that could deliver a candidate before later worker behavior was observed.
+
+Two real-worker regressions first failed against the unchanged client, receiving
+allow for a candidate followed by a stall or an acknowledged delayed duplicate.
+The unchanged regression bodies and fixture passed after the minimal fix. Focused
+verification passed 27 client and 40 Cedar neighbor tests, scoped lint/format and
+explicit body types. The original red run is the negative control; no separate
+post-fix source mutation is claimed. Independent final review and exact required
+CI remain merge gates.
+
+No production caller, launch authority or total WASM/external-memory containment
+was added. Packaged caller, native and full-target qualification remain open.
+
 ## W1b internal native-observation forwarding prerequisite — 2026-10-19
 
 The host now forwards closed historical native metadata to configured trusted
@@ -3595,4 +3615,4 @@ shutdown, restart and canonical audit hashing, not abrupt-crash completeness.
 No production activation, source authentication, calibrated time, actor
 attribution or native qualification. Parent custody review remains owner-pending.
 
-Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.
+Integration update (2026-10-20): parent #1012 and Cedar worker #1013 are merged. Separately confirmed Cedar lifecycle fix #1038 is also merged. The owner separately confirmed this forwarding prerequisite. The historical source handoff above is retained; current frozen source, review and exact CI remain the merge gate. Native admission stays unsupported, accepted zero, with no actor attribution, time calibration, FileEvents or risk routing.

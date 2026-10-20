@@ -9,7 +9,8 @@ The existing synchronous route in `prepareExecution` is unchanged. The
 there is no queue or synchronous fallback. The default timeout is 5000 ms,
 with accepted integer values from 1 through 30000 ms. Its deadline covers
 startup, package loading, compilation, evaluation and clean exit. A candidate
-reply is delivered only after exit confirms success.
+reply is delivered only after natural exit with code 0. Receiving a candidate
+does not request termination; additional replies invalidate the lifetime.
 
 Timeout, cancellation or error can return denial while termination is pending.
 New requests remain refused until exit is confirmed. `close()` permanently
