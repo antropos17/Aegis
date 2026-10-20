@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createPackage } from '@electron/asar';
+import { createFixtureAsar } from '../fixtures/asar-package.mjs';
+import { holdAsarPayload } from '../fixtures/asar-write-gate.mjs';
+import { setImmediate } from 'node:timers/promises';
 import {
   produceGuiManifest,
   GUI_EXECUTABLE,
@@ -37,7 +39,7 @@ async function fixture() {
   fs.mkdirSync(path.join(candidate, 'resources/etw-file'), { recursive: true });
   const rows = [
     ['src/main/main.js', 'module.exports = {};\n'],
-    ['src/shared/test.json', '{}\n'],
+    ['src/shared/test.json', '{"fixture":true}\n'],
     ['sidecar/etw-file/FileWire.cs', 'fixture-protocol-10\n'],
   ];
   for (const [file, bytes] of rows) fs.writeFileSync(path.join(root, file), bytes);
@@ -46,7 +48,7 @@ async function fixture() {
   fs.writeFileSync(path.join(candidate, GUI_EXECUTABLE), 'fixture-only-never-executed');
   for (const file of ['EtwFile.exe', 'EtwFile.dll'])
     fs.writeFileSync(path.join(candidate, 'resources/etw-file', file), file);
-  await createPackage(root, path.join(candidate, 'resources/app.asar'));
+  await createFixtureAsar(root, path.join(candidate, 'resources/app.asar'));
   const head = 'a'.repeat(40),
     tree = 'b'.repeat(40);
   const config = path.join(folder, 'config.json'),
@@ -117,6 +119,52 @@ async function fixture() {
 }
 
 describe('current restart candidate identity binding without native execution', () => {
+  it('waits for final ASAR payload writes before exposing a byte-bound fixture', async () => {
+    const f = await fixture();
+    const archive = path.join(f.candidate, 'resources/app.asar');
+    const gate = holdAsarPayload(archive, Buffer.from('{"fixture":true}\n'));
+    const packaging = createFixtureAsar(f.root, archive);
+    try {
+      await gate.held;
+      await gate.ended;
+      // Drain ready promise jobs while the payload remains explicitly held.
+      expect(await Promise.race([packaging.then(() => 'ready'), setImmediate('held')])).toBe(
+        'held',
+      );
+      expect(gate.stream.writableEnded).toBe(true);
+      expect(gate.stream.writableFinished).toBe(false);
+      expect(f.read).toThrow('Archived runtime source mismatch');
+      gate.release();
+      await packaging;
+      expect(gate.stream.closed).toBe(true);
+      expect(f.read().runtimeSourcesSha256).toBe(f.build.runtimeSourcesSha256);
+    } finally {
+      gate.release();
+      await packaging.catch(() => {});
+      await gate.closed;
+      gate.restore();
+    }
+  });
+  it('rejects a final ASAR payload write failure before exposing fixture metadata', async () => {
+    const f = await fixture();
+    const archive = path.join(f.candidate, 'resources/app.asar');
+    const gate = holdAsarPayload(archive, Buffer.from('{"fixture":true}\n'));
+    const packaging = createFixtureAsar(f.root, archive);
+    const rejected = expect(packaging).rejects.toThrow('fixture archive write failed');
+    try {
+      await gate.held;
+      await gate.ended;
+      gate.release(new Error('fixture archive write failed'));
+      await rejected;
+      await gate.closed;
+      expect(f.read).toThrow('Archived runtime source mismatch');
+    } finally {
+      gate.release();
+      await packaging.catch(() => {});
+      await gate.closed;
+      gate.restore();
+    }
+  });
   it('emits the supported build projection only from successful ordered bounded commands and fresh inputs', async () => {
     const f = await fixture();
     const output = path.join(path.dirname(f.config), 'produced-build.json');
