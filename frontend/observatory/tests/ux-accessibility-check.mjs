@@ -33,8 +33,14 @@ export async function checkUxAccessibility(browser, url, out) {
     await input.focus();
     assert.equal(
       await page.locator('.command-results').getByRole('option').count(),
-      24,
+      25,
       'existing destinations remain available',
+    );
+    assert(
+      await page
+        .locator('.command-results')
+        .getByRole('option', { name: 'Coverage · Configure', exact: true })
+        .isVisible(),
     );
     await page.keyboard.press('ArrowDown');
     const selected = await input.getAttribute('aria-activedescendant');
@@ -68,7 +74,7 @@ export async function checkUxAccessibility(browser, url, out) {
     await page.keyboard.press('Enter');
     assert.equal(await input.inputValue(), '');
     assert(await input.evaluate((node) => node === document.activeElement));
-    await status.getByText('24 destinations', { exact: true }).waitFor();
+    await status.getByText('25 destinations', { exact: true }).waitFor();
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });

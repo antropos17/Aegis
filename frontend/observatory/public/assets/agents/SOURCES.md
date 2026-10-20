@@ -7,7 +7,7 @@ Original downloaded files are preserved byte for byte; `sources.json` records ex
 - Codex: original Codex app artwork distributed on [Ollama’s integration page](https://ollama.com/), `public/codex-app.png`. This copy is hosted by Ollama, not OpenAI.
 - Ollama: logo from [Ollama](https://ollama.com/), `public/ollama.png`.
 
-AEGIS uses the repository’s existing `assets/icon.svg`. Product names and logos belong to their respective owners. Inclusion here is for identification in the local interface prototype.
+AEGIS uses the repository’s existing `assets/icon.svg`. Product names and logos belong to their respective owners. Inclusion here is for identification in the AEGIS interface.
 
 ## Catalog icons (September 2026)
 
