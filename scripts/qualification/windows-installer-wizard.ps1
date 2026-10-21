@@ -19,7 +19,7 @@ if ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER
 if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq 0) { throw 'No interactive desktop session; GUI acceptance cannot run' }
 # Parent pwsh can put Core-only modules ahead of the inbox Desktop modules.
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
-Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing,System.Windows.Forms
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -140,14 +140,20 @@ function PrepareGuestDesktop {
   $signature = Get-AuthenticodeSignature -LiteralPath $owner.ExecutablePath
   if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') { throw 'Guest setup host is not Microsoft-signed' }
   Snapshot $window ('guest-overlay-before-close-'+$attempt)
-  # WM_CLOSE requests the normal application close operation; no privacy policy,
-  # service, account, privilege, or registry configuration is changed by this driver.
-  if (-not [WizardDesktop]::PostMessage($foreground,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) { throw 'Guest first-logon window refused the normal close request' }
+  if ([WizardDesktop]::GetForegroundWindow() -ne $foreground) { throw 'Guest overlay changed before dismissal' }
+  if ($shellHost) {
+    # The Start/Search popup uses the standard Escape dismissal interaction.
+    [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+    $dismissal = 'Escape'
+  } else {
+    if (-not [WizardDesktop]::PostMessage($foreground,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) { throw 'Guest first-logon window refused the normal close request' }
+    $dismissal = 'WM_CLOSE'
+  }
   $closeDeadline = [DateTime]::UtcNow.AddSeconds(10)
-  while ([WizardDesktop]::IsWindowVisible($foreground) -and [DateTime]::UtcNow -lt $closeDeadline) { Start-Sleep -Milliseconds 200 }
-  if ([WizardDesktop]::IsWindowVisible($foreground)) { throw 'Guest first-logon window remained visible after normal close request' }
-  $proof.guestSetupWindowClosed = $true
-  $proof.guestDesktopClosures += @{title=$title;process=$owner.Name;normalClose=$true;signature='Valid Microsoft'}
+  while ([WizardDesktop]::GetForegroundWindow() -eq $foreground -and [DateTime]::UtcNow -lt $closeDeadline) { Start-Sleep -Milliseconds 200 }
+  if ([WizardDesktop]::GetForegroundWindow() -eq $foreground) { throw 'Guest desktop overlay retained foreground after dismissal' }
+  $proof.guestSetupWindowDismissed = $true
+  $proof.guestDesktopClosures += @{title=$title;process=$owner.Name;interaction=$dismissal;noLongerForeground=$true;signature='Valid Microsoft';windowStyleVisible=[WizardDesktop]::IsWindowVisible($foreground)}
   SaveProof
   }
 }
