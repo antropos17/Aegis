@@ -81,11 +81,11 @@ function Uninstall([string]$Phase) {
   if ($uninstallers.Count -ne 1) { throw 'Expected exactly one uninstaller' }
   RunOwned $uninstallers[0].FullName @('/S') 180000
   $deadline = [DateTime]::UtcNow.AddSeconds(45)
-  while (((Test-Path -LiteralPath $appExe) -or @(Registrations).Count -or @(Shortcuts).Count) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
-  if ((Test-Path -LiteralPath $appExe) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Application, uninstall registration or shortcut remained' }
+  while (((Test-Path -LiteralPath $installRoot) -or @(Registrations).Count -or @(Shortcuts).Count) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
+  if ((Test-Path -LiteralPath $installRoot) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Install directory, uninstall registration or shortcut remained' }
   WaitNoProcesses
   if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash -or (Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash -ne $sentinelHash) { throw 'Uninstall modified retained settings or synthetic data' }
-  $result.phases += @{ phase=$Phase; status='PASS'; registrationRemoved=$true; shortcutsRemoved=$true; applicationRemoved=$true; settingsRetained=$true; sentinelRetained=$true; installedProcessesRemaining=0 }
+  $result.phases += @{ phase=$Phase; status='PASS'; registrationRemoved=$true; shortcutsRemoved=$true; applicationRemoved=$true; installDirectoryRemoved=$true; settingsRetained=$true; sentinelRetained=$true; installedProcessesRemaining=0 }
   SaveResult
 }
 function DownloadVerified([string]$Tag,[string]$Commit,[string]$Pin,[string]$Folder) {
