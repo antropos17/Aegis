@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory)][ValidateSet('fresh','upgrade')][string]$Scenario,
-  [Parameter(Mandatory)][string]$QaRoot
+  [Parameter(Mandatory)][string]$QaRoot,
+  [ValidateSet('silent','wizard')][string]$Mode = 'silent'
 )
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
@@ -13,10 +14,13 @@ New-Item -ItemType Directory -Path $qa | Out-Null
 foreach ($part in @('evidence','candidate','previous','temp','cache')) { New-Item -ItemType Directory -Path (Join-Path $qa $part) | Out-Null }
 $env:TEMP = Join-Path $qa 'temp'; $env:TMP = $env:TEMP
 $installRoot = Join-Path $qa 'install'
+if ($Mode -eq 'wizard') { $installRoot = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection' }
 $profile = Join-Path $env:APPDATA 'aegis'
 $appExe = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection.exe'
 $checker = Join-Path $PSScriptRoot 'windows-installer-profile.cjs'
 $result = [ordered]@{ schema='aegis-installer-lifecycle/1'; status='RUNNING'; scenario=$Scenario; sourceSha=$env:GITHUB_SHA; runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; capturedAt=[DateTime]::UtcNow.ToString('o'); host=$null; artifacts=@(); phases=@(); limits=@('Silent current-user installation on a disposable GitHub-hosted Windows Server image; interactive wizard and Windows 11 consumer-host behavior are not qualified.','No privileged ETW, provider/VM, protection, Authenticode signing or full W10 acceptance.'); error=$null }
+$result.mode = $Mode
+if ($Mode -eq 'wizard') { $result.limits[0] = 'Windows 11 ARM64 interactive current-user wizard with the published x64 installer under Windows emulation. Native x64 Windows 11, all-users elevation, Finish auto-launch and automatic-update delivery are not qualified.' }
 function SaveResult { $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $qa 'evidence/result.json') -Encoding utf8 }
 function Registrations {
   @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*') | ForEach-Object {
@@ -71,9 +75,20 @@ function ProfileCheck([string]$Phase,[string]$Version) {
   if ($evidence.status -ne 'PASS' -or $evidence.version -ne $Version) { throw 'Missing matching profile receipt' }
   WaitNoProcesses
 }
+function Wizard([string]$Action,[string]$File,[string]$Phase) {
+  $driver = Join-Path $PSScriptRoot 'windows-installer-wizard.ps1'
+  $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+  $arguments = @('-NoProfile','-STA','-File',('"'+$driver+'"'),'-Action',$Action,'-InstallerFile',('"'+$File+'"'),'-InstallRoot',('"'+$installRoot+'"'),'-QaRoot',('"'+$qa+'"'),'-Phase',$Phase)
+  RunOwned $powershell $arguments 200000
+  $proof = Get-Content -Raw -LiteralPath (Join-Path $qa ('evidence/wizard-'+$Phase+'.json')) | ConvertFrom-Json
+  if ($proof.status -ne 'PASS' -or $proof.action -ne $Action -or $proof.phase -ne $Phase) { throw 'Wizard receipt mismatch' }
+}
 function Install([string]$File,[string]$Version) {
   Sample ('before-install-'+$Version)
-  RunOwned $File @('/S','/currentuser',('/D='+$installRoot)) 180000
+  if ($Mode -eq 'wizard' -and $Version -eq '0.20.0-beta') {
+    $phase = if ($result.phases.phase -contains 'first-uninstall') { 'reinstall' } elseif ($Scenario -eq 'fresh') { 'fresh' } else { 'upgrade' }
+    Wizard 'install' $File $phase
+  } else { RunOwned $File @('/S','/currentuser',('/D='+$installRoot)) 180000 }
   if (-not (Test-Path -LiteralPath $appExe)) { throw 'Installed executable missing' }
   CheckRegistration $Version
   Sample ('installed-'+$Version)
@@ -89,7 +104,8 @@ function Uninstall([string]$Phase) {
   $sentinelHash = (Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash
   $uninstallers = @(Get-ChildItem -LiteralPath $installRoot -Filter 'Uninstall*.exe' -File)
   if ($uninstallers.Count -ne 1) { throw 'Expected exactly one uninstaller' }
-  RunOwned $uninstallers[0].FullName @('/S') 180000
+  if ($Mode -eq 'wizard') { Wizard 'uninstall' $uninstallers[0].FullName $Phase }
+  else { RunOwned $uninstallers[0].FullName @('/S') 180000 }
   $deadline = [DateTime]::UtcNow.AddSeconds(45)
   while (((Test-Path -LiteralPath $installRoot) -or @(Registrations).Count -or @(Shortcuts).Count) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
   if ((Test-Path -LiteralPath $installRoot) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Install directory, uninstall registration or shortcut remained' }
@@ -113,11 +129,20 @@ function DownloadVerified([string]$Tag,[string]$Commit,[string]$Pin,[string]$Fol
 try {
   $os=Get-CimInstance Win32_OperatingSystem
   $result.host=@{ caption=$os.Caption; version=$os.Version; build=$os.BuildNumber; architecture=$os.OSArchitecture; computer=$env:COMPUTERNAME; runnerEnvironment=$env:RUNNER_ENVIRONMENT; runnerImage=$env:ImageOS; node=(node --version) }
+  $result.host.runnerArchitecture = $env:RUNNER_ARCH
+  $result.host.interactive = [Environment]::UserInteractive
+  $result.host.sessionId = (Get-Process -Id $PID).SessionId
+  if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne 'ARM64')) { throw 'Wizard mode requires the declared Windows 11 ARM64 hosted guest' }
   SaveResult; Sample 'preflight'
   if ((Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Runner is not clean; refusing existing AEGIS profile/registration/shortcuts' }
   $candidate = DownloadVerified 'aegis-v0.20.0-beta' 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'candidate')
   if ($Scenario -eq 'upgrade') { $previous = DownloadVerified 'aegis-v0.19.2-beta' '0bda7dc110211d9fb4aad7baf6e332adc12e2a89' 'ef389f663487c44b09d3a6528db7eacd70a68f697ccb46d933055a9c9868a226' (Join-Path $qa 'previous') }
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+  if ($Mode -eq 'wizard' -and $Scenario -eq 'fresh') {
+    Wizard 'cancel' $candidate 'cancel'
+    if ((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Cancelled wizard left installation/profile state' }
+    $result.phases += @{ phase='cancel'; status='PASS'; noInstallOrProfileState=$true }; SaveResult
+  }
   if ($Scenario -eq 'fresh') { Install $candidate '0.20.0-beta'; ProfileCheck 'fresh' '0.20.0-beta' }
   else { Install $previous '0.19.2-beta'; ProfileCheck 'baseline' '0.19.2-beta'; Install $candidate '0.20.0-beta'; ProfileCheck 'upgrade' '0.20.0-beta' }
   $firstPayload = @(Payload); $result.candidatePayload = $firstPayload

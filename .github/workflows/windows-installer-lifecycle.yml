@@ -2,13 +2,21 @@ name: Windows installer lifecycle
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Qualification environment and installer interaction
+        type: choice
+        default: server-silent
+        options:
+          - server-silent
+          - windows11-wizard
 
 permissions:
   contents: read
 
 jobs:
   installer:
-    runs-on: windows-2025
+    runs-on: ${{ inputs.target == 'windows11-wizard' && 'windows-11-vs2026-arm' || 'windows-2025' }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -51,12 +59,12 @@ jobs:
       - name: Qualify published installers in disposable Windows
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA
+        run: ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA -Mode '${{ inputs.target == 'windows11-wizard' && 'wizard' || 'silent' }}'
       - name: Preserve bounded evidence
         if: always() && env.AEGIS_INSTALLER_QA != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: installer-lifecycle-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: installer-lifecycle-${{ inputs.target }}-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.AEGIS_INSTALLER_QA }}/evidence/
           if-no-files-found: warn
           retention-days: 7
