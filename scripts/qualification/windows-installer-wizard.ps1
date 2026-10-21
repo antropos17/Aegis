@@ -126,17 +126,20 @@ function SelectCurrentUser($Window) {
   if (-not $selection.Current.IsSelected) { throw 'Current-user radio did not select' }
 }
 function PrepareGuestDesktop {
+  $proof.guestDesktopClosures = @()
+  for ($attempt=0; $attempt -lt 3; $attempt++) {
   $foreground = [WizardDesktop]::GetForegroundWindow()
   if ($foreground -eq [IntPtr]::Zero) { return }
   $window = [System.Windows.Automation.AutomationElement]::FromHandle($foreground)
   $owner = Get-CimInstance Win32_Process -Filter ('ProcessId='+$window.Current.ProcessId)
   $proof.foregroundOwner = @{ name=$owner.Name; path=$owner.ExecutablePath; processId=$owner.ProcessId }
-  if ((Name $window) -ne 'Microsoft account') { SaveProof; return }
-  $expected = Join-Path $env:SystemRoot 'System32/WWAHost.exe'
-  if (-not [string]::Equals($owner.ExecutablePath,$expected,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected Microsoft account window owner; refusing guest setup interaction' }
+  $title = Name $window
+  $privacyHost = $title -eq 'Microsoft account' -and [string]::Equals($owner.ExecutablePath,(Join-Path $env:SystemRoot 'System32/WWAHost.exe'),[StringComparison]::OrdinalIgnoreCase)
+  $shellHost = $title -in @('Search','Start') -and $owner.Name -in @('SearchHost.exe','StartMenuExperienceHost.exe') -and $owner.ExecutablePath.StartsWith((Join-Path $env:SystemRoot 'SystemApps\'),[StringComparison]::OrdinalIgnoreCase)
+  if (-not $privacyHost -and -not $shellHost) { SaveProof; return }
   $signature = Get-AuthenticodeSignature -LiteralPath $owner.ExecutablePath
   if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') { throw 'Guest setup host is not Microsoft-signed' }
-  Snapshot $window 'windows-privacy-before-close'
+  Snapshot $window ('guest-overlay-before-close-'+$attempt)
   # WM_CLOSE requests the normal application close operation; no privacy policy,
   # service, account, privilege, or registry configuration is changed by this driver.
   if (-not [WizardDesktop]::PostMessage($foreground,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) { throw 'Guest first-logon window refused the normal close request' }
@@ -144,7 +147,9 @@ function PrepareGuestDesktop {
   while ([WizardDesktop]::IsWindowVisible($foreground) -and [DateTime]::UtcNow -lt $closeDeadline) { Start-Sleep -Milliseconds 200 }
   if ([WizardDesktop]::IsWindowVisible($foreground)) { throw 'Guest first-logon window remained visible after normal close request' }
   $proof.guestSetupWindowClosed = $true
+  $proof.guestDesktopClosures += @{title=$title;process=$owner.Name;normalClose=$true;signature='Valid Microsoft'}
   SaveProof
+  }
 }
 try {
   SaveProof
