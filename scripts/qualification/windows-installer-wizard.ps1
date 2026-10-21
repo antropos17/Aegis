@@ -20,14 +20,14 @@ if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq
 # Parent pwsh can put Core-only modules ahead of the inbox Desktop modules.
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing,System.Windows.Forms
-$clientProviders = [Reflection.Assembly]::Load('UIAutomationClientsideProviders, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35')
-$providerTable = $clientProviders.GetType('UIAutomationClientsideProviders.UIAutomationClientSideProviders').GetField('ClientSideProviderDescriptionTable').GetValue($null)
-if (-not $providerTable -or $providerTable.Count -eq 0) { throw 'No inbox Win32 UI Automation providers are available for this client' }
-[System.Windows.Automation.ClientSettings]::RegisterClientSideProviders([System.Windows.Automation.ClientSideProviderDescription[]]$providerTable)
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class WizardDesktop {
+  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; public Point(int x,int y) { X=x; Y=y; } }
+  [StructLayout(LayoutKind.Sequential)] public struct MouseInput { public int X,Y; public uint Data,Flags,Time; public UIntPtr Extra; }
+  [StructLayout(LayoutKind.Sequential)] public struct Input { public uint Type; public MouseInput Mouse; }
   [DllImport("user32.dll")] public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
   [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr desktop);
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
@@ -39,6 +39,24 @@ public static class WizardDesktop {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int count);
   [DllImport("user32.dll", SetLastError=true)] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr window, uint flags);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder text, int count);
+  [DllImport("user32.dll", SetLastError=true)] public static extern bool SetCursorPos(int x,int y);
+  [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint count, Input[] inputs, int size);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] static extern IntPtr SendText(IntPtr window, uint message, IntPtr wParam, string text);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, System.Text.StringBuilder text);
+  public static string ClassName(IntPtr window) { var text=new System.Text.StringBuilder(256); GetClassName(window,text,256); return text.ToString(); }
+  public static void SetText(IntPtr window, string value) { if (SendText(window,12,IntPtr.Zero,value)==IntPtr.Zero) throw new InvalidOperationException("Directory text rejected"); }
+  public static string Text(IntPtr window) { var text=new System.Text.StringBuilder(4096); ReadText(window,13,(IntPtr)4096,text); return text.ToString(); }
+  public static void Click(int x,int y) {
+    if (!SetCursorPos(x,y)) throw new System.ComponentModel.Win32Exception();
+    var inputs=new Input[2]; inputs[0].Mouse.Flags=2; inputs[1].Mouse.Flags=4;
+    if (SendInput(2,inputs,Marshal.SizeOf(typeof(Input)))!=2) throw new System.ComponentModel.Win32Exception();
+  }
 }
 '@
 $desktop = [WizardDesktop]::OpenInputDesktop(0,$false,1)
@@ -49,9 +67,8 @@ $evidence = Join-Path $qa 'evidence'
 $proofPath = Join-Path $evidence ('wizard-'+$Phase+'.json')
 if (Test-Path -LiteralPath $proofPath) { throw 'Refusing to overwrite a wizard receipt' }
 $proof = [ordered]@{ status='RUNNING'; action=$Action; phase=$Phase; sourceSha=$env:GITHUB_SHA; interactive=$true; sessionId=(Get-Process -Id $PID).SessionId; os=$os.Caption; runnerArchitecture=$env:RUNNER_ARCH; installer=$file; installRoot=$install; steps=@(); error=$null }
-$proof.clientProviders = $clientProviders.FullName
 $proof.clientBitness = [IntPtr]::Size * 8
-$proof.clientProviderCount = $providerTable.Count
+$proof.interaction = 'Native Win32 control classes/state, SendInput clicks, UIA text discovery and foreground screenshots; assistive-technology semantics are not qualified.'
 $nativeSystem = if ([IntPtr]::Size -eq 4) { Join-Path $env:SystemRoot 'Sysnative' } else { Join-Path $env:SystemRoot 'System32' }
 $proof.desktopSessions = (& (Join-Path $nativeSystem 'qwinsta.exe') 2>&1 | Out-String).Trim()
 $script:ownedIds = @()
@@ -78,6 +95,18 @@ function Controls($Window) {
   @($Window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | Where-Object { -not $_.Current.IsOffscreen })
 }
 function Name($Element) { ($Element.Current.Name -replace '&','').Trim() }
+function NativeClass($Element) { [WizardDesktop]::ClassName([IntPtr]$Element.Current.NativeWindowHandle) }
+function ClickControl($Window,$Element) {
+  $handle = [IntPtr]$Element.Current.NativeWindowHandle
+  $root = [IntPtr]$Window.Current.NativeWindowHandle
+  if ([WizardDesktop]::GetAncestor($handle,2) -ne $root -or [WizardDesktop]::GetForegroundWindow() -ne $root -or -not [WizardDesktop]::IsWindowEnabled($handle) -or -not [WizardDesktop]::IsWindowVisible($handle)) { throw 'Control is not enabled/visible in the foreground owned dialog' }
+  $bounds = New-Object WizardDesktop+Rect
+  if (-not [WizardDesktop]::GetWindowRect($handle,[ref]$bounds)) { throw 'Control bounds unavailable' }
+  $x = [int](($bounds.Left+$bounds.Right)/2); $y = [int](($bounds.Top+$bounds.Bottom)/2)
+  if ([WizardDesktop]::WindowFromPoint([WizardDesktop+Point]::new($x,$y)) -ne $handle) { throw 'Control click point is obscured' }
+  [WizardDesktop]::Click($x,$y)
+  Start-Sleep -Milliseconds 150
+}
 function WaitPage([string]$Text) {
   do {
     foreach ($window in @(Windows)) {
@@ -88,14 +117,13 @@ function WaitPage([string]$Text) {
   } while ($true)
 }
 function Button($Window,[string]$Text) {
-  $found = @((Controls $Window) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $_.Current.AutomationId -match '^\d+$' -and $_.Current.IsEnabled -and (Name $_) -match $Text })
+  $found = @((Controls $Window) | Where-Object { (NativeClass $_) -eq 'Button' -and $_.Current.AutomationId -match '^\d+$' -and $_.Current.IsEnabled -and (Name $_) -match $Text })
   if ($found.Count -ne 1) { throw ('Expected one enabled button: '+$Text+'; found='+$found.Count) }
   $found[0]
 }
 function InvokeButton($Window,[string]$Text) {
   $button = Button $Window $Text
-  $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-  $pattern.Invoke()
+  ClickControl $Window $button
 }
 function Snapshot($Window,[string]$Step) {
   $controls = @((Controls $Window) | Select-Object -First 150 | ForEach-Object { [ordered]@{name=(Name $_);id=$_.Current.AutomationId;type=$_.Current.ControlType.ProgrammaticName;enabled=$_.Current.IsEnabled} })
@@ -127,11 +155,10 @@ function WaitClosed {
   do { if (@(Windows).Count -eq 0 -and $script:process.HasExited) { return }; Start-Sleep -Milliseconds 200 } while ($true)
 }
 function SelectCurrentUser($Window) {
-  $radio = @((Controls $Window) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::RadioButton -and (Name $_) -match '^Only for me' })
+  $radio = @((Controls $Window) | Where-Object { (NativeClass $_) -eq 'Button' -and (Name $_) -match '^Only for me' })
   if ($radio.Count -ne 1) { throw 'Current-user radio is missing or ambiguous' }
-  $selection = $radio[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
-  $selection.Select()
-  if (-not $selection.Current.IsSelected) { throw 'Current-user radio did not select' }
+  ClickControl $Window $radio[0]
+  if ([WizardDesktop]::SendMessage([IntPtr]$radio[0].Current.NativeWindowHandle,0xF0,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32() -ne 1) { throw 'Current-user radio did not select' }
 }
 function PrepareGuestDesktop {
   $proof.guestDesktopClosures = @()
@@ -194,7 +221,7 @@ try {
         $windows = @(Windows)
         if ($windows.Count -eq 0 -and $script:process.HasExited) { break }
         foreach ($modal in $windows) {
-          $yes = @((Controls $modal) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and (Name $_) -eq 'Yes' })
+          $yes = @((Controls $modal) | Where-Object { (NativeClass $_) -eq 'Button' -and (Name $_) -eq 'Yes' })
           if ($yes.Count -eq 1) { Snapshot $modal 'cancel-confirmation'; InvokeButton $modal '^Yes$' }
         }
         Start-Sleep -Milliseconds 200
@@ -215,21 +242,21 @@ try {
         InvokeButton $window '^(Continue|Next >)$'
         $window = WaitPage '^Choose a location$'
       }
-      $edits = @((Controls $window) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit -and $_.Current.IsEnabled })
+      $edits = @((Controls $window) | Where-Object { (NativeClass $_) -eq 'Edit' -and $_.Current.IsEnabled })
       if ($edits.Count -ne 1) { throw 'Directory editor is missing or ambiguous' }
-      $value = $edits[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-      $value.SetValue($install)
-      if ($value.Current.Value -ne $install) { throw 'Directory selection did not persist' }
+      $editHandle = [IntPtr]$edits[0].Current.NativeWindowHandle
+      [WizardDesktop]::SetText($editHandle,$install)
+      if ([WizardDesktop]::Text($editHandle) -ne $install) { throw 'Directory selection did not persist' }
       Snapshot $window 'chosen-directory'
       InvokeButton $window '^(Install|Continue|Next >)$'
       $window = WaitPage '^AEGIS is ready$'
       Snapshot $window 'ready'
-      $checkbox = @((Controls $window) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::CheckBox -and (Name $_) -eq 'Open AEGIS' })
+      $checkbox = @((Controls $window) | Where-Object { (NativeClass $_) -eq 'Button' -and (Name $_) -eq 'Open AEGIS' })
       if ($checkbox.Count -ne 1) { throw 'Open AEGIS checkbox is missing or ambiguous' }
-      $toggle = $checkbox[0].GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
-      if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { throw 'Open AEGIS should default to checked' }
-      $toggle.Toggle()
-      if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::Off) { throw 'Open AEGIS did not uncheck' }
+      $checkboxHandle = [IntPtr]$checkbox[0].Current.NativeWindowHandle
+      if ([WizardDesktop]::SendMessage($checkboxHandle,0xF0,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32() -ne 1) { throw 'Open AEGIS should default to checked' }
+      ClickControl $window $checkbox[0]
+      if ([WizardDesktop]::SendMessage($checkboxHandle,0xF0,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32() -ne 0) { throw 'Open AEGIS did not uncheck' }
       Snapshot $window 'ready-no-auto-launch'
       InvokeButton $window '^(Finish|Close)$'
       WaitClosed
