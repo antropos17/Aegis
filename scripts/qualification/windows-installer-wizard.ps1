@@ -20,6 +20,8 @@ if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq
 # Parent pwsh can put Core-only modules ahead of the inbox Desktop modules.
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing,System.Windows.Forms
+$clientProviders = [Reflection.Assembly]::Load('UIAutomationClientsideProviders, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35')
+[System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($clientProviders.GetName())
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -45,6 +47,7 @@ $evidence = Join-Path $qa 'evidence'
 $proofPath = Join-Path $evidence ('wizard-'+$Phase+'.json')
 if (Test-Path -LiteralPath $proofPath) { throw 'Refusing to overwrite a wizard receipt' }
 $proof = [ordered]@{ status='RUNNING'; action=$Action; phase=$Phase; sourceSha=$env:GITHUB_SHA; interactive=$true; sessionId=(Get-Process -Id $PID).SessionId; os=$os.Caption; runnerArchitecture=$env:RUNNER_ARCH; installer=$file; installRoot=$install; steps=@(); error=$null }
+$proof.clientProviders = $clientProviders.FullName
 $proof.desktopSessions = (& (Join-Path $env:SystemRoot 'System32/qwinsta.exe') 2>&1 | Out-String).Trim()
 $script:ownedIds = @()
 $script:process = $null
