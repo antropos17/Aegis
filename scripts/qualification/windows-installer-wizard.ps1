@@ -31,6 +31,8 @@ public static class WizardDesktop {
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr window, int command);
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr window);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int count);
+  [DllImport("user32.dll", SetLastError=true)] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
 }
 '@
 $desktop = [WizardDesktop]::OpenInputDesktop(0,$false,1)
@@ -121,21 +123,31 @@ function SelectCurrentUser($Window) {
   $selection.Select()
   if (-not $selection.Current.IsSelected) { throw 'Current-user radio did not select' }
 }
+function PrepareGuestDesktop {
+  $foreground = [WizardDesktop]::GetForegroundWindow()
+  if ($foreground -eq [IntPtr]::Zero) { return }
+  $window = [System.Windows.Automation.AutomationElement]::FromHandle($foreground)
+  $owner = Get-CimInstance Win32_Process -Filter ('ProcessId='+$window.Current.ProcessId)
+  $proof.foregroundOwner = @{ name=$owner.Name; path=$owner.ExecutablePath; processId=$owner.ProcessId }
+  if ((Name $window) -ne 'Microsoft account') { SaveProof; return }
+  $expected = Join-Path $env:SystemRoot 'System32/WWAHost.exe'
+  if (-not [string]::Equals($owner.ExecutablePath,$expected,[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected Microsoft account window owner; refusing guest setup interaction' }
+  $signature = Get-AuthenticodeSignature -LiteralPath $owner.ExecutablePath
+  if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') { throw 'Guest setup host is not Microsoft-signed' }
+  Snapshot $window 'windows-privacy-before-close'
+  # WM_CLOSE requests the normal application close operation; no privacy policy,
+  # service, account, privilege, or registry configuration is changed by this driver.
+  if (-not [WizardDesktop]::PostMessage($foreground,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)) { throw 'Guest first-logon window refused the normal close request' }
+  $closeDeadline = [DateTime]::UtcNow.AddSeconds(10)
+  while ([WizardDesktop]::IsWindowVisible($foreground) -and [DateTime]::UtcNow -lt $closeDeadline) { Start-Sleep -Milliseconds 200 }
+  if ([WizardDesktop]::IsWindowVisible($foreground)) { throw 'Guest first-logon window remained visible after normal close request' }
+  $proof.guestSetupWindowClosed = $true
+  SaveProof
+}
 try {
   SaveProof
+  PrepareGuestDesktop
   if ($Action -eq 'desktop') {
-    $foreground = [WizardDesktop]::GetForegroundWindow()
-    if ($foreground -ne [IntPtr]::Zero) {
-      $window = [System.Windows.Automation.AutomationElement]::FromHandle($foreground)
-      $owner = Get-CimInstance Win32_Process -Filter ('ProcessId='+$window.Current.ProcessId)
-      $proof.foregroundOwner = @{ name=$owner.Name; path=$owner.ExecutablePath; processId=$owner.ProcessId }
-      $proof.foregroundPatterns = @($window.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
-      $proof.desktopControls = @((Controls $window) | Select-Object -First 200 | ForEach-Object { @{name=(Name $_);id=$_.Current.AutomationId;type=$_.Current.ControlType.ProgrammaticName;enabled=$_.Current.IsEnabled;patterns=@($_.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })} })
-      if (@($proof.desktopControls | Where-Object { $_.name -match 'Choose privacy settings' }).Count) {
-        Snapshot $window 'windows-privacy-obstruction'
-        throw 'Guest Windows privacy setup obstructs GUI qualification; desktop controls captured before any AEGIS launch'
-      }
-    }
     $proof.status='PASS'; SaveProof
     exit 0
   }
