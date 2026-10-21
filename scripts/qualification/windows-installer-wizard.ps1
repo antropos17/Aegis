@@ -126,7 +126,12 @@ function InvokeButton($Window,[string]$Text) {
   ClickControl $Window $button
 }
 function Snapshot($Window,[string]$Step) {
-  $controls = @((Controls $Window) | Select-Object -First 150 | ForEach-Object { [ordered]@{name=(Name $_);id=$_.Current.AutomationId;type=$_.Current.ControlType.ProgrammaticName;enabled=$_.Current.IsEnabled} })
+  $controls = @((Controls $Window) | Select-Object -First 150 | ForEach-Object {
+    $bounds = New-Object WizardDesktop+Rect
+    $native = [IntPtr]$_.Current.NativeWindowHandle
+    $hasBounds = $native -ne [IntPtr]::Zero -and [WizardDesktop]::GetWindowRect($native,[ref]$bounds)
+    [ordered]@{name=(Name $_);id=$_.Current.AutomationId;type=$_.Current.ControlType.ProgrammaticName;enabled=$_.Current.IsEnabled;nativeClass=(NativeClass $_);bounds=$(if ($hasBounds) { @{left=$bounds.Left;top=$bounds.Top;right=$bounds.Right;bottom=$bounds.Bottom} } else { $null })}
+  })
   $rect = $Window.Current.BoundingRectangle
   if ($rect.Width -lt 100 -or $rect.Height -lt 100 -or $rect.Width -gt 4000 -or $rect.Height -gt 3000) { throw 'Invalid wizard window bounds' }
   $imageName = 'wizard-'+$Phase+'-'+$proof.steps.Count+'-'+$Step+'.png'
@@ -150,6 +155,15 @@ function Snapshot($Window,[string]$Step) {
   $proof.steps += [ordered]@{step=$Step;title=$Window.Current.Name;processId=$Window.Current.ProcessId;screenshot=$imageName;capture='screen-region';foregroundMatched=($foreground -eq $handle);foregroundHandle=$foreground.ToInt64();foregroundTitle=$foregroundTitle.ToString();controls=$controls}
   SaveProof
   if ($foreground -ne $handle) { throw 'Wizard is not foreground; diagnostic screenshot is not passing visual evidence' }
+  if ($Step -in @('welcome','ready','ready-no-auto-launch','uninstall-welcome','uninstall-finished')) {
+    $sidebar = @($controls | Where-Object { $_.id -eq '1200' -and $_.nativeClass -eq 'Static' })
+    $content = @($controls | Where-Object { $_.id -in @('1201','1202') -or $_.name -eq 'Open AEGIS' })
+    if ($sidebar.Count -ne 1 -or -not $sidebar[0].bounds -or $content.Count -lt 2) { throw 'Sidebar/content geometry is missing or ambiguous' }
+    $overlap = @($content | Where-Object { -not $_.bounds -or ($_.bounds.top -lt $sidebar[0].bounds.bottom -and $_.bounds.bottom -gt $sidebar[0].bounds.top -and $_.bounds.left -lt $sidebar[0].bounds.right) })
+    $proof.steps[-1].layout = @{status=$(if ($overlap.Count) { 'FAIL' } else { 'PASS' });sidebarRight=$sidebar[0].bounds.right;contentLeft=@($content | ForEach-Object { $_.bounds.left });checkedControls=$content.Count;overlappingControls=@($overlap | ForEach-Object { $_.id })}
+    SaveProof
+    if ($overlap.Count) { throw ('Sidebar overlaps wizard content on '+$Step) }
+  }
 }
 function WaitClosed {
   do { if (@(Windows).Count -eq 0 -and $script:process.HasExited) { return }; Start-Sleep -Milliseconds 200 } while ($true)
