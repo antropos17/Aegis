@@ -17,6 +17,8 @@ if (-not $qa.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase) -or -not
 $os = Get-CimInstance Win32_OperatingSystem
 if ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne 'ARM64') { throw 'Wizard requires the declared Windows 11 ARM64 guest' }
 if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq 0) { throw 'No interactive desktop session; GUI acceptance cannot run' }
+# Parent pwsh can put Core-only modules ahead of the inbox Desktop modules.
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing
 Add-Type -TypeDefinition @'
 using System;
