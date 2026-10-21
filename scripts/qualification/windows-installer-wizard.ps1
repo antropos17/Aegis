@@ -28,6 +28,9 @@ public static class WizardDesktop {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr window, int command);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr window);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int count);
 }
 '@
 $desktop = [WizardDesktop]::OpenInputDesktop(0,$false,1)
@@ -38,6 +41,7 @@ $evidence = Join-Path $qa 'evidence'
 $proofPath = Join-Path $evidence ('wizard-'+$Phase+'.json')
 if (Test-Path -LiteralPath $proofPath) { throw 'Refusing to overwrite a wizard receipt' }
 $proof = [ordered]@{ status='RUNNING'; action=$Action; phase=$Phase; sourceSha=$env:GITHUB_SHA; interactive=$true; sessionId=(Get-Process -Id $PID).SessionId; os=$os.Caption; runnerArchitecture=$env:RUNNER_ARCH; installer=$file; installRoot=$install; steps=@(); error=$null }
+$proof.desktopSessions = (& (Join-Path $env:SystemRoot 'System32/qwinsta.exe') 2>&1 | Out-String).Trim()
 $script:ownedIds = @()
 $script:process = $null
 $deadline = [DateTime]::UtcNow.AddSeconds(180)
@@ -87,17 +91,25 @@ function Snapshot($Window,[string]$Step) {
   if ($rect.Width -lt 100 -or $rect.Height -lt 100 -or $rect.Width -gt 4000 -or $rect.Height -gt 3000) { throw 'Invalid wizard window bounds' }
   $imageName = 'wizard-'+$Phase+'-'+$proof.steps.Count+'-'+$Step+'.png'
   $handle = [IntPtr]$Window.Current.NativeWindowHandle
-  [void][WizardDesktop]::SetForegroundWindow($handle)
-  Start-Sleep -Milliseconds 150
-  if ([WizardDesktop]::GetForegroundWindow() -ne $handle) { throw 'Wizard is not foreground; refusing an obscured screen capture' }
+  [void][WizardDesktop]::ShowWindowAsync($handle,9)
+  [void][WizardDesktop]::BringWindowToTop($handle)
+  $focusDeadline = [DateTime]::UtcNow.AddSeconds(3)
+  do {
+    [void][WizardDesktop]::SetForegroundWindow($handle)
+    Start-Sleep -Milliseconds 150
+  } while ([WizardDesktop]::GetForegroundWindow() -ne $handle -and [DateTime]::UtcNow -lt $focusDeadline)
+  $foreground = [WizardDesktop]::GetForegroundWindow()
+  $foregroundTitle = New-Object System.Text.StringBuilder 512
+  [void][WizardDesktop]::GetWindowText($foreground,$foregroundTitle,512)
   $bitmap = New-Object System.Drawing.Bitmap ([int]$rect.Width),([int]$rect.Height)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   try { $graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size) }
   finally { $graphics.Dispose() }
   try { $bitmap.Save((Join-Path $evidence $imageName),[System.Drawing.Imaging.ImageFormat]::Png) }
   finally { $bitmap.Dispose() }
-  $proof.steps += [ordered]@{step=$Step;title=$Window.Current.Name;processId=$Window.Current.ProcessId;screenshot=$imageName;capture='foreground-screen-region';controls=$controls}
+  $proof.steps += [ordered]@{step=$Step;title=$Window.Current.Name;processId=$Window.Current.ProcessId;screenshot=$imageName;capture='screen-region';foregroundMatched=($foreground -eq $handle);foregroundHandle=$foreground.ToInt64();foregroundTitle=$foregroundTitle.ToString();controls=$controls}
   SaveProof
+  if ($foreground -ne $handle) { throw 'Wizard is not foreground; diagnostic screenshot is not passing visual evidence' }
 }
 function WaitClosed {
   do { if (@(Windows).Count -eq 0 -and $script:process.HasExited) { return }; Start-Sleep -Milliseconds 200 } while ($true)

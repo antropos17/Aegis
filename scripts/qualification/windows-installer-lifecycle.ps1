@@ -69,6 +69,12 @@ function WaitNoProcesses {
   throw 'Installed application/helper process remained after shutdown'
 }
 function ProfileCheck([string]$Phase,[string]$Version) {
+  if ($Mode -eq 'wizard' -and -not $script:driverReady) {
+    # Validate the actual wizard before the costly driver bootstrap in fresh jobs.
+    $npmCli = Join-Path (Split-Path (Get-Command node).Source) 'node_modules/npm/bin/npm-cli.js'
+    RunOwned (Get-Command node).Source @(('"'+$npmCli+'"'),'ci','--ignore-scripts','--no-audit','--no-fund','--loglevel=error') 300000
+    $script:driverReady = $true
+  }
   $driverArguments = @(('"'+$checker+'"'),'--exe',('"'+$appExe+'"'),'--root',('"'+$qa+'"'),'--phase',$Phase,'--version',$Version)
   RunOwned (Get-Command node).Source $driverArguments 150000
   $evidence = Get-Content -LiteralPath (Join-Path $qa ('evidence/'+$Phase+'.json')) -Raw | ConvertFrom-Json

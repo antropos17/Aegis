@@ -54,6 +54,7 @@ jobs:
             ('NODE_COMPILE_CACHE=' + (Join-Path $bootstrap 'node-cache'))
           ) | Add-Content -LiteralPath $env:GITHUB_ENV
       - name: Install locked test driver dependencies
+        if: inputs.target != 'windows11-wizard'
         timeout-minutes: 5
         run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
       - name: Qualify published installers in disposable Windows
