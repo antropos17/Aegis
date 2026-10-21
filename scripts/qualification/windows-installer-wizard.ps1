@@ -21,7 +21,9 @@ if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing,System.Windows.Forms
 $clientProviders = [Reflection.Assembly]::Load('UIAutomationClientsideProviders, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35')
-[System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($clientProviders.GetName())
+$providerTable = $clientProviders.GetType('UIAutomationClientsideProviders.UIAutomationClientSideProviders').GetField('ClientSideProviderDescriptionTable').GetValue($null)
+if (-not $providerTable -or $providerTable.Count -eq 0) { throw 'No inbox Win32 UI Automation providers are available for this client' }
+[System.Windows.Automation.ClientSettings]::RegisterClientSideProviders([System.Windows.Automation.ClientSideProviderDescription[]]$providerTable)
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -48,7 +50,10 @@ $proofPath = Join-Path $evidence ('wizard-'+$Phase+'.json')
 if (Test-Path -LiteralPath $proofPath) { throw 'Refusing to overwrite a wizard receipt' }
 $proof = [ordered]@{ status='RUNNING'; action=$Action; phase=$Phase; sourceSha=$env:GITHUB_SHA; interactive=$true; sessionId=(Get-Process -Id $PID).SessionId; os=$os.Caption; runnerArchitecture=$env:RUNNER_ARCH; installer=$file; installRoot=$install; steps=@(); error=$null }
 $proof.clientProviders = $clientProviders.FullName
-$proof.desktopSessions = (& (Join-Path $env:SystemRoot 'System32/qwinsta.exe') 2>&1 | Out-String).Trim()
+$proof.clientBitness = [IntPtr]::Size * 8
+$proof.clientProviderCount = $providerTable.Count
+$nativeSystem = if ([IntPtr]::Size -eq 4) { Join-Path $env:SystemRoot 'Sysnative' } else { Join-Path $env:SystemRoot 'System32' }
+$proof.desktopSessions = (& (Join-Path $nativeSystem 'qwinsta.exe') 2>&1 | Out-String).Trim()
 $script:ownedIds = @()
 $script:process = $null
 $deadline = [DateTime]::UtcNow.AddSeconds(180)
@@ -140,7 +145,9 @@ function PrepareGuestDesktop {
   $privacyHost = $title -eq 'Microsoft account' -and [string]::Equals($owner.ExecutablePath,(Join-Path $env:SystemRoot 'System32/WWAHost.exe'),[StringComparison]::OrdinalIgnoreCase)
   $shellHost = $title -in @('Search','Start') -and $owner.Name -in @('SearchHost.exe','StartMenuExperienceHost.exe') -and $owner.ExecutablePath.StartsWith((Join-Path $env:SystemRoot 'SystemApps\'),[StringComparison]::OrdinalIgnoreCase)
   if (-not $privacyHost -and -not $shellHost) { SaveProof; return }
-  $signature = Get-AuthenticodeSignature -LiteralPath $owner.ExecutablePath
+  $signaturePath = $owner.ExecutablePath
+  if ([IntPtr]::Size -eq 4 -and $signaturePath.StartsWith((Join-Path $env:SystemRoot 'System32\'),[StringComparison]::OrdinalIgnoreCase)) { $signaturePath = Join-Path $nativeSystem ([IO.Path]::GetFileName($signaturePath)) }
+  $signature = Get-AuthenticodeSignature -LiteralPath $signaturePath
   if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') { throw 'Guest setup host is not Microsoft-signed' }
   Snapshot $window ('guest-overlay-before-close-'+$attempt)
   if ([WizardDesktop]::GetForegroundWindow() -ne $foreground) { throw 'Guest overlay changed before dismissal' }

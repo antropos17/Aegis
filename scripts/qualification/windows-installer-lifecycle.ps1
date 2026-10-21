@@ -83,7 +83,8 @@ function ProfileCheck([string]$Phase,[string]$Version) {
 }
 function Wizard([string]$Action,[string]$File,[string]$Phase) {
   $driver = Join-Path $PSScriptRoot 'windows-installer-wizard.ps1'
-  $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
+  # The published NSIS wizard is a 32-bit Win32 process, including its x64 payload builds.
+  $powershell = Join-Path $env:SystemRoot 'SysWOW64/WindowsPowerShell/v1.0/powershell.exe'
   $arguments = @('-NoProfile','-STA','-File',('"'+$driver+'"'),'-Action',$Action,'-InstallerFile',('"'+$File+'"'),'-InstallRoot',('"'+$installRoot+'"'),'-QaRoot',('"'+$qa+'"'),'-Phase',$Phase)
   RunOwned $powershell $arguments 200000
   $proof = Get-Content -Raw -LiteralPath (Join-Path $qa ('evidence/wizard-'+$Phase+'.json')) | ConvertFrom-Json
