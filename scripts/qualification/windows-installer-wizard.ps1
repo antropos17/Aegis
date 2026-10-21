@@ -26,6 +26,8 @@ public static class WizardDesktop {
   [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr desktop);
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 }
 '@
 $desktop = [WizardDesktop]::OpenInputDesktop(0,$false,1)
@@ -70,7 +72,7 @@ function WaitPage([string]$Text) {
   } while ($true)
 }
 function Button($Window,[string]$Text) {
-  $found = @((Controls $Window) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $_.Current.IsEnabled -and (Name $_) -match $Text })
+  $found = @((Controls $Window) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $_.Current.AutomationId -match '^\d+$' -and $_.Current.IsEnabled -and (Name $_) -match $Text })
   if ($found.Count -ne 1) { throw ('Expected one enabled button: '+$Text+'; found='+$found.Count) }
   $found[0]
 }
@@ -84,14 +86,17 @@ function Snapshot($Window,[string]$Step) {
   $rect = $Window.Current.BoundingRectangle
   if ($rect.Width -lt 100 -or $rect.Height -lt 100 -or $rect.Width -gt 4000 -or $rect.Height -gt 3000) { throw 'Invalid wizard window bounds' }
   $imageName = 'wizard-'+$Phase+'-'+$proof.steps.Count+'-'+$Step+'.png'
+  $handle = [IntPtr]$Window.Current.NativeWindowHandle
+  [void][WizardDesktop]::SetForegroundWindow($handle)
+  Start-Sleep -Milliseconds 150
+  if ([WizardDesktop]::GetForegroundWindow() -ne $handle) { throw 'Wizard is not foreground; refusing an obscured screen capture' }
   $bitmap = New-Object System.Drawing.Bitmap ([int]$rect.Width),([int]$rect.Height)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $dc = $graphics.GetHdc()
-  try { if (-not [WizardDesktop]::PrintWindow([IntPtr]$Window.Current.NativeWindowHandle,$dc,0)) { throw 'Wizard screenshot capture failed' } }
-  finally { $graphics.ReleaseHdc($dc); $graphics.Dispose() }
+  try { $graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size) }
+  finally { $graphics.Dispose() }
   try { $bitmap.Save((Join-Path $evidence $imageName),[System.Drawing.Imaging.ImageFormat]::Png) }
   finally { $bitmap.Dispose() }
-  $proof.steps += [ordered]@{step=$Step;title=$Window.Current.Name;processId=$Window.Current.ProcessId;screenshot=$imageName;controls=$controls}
+  $proof.steps += [ordered]@{step=$Step;title=$Window.Current.Name;processId=$Window.Current.ProcessId;screenshot=$imageName;capture='foreground-screen-region';controls=$controls}
   SaveProof
 }
 function WaitClosed {
