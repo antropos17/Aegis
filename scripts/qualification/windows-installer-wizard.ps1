@@ -1,9 +1,9 @@
 param(
-  [Parameter(Mandatory)][ValidateSet('install','uninstall','cancel')][string]$Action,
+  [Parameter(Mandatory)][ValidateSet('install','uninstall','cancel','desktop')][string]$Action,
   [Parameter(Mandatory)][string]$InstallerFile,
   [Parameter(Mandatory)][string]$InstallRoot,
   [Parameter(Mandatory)][string]$QaRoot,
-  [Parameter(Mandatory)][ValidateSet('cancel','fresh','upgrade','reinstall','first-uninstall','final-uninstall')][string]$Phase
+  [Parameter(Mandatory)][ValidateSet('cancel','fresh','upgrade','reinstall','first-uninstall','final-uninstall','desktop')][string]$Phase
 )
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
@@ -123,6 +123,22 @@ function SelectCurrentUser($Window) {
 }
 try {
   SaveProof
+  if ($Action -eq 'desktop') {
+    $foreground = [WizardDesktop]::GetForegroundWindow()
+    if ($foreground -ne [IntPtr]::Zero) {
+      $window = [System.Windows.Automation.AutomationElement]::FromHandle($foreground)
+      $owner = Get-CimInstance Win32_Process -Filter ('ProcessId='+$window.Current.ProcessId)
+      $proof.foregroundOwner = @{ name=$owner.Name; path=$owner.ExecutablePath; processId=$owner.ProcessId }
+      $proof.foregroundPatterns = @($window.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })
+      $proof.desktopControls = @((Controls $window) | Select-Object -First 200 | ForEach-Object { @{name=(Name $_);id=$_.Current.AutomationId;type=$_.Current.ControlType.ProgrammaticName;enabled=$_.Current.IsEnabled;patterns=@($_.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })} })
+      if (@($proof.desktopControls | Where-Object { $_.name -match 'Choose privacy settings' }).Count) {
+        Snapshot $window 'windows-privacy-obstruction'
+        throw 'Guest Windows privacy setup obstructs GUI qualification; desktop controls captured before any AEGIS launch'
+      }
+    }
+    $proof.status='PASS'; SaveProof
+    exit 0
+  }
   # Start only the verified guest-owned file. No /S, /currentuser or /D bypasses the UI.
   $script:process = Start-Process -FilePath $file -WindowStyle Normal -PassThru
   $script:ownedIds = @($script:process.Id)

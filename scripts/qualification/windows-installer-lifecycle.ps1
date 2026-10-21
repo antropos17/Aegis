@@ -144,6 +144,7 @@ try {
   $candidate = DownloadVerified 'aegis-v0.20.0-beta' 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'candidate')
   if ($Scenario -eq 'upgrade') { $previous = DownloadVerified 'aegis-v0.19.2-beta' '0bda7dc110211d9fb4aad7baf6e332adc12e2a89' 'ef389f663487c44b09d3a6528db7eacd70a68f697ccb46d933055a9c9868a226' (Join-Path $qa 'previous') }
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+  if ($Mode -eq 'wizard') { Wizard 'desktop' $candidate 'desktop' }
   if ($Mode -eq 'wizard' -and $Scenario -eq 'fresh') {
     Wizard 'cancel' $candidate 'cancel'
     if ((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Cancelled wizard left installation/profile state' }
