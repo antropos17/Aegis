@@ -34,10 +34,20 @@ function Sample([string]$phase) {
   $result.phases += @{ phase=$phase; capturedAt=[DateTime]::UtcNow.ToString('o'); freeBytes=$disk.Free }
   SaveResult
 }
+ $script:ownedIndex = 0
 function RunOwned([string]$File,[string[]]$Arguments,[int]$DeadlineMs) {
-  $p = Start-Process -FilePath $File -ArgumentList $Arguments -WindowStyle Hidden -PassThru
+  $script:ownedIndex++
+  $logPrefix = Join-Path $qa ('evidence/process-' + $script:ownedIndex)
+  $p = Start-Process -FilePath $File -ArgumentList $Arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput ($logPrefix + '.stdout.log') -RedirectStandardError ($logPrefix + '.stderr.log')
   if (-not $p.WaitForExit($DeadlineMs)) { if (-not $p.HasExited) { $p.Kill($true); [void]$p.WaitForExit(5000) }; throw ('Owned process exceeded deadline: ' + [IO.Path]::GetFileName($File)) }
-  $p.Refresh(); if ($p.ExitCode -ne 0) { throw ('Owned process failed: ' + [IO.Path]::GetFileName($File) + '; exit=' + $p.ExitCode) }
+  $p.Refresh()
+  foreach ($log in @($logPrefix + '.stdout.log', $logPrefix + '.stderr.log')) {
+    if ((Get-Item -LiteralPath $log).Length -gt 8MB) { throw 'Owned process diagnostic output exceeded 8 MiB per stream' }
+  }
+  if ($p.ExitCode -ne 0) {
+    Get-Content -LiteralPath ($logPrefix + '.stderr.log') -Tail 80 | Out-Host
+    throw ('Owned process failed: ' + [IO.Path]::GetFileName($File) + '; exit=' + $p.ExitCode)
+  }
 }
 function CheckRegistration([string]$Version) {
   $entries = @(Registrations)
