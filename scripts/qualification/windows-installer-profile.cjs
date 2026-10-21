@@ -104,14 +104,7 @@ async function verify(window) {
   try {
     let window = await launch();
     if (seed) {
-      const saved = await window.evaluate(
-        async (patch) =>
-          window.aegis.saveSettings({
-            ...(await window.aegis.getSettings()),
-            ...patch,
-          }),
-        expected,
-      );
+      const saved = await window.evaluate((patch) => window.aegis.saveSettings(patch), expected);
       assert.equal(saved.success, true, saved.error || 'Settings save refused');
     }
     await verify(window);
