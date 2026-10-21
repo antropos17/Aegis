@@ -10,12 +10,89 @@ on:
         options:
           - server-silent
           - windows11-wizard
+      candidate:
+        description: Use the signed published installer or build this exact workflow revision
+        type: choice
+        default: published
+        options:
+          - published
+          - build
 
 permissions:
   contents: read
 
 jobs:
+  build-candidate:
+    if: inputs.candidate == 'build'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      HUSKY: '0'
+      CI: 'true'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      npm_config_logs_max: '1'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Allocate build storage
+        run: |
+          $buildRoot = Join-Path $env:RUNNER_TEMP ('aegis-candidate-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $buildRoot) { throw 'Build scratch already exists' }
+          New-Item -ItemType Directory -Path $buildRoot | Out-Null
+          @(
+            ('AEGIS_CANDIDATE_BUILD=' + $buildRoot)
+            ('TEMP=' + $buildRoot)
+            ('TMP=' + $buildRoot)
+            ('npm_config_cache=' + (Join-Path $buildRoot 'npm'))
+            ('ELECTRON_CACHE=' + (Join-Path $buildRoot 'electron'))
+            ('ELECTRON_BUILDER_CACHE=' + (Join-Path $buildRoot 'builder'))
+            ('NUGET_PACKAGES=' + (Join-Path $buildRoot 'nuget'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+          if ((Get-PSDrive -Name ((Split-Path -Qualifier $buildRoot).TrimEnd(':'))).Free -lt 6GB) { throw 'Insufficient build disk space' }
+      - name: Install locked build dependencies
+        timeout-minutes: 5
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Build candidate without release publication
+        run: npx --no-install electron-builder --win --x64 --publish never
+      - name: Record candidate provenance and digest
+        run: |
+          $files = @(Get-ChildItem -LiteralPath dist -Filter '*.exe' -File)
+          if ($files.Count -ne 1 -or $files[0].Length -gt 250MB) { throw 'Expected one bounded installer' }
+          $stage = Join-Path $env:AEGIS_CANDIDATE_BUILD 'artifact'
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item -LiteralPath $files[0].FullName -Destination (Join-Path $stage $files[0].Name)
+          @{
+            schema='aegis-ci-installer/1'; repository=$env:GITHUB_REPOSITORY
+            sourceSha=$env:GITHUB_SHA; runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT
+            version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+            filename=$files[0].Name; bytes=$files[0].Length
+            sha256=(Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            releaseSigned=$false; published=$false
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'candidate.json') -Encoding utf8
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+          Get-ChildItem -LiteralPath $env:AEGIS_CANDIDATE_BUILD -File -Recurse | Measure-Object Length -Sum
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: installer-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_CANDIDATE_BUILD }}/artifact/
+          if-no-files-found: error
+          retention-days: 7
   installer:
+    needs: build-candidate
+    if: always() && !cancelled() && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
     runs-on: ${{ inputs.target == 'windows11-wizard' && 'windows-11-vs2026-arm' || 'windows-2025' }}
     timeout-minutes: 15
     strategy:
@@ -57,10 +134,19 @@ jobs:
         if: inputs.target != 'windows11-wizard'
         timeout-minutes: 5
         run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
-      - name: Qualify published installers in disposable Windows
+      - name: Fetch candidate from this workflow run
+        if: inputs.candidate == 'build'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: installer-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/aegis-candidate-input
+      - name: Qualify installer in disposable Windows
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA -Mode '${{ inputs.target == 'windows11-wizard' && 'wizard' || 'silent' }}'
+        run: |
+          $options = @{}
+          if ('${{ inputs.candidate }}' -eq 'build') { $options.CandidateDirectory = Join-Path $env:RUNNER_TEMP 'aegis-candidate-input' }
+          ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA -Mode '${{ inputs.target == 'windows11-wizard' && 'wizard' || 'silent' }}' @options
       - name: Preserve bounded evidence
         if: always() && env.AEGIS_INSTALLER_QA != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

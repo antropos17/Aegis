@@ -5,8 +5,10 @@
 ManifestDPIAware true
 !define MUI_BGCOLOR "FAFAF8"
 !define MUI_TEXTCOLOR "272925"
-!define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH AspectFitHeight
-!define MUI_UNWELCOMEFINISHPAGE_BITMAP_STRETCH AspectFitHeight
+; AspectFitHeight resizes the image control horizontally and can cover the text
+; when Segoe UI changes dialog-unit proportions. Keep the native sidebar bounds.
+!define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH FitControl
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP_STRETCH FitControl
 !define MUI_HEADERIMAGE_BITMAP_STRETCH AspectFitHeight
 !ifdef BUILD_UNINSTALLER
   !define MUI_CUSTOMFUNCTION_UNGUIINIT un.ObservatoryGUIInit
