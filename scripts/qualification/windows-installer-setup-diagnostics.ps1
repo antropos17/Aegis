@@ -15,17 +15,22 @@ function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot
       if($vm.Id.ToString() -cne $Id -or $vm.Name -cne $Name -or ($actual -ne $expected -and -not $actual.StartsWith($expected+'\',[StringComparison]::OrdinalIgnoreCase))) { throw 'Setup diagnostic VM mismatch' }
       $result.state=$vm.State.ToString();$result.cpuUsage=$vm.CPUUsage;$result.uptimeSeconds=$vm.Uptime.TotalSeconds
       if($vm.State -ne 'Running') { return $result }
+      $result.phase='system-query'
       $namespace='root\virtualization\v2'
       $system=Get-WmiObject -Namespace $namespace -Class Msvm_ComputerSystem -Filter ("Name='"+$Id+"'")
       if($system.Name -cne $Id -or $system.CreationClassName -ne 'Msvm_ComputerSystem') { throw 'Setup diagnostic system mismatch' }
-      $settings=@($system.GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -eq 'Microsoft:Hyper-V:System:Realized' -and $_.VirtualSystemIdentifier -eq $Id })
+      $result.phase='realized-settings'
+      $settings=@($system.psbase.GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -eq 'Microsoft:Hyper-V:System:Realized' -and $_.VirtualSystemIdentifier -eq $Id })
       if($settings.Count -ne 1) { throw 'Setup diagnostic settings mismatch' }
       $service=Get-WmiObject -Namespace $namespace -Class Msvm_VirtualSystemManagementService
-      $input=$service.GetMethodParameters('GetVirtualSystemThumbnailImage')
-      $input.TargetSystem=$settings[0].__PATH;$input.WidthPixels=[uint16]640;$input.HeightPixels=[uint16]480
-      $capture=$service.InvokeMethod('GetVirtualSystemThumbnailImage',$input,$null)
+      $result.phase='thumbnail-parameters'
+      $methodInput=$service.psbase.GetMethodParameters('GetVirtualSystemThumbnailImage')
+      $methodInput.TargetSystem=$settings[0].psbase.Path.Path;$methodInput.WidthPixels=[uint16]640;$methodInput.HeightPixels=[uint16]480
+      $result.phase='thumbnail-invoke'
+      $capture=$service.psbase.InvokeMethod('GetVirtualSystemThumbnailImage',$methodInput,$null)
       $result.returnCode=[uint32]$capture.ReturnValue
       $bytes=$capture.ImageData
+      $result.phase='thumbnail-bytes';$result.bytes=if($bytes -is [byte[]]){$bytes.Length}else{$null}
       if($result.returnCode -ne 0 -or $bytes -isnot [byte[]] -or $bytes.Length -lt 614400 -or $bytes.Length -gt 614404) { throw 'Setup thumbnail unavailable' }
       # Preserve exact provider bytes; do not guess the meaning of extra bytes.
       $file='windows-setup-'+$Index+'.rgb565'

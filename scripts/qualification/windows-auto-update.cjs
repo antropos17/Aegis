@@ -64,7 +64,7 @@ const rendererErrors = [];
 const save = () =>
   fs.writeFile(path.join(evidence, 'auto-update.json'), JSON.stringify(proof, null, 2));
 async function observeNetwork() {
-  await app.evaluate(({ app, session }) => {
+  await app.evaluate(({ session }) => {
     globalThis.__qualificationRequests = [];
     const observe = (details, phase) => {
       const url = new URL(details.url);
@@ -80,13 +80,10 @@ async function observeNetwork() {
           phase,
         });
     };
-    const { getNetSession } = require(
-      require('node:path').join(
-        app.getAppPath(),
-        'node_modules/electron-updater/out/electronHttpExecutor.js',
-      ),
-    );
-    for (const network of [session.defaultSession, getNetSession()]) {
+    // electron-updater 6.8.9 uses this nonpersistent partition. Playwright's
+    // main-process evaluation exposes Electron, but not a CommonJS require.
+    const updaterSession = session.fromPartition('electron-updater', { cache: false });
+    for (const network of [session.defaultSession, updaterSession]) {
       network.webRequest.onCompleted((details) => observe(details, 'completed'));
       network.webRequest.onBeforeRedirect((details) => observe(details, 'redirect'));
       network.webRequest.onBeforeRequest((details, callback) => {
@@ -224,13 +221,11 @@ async function pendingInstaller() {
   try {
     let window = await launch(proof.from);
     const oldPid = proof.launches[0].pid;
-    const cacheName = await app.evaluate(() => {
-      const text = require('node:fs').readFileSync(
-        require('node:path').join(process.resourcesPath, 'app-update.yml'),
-        'utf8',
-      );
-      return /^updaterCacheDirName:\s*([A-Za-z0-9._-]+)\s*$/m.exec(text)?.[1];
-    });
+    const config = await fs.readFile(
+      path.join(path.dirname(exe), 'resources', 'app-update.yml'),
+      'utf8',
+    );
+    const cacheName = /^updaterCacheDirName:\s*([A-Za-z0-9._-]+)\s*$/m.exec(config)?.[1];
     assert.equal(typeof cacheName, 'string');
     cache = path.join(process.env.LOCALAPPDATA, cacheName);
     await assert.rejects(fs.access(cache), (error) => error.code === 'ENOENT');
