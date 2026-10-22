@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs/promises');
-const crypto = require('node:crypto');
+const { hashFile, inspectInitialCache } = require('./windows-updater-cache.cjs');
 const { spawn } = require('node:child_process');
 const { createRequire } = require('node:module');
 const { setTimeout: delay } = require('node:timers/promises');
@@ -206,14 +206,12 @@ async function pendingInstaller() {
   const stat = await fs.lstat(file);
   assert(stat.isFile() && !stat.isSymbolicLink());
   assert.equal(stat.size, bytes);
-  const hash = crypto.createHash('sha256');
-  for await (const chunk of require('node:fs').createReadStream(file)) hash.update(chunk);
-  assert.equal(hash.digest('hex'), pin);
+  assert.equal(await hashFile(file), pin);
   proof.downloaded = {
     filename: files[0],
     bytes: stat.size,
     sha256: pin,
-    cacheWasInitiallyAbsent: true,
+    pendingWasInitiallyAbsent: proof.initialCache.pendingAbsent,
   };
   await save();
 }
@@ -228,7 +226,11 @@ async function pendingInstaller() {
     const cacheName = /^updaterCacheDirName:\s*([A-Za-z0-9._-]+)\s*$/m.exec(config)?.[1];
     assert.equal(typeof cacheName, 'string');
     cache = path.join(process.env.LOCALAPPDATA, cacheName);
-    await assert.rejects(fs.access(cache), (error) => error.code === 'ENOENT');
+    proof.initialCache = await inspectInitialCache(cache, {
+      bytes: 149653017,
+      sha256: '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3',
+    });
+    await save();
     assert.equal((await window.evaluate(() => window.aegis.getUpdateStatus())).status, 'idle');
     const enabledAt = Date.now();
     const saved = await window.evaluate(() =>

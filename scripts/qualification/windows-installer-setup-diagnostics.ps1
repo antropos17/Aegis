@@ -18,7 +18,7 @@ function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot
       $result.phase='system-query'
       $namespace='root\virtualization\v2'
       $system=Get-WmiObject -Namespace $namespace -Class Msvm_ComputerSystem -Filter ("Name='"+$Id+"'")
-      if($system.Name -cne $Id -or $system.CreationClassName -ne 'Msvm_ComputerSystem') { throw 'Setup diagnostic system mismatch' }
+      if($system.Name -ine $Id -or $system.CreationClassName -ne 'Msvm_ComputerSystem') { throw 'Setup diagnostic system mismatch' }
       $result.phase='realized-settings'
       $settings=@($system.psbase.GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -eq 'Microsoft:Hyper-V:System:Realized' -and $_.VirtualSystemIdentifier -eq $Id })
       if($settings.Count -ne 1) { throw 'Setup diagnostic settings mismatch' }
