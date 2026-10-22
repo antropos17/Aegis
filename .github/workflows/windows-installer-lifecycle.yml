@@ -11,6 +11,7 @@ on:
           - server-silent
           - windows11-wizard
           - windows11-x64
+          - windows11-x64-updater
       candidate:
         description: Use the signed published installer or build this exact workflow revision
         type: choice
@@ -24,7 +25,7 @@ permissions:
 
 jobs:
   build-candidate:
-    if: inputs.candidate == 'build' && inputs.target != 'windows11-x64'
+    if: inputs.candidate == 'build' && !startsWith(inputs.target, 'windows11-x64')
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -93,7 +94,7 @@ jobs:
           retention-days: 7
   installer:
     needs: build-candidate
-    if: always() && !cancelled() && inputs.target != 'windows11-x64' && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
+    if: always() && !cancelled() && !startsWith(inputs.target, 'windows11-x64') && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
     runs-on: ${{ inputs.target == 'windows11-wizard' && 'windows-11-vs2026-arm' || 'windows-2025' }}
     timeout-minutes: 15
     strategy:
@@ -157,13 +158,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   installer-x64:
-    if: inputs.target == 'windows11-x64'
+    if: startsWith(inputs.target, 'windows11-x64')
     runs-on: windows-2025-vs2026
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        scenario: [fresh, upgrade]
+        scenario: ${{ fromJSON(inputs.target == 'windows11-x64-updater' && '["auto-update"]' || '["fresh","upgrade"]') }}
     defaults:
       run:
         shell: powershell

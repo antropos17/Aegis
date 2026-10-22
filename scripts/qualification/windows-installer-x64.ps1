@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][ValidateSet('fresh','upgrade')][string]$Scenario)
+param([Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update')][string]$Scenario)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 Assert-CloudGuestRunner
@@ -15,10 +15,11 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
 . (Join-Path $PSScriptRoot 'windows-installer-x64-bundle.ps1')
+. (Join-Path $PSScriptRoot 'windows-updater-network.ps1')
 $report=[ordered]@{schema='aegis-installer-hyperv/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;scenario=$Scenario;host=$null;media=$null;hardware=$null;bundle=$null;guest=$null;diskSamples=@();stages=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@()};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
-$id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false
+$id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$networkAttempted=$false;$networkUnknown=$false
 function SaveReport { $report | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Join-Path $root 'evidence/hyperv.json') -Encoding UTF8 }
 function Sample([string]$Phase) {
   $free=(Get-PSDrive D).Free
@@ -39,6 +40,12 @@ try {
   $report.host=@{caption=$os.Caption;build=$os.BuildNumber;architecture=$os.OSArchitecture;runnerArchitecture=$env:RUNNER_ARCH;hypervisorPresent=$computer.HypervisorPresent;memoryBytes=$computer.TotalPhysicalMemory;vmms='Running'}
   if((git -C $env:GITHUB_WORKSPACE rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Workflow source SHA mismatch' }
   Sample 'preflight'
+  if($Scenario -eq 'auto-update') {
+    Stage 'preflight-isolated-update-network' {
+      if(@(Get-NetNat).Count -or @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -like '192.168.241.*').Count) { throw 'Existing/conflicting hosted NAT refused before guest preparation' }
+      return @{existingNatCount=0;subnetAvailable=$true}
+    } | Out-Null
+  }
   Stage 'compile-existing-media-and-vm-helpers' {
     Add-Type -Path (Join-Path $PSScriptRoot 'CloudGuestMetadata.cs') -ReferencedAssemblies @('System.dll','System.Core.dll','System.Net.Http.dll')
     $sources=@('scripts/qualification/CloudGuestVm.cs','scripts/qualification/CloudGuestBootDiagnostics.cs','sidecar/session/OwnedVmLifecycle.cs','sidecar/session/VmManagementNative.cs')
@@ -110,6 +117,22 @@ try {
   Stage 'detach-owned-installation-media' {
     Remove-CloudGuestInstallationMedia $id $name $vmRoot ([ref]$unknown) | Out-Null
   } | Out-Null
+  if($Scenario -eq 'auto-update') {
+    $report.network=Stage 'connect-owned-outbound-update-network' {
+      $script:networkAttempted=$true;$script:networkUnknown=$true
+      $network=Invoke-UpdaterNetwork 'connect' $id $name $vmRoot
+      $script:networkUnknown=$false
+      $guestNetwork=Invoke-Command -Session $session -ArgumentList (,$network.dns) -ScriptBlock {
+        param($Dns)
+        $adapter=@(Get-NetAdapter | Where-Object Status -eq 'Up')
+        if($adapter.Count -ne 1) { throw 'Expected one guest update NIC' }
+        New-NetIPAddress -InterfaceIndex $adapter[0].ifIndex -IPAddress 192.168.241.2 -PrefixLength 24 -DefaultGateway 192.168.241.1 | Out-Null
+        Set-DnsClientServerAddress -InterfaceIndex $adapter[0].ifIndex -ServerAddresses $Dns
+        return @{address='192.168.241.2';gateway='192.168.241.1';dns=$Dns;firewallUnchanged=$true}
+      }
+      $network.guest=$guestNetwork;return $network
+    }
+  }
   $report.lifecycle=Stage 'execute-published-installer-lifecycle' { Invoke-InstallerGuestTest $session $root $report.bundle $Scenario }
   $report.status='PASS'
 } catch { $report.status='FAIL';$report.error=$_.Exception.Message;Write-Warning $report.error }
@@ -130,6 +153,10 @@ finally {
     }
     if($mounted) { Dismount-DiskImage -ImagePath $iso | Out-Null;$mounted=$false }
     if($report.cleanup.removedObserved) {
+      if($networkAttempted) {
+        if($networkUnknown) { throw 'Network operation unresolved; cleanup cannot be claimed' }
+        $report.cleanup.network=Invoke-UpdaterNetwork 'remove' $id $name $vmRoot
+      }
       foreach($path in @($iso,$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
         $full=[IO.Path]::GetFullPath($path)
         if(-not $full.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Cleanup escaped owned root' }

@@ -83,3 +83,19 @@ personal profile, cloud subscription or external desktop port is used. This lane
 covers current-user wizard installation, upgrade, launch/restart, removal and
 synthetic profile retention; it does not qualify automatic-update delivery,
 all-users elevation or full sensor/protection behavior.
+
+`target=windows11-x64-updater` exercises the published 0.20.0-beta app's automatic
+update path to 0.20.1-beta in one fresh native x64 Windows 11 guest. Only the old
+installer is transferred to the guest. The test enables the normal preference,
+waits for the real background schedule and download, verifies the downloaded
+installer hash, chooses Later once, then confirms Install and restart. It records
+the automatically relaunched process/window and checks the new version and
+retained synthetic settings in subsequent controlled launches.
+
+This case adds an owned internal switch and outbound WinNAT network after offline
+Windows setup, following [Microsoft's NAT setup](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/setup-nat-network).
+An existing NAT or conflicting subnet refuses execution. No inbound mapping,
+proxy, TLS interception, feed replacement or credential is supplied to the app.
+The temporary network must be removed after the VM. Other installer cases retain
+their offline scope. The update requires the app's normal restart confirmation;
+automatic discovery/download does not imply installation without consent.
