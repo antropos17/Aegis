@@ -32,7 +32,9 @@ function Invoke-UpdaterNetwork([ValidateSet('prepare','connect','remove')][strin
       New-NetIPAddress -InterfaceIndex $nic.ifIndex -IPAddress $gateway -PrefixLength 24 | Out-Null
       $phase='create-nat'
       New-NetNat -Name $natName -InternalIPInterfaceAddressPrefix $prefix | Out-Null
-      return @{status='PASS';name=$Name;natName=$natName;switchId=$switch.Id.ToString();guestNics=0;prefix=$prefix}
+      $phase='verify-no-inbound-mappings'
+      if(@(Get-NetNatStaticMapping | Where-Object NatName -ceq $natName).Count) { throw 'Unexpected inbound NAT mapping' }
+      return @{status='PASS';name=$Name;natName=$natName;switchId=$switch.Id.ToString();guestNics=0;inboundMappings=0;prefix=$prefix}
     }
     if($Action -eq 'connect') {
       $phase='verify-owned-network'
@@ -48,7 +50,7 @@ function Invoke-UpdaterNetwork([ValidateSet('prepare','connect','remove')][strin
       Add-VMNetworkAdapter -VM $vm -Name UpdaterTransport -SwitchName $Name
       $phase='verify-attached-adapter'
       $attached=@(Get-VMNetworkAdapter -VM $vm)
-      if($attached.Count -ne 1 -or $attached[0].SwitchId -ne $switch.Id -or @(Get-NetNatStaticMapping -NatName $natName).Count) { throw 'Unexpected update network layout' }
+      if($attached.Count -ne 1 -or $attached[0].SwitchId -ne $switch.Id -or @(Get-NetNatStaticMapping | Where-Object NatName -ceq $natName).Count) { throw 'Unexpected update network layout' }
       return @{status='PASS';switchId=$switch.Id.ToString();name=$Name;natName=$natName;prefix=$prefix;gateway=$gateway;dns=$dns;guestNics=1;inboundMappings=0;transport='WinNAT outbound; no proxy, feed override or TLS interception';firewallUnchanged=$true}
     }
     $phase='verify-absent-vm'
