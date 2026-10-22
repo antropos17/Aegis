@@ -54,7 +54,7 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
     }
     $command="& ([scriptblock]::Create([IO.File]::ReadAllText('C:\aegis-installer-qa\input\guest.ps1')))"
     $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-    $action=New-ScheduledTaskAction -Execute ($inputRoot+'\runtime\pwsh\pwsh.exe') -Argument ('-NoProfile -EncodedCommand '+$encoded) -WorkingDirectory ($inputRoot+'\source')
+    $action=New-ScheduledTaskAction -Execute ($inputRoot+'\runtime\pwsh\pwsh.exe') -Argument ('-NoProfile -WindowStyle Hidden -EncodedCommand '+$encoded) -WorkingDirectory ($inputRoot+'\source')
     $principal=New-ScheduledTaskPrincipal -UserId 'AegisSetup' -LogonType Interactive -RunLevel Limited
     $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 12)
     Register-ScheduledTask -TaskName 'AegisInstallerQualification' -Action $action -Principal $principal -Settings $settings | Out-Null
