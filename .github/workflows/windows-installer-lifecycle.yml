@@ -192,7 +192,8 @@ jobs:
             ('TMP=' + $scratch)
             ('npm_config_cache=' + (Join-Path $scratch 'npm'))
           ) | Add-Content -LiteralPath $env:GITHUB_ENV
-          if ((Get-PSDrive C).Free -lt 34GB) { throw 'Insufficient cloud guest storage' }
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+          if ((Get-PSDrive D).Free -lt 34GB) { throw 'Insufficient cloud guest data-drive storage' }
       - name: Install locked test driver dependencies
         timeout-minutes: 5
         run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error

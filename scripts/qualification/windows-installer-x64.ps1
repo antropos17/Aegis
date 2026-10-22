@@ -3,11 +3,11 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 Assert-CloudGuestRunner
 if($PSVersionTable.PSEdition -ne 'Desktop' -or $env:RUNNER_ARCH -ne 'X64') { throw 'Hosted native x64 Windows PowerShell required' }
-$root='C:\ProgramData\aegis-installer-x64-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+$Scenario
+$root='D:\aegis-installer-x64-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+$Scenario
 if(Test-Path -LiteralPath $root) { throw 'Fresh owned cloud root required' }
-$ancestor=Get-Item -LiteralPath C:/ProgramData
+$ancestor=Get-Item -LiteralPath D:/
 while($null -ne $ancestor) { if($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked cloud storage refused' };$ancestor=$ancestor.Parent }
-if((Get-PSDrive C).Free -lt 32GB) { throw 'At least 32 GiB free required before Windows guest preparation' }
+if((Get-PSDrive D).Free -lt 32GB) { throw 'At least 32 GiB free on data drive required before Windows guest preparation' }
 New-Item -ItemType Directory -Path $root | Out-Null
 foreach($part in @('evidence','temp','media','native','vm')) { New-Item -ItemType Directory -Path (Join-Path $root $part) | Out-Null }
 ('AEGIS_X64_EVIDENCE='+$root+'\evidence') | Add-Content -LiteralPath $env:GITHUB_ENV
@@ -21,7 +21,7 @@ $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso
 $id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false
 function SaveReport { $report | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Join-Path $root 'evidence/hyperv.json') -Encoding UTF8 }
 function Sample([string]$Phase) {
-  $free=(Get-PSDrive C).Free
+  $free=(Get-PSDrive D).Free
   $disk=Join-Path $vmRoot 'guest.vhdx'
   $report.diskSamples+=@{phase=$Phase;at=[DateTime]::UtcNow.ToString('o');freeBytes=$free;vhdBytes=$(if(Test-Path -LiteralPath $disk){(Get-Item -LiteralPath $disk).Length}else{0})}
   SaveReport
@@ -125,7 +125,7 @@ finally {
       $snapshot=Invoke-CloudHyperVCommand observe $name $vmRoot $id
       if($snapshot.state -ne 'Off') { throw 'VM must be off before exact-ID removal' }
       $removed=Invoke-CloudHyperVCommand remove $name $vmRoot $id
-      if($removed.exists) { throw 'VM removal not confirmed' }
+      if(-not $removed.removedCommandCompleted -or (Invoke-CloudHyperVCommand observe $name $vmRoot $id).exists) { throw 'VM removal not confirmed' }
       $report.cleanup.removedObserved=$true
     }
     if($mounted) { Dismount-DiskImage -ImagePath $iso | Out-Null;$mounted=$false }
