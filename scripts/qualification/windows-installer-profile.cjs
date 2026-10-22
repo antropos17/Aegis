@@ -21,7 +21,7 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 for (const key of ['exe', 'root', 'phase', 'version']) assert(options[key]);
 assert(['fresh', 'baseline', 'upgrade', 'reinstall'].includes(options.phase));
-assert(['0.19.2-beta', '0.20.0-beta'].includes(options.version));
+assert(['0.20.0-beta', '0.20.1-beta'].includes(options.version));
 const normalize = (p) => path.resolve(p).toLowerCase();
 const root = path.resolve(options.root);
 assert(normalize(root).startsWith(normalize(process.env.RUNNER_TEMP) + path.sep));
@@ -38,7 +38,7 @@ const expected = {
   ignoreCommonBuildDirs: false,
   automaticUpdatesEnabled: false,
 };
-const sentinel = 'AEGIS hosted installer lifecycle 0.19.2-to-0.20.0; disposable fixture only';
+const sentinel = 'AEGIS hosted installer lifecycle 0.20.0-to-0.20.1; disposable fixture only';
 const seed = ['fresh', 'baseline'].includes(options.phase);
 const { _electron: electron } = createRequire(path.join(process.cwd(), 'package.json'))(
   'playwright',
@@ -75,10 +75,9 @@ async function launch() {
     (await window.locator('body').innerText()).trim().length > 0,
     'Rendered application is empty',
   );
-  if (options.version === '0.20.0-beta')
-    await window
-      .getByRole('heading', { name: 'Monitoring', exact: true, level: 1 })
-      .waitFor({ timeout: 30000 });
+  await window
+    .getByRole('heading', { name: 'Monitoring', exact: true, level: 1 })
+    .waitFor({ timeout: 30000 });
   return window;
 }
 async function verify(window) {
