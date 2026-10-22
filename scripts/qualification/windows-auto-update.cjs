@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { hashFile, inspectInitialCache } = require('./windows-updater-cache.cjs');
+const { installUpdaterObserver } = require('./windows-updater-observer.cjs');
 const { spawn } = require('node:child_process');
 const { createRequire } = require('node:module');
 const { setTimeout: delay } = require('node:timers/promises');
@@ -120,6 +121,7 @@ async function launch(version) {
   assert.equal(state.architecture, 'x64');
   assert.equal(path.resolve(state.profile).toLowerCase(), profile.toLowerCase());
   proof.launches.push(state);
+  await app.evaluate(installUpdaterObserver);
   await observeNetwork();
   await save();
   await window
@@ -151,6 +153,14 @@ async function waitStatus(window, target, seconds) {
 }
 async function collectRequests() {
   proof.requests.push(...(await app.evaluate(() => globalThis.__qualificationRequests)));
+  const diagnostics = await app.evaluate(async () => {
+    await Promise.all(globalThis.__qualificationUpdaterPending);
+    return globalThis.__qualificationUpdater;
+  });
+  const filename = 'updater-discovery-' + proof.launches.length + '.json';
+  await fs.writeFile(path.join(evidence, filename), JSON.stringify(diagnostics, null, 2));
+  proof.discoveryReceipts ||= [];
+  if (!proof.discoveryReceipts.includes(filename)) proof.discoveryReceipts.push(filename);
   await save();
 }
 async function checkSettings(window) {
