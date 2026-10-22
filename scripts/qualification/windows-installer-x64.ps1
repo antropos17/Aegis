@@ -98,7 +98,9 @@ try {
     $script:owner=[CloudGuestVm]::new($id)
     if(-not $owner.Start() -or $owner.PendingUnknown) { throw 'VM native start not confirmed' }
     $report.startOperation=$owner.Operation()
-    $boot=Invoke-CloudGuestBootWindow $owner
+    # Accept the initial DVD prompt; stop sending Space before Windows Setup can
+    # consume it as dialog input. Keep the shared W7 lane's default unchanged.
+    $boot=Invoke-CloudGuestBootWindow $owner -KeyWindowMilliseconds 8000
     $report.boot=$boot
     if($boot.mandatoryFailure) { throw 'VM boot key operation unresolved' }
   } | Out-Null

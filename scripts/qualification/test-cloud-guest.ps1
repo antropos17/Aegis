@@ -102,6 +102,7 @@ try {
          }
          $nativeDouble | Add-Member ScriptMethod CloseBootWindow { $this.Closed = $true }
          $window = Invoke-CloudGuestBootWindow $nativeDouble
+         Require ($window.dispatchWindowMilliseconds -eq 60000)
          Require ($nativeDouble.Closed -and $window.closedBeforeCredentialSession -and $window.attempts -le 3 -and $window.snapshots.Count -le 2)
          Require ($window.outcomes.Count -eq $window.attempts)
          Require ($window.mandatoryFailure -eq ($bootMode -in @('vm-mismatch', 'thumbnail-mismatch', 'pending-nonrunning', 'foreign-nonrunning', 'malformed-nonrunning')))
@@ -112,6 +113,18 @@ try {
          if ($bootMode -eq 'read-unavailable') { Require ($window.snapshots[0].failureCode -ceq 'bounded-stage-failed' -and $window.completed -eq 2) }
          $passed++
      }
+     # An installer-specific short window must stop dispatching even when the
+     # provider keeps succeeding; default callers retain the original limit.
+     $shortDouble = [pscustomobject]@{ Calls = 0; Closed = $false; KeyboardObservation = @{ returnCode = 0; completed = $true } }
+     $shortDouble | Add-Member ScriptMethod SetupSpaceKey { $this.Calls++; [Threading.Thread]::Sleep(30); return $true }
+     $shortDouble | Add-Member ScriptMethod BootSnapshot { return @{ failureCode = $null; imageBase64 = $null } }
+     $shortDouble | Add-Member ScriptMethod CloseBootWindow { $this.Closed = $true }
+     $shortWindow = Invoke-CloudGuestBootWindow $shortDouble -KeyWindowMilliseconds 10
+     Require ($shortDouble.Calls -eq 1 -and $shortDouble.Closed -and $shortWindow.closedBeforeCredentialSession -and $shortWindow.dispatchWindowMilliseconds -eq 10); $passed++
+     foreach ($invalidWindow in @(0, 60001)) {
+         Require (Refused { Invoke-CloudGuestBootWindow $shortDouble -KeyWindowMilliseconds $invalidWindow }); $passed++
+     }
+     Require ($shortDouble.Calls -eq 1); $passed++
 }
 finally { Remove-Item Function:Start-Sleep }
 function Assert-CloudGuestRunner { }
@@ -293,7 +306,7 @@ foreach ($leaf in @('cloud-guest-media.ps1', 'cloud-guest-vm.ps1', 'cloud-guest-
     $tokens = $null; $errors = $null; [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $leaf), [ref]$tokens, [ref]$errors) | Out-Null
     Require ($errors.Count -eq 0)
 }
-@{ cases = $passed; passed = $passed; syntheticCases = 40; compiledPureCases = 30; nativeProcessCases = 15; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
+@{ cases = $passed; passed = $passed; syntheticCases = 44; compiledPureCases = 30; nativeProcessCases = 15; syntaxFiles = 4; scope = 'media-answer-controls-and-bounded-native-waits-no-download-or-VM-effects' } | ConvertTo-Json -Compress
 
 & (Join-Path $PSScriptRoot 'test-cloud-guest-diagnostics.ps1')
 
