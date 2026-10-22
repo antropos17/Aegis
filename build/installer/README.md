@@ -54,12 +54,19 @@ uninstall/reinstall profile retention. The existing
 `scripts/qualify-windows-installer.ps1` covers that lifecycle. Visual preview or
 successful compilation alone does not establish those results.
 
-The manually dispatched `windows-installer-lifecycle.yml` workflow can build the
+The manually dispatched `windows-installer-lifecycle.yml` workflow defaults to
+`candidate=published`: it downloads the pinned 0.20.1-beta release and verifies
+its signed manifest, source commit and installer SHA-256 before execution. With
+`target=windows11-wizard`, it exercises the interactive installer and uninstaller
+in disposable Windows 11 ARM64 guests. The upgrade baseline is the published
+0.20.0-beta release, installed silently before the current-version wizard runs.
+
+The workflow can also build the
 checked-out revision with `candidate=build` and test it with
 `target=windows11-wizard`. The x64 installer is built on Windows Server, transferred
 within the same workflow run, and checked against its source/run/hash receipt in
 disposable Windows 11 ARM64 guests. This path uses no release signing key and
 publishes no release. It covers current-user install, upgrade from the pinned
-0.19.2 release, launch, uninstall, reinstall and profile retention. Native x64
+0.20.0 release, launch, uninstall, reinstall and profile retention. Native x64
 Windows 11, all-users elevation, automatic update delivery and Finish auto-launch
 remain outside that qualification. Artifacts expire after seven days.

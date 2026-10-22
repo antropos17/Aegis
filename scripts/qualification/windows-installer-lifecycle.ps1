@@ -19,6 +19,8 @@ if ($Mode -eq 'wizard') { $installRoot = Join-Path $installRoot 'AEGIS - AI Moni
 $profile = Join-Path $env:APPDATA 'aegis'
 $appExe = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection.exe'
 $checker = Join-Path $PSScriptRoot 'windows-installer-profile.cjs'
+$currentVersion = '0.20.1-beta'
+$previousVersion = '0.20.0-beta'
 $result = [ordered]@{ schema='aegis-installer-lifecycle/1'; status='RUNNING'; scenario=$Scenario; sourceSha=$env:GITHUB_SHA; runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; capturedAt=[DateTime]::UtcNow.ToString('o'); host=$null; artifacts=@(); phases=@(); limits=@('Silent current-user installation on a disposable GitHub-hosted Windows Server image; interactive wizard and Windows 11 consumer-host behavior are not qualified.','No privileged ETW, provider/VM, protection, Authenticode signing or full W10 acceptance.'); error=$null }
 $result.mode = $Mode
 if ($Mode -eq 'wizard') { $result.limits[0] = 'Windows 11 ARM64 interactive current-user wizard with an x64 installer under Windows emulation. Native x64 Windows 11, all-users elevation, Finish auto-launch and automatic-update delivery are not qualified.' }
@@ -92,7 +94,7 @@ function Wizard([string]$Action,[string]$File,[string]$Phase) {
 }
 function Install([string]$File,[string]$Version) {
   Sample ('before-install-'+$Version)
-  if ($Mode -eq 'wizard' -and $Version -eq '0.20.0-beta') {
+  if ($Mode -eq 'wizard' -and $Version -eq $currentVersion) {
     $phase = if ($result.phases.phase -contains 'first-uninstall') { 'reinstall' } elseif ($Scenario -eq 'fresh') { 'fresh' } else { 'upgrade' }
     Wizard 'install' $File $phase
   } else { RunOwned $File @('/S','/currentuser',('/D='+$installRoot)) 180000 }
@@ -138,7 +140,7 @@ function ImportCandidate([string]$Directory) {
   if (-not $directoryPath.StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase)) { throw 'Candidate artifact is outside guest scratch' }
   $receiptPath = Join-Path $directoryPath 'candidate.json'
   $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $env:GITHUB_SHA -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne '0.20.0-beta' -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
+  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $env:GITHUB_SHA -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
   $files = @(Get-ChildItem -LiteralPath $directoryPath -Filter '*.exe' -File)
   if ($files.Count -ne 1 -or $files[0].Name -ne $receipt.filename -or $files[0].Length -ne $receipt.bytes -or $files[0].Length -gt 250MB -or (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash -ne $receipt.sha256) { throw 'Candidate bytes do not match build receipt' }
   $destination = Join-Path $qa ('candidate/'+$files[0].Name)
@@ -157,8 +159,8 @@ try {
   if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne 'ARM64')) { throw 'Wizard mode requires the declared Windows 11 ARM64 hosted guest' }
   SaveResult; Sample 'preflight'
   if ((Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Runner is not clean; refusing existing AEGIS profile/registration/shortcuts' }
-  $candidate = if ($CandidateDirectory) { ImportCandidate $CandidateDirectory } else { DownloadVerified 'aegis-v0.20.0-beta' 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'candidate') }
-  if ($Scenario -eq 'upgrade') { $previous = DownloadVerified 'aegis-v0.19.2-beta' '0bda7dc110211d9fb4aad7baf6e332adc12e2a89' 'ef389f663487c44b09d3a6528db7eacd70a68f697ccb46d933055a9c9868a226' (Join-Path $qa 'previous') }
+  $candidate = if ($CandidateDirectory) { ImportCandidate $CandidateDirectory } else { DownloadVerified ('aegis-v'+$currentVersion) '274d65711ac858c9d309c73f1f7c9c4e52872ed1' '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339' (Join-Path $qa 'candidate') }
+  if ($Scenario -eq 'upgrade') { $previous = DownloadVerified ('aegis-v'+$previousVersion) 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'previous') }
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
   if ($Mode -eq 'wizard') { Wizard 'desktop' $candidate 'desktop' }
   if ($Mode -eq 'wizard' -and $Scenario -eq 'fresh') {
@@ -166,11 +168,11 @@ try {
     if ((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Cancelled wizard left installation/profile state' }
     $result.phases += @{ phase='cancel'; status='PASS'; noInstallOrProfileState=$true }; SaveResult
   }
-  if ($Scenario -eq 'fresh') { Install $candidate '0.20.0-beta'; ProfileCheck 'fresh' '0.20.0-beta' }
-  else { Install $previous '0.19.2-beta'; ProfileCheck 'baseline' '0.19.2-beta'; Install $candidate '0.20.0-beta'; ProfileCheck 'upgrade' '0.20.0-beta' }
+  if ($Scenario -eq 'fresh') { Install $candidate $currentVersion; ProfileCheck 'fresh' $currentVersion }
+  else { Install $previous $previousVersion; ProfileCheck 'baseline' $previousVersion; Install $candidate $currentVersion; ProfileCheck 'upgrade' $currentVersion }
   $firstPayload = @(Payload); $result.candidatePayload = $firstPayload
   Uninstall 'first-uninstall'
-  Install $candidate '0.20.0-beta'; ProfileCheck 'reinstall' '0.20.0-beta'
+  Install $candidate $currentVersion; ProfileCheck 'reinstall' $currentVersion
   $reinstalledPayload = @(Payload)
   if (($firstPayload | ConvertTo-Json -Compress) -ne ($reinstalledPayload | ConvertTo-Json -Compress)) { throw 'Reinstalled payload bytes differ' }
   Uninstall 'final-uninstall'
