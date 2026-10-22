@@ -64,9 +64,9 @@ const rendererErrors = [];
 const save = () =>
   fs.writeFile(path.join(evidence, 'auto-update.json'), JSON.stringify(proof, null, 2));
 async function observeNetwork() {
-  await app.evaluate(({ session }) => {
+  await app.evaluate(({ app, session }) => {
     globalThis.__qualificationRequests = [];
-    const observe = (details) => {
+    const observe = (details, phase) => {
       const url = new URL(details.url);
       if (
         ['api.github.com', 'github.com', 'release-assets.githubusercontent.com'].includes(
@@ -76,11 +76,24 @@ async function observeNetwork() {
       )
         globalThis.__qualificationRequests.push({
           url: url.origin + url.pathname,
-          status: details.statusCode,
+          status: details.statusCode || 0,
+          phase,
         });
     };
-    session.defaultSession.webRequest.onCompleted(observe);
-    session.defaultSession.webRequest.onBeforeRedirect(observe);
+    const { getNetSession } = require(
+      require('node:path').join(
+        app.getAppPath(),
+        'node_modules/electron-updater/out/electronHttpExecutor.js',
+      ),
+    );
+    for (const network of [session.defaultSession, getNetSession()]) {
+      network.webRequest.onCompleted((details) => observe(details, 'completed'));
+      network.webRequest.onBeforeRedirect((details) => observe(details, 'redirect'));
+      network.webRequest.onBeforeRequest((details, callback) => {
+        observe(details, 'request');
+        callback({});
+      });
+    }
   });
 }
 async function launch(version) {
@@ -238,12 +251,15 @@ async function pendingInstaller() {
       '/repos/antropos17/Aegis/releases',
       '/manifest.json',
       '/manifest.json.sig',
-      '.exe',
     ])
       assert(
         proof.requests.some((r) => r.url.includes(segment) && r.status >= 200 && r.status < 400),
         'Missing actual request: ' + segment,
       );
+    assert(
+      proof.requests.some((r) => r.url.endsWith('.exe') && r.phase === 'request'),
+      'Missing actual installer download request',
+    );
     await window.getByRole('button', { name: 'Settings', exact: true }).click();
     const install = window.getByRole('button', { name: 'Install and restart', exact: true });
     await install.waitFor({ timeout: 15000 });

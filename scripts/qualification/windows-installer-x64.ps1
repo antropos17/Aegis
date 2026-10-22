@@ -124,7 +124,12 @@ try {
       $script:networkUnknown=$false
       $guestNetwork=Invoke-Command -Session $session -ArgumentList (,$network.dns) -ScriptBlock {
         param($Dns)
-        $adapter=@(Get-NetAdapter | Where-Object Status -eq 'Up')
+        $deadline=[DateTime]::UtcNow.AddSeconds(60)
+        do {
+          $adapter=@(Get-NetAdapter | Where-Object Status -eq 'Up')
+          if($adapter.Count) { break }
+          Start-Sleep -Seconds 1
+        } while([DateTime]::UtcNow -lt $deadline)
         if($adapter.Count -ne 1) { throw 'Expected one guest update NIC' }
         New-NetIPAddress -InterfaceIndex $adapter[0].ifIndex -IPAddress 192.168.241.2 -PrefixLength 24 -DefaultGateway 192.168.241.1 | Out-Null
         Set-DnsClientServerAddress -InterfaceIndex $adapter[0].ifIndex -ServerAddresses $Dns
