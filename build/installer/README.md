@@ -20,6 +20,12 @@ generation step. To regenerate them on Windows with Segoe UI installed:
 node scripts/build-installer-artwork.cjs
 ```
 
+Welcome and finish artwork uses `FitControl` for both installation and removal.
+The sidebar stays inside the native MUI image control as dialog units scale with
+the font and DPI. `AspectFitHeight` can widen that control into the adjacent title,
+body and launch checkbox. The cloud wizard qualification checks their actual
+window rectangles and retains foreground screenshots for visual review.
+
 Build the real installer from the repository root:
 
 ```powershell
@@ -47,3 +53,13 @@ Windows host, including silent `/S /currentuser /D=...` installation, upgrade an
 uninstall/reinstall profile retention. The existing
 `scripts/qualify-windows-installer.ps1` covers that lifecycle. Visual preview or
 successful compilation alone does not establish those results.
+
+The manually dispatched `windows-installer-lifecycle.yml` workflow can build the
+checked-out revision with `candidate=build` and test it with
+`target=windows11-wizard`. The x64 installer is built on Windows Server, transferred
+within the same workflow run, and checked against its source/run/hash receipt in
+disposable Windows 11 ARM64 guests. This path uses no release signing key and
+publishes no release. It covers current-user install, upgrade from the pinned
+0.19.2 release, launch, uninstall, reinstall and profile retention. Native x64
+Windows 11, all-users elevation, automatic update delivery and Finish auto-launch
+remain outside that qualification. Artifacts expire after seven days.
