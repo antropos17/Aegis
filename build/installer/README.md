@@ -70,3 +70,16 @@ publishes no release. It covers current-user install, upgrade from the pinned
 0.20.0 release, launch, uninstall, reinstall and profile retention. Native x64
 Windows 11, all-users elevation, automatic update delivery and Finish auto-launch
 remain outside that qualification. Artifacts expire after seven days.
+
+`target=windows11-x64` with `candidate=published` provisions a separate Windows 11
+Enterprise Evaluation x64 Hyper-V guest for each scenario on a disposable hosted
+Windows Server runner. It reuses the existing pinned Microsoft ISO, supported
+Secure Boot/vTPM configuration and exact-VM lifecycle helpers. The guest has no
+network adapter. Signed release assets and the locked Playwright driver are
+verified and transferred through PowerShell Direct; the test runs in a temporary
+local account's interactive console. Native CPU/OS/driver/app architecture is
+recorded, and the VM must be observed off and removed before PASS. No local host,
+personal profile, cloud subscription or external desktop port is used. This lane
+covers current-user wizard installation, upgrade, launch/restart, removal and
+synthetic profile retention; it does not qualify automatic-update delivery,
+all-users elevation or full sensor/protection behavior.

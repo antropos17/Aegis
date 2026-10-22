@@ -3,10 +3,11 @@ param(
   [Parameter(Mandatory)][string]$InstallerFile,
   [Parameter(Mandatory)][string]$InstallRoot,
   [Parameter(Mandatory)][string]$QaRoot,
-  [Parameter(Mandatory)][ValidateSet('cancel','fresh','upgrade','reinstall','first-uninstall','final-uninstall','desktop')][string]$Phase
+  [Parameter(Mandatory)][ValidateSet('cancel','fresh','upgrade','reinstall','first-uninstall','final-uninstall','desktop')][string]$Phase,
+  [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64'
 )
 $ErrorActionPreference = 'Stop'
-if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-hosted','github-hosted-hyperv-guest') -or $env:RUNNER_OS -ne 'Windows') {
   throw 'Wizard qualification requires a disposable GitHub-hosted Windows guest.'
 }
 $qa = [IO.Path]::GetFullPath($QaRoot).TrimEnd('\')
@@ -15,7 +16,8 @@ $file = [IO.Path]::GetFullPath($InstallerFile)
 $install = [IO.Path]::GetFullPath($InstallRoot)
 if (-not $qa.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase) -or -not $file.StartsWith($qa+'\',[StringComparison]::OrdinalIgnoreCase) -or -not $install.StartsWith($qa+'\install\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Wizard paths escape guest qualification scratch' }
 $os = Get-CimInstance Win32_OperatingSystem
-if ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne 'ARM64') { throw 'Wizard requires the declared Windows 11 ARM64 guest' }
+if ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne $ExpectedArchitecture) { throw 'Wizard requires the declared Windows 11 guest architecture' }
+if ($ExpectedArchitecture -eq 'X64' -and ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -or @(Get-CimInstance Win32_Processor | Where-Object Architecture -ne 9).Count)) { throw 'Native x64 guest required' }
 if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq 0) { throw 'No interactive desktop session; GUI acceptance cannot run' }
 # Parent pwsh can put Core-only modules ahead of the inbox Desktop modules.
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
@@ -36,6 +38,9 @@ public static class WizardDesktop {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr window, int command);
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr window);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+  [DllImport("user32.dll", SetLastError=true)] static extern bool AttachThreadInput(uint from, uint to, bool attach);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int count);
   [DllImport("user32.dll", SetLastError=true)] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
@@ -52,6 +57,25 @@ public static class WizardDesktop {
   public static string ClassName(IntPtr window) { var text=new System.Text.StringBuilder(256); GetClassName(window,text,256); return text.ToString(); }
   public static void SetText(IntPtr window, string value) { if (SendText(window,12,IntPtr.Zero,value)==IntPtr.Zero) throw new InvalidOperationException("Directory text rejected"); }
   public static string Text(IntPtr window) { var text=new System.Text.StringBuilder(4096); ReadText(window,13,(IntPtr)4096,text); return text.ToString(); }
+  public static bool ActivateOwned(IntPtr window, uint expectedProcess) {
+    uint process; GetWindowThreadProcessId(window,out process);
+    if (process!=expectedProcess || process==0) throw new InvalidOperationException("Activation owner changed");
+    var foreground=GetForegroundWindow();
+    if (foreground==window) return true;
+    uint ignored; uint current=GetCurrentThreadId();
+    uint other=GetWindowThreadProcessId(foreground,out ignored);
+    bool attached=false;
+    try {
+      if (other!=0 && other!=current) {
+        if (!AttachThreadInput(current,other,true)) throw new System.ComponentModel.Win32Exception();
+        attached=true;
+      }
+      ShowWindowAsync(window,9); BringWindowToTop(window); SetForegroundWindow(window);
+    } finally {
+      if (attached && !AttachThreadInput(current,other,false)) throw new System.ComponentModel.Win32Exception();
+    }
+    return GetForegroundWindow()==window;
+  }
   public static void Click(int x,int y) {
     if (!SetCursorPos(x,y)) throw new System.ComponentModel.Win32Exception();
     var inputs=new Input[2]; inputs[0].Mouse.Flags=2; inputs[1].Mouse.Flags=4;
@@ -141,6 +165,11 @@ function Snapshot($Window,[string]$Step) {
   $focusDeadline = [DateTime]::UtcNow.AddSeconds(3)
   do {
     [void][WizardDesktop]::SetForegroundWindow($handle)
+    if ([WizardDesktop]::GetForegroundWindow() -ne $handle -and $Window.Current.ProcessId -in $script:ownedIds) {
+      # Scheduled tasks do not inherit foreground activation rights. Attach only
+      # for this owned dialog activation and always detach; no OS policy changes.
+      [void][WizardDesktop]::ActivateOwned($handle,[uint32]$Window.Current.ProcessId)
+    }
     Start-Sleep -Milliseconds 150
   } while ([WizardDesktop]::GetForegroundWindow() -ne $handle -and [DateTime]::UtcNow -lt $focusDeadline)
   $foreground = [WizardDesktop]::GetForegroundWindow()
