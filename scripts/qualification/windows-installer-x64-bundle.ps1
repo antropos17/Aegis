@@ -2,7 +2,7 @@ function New-InstallerGuestBundle([string]$Root,[string]$Scenario,[string]$VmId)
   $bundle=Join-Path $Root 'bundle'
   New-Item -ItemType Directory -Path $bundle | Out-Null
   foreach($part in @('source/scripts/qualification','source/keys','source/node_modules','runtime','releases')) { New-Item -ItemType Directory -Path (Join-Path $bundle $part) -Force | Out-Null }
-  foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
+  foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs','windows-launch-diagnostics.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
   if($Scenario -eq 'auto-update') { foreach($name in @('windows-auto-update.cjs','windows-updater-cache.cjs','windows-updater-desktop.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
   foreach($file in @('scripts/release-verify.js','keys/aegis-release-pubkey.pub','package.json')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $file) -Destination (Join-Path $bundle ('source/'+$file)) }
   foreach($package in @('playwright','playwright-core')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ('node_modules/'+$package)) -Destination (Join-Path $bundle 'source/node_modules') -Recurse }

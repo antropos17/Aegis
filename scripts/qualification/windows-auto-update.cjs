@@ -39,6 +39,7 @@ const expected = {
   automaticUpdatesEnabled: true,
 };
 const sentinel = 'AEGIS hosted installer lifecycle 0.20.0-to-0.20.1; disposable fixture only';
+require('./windows-launch-diagnostics.cjs').enableLaunchDiagnostics();
 const { _electron: electron } = createRequire(path.join(process.cwd(), 'package.json'))(
   'playwright',
 );
@@ -96,7 +97,8 @@ async function observeNetwork() {
 async function launch(version) {
   const env = { ...process.env };
   for (const key of Object.keys(env))
-    if (/TOKEN|PASSWORD|SECRET|ELECTRON_RUN_AS_NODE|NODE_OPTIONS/.test(key)) delete env[key];
+    if (/TOKEN|PASSWORD|SECRET|ELECTRON_RUN_AS_NODE|NODE_OPTIONS|^DEBUG$/.test(key))
+      delete env[key];
   app = await electron.launch({
     executablePath: exe,
     args: ['--user-data-dir=' + profile],

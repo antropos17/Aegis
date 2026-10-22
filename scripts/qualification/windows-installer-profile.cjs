@@ -40,23 +40,30 @@ const expected = {
 };
 const sentinel = 'AEGIS hosted installer lifecycle 0.20.0-to-0.20.1; disposable fixture only';
 const seed = ['fresh', 'baseline'].includes(options.phase);
+require('./windows-launch-diagnostics.cjs').enableLaunchDiagnostics();
 const { _electron: electron } = createRequire(path.join(process.cwd(), 'package.json'))(
   'playwright',
 );
 let app;
 const observed = [];
 const errors = [];
+let stage = 'profile-seed';
+const startedAt = Date.now();
 async function launch() {
   const env = { ...process.env };
   for (const key of Object.keys(env))
-    if (/TOKEN|PASSWORD|SECRET|ELECTRON_RUN_AS_NODE|NODE_OPTIONS/.test(key)) delete env[key];
+    if (/TOKEN|PASSWORD|SECRET|ELECTRON_RUN_AS_NODE|NODE_OPTIONS|^DEBUG$/.test(key))
+      delete env[key];
+  stage = 'electron-launch-' + (observed.length + 1);
   app = await electron.launch({
     executablePath: path.resolve(options.exe),
     args: ['--user-data-dir=' + profile],
     env,
     timeout: 45000,
   });
+  stage = 'first-window-' + (observed.length + 1);
   const window = await app.firstWindow();
+  stage = 'bridge-ready-' + (observed.length + 1);
   window.on('pageerror', (error) => errors.push(error.message));
   await window.waitForFunction(() => typeof window.aegis?.getSettings === 'function', undefined, {
     timeout: 30000,
@@ -73,6 +80,7 @@ async function launch() {
   assert.equal(state.packaged, true);
   assert.equal(state.architecture, 'x64');
   observed.push(state);
+  stage = 'rendered-monitoring-' + observed.length;
   assert(
     (await window.locator('body').innerText()).trim().length > 0,
     'Rendered application is empty',
@@ -83,6 +91,7 @@ async function launch() {
   return window;
 }
 async function verify(window) {
+  stage = 'verify-settings-' + observed.length;
   const actual = await window.evaluate(async (keys) => {
     const values = await window.aegis.getSettings();
     return Object.fromEntries(keys.map((key) => [key, values[key]]));
@@ -139,6 +148,24 @@ async function verify(window) {
       ) + '\n',
       { flag: 'wx' },
     );
+  } catch (error) {
+    await fs.writeFile(
+      path.join(root, 'evidence', options.phase + '-failure.json'),
+      JSON.stringify(
+        {
+          status: 'FAIL',
+          stage,
+          elapsedMs: Date.now() - startedAt,
+          observations: observed,
+          error: error.message,
+          launchTimeoutMs: 45000,
+          diagnosticLimitBytes: 262144,
+        },
+        null,
+        2,
+      ),
+    );
+    throw error;
   } finally {
     if (app) await app.close();
   }
