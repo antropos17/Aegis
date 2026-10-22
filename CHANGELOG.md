@@ -20,6 +20,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.20.1-beta (2026-10-22)
+
+## What's Changed
+* ci: qualify Windows installer install, upgrade and uninstall in disposable guests by @antropos17 in https://github.com/antropos17/Aegis/pull/1043
+* ci: correct installer profile writes and preserve driver diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/1045
+* fix(installer): prevent sidebar overlap and qualify Windows 11 wizard by @antropos17 in https://github.com/antropos17/Aegis/pull/1046
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.20.0-beta...aegis-v0.20.1-beta
+
 ## 0.20.0-beta (2026-10-20)
 
 ## What's Changed
