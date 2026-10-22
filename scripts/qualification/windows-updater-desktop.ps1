@@ -12,7 +12,7 @@ Add-Type -TypeDefinition $native.Groups[1].Value
 [void][WizardDesktop]::SetProcessDPIAware()
 $proof=[ordered]@{status='RUNNING';action=$Action;oldPid=$AppPid;sourceSha=$env:GITHUB_SHA;steps=@();error=$null}
 $receipt=Join-Path $qa ('evidence/updater-desktop-'+$Action+'.json')
-function SaveProof { $proof | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $receipt -Encoding utf8 }
+function SaveProof { [IO.File]::WriteAllText($receipt, ($proof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false)) }
 function OwnedWindows([int]$ProcessId) {
   $p=Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId"
   if(-not $p -or $p.ExecutablePath -ine $exePath) { throw 'Desktop process ownership changed' }
