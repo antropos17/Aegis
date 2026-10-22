@@ -16,6 +16,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
 . (Join-Path $PSScriptRoot 'windows-installer-x64-bundle.ps1')
 . (Join-Path $PSScriptRoot 'windows-updater-network.ps1')
+. (Join-Path $PSScriptRoot 'windows-installer-setup-diagnostics.ps1')
 $report=[ordered]@{schema='aegis-installer-hyperv/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;scenario=$Scenario;host=$null;media=$null;hardware=$null;bundle=$null;guest=$null;diskSamples=@();stages=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@()};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
@@ -103,10 +104,15 @@ try {
   } | Out-Null
   $report.guest=Stage 'wait-for-windows11-x64-interactive-profile' {
     $deadline=[DateTime]::UtcNow.AddMinutes(18)
+    $started=[DateTime]::UtcNow;$captureAt=@(120,360,720,1020);$captureIndex=0
+    $report.setupDiagnostics=@();$report.readiness=New-CloudGuestReadinessObservation
     do {
       Sample 'guest-setup'
+      Step-CloudGuestReadinessAttempt $report.readiness
+      $readinessPhase='SessionCreate'
       try {
         $script:session=New-PSSession -VMId ([guid]$id) -Credential $credential -ErrorAction Stop
+        $readinessPhase='ProfileCheck'
         $ready=Invoke-Command -Session $session -ScriptBlock {
           $os=Get-CimInstance Win32_OperatingSystem
           $current=Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
@@ -116,10 +122,17 @@ try {
           return @{caption=$os.Caption;build=$os.BuildNumber;ubr=$current.UBR;edition=$current.EditionID;processorArchitecture=$env:PROCESSOR_ARCHITECTURE;cpuArchitecture=9;consoleSessionIds=@($explorer.SessionId);profileReady=$true}
         }
         if($ready) { return $ready }
-      } catch { $report.lastReadinessError=$_.Exception.GetType().Name }
+        Add-CloudGuestReadinessFailure $report.readiness $readinessPhase $null
+      } catch { $report.lastReadinessError=$_.Exception.GetType().Name;Add-CloudGuestReadinessFailure $report.readiness $readinessPhase $_ }
       if($session) { Remove-PSSession $session;$script:session=$null }
+      if($captureIndex -lt 4 -and ([DateTime]::UtcNow-$started).TotalSeconds -ge $captureAt[$captureIndex]) {
+        $captureIndex++
+        $report.setupDiagnostics+=Save-InstallerSetupDiagnostic $id $name $vmRoot (Join-Path $root 'evidence') $captureIndex
+        SaveReport
+      }
       Start-Sleep -Seconds 10
     } while([DateTime]::UtcNow -lt $deadline)
+    $report.readiness.deadlineExpired=$true
     throw 'Windows 11 guest setup deadline exceeded'
   }
   Stage 'detach-owned-installation-media' {
