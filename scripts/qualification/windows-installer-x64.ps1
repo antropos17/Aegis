@@ -51,6 +51,21 @@ try {
     $sources=@('scripts/qualification/CloudGuestVm.cs','scripts/qualification/CloudGuestBootDiagnostics.cs','sidecar/session/OwnedVmLifecycle.cs','sidecar/session/VmManagementNative.cs')
     Add-Type -Path @($sources | ForEach-Object { Join-Path $env:GITHUB_WORKSPACE $_ }) -ReferencedAssemblies @('System.dll','System.Core.dll','System.Management.dll')
   } | Out-Null
+  Stage 'create-owned-vm' {
+    if((Invoke-CloudHyperVCommand recover $name $vmRoot $null).exists) { throw 'VM already exists' }
+    $script:unknown=$true
+    $created=Invoke-CloudHyperVCommand create $name $vmRoot $null
+    if(-not $created.exists -or $created.vmId -notmatch '^[a-f0-9-]{36}$') { throw 'VM creation unresolved' }
+    $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
+  } | Out-Null
+  if($Scenario -eq 'auto-update') {
+    Stage 'prepare-owned-update-network-before-media' {
+      $script:networkAttempted=$true;$script:networkUnknown=$true
+      $report.networkPreparation=Invoke-UpdaterNetwork 'prepare' $id $name $vmRoot
+      $script:networkUnknown=$false
+      if($report.networkPreparation.status -ne 'PASS') { throw ('Update network '+$report.networkPreparation.phase+': '+$report.networkPreparation.error) }
+    } | Out-Null
+  }
   $report.media=Stage 'download-and-verify-microsoft-evaluation-iso' {
     $url='https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
     $observation=[CloudGuestMetadata+DownloadObservation]::new()
@@ -70,13 +85,6 @@ try {
   $adminPassword=[guid]::NewGuid().ToString('N')+'aA1!';$taskPassword=[guid]::NewGuid().ToString('N')+'bB2!'
   $credential=[pscredential]::new('AegisSetup',(ConvertTo-SecureString $adminPassword -AsPlainText -Force))
   Stage 'prepare-owned-answer-media' { New-CloudGuestAnswerIso (Join-Path $root 'media/answer') $answerIso (New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword) } | Out-Null
-  Stage 'create-owned-vm' {
-    if((Invoke-CloudHyperVCommand recover $name $vmRoot $null).exists) { throw 'VM already exists' }
-    $script:unknown=$true
-    $created=Invoke-CloudHyperVCommand create $name $vmRoot $null
-    if(-not $created.exists -or $created.vmId -notmatch '^[a-f0-9-]{36}$') { throw 'VM creation unresolved' }
-    $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
-  } | Out-Null
   $report.hardware=Stage 'configure-secure-boot-tpm-offline-guest' {
     $script:unknown=$true
     $value=Invoke-CloudGuestConfiguration $id $name $vmRoot $iso $answerIso
@@ -122,6 +130,7 @@ try {
       $script:networkAttempted=$true;$script:networkUnknown=$true
       $network=Invoke-UpdaterNetwork 'connect' $id $name $vmRoot
       $script:networkUnknown=$false
+      if($network.status -ne 'PASS') { $report.network=$network;throw ('Update network '+$network.phase+': '+$network.error) }
       $guestNetwork=Invoke-Command -Session $session -ArgumentList (,$network.dns) -ScriptBlock {
         param($Dns)
         $deadline=[DateTime]::UtcNow.AddSeconds(60)
@@ -161,6 +170,7 @@ finally {
       if($networkAttempted) {
         if($networkUnknown) { throw 'Network operation unresolved; cleanup cannot be claimed' }
         $report.cleanup.network=Invoke-UpdaterNetwork 'remove' $id $name $vmRoot
+        if($report.cleanup.network.status -ne 'PASS') { throw ('Update network cleanup '+$report.cleanup.network.phase+': '+$report.cleanup.network.error) }
       }
       foreach($path in @($iso,$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
         $full=[IO.Path]::GetFullPath($path)
