@@ -14,7 +14,12 @@ function Invoke-UpdaterNetwork([ValidateSet('prepare','connect','remove')][strin
       if(@(Get-NetNat).Count -or @(Get-VMSwitch | Where-Object Name -eq $Name).Count -or @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -like '192.168.241.*').Count) { throw 'Existing/conflicting network refused' }
       $vm=Get-VM -Id ([guid]$VmId)
       $location=[IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\');$root=[IO.Path]::GetFullPath($VmRoot).TrimEnd('\')
-      if($vm.Name -cne $Name -or ($location -ne $root -and -not $location.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) -or @(Get-VMNetworkAdapter -VM $vm).Count) { throw 'Owned offline VM required' }
+      if($vm.Name -cne $Name -or ($location -ne $root -and -not $location.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) -or $vm.State -ne 'Off') { throw 'Owned offline VM required' }
+      $phase='remove-owned-disconnected-default-adapter'
+      $adapters=@(Get-VMNetworkAdapter -VM $vm)
+      if($adapters.Count -gt 1 -or @($adapters | Where-Object { $_.VMId -ne $vm.Id -or $_.SwitchId -ne [guid]::Empty }).Count) { throw 'Unexpected initial VM adapter' }
+      foreach($adapter in $adapters) { Remove-VMNetworkAdapter -VMNetworkAdapter $adapter -Confirm:$false }
+      if(@(Get-VMNetworkAdapter -VM $vm).Count) { throw 'Default VM adapter removal unconfirmed' }
       $dns=@(Get-DnsClientServerAddress -AddressFamily IPv4 | ForEach-Object ServerAddresses | Where-Object { $_ -and $_ -ne '127.0.0.1' } | Select-Object -Unique)
       if($dns.Count -eq 0 -or $dns.Count -gt 8) { throw 'Host DNS unavailable' }
       if($vm.State -ne 'Off') { throw 'Network preparation requires an offline VM' }

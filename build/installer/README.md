@@ -92,8 +92,9 @@ installer hash, chooses Later once, then confirms Install and restart. It record
 the automatically relaunched process/window and checks the new version and
 retained synthetic settings in subsequent controlled launches.
 
-This case adds an owned internal switch and outbound WinNAT network after offline
-Windows setup, following [Microsoft's NAT setup](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/setup-nat-network).
+This case prepares an owned internal switch and outbound WinNAT network before
+downloading Windows, following [Microsoft's NAT setup](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/setup-nat-network).
+The guest remains without a network adapter until offline Windows setup completes.
 An existing NAT or conflicting subnet refuses execution. No inbound mapping,
 proxy, TLS interception, feed replacement or credential is supplied to the app.
 The temporary network must be removed after the VM. Other installer cases retain
