@@ -1,5 +1,5 @@
 param(
-  [Parameter(Mandatory)][ValidateSet('fresh','upgrade')][string]$Scenario,
+  [Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update')][string]$Scenario,
   [Parameter(Mandatory)][string]$QaRoot,
   [ValidateSet('silent','wizard')][string]$Mode = 'silent',
   [string]$CandidateDirectory,
@@ -13,6 +13,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-
 $qa = [IO.Path]::GetFullPath($QaRoot)
 $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
 if ($ReleaseDirectory -and ($env:RUNNER_ENVIRONMENT -ne 'github-hosted-hyperv-guest' -or $CandidateDirectory -or -not [IO.Path]::GetFullPath($ReleaseDirectory).StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase))) { throw 'Offline releases require owned Hyper-V guest scratch' }
+if($Scenario -eq 'auto-update' -and (-not $ReleaseDirectory -or $Mode -ne 'wizard' -or $ExpectedArchitecture -ne 'X64')) { throw 'Auto-update requires the owned native x64 Hyper-V guest' }
 if (-not $qa.StartsWith($runnerTemp, [StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $qa)) { throw 'Refusing reused or non-runner output' }
 New-Item -ItemType Directory -Path $qa | Out-Null
 foreach ($part in @('evidence','candidate','previous','temp','cache')) { New-Item -ItemType Directory -Path (Join-Path $qa $part) | Out-Null }
@@ -175,6 +176,22 @@ try {
   if ($ExpectedArchitecture -eq 'X64' -and $Mode -eq 'wizard' -and $result.host.processArchitecture -ine 'X64') { throw 'Native x64 driver required' }
   SaveResult; Sample 'preflight'
   if ((Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Runner is not clean; refusing existing AEGIS profile/registration/shortcuts' }
+  if($Scenario -eq 'auto-update') {
+    $result.limits=@('Current-user automatic discovery/download, consent-driven install and relaunch on the observed native x64 Windows 11 guest. No injected update feed, installer or verification bypass.','No all-users, other DPI, Authenticode trust or full sensor/provider/protection acceptance.')
+    $previous=DownloadVerified ('aegis-v'+$previousVersion) 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'previous')
+    Wizard 'desktop' $previous 'desktop'
+    Install $previous $previousVersion
+    ProfileCheck 'baseline' $previousVersion
+    $autoDriver=Join-Path $supportRoot 'windows-auto-update.cjs'
+    RunOwned (Get-Command node).Source @(('"'+$autoDriver+'"'),'--exe',('"'+$appExe+'"'),'--root',('"'+$qa+'"')) 900000
+    $result.automaticUpdate=Get-Content -LiteralPath (Join-Path $qa 'evidence/auto-update.json') -Raw | ConvertFrom-Json
+    if($result.automaticUpdate.status -ne 'PASS') { throw 'Automatic update receipt failed' }
+    WaitNoProcesses;CheckRegistration $currentVersion
+    $result.candidatePayload=@(Payload)
+    Uninstall 'final-uninstall'
+    Sample 'complete';$result.status='PASS';$result.completedAt=[DateTime]::UtcNow.ToString('o');SaveResult
+    return
+  }
   $candidate = if ($CandidateDirectory) { ImportCandidate $CandidateDirectory } else { DownloadVerified ('aegis-v'+$currentVersion) '274d65711ac858c9d309c73f1f7c9c4e52872ed1' '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339' (Join-Path $qa 'candidate') }
   if ($Scenario -eq 'upgrade') { $previous = DownloadVerified ('aegis-v'+$previousVersion) 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'previous') }
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue

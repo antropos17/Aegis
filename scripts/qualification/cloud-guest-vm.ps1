@@ -137,13 +137,13 @@ function Get-CloudGuestBootstrapInvocation {
 
 # One initial window; provider success does not establish that firmware consumed
 # a key. Closing this window precedes every credential-bearing session attempt.
-function Invoke-CloudGuestBootWindow($NativeOwner) {
+function Invoke-CloudGuestBootWindow($NativeOwner, [ValidateRange(1, 60000)][int]$KeyWindowMilliseconds = 60000) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $value = @{ attempts = 0; completed = 0; optional = $true; failure = $null; mandatoryFailure = $false;
         outcomes = [Collections.Generic.List[object]]::new(); snapshots = [Collections.Generic.List[object]]::new();
-        dispatchWindowMilliseconds = 60000; providerOperationTimeoutSeconds = 5; elapsedMilliseconds = 0; closedBeforeCredentialSession = $false; stoppedOnOwnedNonrunning = $false }
+        dispatchWindowMilliseconds = $KeyWindowMilliseconds; providerOperationTimeoutSeconds = 5; elapsedMilliseconds = 0; closedBeforeCredentialSession = $false; stoppedOnOwnedNonrunning = $false }
     try {
-        while ($watch.ElapsedMilliseconds -lt 60000 -and $value.attempts -lt 60) {
+        while ($watch.ElapsedMilliseconds -lt $KeyWindowMilliseconds -and $value.attempts -lt 60) {
             $value.attempts++
             try { if ($NativeOwner.SetupSpaceKey()) { $value.completed++ } }
             catch {

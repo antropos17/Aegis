@@ -2,14 +2,15 @@ function New-InstallerGuestBundle([string]$Root,[string]$Scenario,[string]$VmId)
   $bundle=Join-Path $Root 'bundle'
   New-Item -ItemType Directory -Path $bundle | Out-Null
   foreach($part in @('source/scripts/qualification','source/keys','source/node_modules','runtime','releases')) { New-Item -ItemType Directory -Path (Join-Path $bundle $part) -Force | Out-Null }
-  foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
+  foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs','windows-launch-diagnostics.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
+  if($Scenario -eq 'auto-update') { foreach($name in @('windows-auto-update.cjs','windows-updater-cache.cjs','windows-updater-desktop.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
   foreach($file in @('scripts/release-verify.js','keys/aegis-release-pubkey.pub','package.json')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $file) -Destination (Join-Path $bundle ('source/'+$file)) }
   foreach($package in @('playwright','playwright-core')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ('node_modules/'+$package)) -Destination (Join-Path $bundle 'source/node_modules') -Recurse }
   Copy-Item -LiteralPath (Get-Command node.exe).Source -Destination (Join-Path $bundle 'runtime/node.exe')
   $pwshHome=Split-Path (Get-Command pwsh.exe).Source
   Copy-Item -LiteralPath $pwshHome -Destination (Join-Path $bundle 'runtime/pwsh') -Recurse
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows-installer-x64-guest.ps1') -Destination (Join-Path $bundle 'guest.ps1')
-  $tags=@('aegis-v0.20.1-beta'); if($Scenario -eq 'upgrade') { $tags+='aegis-v0.20.0-beta' }
+  $tags=if($Scenario -eq 'auto-update') { @('aegis-v0.20.0-beta') } else { @('aegis-v0.20.1-beta'); if($Scenario -eq 'upgrade') { 'aegis-v0.20.0-beta' } }
   foreach($tag in $tags) {
     $destination=Join-Path $bundle ('releases/'+$tag)
     New-Item -ItemType Directory -Path $destination | Out-Null
@@ -56,12 +57,12 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
     $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
     $action=New-ScheduledTaskAction -Execute ($inputRoot+'\runtime\pwsh\pwsh.exe') -Argument ('-NoProfile -WindowStyle Hidden -EncodedCommand '+$encoded) -WorkingDirectory ($inputRoot+'\source')
     $principal=New-ScheduledTaskPrincipal -UserId 'AegisSetup' -LogonType Interactive -RunLevel Limited
-    $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 12)
+    $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 18)
     Register-ScheduledTask -TaskName 'AegisInstallerQualification' -Action $action -Principal $principal -Settings $settings | Out-Null
     Start-ScheduledTask -TaskName 'AegisInstallerQualification'
     return @{transferVerified=$true;files=$manifest.Count;interactiveTaskSubmitted=$true}
   }
-  $deadline=[DateTime]::UtcNow.AddMinutes(12)
+  $deadline=[DateTime]::UtcNow.AddMinutes(18)
   do {
     $done=Invoke-Command -Session $Session -ScriptBlock { Test-Path -LiteralPath C:/aegis-installer-qa/done.json }
     if($done) { break }

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][ValidateSet('fresh','upgrade')][string]$Scenario)
+param([Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update')][string]$Scenario)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 Assert-CloudGuestRunner
@@ -15,10 +15,12 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
 . (Join-Path $PSScriptRoot 'windows-installer-x64-bundle.ps1')
+. (Join-Path $PSScriptRoot 'windows-updater-network.ps1')
+. (Join-Path $PSScriptRoot 'windows-installer-setup-diagnostics.ps1')
 $report=[ordered]@{schema='aegis-installer-hyperv/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;scenario=$Scenario;host=$null;media=$null;hardware=$null;bundle=$null;guest=$null;diskSamples=@();stages=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@()};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
-$id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false
+$id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$networkAttempted=$false;$networkUnknown=$false
 function SaveReport { $report | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Join-Path $root 'evidence/hyperv.json') -Encoding UTF8 }
 function Sample([string]$Phase) {
   $free=(Get-PSDrive D).Free
@@ -39,11 +41,32 @@ try {
   $report.host=@{caption=$os.Caption;build=$os.BuildNumber;architecture=$os.OSArchitecture;runnerArchitecture=$env:RUNNER_ARCH;hypervisorPresent=$computer.HypervisorPresent;memoryBytes=$computer.TotalPhysicalMemory;vmms='Running'}
   if((git -C $env:GITHUB_WORKSPACE rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Workflow source SHA mismatch' }
   Sample 'preflight'
+  if($Scenario -eq 'auto-update') {
+    Stage 'preflight-isolated-update-network' {
+      if(@(Get-NetNat).Count -or @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -like '192.168.241.*').Count) { throw 'Existing/conflicting hosted NAT refused before guest preparation' }
+      return @{existingNatCount=0;subnetAvailable=$true}
+    } | Out-Null
+  }
   Stage 'compile-existing-media-and-vm-helpers' {
     Add-Type -Path (Join-Path $PSScriptRoot 'CloudGuestMetadata.cs') -ReferencedAssemblies @('System.dll','System.Core.dll','System.Net.Http.dll')
     $sources=@('scripts/qualification/CloudGuestVm.cs','scripts/qualification/CloudGuestBootDiagnostics.cs','sidecar/session/OwnedVmLifecycle.cs','sidecar/session/VmManagementNative.cs')
     Add-Type -Path @($sources | ForEach-Object { Join-Path $env:GITHUB_WORKSPACE $_ }) -ReferencedAssemblies @('System.dll','System.Core.dll','System.Management.dll')
   } | Out-Null
+  Stage 'create-owned-vm' {
+    if((Invoke-CloudHyperVCommand recover $name $vmRoot $null).exists) { throw 'VM already exists' }
+    $script:unknown=$true
+    $created=Invoke-CloudHyperVCommand create $name $vmRoot $null
+    if(-not $created.exists -or $created.vmId -notmatch '^[a-f0-9-]{36}$') { throw 'VM creation unresolved' }
+    $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
+  } | Out-Null
+  if($Scenario -eq 'auto-update') {
+    Stage 'prepare-owned-update-network-before-media' {
+      $script:networkAttempted=$true;$script:networkUnknown=$true
+      $report.networkPreparation=Invoke-UpdaterNetwork 'prepare' $id $name $vmRoot
+      $script:networkUnknown=$false
+      if($report.networkPreparation.status -ne 'PASS') { throw ('Update network '+$report.networkPreparation.phase+': '+$report.networkPreparation.error) }
+    } | Out-Null
+  }
   $report.media=Stage 'download-and-verify-microsoft-evaluation-iso' {
     $url='https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
     $observation=[CloudGuestMetadata+DownloadObservation]::new()
@@ -63,13 +86,6 @@ try {
   $adminPassword=[guid]::NewGuid().ToString('N')+'aA1!';$taskPassword=[guid]::NewGuid().ToString('N')+'bB2!'
   $credential=[pscredential]::new('AegisSetup',(ConvertTo-SecureString $adminPassword -AsPlainText -Force))
   Stage 'prepare-owned-answer-media' { New-CloudGuestAnswerIso (Join-Path $root 'media/answer') $answerIso (New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword) } | Out-Null
-  Stage 'create-owned-vm' {
-    if((Invoke-CloudHyperVCommand recover $name $vmRoot $null).exists) { throw 'VM already exists' }
-    $script:unknown=$true
-    $created=Invoke-CloudHyperVCommand create $name $vmRoot $null
-    if(-not $created.exists -or $created.vmId -notmatch '^[a-f0-9-]{36}$') { throw 'VM creation unresolved' }
-    $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
-  } | Out-Null
   $report.hardware=Stage 'configure-secure-boot-tpm-offline-guest' {
     $script:unknown=$true
     $value=Invoke-CloudGuestConfiguration $id $name $vmRoot $iso $answerIso
@@ -82,16 +98,23 @@ try {
     $script:owner=[CloudGuestVm]::new($id)
     if(-not $owner.Start() -or $owner.PendingUnknown) { throw 'VM native start not confirmed' }
     $report.startOperation=$owner.Operation()
-    $boot=Invoke-CloudGuestBootWindow $owner
+    # Accept the initial DVD prompt; stop sending Space before Windows Setup can
+    # consume it as dialog input. Keep the shared W7 lane's default unchanged.
+    $boot=Invoke-CloudGuestBootWindow $owner -KeyWindowMilliseconds 8000
     $report.boot=$boot
     if($boot.mandatoryFailure) { throw 'VM boot key operation unresolved' }
   } | Out-Null
   $report.guest=Stage 'wait-for-windows11-x64-interactive-profile' {
     $deadline=[DateTime]::UtcNow.AddMinutes(18)
+    $started=[DateTime]::UtcNow;$captureAt=@(120,360,720,1020);$captureIndex=0
+    $report.setupDiagnostics=@();$report.readiness=New-CloudGuestReadinessObservation
     do {
       Sample 'guest-setup'
+      Step-CloudGuestReadinessAttempt $report.readiness
+      $readinessPhase='SessionCreate'
       try {
         $script:session=New-PSSession -VMId ([guid]$id) -Credential $credential -ErrorAction Stop
+        $readinessPhase='ProfileCheck'
         $ready=Invoke-Command -Session $session -ScriptBlock {
           $os=Get-CimInstance Win32_OperatingSystem
           $current=Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
@@ -101,15 +124,44 @@ try {
           return @{caption=$os.Caption;build=$os.BuildNumber;ubr=$current.UBR;edition=$current.EditionID;processorArchitecture=$env:PROCESSOR_ARCHITECTURE;cpuArchitecture=9;consoleSessionIds=@($explorer.SessionId);profileReady=$true}
         }
         if($ready) { return $ready }
-      } catch { $report.lastReadinessError=$_.Exception.GetType().Name }
+        Add-CloudGuestReadinessFailure $report.readiness $readinessPhase $null
+      } catch { $report.lastReadinessError=$_.Exception.GetType().Name;Add-CloudGuestReadinessFailure $report.readiness $readinessPhase $_ }
       if($session) { Remove-PSSession $session;$script:session=$null }
+      if($captureIndex -lt 4 -and ([DateTime]::UtcNow-$started).TotalSeconds -ge $captureAt[$captureIndex]) {
+        $captureIndex++
+        $report.setupDiagnostics+=Save-InstallerSetupDiagnostic $id $name $vmRoot (Join-Path $root 'evidence') $captureIndex
+        SaveReport
+      }
       Start-Sleep -Seconds 10
     } while([DateTime]::UtcNow -lt $deadline)
+    $report.readiness.deadlineExpired=$true
     throw 'Windows 11 guest setup deadline exceeded'
   }
   Stage 'detach-owned-installation-media' {
     Remove-CloudGuestInstallationMedia $id $name $vmRoot ([ref]$unknown) | Out-Null
   } | Out-Null
+  if($Scenario -eq 'auto-update') {
+    $report.network=Stage 'connect-owned-outbound-update-network' {
+      $script:networkAttempted=$true;$script:networkUnknown=$true
+      $network=Invoke-UpdaterNetwork 'connect' $id $name $vmRoot
+      $script:networkUnknown=$false
+      if($network.status -ne 'PASS') { $report.network=$network;throw ('Update network '+$network.phase+': '+$network.error) }
+      $guestNetwork=Invoke-Command -Session $session -ArgumentList (,$network.dns) -ScriptBlock {
+        param($Dns)
+        $deadline=[DateTime]::UtcNow.AddSeconds(60)
+        do {
+          $adapter=@(Get-NetAdapter | Where-Object Status -eq 'Up')
+          if($adapter.Count) { break }
+          Start-Sleep -Seconds 1
+        } while([DateTime]::UtcNow -lt $deadline)
+        if($adapter.Count -ne 1) { throw 'Expected one guest update NIC' }
+        New-NetIPAddress -InterfaceIndex $adapter[0].ifIndex -IPAddress 192.168.241.2 -PrefixLength 24 -DefaultGateway 192.168.241.1 | Out-Null
+        Set-DnsClientServerAddress -InterfaceIndex $adapter[0].ifIndex -ServerAddresses $Dns
+        return @{address='192.168.241.2';gateway='192.168.241.1';dns=$Dns;firewallUnchanged=$true}
+      }
+      $network.guest=$guestNetwork;return $network
+    }
+  }
   $report.lifecycle=Stage 'execute-published-installer-lifecycle' { Invoke-InstallerGuestTest $session $root $report.bundle $Scenario }
   $report.status='PASS'
 } catch { $report.status='FAIL';$report.error=$_.Exception.Message;Write-Warning $report.error }
@@ -130,6 +182,11 @@ finally {
     }
     if($mounted) { Dismount-DiskImage -ImagePath $iso | Out-Null;$mounted=$false }
     if($report.cleanup.removedObserved) {
+      if($networkAttempted) {
+        if($networkUnknown) { throw 'Network operation unresolved; cleanup cannot be claimed' }
+        $report.cleanup.network=Invoke-UpdaterNetwork 'remove' $id $name $vmRoot
+        if($report.cleanup.network.status -ne 'PASS') { throw ('Update network cleanup '+$report.cleanup.network.phase+': '+$report.cleanup.network.error) }
+      }
       foreach($path in @($iso,$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
         $full=[IO.Path]::GetFullPath($path)
         if(-not $full.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Cleanup escaped owned root' }
