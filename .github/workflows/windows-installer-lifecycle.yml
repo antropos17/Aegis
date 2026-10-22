@@ -10,6 +10,7 @@ on:
         options:
           - server-silent
           - windows11-wizard
+          - windows11-x64
       candidate:
         description: Use the signed published installer or build this exact workflow revision
         type: choice
@@ -23,7 +24,7 @@ permissions:
 
 jobs:
   build-candidate:
-    if: inputs.candidate == 'build'
+    if: inputs.candidate == 'build' && inputs.target != 'windows11-x64'
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -92,7 +93,7 @@ jobs:
           retention-days: 7
   installer:
     needs: build-candidate
-    if: always() && !cancelled() && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
+    if: always() && !cancelled() && inputs.target != 'windows11-x64' && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
     runs-on: ${{ inputs.target == 'windows11-wizard' && 'windows-11-vs2026-arm' || 'windows-2025' }}
     timeout-minutes: 15
     strategy:
@@ -154,4 +155,61 @@ jobs:
           name: installer-lifecycle-${{ inputs.target }}-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.AEGIS_INSTALLER_QA }}/evidence/
           if-no-files-found: warn
+          retention-days: 7
+  installer-x64:
+    if: inputs.target == 'windows11-x64'
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [fresh, upgrade]
+    defaults:
+      run:
+        shell: powershell
+    env:
+      HUSKY: '0'
+      CI: 'true'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      npm_config_logs_max: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Prepare bounded cloud test storage
+        run: |
+          if ('${{ inputs.candidate }}' -ne 'published') { throw 'Windows 11 x64 lane qualifies the pinned published installer only' }
+          $scratch = Join-Path $env:RUNNER_TEMP ('aegis-x64-driver-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $scratch) { throw 'Driver scratch already exists' }
+          New-Item -ItemType Directory -Path $scratch | Out-Null
+          @(
+            ('TEMP=' + $scratch)
+            ('TMP=' + $scratch)
+            ('npm_config_cache=' + (Join-Path $scratch 'npm'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+          if ((Get-PSDrive C).Free -lt 34GB) { throw 'Insufficient cloud guest storage' }
+      - name: Install locked test driver dependencies
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+      - name: Qualify published installer in native x64 Windows 11 guest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/qualification/windows-installer-x64.ps1 -Scenario '${{ matrix.scenario }}'
+      - name: Check bounded guest evidence
+        if: always() && env.AEGIS_X64_EVIDENCE != ''
+        run: |
+          $files = @(Get-ChildItem -LiteralPath $env:AEGIS_X64_EVIDENCE -Recurse -File)
+          if ($files.Count -gt 110 -or ($files | Measure-Object Length -Sum).Sum -gt 40MB -or @(Get-ChildItem -LiteralPath $env:AEGIS_X64_EVIDENCE -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Evidence budget/layout exceeded' }
+          'AEGIS_X64_EVIDENCE_READY=true' | Add-Content -LiteralPath $env:GITHUB_ENV
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && env.AEGIS_X64_EVIDENCE_READY == 'true'
+        with:
+          name: installer-lifecycle-windows11-x64-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_X64_EVIDENCE }}/
+          if-no-files-found: error
           retention-days: 7

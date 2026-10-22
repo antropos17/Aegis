@@ -7,7 +7,7 @@ const { createRequire } = require('node:module');
 if (
   process.platform !== 'win32' ||
   process.env.GITHUB_ACTIONS !== 'true' ||
-  process.env.RUNNER_ENVIRONMENT !== 'github-hosted'
+  !['github-hosted', 'github-hosted-hyperv-guest'].includes(process.env.RUNNER_ENVIRONMENT)
 ) {
   throw Error(
     'Installer profile qualification requires a disposable GitHub-hosted Windows runner.',
@@ -66,10 +66,12 @@ async function launch() {
     profile: app.getPath('userData'),
     packaged: app.isPackaged,
     pid: process.pid,
+    architecture: process.arch,
   }));
   assert.equal(state.version, options.version);
   assert.equal(normalize(state.profile), normalize(profile));
   assert.equal(state.packaged, true);
+  assert.equal(state.architecture, 'x64');
   observed.push(state);
   assert(
     (await window.locator('body').innerText()).trim().length > 0,

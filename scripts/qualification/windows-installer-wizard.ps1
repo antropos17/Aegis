@@ -3,10 +3,11 @@ param(
   [Parameter(Mandatory)][string]$InstallerFile,
   [Parameter(Mandatory)][string]$InstallRoot,
   [Parameter(Mandatory)][string]$QaRoot,
-  [Parameter(Mandatory)][ValidateSet('cancel','fresh','upgrade','reinstall','first-uninstall','final-uninstall','desktop')][string]$Phase
+  [Parameter(Mandatory)][ValidateSet('cancel','fresh','upgrade','reinstall','first-uninstall','final-uninstall','desktop')][string]$Phase,
+  [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64'
 )
 $ErrorActionPreference = 'Stop'
-if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-hosted','github-hosted-hyperv-guest') -or $env:RUNNER_OS -ne 'Windows') {
   throw 'Wizard qualification requires a disposable GitHub-hosted Windows guest.'
 }
 $qa = [IO.Path]::GetFullPath($QaRoot).TrimEnd('\')
@@ -15,7 +16,8 @@ $file = [IO.Path]::GetFullPath($InstallerFile)
 $install = [IO.Path]::GetFullPath($InstallRoot)
 if (-not $qa.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase) -or -not $file.StartsWith($qa+'\',[StringComparison]::OrdinalIgnoreCase) -or -not $install.StartsWith($qa+'\install\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Wizard paths escape guest qualification scratch' }
 $os = Get-CimInstance Win32_OperatingSystem
-if ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne 'ARM64') { throw 'Wizard requires the declared Windows 11 ARM64 guest' }
+if ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne $ExpectedArchitecture) { throw 'Wizard requires the declared Windows 11 guest architecture' }
+if ($ExpectedArchitecture -eq 'X64' -and ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -or @(Get-CimInstance Win32_Processor | Where-Object Architecture -ne 9).Count)) { throw 'Native x64 guest required' }
 if (-not [Environment]::UserInteractive -or (Get-Process -Id $PID).SessionId -eq 0) { throw 'No interactive desktop session; GUI acceptance cannot run' }
 # Parent pwsh can put Core-only modules ahead of the inbox Desktop modules.
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')

@@ -2,14 +2,17 @@ param(
   [Parameter(Mandatory)][ValidateSet('fresh','upgrade')][string]$Scenario,
   [Parameter(Mandatory)][string]$QaRoot,
   [ValidateSet('silent','wizard')][string]$Mode = 'silent',
-  [string]$CandidateDirectory
+  [string]$CandidateDirectory,
+  [string]$ReleaseDirectory,
+  [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64'
 )
 $ErrorActionPreference = 'Stop'
-if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:RUNNER_OS -ne 'Windows') {
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-hosted','github-hosted-hyperv-guest') -or $env:RUNNER_OS -ne 'Windows') {
   throw 'Installer lifecycle requires a disposable GitHub-hosted Windows runner.'
 }
 $qa = [IO.Path]::GetFullPath($QaRoot)
 $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
+if ($ReleaseDirectory -and ($env:RUNNER_ENVIRONMENT -ne 'github-hosted-hyperv-guest' -or $CandidateDirectory -or -not [IO.Path]::GetFullPath($ReleaseDirectory).StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase))) { throw 'Offline releases require owned Hyper-V guest scratch' }
 if (-not $qa.StartsWith($runnerTemp, [StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $qa)) { throw 'Refusing reused or non-runner output' }
 New-Item -ItemType Directory -Path $qa | Out-Null
 foreach ($part in @('evidence','candidate','previous','temp','cache')) { New-Item -ItemType Directory -Path (Join-Path $qa $part) | Out-Null }
@@ -18,12 +21,13 @@ $installRoot = Join-Path $qa 'install'
 if ($Mode -eq 'wizard') { $installRoot = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection' }
 $profile = Join-Path $env:APPDATA 'aegis'
 $appExe = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection.exe'
-$checker = Join-Path $PSScriptRoot 'windows-installer-profile.cjs'
+$supportRoot = Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification'
+$checker = Join-Path $supportRoot 'windows-installer-profile.cjs'
 $currentVersion = '0.20.1-beta'
 $previousVersion = '0.20.0-beta'
 $result = [ordered]@{ schema='aegis-installer-lifecycle/1'; status='RUNNING'; scenario=$Scenario; sourceSha=$env:GITHUB_SHA; runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; capturedAt=[DateTime]::UtcNow.ToString('o'); host=$null; artifacts=@(); phases=@(); limits=@('Silent current-user installation on a disposable GitHub-hosted Windows Server image; interactive wizard and Windows 11 consumer-host behavior are not qualified.','No privileged ETW, provider/VM, protection, Authenticode signing or full W10 acceptance.'); error=$null }
 $result.mode = $Mode
-if ($Mode -eq 'wizard') { $result.limits[0] = 'Windows 11 ARM64 interactive current-user wizard with an x64 installer under Windows emulation. Native x64 Windows 11, all-users elevation, Finish auto-launch and automatic-update delivery are not qualified.' }
+if ($Mode -eq 'wizard') { $result.limits[0] = 'Windows 11 interactive current-user wizard on the recorded architecture. ARM64 runs use x64 emulation; X64 runs require native x64 OS/process observations. All-users elevation, Finish auto-launch and automatic-update delivery are not qualified.' }
 function SaveResult { $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $qa 'evidence/result.json') -Encoding utf8 }
 function Registrations {
   @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*') | ForEach-Object {
@@ -72,6 +76,7 @@ function WaitNoProcesses {
   throw 'Installed application/helper process remained after shutdown'
 }
 function ProfileCheck([string]$Phase,[string]$Version) {
+  if ($ReleaseDirectory) { $script:driverReady = $true } # Host-pinned driver closure was verified before guest execution.
   if ($Mode -eq 'wizard' -and -not $script:driverReady) {
     # Validate the actual wizard before the costly driver bootstrap in fresh jobs.
     $npmCli = Join-Path (Split-Path (Get-Command node).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -85,9 +90,14 @@ function ProfileCheck([string]$Phase,[string]$Version) {
   WaitNoProcesses
 }
 function Wizard([string]$Action,[string]$File,[string]$Phase) {
-  $driver = Join-Path $PSScriptRoot 'windows-installer-wizard.ps1'
+  $driver = Join-Path $supportRoot 'windows-installer-wizard.ps1'
   $powershell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
-  $arguments = @('-NoProfile','-STA','-File',('"'+$driver+'"'),'-Action',$Action,'-InstallerFile',('"'+$File+'"'),'-InstallRoot',('"'+$installRoot+'"'),'-QaRoot',('"'+$qa+'"'),'-Phase',$Phase)
+  $arguments = @('-NoProfile','-STA','-File',('"'+$driver+'"'),'-Action',$Action,'-InstallerFile',('"'+$File+'"'),'-InstallRoot',('"'+$installRoot+'"'),'-QaRoot',('"'+$qa+'"'),'-Phase',$Phase,'-ExpectedArchitecture',$ExpectedArchitecture)
+  if ($ReleaseDirectory) {
+    # Execute the verified test source as a command in the disposable guest; no execution-policy setting is changed.
+    $command = "& ([scriptblock]::Create([IO.File]::ReadAllText('"+$driver.Replace("'","''")+"'))) -Action '"+$Action+"' -InstallerFile '"+$File.Replace("'","''")+"' -InstallRoot '"+$installRoot.Replace("'","''")+"' -QaRoot '"+$qa.Replace("'","''")+"' -Phase '"+$Phase+"' -ExpectedArchitecture '"+$ExpectedArchitecture+"'"
+    $arguments = @('-NoProfile','-STA','-EncodedCommand',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command)))
+  }
   RunOwned $powershell $arguments 200000
   $proof = Get-Content -Raw -LiteralPath (Join-Path $qa ('evidence/wizard-'+$Phase+'.json')) | ConvertFrom-Json
   if ($proof.status -ne 'PASS' -or $proof.action -ne $Action -or $proof.phase -ne $Phase) { throw 'Wizard receipt mismatch' }
@@ -124,8 +134,11 @@ function Uninstall([string]$Phase) {
   SaveResult
 }
 function DownloadVerified([string]$Tag,[string]$Commit,[string]$Pin,[string]$Folder) {
-  gh release download $Tag --repo antropos17/Aegis --dir $Folder | Out-Host
-  if ($LASTEXITCODE -ne 0) { throw 'Release download failed' }
+  if ($ReleaseDirectory) { Copy-Item -LiteralPath (Join-Path $ReleaseDirectory $Tag) -Destination $Folder -Recurse; $Folder = Join-Path $Folder $Tag }
+  else {
+    gh release download $Tag --repo antropos17/Aegis --dir $Folder | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'Release download failed' }
+  }
   node (Join-Path $env:GITHUB_WORKSPACE 'scripts/release-verify.js') --dir $Folder | Out-Host
   if ($LASTEXITCODE -ne 0) { throw 'Downloaded release signature/hash verification failed' }
   $manifest = Get-Content -LiteralPath (Join-Path $Folder 'manifest.json') -Raw | ConvertFrom-Json
@@ -156,7 +169,10 @@ try {
   $result.host.runnerArchitecture = $env:RUNNER_ARCH
   $result.host.interactive = [Environment]::UserInteractive
   $result.host.sessionId = (Get-Process -Id $PID).SessionId
-  if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne 'ARM64')) { throw 'Wizard mode requires the declared Windows 11 ARM64 hosted guest' }
+  $result.host.nativeArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+  $result.host.processArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+  if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne $ExpectedArchitecture -or $result.host.nativeArchitecture -ine $ExpectedArchitecture)) { throw 'Wizard mode requires the declared Windows 11 architecture' }
+  if ($ExpectedArchitecture -eq 'X64' -and $Mode -eq 'wizard' -and $result.host.processArchitecture -ine 'X64') { throw 'Native x64 driver required' }
   SaveResult; Sample 'preflight'
   if ((Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Runner is not clean; refusing existing AEGIS profile/registration/shortcuts' }
   $candidate = if ($CandidateDirectory) { ImportCandidate $CandidateDirectory } else { DownloadVerified ('aegis-v'+$currentVersion) '274d65711ac858c9d309c73f1f7c9c4e52872ed1' '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339' (Join-Path $qa 'candidate') }
