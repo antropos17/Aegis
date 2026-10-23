@@ -8,7 +8,7 @@ $env:GITHUB_SHA=$context.sourceSha;$env:GITHUB_RUN_ID=$context.runId;$env:GITHUB
 $env:RUNNER_TEMP=$root;$env:GITHUB_WORKSPACE=Join-Path $inputRoot 'source'
 $qa=Join-Path $root 'all-users'
 $request=Get-Content -LiteralPath (Join-Path $qa 'request.json') -Raw | ConvertFrom-Json
-$install=Join-Path $env:ProgramFiles 'AEGIS - AI Monitoring & Threat Detection'
+$install=Join-Path $env:ProgramFiles 'aegis'
 $driver=Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-wizard.ps1'
 if($request.sourceSha -ne $context.sourceSha -or $request.action -notin @('install','uninstall')) { throw 'Unexpected desktop request' }
 $options=@{Action=$request.action;InstallerFile=$request.file;InstallRoot=$install;QaRoot=$qa;ExpectedArchitecture='X64';AllUsers=$true}

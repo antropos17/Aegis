@@ -21,7 +21,7 @@ foreach ($part in @('evidence','candidate','previous','temp','cache')) { New-Ite
 $env:TEMP = Join-Path $qa 'temp'; $env:TMP = $env:TEMP
 $installRoot = Join-Path $qa 'install'
 if ($Mode -eq 'wizard') { $installRoot = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection' }
-if ($Scenario -eq 'all-users') { $installRoot = Join-Path $env:ProgramFiles 'AEGIS - AI Monitoring & Threat Detection' }
+if ($Scenario -eq 'all-users') { $installRoot = Join-Path $env:ProgramFiles 'aegis' }
 $profile = Join-Path $env:APPDATA 'aegis'
 $appExe = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection.exe'
 $supportRoot = Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification'

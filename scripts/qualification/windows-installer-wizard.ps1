@@ -17,7 +17,8 @@ $allowed = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
 $file = [IO.Path]::GetFullPath($InstallerFile)
 $install = [IO.Path]::GetFullPath($InstallRoot)
 if($AllUsers) {
-  $expectedInstall=Join-Path $env:ProgramFiles 'AEGIS - AI Monitoring & Threat Detection'
+  # electron-builder uses sanitizedName because productFilename contains '&'.
+  $expectedInstall=Join-Path $env:ProgramFiles 'aegis'
   if($env:RUNNER_ENVIRONMENT -ne 'github-hosted-hyperv-guest' -or $env:USERNAME -ne 'AegisSetup' -or $ExpectedArchitecture -ne 'X64' -or $qa -ine 'C:\aegis-installer-qa\all-users' -or $install -ine $expectedInstall -or $Action -notin @('install','uninstall') -or ($Action -eq 'install' -and -not $file.StartsWith($qa+'\candidate\',[StringComparison]::OrdinalIgnoreCase)) -or ($Action -eq 'uninstall' -and [IO.Path]::GetDirectoryName($file) -ine $install)) { throw 'All-users guest path/scope mismatch' }
 } elseif (-not $qa.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase) -or -not $file.StartsWith($qa+'\',[StringComparison]::OrdinalIgnoreCase) -or -not $install.StartsWith($qa+'\install\',[StringComparison]::OrdinalIgnoreCase) -or $ExistingPid) { throw 'Wizard paths escape guest qualification scratch' }
 $os = Get-CimInstance Win32_OperatingSystem
