@@ -178,13 +178,22 @@ function Snapshot($Window,[string]$Step) {
   }
   [void][WizardDesktop]::ShowWindowAsync($handle,9)
   [void][WizardDesktop]::BringWindowToTop($handle)
-  $focusDeadline = [DateTime]::UtcNow.AddSeconds(3)
+  $focusDeadline = [DateTime]::UtcNow.AddSeconds($(if($AllUsers){10}else{3}))
   do {
     [void][WizardDesktop]::SetForegroundWindow($handle)
     if ([WizardDesktop]::GetForegroundWindow() -ne $handle -and $Window.Current.ProcessId -in $script:ownedIds) {
       # Scheduled tasks do not inherit foreground activation rights. Attach only
       # for this owned dialog activation and always detach; no OS policy changes.
-      [void][WizardDesktop]::ActivateOwned($handle,[uint32]$Window.Current.ProcessId)
+      try { [void][WizardDesktop]::ActivateOwned($handle,[uint32]$Window.Current.ProcessId) }
+      catch {
+        $native=$_.Exception
+        while($native.InnerException -and $native -isnot [ComponentModel.Win32Exception]) { $native=$native.InnerException }
+        if(-not $AllUsers -or $native -isnot [ComponentModel.Win32Exception] -or $native.NativeErrorCode -ne 5) { throw }
+        # UAC can expose the new window before the secure foreground desktop returns.
+        # Retry only access denial within the bounded focus wait; actual foreground
+        # ownership is still mandatory before any control click or passing screenshot.
+        $proof.foregroundTransitions+=@{step=$Step;nativeError=5;at=[DateTime]::UtcNow.ToString('o')}
+      }
     }
     Start-Sleep -Milliseconds 150
   } while ([WizardDesktop]::GetForegroundWindow() -ne $handle -and [DateTime]::UtcNow -lt $focusDeadline)
@@ -259,7 +268,7 @@ try {
     . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-finish.ps1'))))
     $proof.controllerToken=[InstallerProcessObservation]::Inspect($PID)
     if($proof.controllerToken.elevated -ne 1) { throw 'Elevated observer required for the all-users wizard' }
-    $proof.dpiObservations=@();$script:startedAt=[DateTime]::UtcNow.AddSeconds(-30)
+    $proof.dpiObservations=@();$proof.foregroundTransitions=@();$script:startedAt=[DateTime]::UtcNow.AddSeconds(-30)
   }
   SaveProof
   PrepareGuestDesktop
