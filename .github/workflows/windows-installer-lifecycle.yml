@@ -13,6 +13,7 @@ on:
           - windows11-x64
           - windows11-x64-updater
           - windows11-x64-all-users
+          - windows11-x64-all-users-updater
       candidate:
         description: Use the signed published installer or build this exact workflow revision
         type: choice
@@ -165,7 +166,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: ${{ fromJSON(inputs.target == 'windows11-x64-updater' && '["auto-update"]' || inputs.target == 'windows11-x64-all-users' && '["all-users"]' || '["fresh","upgrade"]') }}
+        scenario: ${{ fromJSON(inputs.target == 'windows11-x64-updater' && '["auto-update"]' || inputs.target == 'windows11-x64-all-users-updater' && '["all-users-update"]' || inputs.target == 'windows11-x64-all-users' && '["all-users"]' || '["fresh","upgrade"]') }}
     defaults:
       run:
         shell: powershell

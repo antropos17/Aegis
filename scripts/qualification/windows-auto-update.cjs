@@ -23,7 +23,7 @@ assert.deepEqual(Object.keys(options).sort(), ['exe', 'root']);
 const root = path.resolve(options.root);
 const exe = path.resolve(options.exe);
 assert(root.toLowerCase().startsWith('c:\\aegis-installer-qa\\'));
-assert(exe.toLowerCase().startsWith(root.toLowerCase() + '\\install\\'));
+const installScope = require('./windows-installer-paths.cjs').assertInstallPath(root, exe);
 const evidence = path.join(root, 'evidence');
 const profile = path.join(process.env.APPDATA, 'aegis');
 const pin = '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339';
@@ -51,6 +51,7 @@ const proof = {
   runId: process.env.GITHUB_RUN_ID,
   from: '0.20.0-beta',
   to: '0.20.1-beta',
+  installScope,
   states: [],
   requests: [],
   launches: [],
@@ -121,6 +122,10 @@ async function launch(version) {
   assert.equal(state.architecture, 'x64');
   assert.equal(path.resolve(state.profile).toLowerCase(), profile.toLowerCase());
   proof.launches.push(state);
+  if (installScope === 'all-users') {
+    await save();
+    await desktop('observe', state.pid);
+  }
   await app.evaluate(installUpdaterObserver);
   await observeNetwork();
   await save();
@@ -220,6 +225,7 @@ async function pendingInstaller() {
   assert.equal(stat.size, bytes);
   assert.equal(await hashFile(file), pin);
   proof.downloaded = {
+    path: file,
     filename: files[0],
     bytes: stat.size,
     sha256: pin,

@@ -1,9 +1,11 @@
-param([ValidateSet('later','install','relaunch')][string]$Action,[int]$AppPid,[string]$Exe,[string]$QaRoot)
+param([ValidateSet('later','install','relaunch','observe')][string]$Action,[int]$AppPid,[string]$Exe,[string]$QaRoot)
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted-hyperv-guest' -or $env:RUNNER_ARCH -ne 'X64' -or $env:USERNAME -ne 'AegisSetup' -or -not [Environment]::UserInteractive) { throw 'Owned interactive cloud guest required' }
 $qa=[IO.Path]::GetFullPath($QaRoot).TrimEnd('\')
 $exePath=[IO.Path]::GetFullPath($Exe)
-if(-not $qa.StartsWith('C:\aegis-installer-qa\',[StringComparison]::OrdinalIgnoreCase) -or -not $exePath.StartsWith($qa+'\install\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Desktop witness paths escaped guest scratch' }
+$allUsers=$qa -ieq 'C:\aegis-installer-qa\all-users-update'
+if(-not $qa.StartsWith('C:\aegis-installer-qa\',[StringComparison]::OrdinalIgnoreCase) -or ($allUsers -and $exePath -ine 'C:\Program Files\aegis\AEGIS - AI Monitoring & Threat Detection.exe') -or (-not $allUsers -and -not $exePath.StartsWith($qa+'\install\',[StringComparison]::OrdinalIgnoreCase))) { throw 'Desktop witness paths escaped guest scratch' }
+if($allUsers) { Add-Type -Path (Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/InstallerProcessObservation.cs') }
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing,System.Windows.Forms
 $source=[IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-wizard.ps1'))
 $native=[regex]::Match($source,"(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@")
@@ -32,7 +34,8 @@ public static class UpdaterWindows {
 '@
 [void][WizardDesktop]::SetProcessDPIAware()
 $proof=[ordered]@{status='RUNNING';action=$Action;oldPid=$AppPid;sourceSha=$env:GITHUB_SHA;steps=@();error=$null}
-$receipt=Join-Path $qa ('evidence/updater-desktop-'+$Action+'.json')
+$suffix=if($Action -eq 'observe'){'-'+$AppPid}else{''}
+$receipt=Join-Path $qa ('evidence/updater-desktop-'+$Action+$suffix+'.json')
 function SaveProof { [IO.File]::WriteAllText($receipt, ($proof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false)) }
 function OwnedWindows([int]$ProcessId) {
   $p=Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId"
@@ -53,17 +56,25 @@ function OwnedWindows([int]$ProcessId) {
 }
 function Capture($Window,[string]$Step) {
   $handle=[IntPtr]$Window.Current.NativeWindowHandle
+  $dpi=[WizardDesktop]::GetDpiForWindow($handle)
+  if($dpi -ne 96) { throw 'Only 100 percent display scale is authorized' }
+  if($allUsers) {
+    $token=[InstallerProcessObservation]::Inspect([int]$Window.Current.ProcessId)
+    $driverToken=[InstallerProcessObservation]::Inspect($PID)
+    $proof.applicationToken=$token
+    if($token.elevated -ne 0 -or $token.integritySid -ne 'S-1-16-8192' -or $token.userSid -ne $driverToken.userSid) { throw 'Updated application must run as the original medium-integrity user' }
+  }
   [void][WizardDesktop]::ActivateOwned($handle,[uint32]$Window.Current.ProcessId)
   Start-Sleep -Milliseconds 250
   if([WizardDesktop]::GetForegroundWindow() -ne $handle) { throw 'Owned update window not foreground' }
   $rect=$Window.Current.BoundingRectangle
   if($rect.Width -lt 100 -or $rect.Height -lt 80 -or $rect.Width -gt 3000 -or $rect.Height -gt 2500) { throw 'Invalid update window dimensions' }
-  $name='updater-'+$Action+'-'+$Step+'.png'
+  $name='updater-'+$Action+$suffix+'-'+$Step+'.png'
   $bitmap=New-Object Drawing.Bitmap ([int]$rect.Width),([int]$rect.Height)
   $graphics=[Drawing.Graphics]::FromImage($bitmap)
   try { $graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size);$bitmap.Save((Join-Path $qa ('evidence/'+$name)),[Drawing.Imaging.ImageFormat]::Png) }
   finally { $graphics.Dispose();$bitmap.Dispose() }
-  $proof.steps+=@{step=$Step;pid=$Window.Current.ProcessId;title=$Window.Current.Name;screenshot=$name;foregroundMatched=$true}
+  $proof.steps+=@{step=$Step;pid=$Window.Current.ProcessId;title=$Window.Current.Name;screenshot=$name;foregroundMatched=$true;dpi=$dpi}
   SaveProof
 }
 function ClickLabel($Window,[string]$Label) {
@@ -89,11 +100,14 @@ try {
         $found=@(OwnedWindows $candidate.ProcessId | Where-Object { $_.Current.ClassName -eq 'Chrome_WidgetWin_1' -and $_.Current.BoundingRectangle.Width -gt 200 })
         if($found.Count -eq 1) { $window=$found[0];$proof.relaunchedProcess=@{pid=$candidate.ProcessId;path=$candidate.ExecutablePath;created=$candidate.CreationDate.ToUniversalTime().ToString('o');commandLine=$candidate.CommandLine};break }
       }
-    } else { $found=@(OwnedWindows $AppPid | Where-Object { $_.Current.Name -eq 'Update AEGIS' });if($found.Count -eq 1){$window=$found[0]} }
+    } elseif($Action -eq 'observe') { $found=@(OwnedWindows $AppPid | Where-Object { $_.Current.ClassName -eq 'Chrome_WidgetWin_1' -and $_.Current.BoundingRectangle.Width -gt 200 });if($found.Count -eq 1){$window=$found[0]} }
+    else { $found=@(OwnedWindows $AppPid | Where-Object { $_.Current.Name -eq 'Update AEGIS' });if($found.Count -eq 1){$window=$found[0]} }
     if(-not $window) { Start-Sleep -Milliseconds 250 }
   } while(-not $window -and [DateTime]::UtcNow -lt $deadline)
   if(-not $window) { throw 'Expected updater dialog/relaunch did not appear' }
-  if($Action -eq 'relaunch') {
+  if($Action -eq 'observe') {
+    Capture $window 'limited-launch'
+  } elseif($Action -eq 'relaunch') {
     if(Get-Process -Id $AppPid -ErrorAction SilentlyContinue) { throw 'Old process still running after update' }
     $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
     $proof.productVersion=$version.ProductVersion
@@ -101,6 +115,11 @@ try {
     # The pinned published EXE stores a numeric ProductVersion and a beta FileVersion.
     # The following controlled launch independently checks Electron app.getVersion().
     if($version.ProductVersion -ne '0.20.1.0' -or $version.FileVersion -ne '0.20.1-beta') { throw 'Relaunched executable version mismatch' }
+    if($allUsers) {
+      $intent=Get-Content -LiteralPath (Join-Path $qa 'update-install-intent.json') -Raw | ConvertFrom-Json
+      if([DateTime]::Parse($proof.relaunchedProcess.created).ToUniversalTime() -lt [DateTime]::Parse($intent.at).ToUniversalTime()) { throw 'Application process predates the automatic update intent' }
+      $proof.testStartedApp=$false
+    }
     Start-Sleep -Seconds 4
     Capture $window 'observed'
     # A second controlled launch verifies retained settings; record the explicit stop separately.
@@ -113,6 +132,13 @@ try {
     if(-not ($labels -contains 'Install AEGIS 0.20.1-beta and restart?')) { throw 'Wrong update confirmation version' }
     Capture $window 'confirmation'
     $label=if($Action -eq 'later'){'Later'}else{'Restart and install'}
+    if($allUsers -and $Action -eq 'install') {
+      $automatic=Get-Content -LiteralPath (Join-Path $qa 'evidence/auto-update.json') -Raw | ConvertFrom-Json
+      $old=Get-CimInstance Win32_Process -Filter ('ProcessId='+$AppPid)
+      if($automatic.launches[0].pid -ne $AppPid -or $old.ExecutablePath -ine $exePath -or -not $automatic.downloaded.path) { throw 'Machine update intent identity unavailable' }
+      @{sourceSha=$env:GITHUB_SHA;oldPid=$AppPid;oldCreated=$old.CreationDate.ToUniversalTime().ToString('o');exe=$exePath;installer=$automatic.downloaded.path;token=$proof.applicationToken;at=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $qa 'update-install-intent.tmp') -Encoding UTF8
+      Move-Item -LiteralPath (Join-Path $qa 'update-install-intent.tmp') -Destination (Join-Path $qa 'update-install-intent.json')
+    }
     ClickLabel $window $label;$proof.clicked=$label
   }
   $proof.status='PASS'
