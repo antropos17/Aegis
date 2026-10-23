@@ -35,6 +35,9 @@ public static class WizardDesktop {
   [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; public Point(int x,int y) { X=x; Y=y; } }
   [StructLayout(LayoutKind.Sequential)] public struct MouseInput { public int X,Y; public uint Data,Flags,Time; public UIntPtr Extra; }
   [StructLayout(LayoutKind.Sequential)] public struct Input { public uint Type; public MouseInput Mouse; }
+  [StructLayout(LayoutKind.Sequential)] public struct KeyStroke { public ushort Vk,Scan; public uint Flags,Time; public UIntPtr Extra; }
+  [StructLayout(LayoutKind.Explicit)] public struct KeyUnion { [FieldOffset(0)] public MouseInput Size; [FieldOffset(0)] public KeyStroke Key; }
+  [StructLayout(LayoutKind.Sequential)] public struct KeyInput { public uint Type; public KeyUnion Data; }
   [DllImport("user32.dll")] public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
   [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr desktop);
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
@@ -57,12 +60,23 @@ public static class WizardDesktop {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr window, System.Text.StringBuilder text, int count);
   [DllImport("user32.dll", SetLastError=true)] public static extern bool SetCursorPos(int x,int y);
   [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint count, Input[] inputs, int size);
+  [DllImport("user32.dll", EntryPoint="SendInput", SetLastError=true)] static extern uint SendKeyboardInput(uint count, KeyInput[] inputs, int size);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] static extern IntPtr SendText(IntPtr window, uint message, IntPtr wParam, string text);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, System.Text.StringBuilder text);
   public static string ClassName(IntPtr window) { var text=new System.Text.StringBuilder(256); GetClassName(window,text,256); return text.ToString(); }
   public static void SetText(IntPtr window, string value) { if (SendText(window,12,IntPtr.Zero,value)==IntPtr.Zero) throw new InvalidOperationException("Directory text rejected"); }
   public static string Text(IntPtr window) { var text=new System.Text.StringBuilder(4096); ReadText(window,13,(IntPtr)4096,text); return text.ToString(); }
+  public static uint WindowProcess(IntPtr window) { uint process; GetWindowThreadProcessId(window,out process); return process; }
+  public static void EscapeForeground(IntPtr window, uint expectedProcess) {
+    if (GetForegroundWindow()!=window || WindowProcess(window)!=expectedProcess) throw new InvalidOperationException("Guest shell foreground changed");
+    var desktop=OpenInputDesktop(0,false,1);
+    if (desktop==IntPtr.Zero) throw new InvalidOperationException("Guest input desktop is unavailable");
+    CloseDesktop(desktop);
+    var inputs=new KeyInput[2];
+    inputs[0].Type=inputs[1].Type=1; inputs[0].Data.Key.Vk=inputs[1].Data.Key.Vk=27; inputs[1].Data.Key.Flags=2;
+    if (SendKeyboardInput(2,inputs,Marshal.SizeOf(typeof(KeyInput)))!=2) throw new System.ComponentModel.Win32Exception();
+  }
   public static bool ActivateOwned(IntPtr window, uint expectedProcess) {
     uint process; GetWindowThreadProcessId(window,out process);
     if (process!=expectedProcess || process==0) throw new InvalidOperationException("Activation owner changed");
@@ -196,6 +210,7 @@ function Snapshot($Window,[string]$Step) {
         $blockedTitle=New-Object System.Text.StringBuilder 512
         [void][WizardDesktop]::GetWindowText($blockedForeground,$blockedTitle,512)
         $proof.foregroundTransitions+=@{step=$Step;nativeError=5;at=[DateTime]::UtcNow.ToString('o');foregroundHandle=$blockedForeground.ToInt64();foregroundTitle=$blockedTitle.ToString();foregroundClass=[WizardDesktop]::ClassName($blockedForeground)}
+        Dismiss-InstallerGuestShell $blockedForeground $blockedTitle.ToString()
       }
     }
     Start-Sleep -Milliseconds 150
@@ -269,9 +284,10 @@ try {
   if($AllUsers) {
     Add-Type -Path (Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/InstallerProcessObservation.cs')
     . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-finish.ps1'))))
+    . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-shell.ps1'))))
     $proof.controllerToken=[InstallerProcessObservation]::Inspect($PID)
     if($proof.controllerToken.elevated -ne 1) { throw 'Elevated observer required for the all-users wizard' }
-    $proof.dpiObservations=@();$proof.foregroundTransitions=@();$script:startedAt=[DateTime]::UtcNow.AddSeconds(-30)
+    $proof.dpiObservations=@();$proof.foregroundTransitions=@();$proof.guestShellDismissals=@();$script:startedAt=[DateTime]::UtcNow.AddSeconds(-30)
   }
   SaveProof
   PrepareGuestDesktop

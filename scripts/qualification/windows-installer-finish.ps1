@@ -23,7 +23,10 @@ function Observe-InstallerFinish {
   $script:ownedIds+=([int]$observed.ProcessId)
   Start-Sleep -Seconds 5
   Snapshot $appWindow 'finish-launched-app'
-  $proof.finishLaunch.profileCreated=Test-Path -LiteralPath (Join-Path $env:APPDATA 'aegis/settings.json')
+  # Fresh defaults live in memory until a settings write; the user-data directory
+  # is the initialization witness, while settings.json presence is informational.
+  $proof.finishLaunch.profileCreated=Test-Path -LiteralPath (Join-Path $env:APPDATA 'aegis') -PathType Container
+  $proof.finishLaunch.settingsFilePresent=Test-Path -LiteralPath (Join-Path $env:APPDATA 'aegis/settings.json') -PathType Leaf
   if(-not $proof.finishLaunch.profileCreated) { throw 'Finish application did not initialize its guest user profile' }
   # Capture the actual Finish launch first; stop only this owned main process for cleanup.
   Stop-Process -Id $observed.ProcessId -Force
