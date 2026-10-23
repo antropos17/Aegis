@@ -82,6 +82,8 @@ try {
   $window=$null
   do {
     if($Action -eq 'relaunch') {
+      if(Get-Process -Id $AppPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250;continue }
+      if(-not $proof.oldProcessExitObserved) { $proof.oldProcessExitObserved=$true;$proof.oldProcessExitObservedAt=[DateTime]::UtcNow.ToString('o') }
       $candidates=@(Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $AppPid -and $_.ExecutablePath -ieq $exePath -and $_.CommandLine -notmatch '--type=' })
       foreach($candidate in $candidates) {
         $found=@(OwnedWindows $candidate.ProcessId | Where-Object { $_.Current.ClassName -eq 'Chrome_WidgetWin_1' -and $_.Current.BoundingRectangle.Width -gt 200 })

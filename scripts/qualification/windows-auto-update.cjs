@@ -288,11 +288,11 @@ async function pendingInstaller() {
     const confirmed = desktop('install', oldPid);
     await install.click();
     await confirmed;
-    const exitDeadline = Date.now() + 60000;
-    while (!closed && Date.now() < exitDeadline) await delay(200);
-    assert(closed, 'Old packaged application did not exit after confirmation');
-    app = null;
+    // On Windows Playwright's close event follows its shell launcher. The
+    // native witness checks the real old PID and new window within 180 seconds.
     await desktop('relaunch', oldPid);
+    proof.playwrightClosedAtNativeRelaunch = closed;
+    app = null;
     proof.relaunch = JSON.parse(
       await fs.readFile(path.join(evidence, 'updater-desktop-relaunch.json'), 'utf8'),
     );
