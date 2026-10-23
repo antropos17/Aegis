@@ -192,7 +192,10 @@ function Snapshot($Window,[string]$Step) {
         # UAC can expose the new window before the secure foreground desktop returns.
         # Retry only access denial within the bounded focus wait; actual foreground
         # ownership is still mandatory before any control click or passing screenshot.
-        $proof.foregroundTransitions+=@{step=$Step;nativeError=5;at=[DateTime]::UtcNow.ToString('o')}
+        $blockedForeground=[WizardDesktop]::GetForegroundWindow()
+        $blockedTitle=New-Object System.Text.StringBuilder 512
+        [void][WizardDesktop]::GetWindowText($blockedForeground,$blockedTitle,512)
+        $proof.foregroundTransitions+=@{step=$Step;nativeError=5;at=[DateTime]::UtcNow.ToString('o');foregroundHandle=$blockedForeground.ToInt64();foregroundTitle=$blockedTitle.ToString();foregroundClass=[WizardDesktop]::ClassName($blockedForeground)}
       }
     }
     Start-Sleep -Milliseconds 150
