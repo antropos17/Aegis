@@ -1,14 +1,16 @@
-# Installer lab only: bounded screenshots of a fresh synthetic Windows setup,
-# before application/profile inputs are transferred. Shared W7 capture limits stay unchanged.
-function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index) {
+# Installer lab only: four setup screenshots, or one explicitly scoped UAC capture.
+# Shared W7 capture limits stay unchanged.
+function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','all-users-consent')][string]$Purpose='setup') {
   Assert-CloudGuestRunner
-  if($Index -lt 1 -or $Index -gt 4 -or $Id -cnotmatch '^[a-f0-9-]{36}$' -or $Name -cnotmatch '^aegis-cloud-[0-9]+-[0-9]+-[a-f0-9]{32}$') { throw 'Setup diagnostic scope refused' }
+  $validIndex=if($Purpose -eq 'all-users-consent') { $Index -eq 50 } else { $Index -ge 1 -and $Index -le 4 }
+  if(-not $validIndex -or $Id -cnotmatch '^[a-f0-9-]{36}$' -or $Name -cnotmatch '^aegis-cloud-[0-9]+-[0-9]+-[a-f0-9]{32}$') { throw 'Setup diagnostic scope refused' }
   $expectedRoot='D:\aegis-installer-x64-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'
+  if($Purpose -eq 'all-users-consent' -and [IO.Path]::GetFullPath($VmRoot).TrimEnd('\') -ine ($expectedRoot+'all-users\vm')) { throw 'Consent diagnostic guest scope refused' }
   if(-not $VmRoot.StartsWith($expectedRoot,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFullPath($Evidence) -ne (Join-Path (Split-Path $VmRoot) 'evidence')) { throw 'Setup diagnostic output scope refused' }
-  $job=Start-Job -ArgumentList $Id,$Name,$VmRoot,$Evidence,$Index -ScriptBlock {
-    param($Id,$Name,$VmRoot,$Evidence,$Index)
+  $job=Start-Job -ArgumentList $Id,$Name,$VmRoot,$Evidence,$Index,$Purpose -ScriptBlock {
+    param($Id,$Name,$VmRoot,$Evidence,$Index,$Purpose)
     $ErrorActionPreference='Stop'
-    $result=@{index=$Index;at=[DateTime]::UtcNow.ToString('o');status='UNKNOWN';vmId=$Id;beforeInputTransfer=$true}
+    $result=@{index=$Index;purpose=$Purpose;at=[DateTime]::UtcNow.ToString('o');status='UNKNOWN';vmId=$Id;beforeInputTransfer=($Purpose -eq 'setup')}
     try {
       $vm=Get-VM -Id ([guid]$Id)
       $actual=[IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\');$expected=[IO.Path]::GetFullPath($VmRoot).TrimEnd('\')
@@ -33,7 +35,7 @@ function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot
       $result.phase='thumbnail-bytes';$result.bytes=if($bytes -is [byte[]]){$bytes.Length}else{$null}
       if($result.returnCode -ne 0 -or $bytes -isnot [byte[]] -or $bytes.Length -lt 614400 -or $bytes.Length -gt 614404) { throw 'Setup thumbnail unavailable' }
       # Preserve exact provider bytes; do not guess the meaning of extra bytes.
-      $file='windows-setup-'+$Index+'.rgb565'
+      $file=if($Purpose -eq 'all-users-consent') { 'windows-all-users-consent.rgb565' } else { 'windows-setup-'+$Index+'.rgb565' }
       $path=Join-Path $Evidence $file
       if(Test-Path -LiteralPath $path) { throw 'Fresh diagnostic file required' }
       [IO.File]::WriteAllBytes($path,$bytes)

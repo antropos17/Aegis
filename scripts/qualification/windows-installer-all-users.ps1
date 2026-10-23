@@ -7,6 +7,7 @@ function Invoke-AllUsersQualification([string]$Candidate) {
   $before=Get-ItemProperty $policyPath | Select-Object EnableLUA,ConsentPromptBehaviorAdmin,PromptOnSecureDesktop
   if($before.EnableLUA -ne 1 -or $before.PromptOnSecureDesktop -ne 1 -or $before.ConsentPromptBehaviorAdmin -notin @(2,5)) { throw 'Expected unchanged UAC secure-desktop consent policy' }
   $result.uacPolicyBefore=$before
+  SaveResult
   if(Test-Path -LiteralPath $installRoot) { throw 'Refusing a preexisting machine install directory' }
   $process=Start-Process -FilePath $Candidate -WindowStyle Normal -PassThru
   $identity=Get-CimInstance Win32_Process -Filter ('ProcessId='+$process.Id)

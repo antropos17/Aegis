@@ -34,7 +34,8 @@ function Invoke-AllUsersGuestStep($Session,[string]$Root,$State,[string]$Id,[str
       if($process.ExecutablePath -ine 'C:\Windows\System32\consent.exe' -or $signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft' -or $policy.EnableLUA -ne 1 -or $policy.PromptOnSecureDesktop -ne 1) { throw 'Secure consent observation failed' }
       return @{pid=$ConsentPid;sessionId=$process.SessionId;path=$process.ExecutablePath;signature='Valid Microsoft';secureDesktopPolicy=1;enableLUA=1}
     }
-    $capture=Save-InstallerSetupDiagnostic $Id $Name $VmRoot (Join-Path $Root 'evidence') 50
+    $State.consentObservation=$verified
+    $capture=Save-InstallerSetupDiagnostic $Id $Name $VmRoot (Join-Path $Root 'evidence') 50 'all-users-consent'
     if($capture.status -ne 'CAPTURED') { throw 'UAC screenshot unavailable' }
     $vm=Get-VM -Id ([guid]$Id)
     if($vm.Name -ne $Name -or $vm.State -ne 'Running' -or -not $vm.ConfigurationLocation.StartsWith($VmRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'Consent keyboard VM ownership changed' }
