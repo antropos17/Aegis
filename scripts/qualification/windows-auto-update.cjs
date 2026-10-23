@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { hashFile, inspectInitialCache } = require('./windows-updater-cache.cjs');
+const { installUpdaterObserver } = require('./windows-updater-observer.cjs');
 const { spawn } = require('node:child_process');
 const { createRequire } = require('node:module');
 const { setTimeout: delay } = require('node:timers/promises');
@@ -120,6 +121,7 @@ async function launch(version) {
   assert.equal(state.architecture, 'x64');
   assert.equal(path.resolve(state.profile).toLowerCase(), profile.toLowerCase());
   proof.launches.push(state);
+  await app.evaluate(installUpdaterObserver);
   await observeNetwork();
   await save();
   await window
@@ -151,6 +153,14 @@ async function waitStatus(window, target, seconds) {
 }
 async function collectRequests() {
   proof.requests.push(...(await app.evaluate(() => globalThis.__qualificationRequests)));
+  const diagnostics = await app.evaluate(async () => {
+    await Promise.all(globalThis.__qualificationUpdaterPending);
+    return globalThis.__qualificationUpdater;
+  });
+  const filename = 'updater-discovery-' + proof.launches.length + '.json';
+  await fs.writeFile(path.join(evidence, filename), JSON.stringify(diagnostics, null, 2));
+  proof.discoveryReceipts ||= [];
+  if (!proof.discoveryReceipts.includes(filename)) proof.discoveryReceipts.push(filename);
   await save();
 }
 async function checkSettings(window) {
@@ -278,11 +288,11 @@ async function pendingInstaller() {
     const confirmed = desktop('install', oldPid);
     await install.click();
     await confirmed;
-    const exitDeadline = Date.now() + 60000;
-    while (!closed && Date.now() < exitDeadline) await delay(200);
-    assert(closed, 'Old packaged application did not exit after confirmation');
-    app = null;
+    // On Windows Playwright's close event follows its shell launcher. The
+    // native witness checks the real old PID and new window within 180 seconds.
     await desktop('relaunch', oldPid);
+    proof.playwrightClosedAtNativeRelaunch = closed;
+    app = null;
     proof.relaunch = JSON.parse(
       await fs.readFile(path.join(evidence, 'updater-desktop-relaunch.json'), 'utf8'),
     );
