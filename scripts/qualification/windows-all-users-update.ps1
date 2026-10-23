@@ -1,3 +1,22 @@
+function Wait-AllUsersRemoval([scriptblock]$Observe,[ValidateRange(1,45000)][int]$TimeoutMilliseconds=45000,[ValidateRange(1,250)][int]$PollMilliseconds=250) {
+  $deadline=[DateTime]::UtcNow.AddMilliseconds($TimeoutMilliseconds)
+  $transitions=@();$previous=$null;$attempts=0
+  do {
+    $state=& $Observe;$attempts++
+    if($state -isnot [Collections.IDictionary]) { throw 'Machine removal observation missing' }
+    foreach($key in @('directoryExists','installKeyExists','registrations','shortcuts','processes')) { if(-not $state.Contains($key)) { throw 'Machine removal observation incomplete' } }
+    $serialized=$state | ConvertTo-Json -Depth 6 -Compress
+    if($serialized -ne $previous) {
+      if($transitions.Count -ge 64) { throw 'Machine removal observation budget exceeded' }
+      $transitions+=@{at=[DateTime]::UtcNow.ToString('o');state=$state};$previous=$serialized
+    }
+    $cleared=-not ($state.directoryExists -or $state.installKeyExists -or @($state.registrations).Count -or @($state.shortcuts).Count -or @($state.processes).Count)
+    if($cleared) { break }
+    Start-Sleep -Milliseconds $PollMilliseconds
+  } while([DateTime]::UtcNow -lt $deadline)
+  return @{cleared=$cleared;attempts=$attempts;transitions=$transitions;final=$state}
+}
+
 function Invoke-AllUsersUpdateQualification([string]$Previous) {
   if($env:RUNNER_ENVIRONMENT -ne 'github-hosted-hyperv-guest' -or $env:USERNAME -ne 'AegisSetup' -or $qa -ine 'C:\aegis-installer-qa\all-users-update' -or $installRoot -ine 'C:\Program Files\aegis') { throw 'All-users update requires the exact owned cloud guest case' }
   Add-Type -Path (Join-Path $supportRoot 'InstallerProcessObservation.cs')
@@ -52,10 +71,14 @@ function Invoke-AllUsersUpdateQualification([string]$Previous) {
   $uninstaller=@(Get-ChildItem -LiteralPath $installRoot -Filter 'Uninstall*.exe' -File)
   if($uninstaller.Count -ne 1) { throw 'Machine uninstaller unavailable' }
   $result.machineUninstall=MachineAction 'final-uninstall' $uninstaller[0].FullName
-  $deadline=[DateTime]::UtcNow.AddSeconds(45)
-  while((Test-Path -LiteralPath $installRoot) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
-  WaitNoProcesses
-  if((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $result.machineAfter.installKey) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Machine installation residue remained' }
+  # The silent NSIS launcher can exit before its temporary child finishes.
+  # Directory removal alone is not completion: wait for every observed residue.
+  $result.machineRemoval=Wait-AllUsersRemoval {
+    $prefix=$installRoot.TrimEnd('\')+'\'
+    @{directoryExists=(Test-Path -LiteralPath $installRoot);installKeyExists=(Test-Path -LiteralPath $result.machineAfter.installKey);registrations=@(Registrations | Select-Object PSPath,DisplayVersion);shortcuts=@(Shortcuts | ForEach-Object FullName);processes=@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) } | Select-Object ProcessId,ExecutablePath)}
+  }
+  SaveResult
+  if(-not $result.machineRemoval.cleared) { throw 'Machine installation residue remained' }
   if((Get-FileHash -LiteralPath $settings).Hash -ne $settingsHash -or (Get-FileHash -LiteralPath $sentinel).Hash -ne $sentinelHash) { throw 'Uninstall modified retained synthetic settings/data' }
   $result.uacPolicyAfter=Get-ItemProperty $policyPath | Select-Object EnableLUA,ConsentPromptBehaviorAdmin,PromptOnSecureDesktop
   if(($before | ConvertTo-Json -Compress) -ne ($result.uacPolicyAfter | ConvertTo-Json -Compress)) { throw 'UAC policy changed' }
