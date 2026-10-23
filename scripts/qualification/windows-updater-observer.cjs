@@ -1,7 +1,12 @@
 'use strict';
 
-// Serialized into the disposable guest's Electron main process. Observe the
-// original response/result objects; never replace a feed, version or decision.
+/**
+ * Observe public discovery in the disposable guest, preserving returned objects.
+ * Serialized into Electron's main process; no feed or decision is replaced.
+ * @param {object} electron Electron main-process API exposed by Playwright.
+ * @returns {void}
+ * @since 0.20.1
+ */
 function installUpdaterObserver({ net, app }) {
   const evidence = { metadata: [], decisions: [], errors: [] };
   const pending = [];

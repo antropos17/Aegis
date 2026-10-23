@@ -9,6 +9,27 @@ $source=[IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualifi
 $native=[regex]::Match($source,"(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@")
 if(-not $native.Success) { throw 'Reviewed desktop primitive unavailable' }
 Add-Type -TypeDefinition $native.Groups[1].Value
+Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class UpdaterWindows {
+  private delegate bool EnumWindow(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindow callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+  public static IntPtr[] ForProcess(uint expectedProcess) {
+    if (expectedProcess == 0) throw new ArgumentOutOfRangeException("expectedProcess");
+    var windows = new List<IntPtr>();
+    EnumWindows((window, parameter) => {
+      uint process; GetWindowThreadProcessId(window, out process);
+      if (process == expectedProcess) windows.Add(window);
+      return true;
+    }, IntPtr.Zero);
+    if (windows.Count > 32) throw new InvalidOperationException("Owned window budget exceeded");
+    return windows.ToArray();
+  }
+}
+'@
 [void][WizardDesktop]::SetProcessDPIAware()
 $proof=[ordered]@{status='RUNNING';action=$Action;oldPid=$AppPid;sourceSha=$env:GITHUB_SHA;steps=@();error=$null}
 $receipt=Join-Path $qa ('evidence/updater-desktop-'+$Action+'.json')
@@ -17,7 +38,18 @@ function OwnedWindows([int]$ProcessId) {
   $p=Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId"
   if(-not $p -or $p.ExecutablePath -ine $exePath) { throw 'Desktop process ownership changed' }
   $condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,$ProcessId)
-  return @([Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,$condition))
+  $desktopChildren=@([Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,$condition) | ForEach-Object { $_.Current.NativeWindowHandle })
+  # An owned modal HWND need not be a direct child in UIA's desktop tree.
+  # Enumerate native top-level windows, then bind UIA to each verified owner.
+  $elements=@(foreach($handle in [UpdaterWindows]::ForProcess([uint32]$ProcessId)) {
+    if([WizardDesktop]::IsWindowVisible($handle)) {
+      $element=[Windows.Automation.AutomationElement]::FromHandle($handle)
+      if($element.Current.ProcessId -ne $ProcessId) { throw 'Native/UIA window owner mismatch' }
+      $element
+    }
+  })
+  $proof.lastWindows=@($elements | ForEach-Object { @{pid=$_.Current.ProcessId;handle=$_.Current.NativeWindowHandle;title=$_.Current.Name;class=$_.Current.ClassName;desktopChild=($_.Current.NativeWindowHandle -in $desktopChildren)} })
+  return $elements
 }
 function Capture($Window,[string]$Step) {
   $handle=[IntPtr]$Window.Current.NativeWindowHandle
