@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update')][string]$Scenario)
+param([Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update','all-users')][string]$Scenario)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 Assert-CloudGuestRunner
@@ -17,6 +17,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'windows-installer-x64-bundle.ps1')
 . (Join-Path $PSScriptRoot 'windows-updater-network.ps1')
 . (Join-Path $PSScriptRoot 'windows-installer-setup-diagnostics.ps1')
+. (Join-Path $PSScriptRoot 'windows-installer-all-users-host.ps1')
 $report=[ordered]@{schema='aegis-installer-hyperv/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;scenario=$Scenario;host=$null;media=$null;hardware=$null;bundle=$null;guest=$null;diskSamples=@();stages=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@()};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'

@@ -1,5 +1,5 @@
 param(
-  [Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update')][string]$Scenario,
+  [Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update','all-users')][string]$Scenario,
   [Parameter(Mandatory)][string]$QaRoot,
   [ValidateSet('silent','wizard')][string]$Mode = 'silent',
   [string]$CandidateDirectory,
@@ -14,12 +14,14 @@ $qa = [IO.Path]::GetFullPath($QaRoot)
 $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
 if ($ReleaseDirectory -and ($env:RUNNER_ENVIRONMENT -ne 'github-hosted-hyperv-guest' -or $CandidateDirectory -or -not [IO.Path]::GetFullPath($ReleaseDirectory).StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase))) { throw 'Offline releases require owned Hyper-V guest scratch' }
 if($Scenario -eq 'auto-update' -and (-not $ReleaseDirectory -or $Mode -ne 'wizard' -or $ExpectedArchitecture -ne 'X64')) { throw 'Auto-update requires the owned native x64 Hyper-V guest' }
+if($Scenario -eq 'all-users' -and (-not $ReleaseDirectory -or $Mode -ne 'wizard' -or $ExpectedArchitecture -ne 'X64')) { throw 'All-users requires the owned native x64 Hyper-V guest' }
 if (-not $qa.StartsWith($runnerTemp, [StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $qa)) { throw 'Refusing reused or non-runner output' }
 New-Item -ItemType Directory -Path $qa | Out-Null
 foreach ($part in @('evidence','candidate','previous','temp','cache')) { New-Item -ItemType Directory -Path (Join-Path $qa $part) | Out-Null }
 $env:TEMP = Join-Path $qa 'temp'; $env:TMP = $env:TEMP
 $installRoot = Join-Path $qa 'install'
 if ($Mode -eq 'wizard') { $installRoot = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection' }
+if ($Scenario -eq 'all-users') { $installRoot = Join-Path $env:ProgramFiles 'AEGIS - AI Monitoring & Threat Detection' }
 $profile = Join-Path $env:APPDATA 'aegis'
 $appExe = Join-Path $installRoot 'AEGIS - AI Monitoring & Threat Detection.exe'
 $supportRoot = Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification'
@@ -36,7 +38,8 @@ function Registrations {
   }
 }
 function Shortcuts {
-  foreach ($folder in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('Programs'))) {
+  $folders=if($Scenario -eq 'all-users') { @([Environment]::GetFolderPath('CommonDesktopDirectory'),[Environment]::GetFolderPath('CommonPrograms')) } else { @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('Programs')) }
+  foreach ($folder in $folders) {
     if (Test-Path -LiteralPath $folder) { Get-ChildItem -LiteralPath $folder -Filter '*AEGIS*.lnk' -File -Recurse -ErrorAction Stop }
   }
 }
@@ -195,7 +198,20 @@ try {
   $candidate = if ($CandidateDirectory) { ImportCandidate $CandidateDirectory } else { DownloadVerified ('aegis-v'+$currentVersion) '274d65711ac858c9d309c73f1f7c9c4e52872ed1' '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339' (Join-Path $qa 'candidate') }
   if ($Scenario -eq 'upgrade') { $previous = DownloadVerified ('aegis-v'+$previousVersion) 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'previous') }
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
-  if ($Mode -eq 'wizard') { Wizard 'desktop' $candidate 'desktop' }
+  if ($Mode -eq 'wizard') {
+    $originalInstallRoot=$installRoot
+    try {
+      if($Scenario -eq 'all-users') { $installRoot=Join-Path $qa 'install/AEGIS - AI Monitoring & Threat Detection' }
+      Wizard 'desktop' $candidate 'desktop'
+    } finally { $installRoot=$originalInstallRoot }
+  }
+  if($Scenario -eq 'all-users') {
+    $result.limits=@('All-users installation from a limited user with UAC consent, default Program Files/HKLM/common shortcuts and actual Finish launch at 100 percent display scale in the observed native x64 Windows 11 guest.','No other DPI, standard-user credential prompt, all-users auto-update, signing/SmartScreen or full W10 acceptance.')
+    . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $supportRoot 'windows-installer-all-users.ps1'))))
+    Invoke-AllUsersQualification $candidate
+    Sample 'complete';$result.status='PASS';$result.completedAt=[DateTime]::UtcNow.ToString('o');SaveResult
+    return
+  }
   if ($Mode -eq 'wizard' -and $Scenario -eq 'fresh') {
     Wizard 'cancel' $candidate 'cancel'
     if ((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $profile) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Cancelled wizard left installation/profile state' }

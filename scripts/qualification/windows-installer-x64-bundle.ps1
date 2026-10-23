@@ -4,6 +4,7 @@ function New-InstallerGuestBundle([string]$Root,[string]$Scenario,[string]$VmId)
   foreach($part in @('source/scripts/qualification','source/keys','source/node_modules','runtime','releases')) { New-Item -ItemType Directory -Path (Join-Path $bundle $part) -Force | Out-Null }
   foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs','windows-launch-diagnostics.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
   if($Scenario -eq 'auto-update') { foreach($name in @('windows-auto-update.cjs','windows-updater-cache.cjs','windows-updater-desktop.ps1','windows-updater-observer.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
+  if($Scenario -eq 'all-users') { foreach($name in @('windows-installer-all-users.ps1','windows-all-users-worker.ps1','windows-installer-finish.ps1','InstallerProcessObservation.cs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
   foreach($file in @('scripts/release-verify.js','keys/aegis-release-pubkey.pub','package.json')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $file) -Destination (Join-Path $bundle ('source/'+$file)) }
   foreach($package in @('playwright','playwright-core')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ('node_modules/'+$package)) -Destination (Join-Path $bundle 'source/node_modules') -Recurse }
   Copy-Item -LiteralPath (Get-Command node.exe).Source -Destination (Join-Path $bundle 'runtime/node.exe')
@@ -63,11 +64,21 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
     return @{transferVerified=$true;files=$manifest.Count;interactiveTaskSubmitted=$true}
   }
   $deadline=[DateTime]::UtcNow.AddMinutes(18)
+  $allUsers=@{started=@();tasks=@();consent=$null}
+  $hostError=$null
   do {
+    if($Scenario -eq 'all-users') {
+      try { Invoke-AllUsersGuestStep $Session $Root $allUsers $id $name $vmRoot }
+      catch {
+        $hostError=$_.Exception.Message;$allUsers.error=$hostError
+        $allUsers | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $Root 'evidence/all-users-host.json') -Encoding UTF8
+        break
+      }
+    }
     $done=Invoke-Command -Session $Session -ScriptBlock { Test-Path -LiteralPath C:/aegis-installer-qa/done.json }
     if($done) { break }
     Sample 'guest-test'
-    Start-Sleep -Seconds 10
+    Start-Sleep -Seconds $(if($Scenario -eq 'all-users'){1}else{10})
   } while([DateTime]::UtcNow -lt $deadline)
   # Only bounded test evidence leaves cross back; never collect answer files, profiles or credentials.
   $entries=Invoke-Command -Session $Session -ArgumentList $Scenario -ScriptBlock {
@@ -81,9 +92,11 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
   $destination=Join-Path $Root 'evidence/lifecycle'
   New-Item -ItemType Directory -Path $destination | Out-Null
   foreach($file in $entries) { Copy-Item -LiteralPath ($guestRoot+'\'+$Scenario+'\evidence\'+$file.Name) -Destination $destination -FromSession $Session }
+  if($hostError) { throw ('All-users host observation failed: '+$hostError) }
   if(-not $done) { throw 'Guest lifecycle deadline exceeded' }
   Copy-Item -LiteralPath ($guestRoot+'\done.json') -Destination (Join-Path $Root 'evidence/guest-done.json') -FromSession $Session
   $result=Get-Content -LiteralPath (Join-Path $Root 'evidence/guest-done.json') -Raw | ConvertFrom-Json
   if($result.status -ne 'PASS' -or $result.architecture -ne 'X64' -or $result.sourceSha -ne $env:GITHUB_SHA -or $result.sessionId -eq 0) { throw 'Guest lifecycle failed or witness mismatch' }
+  if($Scenario -eq 'all-users' -and (-not $allUsers.consent -or $allUsers.started.Count -ne 2)) { throw 'All-users consent/cleanup evidence incomplete' }
   return @{input=$prepared;result=$result}
 }

@@ -6,7 +6,7 @@ $result=[ordered]@{status='RUNNING';sourceSha=$context.sourceSha;scenario=$conte
 try {
   $os=Get-CimInstance Win32_OperatingSystem
   if($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $os.BuildNumber -ne '26300' -or $result.architecture -ine 'X64' -or $result.processArchitecture -ine 'X64' -or $env:USERNAME -ne 'AegisSetup' -or $result.sessionId -eq 0 -or -not $result.interactive -or @(Get-CimInstance Win32_Processor | Where-Object Architecture -ne 9).Count) { throw 'Fresh interactive native x64 Windows 11 guest required' }
-  if($context.runId -notmatch '^\d+$' -or $context.attempt -notmatch '^\d+$' -or $context.sourceSha -notmatch '^[a-f0-9]{40}$' -or $context.scenario -notin @('fresh','upgrade','auto-update')) { throw 'Guest run context invalid' }
+  if($context.runId -notmatch '^\d+$' -or $context.attempt -notmatch '^\d+$' -or $context.sourceSha -notmatch '^[a-f0-9]{40}$' -or $context.scenario -notin @('fresh','upgrade','auto-update','all-users')) { throw 'Guest run context invalid' }
   $env:GITHUB_ACTIONS='true';$env:RUNNER_ENVIRONMENT='github-hosted-hyperv-guest';$env:RUNNER_OS='Windows';$env:RUNNER_ARCH='X64'
   $env:GITHUB_SHA=$context.sourceSha;$env:GITHUB_RUN_ID=$context.runId;$env:GITHUB_RUN_ATTEMPT=$context.attempt
   $env:RUNNER_TEMP=$root;$env:GITHUB_WORKSPACE=Join-Path $inputRoot 'source';$env:ImageOS='Windows11-EnterpriseEval-x64-HyperV'
