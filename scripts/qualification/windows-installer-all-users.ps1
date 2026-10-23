@@ -24,8 +24,15 @@ function Invoke-AllUsersQualification([string]$Candidate) {
   WaitNoProcesses
   $result.allUsersWizard=$proof
   $entries=@(Registrations)
-  if($entries.Count -ne 1 -or $entries[0].PSPath -notlike '*HKEY_LOCAL_MACHINE*' -or $entries[0].DisplayVersion -ne $currentVersion -or [string]$entries[0].InstallLocation -ine $installRoot) { throw 'Machine-wide registration/version/location mismatch' }
-  $result.machineRegistration=$entries | Select-Object PSPath,DisplayName,DisplayVersion,InstallLocation,UninstallString
+  if($entries.Count -ne 1 -or $entries[0].PSPath -notlike '*HKEY_LOCAL_MACHINE*' -or $entries[0].DisplayVersion -ne $currentVersion -or $entries[0].PSChildName -notmatch '^[a-fA-F0-9-]{36}$') { throw 'Machine-wide registration/version mismatch' }
+  # electron-builder stores InstallLocation in Software/APP_GUID, separately
+  # from its Software/Microsoft/Windows/CurrentVersion/Uninstall entry.
+  $registryRoot=if($entries[0].PSPath -match 'WOW6432Node') { 'HKLM:\Software\WOW6432Node\' } else { 'HKLM:\Software\' }
+  $installKey=$registryRoot+$entries[0].PSChildName
+  $installInfo=Get-ItemProperty -LiteralPath $installKey
+  if($installInfo.InstallLocation -ine $installRoot) { throw 'Machine-wide installation location mismatch' }
+  $result.machineRegistration=$entries | Select-Object PSPath,DisplayName,DisplayVersion,UninstallString
+  $result.machineInstallLocation=$installInfo | Select-Object PSPath,InstallLocation
   $common=@(Shortcuts)
   $shell=New-Object -ComObject WScript.Shell
   try {
@@ -51,7 +58,7 @@ function Invoke-AllUsersQualification([string]$Candidate) {
   $deadline=[DateTime]::UtcNow.AddSeconds(30)
   while((Test-Path -LiteralPath $installRoot) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
   WaitNoProcesses
-  if((Test-Path -LiteralPath $installRoot) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Machine installation residue remained' }
+  if((Test-Path -LiteralPath $installRoot) -or (Test-Path -LiteralPath $installKey) -or @(Registrations).Count -or @(Shortcuts).Count) { throw 'Machine installation residue remained' }
   $after=Get-ItemProperty $policyPath | Select-Object EnableLUA,ConsentPromptBehaviorAdmin,PromptOnSecureDesktop
   $result.uacPolicyAfter=$after
   if(($before | ConvertTo-Json -Compress) -ne ($after | ConvertTo-Json -Compress)) { throw 'UAC policy changed' }
