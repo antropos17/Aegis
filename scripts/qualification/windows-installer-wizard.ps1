@@ -106,8 +106,8 @@ $script:process = $null
 $deadline = [DateTime]::UtcNow.AddSeconds(180)
 function SaveProof { $proof | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $proofPath -Encoding UTF8 }
 function CheckDeadline { if ([DateTime]::UtcNow -gt $deadline) { throw 'Wizard exceeded its total deadline' } }
-function Windows {
-  CheckDeadline
+function Windows([switch]$Diagnostic) {
+  if(-not $Diagnostic) { CheckDeadline }
   $processes = @(Get-CimInstance Win32_Process)
   if($AllUsers) {
     # UAC's AppInfo service can reparent the same pinned installer image.
@@ -313,6 +313,17 @@ try {
         @{action='install';sourceSha=$env:GITHUB_SHA;requestedAt=[DateTime]::UtcNow.ToString('o');initialPid=$ExistingPid} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $qa 'consent-request.json') -Encoding UTF8
       } else { SelectCurrentUser $window;Snapshot $window 'current-user' }
       InvokeButton $window '^(Continue|Next >)$'
+      if($AllUsers) {
+        # UAC starts an inner installer instance, whose custom welcome page runs again.
+        $window=WaitPage '^(Choose a location|Install AEGIS)$'
+        if(@((Controls $window) | Where-Object { (Name $_) -eq 'Install AEGIS' }).Count) {
+          $token=[InstallerProcessObservation]::Inspect($window.Current.ProcessId)
+          if($token.elevated -ne 1 -or $token.integritySid -ne 'S-1-16-12288') { throw 'Repeated welcome is not the elevated installer' }
+          $proof.elevatedWelcomeToken=$token
+          Snapshot $window 'elevated-welcome'
+          InvokeButton $window '^(Continue|Next >)$'
+        }
+      }
       $window = WaitPage '^Choose a location$'
       Snapshot $window 'directory'
       if($AllUsers) {
@@ -361,7 +372,7 @@ try {
   $proof.status='PASS'; SaveProof
 } catch {
   $proof.status='FAIL'; $proof.error=$_.Exception.Message
-  try { foreach ($window in @(Windows)) { Snapshot $window 'failure' } } catch { }
+  try { foreach ($window in @(Windows -Diagnostic)) { Snapshot $window 'failure' } } catch { }
   SaveProof
   throw
 } finally {

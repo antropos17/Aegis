@@ -49,6 +49,15 @@ function Invoke-AllUsersGuestStep($Session,[string]$Root,$State,[string]$Id,[str
     } finally { $codes+=([uint32]$keyboard[0].ReleaseKey([uint32]18).ReturnValue) }
     if(@($codes | Where-Object { $_ -ne 0 }).Count) { throw 'Guest consent keyboard operation failed' }
     $State.consent=@{observation=$verified;capture=$capture;interaction='Alt+Y on exact owned VM keyboard; UAC policy unchanged';returnCodes=$codes;at=[DateTime]::UtcNow.ToString('o')}
+    $end=[DateTime]::UtcNow.AddSeconds(15)
+    do {
+      $present=Invoke-Command -Session $Session -ArgumentList ([int]$verified.pid) -ScriptBlock { param($ConsentPid);[bool](Get-CimInstance Win32_Process -Filter ('ProcessId='+$ConsentPid)) }
+      if(-not $present) { break }
+      Start-Sleep -Milliseconds 250
+    } while([DateTime]::UtcNow -lt $end)
+    $State.consent.closedObserved=-not $present
+    $State.consent.afterCapture=Save-InstallerSetupDiagnostic $Id $Name $VmRoot (Join-Path $Root 'evidence') 51 'all-users-post-consent'
+    if($present) { throw 'Consent process remained after the guest keyboard confirmation' }
   }
   $State | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $Root 'evidence/all-users-host.json') -Encoding UTF8
 }
