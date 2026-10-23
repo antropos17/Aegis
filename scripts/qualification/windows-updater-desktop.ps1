@@ -93,9 +93,12 @@ try {
   if(-not $window) { throw 'Expected updater dialog/relaunch did not appear' }
   if($Action -eq 'relaunch') {
     if(Get-Process -Id $AppPid -ErrorAction SilentlyContinue) { throw 'Old process still running after update' }
-    $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($exePath).ProductVersion
-    if($version -ne '0.20.1-beta') { throw 'Relaunched executable version mismatch' }
-    $proof.productVersion=$version
+    $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
+    $proof.productVersion=$version.ProductVersion
+    $proof.fileVersion=$version.FileVersion
+    # The pinned published EXE stores a numeric ProductVersion and a beta FileVersion.
+    # The following controlled launch independently checks Electron app.getVersion().
+    if($version.ProductVersion -ne '0.20.1.0' -or $version.FileVersion -ne '0.20.1-beta') { throw 'Relaunched executable version mismatch' }
     Start-Sleep -Seconds 4
     Capture $window 'observed'
     # A second controlled launch verifies retained settings; record the explicit stop separately.
