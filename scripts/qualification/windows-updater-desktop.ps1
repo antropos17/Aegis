@@ -6,6 +6,7 @@ $exePath=[IO.Path]::GetFullPath($Exe)
 $allUsers=$qa -ieq 'C:\aegis-installer-qa\all-users-update'
 if(-not $qa.StartsWith('C:\aegis-installer-qa\',[StringComparison]::OrdinalIgnoreCase) -or ($allUsers -and $exePath -ine 'C:\Program Files\aegis\AEGIS - AI Monitoring & Threat Detection.exe') -or (-not $allUsers -and -not $exePath.StartsWith($qa+'\install\',[StringComparison]::OrdinalIgnoreCase))) { throw 'Desktop witness paths escaped guest scratch' }
 if($allUsers) { Add-Type -Path (Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/InstallerProcessObservation.cs') }
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase,System.Drawing,System.Windows.Forms
 $source=[IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-wizard.ps1'))
 $native=[regex]::Match($source,"(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@")
@@ -34,6 +35,10 @@ public static class UpdaterWindows {
 '@
 [void][WizardDesktop]::SetProcessDPIAware()
 $proof=[ordered]@{status='RUNNING';action=$Action;oldPid=$AppPid;sourceSha=$env:GITHUB_SHA;steps=@();error=$null}
+$proof.sessionId=(Get-Process -Id $PID).SessionId
+$proof.foregroundTransitions=@();$proof.guestShellDismissals=@()
+. ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-installer-shell.ps1'))))
+. ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification/windows-updater-focus.ps1'))))
 $suffix=if($Action -eq 'observe'){'-'+$AppPid}else{''}
 $receipt=Join-Path $qa ('evidence/updater-desktop-'+$Action+$suffix+'.json')
 function SaveProof { [IO.File]::WriteAllText($receipt, ($proof | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false)) }
@@ -64,8 +69,7 @@ function Capture($Window,[string]$Step) {
     $proof.applicationToken=$token
     if($token.elevated -ne 0 -or $token.integritySid -ne 'S-1-16-8192' -or $token.userSid -ne $driverToken.userSid) { throw 'Updated application must run as the original medium-integrity user' }
   }
-  [void][WizardDesktop]::ActivateOwned($handle,[uint32]$Window.Current.ProcessId)
-  Start-Sleep -Milliseconds 250
+  Focus-UpdaterWindow $handle ([uint32]$Window.Current.ProcessId) $Step
   if([WizardDesktop]::GetForegroundWindow() -ne $handle) { throw 'Owned update window not foreground' }
   $rect=$Window.Current.BoundingRectangle
   if($rect.Width -lt 100 -or $rect.Height -lt 80 -or $rect.Width -gt 3000 -or $rect.Height -gt 2500) { throw 'Invalid update window dimensions' }
