@@ -31,8 +31,10 @@ async function producer({
   buildOnly = true,
   drift = false,
   sourceDrift = false,
+  companionDrift = false,
   fail = null,
-  missingRuntime = false,
+  missingRuntime = null,
+  declarationBytes = 'export function buildInstanceKey(agentName: string): string;\n',
   projectionFailure = null,
 } = {}) {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-reboot-producer-'));
@@ -52,11 +54,22 @@ async function producer({
     JSON.stringify({ version: '44.7.2' }),
   );
   fs.writeFileSync(path.join(root, 'src/main/main.js'), 'module.exports = {};\n');
-  const declaration = path.join(root, 'src/shared/instance-key.d.ts');
-  const declarationBytes = 'export function buildInstanceKey(agentName: string): string;\n';
+  const omitted = missingRuntime ? path.join(root, missingRuntime) : null;
+  const omittedBytes = missingRuntime?.endsWith('.json')
+    ? '{"fixture":true}\n'
+    : missingRuntime?.endsWith('.d.ts')
+      ? declarationBytes
+      : 'module.exports = {};\n';
+  const runtimeFiles = ['src/main/main.js'];
   if (missingRuntime) {
-    fs.mkdirSync(path.dirname(declaration), { recursive: true });
-    fs.writeFileSync(declaration, declarationBytes);
+    fs.mkdirSync(path.dirname(omitted), { recursive: true });
+    fs.writeFileSync(omitted, omittedBytes);
+    runtimeFiles.push(missingRuntime);
+    if (missingRuntime === 'src/shared/instance-key.d.ts') {
+      const companion = 'src/shared/instance-key.js';
+      fs.writeFileSync(path.join(root, companion), 'module.exports = {};\n');
+      runtimeFiles.push(companion);
+    }
   }
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ aegisEtwDiagnostic: true }));
   fs.writeFileSync(path.join(root, 'package-lock.json'), '{}\n');
@@ -66,12 +79,7 @@ async function producer({
     logs = [];
   const git = (...args) => {
     if (args[0] === 'status') return '';
-    if (args[0] === 'ls-files')
-      return args[1] === 'src/main'
-        ? ['src/main/main.js', ...(missingRuntime ? ['src/shared/instance-key.d.ts'] : [])].join(
-            '\n',
-          )
-        : '';
+    if (args[0] === 'ls-files') return args[1] === 'src/main' ? runtimeFiles.join('\n') : '';
     return args[1] === 'HEAD'
       ? head
       : args[1] === 'HEAD^{tree}'
@@ -124,15 +132,20 @@ async function producer({
           fs.writeFileSync(path.join(candidate, GUI_EXECUTABLE), 'never-executed');
           for (const file of ['EtwFile.exe', 'EtwFile.dll'])
             fs.writeFileSync(path.join(candidate, 'resources/etw-file', file), file);
-          if (missingRuntime) fs.unlinkSync(declaration);
+          if (missingRuntime) fs.unlinkSync(omitted);
           try {
             await createFixtureAsar(root, path.join(candidate, 'resources/app.asar'));
           } finally {
-            if (missingRuntime) fs.writeFileSync(declaration, declarationBytes);
+            if (missingRuntime) fs.writeFileSync(omitted, omittedBytes);
           }
           if (drift) fs.appendFileSync(path.join(output, 'etw-builder.json'), ' ');
           if (sourceDrift)
             fs.appendFileSync(path.join(root, 'src/main/main.js'), '// changed after archive');
+          if (companionDrift)
+            fs.appendFileSync(
+              path.join(root, 'src/shared/instance-key.js'),
+              '// changed companion',
+            );
         }
         const bytes = name === 'etw-sdk-version' ? '10.0.302\n' : 'bounded fixture observation\n';
         fs.writeFileSync(options.log, bytes, { flag: 'wx' });
@@ -243,16 +256,54 @@ it('projects known assertion reasons without assertion operands or private paths
   });
 });
 
-it('reports the exact public missing ASAR entry while preserving the source/archive refusal', async () => {
-  const r = await producer({ missingRuntime: true });
+it('binds the exact compiler-only declaration without claiming it is archived runtime code', async () => {
+  const r = await producer({ missingRuntime: 'src/shared/instance-key.d.ts' });
+  expect(r.receipt.status).toBe('BUILD_PASS');
+  expect(r.projection).not.toBeNull();
+  const changed = await producer({
+    missingRuntime: 'src/shared/instance-key.d.ts',
+    declarationBytes:
+      'export function buildInstanceKey(agentName: string, cwd?: string): string;\n',
+  });
+  expect(changed.receipt.status).toBe('BUILD_PASS');
+  expect(JSON.parse(changed.projection).runtimeSourcesSha256).not.toBe(
+    JSON.parse(r.projection).runtimeSourcesSha256,
+  );
+  expect(JSON.parse(changed.projection).archiveSourceSha256).toBe(
+    JSON.parse(r.projection).archiveSourceSha256,
+  );
+});
+
+it.each([
+  'src/shared/unknown.d.ts',
+  'src/shared/instance-key.js',
+  'src/shared/capture-policy.json',
+])(
+  'still refuses missing source %s outside the exact compiler-only exception',
+  async (missingRuntime) => {
+    const r = await producer({ missingRuntime });
+    expect(r.receipt.status).toBe('FAIL');
+    expect(r.receipt.failure.phase).toBe('reboot-build-projection');
+    expect(r.receipt.failure.diagnostic).toEqual({
+      code: 'archive-entry-missing',
+      source: missingRuntime,
+    });
+    expect(r.projection).toBeNull();
+    expect(JSON.stringify(r.receipt)).not.toContain(r.canary);
+  },
+);
+
+it('still compares the allowlisted declaration companion bytes with the actual archive', async () => {
+  const r = await producer({
+    missingRuntime: 'src/shared/instance-key.d.ts',
+    companionDrift: true,
+  });
   expect(r.receipt.status).toBe('FAIL');
-  expect(r.receipt.failure.phase).toBe('reboot-build-projection');
   expect(r.receipt.failure.diagnostic).toEqual({
-    code: 'archive-entry-missing',
-    source: 'src/shared/instance-key.d.ts',
+    code: 'archive-source-mismatch',
+    source: 'src/shared/instance-key.js',
   });
   expect(r.projection).toBeNull();
-  expect(JSON.stringify(r.receipt)).not.toContain(r.canary);
 });
 
 it('reports a changed public runtime file without exporting either byte sequence', async () => {

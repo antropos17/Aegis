@@ -15,6 +15,16 @@ diagnostic metadata marker. Its executable and native helper, archived source,
 tracked runtime and harness inputs, lockfile, builder configuration and successful
 build receipt remain bound by the existing reboot qualification contract.
 
+The complete `runtimeSourcesSha256` includes the tracked compiler-only declaration
+`src/shared/instance-key.d.ts`. electron-builder's default declaration filter
+omits that exact file from the package; the archive-byte claim therefore excludes
+only this explicitly listed declaration. Its `src/shared/instance-key.js`
+companion remains required and compared byte for byte with the archive. A changed
+declaration changes the complete source binding. Missing or changed executable
+JavaScript/JSON and any other missing declaration still fail qualification. This
+exception grants no operational event authority and does not reuse an older
+candidate's receipt chain.
+
 The transfer contains actual Git objects and shallow boundaries, a bounded
 native Git runtime, the same Node executable, the immutable candidate and the
 resolved locked Playwright/ASAR dependency closure. It excludes Git configuration,

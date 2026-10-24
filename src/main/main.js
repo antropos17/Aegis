@@ -1112,6 +1112,8 @@ function getNativeFileAdmissionEvidence() {
           row.createTime100ns === actor.createTime100ns,
       ).length,
     })),
+    // The ordinary journal query can run retention maintenance; this diagnostic
+    // projection grants no admission or control authority.
     alerts: sensitiveAlertJournal?.list() ?? null,
     baselines: actors.map((actor) => {
       const bucket = buckets[actor.instanceId];

@@ -8,12 +8,18 @@ import { produceGuiManifest } from '../../scripts/produce-protected-gui-manifest
 import { rebootIdentity } from './etw-reboot-contract.mjs';
 
 const archiveRefusals = new WeakMap();
+// electron-builder excludes declarations by default. This exact compiler-only
+// companion remains source-bound; its executable JS must still be byte-checked.
+const compilerOnlySources = new Map([
+  ['src/shared/instance-key.d.ts', 'src/shared/instance-key.js'],
+]);
 const buildRefusalCodes = new Map([
   ['Expected source SHA required', 'source-sha-invalid'],
   ['Expected source HEAD mismatch', 'source-head-mismatch'],
   ['Clean source required', 'source-dirty'],
   ['Builder configuration required', 'builder-config-required'],
   ['Source file budget', 'source-file-budget'],
+  ['Compiler-only source requires its runtime companion', 'compiler-companion-required'],
   ['Reviewed marked diagnostic package/config required', 'diagnostic-marker-refused'],
   ['Builder Electron version mismatch', 'builder-electron-version-mismatch'],
   ['Invalid current input binding', 'input-binding-invalid'],
@@ -144,7 +150,10 @@ export function rebootBuildInputs(root, candidate, expectedHead, configFile, ver
     assert(fs.lstatSync(source).size <= 2 * 1024 ** 2, 'Source file budget');
     const data = fs.readFileSync(source);
     all.push([file, rebootHash(data)]);
-    if (file.startsWith('src/')) {
+    const companion = compilerOnlySources.get(file);
+    if (companion)
+      assert(files.includes(companion), 'Compiler-only source requires its runtime companion');
+    if (file.startsWith('src/') && !companion) {
       let bytes;
       try {
         bytes = extractFile(archive, path.normalize(file));
