@@ -80,6 +80,7 @@ const actor = require('./lib/actor');
 const catalogue = require('./lib/catalogue');
 const join = require('./lib/join');
 const manifest = require('./lib/manifest');
+const scenarioProvenance = require('./lib/scenario-provenance');
 // Loaded for one thing: the name and shape version of the artefact bench/score.js
 // reads back. The module is pure — it touches no filesystem API — so requiring it
 // here costs nothing and keeps steps.json spelled in exactly one place.
@@ -758,6 +759,7 @@ async function main(argv) {
   if (args.scenario !== NO_SCENARIO) {
     try {
       scenario = prepareScenario(args.scenario, args.arm);
+      scenarioProvenance.seal(scenario);
     } catch (err) {
       console.error(`bench: ${err.message}`);
       return 2;
@@ -793,6 +795,7 @@ async function main(argv) {
   const record = manifest.collect({
     runId,
     scenario: args.scenario,
+    preparedScenario: scenario,
     arm: args.arm,
     startedAt: now.toISOString(),
     oracles,
@@ -806,6 +809,7 @@ async function main(argv) {
     reportRenderer: RENDERER_FINGERPRINT,
   });
   const manifestPath = path.join(dir, 'manifest.json');
+  record.scenarioProvenance = scenarioProvenance.initial(scenario);
   fs.writeFileSync(manifestPath, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
 
   const absent = [];
@@ -846,6 +850,8 @@ async function main(argv) {
       : undefined;
 
     let handle = null;
+    let executionError = null;
+    let cleanupError = null;
     try {
       // The sensor comes up BEFORE the first step, and a sensor that will not
       // come up stops the run here: an arm-A run whose sensor never ran is an
@@ -985,6 +991,8 @@ async function main(argv) {
         );
         exitCode = 1;
       }
+    } catch (err) {
+      executionError = err;
     } finally {
       // The net under every path above. `captureSensor` stops the sensor on each
       // route it completes, so reaching here with a live one means something
@@ -994,10 +1002,35 @@ async function main(argv) {
       // machine is up. No drain: nothing is going to read that audit file, and a
       // failed run should end now.
       if (handle && !handle.exit) {
-        console.error('bench: stopping the sensor after an unforeseen failure');
-        await sensor.stop(handle, { log, drainMs: 0 });
+        try {
+          console.error('bench: stopping the sensor after an unforeseen failure');
+          await sensor.stop(handle, { log, drainMs: 0 });
+        } catch (err) {
+          cleanupError = err;
+        }
+      }
+      if (handle && !handle.exit && !cleanupError) {
+        cleanupError = new Error('sensor-shutdown-unconfirmed');
+      }
+      if (!cleanupError) {
+        record.scenarioProvenance = scenarioProvenance.finish(scenario);
+        if (record.scenarioProvenance.final.state !== 'unchanged') exitCode = 1;
+        try {
+          const staged = path.join(dir, 'manifest.scenario-provenance.tmp');
+          const fd = fs.openSync(staged, 'wx');
+          try {
+            fs.writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+          } finally {
+            fs.closeSync(fd);
+          }
+          fs.renameSync(staged, manifestPath);
+        } catch {
+          console.error('bench: scenario-provenance-write-unavailable');
+          exitCode = 1;
+        }
       }
     }
+    if (executionError || cleanupError) throw executionError ?? cleanupError;
   }
 
   if (absent.length > 0) {

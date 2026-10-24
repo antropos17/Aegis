@@ -1534,6 +1534,9 @@ Two fields worth knowing about:
 - **`sensor.workingTreeDirty`** means the measured sensor is not exactly the commit named in
   `sensor.gitSha`. It is recorded, not refused: running against uncommitted work is
   legitimate while building the harness, and dishonest only if left unsaid.
+- **`scenarioProvenance`** records the exact scenario bytes parsed by the runner,
+  with a separate final source check. Older manifests retain absent provenance.
+  See [the scenario-byte contract](../docs/bench/SCENARIO-PROVENANCE.md).
 - **`reportRenderer`** is the sha256 of the two files that turn this run into
   `run-report.json`, frozen while they were loaded. It is not a `{value, source}` probe
   because it is not a fact about this machine: it is the identity of the code that writes
