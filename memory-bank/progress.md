@@ -3774,3 +3774,27 @@ again. Independent requirements, logic and test-evidence reviews passed after
 requiring enumerable receipt fields and strengthening the discriminating tests.
 Focused lint, formatting, syntax and diff checks passed. Exact hosted CI remains
 the merge gate.
+
+## W8 executable owned file-read scenario — 2026-10-24
+
+Added S8's bounded ordinary read of a previously created public inert canary.
+Creation hashes the exact written UTF-8 buffer without a preparatory content
+readback. The reader binds original, opened and final named file identities,
+checks actual returned bytes/hash and requires confirmed descriptor closure.
+Failures retain known partial progress and skip later steps without emitting a
+successful access event. Separate fresh-only file-read-outcomes.json artifacts
+bind the actual run and source step and are written after capture stops.
+
+The production actor/artifact/main paths execute in tests. Access expectations
+remain category-not-scored, outside existing metric denominators. This supplies
+owned synthetic fixture evidence; sensitive files, real agents, cold-cache
+behavior, independent OS confirmation and W8/T8 acceptance remain open.
+
+Independent requirements, logic and test-evidence reviews passed after adding
+discriminating successful-artifact privacy, post-descriptor identity and
+supported-platform symlink-at-open tests. Fifteen temporary source faults were
+detected at their intended behavioral boundaries, then all files were restored
+byte-for-byte. The restored nine-suite gate passed 272 tests with one explicit
+Windows skip: O_NOFOLLOW is unavailable on this host, so its real symlink-at-open
+case requires supported-platform CI. Focused lint, formatting, syntax and diff
+checks passed. Exact hosted CI remains the merge gate.

@@ -88,7 +88,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["start", "end", "creation", "deletion"],
+          "enum": ["start", "end", "creation", "deletion", "access"],
           "description": "ECS event.type of the expected event. The actor refuses to run a step whose kind emits a different category or type from the expectation it claims."
         }
       }
@@ -124,6 +124,20 @@
         }
       },
       "allOf": [
+        {
+          "if": { "required": ["kind"], "properties": { "kind": { "const": "read-fixture" } } },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["fromStep"],
+                "additionalProperties": false,
+                "properties": { "fromStep": { "type": "string", "minLength": 1, "maxLength": 64 } }
+              }
+            }
+          }
+        },
         {
           "if": {
             "required": ["kind"],

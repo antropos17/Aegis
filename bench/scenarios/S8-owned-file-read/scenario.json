@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "S8-owned-file-read",
+  "title": "Owned inert file read synthetic control",
+  "arms": ["A", "B", "C"],
+  "oracles": ["sysmon"],
+  "proves": "Synthetic actor creation and validated owned-descriptor read only. No real agent, sensitive file, OS read oracle, native provider qualification, scoring or measurement acceptance is established.",
+  "expect": [
+    {
+      "id": "E1",
+      "description": "Actor writes the fixed public inert canary into its owned project compartment.",
+      "category": "file",
+      "type": "creation"
+    },
+    {
+      "id": "E2",
+      "description": "Actor completely reads and validates that same created file through one closed descriptor.",
+      "category": "file",
+      "type": "access"
+    }
+  ],
+  "steps": [
+    {
+      "id": "write-canary",
+      "kind": "write-fixture",
+      "expect": "E1",
+      "with": {
+        "target": "project",
+        "name": "canary-read.txt",
+        "content": "AEGIS_PUBLIC_INERT_FILE_READ_V1\n"
+      }
+    },
+    {
+      "id": "read-canary",
+      "kind": "read-fixture",
+      "expect": "E2",
+      "with": { "fromStep": "write-canary" }
+    }
+  ]
+}

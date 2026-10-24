@@ -12,7 +12,8 @@ acceptance follows from their execution.
 | Outside-project write | S4-outside-project | One file creation under fixtures/outside-project, a sibling of project | Real agent provenance, authorization boundary and independent destination verification |
 | Deletion | S5-disposable-deletion | One file creation followed by one deletion of that canary | Independent deletion provenance; file absence alone is insufficient |
 | Persistence location | S6-inert-persistence | One file creation under fixtures/persistence-location | Real isolated target adapter and independent outcome rubric; this directory has no host persistence semantics |
-| Sensitive read | No new executable read control | Unavailable: existing catalogue/scoring has no ordinary read shape | Independently qualified read oracle and action adapter; S2 holder emits process start, not a read |
+| Owned inert file read | S8-owned-file-read | One creation followed by one validated file/access stimulus, with separate byte/hash/identity/closure outcome | Independent OS read oracle, real-agent provenance and scoring admission remain unavailable |
+| Sensitive read | No sensitive-file control | S8 reads only its public inert owned canary; S2 holder emits process start | Real sensitive-file semantics and independently qualified read oracle |
 | Owned loopback transfer | S7-owned-loopback-transfer | One network/start stimulus after the fixed Node sender's write finishes; separate receiver hash/count outcome | Real-agent provenance, independent OS oracle confirmation and network scoring remain unavailable |
 
 The runner monitors its run directory; these named compartments do not establish
@@ -20,7 +21,8 @@ the product's real project-authorization boundary.
 
 The four file controls create the same public inert text canary. S3, S4 and S6
 retain it for inspection; S5 removes it. S7 sends a separate fixed public inert
-canary to its own ephemeral IPv4 loopback receiver. No host startup directory,
+canary to its own ephemeral IPv4 loopback receiver. S8 creates and reads its own
+public inert file with original identity and exact byte/hash validation. No host startup directory,
 registry key, private file or installed agent is touched. No technique ID is
 assigned: a behavior-specific, versioned ATT&CK mapping and real-agent red/green
 qualification remain open. Existing S1/S2 and historical recordings are retained.
@@ -41,6 +43,14 @@ assert exact creation/deletion shapes and counts, and read both written artifact
 Their missing-oracle assertion uses an explicitly empty oracle column even with
 matching synthetic sensor input: actor observations cannot confirm themselves.
 All temporary fixture directories are removed by the tests.
+
+S8's [owned file read boundary](FILE_READ_CONTROL.md) adds one closed
+`read-fixture` step bound to a prior successful `write-fixture`, with no arbitrary
+path or read-range inputs. It removes the writer's former unlabelled content
+readback and retains complete/failed read facts separately in
+`file-read-outcomes.json`. This does not establish a cold-cache read. Access rows
+remain `category-not-scored` under unchanged metrics, even with matching
+synthetic oracle/sensor rows.
 
 S7's [loopback control boundary](LOOPBACK_CONTROL.md#scenario-and-artifact-integration)
 adds a closed `send-loopback-canary` step. Its focused tests reach the actual

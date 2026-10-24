@@ -34,6 +34,11 @@ bounded public-canary sender and receiver to the scenario runner. Its catalogue
 records an observed sender write; `fixture-outcomes.json` retains the separate
 receiver result. Network expectations remain outside the legacy scoring categories.
 
+The [owned file-read scenario](../docs/bench/FILE_READ_CONTROL.md) reads only a
+canary created by an earlier fixture step. It checks the source identity, size
+and actual read hash, retaining success and failure in `file-read-outcomes.json`.
+Its `file/access` expectation remains outside the legacy scoring categories.
+
 For supported scoring categories the bench **generates an expected-event catalogue as a by-product of
 running a deterministic script**, then attempts to confirm each row against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
