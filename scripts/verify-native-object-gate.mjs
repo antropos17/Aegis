@@ -39,6 +39,7 @@ const mapping = 'sidecar/etw-file/FileMapping.cs';
 const runtime = 'src/main/platform/etw-file-runtime.js';
 const supervisor = 'src/main/platform/etw-file-supervisor.js';
 const observer = 'sidecar/etw-file/FileOrphanObserver.cs';
+const objectNative = 'sidecar/etw-file/FileObjectNative.cs';
 const main = 'src/main/main.js';
 const ingress = 'src/main/native-file-ingress.js';
 const baselines = 'src/main/baselines.js';
@@ -66,6 +67,7 @@ const originals = new Map(
     runtime,
     supervisor,
     observer,
+    objectNative,
     main,
     ingress,
     baselines,
@@ -214,6 +216,17 @@ function native(label, expectedPass, expectedFailure) {
   return { status: expectedPass ? 'PASS' : 'KILLED', passedBeforeFailure: passed };
 }
 const mutants = [
+  {
+    id: 'native-documented-comparison-entry',
+    file: objectNative,
+    edits: [
+      [
+        '[DllImport("KernelBase.dll")] private static extern bool CompareObjectHandles',
+        '[DllImport("KernelBase.dll", EntryPoint = "AegisMissingCompareObjectHandles")] private static extern bool CompareObjectHandles',
+      ],
+    ],
+    failure: 'documented object comparison distinguishes duplicates from independent opens',
+  },
   {
     id: 'restricted-fixed-phase-inline-entry',
     file: logon,

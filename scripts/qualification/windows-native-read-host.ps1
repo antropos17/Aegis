@@ -31,6 +31,21 @@ function ConvertFrom-NativeReadManifest {
   return [pscustomobject]@{files=$rows.ToArray()}
 }
 
+# Closed native diagnostics contain only the profile, qualification bit and fixed code.
+function ConvertFrom-NativeReadCapability {
+  param([string]$Json,[int]$ExitCode)
+  $text=$Json.Trim()
+  if($text.Length -lt 2 -or $text.Length -gt 4096 -or -not $text.StartsWith('{') -or -not $text.EndsWith('}')) { throw 'Capability probe response refused' }
+  try { $value=ConvertFrom-Json -InputObject $text -ErrorAction Stop }
+  catch { throw 'Capability probe response refused' }
+  $known=@('Qualified','PlatformRefused','ProfileRefused','ProcessOpenRefused','KnownOpenRefused','IndependentOpenRefused','FileTypeRefused','DuplicateRefused','DuplicateInvalid','DuplicateComparisonRefused','IndependentComparisonRefused','FileIdentityRefused','FileIdentityMismatch','InventoryLibraryRefused','InventoryExportRefused','InventoryQueryRefused','InventoryAccessRefused','InventorySizeRefused','InventoryLayoutRefused','InventoryObjectRefused','InventoryLimitRefused','InventoryKnownMissing','InventoryCopyMissing','InventoryIndependentMissing','InventorySameObjectMismatch','InventoryDistinctObjectMismatch','EntryPointUnavailable','LibraryUnavailable','NativeOperationRefused')
+  $names=@($value.PSObject.Properties | ForEach-Object { $_.Name })
+  if($value -isnot [pscustomobject] -or $names.Count -ne 3 -or $names -cnotcontains 'profile' -or $names -cnotcontains 'qualified' -or $names -cnotcontains 'code' -or
+    $value.profile -isnot [string] -or $value.profile -cne 'win11-x64-26300.9457-experimental' -or $value.qualified -isnot [bool] -or $value.code -isnot [string] -or $value.code -cnotin $known -or
+    $ExitCode -notin @(0,2) -or (($ExitCode -eq 0) -ne $value.qualified) -or (($value.code -ceq 'Qualified') -ne $value.qualified)) { throw 'Capability probe response refused' }
+  return $value
+}
+
 # Transport only the three maintained bounded-process functions, never a guest PS1 file.
 function Get-NativeReadProcessSource {
   $fixedPath=Join-Path $PSScriptRoot 'cloud-guest-media.ps1'
@@ -182,8 +197,10 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
 
 function Test-NativeReadCapability($Session) {
   $nativeSource=Get-NativeReadProcessSource
-  return Invoke-Command -Session $Session -ArgumentList $nativeSource -ScriptBlock {
-    param([string]$NativeProcessSource)
+  $capabilityReader=(Get-Command ConvertFrom-NativeReadCapability -CommandType Function).ScriptBlock.ToString()
+  if($capabilityReader.Length -gt 8KB) { throw 'Capability reader budget' }
+  return Invoke-Command -Session $Session -ArgumentList $nativeSource,$capabilityReader -ScriptBlock {
+    param([string]$NativeProcessSource,[string]$CapabilityReader)
     $ErrorActionPreference='Stop';$root='C:\aegis-native-read'
     $policyBefore=(Get-ExecutionPolicy).ToString()
     if($NativeProcessSource.Length -lt 1 -or $NativeProcessSource.Length -gt 16KB) { throw 'Native process source refused' }
@@ -198,9 +215,8 @@ function Test-NativeReadCapability($Session) {
     if($LASTEXITCODE -ne 0 -or ($privileges -join "`n").Length -gt 16KB) { throw 'Read-only token privilege observation failed' }
     $code=Invoke-CloudGuestNativeProcess $helper @('object-bridge-probe') $stdout $stderr 15000
     if((Get-Item -LiteralPath $stdout).Length -gt 4096 -or (Get-Item -LiteralPath $stderr).Length -ne 0) { throw 'Capability probe output shape/budget failed' }
-    $value=Get-Content -LiteralPath $stdout -Raw | ConvertFrom-Json
-    if(@($value.PSObject.Properties).Count -ne 2 -or $value.profile -cne 'win11-x64-26300.9457-experimental' -or $value.qualified -isnot [bool]) { throw 'Capability probe response refused' }
-    return @{status=$(if($code -eq 0 -and $value.qualified){'PASS'}else{'FAIL'});exitCode=$code;profile=$value.profile;qualified=$value.qualified;executionPolicyBefore=$policyBefore;executionPolicyAfter=(Get-ExecutionPolicy).ToString();tokenContext='existing elevated PowerShell Direct setup session; collector probe still independently required';tokenPrivileges=@($privileges);tokenPrivilegesChanged=$false;helperSha256=(Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant();nativeDllSha256=(Get-FileHash -LiteralPath ($root+'\input\candidate\resources\etw-file\EtwFile.dll')).Hash.ToLowerInvariant()}
+    $value=& ([scriptblock]::Create($CapabilityReader)) ([IO.File]::ReadAllText($stdout)) $code
+    return @{status=$(if($code -eq 0 -and $value.qualified){'PASS'}else{'FAIL'});exitCode=$code;profile=$value.profile;qualified=$value.qualified;code=$value.code;executionPolicyBefore=$policyBefore;executionPolicyAfter=(Get-ExecutionPolicy).ToString();tokenContext='existing elevated PowerShell Direct setup session; collector probe still independently required';tokenPrivileges=@($privileges);tokenPrivilegesChanged=$false;helperSha256=(Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant();nativeDllSha256=(Get-FileHash -LiteralPath ($root+'\input\candidate\resources\etw-file\EtwFile.dll')).Hash.ToLowerInvariant()}
   }
 }
 

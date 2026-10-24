@@ -20,6 +20,12 @@ internal static class FileObjectTests
             "verified", "verified", birth, "createTime100ns", new { fromQpc = time, toQpc = time },
             issuerPid: 71, issuerInterval: new { fromQpc = 1, toQpc = time });
         FileScope Scope() => new(@"C:\fixture", false);
+        test("documented object comparison distinguishes duplicates from independent opens", () =>
+        {
+            bool passed = FileObjectNative.DocumentedHandleProbe(out var code);
+            if (!passed) Console.WriteLine("OBJECT_PROBE " + code);
+            Check(passed && code == FileObjectProbeCode.Qualified);
+        });
         test("actual object lease never backfills its discovering or queued earlier read", () =>
         {
             long now = 100; var pin = new Pin();

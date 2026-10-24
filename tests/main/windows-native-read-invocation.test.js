@@ -48,6 +48,7 @@ try {
   if($Scenario -ceq 'wrong-hash') { $hash='0'*64 }
   $encoded=Get-NativeReadPhaseCommand 'prepare' $hash
   $processSource=Get-NativeReadProcessSource
+  $capabilityReader=(Get-Command ConvertFrom-NativeReadCapability -CommandType Function).ScriptBlock.ToString()
   $control=@'
 $ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue'
 try {
@@ -59,9 +60,32 @@ try {
   catch { if($_.Exception.GetType().Name -cne 'PSSecurityException') { throw 'fixture-file-exception' };$refused=$true }
   if(-not $refused -or (Test-Path -LiteralPath $marker)) { throw 'fixture-file-control' }
   . ([scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('PROCESS_SOURCE'))))
+  $capabilityCases=0
   if($scenario -ceq 'runner') {
     $code=Invoke-CloudGuestNativeProcess ($env:SystemRoot+'\System32\cmd.exe') @('/d','/c','exit','17') ($path+'.out') ($path+'.err') 5000
     if($code -ne 17 -or (Get-Item -LiteralPath ($path+'.out')).Length -ne 0 -or (Get-Item -LiteralPath ($path+'.err')).Length -ne 0) { throw 'fixture-native-result' }
+    $reader=[scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('CAPABILITY_READER')))
+    $success='{"profile":"win11-x64-26300.9457-experimental","qualified":true,"code":"Qualified"}'
+    $failure='{"profile":"win11-x64-26300.9457-experimental","qualified":false,"code":"InventoryLibraryRefused"}'
+    $good=& $reader $success 0;$declined=& $reader $failure 2
+    if($good.qualified -ne $true -or $good.code -cne 'Qualified' -or $declined.qualified -ne $false -or $declined.code -cne 'InventoryLibraryRefused') { throw 'fixture-capability-valid-shape' };$capabilityCases+=2
+    $invalid=@(
+      @{json=$success;exitCode=2},@{json=$failure;exitCode=0},
+      @{json=$success.Replace('"qualified":true','"qualified":false');exitCode=0},
+      @{json=$failure.Replace('"qualified":false','"qualified":true');exitCode=2},
+      @{json=$failure.Replace('InventoryLibraryRefused','UnknownCode');exitCode=2},
+      @{json=$success.Replace('Qualified','qualified');exitCode=0},
+      @{json=$success.Replace('"qualified":true','"qualified":"true"');exitCode=0},
+      @{json=$success.Replace('experimental','other');exitCode=0},
+      @{json=$success.Replace('}',',"extra":1}');exitCode=0},
+      @{json='['+$success+']';exitCode=0},@{json='invalid';exitCode=0},@{json=$failure;exitCode=70}
+    )
+    foreach($sample in $invalid) {
+      $rejected=$false
+      try { [void](& $reader $sample.json $sample.exitCode) }
+      catch { if($_.Exception.Message -cne 'Capability probe response refused') { throw 'fixture-capability-refusal-code' };$rejected=$true }
+      if(-not $rejected) { throw 'fixture-capability-invalid-accepted' };$capabilityCases++
+    }
   } else {
     $command=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('PHASE_COMMAND'))
     $rejected=$false;$value=$null
@@ -72,10 +96,10 @@ try {
   }
   $after=(Get-ExecutionPolicy).ToString();$afterAll=Get-ExecutionPolicy -List | ConvertTo-Json -Compress
   if($before -cne $after -or $beforeAll -cne $afterAll) { throw 'fixture-policy-changed' }
-  @{status='PASS';version=$PSVersionTable.PSVersion.ToString();scenario=$scenario;baselineFileRefused=$refused;policyBefore=$before;policyAfter=$after;allPolicyScopesUnchanged=$true} | ConvertTo-Json -Compress
+  @{status='PASS';version=$PSVersionTable.PSVersion.ToString();scenario=$scenario;baselineFileRefused=$refused;policyBefore=$before;policyAfter=$after;allPolicyScopesUnchanged=$true;capabilityCases=$capabilityCases} | ConvertTo-Json -Compress
 } catch { @{status='FAIL';code='native-restricted-child-refused'} | ConvertTo-Json -Compress;exit 2 }
 '@
-  $control=$control.Replace('FIXED_PATH',$path.Replace("'","''")).Replace('MARKER_PATH',$marker.Replace("'","''")).Replace('SCENARIO',$Scenario).Replace('PROCESS_SOURCE',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($processSource))).Replace('PHASE_COMMAND',$encoded)
+  $control=$control.Replace('FIXED_PATH',$path.Replace("'","''")).Replace('MARKER_PATH',$marker.Replace("'","''")).Replace('SCENARIO',$Scenario).Replace('PROCESS_SOURCE',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($processSource))).Replace('CAPABILITY_READER',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($capabilityReader))).Replace('PHASE_COMMAND',$encoded)
   $controlPath=Join-Path $PSScriptRoot 'control.txt';[IO.File]::WriteAllText($controlPath,$control,[Text.UTF8Encoding]::new($false))
   $loader="& ([scriptblock]::Create([IO.File]::ReadAllText('"+$controlPath.Replace("'","''")+"')))"
   $childCode=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($loader))
@@ -110,6 +134,7 @@ describe.skipIf(process.platform !== 'win32')(
           policyBefore: 'Restricted',
           policyAfter: 'Restricted',
           allPolicyScopesUnchanged: true,
+          capabilityCases: scenario === 'runner' ? 14 : 0,
         });
       },
       20000,

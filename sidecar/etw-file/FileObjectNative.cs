@@ -26,7 +26,8 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
     internal static bool LocalScope(string root) => root.Length >= 3 && GetDriveType(root[..3]) == 3;
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern SafeFileHandle CreateFile(string path,
         uint access, uint sharing, IntPtr security, uint disposition, uint flags, IntPtr template);
-    [DllImport("kernel32.dll")] private static extern bool CompareObjectHandles(SafeFileHandle first, SafeFileHandle second);
+    // Documented export module: handleapi.h / Kernelbase.lib / Kernelbase.dll.
+    [DllImport("KernelBase.dll")] private static extern bool CompareObjectHandles(SafeFileHandle first, SafeFileHandle second);
     [DllImport("kernel32.dll")] private static extern bool GetFileInformationByHandleEx(SafeFileHandle file,
         int infoClass, IntPtr information, uint size);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
@@ -61,12 +62,15 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
     public void Dispose() { file.Dispose(); process.Dispose(); }
 
     internal const string Profile = "win11-x64-26300.9457-experimental";
-    internal static Func<uint, ulong, ulong, IFileObjectPin?>? Qualify()
+    internal static Func<uint, ulong, ulong, IFileObjectPin?>? Qualify() => Qualify(out _);
+    internal static Func<uint, ulong, ulong, IFileObjectPin?>? Qualify(out FileObjectProbeCode code)
     {
+        code = FileObjectProbeCode.PlatformRefused;
+        if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess ||
+            RuntimeInformation.OSArchitecture != Architecture.X64 || RuntimeInformation.ProcessArchitecture != Architecture.X64) return null;
+        code = FileObjectProbeCode.ProfileRefused;
         var os = FullWindowsVersion();
-        if (os == null || !OperatingSystem.IsWindows() || !Environment.Is64BitProcess ||
-            RuntimeInformation.OSArchitecture != Architecture.X64 || RuntimeInformation.ProcessArchitecture != Architecture.X64 ||
-            os != new Version(10, 0, 26300, 9457) || !SelfProbe()) return null;
+        if (os == null || os != new Version(10, 0, 26300, 9457) || !SelfProbe(true, out code)) return null;
         return (pid, birth, obj) => OpenForQualification(pid, birth, obj, os);
     }
     private static Version? FullWindowsVersion()
@@ -83,21 +87,44 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
         }
         catch { return null; }
     }
-    private static bool SelfProbe()
+    // The hosted self-test exercises the same documented API calls before VM
+    // creation; it deliberately does not grant private-inventory qualification.
+    internal static bool DocumentedHandleProbe(out FileObjectProbeCode code) => SelfProbe(false, out code);
+    private static bool SelfProbe(bool inventory, out FileObjectProbeCode code)
     {
+        code = FileObjectProbeCode.PlatformRefused;
+        if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess) return false;
         try
         {
+            code = FileObjectProbeCode.ProcessOpenRefused;
             using var own = OpenProcess(0x101040, false, (uint)Environment.ProcessId);
+            if (own.IsInvalid) return false;
+            code = FileObjectProbeCode.KnownOpenRefused;
             using var known = CreateFile(Program.Executable, 0x80, 7, IntPtr.Zero, 3, 0, IntPtr.Zero);
+            if (known.IsInvalid) return false;
+            code = FileObjectProbeCode.IndependentOpenRefused;
             using var distinct = CreateFile(Program.Executable, 0x80, 7, IntPtr.Zero, 3, 0, IntPtr.Zero);
-            if (own.IsInvalid || known.IsInvalid || distinct.IsInvalid || GetFileType(known) != 1 ||
-                !DuplicateHandle(own, known.DangerousGetHandle(), GetCurrentProcess(), out var copy, 0x80, false, 0)) return false;
+            if (distinct.IsInvalid) return false;
+            code = FileObjectProbeCode.FileTypeRefused;
+            if (GetFileType(known) != 1) return false;
+            code = FileObjectProbeCode.DuplicateRefused;
+            if (!DuplicateHandle(own, known.DangerousGetHandle(), GetCurrentProcess(), out var copy, 0x80, false, 0))
+            { copy?.Dispose(); return false; }
             using (copy)
             {
-                if (copy.IsInvalid || !CompareObjectHandles(known, copy) || CompareObjectHandles(known, distinct)) return false;
+                code = FileObjectProbeCode.DuplicateInvalid;
+                if (copy.IsInvalid) return false;
+                code = FileObjectProbeCode.DuplicateComparisonRefused;
+                if (!CompareObjectHandles(known, copy)) return false;
+                code = FileObjectProbeCode.IndependentComparisonRefused;
+                if (CompareObjectHandles(known, distinct)) return false;
+                code = FileObjectProbeCode.FileIdentityRefused;
                 var knownId = IdBytes(known); var otherId = IdBytes(distinct);
-                if (knownId == null || otherId == null || !knownId.SequenceEqual(otherId)) return false;
-                var entries = Snapshot((uint)Environment.ProcessId, null);
+                if (knownId == null || otherId == null) return false;
+                code = FileObjectProbeCode.FileIdentityMismatch;
+                if (!knownId.SequenceEqual(otherId)) return false;
+                if (!inventory) { code = FileObjectProbeCode.Qualified; return true; }
+                var entries = Snapshot((uint)Environment.ProcessId, null, out code);
                 if (entries == null) return false;
                 ulong a = unchecked((ulong)known.DangerousGetHandle().ToInt64());
                 ulong b = unchecked((ulong)copy.DangerousGetHandle().ToInt64());
@@ -105,11 +132,22 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
                 var first = entries.SingleOrDefault(row => row.Handle == a);
                 var second = entries.SingleOrDefault(row => row.Handle == b);
                 var third = entries.SingleOrDefault(row => row.Handle == c);
-                return first != null && second != null && third != null && first.Object != 0 &&
-                    first.Object == second.Object && first.Object != third.Object;
+                code = FileObjectProbeCode.InventoryKnownMissing;
+                if (first == null) return false;
+                code = FileObjectProbeCode.InventoryCopyMissing;
+                if (second == null) return false;
+                code = FileObjectProbeCode.InventoryIndependentMissing;
+                if (third == null) return false;
+                code = FileObjectProbeCode.InventorySameObjectMismatch;
+                if (first.Object == 0 || first.Object != second.Object) return false;
+                code = FileObjectProbeCode.InventoryDistinctObjectMismatch;
+                if (first.Object == third.Object) return false;
+                code = FileObjectProbeCode.Qualified; return true;
             }
         }
-        catch { return false; }
+        catch (EntryPointNotFoundException) { code = FileObjectProbeCode.EntryPointUnavailable; return false; }
+        catch (DllNotFoundException) { code = FileObjectProbeCode.LibraryUnavailable; return false; }
+        catch { code = FileObjectProbeCode.NativeOperationRefused; return false; }
     }
     private static byte[]? IdBytes(SafeFileHandle handle)
     {
@@ -162,12 +200,15 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
         catch { return null; }
         finally { duplicated?.Dispose(); source?.Dispose(); }
     }
-    private static List<HandleEntry>? Snapshot(uint issuer, uint? own)
+    private static List<HandleEntry>? Snapshot(uint issuer, uint? own) => Snapshot(issuer, own, out _);
+    private static List<HandleEntry>? Snapshot(uint issuer, uint? own, out FileObjectProbeCode code)
     {
         const int maximum = 32 * 1024 * 1024;
+        code = FileObjectProbeCode.InventoryLibraryRefused;
         if (!NativeLibrary.TryLoad("ntdll.dll", out IntPtr module)) return null;
         try
         {
+            code = FileObjectProbeCode.InventoryExportRefused;
             if (!NativeLibrary.TryGetExport(module, "NtQuerySystemInformation", out IntPtr address)) return null;
             var query = Marshal.GetDelegateForFunctionPointer<Query>(address);
             int size = 1024 * 1024;
@@ -179,11 +220,16 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
                     int status = query(64, buffer, (uint)size, out uint needed);
                     if (status == unchecked((int)0xc0000004))
                     {
+                        code = FileObjectProbeCode.InventorySizeRefused;
                         if (needed > maximum || needed <= size) return null;
                         size = checked((int)Math.Min(maximum, needed + 64 * 1024L)); continue;
                     }
-                    if (status != 0 || needed < 16 || needed > size) return null;
+                    code = status == unchecked((int)0xc0000022) ? FileObjectProbeCode.InventoryAccessRefused : FileObjectProbeCode.InventoryQueryRefused;
+                    if (status != 0) return null;
+                    code = FileObjectProbeCode.InventorySizeRefused;
+                    if (needed < 16 || needed > size) return null;
                     ulong count = unchecked((ulong)Marshal.ReadInt64(buffer));
+                    code = FileObjectProbeCode.InventoryLayoutRefused;
                     if (count > (ulong)(needed - 16) / 40 || count > 800000) return null;
                     var selected = new List<HandleEntry>();
                     for (ulong index = 0; index < count; index++)
@@ -193,15 +239,17 @@ internal sealed class FileObjectNative(SafeProcessHandle process, SafeFileHandle
                         if (owner != issuer && owner != own) continue;
                         ulong obj = unchecked((ulong)Marshal.ReadInt64(entry));
                         ulong handle = unchecked((ulong)Marshal.ReadInt64(entry, 16));
+                        code = FileObjectProbeCode.InventoryObjectRefused;
                         if (obj == 0 || (obj & 7) != 0 || handle == 0) return null;
+                        code = FileObjectProbeCode.InventoryLimitRefused;
                         if (selected.Count >= 16384) return null;
                         selected.Add(new(obj, owner, handle));
                     }
-                    return selected;
+                    code = FileObjectProbeCode.Qualified; return selected;
                 }
                 finally { Marshal.FreeHGlobal(buffer); }
             }
-            return null;
+            code = FileObjectProbeCode.InventorySizeRefused; return null;
         }
         finally { NativeLibrary.Free(module); }
     }
