@@ -111,7 +111,7 @@ function explicitPath(file, style) {
  * Buffer clearing is best effort for owned buffers, never secure erasure of JS
  * parser strings, copied data, kernel buffers or bytes retained by the provider.
  * Tail reads require positioned IO and large-file metadata from that provider;
- * this does not extend the separate sequential native Windows provider.
+ * each provider separately qualifies that IO and its stable-file custody boundary.
  * @param {{adapter:Adapter,files:FileProvider}} options Explicit owner dependencies.
  * @returns {{read:(source:string,file:string,selection:Selection)=>Promise<object>,readTail:(source:string,file:string,selection:Selection)=>Promise<object>}}
  * @since v0.19.2
