@@ -414,10 +414,10 @@ function Copy-NativeReadEvidence($Session,[string]$Root) {
     return $true
   }
   if($gitProof) { Copy-Item -LiteralPath 'C:\aegis-native-read\evidence\git-reconstruction.json' -Destination (Join-Path $Root 'evidence/guest-git-reconstruction.json') -FromSession $Session }
-  foreach($phase in @('prepare','resume','admission')) { $relative+=($phase+'-done.json');$relative+=($phase+'.log') }
+  foreach($phase in @('prepare','resume','admission')) { $relative+=($phase+'-desktop.json');$relative+=($phase+'-done.json');$relative+=($phase+'.log') }
   foreach($file in $relative) {
     $source=if($file -like '*-done.json' -or $file -notmatch '/') { 'C:\aegis-native-read\'+$file } else { 'C:\aegis-native-read\evidence\'+$file.Replace('/','\') }
-    $leafBudget=if($file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json'){16384}else{2MB}
+    $leafBudget=if($file -like '*-desktop.json' -or $file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json'){16384}else{2MB}
     $present=Invoke-Command -Session $Session -ArgumentList $source,$leafBudget -ScriptBlock {
       param($File,$Budget)
       if(-not (Test-Path -LiteralPath $File)) { return $false }
