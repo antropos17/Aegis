@@ -4,6 +4,7 @@
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { activityBins, activityTimeLabel } from '../runtime/activity';
   import { radarGroups } from '../runtime/radar';
+  import { objectReadMatchesProcess } from '../runtime/object-read';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   let {
@@ -56,7 +57,12 @@
     {#each groups as g (g.key)}{@const ids = new Set(
         g.members.map((a) => a.instanceId).filter(Boolean),
       )}{@const bins = activityBins(
-        telemetry.events.filter((e) => !!e.instanceId && ids.has(e.instanceId)),
+        telemetry.events.filter(
+          (e) =>
+            !!e.instanceId &&
+            ids.has(e.instanceId) &&
+            g.members.some((member) => objectReadMatchesProcess(e, member)),
+        ),
         end,
         range * 60000,
         12,

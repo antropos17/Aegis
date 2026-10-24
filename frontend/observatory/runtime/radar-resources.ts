@@ -1,7 +1,12 @@
 import { record, type Telemetry, type RecordData } from './host';
 import { isScopedProcess } from './agent-scope';
 import { describeProtectionObservation, type ProtectionActivity } from './protection';
-import { isObjectRead, objectResourceKey, observationLabel } from './object-read';
+import {
+  isObjectRead,
+  objectReadMatchesProcess,
+  objectResourceKey,
+  observationLabel,
+} from './object-read';
 import {
   describeObservation,
   canonicalObservationPath,
@@ -53,7 +58,12 @@ export function radarResources(state: Telemetry, layer: string): RadarResource[]
   }
   for (const entry of network ? state.network : state.events) {
     const row = entry as unknown as RecordData;
-    const exact = typeof row.instanceId === 'string' ? (identities.get(row.instanceId) ?? []) : [];
+    const exact =
+      typeof row.instanceId === 'string'
+        ? (identities.get(row.instanceId) ?? []).filter((current) =>
+            objectReadMatchesProcess(row, current),
+          )
+        : [];
     const info = describeObservation(
       row,
       exact.length === 1 ? (exact as unknown as RecordData[]) : [],
@@ -102,6 +112,7 @@ export function radarResources(state: Telemetry, layer: string): RadarResource[]
     const actor = status === 'unattributed' ? '' : info.actor;
     const relationKey = JSON.stringify([
       row.instanceId ?? null,
+      isObjectRead(row) ? (row.createTime100ns ?? null) : null,
       actor,
       status,
       record(row.attribution).evidence ?? [],
@@ -148,7 +159,10 @@ export function resourceProcess(
   )
     return null;
   const matches = state.agents.filter((agent) => agent.instanceId === relation.instanceId);
-  return matches.length === 1 && matches[0].agent === relation.actor && isScopedProcess(matches[0])
+  return matches.length === 1 &&
+    matches[0].agent === relation.actor &&
+    isScopedProcess(matches[0]) &&
+    relation.rows.every((row) => objectReadMatchesProcess(row, matches[0]))
     ? matches[0]
     : null;
 }

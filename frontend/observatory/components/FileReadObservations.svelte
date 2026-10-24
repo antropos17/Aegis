@@ -140,7 +140,7 @@
       </p>
       <p id="file-read-object-help">
         {$t(
-          'Opt in to monitor objects identified in this folder for bindings valid up to 10 seconds. A rename or move can invalidate a binding. Names are binding labels; the actual access path is unknown. New, short-lived or unproven objects remain unverified.',
+          'Opt in to monitor objects identified in this folder for bindings valid up to 10 seconds. A rename or move can invalidate a binding. Names are binding labels; the actual access path is unknown. New, short-lived or unproven objects remain unverified. Retained file handles may temporarily delay renaming or deleting. Proof expires after 10 seconds; cleanup runs on stop or the next two-second sweep while the sensor is responsive.',
         )}
       </p>
       {#if telemetry.stats.monitoringPaused}<p>

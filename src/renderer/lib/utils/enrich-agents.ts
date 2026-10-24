@@ -190,6 +190,8 @@ export function enrichAgents(
     for (const ev of candidateEvents) {
       if (ev.selfAccess) continue;
       const objectRead = ev.observationKind === 'bound-object-read';
+      if (objectRead && (!raw.createTime100ns || ev.createTime100ns !== raw.createTime100ns))
+        continue;
       const identity = objectRead ? `object:${boundReadObjectKey(ev.object)}` : ev.file;
       if (identity) {
         const prev = seen.get(identity);

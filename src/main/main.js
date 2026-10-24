@@ -672,6 +672,18 @@ function auditInitOptions(userDataPath) {
   };
 }
 
+/** Production audit-only consumer; historical delivery has no live event callback.
+ * @param {string} userData Private application profile root.
+ * @returns {Object} Bounded security audit pipeline.
+ * @since v0.20.1
+ */
+function createAuditDeliveryPipeline(userData) {
+  return require('./ipc-batcher').createSecurityBatcher({
+    directory: path.join(userData, 'event-spill'),
+    consume: (records) => audit.persistBatch(records),
+  });
+}
+
 // ═══ WINDOW ═══
 
 /** Create the hardened window and load the selected application document.
@@ -974,7 +986,12 @@ function initializeNativeFileIngress() {
         scanLoop &&
         sequenceEngine &&
         Array.isArray(scanner.activityLog) &&
-        (!claim?.actor || sessionTracker.hasInstance(claim.actor.instanceId)),
+        (!claim?.actor ||
+          (sessionTracker.hasInstance(claim.actor.instanceId) &&
+            baselines.canRecordBoundObjectRead(
+              claim.actor.instanceId,
+              claim.actor.createTime100ns,
+            ))),
       ),
     getPolicyGeneration: () => objectPolicyGeneration,
     classifySensitive: (label) => watcher.classifySensitive(label),
@@ -997,6 +1014,29 @@ function initializeNativeFileIngress() {
     },
   });
   return nativeFileIngress;
+}
+
+/** Construct the production ETW owner with its sole operational callback.
+ * @returns {Object} ETW lifetime owner.
+ * @since v0.20.1
+ */
+function initializeEtwFileRuntime() {
+  etwFile = require('./platform/etw-file-runtime').createRuntime({
+    app,
+    powerMonitor: require('electron').powerMonitor,
+    getAgents: () => latestAgents,
+    getPopulationHealth: getAppHealth,
+    classifySensitive: (file) => watcher?.classifySensitive(file) ?? null,
+    onBindingCandidate: (candidate, context) =>
+      nativeFileIngress?.prepareBinding?.(candidate, context) ?? null,
+    isPolicyCurrent: (generation) => generation === objectPolicyGeneration,
+    onOperationalRead: (observation) => nativeFileIngress?.offer(observation) === true,
+    onHealthChange: () => {
+      if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
+        statsUpdateBatcher.pushLazy(getStats);
+    },
+  });
+  return etwFile;
 }
 
 /**
@@ -1122,10 +1162,7 @@ function initDeferredSubsystems(userData) {
 
   // Replay acknowledges historical audit only, never live detection or display.
   audit.init(auditInitOptions(userData));
-  securityEvents = require('./ipc-batcher').createSecurityBatcher({
-    directory: path.join(userData, 'event-spill'),
-    consume: (records) => audit.persistBatch(records),
-  });
+  securityEvents = createAuditDeliveryPipeline(userData);
   scanLoop.init({
     securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
@@ -1327,21 +1364,7 @@ app.whenReady().then(() => {
   });
   desktopShell.configureIdentity();
   createWindow();
-  etwFile = require('./platform/etw-file-runtime').createRuntime({
-    app,
-    powerMonitor: require('electron').powerMonitor,
-    getAgents: () => latestAgents,
-    getPopulationHealth: getAppHealth,
-    classifySensitive: (file) => watcher?.classifySensitive(file) ?? null,
-    onBindingCandidate: (candidate, context) =>
-      nativeFileIngress?.prepareBinding?.(candidate, context) ?? null,
-    isPolicyCurrent: (generation) => generation === objectPolicyGeneration,
-    onOperationalRead: (observation) => nativeFileIngress?.offer(observation) === true,
-    onHealthChange: () => {
-      if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
-        statsUpdateBatcher.pushLazy(getStats);
-    },
-  });
+  initializeEtwFileRuntime();
   // Block B5 — the OS sleep gap. `powerMonitor` is usable only after `ready`, which is
   // where this runs; the module is injected the emitter and a clock and owns the rest.
   // On resume one `observation-gap` audit record explains the hole in the JSONL, ahead
@@ -1612,6 +1635,8 @@ module.exports = {
   // be driven with a real dedup and a fake engine (tests/main/main-file-event-tap.test.js).
   onFileEvent,
   _initializeNativeFileIngressForTest: initializeNativeFileIngress,
+  _initializeEtwFileRuntimeForTest: initializeEtwFileRuntime,
+  _createAuditDeliveryPipelineForTest: createAuditDeliveryPipeline,
   _setSecurityEventsForTest: (value) => {
     securityEvents = value;
   },

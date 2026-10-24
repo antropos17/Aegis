@@ -6,6 +6,7 @@ import InvestigationInspector from '../../../frontend/observatory/components/Inv
 import Details from '../../../frontend/observatory/components/Details.svelte';
 import Events from '../../../frontend/observatory/components/Events.svelte';
 import SensitiveAlertCenter from '../../../frontend/observatory/components/SensitiveAlertCenter.svelte';
+import EntityLinks from '../../../frontend/observatory/components/EntityLinks.svelte';
 import { emptyTelemetry, type RecordData } from '../../../frontend/observatory/runtime/host';
 import {
   createSensitiveAlertTracker,
@@ -13,7 +14,19 @@ import {
   parseJournalAlerts,
 } from '../../../frontend/observatory/runtime/sensitive-alerts';
 import { exactExceptionTarget } from '../../../frontend/observatory/runtime/false-positive-control';
-import { radarResources } from '../../../frontend/observatory/runtime/radar-resources';
+import {
+  radarResources,
+  resourceProcess,
+} from '../../../frontend/observatory/runtime/radar-resources';
+import { detailActivity } from '../../../frontend/observatory/runtime/detail-model';
+import { scopeEvidence } from '../../../frontend/observatory/runtime/agent-scope';
+import { scopeStatistics } from '../../../frontend/observatory/runtime/statistics-scope';
+import {
+  groupEvidence,
+  groupActivity,
+  radarGroups,
+} from '../../../frontend/observatory/runtime/radar';
+import { riskContext } from '../../../frontend/observatory/runtime/risk-context';
 import { createProtectionActivityReader } from '../../../frontend/observatory/runtime/protection';
 import {
   OBJECT_READ_EXPLANATION,
@@ -60,6 +73,8 @@ it('requires the exact full Windows birth for object alert controls despite equa
     pid: 71,
     instanceId: canonical,
     instanceIdSource: 'os' as const,
+    status: 'running' as const,
+    category: 'cli-tool',
     createTime100ns: birth,
     generationWitness: birth,
     generationWitnessSource: 'createTime100ns' as const,
@@ -82,6 +97,65 @@ it('requires the exact full Windows birth for object alert controls despite equa
     alertControlTarget(event, { ...state, agents: [{ ...current, createTime100ns: undefined }] }),
   ).toBeNull();
   expect(alertControlTarget({ ...event, createTime100ns: '' }, state)).toBeNull();
+});
+
+it('keeps historical object reads out of a reused process lifetime across details, scopes and radar links', async () => {
+  const reused = {
+    agent: observed.agent,
+    process: 'codex.exe',
+    pid: observed.pid,
+    instanceId: observed.instanceId,
+    instanceIdSource: 'os' as const,
+    createTime100ns: '134000000000001112',
+    status: 'running' as const,
+    category: 'cli-tool',
+  };
+  const currentRead = { ...observed, createTime100ns: reused.createTime100ns, timestamp: 900 };
+  const state = {
+    ...emptyTelemetry(),
+    ready: true,
+    stale: false,
+    agents: [reused],
+    events: [observed, currentRead],
+  };
+  const scope = { agent: reused.agent, instanceId: reused.instanceId };
+  const rows = state.events as unknown as RecordData[];
+  expect(scopeEvidence(rows, state, scope)).toEqual([currentRead]);
+  expect(scopeStatistics(state, scope).events).toEqual([currentRead]);
+  expect(detailActivity(reused, state)).toEqual([currentRead]);
+  expect(state.events).toEqual([observed, currentRead]);
+  const group = radarGroups([
+    {
+      ...reused,
+      name: reused.agent,
+      riskScore: 0,
+    },
+  ] as unknown as Parameters<typeof radarGroups>[0])[0];
+  expect(groupEvidence(group, state).latest).toBe(currentRead.timestamp);
+  expect(groupActivity(group, state, 3000).flatMap((bin) => bin.events)).toEqual([currentRead]);
+  const relations = radarResources(state, 'files')[0].relations;
+  expect(relations).toHaveLength(2);
+  expect(
+    resourceProcess(
+      relations.find((relation) => relation.rows.includes(observed as unknown as RecordData))!,
+      state,
+    ),
+  ).toBeNull();
+  expect(
+    resourceProcess(
+      relations.find((relation) => relation.rows.includes(currentRead as unknown as RecordData))!,
+      state,
+    ),
+  ).toBe(reused);
+  expect(riskContext(observed as unknown as RecordData, state).subject).toBeUndefined();
+  const mounted = render(EntityLinks, {
+    row: observed as unknown as RecordData,
+    telemetry: state,
+    navigate: vi.fn(async () => {}),
+  });
+  expect(mounted.container.querySelector('[data-detail-focus="exact-process"]')).toBeNull();
+  await mounted.rerender({ row: currentRead as unknown as RecordData });
+  expect(mounted.container.querySelector('[data-detail-focus="exact-process"]')).not.toBeNull();
 });
 
 const captureTelemetry = (canStartObject = true) => ({
@@ -139,6 +213,8 @@ it('requires a separate unchecked opt-in and current readiness before sending st
     'rename or move',
     'actual access path is unknown',
     'remain unverified',
+    'may temporarily delay renaming or deleting',
+    'cleanup runs on stop or the next two-second sweep',
   ])
     expect(panel).toHaveTextContent(phrase);
   await fireEvent.click(screen.getByRole('button', { name: 'Start verified object monitoring' }));

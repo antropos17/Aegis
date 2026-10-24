@@ -1,4 +1,5 @@
 import type { Telemetry } from './host';
+import { objectReadMatchesProcess } from './object-read';
 
 export interface StatisticsScope {
   agent: string;
@@ -25,7 +26,10 @@ export function scopeStatistics(state: Telemetry, scope: StatisticsScope): Telem
     tokens: state.tokens.filter(matches),
     events: state.events.filter(
       (event) =>
-        matches(event) && !event.selfAccess && event.attribution?.status !== 'unattributed',
+        matches(event) &&
+        !event.selfAccess &&
+        event.attribution?.status !== 'unattributed' &&
+        agents.some((agent) => objectReadMatchesProcess(event, agent)),
     ),
     network: state.network.filter(matches),
     // The bridge exposes global cumulative scan counters only. Retained rows

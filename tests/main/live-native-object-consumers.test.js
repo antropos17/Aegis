@@ -19,6 +19,7 @@ function event() {
   return {
     observationKind: 'bound-object-read',
     eventId: 'c465454e-b74b-4ec2-b2bb-4df53a4ca6d8',
+    createTime100ns: '133644736000000000',
     agent: 'Claude Code',
     pid: 320,
     instanceId: '320:1720000000000',
@@ -75,7 +76,13 @@ describe('bound-object operational consumers', () => {
     vi.setSystemTime(timestamp);
     const observation = event();
     const actors = [
-      { agent: 'Claude Code', pid: 320, instanceId: observation.instanceId, category: 'ai' },
+      {
+        agent: 'Claude Code',
+        pid: 320,
+        instanceId: observation.instanceId,
+        category: 'ai',
+        createTime100ns: observation.createTime100ns,
+      },
       { agent: 'Claude Code', pid: 321, instanceId: '321:1720000000000', category: 'ai' },
     ];
     const before = enrichAgents(actors, [], {}, [], []);
@@ -93,6 +100,35 @@ describe('bound-object operational consumers', () => {
     );
   });
 
+  it('does not score historical object reads onto a same-millisecond replacement generation', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(timestamp);
+    const observation = {
+      ...event(),
+      pid: 71,
+      instanceId: '71:1755526400000',
+      createTime100ns: '134000000000001111',
+    };
+    const row = {
+      agent: 'Claude Code',
+      pid: 71,
+      category: 'ai',
+      instanceId: observation.instanceId,
+      createTime100ns: observation.createTime100ns,
+    };
+    expect(enrichAgents([row], [observation], {}, [], [])[0].sensitiveFiles).toBe(1);
+    const replacement = { ...row, createTime100ns: '134000000000001112' };
+    expect(enrichAgents([replacement], [observation], {}, [], [])[0].sensitiveFiles).toBe(0);
+    expect(
+      enrichAgents([{ ...row, createTime100ns: null }], [observation], {}, [], [])[0]
+        .sensitiveFiles,
+    ).toBe(0);
+    expect(
+      enrichAgents([row], [{ ...observation, createTime100ns: null }], {}, [], [])[0]
+        .sensitiveFiles,
+    ).toBe(0);
+  });
+
   it('records object features without path, directory or legacy sensitive-path training', () => {
     const observation = event();
     baselines.init({ isInstanceActive: (key) => key === observation.instanceId });
@@ -103,6 +139,13 @@ describe('bound-object operational consumers', () => {
     expect(bucket.files.size).toBe(0);
     expect(bucket.directories.size).toBe(0);
     expect(bucket.sensitiveCount).toBe(0);
+    expect(baselines.canRecordBoundObjectRead(observation.instanceId, '133644736000000001')).toBe(
+      false,
+    );
+    expect(
+      baselines.recordBoundObjectRead({ ...observation, createTime100ns: '133644736000000001' }),
+    ).toBe(false);
+    expect(bucket.objectSensitiveCount).toBe(1);
     expect(baselines.recordBoundObjectRead({ ...observation, instanceId: null })).toBe(false);
     expect(
       baselines.recordBoundObjectRead({ ...observation, instanceId: '321:1720000000000' }),
@@ -198,6 +241,7 @@ describe('bound-object operational consumers', () => {
     const onDetection = vi.fn();
     let now = timestamp + 500;
     sequenceEngine.init({ rules: loaded.rules, onDetection, now: () => now });
+    sequenceEngine.observePopulation([{ ...event(), instanceIdSource: 'os' }], true);
     sequenceEngine.ingest(event());
     expect(sequenceEngine.getStats().rules.SEQ001.openNow).toBe(0);
     expect(sequenceEngine.getStats().rules.SEQ004.openNow).toBe(1);
@@ -227,6 +271,7 @@ describe('bound-object operational consumers', () => {
     const onDetection = vi.fn();
     let now = timestamp + 1000;
     sequenceEngine.init({ rules: loaded.rules, onDetection, now: () => now });
+    sequenceEngine.observePopulation([{ ...event(), instanceIdSource: 'os' }], true);
     sequenceEngine.ingest({
       agent: 'Claude Code',
       pid: 320,
@@ -243,6 +288,33 @@ describe('bound-object operational consumers', () => {
     sequenceEngine.ingest(event());
     expect(onDetection).not.toHaveBeenCalled();
     expect(sequenceEngine.getStats().rules.SEQ004.openNow).toBe(1);
+  });
+
+  it('revokes object sequence anchors on fullbirth replacement or outage without dropping path anchors', () => {
+    const loaded = sequenceLoader.loadDir();
+    const onDetection = vi.fn();
+    sequenceEngine.init({ rules: loaded.rules, onDetection, now: () => timestamp + 500 });
+    const actor = { ...event(), instanceIdSource: 'os' };
+    sequenceEngine.observePopulation([actor], true);
+    sequenceEngine.ingest(event());
+    expect(sequenceEngine.getStats().rules.SEQ004.openNow).toBe(1);
+    sequenceEngine.observePopulation([{ ...actor, createTime100ns: '133644736000000001' }], true);
+    expect(sequenceEngine.getStats().rules.SEQ004.openNow).toBe(0);
+    sequenceEngine.ingest(event());
+    expect(sequenceEngine.getStats().rules.SEQ004.openNow).toBe(0);
+    expect(onDetection).not.toHaveBeenCalled();
+    sequenceEngine.observePopulation([actor], true);
+    sequenceEngine.ingest(event());
+    sequenceEngine.ingest({
+      ...event(),
+      observationKind: 'path',
+      file: 'C:\\owned\\.env',
+      object: undefined,
+    });
+    expect(sequenceEngine.getStats().rules.SEQ001.openNow).toBe(1);
+    sequenceEngine.observePopulation([], false);
+    expect(sequenceEngine.getStats().rules.SEQ004.openNow).toBe(0);
+    expect(sequenceEngine.getStats().rules.SEQ001.openNow).toBe(1);
   });
 
   it('keeps closed object custody through audit projection and historical replay', () => {

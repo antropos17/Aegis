@@ -1,5 +1,6 @@
 import type { DetectedAgent, FileEvent, PathFileEvent } from '../../../src/shared/types';
 import { actionTarget, type Telemetry } from './host';
+import { objectReadMatchesProcess } from './object-read';
 
 export interface SensitiveAlert {
   readonly id: string;
@@ -237,14 +238,7 @@ export function alertControlTarget(
       agent.agent === event.agent,
   );
   if (matches.length !== 1) return null;
-  if (
-    event.observationKind === 'bound-object-read' &&
-    (typeof event.createTime100ns !== 'string' ||
-      !/^[1-9]\d*$/.test(event.createTime100ns) ||
-      matches[0].instanceIdSource !== 'os' ||
-      matches[0].createTime100ns !== event.createTime100ns)
-  )
-    return null;
+  if (!objectReadMatchesProcess(event, matches[0])) return null;
   try {
     return actionTarget(state, event.instanceId) === matches[0] ? matches[0] : null;
   } catch {

@@ -63,6 +63,28 @@ it('groups bound reads by object and policy scope rather than by labels, access 
   ).toHaveLength(2);
 });
 
+it('does not fill a missing object actor from a different birth sharing the carried instance ID', () => {
+  const event = {
+    ...boundRead(),
+    agent: '',
+    pid: 71,
+    instanceId: '71:1755526400000',
+    createTime100ns: '134000000000001111',
+  };
+  const current = {
+    agent: 'Codex',
+    pid: 71,
+    instanceId: event.instanceId,
+    instanceIdSource: 'os',
+    createTime100ns: '134000000000001112',
+  };
+  expect(describeObservation(event, [current]).actor).toBe('');
+  expect(
+    describeObservation(event, [{ ...current, createTime100ns: event.createTime100ns }]).actor,
+  ).toBe('Codex');
+  expect(describeObservation({ ...event, createTime100ns: undefined }, [current]).actor).toBe('');
+});
+
 describe('observation presentation', () => {
   it('names Codex skills without turning the path into actor or execution proof', () => {
     const row = {

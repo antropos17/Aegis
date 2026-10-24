@@ -114,6 +114,7 @@ function ensureSessionData(instanceId, agentName) {
       files: new Set(),
       objects: new Set(),
       objectSensitiveCount: 0,
+      objectBirth100ns: null,
       sensitiveCount: 0,
       directories: new Set(),
       endpoints: new Set(),
@@ -153,12 +154,27 @@ function recordBoundObjectRead(event) {
   if (event?.observationKind !== 'bound-object-read') return false;
   const object = projectBoundReadObject(event.object);
   if (!object) return false;
+  if (!canRecordBoundObjectRead(event.instanceId, event.createTime100ns)) return false;
   const sd = ensureSessionData(event.instanceId, event.agent);
   if (!sd) return false;
+  sd.objectBirth100ns = event.createTime100ns;
   sd.objects.add(boundReadObjectKey(object));
   if (object.policy.sensitive) sd.objectSensitiveCount++;
   sd.lastActivityAt = Date.now();
   return true;
+}
+
+/** A rounded canonical key may collide across two full Windows birth witnesses.
+ * Quarantine the second generation's object lane instead of sharing its baseline.
+ * @param {string} instanceId Carried canonical key.
+ * @param {string} birth Full issuer creation-time witness.
+ * @returns {boolean} Whether this bucket can accept that exact generation.
+ * @since v0.20.1
+ */
+function canRecordBoundObjectRead(instanceId, birth) {
+  if (!instanceId || typeof birth !== 'string' || !/^[1-9]\d{0,19}$/.test(birth)) return false;
+  const existing = sessionData[instanceId]?.objectBirth100ns;
+  return existing == null || existing === birth;
 }
 
 /**
@@ -301,6 +317,7 @@ module.exports = {
   ensureSessionData,
   recordFileAccess,
   recordBoundObjectRead,
+  canRecordBoundObjectRead,
   recordNetworkEndpoint,
   recomputeAverages,
   finalizeSession,

@@ -57,6 +57,7 @@ export interface SessionData {
   /** Separate object-policy evidence, excluded from path/directory training. */
   readonly objects?: Set<string>;
   objectSensitiveCount?: number;
+  readonly objectBirth100ns?: string | null;
   sensitiveCount: number;
   readonly directories: Set<string>;
   readonly endpoints: Set<string>;

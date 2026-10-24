@@ -10,7 +10,7 @@
   import Icon from './Icon.svelte';
   import ObservationHistory from './ObservationHistory.svelte';
   import ObservationResource from './ObservationResource.svelte';
-  import { isObjectRead } from '../runtime/object-read';
+  import { isObjectRead, objectReadMatchesProcess } from '../runtime/object-read';
   let {
     row,
     telemetry,
@@ -54,7 +54,10 @@
   );
   let agent = $derived(
     describeObservation(row, instances(telemetry) as unknown as RecordData[]).actor
-      ? instances(telemetry).find((a) => a.instanceId && a.instanceId === row.instanceId)
+      ? instances(telemetry).find(
+          (a) =>
+            a.instanceId && a.instanceId === row.instanceId && objectReadMatchesProcess(row, a),
+        )
       : undefined,
   );
 </script>

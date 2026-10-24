@@ -6,10 +6,7 @@ const healthModel = require('./sensor-health');
 const MAX_SOURCE_IDS = 4096;
 const MAX_AGE_MS = 10000;
 const cleanText = (value, max) =>
-  typeof value === 'string' &&
-  value.length > 0 &&
-  value.length <= max &&
-  !/[\x00-\x1f\x7f]/.test(value);
+  typeof value === 'string' && value.length > 0 && value.length <= max && !/\p{Cc}/u.test(value);
 const localLabel = (value) => cleanText(value, 32768) && /^[a-z]:\\/i.test(value);
 
 /** Create the closed live consumer for runtime-owned, verified native reads.

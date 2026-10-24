@@ -243,6 +243,7 @@ export interface PathFileEvent extends FileEventBase {
 
 /** A read of an independently pre-bound object; its access alias is unknown. */
 export interface BoundObjectReadEvent extends FileEventBase {
+  readonly createTime100ns: string;
   readonly observationKind: 'bound-object-read';
   readonly object: BoundReadObject;
   readonly file?: never;

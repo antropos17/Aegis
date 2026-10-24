@@ -80,7 +80,16 @@ function describeObservation(row, agents = []) {
   const status = 'status' in evidence ? evidence.status : row.attribution;
   const exact =
     typeof row.instanceId === 'string'
-      ? agents.find((a) => a.instanceId === row.instanceId)
+      ? agents.find(
+          (a) =>
+            a.instanceId === row.instanceId &&
+            (!objectRead ||
+              (typeof row.createTime100ns === 'string' &&
+                /^[1-9]\d*$/.test(row.createTime100ns) &&
+                a.instanceIdSource === 'os' &&
+                a.createTime100ns === row.createTime100ns &&
+                a.pid === row.pid)),
+        )
       : undefined;
   const recordedName = text(row.agent);
   const recorded = /^(?:unknown(?: source)?|unattributed|—)$/i.test(recordedName)

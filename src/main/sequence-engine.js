@@ -221,6 +221,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {string} agent - the first step's `aegis.agent.name`, `''` when it had none.
  * @property {number|null} pid - the first step's `process.pid`, `null` when it had none.
  * @property {SequenceStepEvidence[]} evidence - one entry per satisfied step, in order.
+ * @property {string} [objectBirth] - Exact full birth for a bound-object anchor.
  * @property {number} [reportedScore] - Strongest weak policy observation already emitted.
  * @property {object} [relationship] - Separate observed parent relation for related rules.
  */
@@ -308,8 +309,10 @@ const _open = new Map();
 /** Keys that exited, each with the clock reading its refusal lasts to. @type {Map<string, number>} */
 const _recentlyExited = new Map();
 
-/** The LAST detection per key: its level and the clock reading it landed on. @type {Map<string, {level: string, at: number}>} */
+/** The LAST detection per key. @type {Map<string, {level: string, at: number, objectBirth?: string}>} */
 const _lastDetection = new Map();
+/** Exact current full births for the separately admitted object lane. @type {Map<string,string>} */
+let _objectActors = new Map();
 
 /** @type {RuleCounters & {skippedNullInstanceId: number}} */
 let _global = { ..._zeroCounters(), skippedNullInstanceId: 0 };
@@ -668,6 +671,7 @@ function _openState(rule, key, doc, observedAt) {
     agent,
     pid,
     evidence: [_evidence(rule.steps[0], doc, observedAt, Boolean(rule.evidencePolicy))],
+    ...(typeof doc.boundObjectBirth === 'string' ? { objectBirth: doc.boundObjectBirth } : {}),
   });
   _openCount++;
   if (_openCount > _peakOpen) _peakOpen = _openCount;
@@ -692,7 +696,8 @@ function _applyRule(rule, key, doc, categories, observedAt) {
     let state = states.get(key);
     if (
       state !== undefined &&
-      doc.event?.action === 'bound-object-read' &&
+      _isMap(doc.event) &&
+      doc.event.action === 'bound-object-read' &&
       observedAt < state.openedAt
     )
       return;
@@ -786,7 +791,11 @@ function _emit(rule, key, state, observedAt) {
     observedAt - prior.at > SCORE_HOLD_MS ||
     (LEVEL_SCORE.get(level) ?? 0) >= (LEVEL_SCORE.get(prior.level) ?? 0)
   ) {
-    _lastDetection.set(key, { level, at: observedAt });
+    _lastDetection.set(key, {
+      level,
+      at: observedAt,
+      ...(state.objectBirth ? { objectBirth: state.objectBirth } : {}),
+    });
   }
   if (_onDetection === null) return;
   const attribution = _foldAttribution(state.evidence);
@@ -879,6 +888,7 @@ function init(options) {
   _open.clear();
   _recentlyExited.clear();
   _lastDetection.clear();
+  _objectActors = new Map();
   _openCount = 0;
   _peakOpen = 0;
   _global = { ..._zeroCounters(), skippedNullInstanceId: 0 };
@@ -919,6 +929,7 @@ function ingest(carrier) {
     // observation time, bounded again here so malformed direct callers cannot
     // manufacture sequence order from an arbitrary old or future timestamp.
     if (
+      typeof capturedAt !== 'number' ||
       !Number.isSafeInteger(capturedAt) ||
       capturedAt <= 0 ||
       capturedAt > receivedAt + 10 ||
@@ -935,10 +946,21 @@ function ingest(carrier) {
     _global.skippedNullInstanceId++;
     return;
   }
+  if (
+    carrier.observationKind === 'bound-object-read' &&
+    (typeof carrier.createTime100ns !== 'string' ||
+      _objectActors.get(key) !== carrier.createTime100ns)
+  ) {
+    _global.ingestErrors++;
+    _warnIngestError(receivedAt, null);
+    return;
+  }
   /** @type {Record<string, unknown>} */
   let doc;
   try {
     doc = normalizeToEcs(carrier);
+    if (carrier.observationKind === 'bound-object-read')
+      doc.boundObjectBirth = carrier.createTime100ns;
   } catch {
     _global.ingestErrors++;
     _warnIngestError(observedAt, null);
@@ -976,6 +998,32 @@ function ingest(carrier) {
  * @returns {void} @since 0.15.1
  */
 function observePopulation(agents, reliable) {
+  const next = new Map();
+  const ambiguous = new Set();
+  if (reliable && Array.isArray(agents) && agents.length <= 4096) {
+    for (const row of agents) {
+      if (
+        typeof row?.instanceId !== 'string' ||
+        !row.instanceId ||
+        row.instanceIdSource !== 'os' ||
+        typeof row.createTime100ns !== 'string' ||
+        !/^[1-9]\d{0,19}$/.test(row.createTime100ns)
+      )
+        continue;
+      if (next.has(row.instanceId) && next.get(row.instanceId) !== row.createTime100ns)
+        ambiguous.add(row.instanceId);
+      next.set(row.instanceId, row.createTime100ns);
+    }
+  }
+  for (const key of ambiguous) next.delete(key);
+  _objectActors = next;
+  // Native continuity and rounded-ID collisions revoke only object-anchored
+  // state. Existing path correlations keep their established lifetime rules.
+  for (const [ruleId, states] of _open)
+    for (const [key, state] of states)
+      if (state.objectBirth && next.get(key) !== state.objectBirth) _drop(states, ruleId, key);
+  for (const [key, last] of _lastDetection)
+    if (last.objectBirth && next.get(key) !== last.objectBirth) _lastDetection.delete(key);
   _related?.observePopulation(agents, reliable);
 }
 

@@ -20,12 +20,12 @@ function projectBoundReadObject(value) {
     typeof v.label !== 'string' ||
     v.label.length === 0 ||
     v.label.length > 32768 ||
-    /[\x00-\x1f\x7f]/.test(v.label) ||
+    /\p{Cc}/u.test(v.label) ||
     !v.policy ||
     typeof v.policy.sensitive !== 'boolean' ||
     typeof v.policy.reason !== 'string' ||
     v.policy.reason.length > 1024 ||
-    /[\x00-\x1f\x7f]/.test(v.policy.reason) ||
+    /\p{Cc}/u.test(v.policy.reason) ||
     !CLASSIFICATIONS.has(v.policy.classification) ||
     (v.policy.classification === 'ordinary') !== !v.policy.sensitive ||
     (v.policy.sensitive && v.policy.reason.length === 0)
