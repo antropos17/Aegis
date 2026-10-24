@@ -86,6 +86,16 @@ investigation roster, the probe uses the normal Settings flow to enable
 Each transition has a ten-second limit. Only the owned guest profile preference
 changes; the page is not reloaded and the existing probe is installed once.
 
+The scanner identity wait retains a fixed, bounded condition projection before
+its acceptance check. `identityWait` holds a capped sample count and only the last
+snapshot: availability, population reliability, identity quality, pause state,
+capped projected population size, and exact actor PID/source/birth match booleans.
+No names, IDs, birth values, paths or raw scanner payloads enter this projection.
+An OS source and full birth must match on the same actor row. The thirty-second
+deadline and strict acceptance conditions remain unchanged. A missing sample is
+unknown evidence; these diagnostics do not establish the cause of an older run
+whose rejected snapshots were not retained.
+
 After normal process closure, audit custody is checked against the canonical
 on-disk envelope: type, actor PID/instance, empty access path, and the event and
 binding IDs stored under `details`. Exactly one matching row is required. The

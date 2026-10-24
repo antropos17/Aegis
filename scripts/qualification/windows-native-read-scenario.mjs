@@ -12,6 +12,7 @@ import { _electron as electron } from 'playwright';
 import { GUI_EXECUTABLE } from '../produce-protected-gui-manifest.mjs';
 import { launchNativeReadElectron } from './windows-native-read-launch.mjs';
 import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
+import { recordScannerReadiness } from './windows-native-read-readiness.mjs';
 import {
   diagnostics,
   readFixture,
@@ -97,18 +98,10 @@ export async function runNativeReadScenario({
         }
       });
     }, witness.pid);
+    r.identityWait = { samples: 0, last: null };
     const ready = await until(
       () => evidence(app),
-      (value) =>
-        value?.readiness?.populationReliable === true &&
-        value.readiness.identityDegraded === false &&
-        value.readiness.monitoringPaused === false &&
-        value?.agents?.some(
-          (agent) =>
-            agent.pid === witness.pid &&
-            agent.instanceIdSource === 'os' &&
-            agent.createTime100ns === witness.birth,
-        ),
+      (value) => recordScannerReadiness(value, witness, r.identityWait),
       30000,
       'Actual reliable scanner identity unavailable',
     );

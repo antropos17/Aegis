@@ -142,6 +142,65 @@ describe('actual native-read scenario launch composition', () => {
     expect(observer.stop).toHaveBeenCalledOnce();
   });
 
+  it('retains the failed scanner condition through the actual scenario timeout and cleanup', async () => {
+    const controls = {
+      getByRole: () => controls,
+      waitFor: vi.fn(),
+      click: vi.fn(),
+      check: vi.fn(),
+    };
+    app.firstWindow = vi.fn().mockResolvedValue({
+      getByRole: () => controls,
+      evaluate: vi.fn(),
+    });
+    mocks.launch.mockResolvedValue(app);
+    mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
+    mocks.until.mockImplementationOnce(async (_read, accept, ms, message) => {
+      expect(ms).toBe(30_000);
+      expect(message).toBe('Actual reliable scanner identity unavailable');
+      expect(
+        accept({
+          readiness: {
+            populationReliable: false,
+            identityDegraded: false,
+            monitoringPaused: false,
+          },
+          agents: [{ pid: 42, instanceIdSource: 'os', createTime100ns: '123', name: 'PRIVATE' }],
+        }),
+      ).toBe(false);
+      throw new Error(message);
+    });
+
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+        canary: 'canary',
+        candidate: 'X:/owned/candidate',
+        helper: 'helper.exe',
+      }),
+    ).rejects.toThrow('Actual reliable scanner identity unavailable');
+
+    expect(receipt.identityWait).toMatchObject({
+      samples: 1,
+      last: {
+        accepted: false,
+        populationReliable: false,
+        identityNonDegraded: true,
+        monitoringActive: true,
+        actorExactMatch: true,
+      },
+    });
+    expect(JSON.stringify(receipt.identityWait)).not.toContain('PRIVATE');
+    expect(receipt.reads).toEqual([]);
+    expect(fixture.close).toHaveBeenCalledOnce();
+    expect(app.close).toHaveBeenCalledOnce();
+    expect(observer.stop).toHaveBeenCalledOnce();
+  });
+
   it('uses the owned-profile Settings flow before subscribing in the Simple investigation workspace', async () => {
     let simple = false;
     let workspace = 'Monitoring';
