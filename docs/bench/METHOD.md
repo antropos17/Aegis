@@ -178,6 +178,13 @@ independent calibration or overhead result. Its cooperative duration bounds do
 not provide an external hard deadline; the complete protocol below remains future
 qualification work.
 
+An optional [fixed-child supervisor](RESOURCE_SUPERVISOR.md) can request
+termination independently of a blocked collector event loop. It retains observed
+exit, pipe closure, deadline crossing and bounded output-prefix evidence
+separately. Its parent can itself be delayed, and it supplies neither OS
+containment nor a hard deadline for the parent. Child-bundle admission, complete
+product/helper accounting and measurement qualification remain separate work.
+
 The following values are protocol settings proposed for future implementation,
 not observed performance. Freeze them with the collector implementation before
 the first qualification run. Each fixed commit/platform/mode/agent/workload cell

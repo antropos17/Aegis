@@ -3949,6 +3949,25 @@ the host storage constraint. This supplies calling-Node instrumentation only;
 product/cohort capture, external deadlines, calibration, overhead and full W8/T8
 acceptance remain open.
 
+## 2026-10-25 — W8 fixed-child resource supervision
+
+Added a bench-only supervisor around the unchanged own-Node resource session.
+It predeclares a fresh parent bundle, launches only the fixed collector with a
+minimal environment, observes a monotonic wall limit from a separate parent event
+loop, requests termination only of its owned child, and records exit and pipe
+confirmation independently. Output retention consists of bounded prefix hashes
+and counters; partial child evidence is preserved. Parent source endpoints and
+closed-file publication are recorded without authenticating loaded code or
+admitting the child's measurement bundle.
+
+CI tests cover the real shortest fixed-child session, controlled lifecycle and
+publication failures, private blocked/output fixtures, and copied-source mutation
+controls with an independent assertion oracle. Local validation is limited to
+syntax, scoped formatting and diff inspection because of host disk pressure;
+behavioral execution and the full mandatory gates run in CI. This is a W8
+prerequisite only: product/helper population, calibration, measurement acceptance,
+OS containment and an externally enforced deadline for the parent remain open.
+
 ## 2026-10-25 — W4 Windows explicit stable-file JSONL tails
 
 The dormant Windows reader exposes a single-use `readTail` alongside its existing
