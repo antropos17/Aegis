@@ -155,6 +155,7 @@ try {
     $report.capability=Test-NativeReadCapability $session
     if($report.capability.status -cne 'PASS') { throw 'Exact guest object bridge capability refused; token privileges were not changed' }
   } | Out-Null
+  $report.admissionPreflight=Stage 'qualify-object-read-alert-and-risk-before-recovery' { Invoke-NativeReadPhase $session $root 'admission-preflight' $consent $id $name $vmRoot }
   $report.preparation=Stage 'prepare-current-candidate-recovery' { Invoke-NativeReadPhase $session $root 'prepare' $consent $id $name $vmRoot }
   Stage 'restart-only-exact-owned-guest-after-prepared' {
     $prepared=Invoke-Command -Session $session -ScriptBlock { Get-Content -LiteralPath 'C:\aegis-native-read\evidence\prepare\receipt.json' -Raw | ConvertFrom-Json }

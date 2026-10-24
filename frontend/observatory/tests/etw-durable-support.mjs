@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { _electron as electron } from 'playwright';
-import { scenarioPaths, diagnostics, traceHelpers } from './etw-support.mjs';
-import { ownedPids, exitWithin } from './sensor-support.mjs';
+import { scenarioPaths, diagnostics } from './etw-support.mjs';
+import { exitWithin } from './sensor-support.mjs';
+import { captureDurableProcessInventory } from '../../../tools/development/etw-process-inventory.mjs';
 import { observeCustodian } from './etw-custodian-support.mjs';
 import { waitOwnedExit } from './etw-failure-support.mjs';
 import { observePackageWindow } from './package-window-observation.mjs';
@@ -15,7 +16,14 @@ import {
  * @param {object} options Executable/output/canary/fault/total.
  * @returns {Promise<object>} Owned process resources. @since v0.19.2
  */
-export async function durableLaunch({ executable, out, canary, fault, total = false }) {
+export async function durableLaunch({
+  executable,
+  out,
+  canary,
+  fault,
+  total = false,
+  collectInventory = captureDurableProcessInventory,
+}) {
   const p = scenarioPaths(out, canary);
   const env = { ...process.env, USERPROFILE: p.home, HOME: p.home, TEMP: p.temp, TMP: p.temp };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -53,8 +61,14 @@ export async function durableLaunch({ executable, out, canary, fault, total = fa
       },
     });
     stage = 'process-inventory';
-    const own = await ownedPids(app, child.pid, env);
-    const helpers = traceHelpers(own, env, (await diagnostics(app)).nativeProcessIds);
+    const { own, helpers } = await collectInventory({
+      app,
+      rootPid: child.pid,
+      nativeIds: (await diagnostics(app)).nativeProcessIds,
+      originalPids: reserved.originalPids,
+      custodianPid: reserved.custodianPid,
+      env,
+    });
     return { app, child, page, p, env, helper, observer, reserved, own, helpers, observed };
   } catch (error) {
     try {

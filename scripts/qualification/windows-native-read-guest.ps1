@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][ValidateSet('prepare','resume','admission')][string]$Phase)
+param([Parameter(Mandatory)][ValidateSet('admission-preflight','prepare','resume','admission')][string]$Phase)
 
 function Assert-NativeReadDesktopScope($Scope) {
   if($Scope.root -cne 'C:\aegis-native-read' -or $Scope.source -cne 'C:\aegis-native-read\source' -or $Scope.bundle -cne 'C:\aegis-native-read\input' -or
@@ -153,8 +153,8 @@ try {
   }
   $node=Join-Path $bundle 'runtime/node.exe'
   $arguments=@()
-  if($Phase -eq 'admission') {
-    $arguments=@('scripts/qualification/windows-native-read-probe.mjs','--source-sha',$context.sourceSha,'--candidate',(Join-Path $bundle 'candidate'),'--build-receipt',(Join-Path $bundle 'reboot-build.json'),'--config',(Join-Path $bundle 'etw-builder.json'),'--output',(Join-Path $root 'evidence/admission'))
+  if($Phase -in @('admission-preflight','admission')) {
+    $arguments=@('scripts/qualification/windows-native-read-probe.mjs','--source-sha',$context.sourceSha,'--candidate',(Join-Path $bundle 'candidate'),'--build-receipt',(Join-Path $bundle 'reboot-build.json'),'--config',(Join-Path $bundle 'etw-builder.json'),'--output',(Join-Path $root ('evidence/'+$Phase)))
   } else {
     $arguments=@('tools/development/etw-reboot.mjs','--phase',$Phase,'--source-sha',$context.sourceSha,'--candidate',(Join-Path $bundle 'candidate'),'--build-receipt',(Join-Path $bundle 'reboot-build.json'),'--config',(Join-Path $bundle 'etw-builder.json'),'--output',(Join-Path $root ('evidence/'+$Phase)))
     if($Phase -eq 'resume') { $arguments+=@('--prepared',(Join-Path $root 'evidence/prepare/receipt.json')) }

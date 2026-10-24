@@ -65,6 +65,14 @@ token privileges and refuses an unqualified bridge without enabling privileges.
 This early check cannot replace the later collector's own probe in its actual
 interactive context.
 
+The controller then runs `admission-preflight` in the same guest. It uses the
+unchanged actual object-read probe and its complete oracle, with a fresh owned
+profile and a distinct evidence directory. It must confirm ordinary process
+closure and independent ETW session absence before recovery starts. A failure
+enters the existing VM cleanup path. This earlier result gives direct feedback
+on read-to-alert/risk behavior; it cannot satisfy the final post-reboot admission
+receipt or replace recovery qualification.
+
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller
 requests Windows Restart inside the exact owned VM. A fresh later boot is
@@ -81,7 +89,14 @@ condition. Bounded progress messages identify the current phase and elapsed
 time. These checks reduce failure-reporting latency while retaining the existing
 phase deadlines, receipt requirements and exact cleanup rules.
 
-Only after recovery PASS does the object-read probe start. It uses the maintained
+The durable setup driver observes app/helper process ownership through one
+asynchronous, read-only Windows process snapshot. It projects only the owned
+roots and bounded descendant graph before returning data. The operation has a
+single thirty-second budget, bounded output and strict validation; timeout,
+denial or malformed observations remain failures rather than an empty process
+population. Existing process-exit and session-absence oracles remain required.
+
+Only after recovery PASS does the final object-read probe start. It uses the maintained
 native synchronous/asynchronous reader, discovered as Aider by the real process
 scanner, with an independent PID, issuing thread, full process birth, QPC interval
 and pending-I/O witness. This actor is synthetic; the result does not establish

@@ -107,7 +107,7 @@ function Get-NativeReadPhaseInvocation {
   return {
     param([string]$Phase,[string]$ExpectedHash)
     $ErrorActionPreference='Stop'
-    if($Phase -cnotin @('prepare','resume','admission') -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$' -or $ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { throw 'Native phase entry refused' }
+    if($Phase -cnotin @('admission-preflight','prepare','resume','admission') -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$' -or $ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { throw 'Native phase entry refused' }
     $fixedPath='C:\aegis-native-read\input\guest.ps1'
     $file=Get-Item -LiteralPath $fixedPath -Force
     if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -lt 1 -or $file.Length -gt 64KB) { throw 'Native phase entry refused' }
@@ -131,7 +131,7 @@ function Get-NativeReadPhaseInvocation {
 }
 
 function Get-NativeReadPhaseCommand([string]$Phase,[string]$ExpectedHash) {
-  if($Phase -cnotin @('prepare','resume','admission') -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'Native phase entry refused' }
+  if($Phase -cnotin @('admission-preflight','prepare','resume','admission') -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'Native phase entry refused' }
   $command='& {'+(Get-NativeReadPhaseInvocation).ToString()+"} -Phase '"+$Phase+"' -ExpectedHash '"+$ExpectedHash+"'"
   $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
   if($encoded.Length -gt 24KB) { throw 'Native phase command budget' }
@@ -139,7 +139,7 @@ function Get-NativeReadPhaseCommand([string]$Phase,[string]$ExpectedHash) {
 }
 
 # Fixed current-run native-read lab captures; the installer capture scope is unchanged.
-function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','prepare','resume','admission')][string]$Purpose) {
+function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','admission-preflight','prepare','resume','admission')][string]$Purpose) {
   Assert-CloudGuestRunner
   $expected='D:\aegis-native-read-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT
   $valid=if($Purpose -ceq 'setup') { $Index -ge 1 -and $Index -le 4 } else { $Index -ge 100 -and $Index -le 111 }
@@ -340,7 +340,7 @@ function Confirm-NativeReadConsent($Session,[string]$Root,$State,[string]$Id,[st
 }
 
 function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[string]$Id,[string]$Name,[string]$VmRoot) {
-  if($Phase -notin @('prepare','resume','admission')) { throw 'Unknown native-read phase' }
+  if($Phase -notin @('admission-preflight','prepare','resume','admission')) { throw 'Unknown native-read phase' }
   $guestHash=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'windows-native-read-guest.ps1')).Hash.ToLowerInvariant()
   $encoded=Get-NativeReadPhaseCommand $Phase $guestHash
   $taskLaunch=Invoke-Command -Session $Session -ArgumentList $Phase,$encoded -ScriptBlock {
@@ -405,7 +405,7 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
 }
 
 function Copy-NativeReadEvidence($Session,[string]$Root) {
-  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/window-observation.json','admission/view.png')
+  $relative=@('capability/stdout.log','capability/stderr.log','admission-preflight/receipt.json','admission-preflight/window-observation.json','admission-preflight/view.png','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/window-observation.json','admission/view.png')
   $gitProof=Invoke-Command -Session $Session -ScriptBlock {
     $file='C:\aegis-native-read\evidence\git-reconstruction.json'
     if(-not (Test-Path -LiteralPath $file)) { return $false }
@@ -414,10 +414,10 @@ function Copy-NativeReadEvidence($Session,[string]$Root) {
     return $true
   }
   if($gitProof) { Copy-Item -LiteralPath 'C:\aegis-native-read\evidence\git-reconstruction.json' -Destination (Join-Path $Root 'evidence/guest-git-reconstruction.json') -FromSession $Session }
-  foreach($phase in @('prepare','resume','admission')) { $relative+=($phase+'-desktop.json');$relative+=($phase+'-done.json');$relative+=($phase+'.log') }
+  foreach($phase in @('admission-preflight','prepare','resume','admission')) { $relative+=($phase+'-desktop.json');$relative+=($phase+'-done.json');$relative+=($phase+'.log') }
   foreach($file in $relative) {
     $source=if($file -like '*-done.json' -or $file -notmatch '/') { 'C:\aegis-native-read\'+$file } else { 'C:\aegis-native-read\evidence\'+$file.Replace('/','\') }
-    $leafBudget=if($file -like '*-desktop.json' -or $file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json'){16384}else{2MB}
+    $leafBudget=if($file -like '*-desktop.json' -or $file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json'){16384}elseif($file -ceq 'admission-preflight-done.json'){65536}elseif($file -ceq 'admission-preflight/receipt.json'){262144}else{2MB}
     $present=Invoke-Command -Session $Session -ArgumentList $source,$leafBudget -ScriptBlock {
       param($File,$Budget)
       if(-not (Test-Path -LiteralPath $File)) { return $false }
