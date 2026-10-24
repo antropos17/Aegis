@@ -30,6 +30,12 @@ that CLI. It launches only the fixed collector, retains bounded output-prefix
 digests, and preserves incomplete child evidence on termination. Its lifecycle
 receipt does not admit the child's resource bundle or qualify product overhead.
 
+The [offline resource replay checker](../docs/bench/RESOURCE_REPLAY.md) checks
+the fixed supervision and child artifacts together, rehashes their byte bindings
+and recomputes the retained conditional intervals. Its report separates recorded
+lifecycle claims, publication uncertainty and current-evaluator comparison.
+Structural consistency supplies no authenticated measurement or product overhead.
+
 [Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
 caller-declared profile and same-run receipt, normalizing only successful
 positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified

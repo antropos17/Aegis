@@ -185,6 +185,14 @@ separately. Its parent can itself be delayed, and it supplies neither OS
 containment nor a hard deadline for the parent. Child-bundle admission, complete
 product/helper accounting and measurement qualification remain separate work.
 
+The [offline resource replay checker](RESOURCE_REPLAY.md) checks the retained
+supervision/session relationship and recomputes the conditional derivation from
+exact plan and raw input bytes. It distinguishes missing evidence, contradictory
+declarations, recorded lifecycle support and original publication uncertainty.
+Its current evaluator identity is separate from historical source declarations.
+This supports reproducible inspection of one owned bundle; qualified collection,
+calibration and complete product/helper accounting remain open.
+
 The following values are protocol settings proposed for future implementation,
 not observed performance. Freeze them with the collector implementation before
 the first qualification run. Each fixed commit/platform/mode/agent/workload cell
