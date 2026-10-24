@@ -63,6 +63,29 @@ describe('Cedar schema-3 translation contract', () => {
       expect(meta(compiled.evaluate(selected))).toEqual(evaluateExecutionPolicy(legacy, selected));
   });
 
+  it.each(['executable', 'cwd'])(
+    'preserves Cedar control escapes and literal backslashes in %s',
+    (field) => {
+      for (const suffix of ['\u0001', '\b', '\f', '\u001f', '\\u0001', '\\u{1}']) {
+        const selected = { ...action, [field]: action[field] + suffix };
+        const legacy = make([{ action: selected, decision: 'allow' }]);
+        legacy.reviewRequired = [selected];
+        expect(evaluateExecutionPolicy(legacy, selected)).toEqual({
+          decision: 'ask',
+          reason: 'review-required',
+        });
+        const translated = translateSchema3Policy(legacy);
+        expect(translated.ok).toBe(true);
+        const compiled = compileCedarPolicy(translated.policy);
+        expect(compiled.ok, `${field} suffix=${JSON.stringify(suffix)}`).toBe(true);
+        for (const request of [selected, { ...selected, [field]: selected[field] + 'other' }])
+          expect(meta(compiled.evaluate(request))).toEqual(
+            evaluateExecutionPolicy(legacy, request),
+          );
+      }
+    },
+  );
+
   it('supports all 32 disjoint rules and maximum args/env counts within selected-file limits', () => {
     const boundary = {
       ...action,
