@@ -68,6 +68,7 @@ export async function probeRetainedObjectRelease(file, out, env) {
   assert(!fs.existsSync(destination));
   const source = `param([string]$SourceFile,[string]$Destination)
 $ErrorActionPreference='Stop'
+$policyBefore=(Get-ExecutionPolicy).ToString()
 Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class NativeReadRename{[DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]public static extern bool MoveFileEx(string source,string destination,uint flags);}'
 $watch=[Diagnostics.Stopwatch]::StartNew();$first=$null;$attempts=0;$released=$false
 do {
@@ -78,24 +79,23 @@ do {
   if($code -notin @(32,33)){throw ('Unexpected owned rename error '+$code)}
   Start-Sleep -Milliseconds 50
 } while($watch.Elapsed.TotalMilliseconds -lt 15000)
-@{released=$released;firstAttempt=$first;elapsedMs=$watch.Elapsed.TotalMilliseconds;attempts=$attempts;deadlineMs=15000;observedDelay=(-not $first.released);sharingMode='explicit deny-delete-share synthetic reader mode; immediate success does not prove an observed release delay'} | ConvertTo-Json -Depth 5 -Compress
+@{released=$released;firstAttempt=$first;elapsedMs=$watch.Elapsed.TotalMilliseconds;attempts=$attempts;deadlineMs=15000;observedDelay=(-not $first.released);policyBefore=$policyBefore;policyAfter=(Get-ExecutionPolicy).ToString();sharingMode='explicit deny-delete-share synthetic reader mode; immediate success does not prove an observed release delay'} | ConvertTo-Json -Depth 5 -Compress
 if(-not $released -or $watch.Elapsed.TotalMilliseconds -gt 15000){exit 2}
 `;
-  const script = path.join(out, 'retention-probe.ps1');
-  fs.writeFileSync(script, source, { flag: 'wx' });
+  const commandText =
+    '& {\n' +
+    source +
+    "\n} -SourceFile '" +
+    file.replaceAll("'", "''") +
+    "' -Destination '" +
+    destination.replaceAll("'", "''") +
+    "'";
+  const encoded = Buffer.from(commandText, 'utf16le').toString('base64');
+  assert(encoded.length <= 24 * 1024, 'Owned retention command budget');
   const log = path.join(out, 'retention-probe.log');
   const command = await boundedCommand(
     path.join(process.env.WINDIR, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-File',
-      script,
-      '-SourceFile',
-      file,
-      '-Destination',
-      destination,
-    ],
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
     { cwd: out, env, log, timeoutMs: 25000, maxBytes: 8192 },
   );
   assert(
@@ -107,6 +107,7 @@ if(-not $released -or $watch.Elapsed.TotalMilliseconds -gt 15000){exit 2}
     receipt.released === true &&
       Number.isFinite(receipt.elapsedMs) &&
       receipt.elapsedMs <= 15000 &&
+      receipt.policyAfter === receipt.policyBefore &&
       fs.existsSync(destination) &&
       !fs.existsSync(file),
     'Owned rename release was not confirmed within the measured bound',

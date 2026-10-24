@@ -31,6 +31,61 @@ function ConvertFrom-NativeReadManifest {
   return [pscustomobject]@{files=$rows.ToArray()}
 }
 
+# Transport only the three maintained bounded-process functions, never a guest PS1 file.
+function Get-NativeReadProcessSource {
+  $fixedPath=Join-Path $PSScriptRoot 'cloud-guest-media.ps1'
+  $file=Get-Item -LiteralPath $fixedPath -Force
+  if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -lt 1 -or $file.Length -gt 96KB) { throw 'Native process source refused' }
+  $tokens=$null;$errors=$null
+  $ast=[Management.Automation.Language.Parser]::ParseFile($fixedPath,[ref]$tokens,[ref]$errors)
+  if($errors.Count) { throw 'Native process source refused' }
+  $parts=foreach($name in @('Start-CloudGuestNativeProcess','Invoke-CloudGuestNativeProcess','Wait-CloudGuestNativeProcess')) {
+    $definitions=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$false))
+    if($definitions.Count -ne 1) { throw 'Native process source refused' }
+    $definitions[0].Extent.Text
+  }
+  $text=$parts -join "`n"
+  if($text.Length -lt 1 -or $text.Length -gt 16KB) { throw 'Native process source refused' }
+  return $text
+}
+
+# Execute only the fixed transferred phase entry after hashing the same retained bytes.
+# Restricted file execution policy, token privileges and UAC remain unchanged.
+function Get-NativeReadPhaseInvocation {
+  return {
+    param([string]$Phase,[string]$ExpectedHash)
+    $ErrorActionPreference='Stop'
+    if($Phase -cnotin @('prepare','resume','admission') -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$' -or $ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { throw 'Native phase entry refused' }
+    $fixedPath='C:\aegis-native-read\input\guest.ps1'
+    $file=Get-Item -LiteralPath $fixedPath -Force
+    if($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -lt 1 -or $file.Length -gt 64KB) { throw 'Native phase entry refused' }
+    $stream=[IO.File]::Open($fixedPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    try {
+      if($stream.Length -ne $file.Length -or $stream.Length -lt 1 -or $stream.Length -gt 64KB) { throw 'Native phase entry refused' }
+      $bytes=[byte[]]::new([int]$stream.Length);$offset=0
+      while($offset -lt $bytes.Length) {
+        $count=$stream.Read($bytes,$offset,$bytes.Length-$offset)
+        if($count -le 0) { throw 'Native phase entry refused' };$offset+=$count
+      }
+      if($stream.ReadByte() -ne -1) { throw 'Native phase entry refused' }
+    } finally { $stream.Dispose() }
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try { $actualHash=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+    if($actualHash -cne $ExpectedHash) { throw 'Native phase entry refused' }
+    $source=[Text.UTF8Encoding]::new($false,$true).GetString($bytes)
+    & ([scriptblock]::Create($source)) -Phase $Phase
+  }
+}
+
+function Get-NativeReadPhaseCommand([string]$Phase,[string]$ExpectedHash) {
+  if($Phase -cnotin @('prepare','resume','admission') -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'Native phase entry refused' }
+  $command='& {'+(Get-NativeReadPhaseInvocation).ToString()+"} -Phase '"+$Phase+"' -ExpectedHash '"+$ExpectedHash+"'"
+  $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+  if($encoded.Length -gt 24KB) { throw 'Native phase command budget' }
+  return $encoded
+}
+
 # Fixed current-run native-read lab captures; the installer capture scope is unchanged.
 function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','prepare','resume','admission')][string]$Purpose) {
   Assert-CloudGuestRunner
@@ -126,9 +181,13 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
 }
 
 function Test-NativeReadCapability($Session) {
-  return Invoke-Command -Session $Session -ScriptBlock {
+  $nativeSource=Get-NativeReadProcessSource
+  return Invoke-Command -Session $Session -ArgumentList $nativeSource -ScriptBlock {
+    param([string]$NativeProcessSource)
     $ErrorActionPreference='Stop';$root='C:\aegis-native-read'
-    . ($root+'\source\scripts\qualification\cloud-guest-media.ps1')
+    $policyBefore=(Get-ExecutionPolicy).ToString()
+    if($NativeProcessSource.Length -lt 1 -or $NativeProcessSource.Length -gt 16KB) { throw 'Native process source refused' }
+    . ([scriptblock]::Create($NativeProcessSource))
     $env:TEMP=$root+'\temp';$env:TMP=$env:TEMP
     $dir=$root+'\evidence\capability';New-Item -ItemType Directory -Path $dir | Out-Null
     $helper=$root+'\input\candidate\resources\etw-file\EtwFile.exe'
@@ -141,7 +200,7 @@ function Test-NativeReadCapability($Session) {
     if((Get-Item -LiteralPath $stdout).Length -gt 4096 -or (Get-Item -LiteralPath $stderr).Length -ne 0) { throw 'Capability probe output shape/budget failed' }
     $value=Get-Content -LiteralPath $stdout -Raw | ConvertFrom-Json
     if(@($value.PSObject.Properties).Count -ne 2 -or $value.profile -cne 'win11-x64-26300.9457-experimental' -or $value.qualified -isnot [bool]) { throw 'Capability probe response refused' }
-    return @{status=$(if($code -eq 0 -and $value.qualified){'PASS'}else{'FAIL'});exitCode=$code;profile=$value.profile;qualified=$value.qualified;tokenContext='existing elevated PowerShell Direct setup session; collector probe still independently required';tokenPrivileges=@($privileges);tokenPrivilegesChanged=$false;helperSha256=(Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant();nativeDllSha256=(Get-FileHash -LiteralPath ($root+'\input\candidate\resources\etw-file\EtwFile.dll')).Hash.ToLowerInvariant()}
+    return @{status=$(if($code -eq 0 -and $value.qualified){'PASS'}else{'FAIL'});exitCode=$code;profile=$value.profile;qualified=$value.qualified;executionPolicyBefore=$policyBefore;executionPolicyAfter=(Get-ExecutionPolicy).ToString();tokenContext='existing elevated PowerShell Direct setup session; collector probe still independently required';tokenPrivileges=@($privileges);tokenPrivilegesChanged=$false;helperSha256=(Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant();nativeDllSha256=(Get-FileHash -LiteralPath ($root+'\input\candidate\resources\etw-file\EtwFile.dll')).Hash.ToLowerInvariant()}
   }
 }
 
@@ -188,13 +247,13 @@ function Confirm-NativeReadConsent($Session,[string]$Root,$State,[string]$Id,[st
 
 function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[string]$Id,[string]$Name,[string]$VmRoot) {
   if($Phase -notin @('prepare','resume','admission')) { throw 'Unknown native-read phase' }
-  Invoke-Command -Session $Session -ArgumentList $Phase -ScriptBlock {
-    param($Phase)
+  $guestHash=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'windows-native-read-guest.ps1')).Hash.ToLowerInvariant()
+  $encoded=Get-NativeReadPhaseCommand $Phase $guestHash
+  Invoke-Command -Session $Session -ArgumentList $Phase,$encoded -ScriptBlock {
+    param($Phase,[string]$Encoded)
     $root='C:\aegis-native-read';$task='AegisNativeRead-'+$Phase
     if(Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) { throw 'Native-read phase task already exists' }
-    $command="& 'C:\aegis-native-read\input\guest.ps1' -Phase '"+$Phase+"'"
-    $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-    $action=New-ScheduledTaskAction -Execute ($env:SystemRoot+'\System32\WindowsPowerShell\v1.0\powershell.exe') -Argument ('-NoProfile -WindowStyle Hidden -EncodedCommand '+$encoded) -WorkingDirectory $root
+    $action=New-ScheduledTaskAction -Execute ($env:SystemRoot+'\System32\WindowsPowerShell\v1.0\powershell.exe') -Argument ('-NoProfile -WindowStyle Hidden -EncodedCommand '+$Encoded) -WorkingDirectory $root
     $principal=New-ScheduledTaskPrincipal -UserId 'AegisSetup' -LogonType Interactive -RunLevel Limited
     $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
     Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Settings $settings | Out-Null
