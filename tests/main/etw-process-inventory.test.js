@@ -51,6 +51,7 @@ beforeEach(() => vi.resetAllMocks());
 const folders = [];
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   for (const folder of folders.splice(0)) {
     expect(path.dirname(folder)).toBe(path.resolve(os.tmpdir()));
     expect(path.basename(folder).startsWith('aegis-inventory-')).toBe(true);
@@ -60,7 +61,8 @@ afterEach(() => {
 });
 describe('actual durable caller inventory composition', () => {
   it('consumes one controlled bounded inventory result instead of the legacy synchronous query chain', async () => {
-    const out = path.join(process.env.TEMP, 'aegis-inventory-mocked-only');
+    vi.stubEnv('TEMP', undefined);
+    const out = path.join(os.tmpdir(), 'aegis-inventory-mocked-only');
     const child = { pid: 10 };
     const page = { getByRole: () => ({ waitFor: async () => {} }) };
     const app = { process: () => child, firstWindow: async () => page };
@@ -101,7 +103,8 @@ describe('actual durable caller inventory composition', () => {
     expect(seams.oldHelpers).not.toHaveBeenCalled();
   });
   it('retains the actual inventory refusal before closing its owned main and observer', async () => {
-    const out = path.join(process.env.TEMP, 'aegis-inventory-mocked-only');
+    vi.stubEnv('TEMP', undefined);
+    const out = path.join(os.tmpdir(), 'aegis-inventory-mocked-only');
     const app = {
       process: () => ({ pid: 10 }),
       firstWindow: async () => ({ getByRole: () => ({ waitFor: async () => {} }) }),
