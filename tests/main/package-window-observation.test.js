@@ -137,7 +137,72 @@ describe('package-window observation contract', () => {
     expect(run.window.listenerCount('ready-to-show')).toBe(0);
     expect(run.window.setIgnoreMouseEvents).toHaveBeenCalledWith(true);
     expect(run.window.setFocusable).toHaveBeenCalledWith(false);
+    expect(run.window.blur.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('reasserts isolation when delayed product show and focus regain follow the first request', async () => {
+    const run = fixture({ rendered: false });
+    let finished = false;
+    const pending = capturePackageWindow(run.electron, { timeoutMs: 100, pollMs: 10 }).then(
+      (value) => {
+        finished = true;
+        return value;
+      },
+    );
     expect(run.window.blur).toHaveBeenCalledTimes(1);
+    setTimeout(() => {
+      Object.assign(run.state, { visible: true, focused: true, loading: false });
+      run.window.emit('show');
+      run.window.emit('ready-to-show');
+    }, 15);
+    setTimeout(() => {
+      // A later product activation can regain focus despite isFocusable() being false.
+      expect(run.state.focusable).toBe(false);
+      run.state.focused = true;
+      run.window.emit('focus');
+    }, 25);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(finished).toBe(false); // The focus transition invalidates the earlier safe sample.
+    await vi.advanceTimersByTimeAsync(10);
+    expect(finished).toBe(true);
+    expect((await pending).observation).toMatchObject({
+      sameWindow: true,
+      windowInputIsolated: true,
+      focusable: false,
+      focused: false,
+      visible: true,
+      readyToShowObserved: true,
+      settled: true,
+      timedOut: false,
+    });
+    expect(run.window.blur.mock.calls.length).toBeGreaterThan(1);
+    for (const event of ['ready-to-show', 'show', 'focus'])
+      expect(run.window.listenerCount(event)).toBe(0);
+  });
+
+  it('retains and refuses the actual unfocusable but persistently focused failure state', async () => {
+    const run = fixture();
+    run.window.blur.mockImplementation(() => {});
+    const destination = path.join(run.output, 'window.json');
+    const checked = expect(
+      observePackageWindow(run.application, destination, { timeoutMs: 100, pollMs: 10 }),
+    ).rejects.toThrow('Package window guard failed: windowInputIsolated');
+    await vi.advanceTimersByTimeAsync(150);
+    await checked;
+    expect(JSON.parse(fs.readFileSync(destination, 'utf8'))).toMatchObject({
+      sameWindow: true,
+      isolationRequested: true,
+      windowInputIsolated: false,
+      focusable: false,
+      focused: true,
+      visible: true,
+      settled: false,
+      timedOut: true,
+    });
+    for (const event of ['ready-to-show', 'show', 'focus'])
+      expect(run.window.listenerCount(event)).toBe(0);
   });
 
   it.each([

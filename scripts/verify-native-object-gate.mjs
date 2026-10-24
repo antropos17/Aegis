@@ -222,6 +222,16 @@ function native(label, expectedPass, expectedFailure) {
 }
 const mutants = [
   {
+    id: 'package-window-isolation-reapplied',
+    file: windowObservation,
+    edits: [
+      [
+        'const isolate = () => {',
+        'const isolate = () => { if (observation.isolationRequested) return;',
+      ],
+    ],
+  },
+  {
     id: 'observer-framed-reserved-notice',
     file: observer,
     edits: [

@@ -49,8 +49,22 @@ export async function capturePackageWindow(electron, limits) {
   let owned = null;
   let ready = false;
   let stable = 0;
+  const isolate = () => {
+    stable = 0;
+    try {
+      if (!owned || owned.isDestroyed()) return;
+      owned.setIgnoreMouseEvents(true);
+      owned.setFocusable(false);
+      owned.blur();
+      observation.isolationRequested = true;
+    } catch {
+      // An unsuccessful request cannot become an isolated-window result.
+      observation.isolationRequested = false;
+    }
+  };
   const onReady = () => {
     ready = true;
+    isolate();
   };
   try {
     observation.appIsPackaged = app.isPackaged === true;
@@ -65,20 +79,17 @@ export async function capturePackageWindow(electron, limits) {
       if (!owned && windows.length === 1 && !windows[0].isDestroyed()) {
         owned = windows[0];
         owned.once('ready-to-show', onReady);
-        try {
-          owned.setIgnoreMouseEvents(true);
-          owned.setFocusable(false);
-          owned.blur();
-          observation.isolationRequested = true;
-        } catch {
-          // Still sample the real focus/visibility bits; an unsuccessful request
-          // cannot become an isolated-window result.
-        }
+        // Product startup can show/activate this window after the initial request.
+        owned.on('show', isolate);
+        owned.on('focus', isolate);
+        isolate();
       }
       observation.windowPresent = owned !== null && !owned.isDestroyed();
       observation.sameWindow = observation.windowPresent && windows.includes(owned);
       observation.windowStateObserved = false;
       if (observation.windowPresent && observation.sameWindow) {
+        // Also cover platform focus changes whose event preceded our subscription.
+        if (owned.isFocusable() || owned.isFocused()) isolate();
         observation.focusable = owned.isFocusable();
         observation.focused = owned.isFocused();
         observation.visible = owned.isVisible();
@@ -105,7 +116,11 @@ export async function capturePackageWindow(electron, limits) {
     observation.settled = false;
   } finally {
     try {
-      if (owned && !owned.isDestroyed()) owned.removeListener('ready-to-show', onReady);
+      if (owned) {
+        owned.removeListener('ready-to-show', onReady);
+        owned.removeListener('show', isolate);
+        owned.removeListener('focus', isolate);
+      }
     } catch {
       observation.windowStateObserved = false;
       observation.settled = false;
