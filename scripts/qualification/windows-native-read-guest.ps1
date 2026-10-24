@@ -18,6 +18,7 @@ function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[s
   $Proof.status='RUNNING';$Proof.code=$null;$Proof.scopeVerified=$true;$Proof.overlayDismissals=@();$Proof.noForegroundPolls=0
   $refuse={param($Code) $Proof.status='FAIL';$Proof.code=$Code;throw 'Native desktop precondition refused'}
   $sample={
+    param([double]$SliceDeadline=10000)
     do {
       Assert-NativeReadDesktopScope $Scope
       if((& $Elapsed) -ge 10000) { & $refuse 'deadline' }
@@ -26,8 +27,17 @@ function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[s
       if($value.noConsent -ne $true) { & $refuse 'consent-present' }
       if($value.activeDefault -ne $true) { & $refuse 'desktop-unavailable' }
       # NULL foreground is a documented deactivation transition, never closure.
-      if($value.noForeground -eq $true -and $value.kind -ceq 'none' -and $null -eq $value.witness) { $Proof.noForegroundPolls++;& $Pause 100;continue }
+      if($value.noForeground -eq $true -and $value.kind -ceq 'none' -and $null -eq $value.witness) {
+        $Proof.noForegroundPolls++
+        $sampleTime=& $Elapsed
+        if($sampleTime -ge 10000) { & $refuse 'deadline' }
+        if($SliceDeadline -lt 10000 -and $sampleTime -ge $SliceDeadline) { return $null }
+        & $Pause 100;continue
+      }
       if($value.ownerVerified -ne $true -or $value.sameSession -ne $true -or $value.kind -cnotin @('start','search','desktop') -or [string]::IsNullOrEmpty($value.witness)) { & $refuse 'foreground-unavailable' }
+      $sampleTime=& $Elapsed
+      if($sampleTime -ge 10000) { & $refuse 'deadline' }
+      if($SliceDeadline -lt 10000 -and $sampleTime -ge $SliceDeadline) { return $null }
       return $value
     } while((& $Elapsed) -lt 10000)
     & $refuse 'deadline'
@@ -36,18 +46,41 @@ function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[s
     $before=& $sample
     if($before.kind -ceq 'desktop') { $Proof.status='READY';$Proof.activeDefaultObserved=$true;$Proof.noConsentObserved=$true;return }
     if($Proof.overlayDismissals.Count -ge 3) { & $refuse 'overlay-budget' }
-    $fresh=& $sample
-    if($fresh.witness -cne $before.witness -or $fresh.kind -cne $before.kind) { & $refuse 'foreground-changed' }
-    Assert-NativeReadDesktopScope $Scope
-    if((& $Elapsed) -ge 10000) { & $refuse 'deadline' }
-    $sent=& $Dismiss $fresh
-    if($sent -ne 2) { & $refuse 'input-unconfirmed' }
-    $fact=@{kind=$fresh.kind;ownerRevalidated=$true;activeDefaultObserved=$true;inputEvents=2;closedObserved=$false}
-    $Proof.overlayDismissals+=@($fact)
+    $pending=@()
     do {
-      $after=& $sample
-      if($after.witness -cne $fresh.witness) { $fact.closedObserved=$true;break }
-      & $Pause 100
+      $fresh=& $sample
+      if($fresh.witness -cne $before.witness -or $fresh.kind -cne $before.kind) { & $refuse 'foreground-changed' }
+      Assert-NativeReadDesktopScope $Scope
+      if((& $Elapsed) -ge 10000) { & $refuse 'deadline' }
+      $sent=& $Dismiss $fresh
+      if($sent -ne 2) { & $refuse 'input-unconfirmed' }
+      $fact=@{kind=$fresh.kind;ownerRevalidated=$true;activeDefaultObserved=$true;inputEvents=2;closedObserved=$false}
+      $Proof.overlayDismissals+=@($fact);$pending+=@($fact)
+      # A Search Escape can leave the same verified overlay. Revalidate before
+      # another bounded attempt; Start retains its single-attempt observation.
+      $observeUntil=if($fresh.kind -ceq 'search' -and $Proof.overlayDismissals.Count -lt 3){[Math]::Min(10000,((& $Elapsed)+1000))}else{10000}
+      do {
+        $after=& $sample $observeUntil
+        # Slice expiry/NULL foreground is unknown, never disappearance or input authority.
+        if($null -eq $after) { break }
+        if($after.witness -cne $fresh.witness) {
+          # Each fact observes later disappearance of this same pinned witness;
+          # it does not attribute closure to any individual Escape attempt.
+          foreach($item in $pending) { $item.closedObserved=$true }
+          break
+        }
+        & $Pause 100
+      } while((& $Elapsed) -lt $observeUntil)
+      if($fact.closedObserved) { break }
+      if($fresh.kind -cne 'search' -or $Proof.overlayDismissals.Count -ge 3) { & $refuse 'overlay-not-closed' }
+      # A full validated sample is required after every slice, including NULL.
+      $before=& $sample
+      if($null -eq $before) { & $refuse 'foreground-unavailable' }
+      if($before.witness -cne $fresh.witness) {
+        foreach($item in $pending) { $item.closedObserved=$true }
+        break
+      }
+      if($before.kind -cne $fresh.kind) { & $refuse 'foreground-changed' }
     } while((& $Elapsed) -lt 10000)
     if(-not $fact.closedObserved) { & $refuse 'overlay-not-closed' }
   }

@@ -102,6 +102,26 @@ binding IDs stored under `details`. Exactly one matching row is required. The
 private receipt records only owned-row and matching-row counts; raw audit files
 and the guest profile remain excluded from upload.
 
+Before each guest driver, desktop preparation validates the exact disposable
+guest and normal token, the active Default desktop, absence of consent UI, and
+the signed same-session Start/Search or desktop foreground witness. Search may
+receive up to three Escape down/up pairs within the existing ten-second total
+budget. The first two attempts observe for a one-second interval before another
+fully revalidated attempt; the final attempt keeps the remaining budget. Start
+retains its single-attempt behavior. A missing foreground is unknown and grants
+neither closure nor input authority. Scope, consent, desktop and full foreground
+identity are checked again before every input. No forced activation, process
+termination, policy change or unverified input target is used.
+
+Each dismissal record counts one submitted pair. `closedObserved` means that
+the pinned overlay witness later disappeared in a validated foreground sample;
+it does not attribute closure to that particular Escape. Pending records for
+the same witness become closed only after that observation. READY still needs
+a fresh verified desktop sample; partial input or an overlay that persists
+through the budget remains a failure. Local callback fixtures verify this
+control flow without native desktop or keyboard execution. They do not establish
+why an earlier Windows overlay persisted or qualify a subsequent guest run.
+
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller
 requests Windows Restart inside the exact owned VM. A fresh later boot is

@@ -39,20 +39,43 @@ try {
     return @{root='C:\aegis-native-read';source='C:\aegis-native-read\source';bundle='C:\aegis-native-read\input';runner='github-hosted-hyperv-guest';githubActions='true';ci='true';runnerOS='Windows';runnerArch='X64';username='AegisSetup';interactive=$true;sessionId=2;integritySid='S-1-16-8192';sourceSha=('a'*40);expectedSourceSha=('a'*40);runId='123';attempt='1';caption='Microsoft Windows 11 Enterprise Evaluation';productType=1;build='26300';ubr=9457;architecture='AMD64'}
   }
   function Run-Case([string]$Mode,$ScopeOverride=$null) {
-    $scope=if($null -eq $ScopeOverride){Scope}else{$ScopeOverride};$proof=@{};$clock=@{ms=0;read=0;sent=0;native=0};$refused=$false
+    $scope=if($null -eq $ScopeOverride){Scope}else{$ScopeOverride};$proof=@{};$clock=@{ms=0;read=0;sent=0;native=0;closedBeforeDesktop=$false;sentAt=@();retryReads=0;deadlineEdge=0};$refused=$false
     $read={
       $clock.read++
       $kind=if($Mode -ceq 'clear' -or ($clock.sent -gt 0 -and $Mode -cne 'stuck')){'desktop'}elseif($Mode -ceq 'search'){'search'}else{'start'}
+      $retry=$Mode.StartsWith('search-')
+      if($retry){
+        $kind='search'
+        if(($Mode -ceq 'search-two' -and $clock.sent -ge 2) -or ($Mode -ceq 'search-three' -and $clock.sent -ge 3) -or ($Mode -ceq 'search-before-retry' -and $clock.sent -gt 0 -and $clock.ms -ge 1000) -or ($Mode -ceq 'search-null-transient' -and $clock.sent -ge 2)){$kind='desktop'}
+        if($clock.sent -gt 0 -and $clock.ms -ge 1000){$clock.retryReads++}
+        if($Mode -ceq 'search-deadline-edge' -and $clock.sent -gt 0 -and $clock.ms -ge 1000 -and $clock.deadlineEdge -eq 0){$clock.deadlineEdge=1}
+        if($Mode -ceq 'search-read-deadline' -and $clock.sent -gt 0 -and $clock.ms -ge 1000){$clock.ms=10000}
+      }
       $witness=if($kind -ceq 'desktop'){'desktop-witness'}else{'overlay-witness'}
       if($Mode -ceq 'changed' -and $clock.read -eq 2){$witness='replacement-witness'}
       $none=$clock.sent -gt 0 -and ($Mode -ceq 'zero-stuck' -or ($Mode -ceq 'zero-transient' -and $clock.read -eq 3))
-      return @{noConsent=($Mode -cne 'consent' -and -not ($Mode -ceq 'consent-race' -and $clock.read -eq 2));activeDefault=($Mode -cne 'secure');noForeground=$none;sameSession=($Mode -cne 'session');ownerVerified=($Mode -cne 'unsigned');kind=$(if($none){'none'}elseif($Mode -ceq 'unknown'){'unknown'}else{$kind});witness=$(if($none){$null}else{$witness})}
+      if($Mode -ceq 'search-null' -and $clock.sent -gt 0){$none=$true}
+      if($Mode -ceq 'search-null-transient' -and $clock.sent -eq 1 -and $clock.ms -ge 900 -and $clock.ms -lt 1100){$none=$true}
+      $race=$retry -and $clock.sent -gt 0 -and $clock.ms -ge 1000
+      if($Mode -ceq 'search-witness-race' -and $clock.retryReads -ge 2){$witness='replacement-witness'}
+      if($Mode -ceq 'search-kind-race' -and $clock.retryReads -ge 2){$kind='start'}
+      if($Mode -ceq 'search-unknown-race' -and $race){$kind='unknown'}
+      return @{noConsent=($Mode -cne 'consent' -and -not ($Mode -ceq 'consent-race' -and $clock.read -eq 2) -and -not ($Mode -ceq 'search-consent-race' -and $race));activeDefault=($Mode -cne 'secure' -and -not ($Mode -ceq 'search-default-race' -and $race));noForeground=$none;sameSession=($Mode -cne 'session' -and -not ($Mode -ceq 'search-session-race' -and $race));ownerVerified=($Mode -cne 'unsigned' -and -not ($Mode -ceq 'search-unsigned-race' -and $race));kind=$(if($none){'none'}elseif($Mode -ceq 'unknown'){'unknown'}else{$kind});witness=$(if($none){$null}else{$witness})}
     }
     $dismiss={param($Expected)
       if($Expected.witness -cne 'overlay-witness' -or $Expected.kind -cnotin @('start','search')) { throw 'fixture-wrong-input-target' }
-      $clock.sent++;return $(if($Mode -ceq 'input-short'){1}else{2})
+      if($Mode.StartsWith('search-') -and @($proof.overlayDismissals | Where-Object {$_.closedObserved}).Count) { $clock.closedBeforeDesktop=$true }
+      $clock.sentAt+=@($clock.ms);$clock.sent++
+      if($Mode -ceq 'search-send-deadline'){$clock.ms=10000}
+      return $(if($Mode -ceq 'input-short' -or ($Mode -ceq 'search-retry-short' -and $clock.sent -eq 2)){1}else{2})
     }
-    try { Invoke-NativeReadDesktopPreparation $scope $proof $read $dismiss -Elapsed {$clock.ms} -Pause {param($Milliseconds) $clock.ms+=$Milliseconds} }
+    $elapsed={
+      # Cross the hard deadline between the full sample's post-read and slice checks.
+      if($Mode -ceq 'search-deadline-edge' -and $clock.deadlineEdge -eq 1){$clock.deadlineEdge=2;$clock.ms=9999}
+      elseif($Mode -ceq 'search-deadline-edge' -and $clock.deadlineEdge -eq 2){$clock.deadlineEdge=3;$clock.ms=10000}
+      return $clock.ms
+    }
+    try { Invoke-NativeReadDesktopPreparation $scope $proof $read $dismiss -Elapsed $elapsed -Pause {param($Milliseconds) $clock.ms+=$Milliseconds} }
     catch { if($_.Exception.Message -cnotin @('Native desktop precondition refused','Native desktop scope refused')){throw};$refused=$true }
     return @{proof=$proof;clock=$clock;refused=$refused}
   }
@@ -86,6 +109,31 @@ try {
       if($entryMode -ceq 'ready') { [void]$script:order.Add('node-marker') }
       if($entryMode -ceq 'fail' -and $script:order.Count -ne 1) { throw 'fixture-node-after-refusal' };$cases++
     }
+  } elseif($Scenario -ceq 'search-retry') {
+    foreach($mode in @('search-two','search-three','search-null-transient','search-before-retry')){
+      $value=Run-Case $mode;$expected=if($mode -ceq 'search-three'){3}elseif($mode -ceq 'search-before-retry'){1}else{2}
+      $failureObservation=@{mode=$mode;status=$value.proof.status;code=$value.proof.code;sent=$value.clock.sent;elapsedMs=$value.clock.ms;dismissals=$value.proof.overlayDismissals.Count;firstKind=$value.proof.overlayDismissals[0].kind;firstClosed=$value.proof.overlayDismissals[0].closedObserved}
+      if($value.refused -or $value.proof.status -cne 'READY' -or $value.clock.sent -ne $expected -or $value.clock.ms -le 0 -or $value.clock.ms -ge 10000 -or $value.clock.closedBeforeDesktop -ne $false -or $value.proof.overlayDismissals.Count -ne $expected -or $value.proof.activeDefaultObserved -ne $true -or $value.proof.noConsentObserved -ne $true){throw 'fixture-search-retry-refused'}
+      foreach($fact in $value.proof.overlayDismissals){if($fact.Keys.Count -ne 5 -or $fact.kind -cne 'search' -or $fact.ownerRevalidated -ne $true -or $fact.activeDefaultObserved -ne $true -or $fact.inputEvents -ne 2 -or $fact.closedObserved -ne $true){throw 'fixture-search-closure-record'}}
+      if($expected -gt 1 -and $value.clock.sentAt[1] -lt 1000){throw 'fixture-search-retry-too-early'}
+      if($expected -eq 3 -and $value.clock.sentAt[2]-$value.clock.sentAt[1] -lt 1000){throw 'fixture-third-search-too-early'}
+      if($mode -ceq 'search-null-transient' -and ($value.proof.noForegroundPolls -lt 1 -or $value.clock.sentAt[1] -lt 1100)){throw 'fixture-null-input-authority'};$cases++
+    }
+  } elseif($Scenario -ceq 'search-deadline-edge') {
+    $value=Run-Case 'search-deadline-edge'
+    $closed=@($value.proof.overlayDismissals | Where-Object {$_.closedObserved}).Count
+    $failureObservation=@{status=$value.proof.status;code=$value.proof.code;sent=$value.clock.sent;elapsedMs=$value.clock.ms;dismissals=$value.proof.overlayDismissals.Count;closedFacts=$closed}
+    if(-not $value.refused -or $value.proof.status -cne 'FAIL' -or $value.proof.code -cne 'deadline' -or $value.clock.sent -ne 1 -or $value.clock.ms -ne 10000 -or $value.proof.overlayDismissals.Count -ne 1 -or $closed -ne 0 -or $value.proof.activeDefaultObserved -eq $true -or $value.proof.noConsentObserved -eq $true){throw 'fixture-deadline-false-closure'};$cases++
+  } elseif($Scenario -ceq 'search-guards') {
+    foreach($mode in @('search-stuck','search-null','search-consent-race','search-default-race','search-session-race','search-unsigned-race','search-unknown-race','search-witness-race','search-kind-race','search-read-deadline','search-send-deadline','search-retry-short')){
+      $value=Run-Case $mode;$expected=if($mode -ceq 'search-stuck'){3}elseif($mode -ceq 'search-retry-short'){2}else{1}
+      $failureObservation=@{mode=$mode;status=$value.proof.status;code=$value.proof.code;sent=$value.clock.sent;elapsedMs=$value.clock.ms;dismissals=$value.proof.overlayDismissals.Count}
+      if(-not $value.refused -or $value.proof.status -cne 'FAIL' -or $value.clock.sent -ne $expected -or $value.clock.ms -gt 10000 -or $value.proof.activeDefaultObserved -eq $true -or $value.proof.noConsentObserved -eq $true){throw 'fixture-search-guard-input'}
+      foreach($fact in $value.proof.overlayDismissals){if($fact.Keys.Count -ne 5 -or $fact.kind -cne 'search' -or $fact.ownerRevalidated -ne $true -or $fact.activeDefaultObserved -ne $true -or $fact.inputEvents -ne 2 -or $fact.closedObserved -ne $false){throw 'fixture-search-false-closure'}}
+      if($mode -ceq 'search-stuck' -and ($value.clock.ms -ne 10000 -or $value.proof.code -cne 'overlay-not-closed' -or $value.proof.overlayDismissals.Count -ne 3)){throw 'fixture-search-stuck-record'}
+      if($mode -ceq 'search-null' -and ($value.clock.ms -ne 10000 -or $value.proof.overlayDismissals.Count -ne 1 -or $value.proof.noForegroundPolls -lt 1)){throw 'fixture-null-closure'}
+      if($mode -cin @('search-read-deadline','search-send-deadline') -and ($value.clock.ms -ne 10000 -or $value.proof.code -cne 'deadline')){throw 'fixture-search-global-deadline'};$cases++
+    }
   } elseif($Scenario -ceq 'refusal') {
     foreach($mode in @('secure','consent','consent-race','session','unsigned','unknown','changed')) {
       $value=Run-Case $mode
@@ -114,7 +162,7 @@ try {
     if(-not $denied -or $script:compileCalls -ne 0) { throw 'fixture-native-on-primary' };$cases++
   } else { throw 'fixture-scenario-refused' }
   @{status='PASS';scenario=$Scenario;cases=$cases;nativeDesktopExecuted=$false;keyboardInputExecuted=$false;version=$PSVersionTable.PSVersion.ToString()} | ConvertTo-Json -Compress
-} catch { @{status='FAIL';code='native-desktop-fixture-refused';scenario=$Scenario;cases=$cases;line=$_.InvocationInfo.ScriptLineNumber} | ConvertTo-Json -Compress;exit 2 }
+} catch { @{status='FAIL';code='native-desktop-fixture-refused';scenario=$Scenario;cases=$cases;line=$_.InvocationInfo.ScriptLineNumber;observation=$failureObservation} | ConvertTo-Json -Depth 4 -Compress;exit 2 }
 `,
   );
   const result = spawnSync(
@@ -145,6 +193,9 @@ describe.skipIf(process.platform !== 'win32')(
   () => {
     it.each([
       ['positive', 6],
+      ['search-retry', 4],
+      ['search-deadline-edge', 1],
+      ['search-guards', 12],
       ['refusal', 7],
       ['closure', 3],
       ['scope', 14],
