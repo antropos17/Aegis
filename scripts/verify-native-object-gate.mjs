@@ -52,8 +52,9 @@ const tests = [
   'tests/main/live-native-object-consumers.test.js',
   'tests/main/live-native-main-wiring.test.js',
   'tests/main/windows-native-read-logon.test.js',
+  'tests/main/windows-native-read-manifest.test.js',
 ];
-const minimumAssertions = 59 + 4;
+const minimumAssertions = 59 + 4 + 7;
 const project = path.join(ROOT, 'sidecar/etw-file/EtwFile.csproj');
 const executable = path.join(ROOT, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
 const originals = new Map(
@@ -212,6 +213,16 @@ function native(label, expectedPass, expectedFailure) {
   return { status: expectedPass ? 'PASS' : 'KILLED', passedBeforeFailure: passed };
 }
 const mutants = [
+  {
+    id: 'manifest-json-array-materialization',
+    file: logon,
+    edits: [
+      [
+        '$parsed=ConvertFrom-Json -InputObject $text -ErrorAction Stop',
+        '$parsed=@(ConvertFrom-Json -InputObject $text -ErrorAction Stop)',
+      ],
+    ],
+  },
   {
     id: 'second-logon-literal-string-count',
     file: logon,

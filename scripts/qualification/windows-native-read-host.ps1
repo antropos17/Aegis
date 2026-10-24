@@ -9,6 +9,28 @@ function Set-NativeReadSecondLogon([string]$AnswerText) {
   return $AnswerText.Replace($marker,'<LogonCount>2</LogonCount>')
 }
 
+# Return a wrapper object so PowerShell 5.1 cannot box the JSON array a second time.
+function ConvertFrom-NativeReadManifest {
+  param([string]$Json)
+  $text=$Json.Trim()
+  if($text.Length -lt 2 -or $text.Length -gt 8MB -or -not $text.StartsWith('[') -or -not $text.EndsWith(']')) { throw 'Native input manifest refused' }
+  try { $parsed=ConvertFrom-Json -InputObject $text -ErrorAction Stop }
+  catch { throw 'Native input manifest refused' }
+  $rows=[Collections.Generic.List[object]]::new()
+  foreach($row in $parsed) {
+    if($null -eq $row -or $row -is [array] -or $row -isnot [pscustomobject]) { throw 'Native input manifest refused' }
+    $names=@($row.PSObject.Properties | ForEach-Object { $_.Name })
+    if($names.Count -ne 3 -or $names -cnotcontains 'path' -or $names -cnotcontains 'bytes' -or $names -cnotcontains 'sha256' -or
+      $row.path -isnot [string] -or $row.path.Length -lt 1 -or $row.path.Length -gt 4096 -or
+      ($row.bytes -isnot [long] -and $row.bytes -isnot [int]) -or $row.bytes -lt 0 -or $row.bytes -gt 300MB -or
+      $row.sha256 -isnot [string] -or $row.sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Native input manifest refused' }
+    [void]$rows.Add($row)
+    if($rows.Count -gt 30000) { throw 'Native input manifest refused' }
+  }
+  if($rows.Count -lt 1) { throw 'Native input manifest refused' }
+  return [pscustomobject]@{files=$rows.ToArray()}
+}
+
 # Fixed current-run native-read lab captures; the installer capture scope is unchanged.
 function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','prepare','resume','admission')][string]$Purpose) {
   Assert-CloudGuestRunner
@@ -47,6 +69,8 @@ function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[strin
 }
 
 function Initialize-NativeReadGuest($Session, $Bundle) {
+  $manifestReader=(Get-Command ConvertFrom-NativeReadManifest -CommandType Function).ScriptBlock.ToString()
+  if($manifestReader.Length -gt 16KB) { throw 'Native input manifest reader budget' }
   Invoke-Command -Session $Session -ScriptBlock {
     $root='C:\aegis-native-read'
     if(Test-Path -LiteralPath $root) { throw 'Fresh native-read guest root required' }
@@ -56,8 +80,8 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
     Set-Acl -LiteralPath $root -AclObject $acl
   }
   Copy-Item -LiteralPath $Bundle.path -Destination 'C:\aegis-native-read\input.zip' -ToSession $Session
-  return Invoke-Command -Session $Session -ArgumentList $Bundle.sha256,$Bundle.bytes,$env:GITHUB_SHA -ScriptBlock {
-    param($Hash,$Bytes,$SourceSha)
+  return Invoke-Command -Session $Session -ArgumentList $Bundle.sha256,$Bundle.bytes,$env:GITHUB_SHA,$manifestReader -ScriptBlock {
+    param($Hash,$Bytes,$SourceSha,[string]$ManifestReader)
     $root='C:\aegis-native-read';$guestInputRoot=Join-Path $root 'input';$zip=Join-Path $root 'input.zip'
     if((Get-Item -LiteralPath $zip).Length -ne $Bytes -or (Get-FileHash -LiteralPath $zip).Hash -ine $Hash) { throw 'Input transfer mismatch' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -71,8 +95,9 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
     [IO.Compression.ZipFile]::ExtractToDirectory($zip,$guestInputRoot)
     $manifest=Join-Path $guestInputRoot 'input-manifest.json'
     if((Get-Item -LiteralPath $manifest).Length -gt 8MB) { throw 'Input manifest budget' }
-    $files=@(Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json)
-    if($files.Count -gt 30000) { throw 'Input file count budget' }
+    $parsed=& ([scriptblock]::Create($ManifestReader)) ([IO.File]::ReadAllText($manifest))
+    $files=$parsed.files
+    if($files -isnot [array] -or $files.Count -gt 30000) { throw 'Input file count budget' }
     foreach($file in $files) {
       $target=[IO.Path]::GetFullPath((Join-Path $guestInputRoot $file.path))
       if(-not $target.StartsWith($guestInputRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $target).Length -ne $file.bytes -or (Get-FileHash -LiteralPath $target).Hash -ine $file.sha256) { throw 'Input manifest mismatch' }
