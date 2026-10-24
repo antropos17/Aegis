@@ -59,6 +59,7 @@ describe('supervisor bounded disk-source inventory (CI only)', () => {
   it.each([
     'named-to-descriptor',
     'post-read-drift',
+    'post-name-drift',
     'size-mismatch',
     'growth-sentinel',
     'close-uncertainty',
@@ -67,16 +68,23 @@ describe('supervisor bounded disk-source inventory (CI only)', () => {
     const open = fs.openSync,
       fstat = fs.fstatSync,
       read = fs.readSync,
+      lstat = fs.lstatSync,
       close = fs.closeSync;
     const originalSize = Number(fs.lstatSync(target, { bigint: true }).size);
     let targetFd,
       active = false,
       statCalls = 0,
+      namedCalls = 0,
       readCalls = 0,
       bytesReturned = 0,
       closed = false,
       closeFault = false;
     const requests = [];
+    vi.spyOn(fs, 'lstatSync').mockImplementation((file, ...args) => {
+      const stat = lstat(file, ...args);
+      if (file === target && ++namedCalls === 2 && mode === 'post-name-drift') stat.ctimeNs += 1n;
+      return stat;
+    });
     vi.spyOn(fs, 'openSync').mockImplementation((file, ...args) => {
       const fd = open(file, ...args);
       if (file === target) {
@@ -133,6 +141,11 @@ describe('supervisor bounded disk-source inventory (CI only)', () => {
       expect(readCalls).toBe(0);
     }
     if (mode === 'post-read-drift') {
+      expect(statCalls).toBe(2);
+      expect(bytesReturned).toBe(originalSize);
+    }
+    if (mode === 'post-name-drift') {
+      expect(namedCalls).toBe(2);
       expect(statCalls).toBe(2);
       expect(bytesReturned).toBe(originalSize);
     }

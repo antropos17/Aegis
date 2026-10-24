@@ -134,6 +134,28 @@ afterEach(() => {
 
 const faults = [
   {
+    name: 'the source name must still agree after reading the descriptor',
+    file: 'bench/lib/resource-supervisor-storage.js',
+    from: '!same(before, fs.lstatSync(file, { bigint: true }))',
+    to: 'false',
+    async oracle(item) {
+      const target = path.join(item.dir, sources[0]);
+      const lstat = fs.lstatSync;
+      let reads = 0;
+      const named = vi.spyOn(fs, 'lstatSync').mockImplementation((file, ...args) => {
+        const stat = lstat(file, ...args);
+        if (file === target && ++reads === 2) stat.ctimeNs += 1n;
+        return stat;
+      });
+      try {
+        assert.throws(() => item.storage.inventory(), /resource-supervisor-storage-unavailable/);
+        assert.equal(reads, 2);
+      } finally {
+        named.mockRestore();
+      }
+    },
+  },
+  {
     name: 'public options must have an ordinary prototype',
     file: 'bench/lib/resource-supervisor.js',
     from: '![Object.prototype, null].includes(Object.getPrototypeOf(value))',
