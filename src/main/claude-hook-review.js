@@ -29,6 +29,22 @@ const {
 /** @typedef {{planId: string, expiresAtMs: number, ticket: object, review: object}} Pending */
 
 /**
+ * Narrow only the internally constructed real writer's private prepared result.
+ * @param {Status|Prepared} result Trusted writer result.
+ * @returns {result is Prepared} Both private capability fields are objects.
+ */
+function isPrepared(result) {
+  return (
+    'ticket' in result &&
+    result.ticket !== null &&
+    typeof result.ticket === 'object' &&
+    'review' in result &&
+    result.review !== null &&
+    typeof result.review === 'object'
+  );
+}
+
+/**
  * Create one dormant PRIVATE owner-review session over one real owned writer.
  * Owner is an exact process-local object capability, not human authentication.
  * Options, selection and IO methods must be plain own data fields. IO and clocks
@@ -123,7 +139,7 @@ function createOwnedHookReview(options) {
       const stoppedAtClock = revoked(currentGeneration);
       if (stoppedAtClock) return stoppedAtClock;
       if (currentTime >= expiresAtMs) return finish(status(false, 'EXPIRED'));
-      if (!('ticket' in result)) return finish(projected(result));
+      if (!isPrepared(result)) return finish(projected(result));
       const planId = randomUUID();
       pending = { planId, expiresAtMs, ticket: result.ticket, review: result.review };
       finish(projected(result));
