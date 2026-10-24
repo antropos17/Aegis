@@ -250,6 +250,7 @@ export function portableGitEnvironment(bundle, temporary) {
     GIT_CONFIG_GLOBAL: path.join(temporary, 'absent-global-config'),
     GIT_CONFIG_COUNT: '0',
     GIT_TERMINAL_PROMPT: '0',
+    GIT_OPTIONAL_LOCKS: '0',
   };
 }
 
@@ -326,7 +327,7 @@ function reconstructPortableGitObserved({ bundle, output, context }, trace, exec
         cwd: output,
         env,
         encoding: 'utf8',
-        timeout: 20000,
+        timeout: kind === 'status' ? 60000 : 20000,
         maxBuffer: 16384,
         windowsHide: true,
         stdio: 'pipe',

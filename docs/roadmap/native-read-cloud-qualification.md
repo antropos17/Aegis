@@ -59,6 +59,14 @@ The maintained manifest consumer also verifies the actual generated bundle in
 hosted Windows PowerShell 5.1 before VM creation, then verifies it again after
 transfer. Both boundaries retain scalar path, root, size, SHA and no-link checks.
 
+The shared portable-Git reconstruction environment disables optional locks for
+each child process, avoiding the optional index refresh performed by status.
+Only its cleanliness status command has a sixty-second deadline; the other
+commands retain twenty seconds. The exact porcelain/untracked check, empty-output
+requirement, identity, isolation and source-byte bindings remain unchanged, with
+no retry. This bounded allowance does not establish the cause of a previous
+cold-guest timeout or change later independent PowerShell Git checks.
+
 Before recovery, a bounded read-only capability probe runs the unchanged helper
 in the existing elevated PowerShell Direct setup session. It records the existing
 token privileges and refuses an unqualified bridge without enabling privileges.
