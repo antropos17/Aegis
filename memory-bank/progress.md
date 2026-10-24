@@ -3826,3 +3826,14 @@ assertions, then all 14 frozen files were restored byte-for-byte. The restored
 13-suite gate passed 395 tests with two explicit Windows O_NOFOLLOW skips;
 supported-platform CI must execute those cases. Focused lint, formatting, syntax
 and diff checks passed. Exact hosted CI remains the merge gate.
+
+## W10 Windows packaging architecture boundary — 2026-10-24
+
+The packaging preflight now requires the declared Windows target to be x64
+before building the renderer or the x64-only native helpers. This makes the
+current packaging support boundary explicit; it does not establish that every
+mixed-architecture combination would fail under emulation. Linux and macOS
+retain their existing renderer preflight. The unchanged-hook negative control
+failed all five new refusal cases, and the fixed actual-hook fixture passed ten
+cases without starting build subprocesses. Native platform qualification and
+full W10 acceptance remain open; hosted CI is the separate merge gate.
