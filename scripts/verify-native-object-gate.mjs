@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { appendGateCommandLog } from '../tools/development/gate-command-log.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -112,7 +113,7 @@ function run(label, command, argv, timeout = 120000) {
   });
   const stdout = result.stdout ?? '',
     stderr = result.stderr ?? '';
-  fs.writeFileSync(path.join(LOGS, `${label}.log`), `${stdout}\n${stderr}`.slice(-128 * 1024));
+  appendGateCommandLog(LOGS, label, `${stdout}\n${stderr}`.slice(-128 * 1024));
   if (result.error || result.signal || !Number.isInteger(result.status))
     throw new Error(`Command unavailable/timed out: ${label}`);
   return { status: result.status, stdout };
