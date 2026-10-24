@@ -73,7 +73,7 @@ describe('CLI source-copy behavioral controls leave production source untouched'
     const baseline = copied('baseline-size');
     const good = path.join(root, 'baseline-good.json');
     assert.equal(processResult(baseline, good).status, 'exported');
-    assert.deepEqual(JSON.parse(fs.readFileSync(good)), translateSchema2Policy(policy).policy);
+    assert.deepEqual(fs.readFileSync(good), Buffer.from(JSON.stringify(translateSchema2Policy(policy).policy) + '\n'));
     for (const fallback of ['deny', 'ask']) {
       const candidate = { ...policy, defaultDecision: fallback, rules: [{ ...policy.rules[0], action: { ...policy.rules[0].action, args: [''] } }] };
       const length = Buffer.byteLength(JSON.stringify(translateSchema2Policy(candidate).policy) + '\n');
