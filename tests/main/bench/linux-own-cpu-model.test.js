@@ -5,6 +5,119 @@ const require = createRequire(import.meta.url);
 const { evaluateCpuReference } = require('../../../bench/lib/linux-own-cpu-model');
 const evaluate = (windows) => evaluateCpuReference({ clockTicksPerSecond: '100', windows });
 describe('exact SELF CPU floor model (CI only)', () => {
+  it.each([
+    ['missing', 'identity'],
+    ['missing', 'enclosure'],
+    ['missing', 'clock'],
+    ['missing', 'counter'],
+    ['failed', 'identity'],
+    ['failed', 'enclosure'],
+    ['failed', 'clock'],
+    ['failed', 'counter'],
+  ])(
+    'refuses retained first-row %s-tail/%s contradiction before missing-reference classification',
+    (tail, kind) => {
+      const windows = referenceWindows();
+      if (tail === 'missing') windows.pop();
+      else
+        windows[1] = {
+          index: 1,
+          before: null,
+          api: {
+            beforeNs: null,
+            afterNs: null,
+            userUs: null,
+            systemUs: null,
+            reason: 'api-unavailable',
+          },
+          after: null,
+          reason: 'proc-stat-unavailable',
+        };
+      if (kind === 'identity') windows[0].after.startTicks = '501';
+      if (kind === 'enclosure') windows[0].api.userUs = 1020000;
+      if (kind === 'clock') windows[0].api.beforeNs = '0';
+      if (kind === 'counter') {
+        windows[0].after.userTicks = '99';
+        windows[0].after.systemTicks = '21';
+      }
+      const reason = {
+        identity: 'identity-changed',
+        enclosure: 'unit-or-enclosure-disagreement',
+        clock: 'clock-regressed',
+        counter: 'counter-regressed',
+      }[kind];
+      expect(evaluate(windows)).toMatchObject({ state: 'refused', reason });
+    },
+  );
+  it.each(['identity', 'counter', 'clock', 'api-counter'])(
+    'checks a retained %s component even in a failed second row',
+    (kind) => {
+      const windows = referenceWindows();
+      windows[1].reason = 'proc-stat-unavailable';
+      windows[1].after = null;
+      windows[1].api = {
+        beforeNs: null,
+        afterNs: null,
+        userUs: null,
+        systemUs: null,
+        reason: 'api-unavailable',
+      };
+      if (kind === 'identity') windows[1].before.startTicks = '501';
+      if (kind === 'counter') {
+        windows[1].before.userTicks = '99';
+        windows[1].before.systemTicks = '30';
+      }
+      if (kind === 'clock') {
+        windows[1].before.beforeNs = '1';
+        windows[1].before.afterNs = '2';
+      }
+      if (kind === 'api-counter')
+        windows[1].api = {
+          beforeNs: '23',
+          afterNs: '24',
+          userUs: 999999,
+          systemUs: null,
+          reason: 'invalid-reading',
+        };
+      expect(evaluate(windows)).toMatchObject({
+        state: 'refused',
+        reason: {
+          identity: 'identity-changed',
+          counter: 'counter-regressed',
+          clock: 'clock-regressed',
+          'api-counter': 'counter-regressed',
+        }[kind],
+      });
+    },
+  );
+  it('keeps a healthy baseline with an unavailable second window incomplete without inventing delta evidence', () => {
+    const windows = referenceWindows();
+    windows[1] = {
+      index: 1,
+      before: null,
+      api: {
+        beforeNs: null,
+        afterNs: null,
+        userUs: null,
+        systemUs: null,
+        reason: 'api-unavailable',
+      },
+      after: null,
+      reason: 'proc-stat-unavailable',
+    };
+    expect(evaluate(windows)).toMatchObject({
+      state: 'incomplete',
+      reason: 'missing-reference',
+      delta: null,
+    });
+    expect(evaluate(windows).endpoints).toHaveLength(1);
+  });
+  it('refuses four equal zero start ticks without claiming usable instance identity', () => {
+    const windows = referenceWindows();
+    for (const row of windows)
+      for (const record of [row.before, row.after]) record.startTicks = '0';
+    expect(evaluate(windows)).toMatchObject({ state: 'refused', reason: 'identity-changed' });
+  });
   it('produces exact rational endpoint/delta bounds with both endpoint allowances', () => {
     const result = evaluate(referenceWindows());
     expect(result.state).toBe('consistent-under-declared-model');

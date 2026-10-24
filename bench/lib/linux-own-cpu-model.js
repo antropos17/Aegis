@@ -55,19 +55,19 @@ function evaluateCpuReference(input) {
     calibrationAccepted: false,
     w8Accepted: false,
   };
-  if (
-    input.windows.length !== 2 ||
-    input.windows.some((w) => w.reason !== null || !w.before || !w.after || w.api.reason !== null)
-  )
-    return result;
+  let incomplete = input.windows.length !== 2;
   const hz = BigInt(input.clockTicksPerSecond);
   let identity = null,
     lastTime = null,
     previousUser = null,
-    previousSystem = null;
+    previousSystem = null,
+    previousProcUser = null,
+    previousProcSystem = null;
   for (const [i, w] of input.windows.entries()) {
-    if (w.index !== i || !safe(w.api.userUs) || !safe(w.api.systemUs)) fail();
+    if (!w || w.index !== i || !w.api) fail();
+    incomplete ||= w.reason !== null || !w.before || !w.after || w.api.reason !== null;
     for (const v of [w.before, w.after]) {
+      if (!v) continue;
       if (
         ![v.userTicks, v.systemTicks, v.startTicks].every(unsigned) ||
         !/^[0-9]{1,32}$/.test(v.beforeNs) ||
@@ -77,32 +77,48 @@ function evaluateCpuReference(input) {
       identity ??= v.startTicks;
       if (v.startTicks !== identity || v.startTicks === '0')
         return { ...result, state: 'refused', reason: 'identity-changed' };
+      const user = BigInt(v.userTicks),
+        system = BigInt(v.systemTicks);
+      if (previousProcUser !== null && (user < previousProcUser || system < previousProcSystem))
+        return { ...result, state: 'refused', reason: 'counter-regressed' };
+      previousProcUser = user;
+      previousProcSystem = system;
     }
     const times = [
-      w.before.beforeNs,
-      w.before.afterNs,
+      w.before?.beforeNs,
+      w.before?.afterNs,
       w.api.beforeNs,
       w.api.afterNs,
-      w.after.beforeNs,
-      w.after.afterNs,
+      w.after?.beforeNs,
+      w.after?.afterNs,
     ];
-    if (times.some((v) => typeof v !== 'string' || !/^[0-9]{1,32}$/.test(v))) fail();
-    for (const time of times.map(BigInt)) {
+    const retainedTimes = times.filter((v) => v !== null && v !== undefined);
+    if (retainedTimes.some((v) => typeof v !== 'string' || !/^[0-9]{1,32}$/.test(v))) fail();
+    for (const time of retainedTimes.map(BigInt)) {
       if (lastTime !== null && time < lastTime)
         return { ...result, state: 'refused', reason: 'clock-regressed' };
       lastTime = time;
     }
+    for (const key of ['userUs', 'systemUs']) {
+      const value = w.api[key];
+      if (value === null || value === undefined) continue;
+      if (!safe(value)) fail();
+      const previous = key === 'userUs' ? previousUser : previousSystem;
+      if (previous !== null && value < previous)
+        return { ...result, state: 'refused', reason: 'counter-regressed' };
+      if (key === 'userUs') previousUser = value;
+      else previousSystem = value;
+    }
     if (
-      BigInt(w.after.userTicks) < BigInt(w.before.userTicks) ||
-      BigInt(w.after.systemTicks) < BigInt(w.before.systemTicks) ||
-      (i &&
-        (BigInt(w.before.userTicks) < BigInt(input.windows[i - 1].after.userTicks) ||
-          BigInt(w.before.systemTicks) < BigInt(input.windows[i - 1].after.systemTicks))) ||
-      (previousUser !== null && (w.api.userUs < previousUser || w.api.systemUs < previousSystem))
-    )
-      return { ...result, state: 'refused', reason: 'counter-regressed' };
-    previousUser = w.api.userUs;
-    previousSystem = w.api.systemUs;
+      !w.before ||
+      !w.after ||
+      retainedTimes.length !== times.length ||
+      !safe(w.api.userUs) ||
+      !safe(w.api.systemUs)
+    ) {
+      incomplete = true;
+      continue;
+    }
     const api = BigInt(w.api.userUs) + BigInt(w.api.systemUs),
       lower = sum(w.before) * 1000000n,
       upper = (sum(w.after) + 2n) * 1000000n;
@@ -116,6 +132,9 @@ function evaluateCpuReference(input) {
       consistent,
     });
   }
+  if (result.endpoints.some((e) => !e.consistent))
+    return { ...result, state: 'refused', reason: 'unit-or-enclosure-disagreement' };
+  if (incomplete) return result;
   const a = input.windows[0],
     b = input.windows[1];
   const difference = sum(b.before) - sum(a.after) - 2n;
@@ -135,7 +154,7 @@ function evaluateCpuReference(input) {
     consistent: overlap,
     sufficientResolution: lower > 4n * hz && apiDelta > 0n,
   };
-  if (result.endpoints.some((e) => !e.consistent) || !overlap) {
+  if (!overlap) {
     result.state = 'refused';
     result.reason = 'unit-or-enclosure-disagreement';
   } else if (!result.delta.sufficientResolution) {

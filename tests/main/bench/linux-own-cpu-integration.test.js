@@ -199,14 +199,12 @@ describe.runIf(process.platform === 'linux')(
         },
       });
       expect(final.files).toEqual(
-        roster
-          .slice(0, 4)
-          .map((file, i) => ({
-            file,
-            sha256: hashes[i],
-            byteLength: bytes[i].length,
-            closed: true,
-          })),
+        roster.slice(0, 4).map((file, i) => ({
+          file,
+          sha256: hashes[i],
+          byteLength: bytes[i].length,
+          closed: true,
+        })),
       );
       expect(plan.sources.files).toEqual(before);
       expect(final.sources).toEqual({ state: 'unchanged', after: plan.sources });

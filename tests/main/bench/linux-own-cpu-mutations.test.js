@@ -146,16 +146,17 @@ const faults = [
     },
   },
   {
-    name: 'complete raw acquisition and overlapping counters do not excuse partial fixed work',
+    name: 'a reported full iteration count cannot override a partial work state',
     file: 'bench/lib/linux-own-cpu-reference.js',
     from: /receipt\.workload\.state === 'completed'/g,
     to: 'true',
     async oracle(item) {
       const work = item.load('lib/linux-own-cpu-work.js');
+      // This inconsistent seam isolates the state guard from the independent iteration guard.
       const stub = vi.spyOn(work, 'runFixedWork').mockReturnValue({
         state: 'partial',
         reason: 'work-budget',
-        completedIterations: 0,
+        completedIterations: work.WORK.iterations,
         checksum: 1,
         beforeNs: '10000000',
         afterNs: '10000000',
@@ -166,6 +167,8 @@ const faults = [
         assert.equal(stub.mock.calls.length, 1);
         assert.equal(result.receipt.acquisition.complete, true);
         assert.equal(result.receipt.comparison.state, 'consistent-under-declared-model');
+        assert.equal(result.receipt.workload.completedIterations, work.WORK.iterations);
+        assert.equal(result.receipt.workload.state, 'partial');
         assert.equal(result.exitCode, 3);
         assert.equal(result.receipt.state, 'incomplete');
       } finally {
