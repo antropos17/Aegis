@@ -4059,3 +4059,20 @@ failure and preservation fixtures, and copied-source controls for the output
 byte limit, close confirmation and created-file identity. Hosted results remain
 the merge gate. Windows ACLs, hostile-filesystem containment, atomic publication,
 packaged runtime behavior, broader policy migration and full W5 remain open.
+
+## 2026-10-25 — W8 Linux own-CPU reference
+
+Added a fixed-self Linux CPU reference path around the real Node CPU API through
+the existing sampler's instrumentation seam. Bounded proc reads retain observed
+start-time ticks and cumulative CPU counters, and a fixed bounded inert workload
+provides nonzero comparison evidence. Discovered tick units, acquisition windows
+and exact declared quantization bounds remain in the retained bundle; insufficient
+resolution, incomplete work and unavailable collection do not become success.
+
+CI exercises the real Linux fixture, independently checks its arithmetic work
+and retained comparisons, and runs parser, lifecycle, IO, refusal and paired
+source-copy fault controls. Local checks remain syntax, scoped formatting and
+diff inspection because of host storage pressure. This corroborates API/unit
+behavior under its declared model only. Source authentication, memory and
+instrumentation-cost calibration, product/helper overhead and full W8/T8
+measurement acceptance remain open.
