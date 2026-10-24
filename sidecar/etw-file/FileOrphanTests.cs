@@ -4,6 +4,33 @@ internal static class FileOrphanTests
 {
     internal static void Run(Action<string, Action> test)
     {
+        test("observer accepts the actual framed reserved notice and refuses malformed shapes", () =>
+        {
+            string digest = new('a', 64);
+            var expected = new FileOrphanNotice("reserved", 71, "134000000000001111", [1, 2, 3, 4, 5], digest, null, null);
+            using var stream = new MemoryStream();
+            FileGuardWire.Write(stream, expected, CancellationToken.None).GetAwaiter().GetResult();
+            stream.Position = 0;
+            var stage = FileOrphanObserver.FailureStage.NoticeRead;
+            var actual = FileOrphanObserver.ReadNotice(stream, CancellationToken.None, value => stage = value).GetAwaiter().GetResult();
+            Check(stage == FileOrphanObserver.FailureStage.NoticeParse && actual.kind == expected.kind &&
+                actual.custodianPid == expected.custodianPid && actual.custodianBirth == expected.custodianBirth &&
+                actual.originalPids.SequenceEqual(expected.originalPids) && actual.journalDigest == digest &&
+                actual.previousJournalDigest == null && actual.previousSameScope == null);
+            string valid = System.Text.Json.JsonSerializer.Serialize(expected);
+            foreach (string malformed in new[] {
+                valid[..^1] + ",\"unknown\":true}",
+                valid.Replace("\"kind\":\"reserved\",", "", StringComparison.Ordinal),
+                valid.Replace("\"kind\":\"reserved\"", "\"kind\":\"reserved\",\"kind\":\"reserved\"", StringComparison.Ordinal),
+                valid.Replace(digest, "invalid-digest", StringComparison.Ordinal) })
+            {
+                using var value = System.Text.Json.JsonDocument.Parse(malformed);
+                using var bad = new MemoryStream();
+                FileGuardWire.Write(bad, value.RootElement, CancellationToken.None).GetAwaiter().GetResult();
+                bad.Position = 0;
+                Reject(() => FileOrphanObserver.ReadNotice(bad, CancellationToken.None, _ => { }).GetAwaiter().GetResult());
+            }
+        });
         test("observer QA failure identifies actual notice rejection without publishing input", () =>
         {
             using var malformed = System.Text.Json.JsonDocument.Parse("{\"kind\":\"reserved\",\"private\":\"AEGIS_PRIVATE_OBSERVER_CANARY\"}");

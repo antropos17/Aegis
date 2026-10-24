@@ -222,6 +222,17 @@ function native(label, expectedPass, expectedFailure) {
 }
 const mutants = [
   {
+    id: 'observer-framed-reserved-notice',
+    file: observer,
+    edits: [
+      [
+        'FileGuardWire.Read<FileOrphanNotice>(pipe, token)',
+        'FileGuardWire.Read<JsonElement>(pipe, token)',
+      ],
+    ],
+    failure: 'observer accepts the actual framed reserved notice and refuses malformed shapes',
+  },
+  {
     id: 'observer-notice-failure-stage',
     file: observer,
     edits: [['at(FailureStage.NoticeParse);', 'at(FailureStage.NoticeRead);']],

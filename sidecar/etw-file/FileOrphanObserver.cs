@@ -37,6 +37,13 @@ internal static class FileOrphanObserver
         at(FailureStage.NoticeParse);
         return FileOrphanWire.ParseNotice(value);
     }
+    internal static async Task<FileOrphanNotice> ReadNotice(Stream pipe, CancellationToken token, Action<FailureStage> at)
+    {
+        // The generic reader checks the exact declared record fields. JsonElement
+        // would instead impose its CLR properties and reject every valid notice.
+        var notice = await FileGuardWire.Read<FileOrphanNotice>(pipe, token);
+        return ParseNotice(JsonSerializer.SerializeToElement(notice), at);
+    }
     internal sealed record TerminalObservation(string type, JsonElement receipt, int custodianExit, int[]? originalExits);
     internal static async Task<TerminalObservation> ObserveTerminal(JsonElement value, Func<Task> waitPeer,
         Func<int> peerExit, Func<Task<int[]>>? waitOriginals)
@@ -65,7 +72,7 @@ internal static class FileOrphanObserver
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(240));
         at(FailureStage.NoticeRead);
         await pipe.WaitForConnectionAsync(deadline.Token);
-        var notice = ParseNotice(await FileGuardWire.Read<JsonElement>(pipe, deadline.Token), at);
+        var notice = await ReadNotice(pipe, deadline.Token, at);
         at(FailureStage.NoticeIdentity);
         if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint pid) || pid > int.MaxValue || pid != notice.custodianPid ||
             notice.kind != "reserved" || notice.originalPids.Length != 5 || notice.originalPids.Any(p => p <= 0 || p == pid) ||
