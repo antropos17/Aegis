@@ -94,7 +94,9 @@ describe('Windows explicit stable-file JSONL tails', () => {
     expect(m.pipe.request.mock.calls.some(([body]) => body.op === 'read')).toBe(false);
     expect(m.adapter.parse).toHaveBeenCalledTimes(1);
     expect(m.adapter.parse.mock.calls[0][1]).toBeNull();
-    expect(m.events.indexOf('cleanup')).toBeLessThan(m.events.indexOf('parse'));
+    const cleanup = m.events.indexOf('cleanup');
+    expect(cleanup).toBeGreaterThanOrEqual(0);
+    expect(cleanup).toBeLessThan(m.events.indexOf('parse'));
   });
 
   it.each([
