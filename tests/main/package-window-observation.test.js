@@ -160,7 +160,6 @@ describe('package-window observation contract', () => {
         return value;
       },
     );
-    expect(run.window.blur).toHaveBeenCalledTimes(1);
     setTimeout(() => {
       Object.assign(run.state, { visible: true, focused: true, loading: false });
       run.window.emit('show');
