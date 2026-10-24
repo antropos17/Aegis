@@ -24,6 +24,12 @@ source inventory before sampling, then preserves incomplete acquisition and
 publication failures. Its scope is the calling Node process; product/cohort
 footprint, calibrated overhead and full W8 acceptance remain open.
 
+The [fixed-child resource supervisor](../docs/bench/RESOURCE_SUPERVISOR.md)
+adds a separate parent deadline observer and confirmed-exit bookkeeping around
+that CLI. It launches only the fixed collector, retains bounded output-prefix
+digests, and preserves incomplete child evidence on termination. Its lifecycle
+receipt does not admit the child's resource bundle or qualify product overhead.
+
 [Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
 caller-declared profile and same-run receipt, normalizing only successful
 positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified

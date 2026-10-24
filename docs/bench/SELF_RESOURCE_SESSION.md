@@ -115,6 +115,12 @@ the exported `main` finishes. Timers cannot preempt synchronous APIs or a blocke
 event loop. There is no hard wall deadline, external supervisor or ability to
 terminate arbitrary work; those require a separately reviewed extension.
 
+The optional [fixed-child supervisor](RESOURCE_SUPERVISOR.md) runs this CLI in
+an owned Node child and observes it from a separate parent event loop. It adds
+termination requests and bounded exit/pipe confirmation while preserving this
+session's five-file contract. The parent remains subject to its own scheduler
+and filesystem; supervision supplies no product/cohort measurement acceptance.
+
 ## Programmatic and CI use
 
 `runSelfResourceSession(options, samplerDeps?)` in
