@@ -53,6 +53,14 @@ record count remains distinguishable. Storage failure degrades event-delivery
 health. A permanently unwritable disk followed by abrupt process termination
 cannot preserve an exact durable marker for volatile records or counters.
 
+Startup-replay, projection and bucket-size rejections checkpoint their fixed-code
+loss summaries before returning when the loss store accepts the replacement.
+A failed checkpoint leaves `markerDurable: false` and retains the summary in
+memory for a later checkpoint or flush. Rejected observation paths and contents
+do not enter the ledger. Ordinary accepted pushes add no loss-ledger synchronization.
+Each rejection checkpoint uses synchronous write, file synchronization and rename;
+a rejection burst can therefore delay the main loop.
+
 Spill checksums detect accidental corruption; they do not authenticate data
 against another process running as the same user. Directory/file checks reject
 links and unexpected storage entries and bound discovery and reads. Windows
@@ -65,6 +73,22 @@ policy and gains a serialized-byte limit. Metrics retain their latest-only
 policy. Display evictions and security-delivery losses are separate counters.
 
 ## Verification scope
+
+The immediate-restart regression cases reopen the real spill directory before the
+interrupted batcher can flush or destroy itself. They check exact counts, original
+timestamp bounds, stable marker IDs, retained history and exclusion of rejected
+observations. Rename-failure cases check non-durable memory custody followed by
+an explicit successful retry. Separate bounded API controls exercised write and
+file-synchronization failures while preserving the previous committed ledger.
+
+A diagnostic Windows run on 2026-10-24 timed only 100 invalid-record `push` calls
+through the real batcher and local spill store, with a refusing consumer and a
+60-second flush interval. The initial and final batcher operations were excluded.
+The three-checkpoint version took 287 ms in total (median 2.79 ms, p95 4.16 ms,
+maximum 5.14 ms); the prior memory-only path took 0.53 ms in total and left its
+marker non-durable. This small in-process diagnostic does not qualify Electron
+responsiveness, rejection throughput on other storage, or the full load target.
+The earlier load receipt below remains a dated qualification of its recorded inputs.
 
 The [load method](../bench/w1-pipe-method.md) runs synthetic observations through
 the real batcher and spill store with an independent delivery oracle. Its
