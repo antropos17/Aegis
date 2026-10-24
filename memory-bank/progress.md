@@ -3882,3 +3882,14 @@ which starts no sensor or OS oracle. Their loaded-byte declarations matched
 independent source hashes, and reversing the supplied runs produced byte-identical
 JSON and Markdown without modifying the original artifacts. The current PR's
 required hosted checks remain the merge gate.
+
+## W10 Windows packaging architecture boundary — 2026-10-24
+
+The packaging preflight now requires the declared Windows target to be x64
+before building the renderer or the x64-only native helpers. This makes the
+current packaging support boundary explicit; it does not establish that every
+mixed-architecture combination would fail under emulation. Linux and macOS
+retain their existing renderer preflight. The unchanged-hook negative control
+failed all five new refusal cases, and the fixed actual-hook fixture passed ten
+cases without starting build subprocesses. Native platform qualification and
+full W10 acceptance remain open; hosted CI is the separate merge gate.
