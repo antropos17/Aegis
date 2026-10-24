@@ -3910,6 +3910,25 @@ tests passed after the final test-only refinement. Scoped lint, formatting and
 the configured main typecheck passed; main checkJs remains false. Production
 activation, native resource qualification and full W5 acceptance remain open.
 
+## W2 empty-comm polling continuity — 2026-10-24
+
+PR #1069 merged as `6c0a6e9d` after a separate requirements and
+correctness/security review. Its final integrated head passed seven hosted PR
+checks. A valid empty process display name now preserves fresh procfs birth
+observations and named-agent session continuity; malformed PID/tick records
+still fail closed. Native Linux sensor qualification remains open.
+
+## W1 rejection loss-ledger checkpoints — 2026-10-24
+
+Startup replay, projection failures and bucket-size rejection now use the existing
+loss-ledger checkpoint before returning. Nine regression cases cover interrupted
+restart, failed renames followed by retry, and ordinary admission without ledger
+synchronization. Bounded real-API controls also exercised write/fsync failure;
+removing each new checkpoint lost its corresponding restart marker, and the
+frozen source was restored by hash. Rejection checkpoints add synchronous I/O;
+the delivery document records a bounded diagnostic and its limits. Hosted checks
+remain the merge gate; full native-producer and application acceptance remain open.
+
 ## W8 own-Node resource acquisition session — 2026-10-24
 
 Added an explicit CLI joining the existing own-process sampler to retained raw

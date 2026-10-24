@@ -280,6 +280,7 @@ function createSecurityBatcher(options) {
           : now();
       if (startup) {
         loss(sensor, 'replay-pending', 1, timestamp, timestamp);
+        saveLedger();
         return false;
       }
       let record;
@@ -293,12 +294,14 @@ function createSecurityBatcher(options) {
           timestamp,
           timestamp,
         );
+        saveLedger();
         return false;
       }
       const size = Buffer.byteLength(JSON.stringify(record));
       const stats = sensors[sensor];
       if (size > byteCapacity) {
         loss(sensor, 'record-oversize', 1, timestamp, timestamp);
+        saveLedger();
         return false;
       }
       if (stats.buffered >= capacity || stats.bufferedBytes + size > byteCapacity) {
