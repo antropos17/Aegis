@@ -39,6 +39,11 @@ canary created by an earlier fixture step. It checks the source identity, size
 and actual read hash, retaining success and failure in `file-read-outcomes.json`.
 Its `file/access` expectation remains outside the legacy scoring categories.
 
+The [synthetic corpus report](../docs/bench/CORPUS-RESULTS.md) combines explicitly
+supplied S3–S8 run artifacts into reproducible JSON and Markdown tables. It
+retains failed, skipped and incomplete attempts and keeps oracle admission,
+sensor scoring and ATT&CK qualification pending.
+
 For supported scoring categories the bench **generates an expected-event catalogue as a by-product of
 running a deterministic script**, then attempts to confirm each row against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
@@ -65,14 +70,14 @@ and independent native qualification are still pending.
 
 ## Windows-only
 
-Sysmon, Procmon, the Restart Manager path and `reg query` are all Windows facilities. The
-bench does not run on Linux or macOS and does not pretend to: on another platform the
-manifest records each Windows fact as **absent with a reason**, rather than substituting a
-plausible value.
+The native capture harness depends on Windows facilities: Sysmon, Procmon, the
+Restart Manager path and `reg query`. On another platform the manifest records
+each unavailable Windows fact with a reason. Offline report/arithmetic tools and
+owned Node fixture tests remain separate from native capture qualification.
 
-Nested virtualisation is unsupported on GitHub runners and the required contexts all run on
-`ubuntu-latest`, so **the bench never runs in CI**. What CI does cover is `bench/` source
-quality: `npm run lint` and `npm run format:check` both walk this tree.
+Required CI contexts run on `ubuntu-latest`; they execute configured benchmark
+unit/fixture tests and check source quality through lint and formatting. They do
+not run the Hyper-V/Sysmon/Procmon accuracy protocol.
 
 ## Numbers from a development machine are not accuracy figures
 

@@ -6,6 +6,11 @@ actor process and do not execute an installed agent or qualify any platform.
 No measured effectiveness, false-alarm incidence, task-success rate or W8/T8
 acceptance follows from their execution.
 
+[Recorded corpus results](CORPUS-RESULTS.md) summarizes explicitly supplied
+S3–S8 artifact directories into sanitized deterministic JSON/Markdown. It keeps
+failed, skipped, incomplete and pending cells visible and performs no capture,
+oracle admission, scoring or measurement acceptance.
+
 | Task category | Scenario/control | Expected set after successful execution | Remaining confirmation or execution |
 | --- | --- | --- | --- |
 | Ordinary project artifact | S3-ordinary-fixture | One file creation under fixtures/project | Real fixed-version agent edit/build/inspect task and independently checked outcome rubric |
