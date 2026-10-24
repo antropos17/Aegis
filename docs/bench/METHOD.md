@@ -193,6 +193,14 @@ Its current evaluator identity is separate from historical source declarations.
 This supports reproducible inspection of one owned bundle; qualified collection,
 calibration and complete product/helper accounting remain open.
 
+The [Linux own-CPU reference](LINUX_OWN_CPU_REFERENCE.md) supplies an executable
+API/unit corroboration fixture using the Node reader and separately bracketed
+kernel CPU counters. Its declared tick-quantization model and fixed inert work
+make scale errors observable while retaining insufficient or failed evidence.
+The paths share kernel accounting and do not establish independent physical CPU
+accuracy, RSS bounds or collector-on/off cost. Product/cohort qualification still
+requires the planned collection and experiments below.
+
 The following values are protocol settings proposed for future implementation,
 not observed performance. Freeze them with the collector implementation before
 the first qualification run. Each fixed commit/platform/mode/agent/workload cell
