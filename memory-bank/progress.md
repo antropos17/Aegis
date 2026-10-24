@@ -3728,3 +3728,25 @@ Two assertion mutants demonstrated that duplicate fixture-ID rejection and
 exclusive output creation are exercised, then were restored byte-for-byte.
 Independent requirements, logic and test-evidence reviews found no remaining
 actionable issue. Exact hosted CI remains the merge gate.
+
+## W8 offline three-run reproducibility — 2026-10-24
+
+Added a bounded evaluator and explicit CLI for the variance rule in METHOD.md.
+The declared plan binds exactly three run IDs, comparison identities, metric
+cells, populations and explicit absolute/relative tolerances. The result retains
+all supplied attempts and compares each eligible cell using exact canonical
+decimal arithmetic, including signed values and products beyond Number range.
+Incomplete populations, incompatible identities, late plan declarations and
+unknown calibration uncertainty remain ineligible with explicit reasons.
+
+The CLI validates bounded UTF-8 JSON, preserves input hashes and creates a fresh
+output exclusively. Its result remains unauthenticated and unqualified for
+collection or measurement acceptance. Real precollection freezing, calibration,
+complete run disclosure and W8/T8 acceptance still need separate evidence.
+
+Validation on Node 24.20.0 passed 78 new tests and 40 adjacent resource-interval
+tests. Ten targeted source mutations were killed by assertions, then production
+files were restored byte-for-byte and all 118 tests passed again. Independent
+requirements, logic and test-evidence reviews passed after correcting non-string
+status coercion and strengthening the relevant tests. Derived counts, focused
+lint, formatting and syntax checks passed. Exact hosted CI remains the merge gate.
