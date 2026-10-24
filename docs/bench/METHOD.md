@@ -11,15 +11,20 @@ accuracy or overhead figures, W8 acceptance or T8 completion.
 [Q9](../roadmap/completion-baseline.md#q9--benchmark-method-corpus-and-oracles)
 inventories the baseline boundary: two process-based synthetic scenarios,
 a renamed lifecycle process and a renamed Node process holding an inert file.
-The [fixture corpus](CORPUS.md) adds four bounded write/deletion controls in
-exclusively owned run directories. These six controls do not constitute a
-real-agent task corpus. Reuse
+The [fixture corpus](CORPUS.md) adds bounded write/deletion controls in
+exclusively owned run directories and an owned loopback canary transfer.
+These synthetic controls do not constitute a real-agent task corpus. Reuse
 `bench/scenario.schema.json`, `bench/lib/actor.js`, `bench/lib/catalogue.js` and
 their existing validation. The schema defines scenario shape; the actor checks
 executable step kinds and expectation compatibility before execution. Preserve
 `expected.ndjson` and `steps.json` provenance, including failed/unexecuted steps.
 Extend supported actions, observation mappings and independent confirmation
 together before scoring a new category; declaring a scenario does not implement it.
+
+The loopback control records sender-write execution separately from receiver
+hash/count verification in `fixture-outcomes.json`. Its network expectation is
+retained outside legacy scoring; receiver outcome evidence does not populate an
+OS oracle column.
 
 These are existing entrypoints, verified against `package.json` and their source:
 

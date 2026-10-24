@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "S7-owned-loopback-transfer",
+  "title": "Owned Node loopback transfer synthetic control",
+  "arms": ["A", "B", "C"],
+  "oracles": ["sysmon"],
+  "proves": "Synthetic Node stimulus and independently retained owned-receiver outcome only. Sender finish establishes OS handoff, not delivery, agent attribution, OS oracle confirmation, scoring, or measurement acceptance.",
+  "expect": [
+    {
+      "id": "E1",
+      "description": "Actor hands the fixed public inert canary to its owned IPv4 loopback HTTP writer.",
+      "category": "network",
+      "type": "start"
+    }
+  ],
+  "steps": [
+    {
+      "id": "send-canary",
+      "kind": "send-loopback-canary",
+      "expect": "E1",
+      "with": { "durationMs": 1000 }
+    }
+  ]
+}

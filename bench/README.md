@@ -29,8 +29,13 @@ each planned repetition and evaluates each metric cell separately. Its result
 describes the supplied arithmetic; collection and W8 acceptance require their
 own evidence.
 
-For each scenario the bench **generates an expected-event catalogue as a by-product of
-running a deterministic script**, then confirms every row of that catalogue against an
+The [owned loopback scenario](../docs/bench/LOOPBACK_CONTROL.md) connects the
+bounded public-canary sender and receiver to the scenario runner. Its catalogue
+records an observed sender write; `fixture-outcomes.json` retains the separate
+receiver result. Network expectations remain outside the legacy scoring categories.
+
+For supported scoring categories the bench **generates an expected-event catalogue as a by-product of
+running a deterministic script**, then attempts to confirm each row against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
 sensor recorded.
 

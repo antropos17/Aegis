@@ -83,7 +83,7 @@
         },
         "category": {
           "type": "string",
-          "enum": ["process", "file"],
+          "enum": ["process", "file", "network"],
           "description": "ECS event.category of the expected event."
         },
         "type": {
@@ -124,6 +124,25 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "send-loopback-canary" } }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["durationMs"],
+                "additionalProperties": false,
+                "properties": {
+                  "durationMs": { "type": "integer", "minimum": 50, "maximum": 3000 }
+                }
+              }
+            }
+          }
+        },
         {
           "if": {
             "required": ["kind"],
