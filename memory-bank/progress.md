@@ -3967,3 +3967,22 @@ syntax, scoped formatting and diff inspection because of host disk pressure;
 behavioral execution and the full mandatory gates run in CI. This is a W8
 prerequisite only: product/helper population, calibration, measurement acceptance,
 OS containment and an externally enforced deadline for the parent remain open.
+
+## 2026-10-25 — W8 supervised resource bundle replay
+
+Added an offline checker for the fixed supervision/session artifact bundle. It
+rehashes retained bytes, checks declarations and predecessor accounting, and
+recomputes conditional intervals with the current evaluator. Missing evidence,
+contradictions, reported lifecycle support and original publication uncertainty
+remain separate. Historical source declarations do not authenticate collection
+or identify the loaded implementation; current evaluator provenance is recorded
+independently. The checker preserves inputs and publishes a bounded fresh report.
+
+CI covers the actual shortest supervisor/child pipeline followed by offline
+replay, coherent tampering, incomplete evidence, strict parsing and bounded
+descriptor/publication failures. Paired source-copy fault controls require an
+independent baseline oracle to pass and the same oracle to reject a valid source
+mutation. Local work is limited to syntax, scoped formatting and diff checks
+under host disk pressure. This closes the retained-bundle inspection connection;
+qualified collection, calibrated product/helper overhead and full W8/T8
+measurement acceptance remain open.
