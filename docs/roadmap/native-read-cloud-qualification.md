@@ -122,6 +122,26 @@ through the budget remains a failure. Local callback fixtures verify this
 control flow without native desktop or keyboard execution. They do not establish
 why an earlier Windows overlay persisted or qualify a subsequent guest run.
 
+Desktop receipts also retain `windowVisibility`: a sample count capped at 512
+and only the first and latest sanitized observations. The fixed eight fields
+describe window existence, style visibility, known/cloaked state, known/non-empty
+bounds, monitor intersection and later foreground-handle equality. Failed or
+missing queries remain unknown; paired known flags are false and their values
+are null. Every completed read is recorded before later refusal checks,
+including the native dismissal's immediate owner revalidation. A read that never
+returns adds no sample. Existing dismissal records keep their five-field shape.
+
+These are read-only observations after the exact guest/environment guards.
+Style visibility does not prove unobscured pixels; monitor intersection can use
+a minimized window's earlier bounds; matching foreground handles is a sampled
+comparison rather than an atomic identity guarantee. No titles, handles, PIDs,
+paths, coordinates, error text or observation history enter this projection.
+The diagnostics do not alter readiness, closure, input authority, the ten-second
+budget or the three-action limit. They remain inside the existing 4096-byte
+desktop receipt bound. Local fixtures and compilation without native calls
+verify the projection and its integration; actual guest observations remain
+unverified until a separately authorized qualification run.
+
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller
 requests Windows Restart inside the exact owned VM. A fresh later boot is

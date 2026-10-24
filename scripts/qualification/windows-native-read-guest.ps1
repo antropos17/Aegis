@@ -8,6 +8,28 @@ function Assert-NativeReadDesktopScope($Scope) {
     $Scope.caption -notmatch 'Windows 11' -or $Scope.productType -ne 1 -or $Scope.build -cne '26300' -or $Scope.ubr -ne 9457 -or $Scope.architecture -cne 'AMD64') { throw 'Native desktop scope refused' }
 }
 
+function Read-NativeReadDesktopObservation([scriptblock]$Read,$Proof) {
+  $value=& $Read
+  $visibility=@{windowExists=$null;visibleStyle=$null;cloakKnown=$false;cloaked=$null;boundsKnown=$false;nonEmptyBounds=$null;onMonitor=$null;stillForeground=$null}
+  $raw=$null
+  try { $raw=$value.windowVisibility } catch {}
+  foreach($name in @('windowExists','visibleStyle','onMonitor','stillForeground')) {
+    try { $flag=$raw.$name;if($flag -is [bool]) { $visibility[$name]=$flag } } catch {}
+  }
+  try {
+    $known=$raw.cloakKnown;$flag=$raw.cloaked
+    if($known -is [bool] -and $known -eq $true -and $flag -is [bool]) { $visibility.cloakKnown=$true;$visibility.cloaked=$flag }
+  } catch {}
+  try {
+    $known=$raw.boundsKnown;$flag=$raw.nonEmptyBounds
+    if($known -is [bool] -and $known -eq $true -and $flag -is [bool]) { $visibility.boundsKnown=$true;$visibility.nonEmptyBounds=$flag }
+  } catch {}
+  $observation=$Proof.windowVisibility
+  if($null -eq $observation.first) { $observation.first=$visibility }
+  $observation.last=$visibility;$observation.samples=[Math]::Min(512,([long]$observation.samples+1))
+  return $value
+}
+
 # Reuse the installer's verified Start/Search Escape precondition. Callback seams
 # permit normal local fixtures to exercise this decision loop without Win32/input.
 function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[scriptblock]$Dismiss,[scriptblock]$Elapsed=$null,[scriptblock]$Pause=$null) {
@@ -16,13 +38,14 @@ function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[s
   if($null -eq $Elapsed) { $Elapsed={ $watch.Elapsed.TotalMilliseconds } }
   if($null -eq $Pause) { $Pause={param($Milliseconds) Start-Sleep -Milliseconds $Milliseconds} }
   $Proof.status='RUNNING';$Proof.code=$null;$Proof.scopeVerified=$true;$Proof.overlayDismissals=@();$Proof.noForegroundPolls=0
+  $Proof.windowVisibility=@{samples=0;first=$null;last=$null}
   $refuse={param($Code) $Proof.status='FAIL';$Proof.code=$Code;throw 'Native desktop precondition refused'}
   $sample={
     param([double]$SliceDeadline=10000)
     do {
       Assert-NativeReadDesktopScope $Scope
       if((& $Elapsed) -ge 10000) { & $refuse 'deadline' }
-      $value=& $Read
+      $value=Read-NativeReadDesktopObservation $Read $Proof
       if((& $Elapsed) -ge 10000) { & $refuse 'deadline' }
       if($value.noConsent -ne $true) { & $refuse 'consent-present' }
       if($value.activeDefault -ne $true) { & $refuse 'desktop-unavailable' }
@@ -101,7 +124,12 @@ public static class NativeReadDesktop {
   [StructLayout(LayoutKind.Sequential)] public struct KeyStroke { public ushort Vk,Scan; public uint Flags,Time; public UIntPtr Extra; }
   [StructLayout(LayoutKind.Explicit)] public struct KeyUnion { [FieldOffset(0)] public MouseInput Size; [FieldOffset(0)] public KeyStroke Key; }
   [StructLayout(LayoutKind.Sequential)] public struct KeyInput { public uint Type; public KeyUnion Data; }
+  [StructLayout(LayoutKind.Sequential)] struct WindowRect { public int Left,Top,Right,Bottom; }
   public sealed class State { public bool ActiveDefault; public long Window; public uint Pid; public string ClassName; }
+  public sealed class VisibilityState {
+    public bool? WindowExists,VisibleStyle,Cloaked,NonEmptyBounds,OnMonitor,StillForeground;
+    public bool CloakKnown,BoundsKnown;
+  }
   [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
   [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
@@ -112,6 +140,11 @@ public static class NativeReadDesktop {
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint pid);
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder text,int count);
+  [DllImport("user32.dll")] static extern bool IsWindow(IntPtr window);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out WindowRect rect);
+  [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr window,uint flags);
+  [DllImport("dwmapi.dll",PreserveSig=true)] static extern int DwmGetWindowAttribute(IntPtr window,uint attribute,out uint value,uint size);
   [DllImport("user32.dll",EntryPoint="SendInput",SetLastError=true)] static extern uint SendKeyboardInput(uint count,KeyInput[] inputs,int size);
   static bool Named(IntPtr obj,string expected) { int needed;var name=new StringBuilder(256);return obj!=IntPtr.Zero && GetUserObjectInformation(obj,2,name,512,out needed) && string.Equals(name.ToString(),expected,StringComparison.OrdinalIgnoreCase); }
   public static State Probe() {
@@ -123,6 +156,29 @@ public static class NativeReadDesktop {
     uint pid;GetWindowThreadProcessId(window,out pid);var name=new StringBuilder(256);GetClassName(window,name,256);
     result.Pid=pid;result.ClassName=name.ToString();return result;
   }
+  // Read-only diagnostics are separate from Probe/Escape's input revalidation.
+  public static VisibilityState ReadWindowVisibility(long handle) {
+    var result=new VisibilityState();var window=new IntPtr(handle);
+    if(window==IntPtr.Zero) return result;
+    try { result.WindowExists=IsWindow(window); } catch {}
+    if(result.WindowExists==true) {
+      try { result.VisibleStyle=IsWindowVisible(window); } catch {}
+      try {
+        uint cloaked;
+        if(DwmGetWindowAttribute(window,14u,out cloaked,4u)==0) { result.CloakKnown=true;result.Cloaked=cloaked!=0; }
+      } catch {}
+      try {
+        WindowRect rect;
+        if(GetWindowRect(window,out rect)) { result.BoundsKnown=true;result.NonEmptyBounds=rect.Right>rect.Left && rect.Bottom>rect.Top; }
+      } catch {}
+      try { result.OnMonitor=MonitorFromWindow(window,0)!=IntPtr.Zero; } catch {}
+    }
+    try {
+      var foreground=GetForegroundWindow();
+      if(foreground!=IntPtr.Zero) result.StillForeground=foreground==window;
+    } catch {}
+    return result;
+  }
   public static uint Escape(long window,uint pid) {
     var fresh=Probe();if(!fresh.ActiveDefault || fresh.Window!=window || fresh.Pid!=pid) throw new InvalidOperationException("Native desktop changed");
     var keys=new KeyInput[2];keys[0].Type=keys[1].Type=1;keys[0].Data.Key.Vk=keys[1].Data.Key.Vk=27;keys[1].Data.Key.Flags=2;
@@ -132,10 +188,11 @@ public static class NativeReadDesktop {
 '@
   $read={
     Assert-NativeReadDesktopScope $Scope
-    $empty=@{noConsent=$false;activeDefault=$false;noForeground=$false;ownerVerified=$false;sameSession=$false;kind='unknown';witness=$null}
+    $empty=@{noConsent=$false;activeDefault=$false;noForeground=$false;ownerVerified=$false;sameSession=$false;kind='unknown';witness=$null;windowVisibility=$null}
     if(@(Get-CimInstance Win32_Process -Filter "Name='consent.exe'").Count) { return $empty }
     $empty.noConsent=$true;$native=[NativeReadDesktop]::Probe()
     if(-not $native.ActiveDefault) { return $empty };$empty.activeDefault=$true
+    try { $empty.windowVisibility=[NativeReadDesktop]::ReadWindowVisibility($native.Window) } catch {}
     if($native.Window -eq 0) { $empty.noForeground=$true;$empty.kind='none';return $empty }
     $owner=Get-CimInstance Win32_Process -Filter ('ProcessId='+$native.Pid)
     if(-not $owner -or $owner.SessionId -ne $Scope.sessionId -or -not $owner.CreationDate) { return $empty };$empty.sameSession=$true
@@ -143,10 +200,10 @@ public static class NativeReadDesktop {
     if($kind -ceq 'unknown') { return $empty }
     $signature=Get-AuthenticodeSignature -LiteralPath $owner.ExecutablePath
     if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') { return $empty }
-    return @{noConsent=$true;activeDefault=$true;ownerVerified=$true;sameSession=$true;kind=$kind;witness=($native.Window.ToString()+':'+$owner.ProcessId+':'+$owner.CreationDate.ToUniversalTime().ToString('o'));window=$native.Window;pid=$owner.ProcessId}
+    return @{noConsent=$true;activeDefault=$true;ownerVerified=$true;sameSession=$true;kind=$kind;witness=($native.Window.ToString()+':'+$owner.ProcessId+':'+$owner.CreationDate.ToUniversalTime().ToString('o'));window=$native.Window;pid=$owner.ProcessId;windowVisibility=$empty.windowVisibility}
   }
   $dismiss={param($Expected)
-    $fresh=& $read
+    $fresh=Read-NativeReadDesktopObservation $read $Proof
     if($fresh.witness -cne $Expected.witness -or $fresh.noConsent -ne $true -or $fresh.activeDefault -ne $true -or $fresh.kind -cnotin @('start','search')) { throw 'Native desktop changed' }
     return [NativeReadDesktop]::Escape([long]$fresh.window,[uint32]$fresh.pid)
   }

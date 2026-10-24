@@ -30,7 +30,7 @@ try {
   # compile its native adapter, probe a desktop, or issue real keyboard input.
   $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $Source 'scripts/qualification/windows-native-read-guest.ps1'),[ref]$tokens,[ref]$errors)
   if($errors.Count) { throw 'fixture-source-refused' }
-  foreach($name in @('Assert-NativeReadDesktopScope','Invoke-NativeReadDesktopPreparation','Initialize-NativeReadDesktop')) {
+  foreach($name in @('Assert-NativeReadDesktopScope','Read-NativeReadDesktopObservation','Invoke-NativeReadDesktopPreparation','Initialize-NativeReadDesktop')) {
     $found=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$false))
     if($found.Count -ne 1) { throw 'fixture-source-refused' }
     . ([scriptblock]::Create($found[0].Extent.Text))
