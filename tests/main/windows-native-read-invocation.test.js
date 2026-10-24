@@ -71,6 +71,8 @@ try {
     if($good.qualified -ne $true -or $good.code -cne 'Qualified' -or $declined.qualified -ne $false -or $declined.code -cne 'InventoryLibraryRefused') { throw 'fixture-capability-valid-shape' };$capabilityCases+=2
     $invalid=@(
       @{json=$success;exitCode=2},@{json=$failure;exitCode=0},
+      @{json=$success.Replace('"qualified":true','"qualified":false');exitCode=2},
+      @{json=$failure.Replace('"qualified":false','"qualified":true');exitCode=0},
       @{json=$success.Replace('"qualified":true','"qualified":false');exitCode=0},
       @{json=$failure.Replace('"qualified":false','"qualified":true');exitCode=2},
       @{json=$failure.Replace('InventoryLibraryRefused','UnknownCode');exitCode=2},
@@ -134,7 +136,7 @@ describe.skipIf(process.platform !== 'win32')(
           policyBefore: 'Restricted',
           policyAfter: 'Restricted',
           allPolicyScopesUnchanged: true,
-          capabilityCases: scenario === 'runner' ? 14 : 0,
+          capabilityCases: scenario === 'runner' ? 16 : 0,
         });
       },
       20000,
