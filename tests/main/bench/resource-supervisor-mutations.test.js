@@ -134,6 +134,64 @@ afterEach(() => {
 
 const faults = [
   {
+    name: 'public options must have an ordinary prototype',
+    file: 'bench/lib/resource-supervisor.js',
+    from: '![Object.prototype, null].includes(Object.getPrototypeOf(value))',
+    to: 'false',
+    async oracle(item) {
+      const value = Object.assign(Object.create({ inherited: true }), options(item.dir));
+      assert.throws(
+        () => item.supervisor.validateOptions(value),
+        /resource-supervisor-input-invalid/,
+      );
+    },
+  },
+  {
+    name: 'source descriptor identity must agree with the name observed before open',
+    file: 'bench/lib/resource-supervisor-storage.js',
+    from: 'if (!same(named, before)) fail();',
+    to: 'if (false) fail();',
+    async oracle(item) {
+      const target = path.join(item.dir, sources[0]);
+      const lstat = fs.lstatSync;
+      let sourceFd,
+        active = false,
+        namedReads = 0;
+      const shifted = (stat) =>
+        Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { ino: stat.ino + 1n });
+      const open = vi.spyOn(fs, 'openSync').mockImplementation((file, ...args) => {
+        const fd = native.openSync(file, ...args);
+        if (file === target) {
+          sourceFd = fd;
+          active = true;
+        }
+        return fd;
+      });
+      const named = vi.spyOn(fs, 'lstatSync').mockImplementation((file, ...args) => {
+        const stat = lstat(file, ...args);
+        return file === target && ++namedReads > 1 ? shifted(stat) : stat;
+      });
+      const descriptor = vi.spyOn(fs, 'fstatSync').mockImplementation((fd, ...args) => {
+        const stat = native.fstatSync(fd, ...args);
+        return fd === sourceFd && active ? shifted(stat) : stat;
+      });
+      const close = vi.spyOn(fs, 'closeSync').mockImplementation((fd) => {
+        native.closeSync(fd);
+        if (fd === sourceFd) active = false;
+      });
+      try {
+        assert.throws(() => item.storage.inventory(), /resource-supervisor-storage-unavailable/);
+        assert.equal(Number.isSafeInteger(sourceFd), true);
+        assert.throws(() => native.fstatSync(sourceFd));
+      } finally {
+        close.mockRestore();
+        descriptor.mockRestore();
+        named.mockRestore();
+        open.mockRestore();
+      }
+    },
+  },
+  {
     name: 'invalid CLI input cannot return success',
     file: 'bench/self-resource-supervise.cjs',
     from: 'return 2;',
