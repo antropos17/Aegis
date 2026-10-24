@@ -1,3 +1,14 @@
+# Pure literal transform; String.Split(string) is not a literal-string overload in Windows PowerShell 5.1.
+function Set-NativeReadSecondLogon([string]$AnswerText) {
+  $marker='<LogonCount>1</LogonCount>'
+  if([regex]::Matches($AnswerText,[regex]::Escape($marker)).Count -ne 1 -or
+    [regex]::Matches($AnswerText,'<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?LogonCount(?:\s|>)').Count -ne 1 -or
+    [regex]::Matches($AnswerText,'</(?:[A-Za-z_][A-Za-z0-9_.-]*:)?LogonCount\s*>').Count -ne 1) {
+    throw 'Second lab logon seam changed'
+  }
+  return $AnswerText.Replace($marker,'<LogonCount>2</LogonCount>')
+}
+
 # Fixed current-run native-read lab captures; the installer capture scope is unchanged.
 function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','prepare','resume','admission')][string]$Purpose) {
   Assert-CloudGuestRunner
@@ -17,9 +28,9 @@ function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[strin
       $settings=@($system.psbase.GetRelated('Msvm_VirtualSystemSettingData') | Where-Object { $_.VirtualSystemType -eq 'Microsoft:Hyper-V:System:Realized' -and $_.VirtualSystemIdentifier -eq $Id })
       if($settings.Count -ne 1) { throw 'Native-read capture settings mismatch' }
       $service=Get-WmiObject -Namespace $namespace -Class Msvm_VirtualSystemManagementService
-      $input=$service.psbase.GetMethodParameters('GetVirtualSystemThumbnailImage')
-      $input.TargetSystem=$settings[0].psbase.Path.Path;$input.WidthPixels=[uint16]640;$input.HeightPixels=[uint16]480
-      $capture=$service.psbase.InvokeMethod('GetVirtualSystemThumbnailImage',$input,$null);$bytes=$capture.ImageData
+      $thumbnailParameters=$service.psbase.GetMethodParameters('GetVirtualSystemThumbnailImage')
+      $thumbnailParameters.TargetSystem=$settings[0].psbase.Path.Path;$thumbnailParameters.WidthPixels=[uint16]640;$thumbnailParameters.HeightPixels=[uint16]480
+      $capture=$service.psbase.InvokeMethod('GetVirtualSystemThumbnailImage',$thumbnailParameters,$null);$bytes=$capture.ImageData
       if([uint32]$capture.ReturnValue -ne 0 -or $bytes -isnot [byte[]] -or $bytes.Length -lt 614400 -or $bytes.Length -gt 614404) { throw 'Native-read thumbnail unavailable' }
       $file='native-'+$Purpose+'-'+$Index+'.rgb565';$target=Join-Path $Evidence $file
       if(Test-Path -LiteralPath $target) { throw 'Fresh native-read capture required' }
@@ -47,35 +58,35 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
   Copy-Item -LiteralPath $Bundle.path -Destination 'C:\aegis-native-read\input.zip' -ToSession $Session
   return Invoke-Command -Session $Session -ArgumentList $Bundle.sha256,$Bundle.bytes,$env:GITHUB_SHA -ScriptBlock {
     param($Hash,$Bytes,$SourceSha)
-    $root='C:\aegis-native-read';$input=Join-Path $root 'input';$zip=Join-Path $root 'input.zip'
+    $root='C:\aegis-native-read';$guestInputRoot=Join-Path $root 'input';$zip=Join-Path $root 'input.zip'
     if((Get-Item -LiteralPath $zip).Length -ne $Bytes -or (Get-FileHash -LiteralPath $zip).Hash -ine $Hash) { throw 'Input transfer mismatch' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive=[IO.Compression.ZipFile]::OpenRead($zip)
     try {
       foreach($entry in $archive.Entries) {
-        $target=[IO.Path]::GetFullPath((Join-Path $input $entry.FullName))
-        if(-not $target.StartsWith($input+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Input archive escaped owned root' }
+        $target=[IO.Path]::GetFullPath((Join-Path $guestInputRoot $entry.FullName))
+        if(-not $target.StartsWith($guestInputRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Input archive escaped owned root' }
       }
     } finally { $archive.Dispose() }
-    [IO.Compression.ZipFile]::ExtractToDirectory($zip,$input)
-    $manifest=Join-Path $input 'input-manifest.json'
+    [IO.Compression.ZipFile]::ExtractToDirectory($zip,$guestInputRoot)
+    $manifest=Join-Path $guestInputRoot 'input-manifest.json'
     if((Get-Item -LiteralPath $manifest).Length -gt 8MB) { throw 'Input manifest budget' }
     $files=@(Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json)
     if($files.Count -gt 30000) { throw 'Input file count budget' }
     foreach($file in $files) {
-      $target=[IO.Path]::GetFullPath((Join-Path $input $file.path))
-      if(-not $target.StartsWith($input+'\',[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $target).Length -ne $file.bytes -or (Get-FileHash -LiteralPath $target).Hash -ine $file.sha256) { throw 'Input manifest mismatch' }
+      $target=[IO.Path]::GetFullPath((Join-Path $guestInputRoot $file.path))
+      if(-not $target.StartsWith($guestInputRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $target).Length -ne $file.bytes -or (Get-FileHash -LiteralPath $target).Hash -ine $file.sha256) { throw 'Input manifest mismatch' }
     }
-    if(@(Get-ChildItem -LiteralPath $input -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Guest input links refused' }
-    $context=Get-Content -LiteralPath (Join-Path $input 'context.json') -Raw | ConvertFrom-Json
+    if(@(Get-ChildItem -LiteralPath $guestInputRoot -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Guest input links refused' }
+    $context=Get-Content -LiteralPath (Join-Path $guestInputRoot 'context.json') -Raw | ConvertFrom-Json
     if($context.sourceSha -cne $SourceSha -or $context.sourceSha -cnotmatch '^[a-f0-9]{40}$' -or $context.coreAutoCrlf -notin @('true','false','input') -or $context.coreEol -notin @('native','lf','crlf')) { throw 'Guest source context mismatch' }
     $env:GIT_CONFIG_NOSYSTEM='1';$env:GIT_CONFIG_GLOBAL=Join-Path $root 'absent-global-gitconfig'
-    $git=Join-Path $input 'runtime/git/cmd/git.exe';$repository=Join-Path $root 'repository.git';$source=Join-Path $root 'source'
+    $git=Join-Path $guestInputRoot 'runtime/git/cmd/git.exe';$repository=Join-Path $root 'repository.git';$source=Join-Path $root 'source'
     New-Item -ItemType Directory -Path (Join-Path $root 'empty-template') | Out-Null
     & $git -c init.defaultBranch=qualification init --bare --template=(Join-Path $root 'empty-template') $repository | Out-Null
     if($LASTEXITCODE -ne 0) { throw 'Guest Git initialization failed' }
-    Copy-Item -LiteralPath (Join-Path $input 'gitstore/objects') -Destination $repository -Recurse -Force
-    if(Test-Path -LiteralPath (Join-Path $input 'gitstore/shallow')) { Copy-Item -LiteralPath (Join-Path $input 'gitstore/shallow') -Destination $repository }
+    Copy-Item -LiteralPath (Join-Path $guestInputRoot 'gitstore/objects') -Destination $repository -Recurse -Force
+    if(Test-Path -LiteralPath (Join-Path $guestInputRoot 'gitstore/shallow')) { Copy-Item -LiteralPath (Join-Path $guestInputRoot 'gitstore/shallow') -Destination $repository }
     & $git --git-dir=$repository config core.autocrlf $context.coreAutoCrlf
     if($LASTEXITCODE -ne 0) { throw 'Guest source conversion configuration failed' }
     & $git --git-dir=$repository config core.eol $context.coreEol
@@ -84,7 +95,7 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
     if($LASTEXITCODE -ne 0) { throw 'Guest source ref reconstruction failed' }
     & $git --git-dir=$repository worktree add --quiet --detach $source $SourceSha | Out-Null
     if($LASTEXITCODE -ne 0) { throw 'Guest isolated worktree checkout failed' }
-    Copy-Item -LiteralPath (Join-Path $input 'dependencies/node_modules') -Destination $source -Recurse
+    Copy-Item -LiteralPath (Join-Path $guestInputRoot 'dependencies/node_modules') -Destination $source -Recurse
     if((& $git -C $source rev-parse 'HEAD^{tree}') -cne $context.sourceTree -or (& $git -C $source status --porcelain --untracked-files=normal)) { throw 'Guest worktree tree/cleanliness mismatch' }
     if((& $git -C $source rev-parse --git-dir) -eq (& $git -C $source rev-parse --git-common-dir)) { throw 'Guest source isolation missing' }
     foreach($part in @('evidence','temp')) { New-Item -ItemType Directory -Path (Join-Path $root $part) | Out-Null }

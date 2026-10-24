@@ -44,13 +44,16 @@ const ingress = 'src/main/native-file-ingress.js';
 const baselines = 'src/main/baselines.js';
 const normalizer = 'src/shared/ecs-normalizer.js';
 const risk = 'src/renderer/lib/utils/enrich-agents.ts';
+const logon = 'scripts/qualification/windows-native-read-host.ps1';
 const tests = [
   'tests/main/platform/etw-file-operational-runtime.test.js',
   'tests/main/platform/etw-file-admission.test.js',
   'tests/main/live-native-file-ingress.test.js',
   'tests/main/live-native-object-consumers.test.js',
   'tests/main/live-native-main-wiring.test.js',
+  'tests/main/windows-native-read-logon.test.js',
 ];
+const minimumAssertions = 59 + 4;
 const project = path.join(ROOT, 'sidecar/etw-file/EtwFile.csproj');
 const executable = path.join(ROOT, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
 const originals = new Map(
@@ -66,6 +69,7 @@ const originals = new Map(
     baselines,
     normalizer,
     risk,
+    logon,
   ].map((name) => [name, fs.readFileSync(path.join(ROOT, name))]),
 );
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -150,7 +154,7 @@ function javascript(label, expectedPass) {
   const assertions = (report.testResults ?? []).flatMap((suite) => suite.assertionResults ?? []);
   if (
     report.testResults?.length !== tests.length ||
-    assertions.length < 50 ||
+    assertions.length < minimumAssertions ||
     (report.numRuntimeErrorTestSuites ?? 0) !== 0 ||
     report.testResults.some((suite) => !suite.assertionResults?.length) ||
     assertions.some((test) => !['passed', 'failed'].includes(test.status))
@@ -208,6 +212,16 @@ function native(label, expectedPass, expectedFailure) {
   return { status: expectedPass ? 'PASS' : 'KILLED', passedBeforeFailure: passed };
 }
 const mutants = [
+  {
+    id: 'second-logon-literal-string-count',
+    file: logon,
+    edits: [
+      [
+        '[regex]::Matches($AnswerText,[regex]::Escape($marker)).Count -ne 1',
+        '$AnswerText.Split($marker).Length -ne 2',
+      ],
+    ],
+  },
   {
     id: 'main-operational-callback',
     file: main,

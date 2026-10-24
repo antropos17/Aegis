@@ -17,7 +17,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
 . (Join-Path $PSScriptRoot 'windows-native-read-host.ps1')
-$report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@()};error=$null;cleanupError=$null}
+$report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@();retainedTaskDirectories=@('build','bundle','bootstrap','source','native','temp')};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
 $id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$consent=[Collections.ArrayList]::new()
@@ -86,8 +86,7 @@ try {
   $credential=[pscredential]::new('AegisSetup',(ConvertTo-SecureString $adminPassword -AsPlainText -Force))
   Stage 'prepare-bounded-two-logon-answer' {
     $text=New-CloudGuestAnswerText $metadata.index $adminPassword $taskPassword
-    if(($text.Split('<LogonCount>1</LogonCount>')).Count -ne 2) { throw 'Second lab logon seam changed' }
-    $text=$text.Replace('<LogonCount>1</LogonCount>','<LogonCount>2</LogonCount>')
+    $text=Set-NativeReadSecondLogon $text
     New-CloudGuestAnswerIso (Join-Path $root 'media/answer') $answerIso $text
   } | Out-Null
   $report.hardware=Stage 'configure-offline-native-guest' {
@@ -159,11 +158,17 @@ finally {
       foreach($file in @($iso,$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
         $full=[IO.Path]::GetFullPath($file)
         if(-not $full.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Owned cleanup escaped controller root' }
-        if(Test-Path -LiteralPath $full) {
+        $existed=Test-Path -LiteralPath $full;$beforeBytes=0
+        if($existed) {
           $item=Get-Item -LiteralPath $full
           if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Owned cleanup refuses linked/non-file leaf' }
-          Remove-Item -LiteralPath $full -Force;$report.cleanup.filesRemoved+=[IO.Path]::GetFileName($full)
+          $beforeBytes=$item.Length
+          Remove-Item -LiteralPath $full -Force
         }
+        $absentAfter=-not (Test-Path -LiteralPath $full)
+        $report.cleanup.leafObservations+=@{name=[IO.Path]::GetFileName($full);existed=$existed;beforeBytes=$beforeBytes;absentAfter=$absentAfter}
+        if(-not $absentAfter) { throw 'Owned cleanup leaf absence unconfirmed' }
+        if($existed) { $report.cleanup.filesRemoved+=[IO.Path]::GetFileName($full) }
       }
     }
   } catch { $report.cleanupError=$_.Exception.Message;$report.status='FAIL' }
