@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import type { BoundObjectReadEvent } from '../../../src/shared/types';
+import type { BoundObjectReadEvent, DetectedAgent } from '../../../src/shared/types';
 import FileReadObservations from '../../../frontend/observatory/components/FileReadObservations.svelte';
 import InvestigationInspector from '../../../frontend/observatory/components/InvestigationInspector.svelte';
 import Details from '../../../frontend/observatory/components/Details.svelte';
@@ -34,7 +34,7 @@ import {
   pathActionTarget,
 } from '../../../frontend/observatory/runtime/object-read';
 
-const observed: BoundObjectReadEvent = {
+const observed = {
   eventId: '00000000-0000-4000-8000-000000000901',
   observationKind: 'bound-object-read',
   agent: 'Codex',
@@ -59,7 +59,7 @@ const observed: BoundObjectReadEvent = {
     provenance: 'issuer-handle-file-id',
     policy: { sensitive: true, reason: 'Sensitive bound policy', classification: 'sensitive' },
   },
-};
+} satisfies BoundObjectReadEvent;
 
 it('requires the exact full Windows birth for object alert controls despite equal rounded instance IDs', () => {
   const birth = '134000000000001111';
@@ -78,7 +78,7 @@ it('requires the exact full Windows birth for object alert controls despite equa
     createTime100ns: birth,
     generationWitness: birth,
     generationWitnessSource: 'createTime100ns' as const,
-  };
+  } satisfies DetectedAgent;
   const state = { ...emptyTelemetry(), ready: true, stale: false, agents: [current] };
   expect(alertControlTarget(event, state)).toBe(current);
   expect(
@@ -109,7 +109,7 @@ it('keeps historical object reads out of a reused process lifetime across detail
     createTime100ns: '134000000000001112',
     status: 'running' as const,
     category: 'cli-tool',
-  };
+  } satisfies DetectedAgent;
   const currentRead = { ...observed, createTime100ns: reused.createTime100ns, timestamp: 900 };
   const state = {
     ...emptyTelemetry(),

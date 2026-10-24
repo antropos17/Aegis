@@ -40,14 +40,20 @@ export function diagnostics(app) {
 
 /** Start a normal-token native fixture with capped metadata-only output.
  * @param {string} executable @param {string} file @param {object} env @param {boolean} short
+ * @param {boolean} denyDeleteShare Opt-in synthetic retained-handle release control.
  * @returns {object} Owned process and finite command interface. @since v0.19.2
  */
-export function readFixture(executable, file, env, short = false) {
-  const child = spawn(executable, [file, ...(short ? ['short'] : [])], {
-    env,
-    windowsHide: true,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+export function readFixture(executable, file, env, short = false, denyDeleteShare = false) {
+  assert(!(short && denyDeleteShare), 'Select one synthetic fixture mode');
+  const child = spawn(
+    executable,
+    [file, ...(short ? ['short'] : denyDeleteShare ? ['deny-delete-share'] : [])],
+    {
+      env,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
   child.stdin.on('error', () => {});
   const lines = [];
   let bytes = 0;

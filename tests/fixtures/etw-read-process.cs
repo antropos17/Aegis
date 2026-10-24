@@ -9,6 +9,7 @@ using Microsoft.Win32.SafeHandles;
 // reads a user path or logs the synthetic file contents. The caller owns this process.
 internal static class EtwReadProcess
 {
+    private static uint fileShare=7;
     [StructLayout(LayoutKind.Sequential)]
     private struct Overlapped { public IntPtr Internal, InternalHigh; public uint Offset, OffsetHigh; public IntPtr Event; }
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
@@ -35,7 +36,7 @@ internal static class EtwReadProcess
             ulong birth, exit, kernel, user;
             if(!GetProcessTimes(self.Handle,out birth,out exit,out kernel,out user)||birth==0||exit!=0)throw new IOException();
             Console.WriteLine("{\"command\":\""+command+"\",\"pid\":"+self.Id+",\"tid\":"+GetCurrentThreadId()+
-                ",\"birth\":\""+birth+"\",\"reads\":"+reads+",\"pending\":"+pending+",\"fromQpc\":\""+from+"\",\"toQpc\":\""+to+"\"}");
+                ",\"birth\":\""+birth+"\",\"reads\":"+reads+",\"pending\":"+pending+",\"shareDelete\":"+(fileShare==7?"true":"false")+",\"fromQpc\":\""+from+"\",\"toQpc\":\""+to+"\"}");
         }
     }
     private static int Read(string path, bool asynchronous, int count, bool paced)
@@ -44,7 +45,7 @@ internal static class EtwReadProcess
         IntPtr aligned=asynchronous?VirtualAlloc(IntPtr.Zero,(UIntPtr)4096,0x3000,4):IntPtr.Zero;
         if(asynchronous && aligned==IntPtr.Zero)throw new IOException();
         try {
-        using(var file=CreateFile(path,0x80000000,7,IntPtr.Zero,3,asynchronous?0x60000080u:0x80u,IntPtr.Zero))
+        using(var file=CreateFile(path,0x80000000,fileShare,IntPtr.Zero,3,asynchronous?0x60000080u:0x80u,IntPtr.Zero))
         using(var signal=new EventWaitHandle(false,EventResetMode.ManualReset))
         {
             if(file.IsInvalid)throw new IOException();
@@ -76,6 +77,7 @@ internal static class EtwReadProcess
     private static int Run(string[] args)
     {
         if(args.Length<1 || !Path.IsPathRooted(args[0]) || new FileInfo(args[0]).Length!=4096)return 3;
+        if(args.Length==2 && args[1]=="deny-delete-share")fileShare=3;
         using(var timer=new Timer(_=>Environment.Exit(71),null,240000,Timeout.Infinite))
         {
             if(args.Length==2 && args[1]=="short") { Report("ready",0); long from=Stopwatch.GetTimestamp(); Read(args[0],false,64,false); Report("short",64,from,Stopwatch.GetTimestamp()); return 0; }

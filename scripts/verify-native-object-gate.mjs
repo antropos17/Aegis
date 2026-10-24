@@ -1,4 +1,4 @@
-/** Cloud-only load-bearing mutations of the actual ETW runtime/native sources. */
+/** Cloud-only load-bearing mutations of actual native producers and operational consumers. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -39,17 +39,34 @@ const mapping = 'sidecar/etw-file/FileMapping.cs';
 const runtime = 'src/main/platform/etw-file-runtime.js';
 const supervisor = 'src/main/platform/etw-file-supervisor.js';
 const observer = 'sidecar/etw-file/FileOrphanObserver.cs';
+const main = 'src/main/main.js';
+const ingress = 'src/main/native-file-ingress.js';
+const baselines = 'src/main/baselines.js';
+const normalizer = 'src/shared/ecs-normalizer.js';
+const risk = 'src/renderer/lib/utils/enrich-agents.ts';
 const tests = [
   'tests/main/platform/etw-file-operational-runtime.test.js',
   'tests/main/platform/etw-file-admission.test.js',
+  'tests/main/live-native-file-ingress.test.js',
+  'tests/main/live-native-object-consumers.test.js',
+  'tests/main/live-native-main-wiring.test.js',
 ];
 const project = path.join(ROOT, 'sidecar/etw-file/EtwFile.csproj');
 const executable = path.join(ROOT, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
 const originals = new Map(
-  [admission, lease, mapping, runtime, supervisor, observer].map((name) => [
-    name,
-    fs.readFileSync(path.join(ROOT, name)),
-  ]),
+  [
+    admission,
+    lease,
+    mapping,
+    runtime,
+    supervisor,
+    observer,
+    main,
+    ingress,
+    baselines,
+    normalizer,
+    risk,
+  ].map((name) => [name, fs.readFileSync(path.join(ROOT, name))]),
 );
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const receipt = {
@@ -63,6 +80,7 @@ const receipt = {
   restored: false,
   error: null,
   sourceHashes: Object.fromEntries([...originals].map(([name, bytes]) => [name, sha(bytes)])),
+  focusedSuites: tests,
 };
 
 function run(label, command, argv, timeout = 120000) {
@@ -131,16 +149,24 @@ function javascript(label, expectedPass) {
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
   const assertions = (report.testResults ?? []).flatMap((suite) => suite.assertionResults ?? []);
   if (
-    report.testResults?.length !== 2 ||
-    assertions.length < 26 ||
+    report.testResults?.length !== tests.length ||
+    assertions.length < 50 ||
+    (report.numRuntimeErrorTestSuites ?? 0) !== 0 ||
+    report.testResults.some((suite) => !suite.assertionResults?.length) ||
     assertions.some((test) => !['passed', 'failed'].includes(test.status))
   )
     throw new Error(`Incomplete test selection: ${label}`);
   const failed = assertions.filter((test) => test.status === 'failed');
   const meaningful =
     failed.length > 0 &&
-    failed.every((test) =>
-      (test.failureMessages ?? []).some((text) => text.includes('AssertionError')),
+    failed.every(
+      (test) =>
+        test.failureMessages?.length > 0 &&
+        test.failureMessages.every(
+          (text) =>
+            text.includes('AssertionError') &&
+            !/SyntaxError|ReferenceError|TypeError|Cannot find module|Failed to load/.test(text),
+        ),
     );
   if (
     expectedPass ? result.status !== 0 || failed.length !== 0 : result.status === 0 || !meaningful
@@ -182,6 +208,73 @@ function native(label, expectedPass, expectedFailure) {
   return { status: expectedPass ? 'PASS' : 'KILLED', passedBeforeFailure: passed };
 }
 const mutants = [
+  {
+    id: 'main-operational-callback',
+    file: main,
+    edits: [
+      [
+        'onOperationalRead: (observation) => nativeFileIngress?.offer(observation) === true,',
+        'onOperationalRead: () => false,',
+      ],
+    ],
+  },
+  {
+    id: 'main-live-publisher',
+    file: main,
+    edits: [
+      ['publishLive: (event) => publishLiveFileEvent(event, true),', 'publishLive: () => {},'],
+    ],
+  },
+  {
+    id: 'ingress-audit-custody',
+    file: ingress,
+    edits: [
+      [
+        "if (accepted !== true) return reject('native-audit-custody-rejected');",
+        "if (false) return reject('native-audit-custody-rejected');",
+      ],
+    ],
+  },
+  {
+    id: 'baseline-object-cohort',
+    file: baselines,
+    edits: [
+      [
+        'if (sd.files.size === 0 && sd.sensitiveCount === 0 && sd.endpoints.size === 0) continue;',
+        '// Deliberately mixed object-only sessions into legacy path training.',
+      ],
+    ],
+  },
+  {
+    id: 'normalizer-object-path',
+    file: normalizer,
+    edits: [
+      [
+        'const fields = {};',
+        "const fields = {}; if (event.observationKind === 'bound-object-read') fields.file = { path: 'MUTANT-LABEL-AS-PATH' };",
+      ],
+    ],
+  },
+  {
+    id: 'risk-fullbirth-join',
+    file: risk,
+    edits: [
+      [
+        'objectRead && (!raw.createTime100ns || ev.createTime100ns !== raw.createTime100ns)',
+        'false',
+      ],
+    ],
+  },
+  {
+    id: 'audit-replay-live-effects',
+    file: main,
+    edits: [
+      [
+        'consume: (records) => audit.persistBatch(records),',
+        'consume: (records) => { records.forEach(publishLiveFileEvent); return audit.persistBatch(records); },',
+      ],
+    ],
+  },
   {
     id: 'native-ack-equality',
     file: lease,
@@ -259,6 +352,7 @@ const mutants = [
   },
 ];
 let failure;
+let restorationFailure;
 let controlsStarted = false;
 try {
   if (!clean()) throw new Error('Checkout must be clean before mutation');
@@ -267,15 +361,24 @@ try {
   receipt.controls.push({ phase: 'before', js: javascript('before-js', true) });
   receipt.controls.push({ phase: 'before', native: native('before-native', true) });
   for (const mutant of mutants) {
+    let mutantFailure;
     try {
       edit(mutant.file, mutant.edits);
       const result = mutant.failure
         ? native(mutant.id, false, mutant.failure)
         : javascript(mutant.id, false);
       receipt.mutations.push({ id: mutant.id, ...result });
-    } finally {
-      restore();
+    } catch (error) {
+      mutantFailure = error;
     }
+    try {
+      restore();
+    } catch (error) {
+      restorationFailure ??= error;
+    }
+    // Preserve the mutation's own failure even if byte restoration also failed.
+    if (mutantFailure) throw mutantFailure;
+    if (restorationFailure) throw restorationFailure;
   }
 } catch (error) {
   failure = error;
@@ -287,10 +390,12 @@ try {
       receipt.controls.push({ phase: 'restored', native: native('restored-native', true) });
     }
     receipt.restored = clean();
-    if (!receipt.restored) throw new Error('Checkout is dirty after restoration');
+    if (!receipt.restored) restorationFailure ??= new Error('Checkout is dirty after restoration');
   } catch (error) {
-    failure ??= error;
+    restorationFailure ??= error;
   }
+  failure ??= restorationFailure;
+  receipt.restorationError = restorationFailure?.message ?? null;
   receipt.error = failure?.message ?? null;
   receipt.status =
     !failure && receipt.restored && receipt.mutations.length === mutants.length ? 'PASS' : 'FAIL';
