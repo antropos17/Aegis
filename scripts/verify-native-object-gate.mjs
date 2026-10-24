@@ -222,6 +222,11 @@ function native(label, expectedPass, expectedFailure) {
 }
 const mutants = [
   {
+    id: 'package-window-deactivation-transition',
+    file: windowObservation,
+    edits: [['owned.hide();', 'void 0;']],
+  },
+  {
     id: 'package-window-isolation-reapplied',
     file: windowObservation,
     edits: [

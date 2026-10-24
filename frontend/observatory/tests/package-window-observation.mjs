@@ -49,17 +49,38 @@ export async function capturePackageWindow(electron, limits) {
   let owned = null;
   let ready = false;
   let stable = 0;
+  let isolating = false;
+  let visibilityResets = 0;
+  let lastVisibilityReset = -Infinity;
   const isolate = () => {
+    if (isolating) return; // showInactive emits show; never recurse into our own transition.
     stable = 0;
+    isolating = true;
     try {
       if (!owned || owned.isDestroyed()) return;
       owned.setIgnoreMouseEvents(true);
       owned.setFocusable(false);
       owned.blur();
+      if (
+        owned.isVisible() &&
+        owned.isFocused() &&
+        visibilityResets < 3 &&
+        Date.now() - lastVisibilityReset >= pollMs
+      ) {
+        // On Windows a visible window can remain active after blur. Hiding it
+        // removes that native visibility state; showInactive restores visibility
+        // without the activation performed by the product's ordinary show().
+        visibilityResets++;
+        lastVisibilityReset = Date.now();
+        owned.hide();
+        owned.showInactive();
+      }
       observation.isolationRequested = true;
     } catch {
       // An unsuccessful request cannot become an isolated-window result.
       observation.isolationRequested = false;
+    } finally {
+      isolating = false;
     }
   };
   const onReady = () => {
@@ -97,8 +118,7 @@ export async function capturePackageWindow(electron, limits) {
         observation.readyToShowObserved = ready;
         observation.windowInputIsolated =
           observation.isolationRequested && !observation.focusable && !observation.focused;
-        const rendered = ready || observation.visible;
-        stable = rendered && observation.windowInputIsolated ? stable + 1 : 0;
+        stable = observation.visible && observation.windowInputIsolated ? stable + 1 : 0;
         observation.settled = stable >= 2;
         if (observation.settled || !observation.packaged || !observation.diagnosticBuild) break;
       } else {
@@ -158,6 +178,7 @@ export function assertWindowObservation(observation) {
     'windowPresent',
     'sameWindow',
     'windowStateObserved',
+    'visible',
     'isolationRequested',
     'windowInputIsolated',
     'settled',

@@ -57,6 +57,16 @@ function fixture({ packaged = true, diagnostic = true, responsive = true, render
     blur: vi.fn(() => {
       if (responsive) state.focused = false;
     }),
+    hide: vi.fn(() => {
+      if (responsive) {
+        state.visible = false;
+        state.focused = false;
+      }
+    }),
+    showInactive: vi.fn(() => {
+      if (responsive) state.visible = true;
+      window.emit('show');
+    }),
     isFocusable: () => state.focusable,
     isFocused: () => state.focused,
     isVisible: () => state.visible,
@@ -140,8 +150,9 @@ describe('package-window observation contract', () => {
     expect(run.window.blur.mock.calls.length).toBeGreaterThan(1);
   });
 
-  it('reasserts isolation when delayed product show and focus regain follow the first request', async () => {
+  it('uses same-window inactive visibility transitions when blur cannot clear delayed or regained focus', async () => {
     const run = fixture({ rendered: false });
+    run.window.blur.mockImplementation(() => {});
     let finished = false;
     const pending = capturePackageWindow(run.electron, { timeoutMs: 100, pollMs: 10 }).then(
       (value) => {
@@ -178,6 +189,11 @@ describe('package-window observation contract', () => {
       timedOut: false,
     });
     expect(run.window.blur.mock.calls.length).toBeGreaterThan(1);
+    expect(run.window.hide).toHaveBeenCalledTimes(2);
+    expect(run.window.showInactive).toHaveBeenCalledTimes(2);
+    expect(run.window.hide.mock.invocationCallOrder[0]).toBeLessThan(
+      run.window.showInactive.mock.invocationCallOrder[0],
+    );
     for (const event of ['ready-to-show', 'show', 'focus'])
       expect(run.window.listenerCount(event)).toBe(0);
   });
@@ -185,6 +201,7 @@ describe('package-window observation contract', () => {
   it('retains and refuses the actual unfocusable but persistently focused failure state', async () => {
     const run = fixture();
     run.window.blur.mockImplementation(() => {});
+    run.window.hide.mockImplementation(() => {});
     const destination = path.join(run.output, 'window.json');
     const checked = expect(
       observePackageWindow(run.application, destination, { timeoutMs: 100, pollMs: 10 }),
@@ -203,6 +220,31 @@ describe('package-window observation contract', () => {
     });
     for (const event of ['ready-to-show', 'show', 'focus'])
       expect(run.window.listenerCount(event)).toBe(0);
+    expect(run.window.hide).toHaveBeenCalledTimes(3);
+    expect(run.window.showInactive).toHaveBeenCalledTimes(3);
+  });
+
+  it('cannot accept a hidden window if inactive restoration fails after ready-to-show', async () => {
+    const run = fixture({ rendered: false });
+    run.window.blur.mockImplementation(() => {});
+    run.window.showInactive.mockImplementation(() => run.window.emit('show'));
+    const pending = capturePackageWindow(run.electron, { timeoutMs: 100, pollMs: 10 });
+    setTimeout(() => {
+      Object.assign(run.state, { visible: true, focused: true });
+      run.window.emit('ready-to-show');
+    }, 15);
+    await vi.advanceTimersByTimeAsync(110);
+    expect((await pending).observation).toMatchObject({
+      sameWindow: true,
+      windowInputIsolated: true,
+      focused: false,
+      visible: false,
+      readyToShowObserved: true,
+      settled: false,
+      timedOut: true,
+    });
+    expect(run.window.hide).toHaveBeenCalledTimes(1);
+    expect(run.window.showInactive).toHaveBeenCalledTimes(1);
   });
 
   it.each([
