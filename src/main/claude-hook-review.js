@@ -15,6 +15,16 @@ const {
 /** @typedef {import('./claude-hook-writer').OwnedIO} OwnedIO */
 /** @typedef {import('./claude-hook-writer').Selection} Selection */
 /** @typedef {{ok: boolean, code: string, presence: string}} Status */
+/** @typedef {Status & {ticket: object, review: object}} Prepared */
+/**
+ * The concrete private writer's preparation methods return either status or its
+ * frozen ticket/review pair; its inferred generic return can widen to Status.
+ * @typedef {{
+ *   prepareInstall: (selection: Selection) => Promise<Status|Prepared>,
+ *   prepareRemoval: () => Promise<Status|Prepared>,
+ *   apply: (ticket: object, confirmed: boolean) => Promise<Status>
+ * }} ReviewWriter
+ */
 /** @typedef {{owner: object, configPath: string, io: OwnedIO, lifetimeMs: number, now?: () => number}} Options */
 /** @typedef {{planId: string, expiresAtMs: number, ticket: object, review: object}} Pending */
 
@@ -38,8 +48,9 @@ function createOwnedHookReview(options) {
   const owner = input.owner;
   const lifetimeMs = /** @type {number} */ (input.lifetimeMs);
   const now = /** @type {() => number} */ (input.now || (() => performance.now()));
-  const writer = createOwnedHookWriter({ configPath: input.configPath, io: input.io });
-  if (!('prepareInstall' in writer)) return projected(writer);
+  const created = createOwnedHookWriter({ configPath: input.configPath, io: input.io });
+  if (!('prepareInstall' in created)) return projected(created);
+  const writer = /** @type {ReviewWriter} */ (created);
   // No external writer or ticket is ever accepted or returned.
   let released = false;
   let generation = 0;
