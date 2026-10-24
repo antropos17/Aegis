@@ -3719,6 +3719,23 @@ the original source hash was restored before final validation. Formatting and
 Clippy passed. This evidence does not establish macOS SDK linkage, ABI,
 permissions or live process observation. Full W3 acceptance remains open.
 
+## W4 explicit JSONL tail preparation — 2026-10-24
+
+Added opt-in `readTail()` for explicitly selected JSONL files through
+caller-supplied positioned IO. It reads a final window of at most 512 KiB plus
+an EOF probe, discards the possibly partial leading line and preserves
+incomplete-source status. Existing complete-file reads retain their size limit.
+Stable path/handle metadata, closure checks and metadata-only parser output
+remain required; missing session headers or binding evidence are never
+synthesized.
+
+Focused verification passed 149 tests with no skips on Node 24.20.0. Three
+temporary source mutations failed behavioral assertions, and the original
+source hash was restored. Main typecheck, targeted lint and formatting passed.
+The sequential native Windows provider remains capped at 512 KiB; no production
+caller, transcript discovery or live-provider qualification was added. Full W4
+acceptance remains open.
+
 ## W8 offline Procmon CSV staging — 2026-10-24
 
 Added a bounded offline importer for one strict, caller-declared Procmon CSV
