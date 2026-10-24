@@ -25,7 +25,7 @@ assert(['0.20.0-beta', '0.20.1-beta'].includes(options.version));
 const normalize = (p) => path.resolve(p).toLowerCase();
 const root = path.resolve(options.root);
 assert(normalize(root).startsWith(normalize(process.env.RUNNER_TEMP) + path.sep));
-assert(normalize(options.exe).startsWith(normalize(path.join(root, 'install')) + path.sep));
+require('./windows-installer-paths.cjs').assertInstallPath(root, options.exe);
 const profile = path.join(process.env.APPDATA, 'aegis');
 const expected = {
   scanIntervalSec: 20,

@@ -2,8 +2,9 @@ function New-InstallerGuestBundle([string]$Root,[string]$Scenario,[string]$VmId)
   $bundle=Join-Path $Root 'bundle'
   New-Item -ItemType Directory -Path $bundle | Out-Null
   foreach($part in @('source/scripts/qualification','source/keys','source/node_modules','runtime','releases')) { New-Item -ItemType Directory -Path (Join-Path $bundle $part) -Force | Out-Null }
-  foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs','windows-launch-diagnostics.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
-  if($Scenario -eq 'auto-update') { foreach($name in @('windows-auto-update.cjs','windows-updater-cache.cjs','windows-updater-desktop.ps1','windows-updater-observer.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
+  foreach($name in @('windows-installer-lifecycle.ps1','windows-installer-wizard.ps1','windows-installer-profile.cjs','windows-launch-diagnostics.cjs','windows-installer-paths.cjs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') }
+  if($Scenario -in @('auto-update','all-users-update')) { foreach($name in @('windows-auto-update.cjs','windows-updater-cache.cjs','windows-updater-desktop.ps1','windows-updater-observer.cjs','windows-updater-focus.ps1','windows-installer-shell.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
+  if($Scenario -eq 'all-users-update') { foreach($name in @('windows-all-users-update.ps1','windows-all-users-update-worker.ps1','InstallerProcessObservation.cs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
   if($Scenario -eq 'all-users') { foreach($name in @('windows-installer-all-users.ps1','windows-all-users-worker.ps1','windows-installer-finish.ps1','windows-installer-shell.ps1','InstallerProcessObservation.cs')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bundle 'source/scripts/qualification') } }
   foreach($file in @('scripts/release-verify.js','keys/aegis-release-pubkey.pub','package.json')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $file) -Destination (Join-Path $bundle ('source/'+$file)) }
   foreach($package in @('playwright','playwright-core')) { Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ('node_modules/'+$package)) -Destination (Join-Path $bundle 'source/node_modules') -Recurse }
@@ -11,7 +12,7 @@ function New-InstallerGuestBundle([string]$Root,[string]$Scenario,[string]$VmId)
   $pwshHome=Split-Path (Get-Command pwsh.exe).Source
   Copy-Item -LiteralPath $pwshHome -Destination (Join-Path $bundle 'runtime/pwsh') -Recurse
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'windows-installer-x64-guest.ps1') -Destination (Join-Path $bundle 'guest.ps1')
-  $tags=if($Scenario -eq 'auto-update') { @('aegis-v0.20.0-beta') } else { @('aegis-v0.20.1-beta'); if($Scenario -eq 'upgrade') { 'aegis-v0.20.0-beta' } }
+  $tags=if($Scenario -in @('auto-update','all-users-update')) { @('aegis-v0.20.0-beta') } else { @('aegis-v0.20.1-beta'); if($Scenario -eq 'upgrade') { 'aegis-v0.20.0-beta' } }
   foreach($tag in $tags) {
     $destination=Join-Path $bundle ('releases/'+$tag)
     New-Item -ItemType Directory -Path $destination | Out-Null
@@ -65,8 +66,17 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
   }
   $deadline=[DateTime]::UtcNow.AddMinutes(18)
   $allUsers=@{started=@();tasks=@();consent=$null}
+  $machineUpdate=@{started=@();tasks=@();consent=$null;intent=$null;elevatedInstaller=$null}
   $hostError=$null
   do {
+    if($Scenario -eq 'all-users-update') {
+      try { Invoke-AllUsersUpdateGuestStep $Session $Root $machineUpdate $id $name $vmRoot }
+      catch {
+        $hostError=$_.Exception.Message;$machineUpdate.error=$hostError
+        $machineUpdate | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath (Join-Path $Root 'evidence/all-users-update-host.json') -Encoding UTF8
+        break
+      }
+    }
     if($Scenario -eq 'all-users') {
       try { Invoke-AllUsersGuestStep $Session $Root $allUsers $id $name $vmRoot }
       catch {
@@ -78,7 +88,7 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
     $done=Invoke-Command -Session $Session -ScriptBlock { Test-Path -LiteralPath C:/aegis-installer-qa/done.json }
     if($done) { break }
     Sample 'guest-test'
-    Start-Sleep -Seconds $(if($Scenario -eq 'all-users'){1}else{10})
+    Start-Sleep -Seconds $(if($Scenario -in @('all-users','all-users-update')){1}else{10})
   } while([DateTime]::UtcNow -lt $deadline)
   # Only bounded test evidence leaves cross back; never collect answer files, profiles or credentials.
   $entries=Invoke-Command -Session $Session -ArgumentList $Scenario -ScriptBlock {
@@ -98,5 +108,6 @@ function Invoke-InstallerGuestTest($Session,[string]$Root,$Bundle,[string]$Scena
   $result=Get-Content -LiteralPath (Join-Path $Root 'evidence/guest-done.json') -Raw | ConvertFrom-Json
   if($result.status -ne 'PASS' -or $result.architecture -ne 'X64' -or $result.sourceSha -ne $env:GITHUB_SHA -or $result.sessionId -eq 0) { throw 'Guest lifecycle failed or witness mismatch' }
   if($Scenario -eq 'all-users' -and (-not $allUsers.consent -or $allUsers.started.Count -ne 2)) { throw 'All-users consent/cleanup evidence incomplete' }
+  if($Scenario -eq 'all-users-update' -and (-not $machineUpdate.consent.closedObserved -or -not $machineUpdate.elevatedInstaller -or $machineUpdate.started.Count -ne 2)) { throw 'All-users update elevation/cleanup evidence incomplete' }
   return @{input=$prepared;result=$result}
 }

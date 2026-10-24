@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update','all-users')][string]$Scenario)
+param([Parameter(Mandatory)][ValidateSet('fresh','upgrade','auto-update','all-users','all-users-update')][string]$Scenario)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'cloud-guest-media.ps1')
 Assert-CloudGuestRunner
@@ -18,6 +18,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'windows-updater-network.ps1')
 . (Join-Path $PSScriptRoot 'windows-installer-setup-diagnostics.ps1')
 . (Join-Path $PSScriptRoot 'windows-installer-all-users-host.ps1')
+. (Join-Path $PSScriptRoot 'windows-all-users-update-host.ps1')
 $report=[ordered]@{schema='aegis-installer-hyperv/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;scenario=$Scenario;host=$null;media=$null;hardware=$null;bundle=$null;guest=$null;diskSamples=@();stages=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@()};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
@@ -42,7 +43,7 @@ try {
   $report.host=@{caption=$os.Caption;build=$os.BuildNumber;architecture=$os.OSArchitecture;runnerArchitecture=$env:RUNNER_ARCH;hypervisorPresent=$computer.HypervisorPresent;memoryBytes=$computer.TotalPhysicalMemory;vmms='Running'}
   if((git -C $env:GITHUB_WORKSPACE rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Workflow source SHA mismatch' }
   Sample 'preflight'
-  if($Scenario -eq 'auto-update') {
+  if($Scenario -in @('auto-update','all-users-update')) {
     Stage 'preflight-isolated-update-network' {
       if(@(Get-NetNat).Count -or @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object IPAddress -like '192.168.241.*').Count) { throw 'Existing/conflicting hosted NAT refused before guest preparation' }
       return @{existingNatCount=0;subnetAvailable=$true}
@@ -60,7 +61,7 @@ try {
     if(-not $created.exists -or $created.vmId -notmatch '^[a-f0-9-]{36}$') { throw 'VM creation unresolved' }
     $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
   } | Out-Null
-  if($Scenario -eq 'auto-update') {
+  if($Scenario -in @('auto-update','all-users-update')) {
     Stage 'prepare-owned-update-network-before-media' {
       $script:networkAttempted=$true;$script:networkUnknown=$true
       $report.networkPreparation=Invoke-UpdaterNetwork 'prepare' $id $name $vmRoot
@@ -141,7 +142,7 @@ try {
   Stage 'detach-owned-installation-media' {
     Remove-CloudGuestInstallationMedia $id $name $vmRoot ([ref]$unknown) | Out-Null
   } | Out-Null
-  if($Scenario -eq 'auto-update') {
+  if($Scenario -in @('auto-update','all-users-update')) {
     $report.network=Stage 'connect-owned-outbound-update-network' {
       $script:networkAttempted=$true;$script:networkUnknown=$true
       $network=Invoke-UpdaterNetwork 'connect' $id $name $vmRoot

@@ -1,11 +1,12 @@
 # Installer lab only: four setup screenshots, or two explicitly scoped UAC captures.
 # Shared W7 capture limits stay unchanged.
-function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','all-users-consent','all-users-post-consent')][string]$Purpose='setup') {
+function Save-InstallerSetupDiagnostic([string]$Id,[string]$Name,[string]$VmRoot,[string]$Evidence,[int]$Index,[ValidateSet('setup','all-users-consent','all-users-post-consent','all-users-update-consent')][string]$Purpose='setup') {
   Assert-CloudGuestRunner
-  $validIndex=switch($Purpose) { 'all-users-consent' { $Index -eq 50 };'all-users-post-consent' { $Index -eq 51 };default { $Index -ge 1 -and $Index -le 4 } }
+  $validIndex=switch($Purpose) { 'all-users-consent' { $Index -eq 50 };'all-users-post-consent' { $Index -eq 51 };'all-users-update-consent' { $Index -eq 60 };default { $Index -ge 1 -and $Index -le 4 } }
   if(-not $validIndex -or $Id -cnotmatch '^[a-f0-9-]{36}$' -or $Name -cnotmatch '^aegis-cloud-[0-9]+-[0-9]+-[a-f0-9]{32}$') { throw 'Setup diagnostic scope refused' }
   $expectedRoot='D:\aegis-installer-x64-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'
-  if($Purpose -ne 'setup' -and [IO.Path]::GetFullPath($VmRoot).TrimEnd('\') -ine ($expectedRoot+'all-users\vm')) { throw 'Consent diagnostic guest scope refused' }
+  $consentScenario=if($Purpose -eq 'all-users-update-consent'){'all-users-update'}else{'all-users'}
+  if($Purpose -ne 'setup' -and [IO.Path]::GetFullPath($VmRoot).TrimEnd('\') -ine ($expectedRoot+$consentScenario+'\vm')) { throw 'Consent diagnostic guest scope refused' }
   if(-not $VmRoot.StartsWith($expectedRoot,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFullPath($Evidence) -ne (Join-Path (Split-Path $VmRoot) 'evidence')) { throw 'Setup diagnostic output scope refused' }
   $job=Start-Job -ArgumentList $Id,$Name,$VmRoot,$Evidence,$Index,$Purpose -ScriptBlock {
     param($Id,$Name,$VmRoot,$Evidence,$Index,$Purpose)
