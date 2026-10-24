@@ -3798,3 +3798,31 @@ byte-for-byte. The restored nine-suite gate passed 272 tests with one explicit
 Windows skip: O_NOFOLLOW is unavailable on this host, so its real symlink-at-open
 case requires supported-platform CI. Focused lint, formatting, syntax and diff
 checks passed. Exact hosted CI remains the merge gate.
+
+## W8 recorded synthetic corpus reports — 2026-10-24
+
+Added an offline CLI that consumes explicitly supplied S3–S8 run artifacts and
+writes a fresh bounded JSON/Markdown bundle. It retains every supplied attempt,
+failed/skipped steps, missing-artifact states and pending inventory. Recorded
+step/catalogue/control facts are reconciled without treating a manifest or
+all-ok steps as whole-run success. S7 sender and receiver facts remain separate;
+S8 preserves partial bytes, hashes, source bindings and closure uncertainty.
+
+The reporter hashes exact input, current-definition and reporting-source bytes.
+Current definitions are inventory only: historical manifests lack an executed
+definition digest. Capture assessment remains unperformed; oracle admission,
+sensor scoring, ATT&CK qualification and W8/T8 acceptance remain open.
+
+Six owned controls executed through the production runner's C path, which starts
+no sensor or oracle. Their report retained all eight steps/events; independent
+decoding agreed with the counts, and all 24 original files stayed byte-identical.
+Reversing the six inputs produced byte-identical JSON and Markdown. Private paths,
+canary contents and branch metadata were absent from the generated output.
+
+Independent requirements, engineering and test-evidence reviews passed after
+closing missing-step catalogue/outcome contradictions and invalid receiver-state
+relations. Seventeen temporary source faults failed their selected behavioral
+assertions, then all 14 frozen files were restored byte-for-byte. The restored
+13-suite gate passed 395 tests with two explicit Windows O_NOFOLLOW skips;
+supported-platform CI must execute those cases. Focused lint, formatting, syntax
+and diff checks passed. Exact hosted CI remains the merge gate.
