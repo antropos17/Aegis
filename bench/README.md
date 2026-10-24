@@ -36,6 +36,12 @@ and recomputes the retained conditional intervals. Its report separates recorded
 lifecycle claims, publication uncertainty and current-evaluator comparison.
 Structural consistency supplies no authenticated measurement or product overhead.
 
+The [Linux own-CPU reference](../docs/bench/LINUX_OWN_CPU_REFERENCE.md)
+corroborates the real Node CPU API through a separate bounded `/proc/self/stat`
+path and a fixed inert CPU fixture. It retains discovered tick units and declared
+quantization bounds. This is conditional API/unit evidence; collector cost,
+resident-memory qualification and product/helper overhead remain separate work.
+
 [Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
 caller-declared profile and same-run receipt, normalizing only successful
 positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified
