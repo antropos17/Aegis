@@ -108,7 +108,7 @@ describe('CLI source-copy behavioral controls leave production source untouched'
     }
     const baseline = copied('baseline-close');
     uncertain(await selected(baseline, path.join(root, 'baseline-close.json')));
-    const from = /    await handle\.close\(\);\r?\n    handle = null;/;
+    const from = / {4}await handle\.close\(\);\r?\n {4}handle = null;/;
     const to = '    try { await handle.close(); } catch (_) {}\n    handle = null;';
     const mutant = copied('mutant-close', from, to);
     const result = await selected(mutant, path.join(root, 'mutant-close.json'));

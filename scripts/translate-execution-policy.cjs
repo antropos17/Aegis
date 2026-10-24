@@ -137,7 +137,6 @@ async function writeFreshOutput(filename, bytes) {
     if (Buffer.isBuffer(readback)) readback.fill(0);
     // An uncertain close is never retried; the named output is retained.
     if (handle && !closeAttempted) {
-      closeAttempted = true;
       try {
         await handle.close();
       } catch {
