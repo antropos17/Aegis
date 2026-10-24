@@ -4076,3 +4076,37 @@ diff inspection because of host storage pressure. This corroborates API/unit
 behavior under its declared model only. Source authentication, memory and
 instrumentation-cost calibration, product/helper overhead and full W8/T8
 measurement acceptance remain open.
+
+## 2026-10-25 — W6 private owner-bound hook review
+
+Added a dormant private owner-review capability over one internally constructed
+real owned hook writer. It binds an exact process-local owner, one opaque plan ID
+and a bounded monotonic deadline to the writer's original private ticket.
+Selection primitives are captured before asynchronous IO. Replacement,
+cancellation, expiry and release invalidate pending admission; unresolved
+preparation retains its busy slot and cannot publish late authority. Confirmation
+consumes the ID before applying the original writer ticket once.
+
+Expiry and cancellation cover apply admission. An admitted writer can still
+commit after owner release or expiry, and its actual installed, removed or
+uncertain outcome is preserved. The same writer retains installation ownership,
+backup limits and sticky uncertainty. Native provider lifetime/cleanup remains
+with the embedding. Ordinary statuses contain only fixed code/presence fields;
+private path/command/fragments/hashes/manifests and IDs remain private. Revocation
+does not erase transaction bytes retained inside the unchanged writer.
+
+Nine bounded standalone Node controls passed against the actual CommonJS broker,
+writer and planner with owned in-memory IO. They verify independent literal
+install/removal bytes, provider receiver binding, owner/ID/replay, exact expiry,
+clock refusal, deferred preparation, selection snapshot, admitted outcomes,
+uncertainty and retained removal ownership. Three copied-source faults in owner
+admission, post-prepare expiry and status privacy each failed the relevant
+control; clean baselines passed and production source hashes stayed unchanged.
+The first mutation driver stopped at a stale source anchor; its earlier evidence
+is retained separately from the corrected run. Canonical hosted tests remain the
+merge gate; the global coverage allowlist does not instrument these modules.
+
+There is no application caller, renderer/IPC bridge, real profile access, native
+qualification or hook command execution. This supplies part of W6.3 preparation;
+owner-visible installation, supported provider/version behavior, coverage-loss
+signals, denial enforcement and full W6 acceptance remain open.

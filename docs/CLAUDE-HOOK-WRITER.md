@@ -63,8 +63,10 @@ confirmation, the trusted caller uses `apply(ticket, true)`. Only the most recen
 ticket from that session is accepted. Failed confirmation does not consume it;
 an accepted attempt consumes it before any IO. A boolean cannot prove a human
 decision: the trusted caller owns that boundary. No UI or renderer should use
-these methods directly. A future UI bridge requires a separately reviewed opaque,
-expiring, owner-bound plan ID and privacy projection; that bridge is not present.
+these methods directly. The dormant [owner-review capability](CLAUDE-HOOK-REVIEW.md) supplies a private
+owner-bound, expiring plan ID over one internally owned writer. Application IPC,
+private renderer presentation and the real UI confirmation bridge remain separate
+work; this capability does not expose writer tickets or grant profile authority.
 
 Every accepted mutation attempt follows this sequence:
 
