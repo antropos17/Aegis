@@ -25,7 +25,7 @@ function parseStat(text, expectedPid) {
     .trim()
     .split(/\s+/);
   const name = text.slice(open + 1, close);
-  if (!name || fields.length < 20 || !/^[A-Za-z]$/.test(fields[0])) return null;
+  if (fields.length < 20 || !/^[A-Za-z]$/.test(fields[0])) return null;
   if (!/^\d+$/.test(fields[1]) || !/^\d+$/.test(fields[19])) return null;
   const ppid = Number(fields[1]);
   if (!Number.isSafeInteger(ppid)) return null;
