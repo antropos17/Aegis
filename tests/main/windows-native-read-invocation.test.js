@@ -143,18 +143,26 @@ function feedbackFixture(scenario) {
     script,
     String.raw`param([string]$Source,[string]$InputRoot,[string]$Scenario)
 $ErrorActionPreference='Stop'
+$step='engine';$cases=0;$refusalCode=$null;$positiveScalar=$null;$positiveFiles=$null;$positiveBytes=$null
 try {
   if($PSVersionTable.PSEdition -cne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'fixture-engine-refused' }
+  $step='source-intake'
   . (Join-Path $Source 'scripts/qualification/windows-native-read-host.ps1')
-  $cases=0
   if($Scenario -ceq 'bundle') {
+    $step='bundle-reader-intake'
     $reader=(Get-Command ConvertFrom-NativeReadManifest -CommandType Function).ScriptBlock.ToString()
     $verifier=[scriptblock]::Create((Get-Command Test-NativeReadInputFiles -CommandType Function).ScriptBlock.ToString())
+    $step='bundle-positive-verify'
     $value=& $verifier $InputRoot $reader
+    $positiveScalar=$value -is [pscustomobject] -and $value -isnot [array]
+    if(($value.files -is [int] -or $value.files -is [long]) -and $value.files -ge 0 -and $value.files -le 30000) { $positiveFiles=[long]$value.files }
+    if(($value.bytes -is [int] -or $value.bytes -is [long]) -and $value.bytes -ge 0 -and $value.bytes -le 1800MB) { $positiveBytes=[long]$value.bytes }
+    $step='bundle-positive-result'
     if($value.files -ne 2 -or $value.bytes -ne 7) { throw 'fixture-bundle-positive' };$cases++
     $manifest=Join-Path $InputRoot 'input-manifest.json';$original=[IO.File]::ReadAllText($manifest)
     $first=Join-Path $InputRoot 'one.bin';$originalBytes=[IO.File]::ReadAllBytes($first)
     foreach($mode in @('same-size-hash-change','wrong-size','path-escape')) {
+      $step='bundle-mutate-'+$mode
       $rows=ConvertFrom-Json -InputObject $original
       switch($mode) {
         'same-size-hash-change' { [IO.File]::WriteAllBytes($first,[byte[]]@(9,9,9)) }
@@ -162,13 +170,25 @@ try {
         'path-escape' { $rows[0].path='../escape.bin' }
       }
       [IO.File]::WriteAllText($manifest,(ConvertTo-Json -InputObject $rows -Compress),[Text.UTF8Encoding]::new($false))
-      $refused=$false
+      $refused=$false;$step='bundle-refuse-'+$mode
       try { [void](& $verifier $InputRoot $reader) }
-      catch { if($_.Exception.Message -cne 'Input manifest mismatch') { throw 'fixture-bundle-refusal-code' };$refused=$true }
+      catch {
+        $refusalCode=switch -CaseSensitive ($_.Exception.Message) {
+          'Input manifest mismatch' {'input-mismatch'}
+          'Native input manifest refused' {'manifest-shape'}
+          'Input file count budget' {'file-count'}
+          'Guest input links refused' {'input-links'}
+          'Input manifest budget' {'manifest-budget'}
+          'Native input verifier refused' {'verifier-input'}
+          default {'other-refusal'}
+        }
+        if($_.Exception.Message -cne 'Input manifest mismatch') { throw 'fixture-bundle-refusal-code' };$refused=$true
+      }
       finally { [IO.File]::WriteAllBytes($first,$originalBytes);[IO.File]::WriteAllText($manifest,$original,[Text.UTF8Encoding]::new($false)) }
       if(-not $refused) { throw 'fixture-bundle-mutation-survived' };$cases++
     }
   } elseif($Scenario -ceq 'task') {
+    $step='task-observations'
     $entry=[scriptblock]::Create((Get-Command Get-NativeReadTaskObservation -CommandType Function).ScriptBlock.ToString())
     $baseline=[datetime]'2026-10-24T00:00:00Z';$launch=[datetime]'2026-10-24T01:00:00Z'
     $stamp=$launch.ToUniversalTime().Ticks.ToString()
@@ -203,7 +223,23 @@ try {
     if(-not $refused) { throw 'fixture-task-unknown-state' };$cases++
   } else { throw 'fixture-feedback-scenario' }
   @{status='PASS';version=$PSVersionTable.PSVersion.ToString();scenario=$Scenario;cases=$cases} | ConvertTo-Json -Compress
-} catch { @{status='FAIL';code='native-feedback-fixture-refused';scenario=$Scenario} | ConvertTo-Json -Compress;exit 2 }
+} catch {
+  $knownKinds=@('RuntimeException','MethodInvocationException','MethodException','PropertyNotFoundException','ItemNotFoundException','ParameterBindingException','ArgumentException','ArgumentNullException','PathTooLongException','IOException','UnauthorizedAccessException','InvalidCastException')
+  $kind=$_.Exception.GetType().Name;$inner=$_.Exception;$depth=0
+  while($null -ne $inner.InnerException -and $depth -lt 8) { $inner=$inner.InnerException;$depth++ }
+  $innerKind=$inner.GetType().Name;$line=$_.InvocationInfo.ScriptLineNumber
+  $reason=switch -CaseSensitive ($_.Exception.Message) {
+    'fixture-bundle-positive' {'positive-count'}
+    'fixture-bundle-refusal-code' {'unexpected-refusal'}
+    'fixture-bundle-mutation-survived' {'guard-survived'}
+    'Native input manifest refused' {'manifest-shape'}
+    'Input manifest mismatch' {'input-mismatch'}
+    'Native input verifier refused' {'verifier-input'}
+    default {'operation-refused'}
+  }
+  @{status='FAIL';code='native-feedback-fixture-refused';scenario=$Scenario;step=$step;cases=$cases;reason=$reason;refusalCode=$refusalCode;exceptionKind=$(if($kind -cin $knownKinds){$kind}else{'other'});innerKind=$(if($innerKind -cin $knownKinds){$innerKind}else{'other'});line=$(if($line -ge 1 -and $line -le 4096){[int]$line}else{0});hResult=$inner.HResult;positiveScalar=$positiveScalar;positiveFiles=$positiveFiles;positiveBytes=$positiveBytes} | ConvertTo-Json -Compress
+  exit 2
+}
 `,
   );
   const result = spawnSync(
@@ -225,8 +261,9 @@ try {
   expect(result.error).toBeUndefined();
   expect(result.signal).toBeNull();
   expect(result.stderr).toBe('');
-  expect(result.status).toBe(0);
-  return JSON.parse(result.stdout.replace(/^\uFEFF/, '').trim());
+  const receipt = JSON.parse(result.stdout.replace(/^\uFEFF/, '').trim());
+  expect(result.status, JSON.stringify(receipt)).toBe(0);
+  return receipt;
 }
 
 describe.skipIf(process.platform !== 'win32')(
