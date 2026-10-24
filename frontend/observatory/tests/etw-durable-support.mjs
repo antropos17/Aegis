@@ -5,6 +5,7 @@ import { scenarioPaths, diagnostics, delay, traceHelpers } from './etw-support.m
 import { ownedPids, exitWithin } from './sensor-support.mjs';
 import { observeCustodian } from './etw-custodian-support.mjs';
 import { waitOwnedExit } from './etw-failure-support.mjs';
+import { observePackageWindow } from './package-window-observation.mjs';
 
 /** Launch an owned, marked package with a normal read-only witness.
  * @param {object} options Executable/output/canary/fault/total.
@@ -31,22 +32,7 @@ export async function durableLaunch({ executable, out, canary, fault, total = fa
       ],
     });
     const child = app.process();
-    const observed = await app.evaluate(({ app, BrowserWindow }) => {
-      const require = process.mainModule
-        .require('node:module')
-        .createRequire(app.getAppPath() + '/package.json');
-      const w = BrowserWindow.getAllWindows()[0];
-      w.setIgnoreMouseEvents(true);
-      w.setFocusable(false);
-      w.blur();
-      return {
-        mainPid: process.pid,
-        packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
-        diagnosticBuild: require('./package.json').aegisEtwDiagnostic === true,
-        windowInputIsolated: !w.isFocusable() && !w.isFocused(),
-      };
-    });
-    assert(observed.packaged && observed.diagnosticBuild && observed.windowInputIsolated);
+    const observed = await observePackageWindow(app, path.join(out, 'window-observation.json'));
     const page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
     const until = Date.now() + 135000;

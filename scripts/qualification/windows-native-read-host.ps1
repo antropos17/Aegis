@@ -31,6 +31,43 @@ function ConvertFrom-NativeReadManifest {
   return [pscustomobject]@{files=$rows.ToArray()}
 }
 
+# Both the pre-VM host and the transferred guest consume this exact verifier body.
+function Test-NativeReadInputFiles {
+  param([string]$InputRoot,[string]$ManifestReader)
+  if($PSVersionTable.PSEdition -cne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1 -or $ManifestReader.Length -lt 1 -or $ManifestReader.Length -gt 16KB) { throw 'Native input verifier refused' }
+  $inputDirectory=[IO.Path]::GetFullPath($InputRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+  $directory=Get-Item -LiteralPath $inputDirectory -Force
+  if(-not $directory.PSIsContainer -or ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Guest input links refused' }
+  $manifest=Join-Path $inputDirectory 'input-manifest.json';$manifestFile=Get-Item -LiteralPath $manifest -Force
+  if($manifestFile.PSIsContainer -or ($manifestFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $manifestFile.Length -gt 8MB) { throw 'Input manifest budget' }
+  $parsed=& ([scriptblock]::Create($ManifestReader)) ([IO.File]::ReadAllText($manifest))
+  $files=$parsed.files
+  if($files -isnot [array] -or $files.Count -lt 1 -or $files.Count -gt 30000) { throw 'Input file count budget' }
+  [long]$totalBytes=0
+  foreach($file in $files) {
+    $target=[IO.Path]::GetFullPath((Join-Path $inputDirectory $file.path))
+    if(-not $target.StartsWith($inputDirectory+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Input manifest mismatch' }
+    $item=Get-Item -LiteralPath $target -Force
+    if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -ne $file.bytes -or (Get-FileHash -LiteralPath $target).Hash -ine $file.sha256) { throw 'Input manifest mismatch' }
+    $totalBytes+=$item.Length
+  }
+  if(@(Get-ChildItem -LiteralPath $inputDirectory -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Guest input links refused' }
+  return [pscustomobject]@{files=$files.Count;bytes=$totalBytes}
+}
+
+# A terminal result is actionable only after a new run of the freshly registered task.
+function Get-NativeReadTaskObservation {
+  param([string]$State,[datetime]$LastRunUtc,[long]$LastTaskResult,[datetime]$LaunchNotBeforeUtc,[datetime]$BaselineLastRunUtc,[bool]$StartObserved,[bool]$StableState,[string]$PreviousTerminal)
+  if($State -cnotin @('Unknown','Disabled','Queued','Ready','Running') -or $LastTaskResult -lt [int]::MinValue -or $LastTaskResult -gt [uint32]::MaxValue) { throw 'Native task observation refused' }
+  $freshRun=$LastRunUtc.ToUniversalTime() -gt $BaselineLastRunUtc.ToUniversalTime() -and $LastRunUtc.ToUniversalTime() -ge $LaunchNotBeforeUtc.ToUniversalTime()
+  $started=$StartObserved -or $freshRun
+  $pendingResult=$LastTaskResult -in @(0x41301,0x41303,0x41325)
+  $candidate=$freshRun -and $StableState -and -not $pendingResult -and $State -cnotin @('Running','Queued')
+  $terminalKey=if($candidate){$LastRunUtc.ToUniversalTime().Ticks.ToString()+':'+$State+':'+$LastTaskResult}else{$null}
+  $terminal=$candidate -and -not [string]::IsNullOrEmpty($PreviousTerminal) -and $PreviousTerminal -ceq $terminalKey
+  return [pscustomobject]@{state=$State;stableState=$StableState;started=$started;freshRun=$freshRun;terminalCandidate=$candidate;terminalKey=$terminalKey;terminal=$terminal;lastRunUtc=$LastRunUtc.ToUniversalTime().ToString('o');lastTaskResult=$LastTaskResult}
+}
+
 # Closed native diagnostics contain only the profile, qualification bit and fixed code.
 function ConvertFrom-NativeReadCapability {
   param([string]$Json,[int]$ExitCode)
@@ -140,7 +177,8 @@ function Save-NativeReadCapture([string]$Id,[string]$Name,[string]$VmRoot,[strin
 
 function Initialize-NativeReadGuest($Session, $Bundle) {
   $manifestReader=(Get-Command ConvertFrom-NativeReadManifest -CommandType Function).ScriptBlock.ToString()
-  if($manifestReader.Length -gt 16KB) { throw 'Native input manifest reader budget' }
+  $inputVerifier=(Get-Command Test-NativeReadInputFiles -CommandType Function).ScriptBlock.ToString()
+  if($manifestReader.Length -gt 16KB -or $inputVerifier.Length -gt 8KB) { throw 'Native input manifest reader budget' }
   Invoke-Command -Session $Session -ScriptBlock {
     $root='C:\aegis-native-read'
     if(Test-Path -LiteralPath $root) { throw 'Fresh native-read guest root required' }
@@ -150,8 +188,8 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
     Set-Acl -LiteralPath $root -AclObject $acl
   }
   Copy-Item -LiteralPath $Bundle.path -Destination 'C:\aegis-native-read\input.zip' -ToSession $Session
-  return Invoke-Command -Session $Session -ArgumentList $Bundle.sha256,$Bundle.bytes,$env:GITHUB_SHA,$manifestReader -ScriptBlock {
-    param($Hash,$Bytes,$SourceSha,[string]$ManifestReader)
+  return Invoke-Command -Session $Session -ArgumentList $Bundle.sha256,$Bundle.bytes,$env:GITHUB_SHA,$manifestReader,$inputVerifier -ScriptBlock {
+    param($Hash,$Bytes,$SourceSha,[string]$ManifestReader,[string]$InputVerifier)
     $root='C:\aegis-native-read';$guestInputRoot=Join-Path $root 'input';$zip=Join-Path $root 'input.zip'
     if((Get-Item -LiteralPath $zip).Length -ne $Bytes -or (Get-FileHash -LiteralPath $zip).Hash -ine $Hash) { throw 'Input transfer mismatch' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -163,16 +201,7 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
       }
     } finally { $archive.Dispose() }
     [IO.Compression.ZipFile]::ExtractToDirectory($zip,$guestInputRoot)
-    $manifest=Join-Path $guestInputRoot 'input-manifest.json'
-    if((Get-Item -LiteralPath $manifest).Length -gt 8MB) { throw 'Input manifest budget' }
-    $parsed=& ([scriptblock]::Create($ManifestReader)) ([IO.File]::ReadAllText($manifest))
-    $files=$parsed.files
-    if($files -isnot [array] -or $files.Count -gt 30000) { throw 'Input file count budget' }
-    foreach($file in $files) {
-      $target=[IO.Path]::GetFullPath((Join-Path $guestInputRoot $file.path))
-      if(-not $target.StartsWith($guestInputRoot+'\',[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $target).Length -ne $file.bytes -or (Get-FileHash -LiteralPath $target).Hash -ine $file.sha256) { throw 'Input manifest mismatch' }
-    }
-    if(@(Get-ChildItem -LiteralPath $guestInputRoot -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Guest input links refused' }
+    $verified=& ([scriptblock]::Create($InputVerifier)) $guestInputRoot $ManifestReader
     $context=Get-Content -LiteralPath (Join-Path $guestInputRoot 'context.json') -Raw | ConvertFrom-Json
     if($context.sourceSha -cne $SourceSha -or $context.sourceSha -cnotmatch '^[a-f0-9]{40}$' -or $context.coreAutoCrlf -notin @('true','false','input') -or $context.coreEol -notin @('native','lf','crlf')) { throw 'Guest source context mismatch' }
     foreach($part in @('evidence','temp')) { New-Item -ItemType Directory -Path (Join-Path $root $part) | Out-Null }
@@ -191,7 +220,7 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
     Copy-Item -LiteralPath (Join-Path $guestInputRoot 'dependencies/node_modules') -Destination $source -Recurse
     if((& $git -C $source rev-parse 'HEAD^{tree}') -cne $context.sourceTree -or (& $git -C $source status --porcelain --untracked-files=normal)) { throw 'Guest worktree tree/cleanliness mismatch' }
     if((& $git -C $source rev-parse --git-dir) -eq (& $git -C $source rev-parse --git-common-dir)) { throw 'Guest source isolation missing' }
-    return @{transferVerified=$true;sourceReconstructed=$true;sourceSha=$SourceSha;sourceTree=$context.sourceTree;files=$files.Count;credentialMaterialTransferred=$false;git=$gitProof}
+    return @{transferVerified=$true;sourceReconstructed=$true;sourceSha=$SourceSha;sourceTree=$context.sourceTree;files=$verified.files;credentialMaterialTransferred=$false;git=$gitProof}
   }
 }
 
@@ -265,7 +294,7 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
   if($Phase -notin @('prepare','resume','admission')) { throw 'Unknown native-read phase' }
   $guestHash=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'windows-native-read-guest.ps1')).Hash.ToLowerInvariant()
   $encoded=Get-NativeReadPhaseCommand $Phase $guestHash
-  Invoke-Command -Session $Session -ArgumentList $Phase,$encoded -ScriptBlock {
+  $taskLaunch=Invoke-Command -Session $Session -ArgumentList $Phase,$encoded -ScriptBlock {
     param($Phase,[string]$Encoded)
     $root='C:\aegis-native-read';$task='AegisNativeRead-'+$Phase
     if(Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) { throw 'Native-read phase task already exists' }
@@ -273,13 +302,32 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
     $principal=New-ScheduledTaskPrincipal -UserId 'AegisSetup' -LogonType Interactive -RunLevel Limited
     $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
     Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Settings $settings | Out-Null
+    $baseline=(Get-ScheduledTaskInfo -TaskName $task).LastRunTime.ToUniversalTime()
+    $requested=[DateTime]::UtcNow
+    # Task Scheduler reports LastRunTime at second precision. The registration baseline
+    # also has to advance, so a stale/default result cannot satisfy this boundary.
+    $notBefore=$requested.AddTicks(-($requested.Ticks % [TimeSpan]::TicksPerSecond))
     Start-ScheduledTask -TaskName $task
+    return @{notBeforeUtc=$notBefore.ToString('o');baselineLastRunUtc=$baseline.ToString('o')}
   }
-  $deadline=[DateTime]::UtcNow.AddMinutes(10);$done=$false
+  $deadline=[DateTime]::UtcNow.AddMinutes(10);$done=$false;$started=$false;$previousTerminal=$null
+  $watch=[Diagnostics.Stopwatch]::StartNew();$nextHeartbeat=0
   do {
     Confirm-NativeReadConsent $Session $Root $Consent $Id $Name $VmRoot $Phase
-    $done=Invoke-Command -Session $Session -ArgumentList $Phase -ScriptBlock { param($Phase);Test-Path -LiteralPath ('C:\aegis-native-read\'+$Phase+'-done.json') }
-    if($done) { break };Sample ('native-'+$Phase);Start-Sleep -Seconds 1
+    $observed=Invoke-Command -Session $Session -ArgumentList $Phase -ScriptBlock {
+      param($Phase)
+      $task='AegisNativeRead-'+$Phase;$before=(Get-ScheduledTask -TaskName $task).State.ToString();$info=Get-ScheduledTaskInfo -TaskName $task;$after=(Get-ScheduledTask -TaskName $task).State.ToString()
+      return @{done=(Test-Path -LiteralPath ('C:\aegis-native-read\'+$Phase+'-done.json'));state=$after;stableState=($before -ceq $after);lastRunUtc=$info.LastRunTime.ToUniversalTime().ToString('o');lastTaskResult=[long]$info.LastTaskResult}
+    }
+    $taskState=Get-NativeReadTaskObservation $observed.state ([datetime]$observed.lastRunUtc) $observed.lastTaskResult ([datetime]$taskLaunch.notBeforeUtc) ([datetime]$taskLaunch.baselineLastRunUtc) $started $observed.stableState $previousTerminal
+    $started=$taskState.started;$previousTerminal=$taskState.terminalKey;$done=$observed.done;$report.phaseTasks[$Phase]=$taskState
+    if($done) { break }
+    if($taskState.terminal) { SaveReport;throw ('Native-read phase ended without receipt: '+$Phase+'; task result '+$taskState.lastTaskResult) }
+    if($watch.Elapsed.TotalSeconds -ge $nextHeartbeat) {
+      Write-Host ('Native phase '+$Phase+': elapsed='+[int]$watch.Elapsed.TotalSeconds+'s; state='+$taskState.state+'; started='+$started+'; result='+$taskState.lastTaskResult)
+      $nextHeartbeat=$watch.Elapsed.TotalSeconds+30
+    }
+    Sample ('native-'+$Phase);Start-Sleep -Seconds 1
   } while([DateTime]::UtcNow -lt $deadline)
   if(-not $done) { throw 'Native-read phase deadline exceeded' }
   $result=Invoke-Command -Session $Session -ArgumentList $Phase -ScriptBlock {
@@ -299,7 +347,7 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
 }
 
 function Copy-NativeReadEvidence($Session,[string]$Root) {
-  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','resume/receipt.json','resume/scenario/receipt.json','admission/receipt.json','admission/view.png')
+  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/view.png')
   $gitProof=Invoke-Command -Session $Session -ScriptBlock {
     $file='C:\aegis-native-read\evidence\git-reconstruction.json'
     if(-not (Test-Path -LiteralPath $file)) { return $false }
@@ -311,11 +359,12 @@ function Copy-NativeReadEvidence($Session,[string]$Root) {
   foreach($phase in @('prepare','resume','admission')) { $relative+=($phase+'-done.json');$relative+=($phase+'.log') }
   foreach($file in $relative) {
     $source=if($file -like '*-done.json' -or $file -notmatch '/') { 'C:\aegis-native-read\'+$file } else { 'C:\aegis-native-read\evidence\'+$file.Replace('/','\') }
-    $present=Invoke-Command -Session $Session -ArgumentList $source -ScriptBlock {
-      param($File)
+    $leafBudget=if($file -like '*/window-observation.json'){4096}else{2MB}
+    $present=Invoke-Command -Session $Session -ArgumentList $source,$leafBudget -ScriptBlock {
+      param($File,$Budget)
       if(-not (Test-Path -LiteralPath $File)) { return $false }
       $item=Get-Item -LiteralPath $File
-      if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -gt 2MB) { throw 'Native-read evidence leaf budget' }
+      if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -gt $Budget) { throw 'Native-read evidence leaf budget' }
       return $true
     }
     if($present) {

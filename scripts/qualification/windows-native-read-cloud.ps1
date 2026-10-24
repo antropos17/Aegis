@@ -17,7 +17,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
 . (Join-Path $PSScriptRoot 'windows-native-read-host.ps1')
-$report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@();retainedTaskDirectories=@('build','bundle','bootstrap','source','native','temp','git-preflight')};error=$null;cleanupError=$null}
+$report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();phaseTasks=@{};diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@();retainedTaskDirectories=@('build','bundle','bootstrap','source','native','temp','git-preflight','package-preflight')};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
 $id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$consent=[Collections.ArrayList]::new()
@@ -29,13 +29,19 @@ function Sample([string]$Phase) {
 }
 function Stage([string]$Label,[scriptblock]$Action) {
   Write-Host ('Stage: '+$Label);$started=[DateTime]::UtcNow
-  try { $value=& $Action;$report.stages+=@{name=$Label;status='PASS';seconds=([DateTime]::UtcNow-$started).TotalSeconds};SaveReport;return $value }
-  catch { $report.stages+=@{name=$Label;status='FAIL';seconds=([DateTime]::UtcNow-$started).TotalSeconds};SaveReport;throw }
+  $report.currentStage=@{name=$Label;status='RUNNING';startedAt=$started.ToString('o')};SaveReport
+  try { $value=& $Action;$report.currentStage.status='PASS';$report.stages+=@{name=$Label;status='PASS';seconds=([DateTime]::UtcNow-$started).TotalSeconds};SaveReport;return $value }
+  catch { $report.currentStage.status='FAIL';$report.stages+=@{name=$Label;status='FAIL';seconds=([DateTime]::UtcNow-$started).TotalSeconds};SaveReport;throw }
 }
 function WaitGuest([bool]$AfterRestart) {
   $deadline=[DateTime]::UtcNow.AddMinutes($(if($AfterRestart){6}else{18}));$attempt=0
+  $watch=[Diagnostics.Stopwatch]::StartNew();$nextHeartbeat=0
   do {
     Sample $(if($AfterRestart){'restart-readiness'}else{'setup-readiness'})
+    if($watch.Elapsed.TotalSeconds -ge $nextHeartbeat) {
+      Write-Host ('Guest readiness: afterRestart='+$AfterRestart+'; elapsed='+[int]$watch.Elapsed.TotalSeconds+'s; attempts='+$attempt)
+      $nextHeartbeat=$watch.Elapsed.TotalSeconds+30
+    }
     try {
       $script:session=New-PSSession -VMId ([guid]$id) -Credential $credential -ErrorAction Stop
       $ready=Invoke-Command -Session $session -ScriptBlock {
@@ -58,10 +64,42 @@ try {
   if($os.Caption -notmatch 'Windows Server 2025' -or -not $computer.HypervisorPresent -or (Get-Service vmms).Status -ne 'Running' -or $computer.TotalPhysicalMemory -lt 8GB -or @(Get-CimInstance Win32_Processor | Where-Object Architecture -ne 9).Count) { throw 'Disposable hosted Hyper-V prerequisites unavailable' }
   if((git -C $Source rev-parse HEAD) -cne $env:GITHUB_SHA -or (git -C $Source status --porcelain --untracked-files=normal)) { throw 'Cloud source revision/cleanliness mismatch' }
   $report.host=@{caption=$os.Caption;build=$os.BuildNumber;architecture=$env:RUNNER_ARCH;hypervisorPresent=$true;memoryBytes=$computer.TotalPhysicalMemory}
+  Stage 'preflight-actual-marked-package-window-before-vm' {
+    $preflightOutput=Join-Path $root 'package-preflight'
+    & node (Join-Path $Source 'tools/development/etw-window-preflight.mjs') --source-sha $env:GITHUB_SHA --candidate (Join-Path $Build 'package/win-unpacked') --build-receipt (Join-Path $Build 'evidence/reboot-build.json') --config (Join-Path $Build 'etw-builder.json') --output $preflightOutput | Out-Host
+    $preflightExit=$LASTEXITCODE
+    $receiptPath=Join-Path $preflightOutput 'receipt.json'
+    if(-not (Test-Path -LiteralPath $receiptPath)) { throw 'Actual package-window preflight receipt unavailable' }
+    $receiptFile=Get-Item -LiteralPath $receiptPath -Force
+    if($receiptFile.PSIsContainer -or ($receiptFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $receiptFile.Length -lt 1 -or $receiptFile.Length -gt 16384) { throw 'Actual package-window preflight receipt budget/layout refused' }
+    try { $proof=ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($receiptPath)) -ErrorAction Stop }
+    catch { throw 'Actual package-window preflight receipt refused' }
+    if($proof -isnot [pscustomobject] -or $proof.schema -isnot [string] -or $proof.schema -cne 'aegis-package-window-preflight/1' -or $proof.sourceHead -isnot [string] -or $proof.sourceHead -cne $env:GITHUB_SHA -or $proof.status -isnot [string] -or $proof.status -cnotin @('PASS','FAIL')) { throw 'Actual package-window preflight identity refused' }
+    # Preserve failed actual flags before refusing, without copying the owned profile/home.
+    $report.packageWindowPreflight=$proof
+    $evidencePath=Join-Path $root 'evidence/package-window-preflight.json'
+    if(Test-Path -LiteralPath $evidencePath) { throw 'Fresh actual package-window evidence required' }
+    Copy-Item -LiteralPath $receiptPath -Destination $evidencePath
+    SaveReport
+    if($preflightExit -ne 0 -or $proof.status -cne 'PASS') { throw 'Actual package-window preflight refused; retained receipt contains actual flags' }
+    foreach($field in @('bindingObserved','bindingUnchanged','normalCloseRequested','normalCloseObserved','noEtwArguments','outputWithinBudget')) {
+      if($proof.$field -isnot [bool] -or $proof.$field -ne $true) { throw 'Actual package-window preflight closure/binding refused' }
+    }
+    if($proof.window -isnot [pscustomobject]) { throw 'Actual package-window preflight observation refused' }
+    foreach($field in @('observationValid','packaged','diagnosticBuild','windowPresent','sameWindow','windowStateObserved','isolationRequested','windowInputIsolated','settled')) {
+      if($proof.window.$field -isnot [bool] -or $proof.window.$field -ne $true) { throw 'Actual package-window preflight observation refused' }
+    }
+    foreach($field in @('timedOut','focusable','focused')) {
+      if($proof.window.$field -isnot [bool] -or $proof.window.$field -ne $false) { throw 'Actual package-window preflight isolation refused' }
+    }
+    if(($proof.exitCode -isnot [int] -and $proof.exitCode -isnot [long]) -or $proof.exitCode -ne 0 -or $null -ne $proof.failureCode -or $null -ne $proof.closeFailureCode) { throw 'Actual package-window preflight ordinary close refused' }
+  } | Out-Null
   $bundle=Stage 'freeze-portable-current-candidate-inputs-before-vm' {
     $staging=Join-Path $root 'bundle'
     & node (Join-Path $Source 'tools/development/cloud-native-read-inputs.mjs') --source $Source --build $Build --output $staging | Out-Host
     if($LASTEXITCODE -ne 0) { throw 'Native-read input construction or sterile Git preflight failed' }
+    $reader=(Get-Command ConvertFrom-NativeReadManifest -CommandType Function).ScriptBlock.ToString()
+    $report.inputPreflight=Test-NativeReadInputFiles $staging $reader
     $report.portableGit=Get-Content -LiteralPath (Join-Path $root 'evidence/portable-git.json') -Raw | ConvertFrom-Json
     if($report.portableGit.status -cne 'PASS' -or $report.portableGit.preflight.originalPathFallback -ne $false) { throw 'Portable Git preflight was not confirmed' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem

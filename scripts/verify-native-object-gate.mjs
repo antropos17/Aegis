@@ -46,6 +46,8 @@ const baselines = 'src/main/baselines.js';
 const normalizer = 'src/shared/ecs-normalizer.js';
 const risk = 'src/renderer/lib/utils/enrich-agents.ts';
 const logon = 'scripts/qualification/windows-native-read-host.ps1';
+const windowObservation = 'frontend/observatory/tests/package-window-observation.mjs';
+const windowPreflight = 'tools/development/etw-window-preflight.mjs';
 const tests = [
   'tests/main/platform/etw-file-operational-runtime.test.js',
   'tests/main/platform/etw-file-admission.test.js',
@@ -55,8 +57,9 @@ const tests = [
   'tests/main/windows-native-read-logon.test.js',
   'tests/main/windows-native-read-manifest.test.js',
   'tests/main/windows-native-read-invocation.test.js',
+  'tests/main/package-window-observation.test.js',
 ];
-const minimumAssertions = 59 + 4 + 7 + 4;
+const minimumAssertions = 59 + 4 + 7 + 4 + 2 + 11;
 const project = path.join(ROOT, 'sidecar/etw-file/EtwFile.csproj');
 const executable = path.join(ROOT, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
 const originals = new Map(
@@ -74,6 +77,8 @@ const originals = new Map(
     normalizer,
     risk,
     logon,
+    windowObservation,
+    windowPreflight,
   ].map((name) => [name, fs.readFileSync(path.join(ROOT, name))]),
 );
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -216,6 +221,21 @@ function native(label, expectedPass, expectedFailure) {
   return { status: expectedPass ? 'PASS' : 'KILLED', passedBeforeFailure: passed };
 }
 const mutants = [
+  {
+    id: 'package-window-two-safe-samples',
+    file: windowObservation,
+    edits: [['stable >= 2', 'stable >= 1']],
+  },
+  {
+    id: 'package-window-normal-close-exit',
+    file: windowPreflight,
+    edits: [
+      [
+        'receipt.normalCloseObserved = receipt.exitCode === 0 && child.signalCode == null;',
+        'receipt.normalCloseObserved = true;',
+      ],
+    ],
+  },
   {
     id: 'native-documented-comparison-entry',
     file: objectNative,

@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { probeRetainedObjectRelease } from '../../scripts/qualification/windows-native-read-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -122,9 +123,130 @@ try {
   return JSON.parse(result.stdout.replace(/^\uFEFF/, '').trim());
 }
 
+function feedbackFixture(scenario) {
+  const folder = directory();
+  const input = path.join(folder, 'bundle');
+  fs.mkdirSync(input);
+  const rows = ['one.bin', 'two.bin'].map((name, index) => {
+    const bytes = Buffer.alloc(3 + index, index + 1);
+    fs.writeFileSync(path.join(input, name), bytes);
+    if (index === 0) fs.writeFileSync(path.join(folder, 'escape.bin'), bytes);
+    return {
+      path: name,
+      bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    };
+  });
+  fs.writeFileSync(path.join(input, 'input-manifest.json'), JSON.stringify(rows));
+  const script = path.join(folder, 'feedback.ps1');
+  fs.writeFileSync(
+    script,
+    String.raw`param([string]$Source,[string]$InputRoot,[string]$Scenario)
+$ErrorActionPreference='Stop'
+try {
+  if($PSVersionTable.PSEdition -cne 'Desktop' -or $PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'fixture-engine-refused' }
+  . (Join-Path $Source 'scripts/qualification/windows-native-read-host.ps1')
+  $cases=0
+  if($Scenario -ceq 'bundle') {
+    $reader=(Get-Command ConvertFrom-NativeReadManifest -CommandType Function).ScriptBlock.ToString()
+    $verifier=[scriptblock]::Create((Get-Command Test-NativeReadInputFiles -CommandType Function).ScriptBlock.ToString())
+    $value=& $verifier $InputRoot $reader
+    if($value.files -ne 2 -or $value.bytes -ne 7) { throw 'fixture-bundle-positive' };$cases++
+    $manifest=Join-Path $InputRoot 'input-manifest.json';$original=[IO.File]::ReadAllText($manifest)
+    $first=Join-Path $InputRoot 'one.bin';$originalBytes=[IO.File]::ReadAllBytes($first)
+    foreach($mode in @('same-size-hash-change','wrong-size','path-escape')) {
+      $rows=ConvertFrom-Json -InputObject $original
+      switch($mode) {
+        'same-size-hash-change' { [IO.File]::WriteAllBytes($first,[byte[]]@(9,9,9)) }
+        'wrong-size' { $rows[0].bytes++ }
+        'path-escape' { $rows[0].path='../escape.bin' }
+      }
+      [IO.File]::WriteAllText($manifest,(ConvertTo-Json -InputObject $rows -Compress),[Text.UTF8Encoding]::new($false))
+      $refused=$false
+      try { [void](& $verifier $InputRoot $reader) }
+      catch { if($_.Exception.Message -cne 'Input manifest mismatch') { throw 'fixture-bundle-refusal-code' };$refused=$true }
+      finally { [IO.File]::WriteAllBytes($first,$originalBytes);[IO.File]::WriteAllText($manifest,$original,[Text.UTF8Encoding]::new($false)) }
+      if(-not $refused) { throw 'fixture-bundle-mutation-survived' };$cases++
+    }
+  } elseif($Scenario -ceq 'task') {
+    $entry=[scriptblock]::Create((Get-Command Get-NativeReadTaskObservation -CommandType Function).ScriptBlock.ToString())
+    $baseline=[datetime]'2026-10-24T00:00:00Z';$launch=[datetime]'2026-10-24T01:00:00Z'
+    $stamp=$launch.ToUniversalTime().Ticks.ToString()
+    $samples=@(
+      @{state='Ready';run=$baseline;result=1;seen=$false;stable=$true;started=$false;terminal=$false},
+      @{state='Queued';run=$baseline;result=0;seen=$false;stable=$true;started=$false;terminal=$false},
+      @{state='Running';run=$baseline;result=0x41301;seen=$false;stable=$true;started=$false;terminal=$false},
+      @{state='Running';run=$launch;result=0x41301;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Queued';run=$launch;result=0x41325;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=1;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=0;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Disabled';run=$launch;result=2147942405;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch.AddSeconds(-1);result=1;seen=$false;stable=$true;started=$false;terminal=$false},
+      @{state='Ready';run=$baseline;result=1;seen=$true;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=1;seen=$false;stable=$false;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=0x41301;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=0x41325;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=0x41303;seen=$false;stable=$true;started=$true;terminal=$false},
+      @{state='Ready';run=$launch;result=1;seen=$true;stable=$true;previous=($stamp+':Ready:1');started=$true;terminal=$true},
+      @{state='Ready';run=$launch;result=0;seen=$true;stable=$true;previous=($stamp+':Ready:0');started=$true;terminal=$true},
+      @{state='Disabled';run=$launch;result=2147942405;seen=$true;stable=$true;previous=($stamp+':Disabled:2147942405');started=$true;terminal=$true},
+      @{state='Ready';run=$launch;result=1;seen=$true;stable=$true;previous=($stamp+':Ready:0');started=$true;terminal=$false}
+    )
+    foreach($sample in $samples) {
+      $previous=if($sample.ContainsKey('previous')){$sample.previous}else{$null}
+      $value=& $entry $sample.state $sample.run $sample.result $launch $baseline $sample.seen $sample.stable $previous
+      if($value.started -isnot [bool] -or $value.terminal -isnot [bool] -or $value.started -ne $sample.started -or $value.terminal -ne $sample.terminal -or $value.lastTaskResult -ne $sample.result -or $value.state -cne $sample.state) { throw 'fixture-task-classification' };$cases++
+    }
+    $refused=$false
+    try { [void](& $entry 'Unexpected' $launch 1 $launch $baseline $false $true) }
+    catch { if($_.Exception.Message -cne 'Native task observation refused') { throw 'fixture-task-refusal-code' };$refused=$true }
+    if(-not $refused) { throw 'fixture-task-unknown-state' };$cases++
+  } else { throw 'fixture-feedback-scenario' }
+  @{status='PASS';version=$PSVersionTable.PSVersion.ToString();scenario=$Scenario;cases=$cases} | ConvertTo-Json -Compress
+} catch { @{status='FAIL';code='native-feedback-fixture-refused';scenario=$Scenario} | ConvertTo-Json -Compress;exit 2 }
+`,
+  );
+  const result = spawnSync(
+    path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-File',
+      script,
+      '-Source',
+      root,
+      '-InputRoot',
+      input,
+      '-Scenario',
+      scenario,
+    ],
+    { cwd: folder, encoding: 'utf8', windowsHide: true, timeout: 15000, maxBuffer: 8192 },
+  );
+  expect(result.error).toBeUndefined();
+  expect(result.signal).toBeNull();
+  expect(result.stderr).toBe('');
+  expect(result.status).toBe(0);
+  return JSON.parse(result.stdout.replace(/^\uFEFF/, '').trim());
+}
+
 describe.skipIf(process.platform !== 'win32')(
   'native guest trusted execution under Restricted policy',
   () => {
+    it.each([
+      ['bundle', 4],
+      ['task', 19],
+    ])(
+      'checks actual %s feedback boundaries in Windows PowerShell 5.1',
+      (scenario, cases) => {
+        expect(feedbackFixture(scenario)).toMatchObject({
+          status: 'PASS',
+          version: expect.stringMatching(/^5\.1\./),
+          scenario,
+          cases,
+        });
+      },
+      20000,
+    );
     it.each(['runner', 'phase', 'wrong-hash'])(
       'exercises the actual %s route without changing any policy scope',
       (scenario) => {

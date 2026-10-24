@@ -15,6 +15,18 @@ diagnostic metadata marker. Its executable and native helper, archived source,
 tracked runtime and harness inputs, lockfile, builder configuration and successful
 build receipt remain bound by the existing reboot qualification contract.
 
+Before creating a VM or downloading its image, the controller launches the exact
+marked candidate briefly on the disposable runner with a fresh owned profile,
+home, AppData and temporary directory. This ordinary launch passes no ETW root,
+fault, observer or capture arguments. It shares the same package/window
+observation helper as the guest scenarios, retains bounded boolean observations
+before strict guards, and requires normal close with exit code zero. The window
+remains bound to the same owned instance while a short bounded settling interval
+confirms readiness and input isolation. A missing or contradictory condition is
+a failure. Only the bounded receipt is uploaded; its private profile remains
+outside the evidence tree. Host success does not establish guest DPI, native
+capability, reboot recovery or read-to-alert/risk acceptance.
+
 The complete `runtimeSourcesSha256` includes the tracked compiler-only declaration
 `src/shared/instance-key.d.ts`. electron-builder's default declaration filter
 omits that exact file from the package; the archive-byte claim therefore excludes
@@ -43,6 +55,9 @@ the original native version, source tree, cleanliness and isolation must match.
 The guest uses the same reconstruction module and verifies its bytes against the
 reconstructed source. Host and guest receipts retain observed command counts;
 neither phase inherits the original installation's PATH or Git configuration.
+The maintained manifest consumer also verifies the actual generated bundle in
+hosted Windows PowerShell 5.1 before VM creation, then verifies it again after
+transfer. Both boundaries retain scalar path, root, size, SHA and no-link checks.
 
 Before recovery, a bounded read-only capability probe runs the unchanged helper
 in the existing elevated PowerShell Direct setup session. It records the existing
@@ -58,6 +73,13 @@ autologon password/count are removed and automatic logon is disabled. Each phase
 uses fresh explicit consent through the verified Microsoft consent process and
 the exact guest's keyboard, while UAC policies remain enabled. The ordinary
 installer lanes and their capture scopes are unchanged.
+
+Each phase task must be fresh. The controller observes a new run and repeated,
+stable terminal state/result samples before reporting a task that ended without
+its required receipt; queued and pending scheduler results cannot satisfy this
+condition. Bounded progress messages identify the current phase and elapsed
+time. These checks reduce failure-reporting latency while retaining the existing
+phase deadlines, receipt requirements and exact cleanup rules.
 
 Only after recovery PASS does the object-read probe start. It uses the maintained
 native synchronous/asynchronous reader, discovered as Aider by the real process
