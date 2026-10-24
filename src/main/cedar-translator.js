@@ -4,9 +4,19 @@ const { SCHEMA_ID, executionAttributes } = require('./cedar-schema');
 const { validateExecutionPolicy } = require('./execution-policy');
 const { equalActionValue, parseActionJson } = require('./action-policy');
 
+function stringLiteral(value) {
+  // Cedar uses Rust-style Unicode escapes, rather than JSON's control escapes.
+  // eslint-disable-next-line no-control-regex -- Escape every accepted control character.
+  return `"${value.replace(/["\\\u0000-\u001f]/g, (character) =>
+    character === '"' || character === '\\'
+      ? `\\${character}`
+      : `\\u{${character.charCodeAt(0).toString(16)}}`,
+  )}"`;
+}
+
 function predicate(action) {
   return Object.entries(executionAttributes(action))
-    .map(([key, value]) => `resource.${key} == ${JSON.stringify(value)}`)
+    .map(([key, value]) => `resource.${key} == ${stringLiteral(value)}`)
     .join(' && ');
 }
 
