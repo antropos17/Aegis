@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   readFixture: vi.fn(),
   observeCustodian: vi.fn(),
   exitWithin: vi.fn(),
+  until: vi.fn(),
 }));
 
 vi.mock('playwright', () => ({ _electron: { launch: mocks.launch } }));
@@ -13,7 +14,7 @@ vi.mock('../../scripts/produce-protected-gui-manifest.mjs', () => ({
   GUI_EXECUTABLE: 'AEGIS.exe',
 }));
 vi.mock('../../scripts/qualification/windows-native-read-support.mjs', () => ({
-  until: vi.fn(),
+  until: mocks.until,
   evidence: vi.fn(),
   displayedRisk: vi.fn(),
   prepareNativeReadWindow: mocks.prepareNativeReadWindow,
@@ -138,6 +139,87 @@ describe('actual native-read scenario launch composition', () => {
     expect(mocks.prepareNativeReadWindow).not.toHaveBeenCalled();
     expect(fixture.close).toHaveBeenCalledOnce();
     expect(app.close).not.toHaveBeenCalled();
+    expect(observer.stop).toHaveBeenCalledOnce();
+  });
+
+  it('uses the owned-profile Settings flow before subscribing in the Simple investigation workspace', async () => {
+    let simple = false;
+    let workspace = 'Monitoring';
+    const actions = [];
+    const navigation = {
+      getByRole(role, { name, exact }) {
+        expect(role).toBe('button');
+        expect(exact).toBe(true);
+        return {
+          async click() {
+            actions.push(name);
+            if (name === 'Settings') workspace = 'Settings';
+            else if (name === 'Investigate' && simple) workspace = 'Investigate';
+            else throw new Error('Requested workspace is unavailable in the current mode');
+          },
+        };
+      },
+    };
+    const page = {
+      getByRole(role, options) {
+        if (role === 'navigation' && options.name === 'Main navigation') return navigation;
+        if (role === 'heading')
+          return {
+            async waitFor() {
+              expect(workspace).toBe(options.name);
+            },
+          };
+        if (role === 'checkbox' && options.name === 'Simple interface')
+          return {
+            async check() {
+              expect(workspace).toBe('Settings');
+              simple = true;
+              actions.push('Simple interface');
+            },
+          };
+        if (role === 'region' && options.name === 'Investigation workspace')
+          return {
+            async waitFor() {
+              expect(simple && workspace === 'Investigate').toBe(true);
+              actions.push('workspace-ready');
+            },
+          };
+        throw new Error('Unscoped or unavailable UI control');
+      },
+      evaluate: vi.fn(async () => {
+        expect(actions.at(-1)).toBe('workspace-ready');
+        actions.push('subscribe');
+      }),
+    };
+    app.firstWindow = vi.fn().mockResolvedValue(page);
+    mocks.launch.mockResolvedValue(app);
+    mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
+    mocks.until.mockRejectedValue(new Error('stop before native readiness'));
+
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+        canary: 'canary',
+        candidate: 'X:/owned/candidate',
+        helper: 'helper.exe',
+      }),
+    ).rejects.toThrow('stop before native readiness');
+
+    expect(actions).toEqual([
+      'Settings',
+      'Simple interface',
+      'Investigate',
+      'workspace-ready',
+      'subscribe',
+    ]);
+    expect(page.evaluate).toHaveBeenCalledOnce();
+    expect(mocks.launch).toHaveBeenCalledOnce();
+    expect(fixture.close).toHaveBeenCalledOnce();
+    expect(app.close).toHaveBeenCalledOnce();
     expect(observer.stop).toHaveBeenCalledOnce();
   });
 });

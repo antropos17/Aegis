@@ -80,6 +80,12 @@ code; paths, endpoint values, environment data and raw exception text are not
 retained. All window, event, alert, risk and process-closure guards remain
 unchanged after the connection returns.
 
+Fresh profiles open in Advanced mode. Before reading the actor-specific
+investigation roster, the probe uses the normal Settings flow to enable
+`Simple interface`, opens `Investigate`, and waits for `Investigation workspace`.
+Each transition has a ten-second limit. Only the owned guest profile preference
+changes; the page is not reloaded and the existing probe is installed once.
+
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller
 requests Windows Restart inside the exact owned VM. A fresh later boot is

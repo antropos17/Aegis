@@ -69,7 +69,19 @@ export async function runNativeReadScenario({
     page = await app.firstWindow();
     await observeQuit(app, path.join(out, 'shutdown.json'));
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Investigate', exact: true }).click();
+    const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+    await navigation
+      .getByRole('button', { name: 'Settings', exact: true })
+      .click({ timeout: 10_000 });
+    await page.getByRole('checkbox', { name: 'Simple interface', exact: true }).check({
+      timeout: 10_000,
+    });
+    await navigation.getByRole('button', { name: 'Investigate', exact: true }).click({
+      timeout: 10_000,
+    });
+    await page
+      .getByRole('region', { name: 'Investigation workspace' })
+      .waitFor({ timeout: 10_000 });
     await page.evaluate((pid) => {
       window.__nativeReadProbe = { object: [], legacy: [], overflow: false };
       window.aegis.onFileAccess((value) => {
