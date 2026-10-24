@@ -80,26 +80,23 @@ function Initialize-NativeReadGuest($Session, $Bundle) {
     if(@(Get-ChildItem -LiteralPath $guestInputRoot -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Guest input links refused' }
     $context=Get-Content -LiteralPath (Join-Path $guestInputRoot 'context.json') -Raw | ConvertFrom-Json
     if($context.sourceSha -cne $SourceSha -or $context.sourceSha -cnotmatch '^[a-f0-9]{40}$' -or $context.coreAutoCrlf -notin @('true','false','input') -or $context.coreEol -notin @('native','lf','crlf')) { throw 'Guest source context mismatch' }
-    $env:GIT_CONFIG_NOSYSTEM='1';$env:GIT_CONFIG_GLOBAL=Join-Path $root 'absent-global-gitconfig'
-    $git=Join-Path $guestInputRoot 'runtime/git/cmd/git.exe';$repository=Join-Path $root 'repository.git';$source=Join-Path $root 'source'
-    New-Item -ItemType Directory -Path (Join-Path $root 'empty-template') | Out-Null
-    & $git -c init.defaultBranch=qualification init --bare --template=(Join-Path $root 'empty-template') $repository | Out-Null
-    if($LASTEXITCODE -ne 0) { throw 'Guest Git initialization failed' }
-    Copy-Item -LiteralPath (Join-Path $guestInputRoot 'gitstore/objects') -Destination $repository -Recurse -Force
-    if(Test-Path -LiteralPath (Join-Path $guestInputRoot 'gitstore/shallow')) { Copy-Item -LiteralPath (Join-Path $guestInputRoot 'gitstore/shallow') -Destination $repository }
-    & $git --git-dir=$repository config core.autocrlf $context.coreAutoCrlf
-    if($LASTEXITCODE -ne 0) { throw 'Guest source conversion configuration failed' }
-    & $git --git-dir=$repository config core.eol $context.coreEol
-    if($LASTEXITCODE -ne 0) { throw 'Guest source line ending configuration failed' }
-    & $git --git-dir=$repository update-ref refs/heads/qualification $SourceSha
-    if($LASTEXITCODE -ne 0) { throw 'Guest source ref reconstruction failed' }
-    & $git --git-dir=$repository worktree add --quiet --detach $source $SourceSha | Out-Null
-    if($LASTEXITCODE -ne 0) { throw 'Guest isolated worktree checkout failed' }
+    foreach($part in @('evidence','temp')) { New-Item -ItemType Directory -Path (Join-Path $root $part) | Out-Null }
+    $env:GITHUB_ACTIONS='true';$env:RUNNER_ENVIRONMENT='github-hosted-hyperv-guest'
+    $node=Join-Path $guestInputRoot 'runtime/node.exe'
+    $gitReceipt=Join-Path $root 'evidence/git-reconstruction.json'
+    & $node (Join-Path $guestInputRoot 'runtime/cloud-native-read-git.mjs') --bundle $guestInputRoot --output $root --receipt $gitReceipt | Out-Null
+    if($LASTEXITCODE -ne 0) { throw 'Guest copied Git reconstruction failed' }
+    if((Get-Item -LiteralPath $gitReceipt).Length -gt 16KB) { throw 'Guest Git receipt budget' }
+    $gitProof=Get-Content -LiteralPath $gitReceipt -Raw | ConvertFrom-Json
+    if($gitProof.status -cne 'PASS' -or $gitProof.sourceHead -cne $SourceSha -or $gitProof.sourceTree -cne $context.sourceTree -or $gitProof.originalPathFallback -ne $false) { throw 'Guest copied Git proof mismatch' }
+    $env:GIT_CONFIG_NOSYSTEM='1';$env:GIT_CONFIG_GLOBAL=Join-Path $root 'absent-global-gitconfig';$env:GIT_CONFIG_COUNT='0'
+    $env:GIT_EXEC_PATH=Join-Path $guestInputRoot 'runtime/git/libexec/git-core'
+    $env:PATH=(Join-Path $guestInputRoot 'runtime/git/bin')+';'+$env:SystemRoot+'\System32'
+    $git=Join-Path $guestInputRoot 'runtime/git/bin/git.exe';$source=Join-Path $root 'source'
     Copy-Item -LiteralPath (Join-Path $guestInputRoot 'dependencies/node_modules') -Destination $source -Recurse
     if((& $git -C $source rev-parse 'HEAD^{tree}') -cne $context.sourceTree -or (& $git -C $source status --porcelain --untracked-files=normal)) { throw 'Guest worktree tree/cleanliness mismatch' }
     if((& $git -C $source rev-parse --git-dir) -eq (& $git -C $source rev-parse --git-common-dir)) { throw 'Guest source isolation missing' }
-    foreach($part in @('evidence','temp')) { New-Item -ItemType Directory -Path (Join-Path $root $part) | Out-Null }
-    return @{transferVerified=$true;sourceReconstructed=$true;sourceSha=$SourceSha;sourceTree=$context.sourceTree;files=$files.Count;credentialMaterialTransferred=$false}
+    return @{transferVerified=$true;sourceReconstructed=$true;sourceSha=$SourceSha;sourceTree=$context.sourceTree;files=$files.Count;credentialMaterialTransferred=$false;git=$gitProof}
   }
 }
 
@@ -203,6 +200,14 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
 
 function Copy-NativeReadEvidence($Session,[string]$Root) {
   $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','resume/receipt.json','resume/scenario/receipt.json','admission/receipt.json','admission/view.png')
+  $gitProof=Invoke-Command -Session $Session -ScriptBlock {
+    $file='C:\aegis-native-read\evidence\git-reconstruction.json'
+    if(-not (Test-Path -LiteralPath $file)) { return $false }
+    $item=Get-Item -LiteralPath $file
+    if($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -gt 16KB) { throw 'Guest Git evidence budget/layout refused' }
+    return $true
+  }
+  if($gitProof) { Copy-Item -LiteralPath 'C:\aegis-native-read\evidence\git-reconstruction.json' -Destination (Join-Path $Root 'evidence/guest-git-reconstruction.json') -FromSession $Session }
   foreach($phase in @('prepare','resume','admission')) { $relative+=($phase+'-done.json');$relative+=($phase+'.log') }
   foreach($file in $relative) {
     $source=if($file -like '*-done.json' -or $file -notmatch '/') { 'C:\aegis-native-read\'+$file } else { 'C:\aegis-native-read\evidence\'+$file.Replace('/','\') }

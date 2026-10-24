@@ -32,6 +32,18 @@ hooks, credentials and external object-store references. The guest reconstructs
 the exact commit in a new bare repository and a real detached worktree; it checks
 the commit, tree, cleanliness and package binding before native execution.
 
+Git's actual `--exec-path` selects the native executable and its co-located DLL
+directories, including both legacy and UCRT prefixes. The transfer contains the
+native executable and compiled DLL dependencies, without installation configuration,
+hooks or credential data. Shim-only layouts fail. Before any VM creation or ISO
+download, build preparation runs the copied executable with a sterile PATH and
+an owned empty exec path through version, bare initialization, object/shallow
+reconstruction, ref update and actual worktree checkout. Native executable hashes,
+the original native version, source tree, cleanliness and isolation must match.
+The guest uses the same reconstruction module and verifies its bytes against the
+reconstructed source. Host and guest receipts retain observed command counts;
+neither phase inherits the original installation's PATH or Git configuration.
+
 Before recovery, a bounded read-only capability probe runs the unchanged helper
 in the existing elevated PowerShell Direct setup session. It records the existing
 token privileges and refuses an unqualified bridge without enabling privileges.

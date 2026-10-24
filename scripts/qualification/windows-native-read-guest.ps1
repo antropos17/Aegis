@@ -12,8 +12,9 @@ try {
   $env:GITHUB_ACTIONS='true';$env:RUNNER_ENVIRONMENT='github-hosted-hyperv-guest';$env:RUNNER_OS='Windows';$env:RUNNER_ARCH='X64'
   $env:GITHUB_SHA=$context.sourceSha;$env:GITHUB_RUN_ID=$context.runId;$env:GITHUB_RUN_ATTEMPT=$context.attempt
   $env:GITHUB_WORKSPACE=$source;$env:RUNNER_TEMP=$root;$env:CI='true';$env:HUSKY='0'
-  $env:GIT_CONFIG_NOSYSTEM='1';$env:GIT_CONFIG_GLOBAL=Join-Path $root 'absent-global-gitconfig'
-  $env:PATH=(Join-Path $bundle 'runtime')+';'+(Join-Path $bundle 'runtime/git/cmd')+';'+$env:PATH
+  $env:GIT_CONFIG_NOSYSTEM='1';$env:GIT_CONFIG_GLOBAL=Join-Path $root 'absent-global-gitconfig';$env:GIT_CONFIG_COUNT='0'
+  $env:GIT_EXEC_PATH=Join-Path $bundle 'runtime/git/libexec/git-core'
+  $env:PATH=(Join-Path $bundle 'runtime')+';'+(Join-Path $bundle 'runtime/git/bin')+';'+$env:SystemRoot+'\System32;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0;'+$env:SystemRoot+'\System32\Wbem;'+$env:SystemRoot
   $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
   Remove-Item Env:GH_TOKEN,Env:GITHUB_TOKEN,Env:AEGIS_ETW_QUALIFICATION_HOST,Env:ELECTRON_RUN_AS_NODE,Env:NODE_OPTIONS -ErrorAction SilentlyContinue
   Set-Location -LiteralPath $source

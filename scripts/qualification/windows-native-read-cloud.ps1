@@ -17,7 +17,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 . (Join-Path $PSScriptRoot 'cloud-hyperv-operations.ps1')
 . (Join-Path $PSScriptRoot 'cloud-guest-vm.ps1')
 . (Join-Path $PSScriptRoot 'windows-native-read-host.ps1')
-$report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@();retainedTaskDirectories=@('build','bundle','bootstrap','source','native','temp')};error=$null;cleanupError=$null}
+$report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@();retainedTaskDirectories=@('build','bundle','bootstrap','source','native','temp','git-preflight')};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
 $id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$consent=[Collections.ArrayList]::new()
@@ -58,6 +58,18 @@ try {
   if($os.Caption -notmatch 'Windows Server 2025' -or -not $computer.HypervisorPresent -or (Get-Service vmms).Status -ne 'Running' -or $computer.TotalPhysicalMemory -lt 8GB -or @(Get-CimInstance Win32_Processor | Where-Object Architecture -ne 9).Count) { throw 'Disposable hosted Hyper-V prerequisites unavailable' }
   if((git -C $Source rev-parse HEAD) -cne $env:GITHUB_SHA -or (git -C $Source status --porcelain --untracked-files=normal)) { throw 'Cloud source revision/cleanliness mismatch' }
   $report.host=@{caption=$os.Caption;build=$os.BuildNumber;architecture=$env:RUNNER_ARCH;hypervisorPresent=$true;memoryBytes=$computer.TotalPhysicalMemory}
+  $bundle=Stage 'freeze-portable-current-candidate-inputs-before-vm' {
+    $staging=Join-Path $root 'bundle'
+    & node (Join-Path $Source 'tools/development/cloud-native-read-inputs.mjs') --source $Source --build $Build --output $staging | Out-Host
+    if($LASTEXITCODE -ne 0) { throw 'Native-read input construction or sterile Git preflight failed' }
+    $report.portableGit=Get-Content -LiteralPath (Join-Path $root 'evidence/portable-git.json') -Raw | ConvertFrom-Json
+    if($report.portableGit.status -cne 'PASS' -or $report.portableGit.preflight.originalPathFallback -ne $false) { throw 'Portable Git preflight was not confirmed' }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip=Join-Path $root 'input.zip';[IO.Compression.ZipFile]::CreateFromDirectory($staging,$zip,[IO.Compression.CompressionLevel]::Fastest,$false)
+    if((Get-Item -LiteralPath $zip).Length -gt 1GB) { throw 'Native-read compressed input budget' }
+    return @{path=$zip;bytes=(Get-Item -LiteralPath $zip).Length;sha256=(Get-FileHash -LiteralPath $zip).Hash.ToLowerInvariant()}
+  }
+  $report.bundle=@{bytes=$bundle.bytes;sha256=$bundle.sha256}
   Stage 'compile-existing-owned-vm-helpers' {
     Add-Type -Path (Join-Path $PSScriptRoot 'CloudGuestMetadata.cs') -ReferencedAssemblies @('System.dll','System.Core.dll','System.Net.Http.dll')
     $files=@('scripts/qualification/CloudGuestVm.cs','scripts/qualification/CloudGuestBootDiagnostics.cs','sidecar/session/OwnedVmLifecycle.cs','sidecar/session/VmManagementNative.cs')
@@ -92,16 +104,6 @@ try {
   $report.hardware=Stage 'configure-offline-native-guest' {
     $script:unknown=$true;$value=Invoke-CloudGuestConfiguration $id $name $vmRoot $iso $answerIso;$script:unknown=$false;return $value
   }
-  $bundle=Stage 'freeze-portable-current-candidate-inputs' {
-    $staging=Join-Path $root 'bundle'
-    & node (Join-Path $Source 'tools/development/cloud-native-read-inputs.mjs') --source $Source --build $Build --output $staging | Out-Host
-    if($LASTEXITCODE -ne 0) { throw 'Native-read input construction failed' }
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip=Join-Path $root 'input.zip';[IO.Compression.ZipFile]::CreateFromDirectory($staging,$zip,[IO.Compression.CompressionLevel]::Fastest,$false)
-    if((Get-Item -LiteralPath $zip).Length -gt 1GB) { throw 'Native-read compressed input budget' }
-    return @{path=$zip;bytes=(Get-Item -LiteralPath $zip).Length;sha256=(Get-FileHash -LiteralPath $zip).Hash.ToLowerInvariant()}
-  }
-  $report.bundle=@{bytes=$bundle.bytes;sha256=$bundle.sha256}
   Stage 'boot-native-windows11' {
     $script:owner=[CloudGuestVm]::new($id)
     if(-not $owner.Start() -or $owner.PendingUnknown) { throw 'Owned VM start unconfirmed' }
