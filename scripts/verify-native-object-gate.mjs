@@ -48,6 +48,7 @@ const risk = 'src/renderer/lib/utils/enrich-agents.ts';
 const logon = 'scripts/qualification/windows-native-read-host.ps1';
 const windowObservation = 'frontend/observatory/tests/package-window-observation.mjs';
 const windowPreflight = 'tools/development/etw-window-preflight.mjs';
+const admissionWindow = 'scripts/qualification/windows-native-read-support.mjs';
 const tests = [
   'tests/main/platform/etw-file-operational-runtime.test.js',
   'tests/main/platform/etw-file-admission.test.js',
@@ -79,6 +80,7 @@ const originals = new Map(
     logon,
     windowObservation,
     windowPreflight,
+    admissionWindow,
   ].map((name) => [name, fs.readFileSync(path.join(ROOT, name))]),
 );
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -145,7 +147,7 @@ function edit(name, replacements) {
   if (sha(text) === sha(originals.get(name))) throw new Error('Mutation did not change source');
   fs.writeFileSync(path.join(ROOT, name), text);
 }
-function javascript(label, expectedPass) {
+function javascript(label, expectedPass, expectedTest) {
   const reportPath = path.join(LOGS, `${label}.json`);
   const result = run(label, process.execPath, [
     path.join(ROOT, 'node_modules/vitest/vitest.mjs'),
@@ -185,6 +187,8 @@ function javascript(label, expectedPass) {
     expectedPass ? result.status !== 0 || failed.length !== 0 : result.status === 0 || !meaningful
   )
     throw new Error(`Expected ${expectedPass ? 'GREEN' : 'behavioral RED'}: ${label}`);
+  if (!expectedPass && expectedTest && !failed.some((test) => test.fullName === expectedTest))
+    throw new Error(`Expected named behavioral failure: ${label}`);
   return {
     status: expectedPass ? 'PASS' : 'KILLED',
     tests: assertions.length,
@@ -267,6 +271,18 @@ const mutants = [
         'receipt.normalCloseObserved = true;',
       ],
     ],
+  },
+  {
+    id: 'admission-window-shared-observation',
+    file: admissionWindow,
+    edits: [
+      [
+        'receipt.window = await observePackageWindow(application, destination);',
+        'receipt.window = {};',
+      ],
+    ],
+    expectedTest:
+      'actual admission window preparation adapter uses shared bounded visibility isolation before accepting the exact sized 100% window',
   },
   {
     id: 'native-documented-comparison-entry',
@@ -462,7 +478,7 @@ try {
       edit(mutant.file, mutant.edits);
       const result = mutant.failure
         ? native(mutant.id, false, mutant.failure)
-        : javascript(mutant.id, false);
+        : javascript(mutant.id, false, mutant.expectedTest);
       receipt.mutations.push({ id: mutant.id, ...result });
     } catch (error) {
       mutantFailure = error;

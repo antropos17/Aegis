@@ -2,7 +2,7 @@ import {
   until,
   evidence,
   displayedRisk,
-  windowDpi,
+  prepareNativeReadWindow,
   probeRetainedObjectRelease,
 } from './windows-native-read-support.mjs';
 import assert from 'node:assert/strict';
@@ -60,25 +60,7 @@ export async function runNativeReadScenario({
       timeout: 30000,
     });
     appProcess = app.process();
-    r.window = await app.evaluate(({ app, BrowserWindow, screen }) => {
-      const window = BrowserWindow.getAllWindows()[0];
-      window.setBounds({ width: 1280, height: 800 });
-      window.setIgnoreMouseEvents(true);
-      window.setFocusable(false);
-      window.blur();
-      const handle = window.getNativeWindowHandle();
-      return {
-        packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
-        mainPid: process.pid,
-        scaleFactor: screen.getDisplayMatching(window.getBounds()).scaleFactor,
-        handle: handle.readBigUInt64LE(0).toString(),
-        isolated: !window.isFocused() && !window.isFocusable(),
-      };
-    });
-    assert(r.window.packaged && r.window.isolated && r.window.scaleFactor === 1);
-    r.window.dpi = windowDpi(r.window.handle, hostEnv);
-    delete r.window.handle;
-    assert.equal(r.window.dpi, 96, 'Only 100% window DPI is qualified');
+    await prepareNativeReadWindow(app, path.join(out, 'window-observation.json'), hostEnv, r);
     page = await app.firstWindow();
     await observeQuit(app, path.join(out, 'shutdown.json'));
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();

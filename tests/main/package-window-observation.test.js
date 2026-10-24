@@ -9,6 +9,7 @@ import {
   observePackageWindow,
 } from '../../frontend/observatory/tests/package-window-observation.mjs';
 import { runWindowPreflightSession } from '../../tools/development/etw-window-preflight.mjs';
+import { prepareNativeReadWindow } from '../../scripts/qualification/windows-native-read-support.mjs';
 
 const roots = [];
 const originalMain = Object.getOwnPropertyDescriptor(process, 'mainModule');
@@ -49,6 +50,16 @@ function fixture({ packaged = true, diagnostic = true, responsive = true, render
   };
   const window = new EventEmitter();
   Object.assign(window, {
+    id: 71,
+    setBounds: vi.fn((bounds) => {
+      state.bounds = bounds;
+    }),
+    getBounds: () => state.bounds,
+    getNativeWindowHandle: () => {
+      const handle = Buffer.alloc(8);
+      handle.writeBigUInt64LE(1234n);
+      return handle;
+    },
     isDestroyed: () => state.destroyed,
     setIgnoreMouseEvents: vi.fn(),
     setFocusable: vi.fn((value) => {
@@ -75,7 +86,11 @@ function fixture({ packaged = true, diagnostic = true, responsive = true, render
   let windows = [window];
   const electron = {
     app: { isPackaged: packaged, getAppPath: () => archive },
-    BrowserWindow: { getAllWindows: () => windows },
+    BrowserWindow: {
+      getAllWindows: () => windows,
+      fromId: (id) => windows.find((window) => window.id === id),
+    },
+    screen: { getDisplayMatching: () => ({ scaleFactor: 1 }) },
   };
   const child = Object.assign(new EventEmitter(), {
     exitCode: null,
@@ -298,6 +313,107 @@ describe('package-window observation contract', () => {
       visible: false,
     });
   });
+});
+
+describe('actual admission window preparation adapter', () => {
+  it('uses shared bounded visibility isolation before accepting the exact sized 100% window', async () => {
+    const run = fixture();
+    run.window.blur.mockImplementation(() => {});
+    const receipt = {};
+    const env = { TEMP: 'owned-temp' };
+    const readDpi = vi.fn(() => 96);
+    const destination = path.join(run.output, 'admission-window.json');
+    let finished = false;
+    let failure = null;
+    const pending = prepareNativeReadWindow(
+      run.application,
+      destination,
+      env,
+      receipt,
+      readDpi,
+    ).then(
+      () => {
+        finished = true;
+      },
+      (error) => {
+        failure = error;
+        finished = true;
+      },
+    );
+    await vi.advanceTimersByTimeAsync(20);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(40);
+    expect(finished).toBe(true);
+    await pending;
+    expect(failure).toBeNull();
+    expect(run.window.hide).toHaveBeenCalledTimes(1);
+    expect(run.window.showInactive).toHaveBeenCalledTimes(1);
+    expect(run.window.setBounds).toHaveBeenCalledWith({ width: 1280, height: 800 });
+    expect(readDpi).toHaveBeenCalledWith('1234', env);
+    expect(receipt.window).toMatchObject({
+      sameWindow: true,
+      packaged: true,
+      diagnosticBuild: true,
+      isolated: true,
+      visible: true,
+      width: 1280,
+      height: 800,
+      scaleFactor: 1,
+      dpi: 96,
+    });
+    expect(receipt.window).not.toHaveProperty('handle');
+    expect(JSON.parse(fs.readFileSync(destination, 'utf8')).settled).toBe(true);
+  });
+
+  it('refuses replacement between bounded observation and native display measurement', async () => {
+    const run = fixture();
+    const replacement = fixture().window;
+    replacement.id = 72;
+    const evaluate = run.application.evaluate;
+    let calls = 0;
+    run.application.evaluate = (fn, args) => {
+      if (++calls === 3) run.replaceWindows([replacement]);
+      return evaluate(fn, args);
+    };
+    const receipt = {};
+    const readDpi = vi.fn(() => 96);
+    const checked = expect(
+      prepareNativeReadWindow(
+        run.application,
+        path.join(run.output, 'admission-window.json'),
+        {},
+        receipt,
+        readDpi,
+      ),
+    ).rejects.toThrow('Admission window was replaced');
+    await vi.advanceTimersByTimeAsync(60);
+    await checked;
+    expect(receipt.window.sameWindow).toBe(false);
+    expect(readDpi).not.toHaveBeenCalled();
+    expect(replacement.setBounds).not.toHaveBeenCalled();
+    expect(replacement.hide).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [1.25, 96, 'Only 100% display scaling is qualified'],
+    [1, 120, 'Only 100% window DPI is qualified'],
+  ])(
+    'refuses actual scale %s / DPI %s after retaining window flags',
+    async (scaleFactor, dpi, message) => {
+      const run = fixture();
+      run.electron.screen.getDisplayMatching = () => ({ scaleFactor });
+      const receipt = {};
+      const destination = path.join(run.output, 'admission-window.json');
+      const checked = expect(
+        prepareNativeReadWindow(run.application, destination, {}, receipt, () => dpi),
+      ).rejects.toThrow(message);
+      await vi.advanceTimersByTimeAsync(60);
+      await checked;
+      expect(receipt.window.scaleFactor).toBe(scaleFactor);
+      expect(JSON.parse(fs.readFileSync(destination, 'utf8')).windowInputIsolated).toBe(true);
+      expect(receipt.window).not.toHaveProperty('handle');
+    },
+  );
 });
 
 describe('ordinary package-window preflight cleanup', () => {

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { delay } from '../../frontend/observatory/tests/etw-support.mjs';
 import { boundedCommand } from '../../tools/development/bounded-command.mjs';
+import { observePackageWindow } from '../../frontend/observatory/tests/package-window-observation.mjs';
 
 /** Wait for actual bounded evidence. @param {Function} read @param {Function} accept @param {number} ms @param {string} message @returns {Promise<object>} @since v0.20.1 */
 export const until = async (read, accept, ms, message) => {
@@ -52,6 +53,59 @@ export function windowDpi(handle, env) {
       { env, windowsHide: true, timeout: 30000, maxBuffer: 4096, encoding: 'utf8' },
     ).trim(),
   );
+}
+
+/** Prepare the actual admission window through the shared bounded isolation observer.
+ * @param {object} application Owned Electron application. @param {string} destination Fresh flag receipt.
+ * @param {object} env Owned environment. @param {object} receipt Scenario receipt updated before guards.
+ * @param {Function} [readDpi] Native DPI query, injected only by offline fixture tests.
+ * @returns {Promise<void>} Exact same-window 1280x800, 100%/96-DPI observation. @since v0.20.1
+ */
+export async function prepareNativeReadWindow(
+  application,
+  destination,
+  env,
+  receipt,
+  readDpi = windowDpi,
+) {
+  const windowId = await application.evaluate(({ BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length !== 1 || windows[0].isDestroyed())
+      throw Error('Admission window unavailable');
+    const window = windows[0];
+    window.setBounds({ width: 1280, height: 800 });
+    return window.id;
+  });
+  receipt.window = await observePackageWindow(application, destination);
+  const measured = await application.evaluate(({ app, BrowserWindow, screen }, expectedId) => {
+    const windows = BrowserWindow.getAllWindows();
+    const window = BrowserWindow.fromId(expectedId);
+    if (!window || window.isDestroyed() || windows.length !== 1 || windows[0] !== window)
+      return { sameWindow: false };
+    const bounds = window.getBounds();
+    return {
+      sameWindow: true,
+      packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
+      mainPid: process.pid,
+      width: bounds.width,
+      height: bounds.height,
+      scaleFactor: screen.getDisplayMatching(bounds).scaleFactor,
+      handle: window.getNativeWindowHandle().readBigUInt64LE(0).toString(),
+      isolated: !window.isFocused() && !window.isFocusable(),
+      visible: window.isVisible(),
+    };
+  }, windowId);
+  const { handle, ...metadata } = measured;
+  Object.assign(receipt.window, metadata);
+  assert.equal(receipt.window.sameWindow, true, 'Admission window was replaced');
+  assert.equal(receipt.window.packaged, true, 'Admission window is not packaged');
+  assert.equal(receipt.window.isolated, true, 'Admission window input isolation was lost');
+  assert.equal(receipt.window.visible, true, 'Admission window is not visible');
+  assert.equal(receipt.window.width, 1280, 'Admission window width changed');
+  assert.equal(receipt.window.height, 800, 'Admission window height changed');
+  assert.equal(receipt.window.scaleFactor, 1, 'Only 100% display scaling is qualified');
+  receipt.window.dpi = readDpi(handle, env);
+  assert.equal(receipt.window.dpi, 96, 'Only 100% window DPI is qualified');
 }
 
 /** Measure release using only the closed issuer's owned synthetic file.

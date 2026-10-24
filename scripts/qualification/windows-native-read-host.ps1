@@ -356,7 +356,7 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
 }
 
 function Copy-NativeReadEvidence($Session,[string]$Root) {
-  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/view.png')
+  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/window-observation.json','admission/view.png')
   $gitProof=Invoke-Command -Session $Session -ScriptBlock {
     $file='C:\aegis-native-read\evidence\git-reconstruction.json'
     if(-not (Test-Path -LiteralPath $file)) { return $false }
