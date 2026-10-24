@@ -17,6 +17,12 @@ bounded preparation library for per-lifetime CPU, resident memory and per-run
 estimates. Its fixture tests qualify arithmetic and refusal behavior only; it
 adds no collector, measured overhead or W8 acceptance.
 
+[Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
+caller-declared profile and same-run receipt, normalizing only successful
+positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified
+export profile, catalogue confirmation or scoring integration; loss and
+completeness remain unknown.
+
 For each scenario the bench **generates an expected-event catalogue as a by-product of
 running a deterministic script**, then confirms every row of that catalogue against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
@@ -174,7 +180,7 @@ built — nothing below exists yet:
 
 | path | sub-block |
 |---|---|
-| `bench/lib/oracles/procmon.js`, `bench/oracles/procmon-bench.pmc` | B2.6 |
+| Procmon live capture, qualified export profile and scoring integration; `bench/oracles/procmon-bench.pmc` | B2.6 (offline staging exists separately) |
 | `bench/report.js` | B2.9 |
 
 ## Scenarios
@@ -575,7 +581,8 @@ offline is an explicit `{value: null, unavailable}`, the manifest's own conventi
 
 ### Arm B is a PARTIAL calibration, and says so
 
-Arm B is defined as **Sysmon + Procmon**, and B2.6 does not exist. There is no new report field for
+Arm B is defined as **Sysmon + Procmon**, and B2.6 collection remains unimplemented.
+The offline CSV staging importer is not wired into arm B. There is no new report field for
 that: the manifest's `oracles.procmon` entry is `unavailable` with the reason, `armDescription`
 names both oracles, and `run.js` sweeps `oracles` alongside `host` and `sensor` for absent facts
 and prints them at the end of the run. A B run therefore states which of the two columns it

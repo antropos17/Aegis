@@ -85,7 +85,7 @@ own independent oracle.
 
 | Platform | Future controlled environment and oracle columns | Current limitation |
 | --- | --- | --- |
-| Windows | Hyper-V Gen2 gold image with pinned Windows build; separate Sysmon and Procmon evidence/configuration/loss columns | Sysmon adapter is LIVE-UNVALIDATED; Procmon adapter is absent |
+| Windows | Hyper-V Gen2 gold image with pinned Windows build; separate Sysmon and Procmon evidence/configuration/loss columns | Sysmon adapter is LIVE-UNVALIDATED; Procmon has only [offline CSV staging](PROCMON-IMPORT.md), with capture/export qualification and scoring admission absent |
 | Linux | Pinned image/kernel; independent auditd configuration, availability, privileges and loss accounting | auditd adapter and native qualification remain future work |
 | macOS | Pinned OS/image; independent `eslogger` when available, with privileges/entitlements and loss accounting | Adapter and native qualification remain future work; unavailable collection needs a reason |
 
