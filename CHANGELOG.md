@@ -20,6 +20,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.21.0-beta (2026-10-24)
+
+## What's Changed
+* test(installer): qualify published 0.20.1 upgrade lifecycle by @antropos17 in https://github.com/antropos17/Aegis/pull/1047
+* test(installer): qualify published release in native Windows 11 x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1049
+* test(updater): qualify automatic update on native Windows 11 x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1050
+* test(updater): qualify native Windows beta auto-update by @antropos17 in https://github.com/antropos17/Aegis/pull/1051
+* test(installer): qualify all-users elevation and Finish launch by @antropos17 in https://github.com/antropos17/Aegis/pull/1052
+* test(installer): qualify all-users automatic updates on Windows 11 x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1055
+* build(deps): integrate Electron and fast-uri security updates by @antropos17 in https://github.com/antropos17/Aegis/pull/1056
+* build(deps-dev): bump fast-uri from 3.1.8 to 3.1.9 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1053
+* build(deps-dev): bump electron from 44.8.0 to 44.9.1 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1054
+* feat(bench): add bounded Procmon CSV staging by @antropos17 in https://github.com/antropos17/Aegis/pull/1059
+* feat(bench): evaluate declared three-run reproducibility by @antropos17 in https://github.com/antropos17/Aegis/pull/1060
+* feat(bench): execute owned loopback transfer scenarios by @antropos17 in https://github.com/antropos17/Aegis/pull/1061
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.20.1-beta...aegis-v0.21.0-beta
+
 ## 0.20.1-beta (2026-10-22)
 
 ## What's Changed
