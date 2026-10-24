@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { _electron as electron } from 'playwright';
 import { GUI_EXECUTABLE } from '../produce-protected-gui-manifest.mjs';
+import { launchNativeReadElectron } from './windows-native-read-launch.mjs';
 import {
   diagnostics,
   readFixture,
@@ -48,16 +49,20 @@ export async function runNativeReadScenario({
     );
     observer = observeCustodian(helper, out, hostEnv, true);
     const endpoint = await observer.until((message) => message.type === 'endpoint', 10000);
-    app = await electron.launch({
-      executablePath: path.join(candidate, GUI_EXECUTABLE),
-      args: [
-        '--user-data-dir=' + path.join(out, 'profile'),
-        '--etw-file-diagnostic-root=' + path.dirname(file),
-        '--etw-file-object-policy',
-        '--etw-file-diagnostic-observer=' + endpoint.address,
-      ],
-      env: hostEnv,
-      timeout: 30000,
+    r.launch = {};
+    app = await launchNativeReadElectron({
+      launch: (options) => electron.launch(options),
+      options: {
+        executablePath: path.join(candidate, GUI_EXECUTABLE),
+        args: [
+          '--user-data-dir=' + path.join(out, 'profile'),
+          '--etw-file-diagnostic-root=' + path.dirname(file),
+          '--etw-file-object-policy',
+          '--etw-file-diagnostic-observer=' + endpoint.address,
+        ],
+        env: hostEnv,
+      },
+      observation: r.launch,
     });
     appProcess = app.process();
     await prepareNativeReadWindow(app, path.join(out, 'window-observation.json'), hostEnv, r);
@@ -258,7 +263,14 @@ export async function runNativeReadScenario({
     r.retention.captureContinued = (await diagnostics(app)).phase === 'running';
     assert(r.retention.captureContinued, 'Capture ended during release observation');
   } catch (error) {
-    failure = error;
+    failure =
+      r.launch?.phase === 'failed'
+        ? new Error(
+            r.launch.failureCode === 'timeout'
+              ? 'Native-read Electron launch timed out'
+              : 'Native-read Electron launch failed',
+          )
+        : error;
   } finally {
     if (fixture && fixture.child.exitCode === null) {
       try {

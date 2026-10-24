@@ -73,6 +73,13 @@ enters the existing VM cleanup path. This earlier result gives direct feedback
 on read-to-alert/risk behavior; it cannot satisfy the final post-reboot admission
 receipt or replace recovery qualification.
 
+The first Playwright connection in each newly provisioned guest has one 90-second
+deadline. It is not retried or warmed up. The private receipt retains only the
+closed launch phase, elapsed time, deadline, returned state and stable failure
+code; paths, endpoint values, environment data and raw exception text are not
+retained. All window, event, alert, risk and process-closure guards remain
+unchanged after the connection returns.
+
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller
 requests Windows Restart inside the exact owned VM. A fresh later boot is
