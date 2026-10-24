@@ -37,7 +37,7 @@ try {
     @{status='PASS';scenario=$Scenario;cases=1;compiledOnly=$true;nativeMethodsInvoked=$false;keyboardInputExecuted=$false;version=$PSVersionTable.PSVersion.ToString()} | ConvertTo-Json -Compress
     return
   }
-  foreach($name in @('Assert-NativeReadDesktopScope','Read-NativeReadDesktopObservation','Invoke-NativeReadDesktopPreparation')){
+  foreach($name in @('Assert-NativeReadDesktopScope','Read-NativeReadDesktopObservation','Test-NativeReadNonPresentedSearch','Invoke-NativeReadDesktopPreparation')){
     $found=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$false))
     # Optional only for the pre-implementation RED: the old policy must execute
     # normally and fail its missing diagnostic assertion, not an import guard.
@@ -98,7 +98,8 @@ try {
   if($Scenario -cin @('visible','hidden','cloaked','unknown','query-failure','invalid','lost-foreground')){
     $value=Run-Case $Scenario;$proof=$value.proof
     $observation=@{status=$proof.status;code=$proof.code;sent=$value.clock.sent;elapsedMs=$value.clock.ms;closedFacts=@($proof.overlayDismissals | Where-Object {$_.closedObserved}).Count;visibilityPresent=$proof.ContainsKey('windowVisibility')}
-    if(-not $value.refused -or $proof.status -cne 'FAIL' -or $proof.code -cne 'overlay-not-closed' -or $value.clock.sent -ne 3 -or $value.clock.ms -ne 10000 -or $observation.closedFacts -ne 0){throw 'fixture-existing-search-contract-changed'}
+    $expectedCode=if($Scenario -ceq 'cloaked'){'deadline'}else{'overlay-not-closed'};$expectedSent=if($Scenario -ceq 'cloaked'){0}else{3}
+    if(-not $value.refused -or $proof.status -cne 'FAIL' -or $proof.code -cne $expectedCode -or $value.clock.sent -ne $expectedSent -or $value.clock.ms -ne 10000 -or $observation.closedFacts -ne 0){throw 'fixture-existing-search-contract-changed'}
     Check-Proof $proof
     $expected=Visibility $Scenario
     foreach($key in $keys){if($proof.windowVisibility.first[$key] -cne $expected[$key] -or $proof.windowVisibility.last[$key] -cne $expected[$key]){throw 'fixture-visibility-state-changed'}}

@@ -136,11 +136,19 @@ Style visibility does not prove unobscured pixels; monitor intersection can use
 a minimized window's earlier bounds; matching foreground handles is a sampled
 comparison rather than an atomic identity guarantee. No titles, handles, PIDs,
 paths, coordinates, error text or observation history enter this projection.
-The diagnostics do not alter readiness, closure, input authority, the ten-second
-budget or the three-action limit. They remain inside the existing 4096-byte
-desktop receipt bound. Local fixtures and compilation without native calls
-verify the projection and its integration; actual guest observations remain
-unverified until a separately authorized qualification run.
+The projection never authorizes readiness, closure or input. It remains inside
+the existing 4096-byte desktop receipt bound. Local fixtures and compilation
+without native calls verify its collection and integration.
+
+A verified Search foreground with known DWM cloaking is excluded from Escape.
+The decision loop waits read-only within the existing ten-second budget for a
+fresh, independently verified foreground. Cloaking alone never proves closure
+or desktop readiness. The native dismissal revalidates this exclusion before
+input. Unknown or uncloaked Search, style visibility alone, Start behavior and
+the three-action limit retain their existing rules. A persistent cloaked Search
+still causes refusal; no focus change or activation is attempted. Local mocked
+observations verify this policy, while its actual guest behavior requires a
+separately authorized qualification run.
 
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller

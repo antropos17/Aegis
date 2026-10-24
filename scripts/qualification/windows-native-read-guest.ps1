@@ -30,6 +30,10 @@ function Read-NativeReadDesktopObservation([scriptblock]$Read,$Proof) {
   return $value
 }
 
+function Test-NativeReadNonPresentedSearch($Value,$Visibility) {
+  return ($Value.kind -ceq 'search' -and $Visibility.cloakKnown -is [bool] -and $Visibility.cloakKnown -eq $true -and $Visibility.cloaked -is [bool] -and $Visibility.cloaked -eq $true)
+}
+
 # Reuse the installer's verified Start/Search Escape precondition. Callback seams
 # permit normal local fixtures to exercise this decision loop without Win32/input.
 function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[scriptblock]$Dismiss,[scriptblock]$Elapsed=$null,[scriptblock]$Pause=$null) {
@@ -61,6 +65,9 @@ function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[s
       $sampleTime=& $Elapsed
       if($sampleTime -ge 10000) { & $refuse 'deadline' }
       if($SliceDeadline -lt 10000 -and $sampleTime -ge $SliceDeadline) { return $null }
+      # A known DWM-cloaked Search witness is not a presented overlay. Wait for
+      # an independently validated foreground; cloaking is never closure/READY.
+      if(Test-NativeReadNonPresentedSearch $value $Proof.windowVisibility.last) { & $Pause 100;continue }
       return $value
     } while((& $Elapsed) -lt 10000)
     & $refuse 'deadline'
@@ -205,6 +212,7 @@ public static class NativeReadDesktop {
   $dismiss={param($Expected)
     $fresh=Read-NativeReadDesktopObservation $read $Proof
     if($fresh.witness -cne $Expected.witness -or $fresh.noConsent -ne $true -or $fresh.activeDefault -ne $true -or $fresh.kind -cnotin @('start','search')) { throw 'Native desktop changed' }
+    if(Test-NativeReadNonPresentedSearch $fresh $Proof.windowVisibility.last) { throw 'Native desktop changed' }
     return [NativeReadDesktop]::Escape([long]$fresh.window,[uint32]$fresh.pid)
   }
   try { Invoke-NativeReadDesktopPreparation $Scope $Proof $read $dismiss }
