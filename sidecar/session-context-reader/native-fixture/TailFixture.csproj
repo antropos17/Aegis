@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeFrameworkVersion>10.0.10</RuntimeFrameworkVersion>
+    <RollForward>Disable</RollForward>
+    <UseAppHost>true</UseAppHost>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="TailFixture.cs;../ReadLease.cs" />
+    <Compile Include="../../hook-config-target/Native.cs;../../hook-config-target/TargetPath.cs;../../hook-config-target/TargetLease.cs" />
+    <Compile Include="../../hook-transaction/Wire.cs" />
+  </ItemGroup>
+</Project>
