@@ -138,6 +138,12 @@ function feedbackFixture(scenario) {
     };
   });
   fs.writeFileSync(path.join(input, 'input-manifest.json'), JSON.stringify(rows));
+  for (const mode of ['wrong-size', 'path-escape']) {
+    const variant = rows.map((row) => ({ ...row }));
+    if (mode === 'wrong-size') variant[0].bytes++;
+    else variant[0].path = '../escape.bin';
+    fs.writeFileSync(path.join(folder, mode + '.json'), JSON.stringify(variant));
+  }
   const script = path.join(folder, 'feedback.ps1');
   fs.writeFileSync(
     script,
@@ -163,13 +169,14 @@ try {
     $first=Join-Path $InputRoot 'one.bin';$originalBytes=[IO.File]::ReadAllBytes($first)
     foreach($mode in @('same-size-hash-change','wrong-size','path-escape')) {
       $step='bundle-mutate-'+$mode
-      $rows=ConvertFrom-Json -InputObject $original
       switch($mode) {
         'same-size-hash-change' { [IO.File]::WriteAllBytes($first,[byte[]]@(9,9,9)) }
-        'wrong-size' { $rows[0].bytes++ }
-        'path-escape' { $rows[0].path='../escape.bin' }
+        'wrong-size' { [IO.File]::WriteAllText($manifest,[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'wrong-size.json')),[Text.UTF8Encoding]::new($false)) }
+        'path-escape' { [IO.File]::WriteAllText($manifest,[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'path-escape.json')),[Text.UTF8Encoding]::new($false)) }
       }
-      [IO.File]::WriteAllText($manifest,(ConvertTo-Json -InputObject $rows -Compress),[Text.UTF8Encoding]::new($false))
+      if($mode -ceq 'same-size-hash-change' -and [IO.File]::ReadAllText($manifest) -cne $original) { throw 'fixture-bundle-hash-manifest-changed' }
+      $step='bundle-shape-'+$mode
+      [void](& ([scriptblock]::Create($reader)) ([IO.File]::ReadAllText($manifest)))
       $refused=$false;$step='bundle-refuse-'+$mode
       try { [void](& $verifier $InputRoot $reader) }
       catch {
@@ -230,6 +237,7 @@ try {
   $innerKind=$inner.GetType().Name;$line=$_.InvocationInfo.ScriptLineNumber
   $reason=switch -CaseSensitive ($_.Exception.Message) {
     'fixture-bundle-positive' {'positive-count'}
+    'fixture-bundle-hash-manifest-changed' {'hash-fixture-changed'}
     'fixture-bundle-refusal-code' {'unexpected-refusal'}
     'fixture-bundle-mutation-survived' {'guard-survived'}
     'Native input manifest refused' {'manifest-shape'}
