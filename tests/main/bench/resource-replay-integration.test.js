@@ -155,6 +155,12 @@ describe('actual supervised bundle followed by deterministic offline replay', ()
         executionMode: 'real-child',
         readingMode: 'own-process',
         sourceAlignment: 'match',
+        evaluator: {
+          ...historicalEvaluator,
+          nodeVersion: childPlan.sources.nodeVersion,
+          basis: 'child-plan-declaration',
+          sourceAuthenticated: false,
+        },
       });
       expect(report.replay).toEqual({
         state: 'recomputed',
@@ -204,7 +210,10 @@ describe('actual supervised bundle followed by deterministic offline replay', ()
         ...currentEvaluator,
         nodeVersion: process.version,
         historicalComparison:
-          historicalEvaluator.sha256 === currentEvaluator.sha256 ? 'match' : 'different',
+          historicalEvaluator.sha256 === currentEvaluator.sha256 &&
+          historicalEvaluator.byteLength === currentEvaluator.byteLength
+            ? 'match'
+            : 'different',
         loadedCodeAuthenticated: false,
       });
       expect(tree(input)).toEqual(before);

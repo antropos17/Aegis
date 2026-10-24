@@ -182,6 +182,7 @@ function derived(v) {
   );
   raw(v.raw);
   c.plan(v.plan, v.raw.runId);
+  if (v.plan.durationUs !== v.raw.plannedDurationUs) c.fail();
   c.exact(v.provenance, 'sourceSha256');
   if (
     v.version !== 'bracketed-resource-intervals/1' ||

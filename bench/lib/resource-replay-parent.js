@@ -164,6 +164,7 @@ function lifecycle(s) {
     s.stdout.complete &&
     s.stderr.complete;
   if (success && s.elapsedMs === null) c.fail();
+  if (s.cause === 'wall-limit' && !c.integer(s.elapsedMs, 1)) c.fail();
   return success;
 }
 /** Validate all present parent declarations independently of missing child files. @param {object} bundle Exact parsed parts. @returns {object} Reported facts. @since unreleased */
@@ -226,6 +227,8 @@ function validateParent(bundle) {
     c.sources(v.sources, p?.value.sources, true);
     success = lifecycle(v.supervision);
     if (success && p && v.supervision.elapsedMs >= p.value.wallLimitMs) c.fail();
+    if (p && v.supervision.cause === 'wall-limit' && v.supervision.elapsedMs < p.value.wallLimitMs)
+      c.fail();
     if (
       v.state !==
       (v.sources.state !== 'unchanged'
