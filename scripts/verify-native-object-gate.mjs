@@ -222,6 +222,12 @@ function native(label, expectedPass, expectedFailure) {
 }
 const mutants = [
   {
+    id: 'observer-notice-failure-stage',
+    file: observer,
+    edits: [['at(FailureStage.NoticeParse);', 'at(FailureStage.NoticeRead);']],
+    failure: 'observer QA failure identifies actual notice rejection without publishing input',
+  },
+  {
     id: 'package-window-two-safe-samples',
     file: windowObservation,
     edits: [['stable >= 2', 'stable >= 1']],

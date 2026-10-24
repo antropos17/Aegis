@@ -4,6 +4,27 @@ internal static class FileOrphanTests
 {
     internal static void Run(Action<string, Action> test)
     {
+        test("observer QA failure identifies actual notice rejection without publishing input", () =>
+        {
+            using var malformed = System.Text.Json.JsonDocument.Parse("{\"kind\":\"reserved\",\"private\":\"AEGIS_PRIVATE_OBSERVER_CANARY\"}");
+            foreach (bool enabled in new[] { true, false })
+            {
+                var output = new List<object>();
+                int code = FileOrphanObserver.RunWithDiagnostics(at =>
+                {
+                    FileOrphanObserver.ParseNotice(malformed.RootElement, at);
+                    return Task.FromResult(0);
+                }, enabled, output.Add).GetAwaiter().GetResult();
+                Check(code == 2 && output.Count == (enabled ? 1 : 0));
+                if (!enabled) continue;
+                string json = System.Text.Json.JsonSerializer.Serialize(output.Single());
+                using var value = System.Text.Json.JsonDocument.Parse(json);
+                FileWire.Shape(value.RootElement, "type", "stage");
+                Check(value.RootElement.GetProperty("type").GetString() == "failure" &&
+                    value.RootElement.GetProperty("stage").GetString() == "NoticeParse" &&
+                    !json.Contains("AEGIS_PRIVATE_OBSERVER_CANARY", StringComparison.Ordinal));
+            }
+        });
         test("normal terminal observer waits for all original objects and preserves actual exit codes", () =>
         {
             using var value = System.Text.Json.JsonDocument.Parse("{\"kind\":\"terminal\"}");

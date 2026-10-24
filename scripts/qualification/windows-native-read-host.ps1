@@ -330,24 +330,33 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
     Sample ('native-'+$Phase);Start-Sleep -Seconds 1
   } while([DateTime]::UtcNow -lt $deadline)
   if(-not $done) { throw 'Native-read phase deadline exceeded' }
-  $result=Invoke-Command -Session $Session -ArgumentList $Phase -ScriptBlock {
-    param($Phase)
+  $taskReader=(Get-Command Get-NativeReadTaskObservation -CommandType Function).ScriptBlock.ToString()
+  $completed=Invoke-Command -Session $Session -ArgumentList $Phase,$taskLaunch,$taskReader -ScriptBlock {
+    param($Phase,$Launch,[string]$TaskReader)
     $file='C:\aegis-native-read\'+$Phase+'-done.json'
     if((Get-Item -LiteralPath $file).Length -gt 64KB) { throw 'Native-read result budget' }
     $value=Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
     $task='AegisNativeRead-'+$Phase
-    $deadline=[DateTime]::UtcNow.AddSeconds(10)
-    do { $state=(Get-ScheduledTask -TaskName $task).State;if($state -ne 'Running') { break };Start-Sleep -Milliseconds 100 } while([DateTime]::UtcNow -lt $deadline)
-    if($state -eq 'Running' -or (Get-ScheduledTaskInfo -TaskName $task).LastTaskResult -ne 0) { throw 'Native-read phase task closure failed' }
-    Unregister-ScheduledTask -TaskName $task -Confirm:$false
-    return $value
+    $deadline=[DateTime]::UtcNow.AddSeconds(10);$previous=$null;$sample=$null
+    do {
+      $before=(Get-ScheduledTask -TaskName $task).State.ToString();$info=Get-ScheduledTaskInfo -TaskName $task;$after=(Get-ScheduledTask -TaskName $task).State.ToString()
+      $sample=& ([scriptblock]::Create($TaskReader)) $after ($info.LastRunTime.ToUniversalTime()) ([long]$info.LastTaskResult) ([datetime]$Launch.notBeforeUtc) ([datetime]$Launch.baselineLastRunUtc) $true ($before -ceq $after) $previous
+      $previous=$sample.terminalKey
+      if($sample.terminal) { break };Start-Sleep -Milliseconds 100
+    } while([DateTime]::UtcNow -lt $deadline)
+    $closed=$sample.terminal -and $sample.lastTaskResult -eq 0
+    if($closed) { Unregister-ScheduledTask -TaskName $task -Confirm:$false }
+    return @{value=$value;task=$sample;closureConfirmed=$closed}
   }
+  $report.phaseTasks[$Phase]=$completed.task;SaveReport
+  if(-not $completed.closureConfirmed) { throw 'Native-read phase task closure failed' }
+  $result=$completed.value
   if($result.status -cne 'PASS' -or $result.sourceSha -cne $env:GITHUB_SHA -or $result.sessionId -le 0 -or $result.integritySid -cne 'S-1-16-8192') { throw ('Native-read '+$Phase+' failed: '+$result.error) }
   return $result
 }
 
 function Copy-NativeReadEvidence($Session,[string]$Root) {
-  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/view.png')
+  $relative=@('capability/stdout.log','capability/stderr.log','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/view.png')
   $gitProof=Invoke-Command -Session $Session -ScriptBlock {
     $file='C:\aegis-native-read\evidence\git-reconstruction.json'
     if(-not (Test-Path -LiteralPath $file)) { return $false }
@@ -359,7 +368,7 @@ function Copy-NativeReadEvidence($Session,[string]$Root) {
   foreach($phase in @('prepare','resume','admission')) { $relative+=($phase+'-done.json');$relative+=($phase+'.log') }
   foreach($file in $relative) {
     $source=if($file -like '*-done.json' -or $file -notmatch '/') { 'C:\aegis-native-read\'+$file } else { 'C:\aegis-native-read\evidence\'+$file.Replace('/','\') }
-    $leafBudget=if($file -like '*/window-observation.json'){4096}else{2MB}
+    $leafBudget=if($file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json'){16384}else{2MB}
     $present=Invoke-Command -Session $Session -ArgumentList $source,$leafBudget -ScriptBlock {
       param($File,$Budget)
       if(-not (Test-Path -LiteralPath $File)) { return $false }

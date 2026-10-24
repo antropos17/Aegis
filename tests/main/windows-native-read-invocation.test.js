@@ -5,14 +5,264 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { probeRetainedObjectRelease } from '../../scripts/qualification/windows-native-read-support.mjs';
 import {
   portableGitCommand,
   portableGitFailure,
 } from '../../tools/development/cloud-native-read-git.mjs';
+import {
+  projectStartupDiagnostics,
+  retainStartupFailure,
+  waitForJournalReservation,
+} from '../../frontend/observatory/tests/etw-startup-evidence.mjs';
+import { observeCustodian } from '../../frontend/observatory/tests/etw-custodian-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const folders = [];
+function startupSnapshot() {
+  return {
+    phase: 'failed',
+    custodyObserved: true,
+    restartBlocked: true,
+    nativeProcessIds: [51, 52],
+    records: [{ path: 'PRIVATE_STARTUP_CANARY' }],
+    endpoint: 'PRIVATE_STARTUP_CANARY',
+    summaries: [
+      {
+        phase: 'failed',
+        exitCode: 2,
+        collectorExit: null,
+        brokerExit: null,
+        capture: null,
+        reasons: ['protocol-failed', 'stream-ended', 'PRIVATE_STARTUP_CANARY'],
+        mainPerformance: {
+          decodeChunk: { calls: '1', failed: '1', totalTicks: '10', maxTicks: '10' },
+        },
+      },
+    ],
+  };
+}
+function startupObserver() {
+  return {
+    child: { exitCode: 2, signalCode: null },
+    stop: () => {},
+    getDiagnostics: () => ({
+      exitCode: 2,
+      signal: null,
+      errorCode: 'native-failure',
+      failureStage: 'OriginalHandleObservation',
+      stderrBytes: 0,
+      stdoutBytes: 100,
+      pendingBytes: 0,
+    }),
+    events: () => [
+      { type: 'endpoint', address: 'PRIVATE_STARTUP_CANARY' },
+      { type: 'failure', stage: 'OriginalHandleObservation' },
+    ],
+  };
+}
+function observerChild() {
+  return Object.assign(new EventEmitter(), {
+    stdout: new EventEmitter(),
+    stderr: new EventEmitter(),
+    exitCode: null,
+    signalCode: null,
+    kill: () => {},
+  });
+}
+describe('startup failure evidence and reservation observation', () => {
+  it('retains actual codes/custody/timing without relabeling transport exit or retaining private data', () => {
+    const source = startupSnapshot();
+    const recoveryReasons = [
+      'recovery-consent-pending',
+      'stage-loss-unmeasured',
+      'recovery-verified',
+      'collector-and-guard-exited',
+      'all-three-helpers-exited',
+      'broker-and-all-helpers-exited',
+      'transport-gap',
+    ];
+    source.summaries[0].reasons.push(...recoveryReasons);
+    const projected = projectStartupDiagnostics(source);
+    expect(projected).toMatchObject({
+      custodyObserved: true,
+      nativeProcessIds: [51, 52],
+      summaries: [
+        {
+          transportExitCode: 2,
+          collectorExit: null,
+          brokerExit: null,
+          capture: null,
+          reasons: ['protocol-failed', 'stream-ended', ...recoveryReasons],
+          mainPerformance: { decodeChunk: { failed: '1' } },
+        },
+      ],
+    });
+    source.summaries[0].exitCode = 99;
+    expect(projected.summaries[0].transportExitCode).toBe(2);
+    expect(JSON.stringify(projected)).not.toContain('PRIVATE_STARTUP_CANARY');
+  });
+  it('writes pre-cleanup snapshots and native observer stage before closing either owned process', async () => {
+    const out = directory(),
+      order = [],
+      observer = startupObserver();
+    const file = path.join(out, 'startup-failure.json');
+    observer.stop = () => {
+      expect(fs.existsSync(file)).toBe(true);
+      order.push('observer-stop');
+    };
+    await retainStartupFailure({
+      out,
+      stage: 'journal-reservation',
+      lastObserved: startupSnapshot(),
+      observer,
+      readDiagnostics: async () => {
+        order.push('read');
+        return startupSnapshot();
+      },
+      closeMain: async () => {
+        expect(fs.existsSync(file)).toBe(true);
+        order.push('main-close');
+      },
+    });
+    const receipt = JSON.parse(fs.readFileSync(file, 'utf8'));
+    expect(receipt).toMatchObject({
+      capturedBeforeCleanup: true,
+      lastObserved: { custodyObserved: true },
+      beforeCleanup: { custodyObserved: true },
+      observer: {
+        exitCode: 2,
+        errorCode: 'native-failure',
+        failureStage: 'OriginalHandleObservation',
+        events: [{ type: 'failure', stage: 'OriginalHandleObservation' }],
+      },
+    });
+    expect(order).toEqual(['read', 'main-close', 'observer-stop']);
+    expect(fs.statSync(file).size).toBeLessThanOrEqual(16384);
+    expect(JSON.stringify(receipt)).not.toContain('PRIVATE_STARTUP_CANARY');
+  });
+  it('preserves the last actual summary when fresh main evaluation is unavailable', async () => {
+    const out = directory(),
+      observer = startupObserver();
+    let closed = false,
+      stopped = false;
+    observer.stop = () => {
+      stopped = true;
+    };
+    await retainStartupFailure({
+      out,
+      stage: 'journal-reservation',
+      lastObserved: startupSnapshot(),
+      observer,
+      readDiagnostics: async () => {
+        throw Error('PRIVATE_STARTUP_CANARY');
+      },
+      closeMain: async () => {
+        closed = true;
+      },
+    });
+    const receipt = JSON.parse(fs.readFileSync(path.join(out, 'startup-failure.json'), 'utf8'));
+    expect(receipt.beforeCleanup).toBeNull();
+    expect(receipt.lastObserved.summaries[0].transportExitCode).toBe(2);
+    expect(closed && stopped).toBe(true);
+    expect(JSON.stringify(receipt)).not.toContain('PRIVATE_STARTUP_CANARY');
+  });
+  it('rechecks a reservation arriving during awaited main diagnostics before interpreting terminal capture', async () => {
+    let arrived = false,
+      snapshots = 0;
+    const reservation = { type: 'reserved', originalObjectsObserved: true };
+    const observer = {
+      assertAvailable: () => {},
+      events: () => (arrived ? [reservation] : []),
+      until: async (predicate) => {
+        expect(predicate(reservation)).toBe(true);
+        return reservation;
+      },
+    };
+    await expect(
+      waitForJournalReservation({
+        observer,
+        readDiagnostics: async () => {
+          arrived = true;
+          return startupSnapshot();
+        },
+        onSnapshot: () => {
+          snapshots++;
+        },
+        pause: async () => {
+          throw Error('Unexpected pause');
+        },
+      }),
+    ).resolves.toBe(reservation);
+    expect(snapshots).toBe(1);
+  });
+  it('surfaces an actual stored observer failure before unrelated main-capture diagnostics', async () => {
+    let reads = 0;
+    const observer = {
+      events: () => [],
+      assertAvailable: () => {
+        throw Error('Observer failed: native-failure:NoticeParse');
+      },
+    };
+    await expect(
+      waitForJournalReservation({
+        observer,
+        readDiagnostics: async () => {
+          reads++;
+          return startupSnapshot();
+        },
+        onSnapshot: () => {},
+      }),
+    ).rejects.toThrow('Observer failed: native-failure:NoticeParse');
+    expect(reads).toBe(0);
+  });
+  it('retains a closed native failure event and refuses to use it as reservation authority', async () => {
+    const child = observerChild();
+    const observer = observeCustodian('never-executed', 'owned-output', {}, true, {
+      spawnProcess: () => child,
+    });
+    child.stdout.emit(
+      'data',
+      Buffer.from(
+        '{"type":"endpoint","address":"PRIVATE_STARTUP_CANARY"}\n{"type":"failure","stage":"NoticeParse"}\n',
+      ),
+    );
+    expect(observer.getDiagnostics()).toMatchObject({
+      errorCode: 'native-failure',
+      failureStage: 'NoticeParse',
+    });
+    expect(observer.events()).toEqual([{ type: 'failure', stage: 'NoticeParse' }]);
+    await expect(observer.until(() => true, 100)).rejects.toThrow(
+      'Observer failed: native-failure:NoticeParse',
+    );
+  });
+  it('rejects unrecognized failure stages without retaining arbitrary observer data', async () => {
+    const child = observerChild();
+    const observer = observeCustodian('never-executed', 'owned-output', {}, false, {
+      spawnProcess: () => child,
+    });
+    child.stdout.emit('data', Buffer.from('{"type":"failure","stage":"PRIVATE_STARTUP_CANARY"}\n'));
+    expect(observer.getDiagnostics()).toMatchObject({
+      errorCode: 'frame-refused',
+      failureStage: null,
+    });
+    expect(observer.events()).toEqual([]);
+    await expect(observer.until(() => true, 100)).rejects.toThrow('Observer failed: frame-refused');
+  });
+  it('preserves a drained successful observation even after its original observer exits', async () => {
+    const child = observerChild();
+    const observer = observeCustodian('never-executed', 'owned-output', {}, false, {
+      spawnProcess: () => child,
+    });
+    child.stdout.emit('data', Buffer.from('{"type":"terminal","custodianExit":0}\n'));
+    child.exitCode = 0;
+    await expect(observer.until((v) => v.type === 'terminal', 100)).resolves.toEqual({
+      type: 'terminal',
+      custodianExit: 0,
+    });
+  });
+});
 describe('portable Git closed execution diagnostics', () => {
   it('uses the actual command executor boundary and preserves successful output', () => {
     const trace = { stage: 'version', commandKind: 'version', commands: 0 };
@@ -323,6 +573,13 @@ try {
       $value=& $entry $sample.state $sample.run $sample.result $launch $baseline $sample.seen $sample.stable $previous
       if($value.started -isnot [bool] -or $value.terminal -isnot [bool] -or $value.started -ne $sample.started -or $value.terminal -ne $sample.terminal -or $value.lastTaskResult -ne $sample.result -or $value.state -cne $sample.state) { throw 'fixture-task-classification' };$cases++
     }
+    # The success receipt can exist before Scheduler publishes the terminal result.
+    $previous=$null;$accepted=@()
+    foreach($publication in @(@{state='Running';result=0x41301},@{state='Ready';result=0x41301},@{state='Ready';result=0},@{state='Ready';result=0})) {
+      $value=& $entry $publication.state $launch $publication.result $launch $baseline $true $true $previous
+      $previous=$value.terminalKey;$accepted+=($value.terminal -and $value.lastTaskResult -eq 0)
+    }
+    if($accepted.Count -ne 4 -or $accepted[0] -or $accepted[1] -or $accepted[2] -or -not $accepted[3]) { throw 'fixture-task-done-publication' };$cases++
     $refused=$false
     try { [void](& $entry 'Unexpected' $launch 1 $launch $baseline $false $true) }
     catch { if($_.Exception.Message -cne 'Native task observation refused') { throw 'fixture-task-refusal-code' };$refused=$true }
@@ -339,6 +596,7 @@ try {
     'fixture-bundle-hash-manifest-changed' {'hash-fixture-changed'}
     'fixture-bundle-refusal-code' {'unexpected-refusal'}
     'fixture-bundle-mutation-survived' {'guard-survived'}
+    'fixture-task-done-publication' {'task-done-publication'}
     'Native input manifest refused' {'manifest-shape'}
     'Input manifest mismatch' {'input-mismatch'}
     'Native input verifier refused' {'verifier-input'}
@@ -378,7 +636,7 @@ describe.skipIf(process.platform !== 'win32')(
   () => {
     it.each([
       ['bundle', 4],
-      ['task', 19],
+      ['task', 20],
     ])(
       'checks actual %s feedback boundaries in Windows PowerShell 5.1',
       (scenario, cases) => {
