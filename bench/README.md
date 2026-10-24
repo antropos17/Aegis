@@ -17,6 +17,13 @@ bounded preparation library for per-lifetime CPU, resident memory and per-run
 estimates. Its fixture tests qualify arithmetic and refusal behavior only; it
 adds no collector, measured overhead or W8 acceptance.
 
+The [own-Node acquisition session](../docs/bench/SELF_RESOURCE_SESSION.md)
+connects the existing self sampler to retained raw observations and conditional
+acquisition-window intervals. It writes a predeclared waiting-only plan and
+source inventory before sampling, then preserves incomplete acquisition and
+publication failures. Its scope is the calling Node process; product/cohort
+footprint, calibrated overhead and full W8 acceptance remain open.
+
 [Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
 caller-declared profile and same-run receipt, normalizing only successful
 positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified
