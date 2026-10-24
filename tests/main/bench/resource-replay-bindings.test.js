@@ -163,10 +163,16 @@ describe('surviving resource declarations and binding consistency (CI only)', ()
       expect(inspect(fixture).exitCode).toBe(4);
     },
   );
-  it.each([0, null])(
-    'refuses a reported wall-limit with impossible elapsed %s',
-    async (elapsedMs) => {
+  it.each([
+    { elapsedMs: 0, missingPlan: false },
+    { elapsedMs: null, missingPlan: false },
+    { elapsedMs: 9999, missingPlan: false },
+    { elapsedMs: null, missingPlan: true },
+  ])(
+    'refuses impossible wall timing $elapsedMs with missingPlan=$missingPlan',
+    async ({ elapsedMs, missingPlan }) => {
       const fixture = await createBundle();
+      if (missingPlan) fs.unlinkSync(path.join(fixture.input, 'supervision-plan.json'));
       writeJson(fixture.input, 'supervision-final.json', (v) => {
         v.state = 'failed';
         v.supervision.cause = 'wall-limit';
