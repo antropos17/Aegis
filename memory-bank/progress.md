@@ -3894,6 +3894,22 @@ failed all five new refusal cases, and the fixed actual-hook fixture passed ten
 cases without starting build subprocesses. Native platform qualification and
 full W10 acceptance remain open; hosted CI is the separate merge gate.
 
+## W5 Cedar literal encoding and discriminating equivalence cases — 2026-10-24
+
+The schema-3 translator now emits Cedar Unicode escapes for accepted control
+characters in exact executable and working-directory predicates. Literal
+backslashes stay distinct. Generated field mutations begin from matching actions,
+including the empty environment-value case, so unrelated mismatches cannot hide
+the predicate being checked.
+
+The unchanged translator failed both new path compilation regressions. The fix
+passed 31 focused tests across five suites, including 10,000 generated inputs
+with seed 6221251. An environment-value-erasure fault failed the relevant
+behavioral assertion; the schema was restored byte-for-byte. Seven affected
+tests passed after the final test-only refinement. Scoped lint, formatting and
+the configured main typecheck passed; main checkJs remains false. Production
+activation, native resource qualification and full W5 acceptance remain open.
+
 ## W8 own-Node resource acquisition session — 2026-10-24
 
 Added an explicit CLI joining the existing own-process sampler to retained raw

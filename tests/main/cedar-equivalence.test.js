@@ -112,15 +112,15 @@ describe('Cedar generated equivalence', () => {
         let request = actions[kind % 4];
         switch (kind) {
           case 4:
-            request = { ...base, executable: base.executable + literal };
+            request = { ...actions[0], executable: base.executable + literal };
             touched.add('executable');
             break;
           case 5:
-            request = { ...base, cwd: base.cwd + '/' + literal };
+            request = { ...actions[0], cwd: base.cwd + '/' + literal };
             touched.add('cwd');
             break;
           case 6:
-            request = { ...base, args: [literal, 'base'] };
+            request = { ...actions[0], args: [literal, 'base'] };
             touched.add('args-value');
             break;
           case 7:
@@ -128,23 +128,23 @@ describe('Cedar generated equivalence', () => {
             touched.add('args-order');
             break;
           case 8:
-            request = { ...base, args: [] };
+            request = { ...actions[0], args: [] };
             touched.add('args-empty');
             break;
           case 9:
-            request = { ...base, args: [literal, '\n\t"\\Ş🚀'] };
+            request = { ...actions[0], args: [literal, '\n\t"\\Ş🚀'] };
             touched.add('args-escaping');
             break;
           case 10:
-            request = { ...base, env: { ...base.env, A: literal } };
+            request = { ...actions[0], env: { ...base.env, A: nonce + literal } };
             touched.add('env-value');
             break;
           case 11:
-            request = { ...base, env: {} };
+            request = { ...actions[0], env: {} };
             touched.add('env-empty');
             break;
           case 12:
-            request = { ...base, env: { ...base.env, EXTRA: literal } };
+            request = { ...actions[0], env: { ...base.env, EXTRA: literal } };
             touched.add('env-extra');
             break;
           case 13:
@@ -152,27 +152,27 @@ describe('Cedar generated equivalence', () => {
             touched.add('env-order');
             break;
           case 14:
-            request = { ...base, env: { lower: literal } };
+            request = { ...actions[0], env: { lower: literal } };
             touched.add('invalid-env');
             break;
           case 15:
-            request = { ...base, args: [literal + '\0'] };
+            request = { ...actions[0], args: [literal + '\0'] };
             touched.add('invalid-args');
             break;
           case 16:
-            request = { ...base, unknown: literal };
+            request = { ...actions[0], unknown: literal };
             touched.add('unknown-field');
             break;
           case 17:
-            request = { ...base, executable: literal };
+            request = { ...actions[0], executable: literal };
             touched.add('invalid-path');
             break;
           case 18:
-            request = { ...base, env: { NODE_V8_COVERAGE: literal } };
+            request = { ...actions[0], env: { NODE_V8_COVERAGE: literal } };
             touched.add('coverage-env');
             break;
           case 19:
-            request = { ...base, args: [literal], env: { A: '', B: 'literal' } };
+            request = { ...actions[0], env: { A: '', B: 'literal' } };
             touched.add('env-empty-value');
             break;
         }

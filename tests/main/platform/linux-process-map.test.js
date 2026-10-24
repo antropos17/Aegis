@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import readerModule from '../../../src/main/platform/linux-process-map.js';
+import platform from '../../../src/main/platform/index.js';
 import scanner from '../../../src/main/process-scanner.js';
 import utils from '../../../src/main/process-utils.js';
 import sessions from '../../../src/main/session-tracker.js';
@@ -121,6 +122,75 @@ describe('Linux procfs birth observations', () => {
     expect(fs.readFileSync.mock.calls.filter(([p]) => p === '/proc/100/stat')).toHaveLength(2);
   });
 
+  it('preserves fresh process generations when a peer has an empty comm', async () => {
+    files.set('/proc/200/stat', stat(200, '', 1, 10000));
+    const first = await reader.getParentProcessMap();
+    expect(first.size).toBe(2);
+    expect(first.get(100)).toEqual({
+      name: 'claude',
+      ppid: 200,
+      startTime: BOOT_SECONDS * 1000 + 123450,
+      witness: `${BOOT_ID}:12345`,
+      witnessSource: 'linuxStartTicks',
+    });
+    expect(first.get(200)).toEqual({
+      name: '',
+      ppid: 1,
+      startTime: BOOT_SECONDS * 1000 + 100000,
+      witness: `${BOOT_ID}:10000`,
+      witnessSource: 'linuxStartTicks',
+    });
+    expect(reader.getSnapshotHealth().state).toBe('HEALTHY');
+    files.set('/proc/200/stat', stat(200, '', 1, 10001));
+    const second = await reader.getParentProcessMap();
+    expect(second.get(100)).toEqual(first.get(100));
+    expect(second.get(200)).toEqual({
+      ...first.get(200),
+      startTime: BOOT_SECONDS * 1000 + 100010,
+      witness: `${BOOT_ID}:10001`,
+    });
+    expect(reader.getSnapshotHealth().state).toBe('HEALTHY');
+    expect(exec.mock.calls.map(([command]) => command)).toEqual(['getconf']);
+  });
+
+  it('keeps agent sessions when empty comm triggers reserve enumeration', async () => {
+    const listProcesses = vi.fn(async () => [
+      { pid: 100, name: 'claude' },
+      { pid: 200, name: '' },
+    ]);
+    scanner._resetForTest();
+    utils._resetForTest();
+    sessions._resetForTest();
+    scanner._setPlatformForTest({ providesStartTime: true, ...reader, listProcesses });
+    utils._setPlatformForTest({ providesStartTime: true });
+    async function pass() {
+      const result = await scanner.scanProcesses({ sharedObservation: true });
+      await utils.enrichWithParentChains(result.agents, { processMap: result.processMap });
+      return result;
+    }
+    try {
+      const first = await pass();
+      expect(first.agents.map((agent) => agent.pid)).toEqual([100]);
+      expect(sessions.reconcile(first.agents).entered).toHaveLength(1);
+      expect(listProcesses).not.toHaveBeenCalled();
+      files.set('/proc/200/stat', stat(200, '', 1, 10000));
+      const next = await pass();
+      expect(listProcesses).toHaveBeenCalledOnce();
+      expect(next.agents.map((agent) => agent.pid)).toEqual([100]);
+      expect(next.agents[0]).toMatchObject({
+        instanceId: first.agents[0].instanceId,
+        instanceIdSource: 'os',
+        generationWitnessSource: 'linuxStartTicks',
+        startTime: BOOT_SECONDS * 1000 + 123450,
+      });
+      expect(reader.getSnapshotHealth().state).toBe('HEALTHY');
+      expect(scanner.isIdentityDegraded()).toBe(false);
+      expect(sessions.reconcile(next.agents)).toEqual({ entered: [], exited: [] });
+    } finally {
+      scanner._setPlatformForTest({ listProcesses: platform.listProcesses });
+    }
+  });
+
   it('parses comm containing parentheses, a state-looking substring and a newline', async () => {
     files.set('/proc/100/stat', stat(100, 'a) R 99\n (b)', 200, 12345));
     expect((await reader.getParentProcessMap()).get(100)).toMatchObject({
@@ -202,6 +272,9 @@ describe('Linux procfs birth observations', () => {
     ['denied stat', '/proc/100/stat', Object.assign(Error('private path'), { code: 'EACCES' })],
     ['truncated stat', '/proc/100/stat', '100 (claude) S 200'],
     ['wrong PID', '/proc/100/stat', stat(101, 'claude', 200, 12345)],
+    ['empty comm with wrong PID', '/proc/100/stat', stat(101, '', 200, 12345)],
+    ['empty comm with truncated stat', '/proc/100/stat', '100 () S 200'],
+    ['empty comm with invalid ticks', '/proc/100/stat', stat(100, '', 200, 'invalid')],
     ['unsafe birth time', '/proc/100/stat', stat(100, 'claude', 200, '999999999999999999999')],
     ['invalid boot time', '/proc/stat', 'btime 1e9\n'],
     ['invalid boot ID', BOOT_PATH, 'not-a-boot-id'],
