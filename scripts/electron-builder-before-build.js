@@ -18,11 +18,17 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 
 /** Build fresh runtime artifacts before packaging; propagate any build failure.
- * @param {{platform?: {name?: string}}} context electron-builder target context.
+ * @param {{platform?: {name?: string}, arch?: string}} context electron-builder target context.
  * @returns {boolean} Continue electron-builder's dependency step after success.
  * @since 0.18.0
  */
 module.exports = function beforeBuild(context) {
+  const target = context && context.platform && context.platform.name;
+  if (target === 'windows' && context.arch !== 'x64') {
+    throw new Error(
+      `Windows packaging requires x64: native helpers are built only for x64 (requested ${context.arch ?? 'missing'}).`,
+    );
+  }
   const projectRoot = path.resolve(__dirname, '..');
   const viteCli = path.join(path.dirname(require.resolve('vite/package.json')), 'bin/vite.js');
   console.log('[before-build] building the production desktop renderer');
@@ -38,7 +44,6 @@ module.exports = function beforeBuild(context) {
     ],
     { cwd: projectRoot, env: { ...process.env, NODE_ENV: 'production' }, stdio: 'inherit' },
   );
-  const target = context && context.platform && context.platform.name;
   if (target !== 'windows') {
     console.log(`[before-build] target "${target}" needs no sidecar — skipping`);
     return true;

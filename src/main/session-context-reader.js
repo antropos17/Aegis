@@ -14,9 +14,9 @@ const KEYS = ['kind', 'symlink', 'reparse', 'volumeId', 'fileId', 'size', 'mtime
 
 /** Capture a provider-proved regular, non-link identity/version without references.
  * Unknown regularity, reparse state, identity or exact timestamps is unavailable.
- * @param {unknown} value @returns {Readonly<FileStamp>|null}
+ * @param {unknown} value @param {number} [maxSize] @returns {Readonly<FileStamp>|null}
  */
-function stamp(value) {
+function stamp(value, maxSize = MAX_BYTES) {
   if (!value || typeof value !== 'object') return null;
   const own = Reflect.ownKeys(value),
     descriptors = Object.getOwnPropertyDescriptors(value);
@@ -39,7 +39,7 @@ function stamp(value) {
     typeof row.size !== 'number' ||
     !Number.isSafeInteger(row.size) ||
     row.size < 0 ||
-    row.size > MAX_BYTES ||
+    row.size > maxSize ||
     typeof row.mtimeNs !== 'string' ||
     typeof row.ctimeNs !== 'string' ||
     !/^(?:0|[1-9]\d{0,19})$/.test(row.mtimeNs) ||
@@ -99,7 +99,7 @@ function explicitPath(file, style) {
 }
 
 /**
- * Create a complete-file reader through explicitly injected, caller-owned IO.
+ * Create complete-file and opt-in JSONL tail readers through caller-owned IO.
  * No default fs/home discovery, runtime caller, logging, persistence or binding.
  * Providers must prove regularity/no links (including reparse points), stable
  * volume/file identity and exact version metadata on path and handle. openRead
@@ -110,8 +110,10 @@ function explicitPath(file, style) {
  * Adapter.parse must be the trusted owner's synchronous metadata-only parser.
  * Buffer clearing is best effort for owned buffers, never secure erasure of JS
  * parser strings, copied data, kernel buffers or bytes retained by the provider.
+ * Tail reads require positioned IO and large-file metadata from that provider;
+ * this does not extend the separate sequential native Windows provider.
  * @param {{adapter:Adapter,files:FileProvider}} options Explicit owner dependencies.
- * @returns {{read:(source:string,file:string,selection:Selection)=>Promise<object>}}
+ * @returns {{read:(source:string,file:string,selection:Selection)=>Promise<object>,readTail:(source:string,file:string,selection:Selection)=>Promise<object>}}
  * @since v0.19.2
  */
 function createSessionContextReader(options) {
@@ -125,12 +127,13 @@ function createSessionContextReader(options) {
     throw new Error('session-reader-invalid-options');
   const { adapter, files } = options;
 
-  /** Read only the explicitly selected complete file; failures pass null bytes.
+  /** Read explicitly selected bytes; failures pass null bytes.
    * @param {string} source @param {string} file @param {Selection} selection
+   * @param {boolean} tail Whether the caller explicitly selected JSONL tail IO.
    * @returns {Promise<object>} Exact adapter projection, with no reader metadata.
    * @since v0.19.2
    */
-  async function read(source, file, selection) {
+  async function readSelected(source, file, selection, tail) {
     const selectedSource = ['claude-code', 'codex', 'gemini-cli'].includes(source)
       ? source
       : 'unsupported';
@@ -138,16 +141,20 @@ function createSessionContextReader(options) {
       probe = null;
     /** @type {ReadHandle|null} */ let handle = null;
     /** @type {boolean} */ let complete;
+    let selected = selection,
+      start = 0;
+    const maxSize = tail ? Number.MAX_SAFE_INTEGER : MAX_BYTES;
     try {
       if (
         selectedSource === 'unsupported' ||
         !explicitPath(file, files.pathStyle) ||
         !selection ||
+        (tail && selection.format !== 'jsonl') ||
         selection.headTruncated ||
         selection.tailTruncated
       )
         throw new Error();
-      const before = stamp(await files.statPath(file));
+      const before = stamp(await files.statPath(file), maxSize);
       if (!before) throw new Error();
       handle = await files.openRead(file);
       if (
@@ -157,22 +164,24 @@ function createSessionContextReader(options) {
         typeof handle.close !== 'function'
       )
         throw new Error();
-      if (!same(before, stamp(await handle.stat()))) throw new Error();
-      bytes = Buffer.alloc(before.size);
+      if (!same(before, stamp(await handle.stat(), maxSize))) throw new Error();
+      start = Math.max(0, before.size - MAX_BYTES);
+      if (start > 0) selected = { ...selection, headTruncated: true };
+      bytes = Buffer.alloc(before.size - start);
       probe = Buffer.alloc(1);
       let position = 0,
         calls = 0;
       while (position < bytes.length) {
         if (++calls > 16) throw new Error();
         const length = Math.min(CHUNK_BYTES, bytes.length - position);
-        const count = await handle.read(bytes, position, length, position);
+        const count = await handle.read(bytes, position, length, start + position);
         if (!Number.isSafeInteger(count) || count <= 0 || count > length) throw new Error();
         position += count;
       }
-      if ((await handle.read(probe, 0, 1, position)) !== 0) throw new Error();
+      if ((await handle.read(probe, 0, 1, start + position)) !== 0) throw new Error();
       if (
-        !same(before, stamp(await handle.stat())) ||
-        !same(before, stamp(await files.statPath(file)))
+        !same(before, stamp(await handle.stat(), maxSize)) ||
+        !same(before, stamp(await files.statPath(file), maxSize))
       )
         throw new Error();
       complete = true;
@@ -188,14 +197,38 @@ function createSessionContextReader(options) {
         }
     }
     try {
-      return adapter.parse(selectedSource, complete ? bytes : null, selection);
+      // Keep the first LF as an empty sentinel for the parser's head discard.
+      // Decode only after removing the possibly split leading UTF-8 codepoint.
+      const firstLine = start > 0 && bytes ? bytes.indexOf(10) : -1;
+      const parsedBytes =
+        start > 0 && bytes ? bytes.subarray(firstLine < 0 ? bytes.length : firstLine) : bytes;
+      return adapter.parse(selectedSource, complete ? parsedBytes : null, selected);
     } catch {
       throw new Error('session-reader-unavailable');
     } finally {
       bytes?.fill(0);
     }
   }
-  return Object.freeze({ read });
+  /** Read the complete selected file, up to 512 KiB.
+   * @param {string} source @param {string} file @param {Selection} selection
+   * @returns {Promise<object>} Exact metadata-only adapter projection.
+   * @since v0.19.2
+   */
+  function read(source, file, selection) {
+    return readSelected(source, file, selection, false);
+  }
+
+  /** Read at most the final 512 KiB of explicitly selected JSONL.
+   * A removed leading byte line always makes the source incomplete. No session
+   * headers or binding evidence are synthesized for a tail lacking them.
+   * @param {string} source @param {string} file @param {Selection} selection
+   * @returns {Promise<object>} Exact metadata-only adapter projection.
+   * @since v0.20.1
+   */
+  function readTail(source, file, selection) {
+    return readSelected(source, file, selection, true);
+  }
+  return Object.freeze({ read, readTail });
 }
 
 module.exports = { createSessionContextReader };
