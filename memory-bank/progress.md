@@ -3967,3 +3967,24 @@ syntax, scoped formatting and diff inspection because of host disk pressure;
 behavioral execution and the full mandatory gates run in CI. This is a W8
 prerequisite only: product/helper population, calibration, measurement acceptance,
 OS containment and an externally enforced deadline for the parent remain open.
+
+## W5 explicit schema-2 Cedar preparation — 2026-10-25
+
+An explicit schema-2 translator now shares the existing exact-predicate emitter
+while preserving both version-specific entrypoints. Schema 2 never gains review
+annotations. Original schema-2/3 production preparation still uses the legacy
+evaluator; no migration or production translator caller was added.
+
+The standalone Node/WASM gate passed 44 tests across eight suites, including
+10,000 selected-JSON-valid schema-2 requests and 10,000 actual official WASM
+calls with seed 5426906. Three temporary semantic faults failed behavioral
+assertions and were restored byte-for-byte. The preliminary TypeError probe is
+preserved separately and excluded from those kills. Scoped format/lint/diff
+checks have zero-exit receipts. Local Electron setup was omitted because the
+available dependency tree had an older Electron; unchanged configured hosted
+CI remains the separate merge gate.
+
+Preparation equivalence is bounded to selected-JSON-valid descriptors and
+translated files fitting the existing selected-file limit. Explicit regressions
+retain lone-surrogate refusal and oversized-envelope refusal without launch.
+Broader policy families, native resource qualification and full W5 remain open.
