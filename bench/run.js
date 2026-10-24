@@ -100,6 +100,7 @@ const {
 } = require('./lib/report');
 const sensor = require('./lib/sensor');
 const sysmon = require('./lib/oracles/sysmon');
+const { writeFixtureOutcomes } = require('./lib/fixture-outcomes');
 
 /** @type {string} Where run directories are created. Gitignored. */
 const RUNS_DIR = path.join(manifest.ROOT, 'bench', 'runs');
@@ -874,7 +875,12 @@ async function main(argv) {
         }
       }
 
-      const outcome = await actor.execute(scenario, { runDir: dir, homeDir: scenarioHomeDir, log });
+      const outcome = await actor.execute(scenario, {
+        runDir: dir,
+        homeDir: scenarioHomeDir,
+        runId,
+        log,
+      });
 
       /** @type {Object|null} */
       let capture = null;
@@ -899,13 +905,18 @@ async function main(argv) {
       // Only now — the catalogue is a file inside the watched project directory,
       // and writing it while the sensor is live would put a file creation the
       // harness made for itself into the sensor's own answer.
-      const cataloguePath = catalogue.write(dir, outcome.events);
+      const { cataloguePath, stepsPath } = writeScenarioArtifacts({
+        dir,
+        runId,
+        scenario,
+        arm: args.arm,
+        outcome,
+      });
       console.log(`written ${cataloguePath} (${outcome.events.length} expected event(s))`);
 
       // Beside the catalogue and never inside it: the catalogue holds the events
       // that happened, and this holds what every DECLARED step did — including
       // the ones that emitted nothing because they never ran.
-      const stepsPath = writeSteps({ dir, runId, scenario, arm: args.arm, steps: outcome.steps });
       const notExecuted = outcome.steps.filter((step) => step.status !== 'ok').length;
       console.log(
         `written ${stepsPath} (${outcome.steps.length} step(s), ${notExecuted} that did not execute)`,
@@ -1010,7 +1021,30 @@ if (require.main === module) {
   );
 }
 
+/**
+ * Persist scenario artifacts after capture has stopped, preserving legacy writers.
+ * @param {object} opts Run identity, prepared scenario and actual actor outcome.
+ * @returns {object} Paths of the written artifacts.
+ * @since unreleased
+ */
+function writeScenarioArtifacts(opts) {
+  const cataloguePath = catalogue.write(opts.dir, opts.outcome.events);
+  const stepsPath = writeSteps({ ...opts, steps: opts.outcome.steps });
+  const fixturePath =
+    opts.outcome.fixtureOutcomes === undefined
+      ? null
+      : writeFixtureOutcomes({
+          dir: opts.dir,
+          runId: opts.runId,
+          scenario: opts.scenario,
+          arm: opts.arm,
+          outcomes: opts.outcome.fixtureOutcomes,
+        });
+  return { cataloguePath, stepsPath, fixturePath };
+}
+
 module.exports = {
+  writeScenarioArtifacts,
   MAX_LATENCY_INTERVALS,
   NO_SCENARIO,
   ORACLE_ARMS,

@@ -3750,3 +3750,27 @@ files were restored byte-for-byte and all 118 tests passed again. Independent
 requirements, logic and test-evidence reviews passed after correcting non-string
 status coercion and strengthening the relevant tests. Derived counts, focused
 lint, formatting and syntax checks passed. Exact hosted CI remains the merge gate.
+
+## W8 executable owned loopback scenario — 2026-10-24
+
+Connected the existing bounded Node loopback control to S7, the scenario actor,
+catalogue and production runner. The catalogue records only observed sender
+write completion and its byte count. A separate fresh-only fixture-outcomes.json
+preserves receiver hashes, counts, uncertainty and cleanup with the actual run,
+scenario, step and generated nonce. Outcomes are written after capture stops;
+legacy scenarios retain their existing artifacts.
+
+The actual ephemeral loopback and runner path execute in focused tests. A
+controlled sensor failure verifies persistence order without launching Electron.
+Injected negative receipts distinguish sender execution from receiver outcome.
+Network expectations remain retained at category-not-scored, outside all four
+existing measurable sensor denominators. OS confirmation, agent attribution,
+network scoring, ATT&CK mapping and W8/T8 acceptance remain open.
+
+Validation on Node 24.20.0 passed 199 tests across seven focused and neighboring
+suites. Ten temporary source faults were detected at their intended behavioral
+boundaries. Production files were restored byte-for-byte and all 199 tests passed
+again. Independent requirements, logic and test-evidence reviews passed after
+requiring enumerable receipt fields and strengthening the discriminating tests.
+Focused lint, formatting, syntax and diff checks passed. Exact hosted CI remains
+the merge gate.
