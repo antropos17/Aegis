@@ -231,6 +231,12 @@ bounds means qualification is not ready. Failed runs remain in the record;
 replacement-run reasons and all IDs are disclosed. Do not select tolerances or
 discard outliers after seeing results.
 
+The [offline reproducibility evaluator](REPRODUCIBILITY.md) applies this rule to
+three declared repetitions with explicit per-cell bounds. It retains failed or
+incomplete repetitions and does not select replacement runs. Its hash and time
+checks validate agreement between supplied declarations; they cannot establish
+prior freezing, authentic capture or complete disclosure of the run history.
+
 ## Reproducibility, privacy and execution prerequisites
 
 Future immutable run IDs and comparison group keys must bind commit, clean source

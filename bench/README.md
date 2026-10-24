@@ -23,6 +23,12 @@ positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified
 export profile, catalogue confirmation or scoring integration; loss and
 completeness remain unknown.
 
+[Offline three-run reproducibility](../docs/bench/REPRODUCIBILITY.md) evaluates
+supplied per-run estimates against explicit, declared variance bounds. It retains
+each planned repetition and evaluates each metric cell separately. Its result
+describes the supplied arithmetic; collection and W8 acceptance require their
+own evidence.
+
 For each scenario the bench **generates an expected-event catalogue as a by-product of
 running a deterministic script**, then confirms every row of that catalogue against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
