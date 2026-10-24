@@ -33,7 +33,7 @@ function renderCorpusTable(report) {
     '',
     'Artifact and step observations only. Capture assessment: not-assessed. Oracle admission, sensor scoring and ATT&CK mapping: not-performed. measurementAccepted=false; w8Accepted=false.',
     '',
-    'Current definitions are inventory only; executedDefinitionMatch=unverified for every attempt. No metrics, rates or measurement acceptance are derived.',
+    'Definition comparison uses recorded loaded-byte declarations and current inventory. Legacy attempts remain unverified. Endpoint source checks do not establish unchanged bytes throughout execution or authenticated capture. No metrics, rates or measurement acceptance are derived.',
     '',
     '| Inventory scenario | Status | Supplied attempts | Current definition SHA-256 |',
     '| --- | --- | ---: | --- |',
@@ -44,8 +44,8 @@ function renderCorpusTable(report) {
     );
   lines.push(
     '',
-    '| Scenario | Run | Arm | Artifact state | Steps ok / failed / skipped | Expected categories | Loopback sender and receiver | File read |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Scenario | Run | Arm | Artifact state | Definition match / final source check | Steps ok / failed / skipped | Expected categories | Loopback sender and receiver | File read |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   );
   for (const row of report.attempts) {
     const steps = row.steps
@@ -57,7 +57,7 @@ function renderCorpusTable(report) {
           .join('; ') || 'recorded-empty'
       : 'missing';
     lines.push(
-      `| ${safe(row.scenario)} | ${safe(row.runId)} | ${safe(row.arm)} | ${safe(row.artifactState)} | ${steps} | ${categories} | ${loopback(row.loopback)} | ${read(row.read)} |`,
+      `| ${safe(row.scenario)} | ${safe(row.runId)} | ${safe(row.arm)} | ${safe(row.artifactState)} | ${safe(row.executedDefinitionMatch)} / ${row.scenarioProvenance ? safe(row.scenarioProvenance.final.state) : 'unverified'} | ${steps} | ${categories} | ${loopback(row.loopback)} | ${read(row.read)} |`,
     );
   }
   lines.push(

@@ -75,7 +75,22 @@ The six current source scenarios are a separate inventory. Only safe scenario
 IDs, current step counts and exact definition-byte SHA-256 values are reported;
 titles, descriptions and canary contents are excluded. Unsupplied scenarios get
 pending inventory rows. Recorded steps are not checked against today's mutable
-scenario definition. Every `executedDefinitionMatch` remains `unverified`.
+scenario definition. New [producer declarations](SCENARIO-PROVENANCE.md) bind
+the exact loaded scenario bytes to a digest and length. For each attempt,
+`executedDefinitionMatch` is `match` or `mismatch` against the current inventory
+digest and byte length; absent/null legacy declarations remain `unverified`.
+Inventory rows themselves remain `unverified`, since each supplied attempt can
+have a different definition. Matching bytes do not authenticate the declaration.
+
+The separate `scenarioProvenance.final.state` retains `pending`, `unchanged`,
+`changed` or `unavailable` endpoint evidence. A current-definition match can
+coexist with any endpoint state; neither value is substituted for the other.
+Pending/unavailable states carry null final digest and length. Changed and
+unchanged states must agree with their loaded/final digest and length comparison;
+malformed or contradictory declarations refuse the batch. Every declaration
+requires `sourceAuthenticated: false` and `measurementAccepted: false`. No source
+path, exception or raw scenario content enters the projected field. Historical
+source evidence is never reconstructed from current files.
 
 Each consumed raw artifact has an exact-byte SHA-256 and byte count, including
 whitespace/BOM differences. The report separately fingerprints fixed repository
