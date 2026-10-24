@@ -6,9 +6,108 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { probeRetainedObjectRelease } from '../../scripts/qualification/windows-native-read-support.mjs';
+import {
+  portableGitCommand,
+  portableGitFailure,
+} from '../../tools/development/cloud-native-read-git.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const folders = [];
+describe('portable Git closed execution diagnostics', () => {
+  it('uses the actual command executor boundary and preserves successful output', () => {
+    const trace = { stage: 'version', commandKind: 'version', commands: 0 };
+    const options = { timeout: 20000, maxBuffer: 16384, encoding: 'utf8' };
+    let calls = 0;
+    expect(
+      portableGitCommand('owned-git', ['--version'], options, trace, (file, args, supplied) => {
+        calls++;
+        expect([file, args, supplied]).toEqual(['owned-git', ['--version'], options]);
+        return 'git version 2.56.0.windows.2\n';
+      }),
+    ).toBe('git version 2.56.0.windows.2');
+    expect(calls).toBe(1);
+    expect(trace.commands).toBe(1);
+  });
+  it.each([
+    { code: 'ETIMEDOUT', status: null, signal: 'SIGTERM', timedOut: true },
+    { code: 'ENOENT', status: null, signal: null, timedOut: false },
+    { code: null, status: 128, signal: null, timedOut: false },
+  ])('retains command outcome $code/$status without private streams', (outcome) => {
+    const trace = { stage: 'worktree-add', commandKind: 'worktree-add', commands: 6 };
+    const original = Object.assign(new Error('PRIVATE_GIT_CANARY'), outcome, {
+      stdout: 'PRIVATE_GIT_CANARY',
+      stderr: 'PRIVATE_GIT_CANARY',
+      path: 'PRIVATE_GIT_CANARY',
+    });
+    let caught;
+    try {
+      portableGitCommand('PRIVATE_GIT_CANARY', ['PRIVATE_GIT_CANARY'], {}, trace, () => {
+        throw original;
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught?.message).toBe('portable-git-command-refused');
+    expect(caught?.portableGitDiagnostic).toEqual({
+      status: 'FAIL',
+      code: 'portable-git-command-refused',
+      stage: 'worktree-add',
+      commandsAttempted: 7,
+      commandIndex: 7,
+      commandKind: 'worktree-add',
+      processStatus: outcome.status,
+      signal: outcome.signal,
+      errorCode: outcome.code,
+      timedOut: outcome.timedOut,
+    });
+    expect(JSON.stringify(caught)).not.toContain('PRIVATE_GIT_CANARY');
+  });
+  it('retains known assertion/filesystem boundaries and refuses arbitrary diagnostic strings', () => {
+    expect(
+      portableGitFailure(
+        Object.assign(new Error('portable-git-driver-source-mismatch'), { code: 'ERR_ASSERTION' }),
+        { stage: 'driver-byte-binding', commands: 12, commandKind: null },
+      ),
+    ).toMatchObject({
+      code: 'portable-git-driver-source-mismatch',
+      stage: 'driver-byte-binding',
+      commandsAttempted: 12,
+      commandIndex: null,
+      commandKind: null,
+      errorCode: 'ERR_ASSERTION',
+    });
+    expect(
+      portableGitFailure(Object.assign(new Error('PRIVATE_GIT_CANARY'), { code: 'EACCES' }), {
+        stage: 'objects-copy',
+        commands: 3,
+        commandKind: null,
+      }),
+    ).toMatchObject({
+      code: 'portable-git-operation-refused',
+      stage: 'objects-copy',
+      errorCode: 'EACCES',
+    });
+    const unknown = portableGitFailure(
+      {
+        message: 'PRIVATE_GIT_CANARY',
+        code: 'PRIVATE_GIT_CANARY',
+        signal: 'PRIVATE_GIT_CANARY',
+        status: 'PRIVATE_GIT_CANARY',
+      },
+      { stage: 'PRIVATE_GIT_CANARY', commands: Infinity, commandKind: 'PRIVATE_GIT_CANARY' },
+    );
+    expect(unknown).toMatchObject({
+      stage: 'unknown',
+      commandKind: null,
+      commandIndex: null,
+      commandsAttempted: 0,
+      errorCode: 'other',
+      signal: 'other',
+      processStatus: null,
+    });
+    expect(JSON.stringify(unknown)).not.toContain('PRIVATE_GIT_CANARY');
+  });
+});
 afterEach(() => {
   for (const folder of folders.splice(0)) {
     expect(path.dirname(path.resolve(folder))).toBe(path.resolve(os.tmpdir()));
