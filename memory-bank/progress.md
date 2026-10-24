@@ -3857,3 +3857,28 @@ assertions, then all 14 frozen files were restored byte-for-byte. The restored
 13-suite gate passed 395 tests with two explicit Windows O_NOFOLLOW skips;
 supported-platform CI must execute those cases. Focused lint, formatting, syntax
 and diff checks passed. Exact hosted CI remains the merge gate.
+
+## W8 loaded scenario-byte provenance — 2026-10-24
+
+New production-runner manifests declare the exact scenario bytes parsed, with a
+private object association and an immutable main-runner snapshot. A separate
+final source inspection records unchanged, changed or unavailable endpoints;
+changed/unavailable results fail the run. Unconfirmed sensor exit leaves the
+initial pending evidence and preserves the execution error. Final manifests use
+an exclusive staged descriptor, confirmed close and rename, preserving the
+initial manifest when final publication fails.
+
+The corpus report compares recorded loaded hashes and byte lengths with current
+inventory while retaining independent endpoint states and historical unverified
+attempts. These declarations supply no source authentication, continuous source
+stability, native capture qualification or W8/T8 acceptance.
+
+Independent requirements, engineering and test reviews passed. Sixteen temporary
+source faults failed targeted behavioral assertions; all frozen files were then
+restored byte-for-byte. The restored bench suite passed 1,144 tests with three
+explicit Windows O_NOFOLLOW skips across 36 files. Scoped lint, formatting,
+syntax and diff checks passed. Real S3/S8 controls executed through the C path,
+which starts no sensor or OS oracle. Their loaded-byte declarations matched
+independent source hashes, and reversing the supplied runs produced byte-identical
+JSON and Markdown without modifying the original artifacts. The current PR's
+required hosted checks remain the merge gate.

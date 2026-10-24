@@ -25,6 +25,7 @@ const MODULES = Object.freeze([
   'bench/lib/corpus-table.js',
   'bench/lib/corpus-input.js',
   'bench/lib/corpus-artifacts.js',
+  'bench/lib/corpus-provenance.js',
   'bench/lib/corpus-outcomes.js',
   'bench/lib/fixture-outcomes.js',
   'bench/lib/loopback-receiver.js',
@@ -102,12 +103,23 @@ function buildCorpusResults(runDirs, asOf) {
       return {
         scenario,
         currentDefinitionSha256: digest(bytes),
+        currentDefinitionBytes: bytes.length,
         currentStepCount: definition.steps.length,
         suppliedAttempts,
         status: suppliedAttempts ? 'supplied' : 'pending',
         executedDefinitionMatch: 'unverified',
       };
     });
+    for (const attempt of attempts) {
+      const loaded = attempt.scenarioProvenance?.loaded;
+      if (!loaded) continue;
+      const current = inventory.find((row) => row.scenario === attempt.scenario);
+      attempt.executedDefinitionMatch =
+        loaded.sha256 === current.currentDefinitionSha256 &&
+        loaded.byteLength === current.currentDefinitionBytes
+          ? 'match'
+          : 'mismatch';
+    }
     const files = MODULES.map((file) => {
       const absolute = path.join(ROOT, file);
       ordinaryDirectory(path.dirname(absolute));
