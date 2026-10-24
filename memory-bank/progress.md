@@ -3705,6 +3705,20 @@ lint/format and derived counts (267 main modules). #1038's real-worker
 regressions are included. Node 24.20.0 and prepared Electron 44.8.0 were used;
 no current native helper/ASAR matrix is claimed. Required hosted CI is pending.
 
+## W3 bounded process-name decoding — 2026-10-24
+
+The macOS libproc reader uses replacement characters for invalid UTF-8 within
+bounded, NUL-delimited display names. Truncated name bytes no longer reject an
+otherwise valid BSD process response. Exact response lengths, numeric process
+identity, birth arithmetic, unique IDs and boot UUID validation retain their
+existing checks. Population observations remain best effort.
+
+The portable native and sensor suites passed 35 tests on Windows with Rust
+1.99.1. Restoring strict name decoding made two new behavioral tests fail;
+the original source hash was restored before final validation. Formatting and
+Clippy passed. This evidence does not establish macOS SDK linkage, ABI,
+permissions or live process observation. Full W3 acceptance remains open.
+
 ## W8 offline Procmon CSV staging — 2026-10-24
 
 Added a bounded offline importer for one strict, caller-declared Procmon CSV

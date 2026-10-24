@@ -118,13 +118,12 @@ fn invalid_pid_arguments_never_reach_backend() {
     }
 }
 #[test]
-fn bsd_wrong_pid_invalid_time_and_bad_utf8_fail_closed() {
+fn bsd_wrong_pid_and_invalid_time_fail_closed() {
     for (offset, data) in [
         (12, 43u32.to_ne_bytes().to_vec()),
         (16, u32::MAX.to_ne_bytes().to_vec()),
         (120, u64::MAX.to_ne_bytes().to_vec()),
         (128, 1_000_000u64.to_ne_bytes().to_vec()),
-        (64, vec![0xff]),
     ] {
         let mut bytes = bsd();
         bytes[offset..offset + data.len()].copy_from_slice(&data);
@@ -133,6 +132,57 @@ fn bsd_wrong_pid_invalid_time_and_bad_utf8_fail_closed() {
             Err(NativeError::InvalidData)
         );
     }
+}
+#[test]
+fn truncated_multibyte_registered_name_preserves_process_identity() {
+    let mut bytes = bsd();
+    bytes[64..94].fill(b'x');
+    bytes[94] = 0xc3;
+    bytes[95] = 0;
+    let mut fake = Fake::data(bytes);
+    assert_eq!(
+        bsd_info(&mut fake, 42),
+        Ok(BsdInfo {
+            pid: 42,
+            ppid: 1,
+            name: format!("{}\u{fffd}", "x".repeat(30)),
+            start_seconds: 1_700_000_000,
+            start_microseconds: 999_999,
+        })
+    );
+    assert_eq!(fake.calls, [(42, 3)]);
+}
+#[test]
+fn invalid_display_bytes_are_replaced_in_registered_and_fallback_names() {
+    for start in [64, 48] {
+        let mut bytes = bsd();
+        bytes[48..96].fill(0);
+        bytes[start..start + 2].copy_from_slice(&[0xff, b'n']);
+        let info = bsd_info(&mut Fake::data(bytes), 42).unwrap();
+        assert_eq!(info.name, "\u{fffd}n");
+        assert_eq!((info.pid, info.ppid), (42, 1));
+        assert_eq!(
+            (info.start_seconds, info.start_microseconds),
+            (1_700_000_000, 999_999)
+        );
+    }
+}
+#[test]
+fn display_names_ignore_bytes_after_nul_in_both_fields() {
+    for start in [64, 48] {
+        let mut bytes = bsd();
+        bytes[48..96].fill(0);
+        bytes[start..start + 6].copy_from_slice(&[b's', b'a', b'f', b'e', 0, 0xff]);
+        assert_eq!(bsd_info(&mut Fake::data(bytes), 42).unwrap().name, "safe");
+    }
+}
+#[test]
+fn complete_multibyte_registered_name_is_preserved_at_kernel_byte_limit() {
+    let mut bytes = bsd();
+    let name = format!("{}\u{1f680}", "x".repeat(27));
+    assert_eq!(name.len(), 31);
+    bytes[64..95].copy_from_slice(name.as_bytes());
+    assert_eq!(bsd_info(&mut Fake::data(bytes), 42).unwrap().name, name);
 }
 #[test]
 fn unique_id_preserves_u64_max_and_rejects_zero() {

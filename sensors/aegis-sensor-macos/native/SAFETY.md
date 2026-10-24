@@ -28,9 +28,13 @@ lock, so concurrent births can exceed that internal allocation. The explicit
 best-effort marker must survive every adapter, and absence alone must never
 produce an authoritative exit. Kernel PID zero is
 excluded. Duplicate, negative-encoded or out-of-range PIDs fail. PID arguments
-must be 1 through `i32::MAX`. Invalid UTF-8, mismatched returned PID, invalid
-microseconds, overflowing birth arithmetic and zero unique IDs fail. UUID reads
-require exactly 36 hexadecimal/hyphen bytes and one NUL terminator. Error values
+must be 1 through `i32::MAX`. Mismatched returned PID, invalid microseconds,
+overflowing birth arithmetic and zero unique IDs fail. Process names use at most
+32 registered-name bytes or 16 fallback command-name bytes, stopping at the first
+NUL. Invalid UTF-8 in these display bytes uses replacement characters; the kernel
+can truncate a multibyte character at its byte limit. Empty names remain
+`unknown`. Display conversion does not change numeric identity validation. UUID
+reads require exactly 36 hexadecimal/hyphen bytes and one NUL terminator. Error values
 contain no process names, paths or arbitrary OS text.
 
 ## Primary sources and API limits
@@ -53,7 +57,8 @@ Sources inspected on 2026-10-19 at Apple XNU commit
   fails; a random UUID, hardware UUID or boot time is never substituted.
 - [proc_info.c](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/proc_info.c)
   implements the internal PID-list allocation and copy-out behavior; caller
-  buffer capacity cannot establish a complete population.
+  buffer capacity cannot establish a complete population. Its BSD-info reader
+  copies raw process-name bytes and forces a NUL at each name field's final byte.
 
 The MIT-licensed `libproc` 0.14.11 published crate, VCS revision
 `9c5b669ca414918eadc81e70ec654505a0c8a93f`, was also inspected. Its safe flavor
