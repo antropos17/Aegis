@@ -11,6 +11,12 @@ S3–S8 artifact directories into sanitized deterministic JSON/Markdown. It keep
 failed, skipped, incomplete and pending cells visible and performs no capture,
 oracle admission, scoring or measurement acceptance.
 
+New production-runner manifests retain the
+[exact loaded scenario-byte declaration](SCENARIO-PROVENANCE.md) and a separate
+final endpoint comparison. A changed or unavailable source causes a nonzero
+run result while preserving generated artifacts. Matching endpoint bytes do
+not establish authenticated execution or continuous source stability.
+
 | Task category | Scenario/control | Expected set after successful execution | Remaining confirmation or execution |
 | --- | --- | --- | --- |
 | Ordinary project artifact | S3-ordinary-fixture | One file creation under fixtures/project | Real fixed-version agent edit/build/inspect task and independently checked outcome rubric |

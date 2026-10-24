@@ -47,6 +47,7 @@ const { writeFixture } = require('./fixture');
 const { executeFileReadStep } = require('./file-read');
 const { executeLoopbackStep } = require('./loopback-step');
 const { safeId } = require('./fixture-outcomes');
+const scenarioProvenance = require('./scenario-provenance');
 
 /** @type {string} Where scenario directories live. */
 const SCENARIOS_DIR = path.join(manifest.ROOT, 'bench', 'scenarios');
@@ -165,7 +166,7 @@ function loadScenario(id) {
   }
   let scenario;
   try {
-    scenario = JSON.parse(fs.readFileSync(file, 'utf8'));
+    scenario = scenarioProvenance.load(file);
   } catch (err) {
     throw new Error(`${file} is not valid JSON: ${err.message}`, { cause: err });
   }

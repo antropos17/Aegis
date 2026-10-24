@@ -1,6 +1,7 @@
 'use strict';
 const { invalid, LIMITS } = require('./corpus-input');
 const { loopbackRecord, readRecord } = require('./corpus-outcomes');
+const { recordedProvenance } = require('./corpus-provenance');
 const ID = (value) => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value);
 const SHA = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const SHAPES = Object.freeze({
@@ -278,6 +279,7 @@ function summarize(data, scenarios) {
     stepState: !steps ? 'unknown' : steps.failed ? 'failed' : 'ok',
     missingArtifacts: missing,
     executedDefinitionMatch: 'unverified',
+    scenarioProvenance: recordedProvenance(data.manifest.scenarioProvenance),
     steps,
     expected,
     loopback,

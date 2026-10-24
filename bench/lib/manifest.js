@@ -23,6 +23,7 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const scenarioProvenance = require('./scenario-provenance');
 
 const {
   RECORDED_REPO_ROOT,
@@ -178,6 +179,7 @@ function oraclePlaceholders(supplied) {
  * @param {string} opts.scenario - Scenario id, or the no-scenario placeholder.
  * @param {string} opts.arm - One of {@link ARMS}.
  * @param {string} opts.startedAt - UTC ISO timestamp of the run start.
+ * @param {Object} [opts.preparedScenario] - Privately tracked, sealed loaded scenario.
  * @param {Object} [opts.reportRenderer] - `bench/lib/report.js`'s
  *   `RENDERER_FINGERPRINT`: which report-renderer source bytes this process is
  *   running. Handed in rather than taken here, so the manifest records the
@@ -200,6 +202,10 @@ function collect(opts) {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     runId: opts.runId,
     scenario: opts.scenario,
+    scenarioProvenance:
+      opts.preparedScenario?.id === opts.scenario
+        ? scenarioProvenance.initial(opts.preparedScenario)
+        : null,
     arm: opts.arm,
     armDescription: ARM_DESCRIPTIONS[opts.arm] ?? null,
     startedAt: opts.startedAt,

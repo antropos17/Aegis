@@ -35,7 +35,11 @@ The [synthetic corpus report](CORPUS-RESULTS.md) renders existing recorded
 artifacts into deterministic tables, retaining supplied attempts and pending
 controls. Its counts describe fixture execution. Historical manifests lack an
 exact executed scenario-definition hash, so current inventory hashes do not
-authenticate those executions. The report supplies no measurement acceptance.
+authenticate those executions. New runs can carry the
+[loaded scenario-byte declaration and final endpoint comparison](SCENARIO-PROVENANCE.md).
+This covers scenario input provenance only; it cannot authenticate capture or
+prove that source bytes stayed unchanged between observations. The report
+supplies no measurement acceptance.
 
 These are existing entrypoints, verified against `package.json` and their source:
 
