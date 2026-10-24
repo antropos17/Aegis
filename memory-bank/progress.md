@@ -3968,6 +3968,61 @@ behavioral execution and the full mandatory gates run in CI. This is a W8
 prerequisite only: product/helper population, calibration, measurement acceptance,
 OS containment and an externally enforced deadline for the parent remain open.
 
+## W5 explicit schema-2 Cedar preparation — 2026-10-25
+
+An explicit schema-2 translator now shares the existing exact-predicate emitter
+while preserving both version-specific entrypoints. Schema 2 never gains review
+annotations. Original schema-2/3 production preparation still uses the legacy
+evaluator; no migration or production translator caller was added.
+
+The standalone Node/WASM gate passed 44 tests across eight suites, including
+10,000 selected-JSON-valid schema-2 requests and 10,000 actual official WASM
+calls with seed 5426906. Three temporary semantic faults failed behavioral
+assertions and were restored byte-for-byte. The preliminary TypeError probe is
+preserved separately and excluded from those kills. Scoped format/lint/diff
+checks have zero-exit receipts. Local Electron setup was omitted because the
+available dependency tree had an older Electron; unchanged configured hosted
+CI remains the separate merge gate.
+
+Preparation equivalence is bounded to selected-JSON-valid descriptors and
+translated files fitting the existing selected-file limit. Explicit regressions
+retain lone-surrogate refusal and oversized-envelope refusal without launch.
+Broader policy families, native resource qualification and full W5 remain open.
+
+## 2026-10-25 — W4 Windows explicit stable-file JSONL tails
+
+The dormant Windows reader exposes a single-use `readTail` alongside its existing
+complete `read`. The tail operation requires explicit JSONL selection and reads
+only the fixed final 512 KiB, with contiguous requests, a separate cumulative raw
+byte limit, the original full-file EOF, unchanged identity/version proofs, and
+confirmed original-child exit plus all stream closure before synchronous owner
+parsing. Complete reads retain their 512 KiB file limit. Both JS and C# enforce
+the tail mode; older pinned helper bundles refuse its new opcode. Truncated
+sources remain incomplete and at most inferred, including after owner binding.
+
+Local Windows evidence uses installed SDK 10.0.302/runtime 10.0.10, a freshly
+built production helper, an isolated C# metadata/EOF fixture, and owned inert
+files. The actual-host driver passed 22 production-host controls plus one
+separately named fixture control; the actual JS-wrapper/owner driver passed four
+cases, including bytes, privacy, partial/inferred results, child/stream closure
+and file unlock before parse. Ten standalone JS controls passed with mocked
+transport. Three temporary JS mutations (fixed start, data-call limit and parser
+closure barrier) each failed their relevant control; original source hashes were
+restored and the clean controls passed. These local controls are distinct from
+the canonical Vitest suite and required hosted checks. Two earlier offline
+build attempts failed during NuGet restore before compilation; their receipts
+are retained separately. The corrected driver supplies isolated SDK profile and
+machine-config paths on the data drive and builds without package downloads.
+
+There is no application/renderer bridge integration, profile discovery, active
+transcript collection, trusted process/session binding, production activation or
+full W4 acceptance. Native sharing can still refuse/block a writer during the
+stable-file pass. The existing automatic native CI job does not compile this
+helper. Source/model safe-integer bounds do not establish execution on a file of
+that maximum size. The private completion tracker contains the task-local
+receipts and the ten-agent ownership roster; W5 Cedar, W11 native admission and
+W8 resource sessions remain reserved to their other chats.
+
 ## 2026-10-25 — W8 supervised resource bundle replay
 
 Added an offline checker for the fixed supervision/session artifact bundle. It
