@@ -3,6 +3,7 @@
 const { spawn } = require('node:child_process');
 const { exact, createPipe } = require('./claude-hook-windows-io-wire');
 const { failure, privateMode, qualifyAssets } = require('./session-context-windows-assets');
+const MAX_BYTES = 512 * 1024;
 const STAMP_KEYS = [
   'kind',
   'symlink',
@@ -15,7 +16,7 @@ const STAMP_KEYS = [
 ];
 const bounded = (value, low, high) => Number.isSafeInteger(value) && value >= low && value <= high;
 
-function stamp(value) {
+function stamp(value, maxSize) {
   if (
     !exact(value, ['id', 'ok', ...STAMP_KEYS]) ||
     value.kind !== 'regular' ||
@@ -27,7 +28,7 @@ function stamp(value) {
     !/^[a-f0-9]{32}$/.test(value.fileId) ||
     /^0+$/.test(value.volumeId) ||
     /^0+$/.test(value.fileId) ||
-    !bounded(value.size, 0, 512 * 1024) ||
+    !bounded(value.size, 0, maxSize) ||
     ['mtimeNs', 'ctimeNs'].some(
       (key) =>
         typeof value[key] !== 'string' ||
@@ -61,11 +62,13 @@ function createWindowsSessionContextIO(options) {
     cleanup = null,
     unknown = false;
   let selected = null,
+    tailMode = null,
     opened = false,
     pathStats = 0,
     handleStats = 0,
     reads = 0;
   let position = 0,
+    transferred = 0,
     eof = false,
     initial = null;
   const confirmed = () =>
@@ -103,7 +106,8 @@ function createWindowsSessionContextIO(options) {
       throw failure();
     }
   }
-  async function statPath(file) {
+  const checkStamp = (value) => stamp(value, tailMode ? Number.MAX_SAFE_INTEGER : MAX_BYTES);
+  async function statPath(file, tail) {
     try {
       privateMode();
       if (ended || typeof file !== 'string') throw failure();
@@ -120,13 +124,22 @@ function createWindowsSessionContextIO(options) {
         started = true;
         pipe = createPipe(child, options);
         selected = file;
+        tailMode = tail;
         pathStats++;
-        initial = await operation({ op: 'open', path: file }, stamp);
+        initial = await operation({ op: tail ? 'tail' : 'open', path: file }, checkStamp);
+        position = tail ? Math.max(0, initial.size - MAX_BYTES) : 0;
         return initial;
       }
-      if (file !== selected || ++pathStats !== 2 || !opened || !eof || handleStats !== 2)
+      if (
+        tail !== tailMode ||
+        file !== selected ||
+        ++pathStats !== 2 ||
+        !opened ||
+        !eof ||
+        handleStats !== 2
+      )
         throw failure();
-      return await operation({ op: 'stat', scope: 'path' }, stamp);
+      return await operation({ op: 'stat', scope: 'path' }, checkStamp);
     } catch {
       try {
         await close();
@@ -136,14 +149,15 @@ function createWindowsSessionContextIO(options) {
       throw failure();
     }
   }
-  async function openRead(file) {
+  async function openRead(file, tail) {
     try {
       privateMode();
-      if (ended || !started || opened || file !== selected || pathStats !== 1) throw failure();
+      if (ended || !started || opened || tail !== tailMode || file !== selected || pathStats !== 1)
+        throw failure();
       opened = true;
       return Object.freeze({
         stat: () =>
-          operation({ op: 'stat', scope: 'handle' }, stamp, () => {
+          operation({ op: 'stat', scope: 'handle' }, checkStamp, () => {
             if (++handleStats > 2 || (handleStats === 2 && !eof)) throw failure();
           }),
         read: (target, offset, length, at) =>
@@ -161,6 +175,7 @@ function createWindowsSessionContextIO(options) {
               try {
                 if (
                   bytes.length > length ||
+                  bytes.length > MAX_BYTES - transferred ||
                   bytes.toString('base64') !== value.data ||
                   (position === initial.size
                     ? length !== 1 || bytes.length !== 0
@@ -170,6 +185,7 @@ function createWindowsSessionContextIO(options) {
                 bytes.copy(target, offset);
                 eof = position === initial.size;
                 position += bytes.length;
+                transferred += bytes.length;
                 return bytes.length;
               } finally {
                 bytes.fill(0);
@@ -185,7 +201,11 @@ function createWindowsSessionContextIO(options) {
                 handleStats !== 1 ||
                 eof ||
                 ++reads > 17 ||
-                (position === initial.size ? length !== 1 : length > initial.size - position)
+                (position === initial.size
+                  ? length !== 1
+                  : reads > 16 ||
+                    length > initial.size - position ||
+                    length > MAX_BYTES - transferred)
               )
                 throw failure();
             },
@@ -209,8 +229,15 @@ function createWindowsSessionContextIO(options) {
       throw failure();
     }
   }
+  const provider = (tail) =>
+    Object.freeze({
+      pathStyle: 'win32',
+      statPath: (file) => statPath(file, tail),
+      openRead: (file) => openRead(file, tail),
+    });
   return Object.freeze({
-    files: Object.freeze({ pathStyle: 'win32', statPath, openRead }),
+    files: provider(false),
+    tailFiles: provider(true),
     close,
     status,
   });

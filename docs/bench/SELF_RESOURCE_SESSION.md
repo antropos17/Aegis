@@ -121,6 +121,11 @@ termination requests and bounded exit/pipe confirmation while preserving this
 session's five-file contract. The parent remains subject to its own scheduler
 and filesystem; supervision supplies no product/cohort measurement acceptance.
 
+The separate [offline resource replay checker](RESOURCE_REPLAY.md) checks a
+supervised bundle's retained hashes, declarations and current-evaluator replay.
+It preserves missing or contradictory artifacts and the final file's publication
+uncertainty; it does not execute or repair the supplied bundle.
+
 ## Programmatic and CI use
 
 `runSelfResourceSession(options, samplerDeps?)` in

@@ -3989,6 +3989,59 @@ translated files fitting the existing selected-file limit. Explicit regressions
 retain lone-surrogate refusal and oversized-envelope refusal without launch.
 Broader policy families, native resource qualification and full W5 remain open.
 
+## 2026-10-25 — W4 Windows explicit stable-file JSONL tails
+
+The dormant Windows reader exposes a single-use `readTail` alongside its existing
+complete `read`. The tail operation requires explicit JSONL selection and reads
+only the fixed final 512 KiB, with contiguous requests, a separate cumulative raw
+byte limit, the original full-file EOF, unchanged identity/version proofs, and
+confirmed original-child exit plus all stream closure before synchronous owner
+parsing. Complete reads retain their 512 KiB file limit. Both JS and C# enforce
+the tail mode; older pinned helper bundles refuse its new opcode. Truncated
+sources remain incomplete and at most inferred, including after owner binding.
+
+Local Windows evidence uses installed SDK 10.0.302/runtime 10.0.10, a freshly
+built production helper, an isolated C# metadata/EOF fixture, and owned inert
+files. The actual-host driver passed 22 production-host controls plus one
+separately named fixture control; the actual JS-wrapper/owner driver passed four
+cases, including bytes, privacy, partial/inferred results, child/stream closure
+and file unlock before parse. Ten standalone JS controls passed with mocked
+transport. Three temporary JS mutations (fixed start, data-call limit and parser
+closure barrier) each failed their relevant control; original source hashes were
+restored and the clean controls passed. These local controls are distinct from
+the canonical Vitest suite and required hosted checks. Two earlier offline
+build attempts failed during NuGet restore before compilation; their receipts
+are retained separately. The corrected driver supplies isolated SDK profile and
+machine-config paths on the data drive and builds without package downloads.
+
+There is no application/renderer bridge integration, profile discovery, active
+transcript collection, trusted process/session binding, production activation or
+full W4 acceptance. Native sharing can still refuse/block a writer during the
+stable-file pass. The existing automatic native CI job does not compile this
+helper. Source/model safe-integer bounds do not establish execution on a file of
+that maximum size. The private completion tracker contains the task-local
+receipts and the ten-agent ownership roster; W5 Cedar, W11 native admission and
+W8 resource sessions remain reserved to their other chats.
+
+## 2026-10-25 — W8 supervised resource bundle replay
+
+Added an offline checker for the fixed supervision/session artifact bundle. It
+rehashes retained bytes, checks declarations and predecessor accounting, and
+recomputes conditional intervals with the current evaluator. Missing evidence,
+contradictions, reported lifecycle support and original publication uncertainty
+remain separate. Historical source declarations do not authenticate collection
+or identify the loaded implementation; current evaluator provenance is recorded
+independently. The checker preserves inputs and publishes a bounded fresh report.
+
+CI covers the actual shortest supervisor/child pipeline followed by offline
+replay, coherent tampering, incomplete evidence, strict parsing and bounded
+descriptor/publication failures. Paired source-copy fault controls require an
+independent baseline oracle to pass and the same oracle to reject a valid source
+mutation. Local work is limited to syntax, scoped formatting and diff checks
+under host disk pressure. This closes the retained-bundle inspection connection;
+qualified collection, calibrated product/helper overhead and full W8/T8
+measurement acceptance remain open.
+
 ## W5 explicit selected-policy export — 2026-10-25
 
 Added a developer-only command accepting one selected schema-2/3 input and one

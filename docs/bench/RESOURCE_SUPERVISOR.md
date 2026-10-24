@@ -7,6 +7,12 @@ directory, while the child owns its unchanged five-file `capture/` bundle. The
 parent does not inspect, repair, score or admit that bundle. All source,
 measurement and W8 acceptance flags remain false.
 
+The separate [offline resource replay checker](RESOURCE_REPLAY.md) can inspect
+this fixed outer/child bundle after collection. It compares recorded lifecycle
+declarations with retained artifact bindings and repeats the conditional
+derivation. The supervisor itself continues to leave child-bundle assessment
+uninspected; the offline report supplies no source or measurement authentication.
+
 ```sh
 node bench/self-resource-supervise.cjs --run-id supervised-1 --duration-ms 1000 --max-acquisition-us 1000 --max-cpu-uncertainty-us 2000 --wall-limit-ms 10000 --confirm-ms 1000 --out <new-owned-outer-directory>
 ```
