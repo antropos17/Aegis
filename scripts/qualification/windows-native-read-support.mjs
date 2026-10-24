@@ -68,6 +68,7 @@ export async function probeRetainedObjectRelease(file, out, env) {
   assert(!fs.existsSync(destination));
   const source = `param([string]$SourceFile,[string]$Destination)
 $ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
 $policyBefore=(Get-ExecutionPolicy).ToString()
 Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class NativeReadRename{[DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]public static extern bool MoveFileEx(string source,string destination,uint flags);}'
 $watch=[Diagnostics.Stopwatch]::StartNew();$first=$null;$attempts=0;$released=$false
@@ -95,7 +96,7 @@ if(-not $released -or $watch.Elapsed.TotalMilliseconds -gt 15000){exit 2}
   const log = path.join(out, 'retention-probe.log');
   const command = await boundedCommand(
     path.join(process.env.WINDIR, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+    ['-NoProfile', '-NonInteractive', '-OutputFormat', 'Text', '-EncodedCommand', encoded],
     { cwd: out, env, log, timeoutMs: 25000, maxBytes: 8192 },
   );
   assert(

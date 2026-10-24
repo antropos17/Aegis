@@ -130,6 +130,10 @@ describe.skipIf(process.platform !== 'win32')(
         policyBefore: 'Restricted',
         policyAfter: 'Restricted',
       });
+      const raw = fs.readFileSync(path.join(folder, 'retention-probe.log'), 'utf8');
+      expect(raw.trim().split(/\r?\n/)).toHaveLength(1);
+      expect(raw).not.toMatch(/#< CLIXML|<Objs\b/);
+      expect(JSON.parse(raw)).toEqual(receipt);
       expect(fs.existsSync(file)).toBe(false);
       expect(fs.existsSync(path.join(fixture, '.env-after-issuer-close'))).toBe(true);
     }, 30000);
