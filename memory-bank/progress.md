@@ -3704,3 +3704,27 @@ The merged-input local check passed 62 process/client/thread tests, scoped
 lint/format and derived counts (267 main modules). #1038's real-worker
 regressions are included. Node 24.20.0 and prepared Electron 44.8.0 were used;
 no current native helper/ASAR matrix is claimed. Required hosted CI is pending.
+
+## W8 offline Procmon CSV staging — 2026-10-24
+
+Added a bounded offline importer for one strict, caller-declared Procmon CSV
+profile. A separately authored receipt binds the exact input hash, run identity,
+fixed-offset capture window, evidence provenance and closed source-path mapping.
+The normalized result retains only safe fixture identifiers and successful,
+positive-length `ReadFile` rows; unsupported, unsuccessful, out-of-window,
+zero-length and unmapped rows are accounted for without copying raw source
+paths, process names or detail text into evidence.
+
+The importer is deliberately outside the benchmark manifest and scoring path.
+It neither launches Procmon nor parses PML, and its result remains explicitly
+unqualified for capture, export compatibility, catalogue confirmation and
+sensor scoring. Native collection, same-run independent confirmation and W8/T8
+acceptance remain open.
+
+Validation on Node 24.20.0 passed 126 Procmon/Sysmon oracle tests, derived-count
+checks, all three configured TypeScript projects, repository lint with no
+errors, repository formatting, focused formatting and `git diff --check`.
+Two assertion mutants demonstrated that duplicate fixture-ID rejection and
+exclusive output creation are exercised, then were restored byte-for-byte.
+Independent requirements, logic and test-evidence reviews found no remaining
+actionable issue. Exact hosted CI remains the merge gate.
