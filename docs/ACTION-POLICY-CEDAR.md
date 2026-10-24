@@ -121,6 +121,53 @@ while selecting the oversized translated file returns `input-unavailable`
 without launch. Preparation equivalence is qualified to envelopes that fit the
 existing selected-file limit.
 
+## Developer-only file export
+
+From a source checkout, explicitly select one input policy and one fresh output:
+
+```sh
+node scripts/translate-execution-policy.cjs <selected-schema2-or3.json> <fresh-schema4.json>
+```
+
+Exactly two nonempty paths are required. The utility performs no discovery,
+chooses no default destination and changes no existing selection or activation.
+It reads the selected input through the existing stable-handle, bounded regular
+file reader and strict JSON parser, then calls the matching schema-2 or schema-3
+translator. It never loads the Cedar runtime/WASM or evaluates an action.
+
+The artifact is deterministic compact JSON followed by one newline. The entire
+serialized file, including that newline, must fit 65,536 bytes before destination
+creation is attempted. Existing destinations, including source-as-destination
+and existing leaf links, are refused. The destination's parent is canonicalized;
+UNC/device paths, alternate-stream/control basenames, reserved Windows device
+names and trailing-space/dot aliases are refused. See [Windows naming rules](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
+
+The writer requests a fresh regular file with exclusive-create/no-follow flags
+where supported and mode `0600`. Effective permissions remain platform-dependent.
+It writes through positive partial writes, syncs, confirms close once, reads the
+bounded bytes back and checks the created file identity, size, canonical parent
+and stable readback metadata. See [Node filesystem flags and handle operations](https://nodejs.org/docs/latest-v24.x/api/fs.html#file-system-flags).
+No atomic publication, directory containment, authentication or crash durability
+is established by these checks. The new name is visible while writing.
+
+One JSON status record is written to stdout. Exit `0` means `exported` after
+write/close/readback verification, with byte length and SHA-256 over the artifact.
+The hash describes the exported bytes and supplies no authentication. Exit `2`
+means a fixed refusal, such as invalid input, unsupported policy, excessive
+output or an unavailable destination. Exit `3` means `unconfirmed-output` after
+uncertain creation, writing, syncing, closing or verification. Every status
+contains `evaluated: false` and `activated: false`; it contains no selected paths,
+action values, policy text or exception details. The artifact retains the policy's
+private values. Available input, output and readback buffers are cleared.
+
+An unconfirmed named output may be absent, empty, partial, complete or replaced.
+It is retained for explicit inspection. The utility never deletes output after
+failure, and an uncertain close is never blindly retried. The utility writes at
+most 65,536 bytes to one explicit new name per invocation; no automatic cleanup
+is configured.
+The output filesystem dependency seam is available only to in-process tests and
+cannot be selected by CLI arguments or policy data.
+
 ## Availability limits and isolation boundary
 
 The current API parses, validates, compiles and evaluates WASM synchronously in

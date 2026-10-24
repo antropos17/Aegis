@@ -3988,3 +3988,21 @@ Preparation equivalence is bounded to selected-JSON-valid descriptors and
 translated files fitting the existing selected-file limit. Explicit regressions
 retain lone-surrogate refusal and oversized-envelope refusal without launch.
 Broader policy families, native resource qualification and full W5 remain open.
+
+## W5 explicit selected-policy export — 2026-10-25
+
+Added a developer-only command accepting one selected schema-2/3 input and one
+fresh schema-4 output path. It reuses the existing reader, parser and translators,
+checks the serialized byte limit before creation, writes exclusively and confirms
+close, created-file identity and exact readback bytes. Fixed status metadata
+excludes private values. Unconfirmed outputs are retained; the utility never
+evaluates or activates a policy and leaves the application CLI unchanged.
+
+The initial standalone real subprocess gate recorded two behavioral failures
+and five passes before writer implementation. Later local test, lint and format
+execution was held because the host's system drive reached critical free space.
+The required hosted suite contains original/artifact preparation comparisons,
+failure and preservation fixtures, and copied-source controls for the output
+byte limit, close confirmation and created-file identity. Hosted results remain
+the merge gate. Windows ACLs, hostile-filesystem containment, atomic publication,
+packaged runtime behavior, broader policy migration and full W5 remain open.
