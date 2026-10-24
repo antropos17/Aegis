@@ -68,11 +68,16 @@ pub(crate) fn bsd_info(api: &mut impl Backend, pid: u32) -> Result<BsdInfo, Nati
         &bytes[64..96]
     };
     let length = name.iter().position(|b| *b == 0).unwrap_or(name.len());
-    let name = std::str::from_utf8(&name[..length]).map_err(|_| NativeError::InvalidData)?;
+    // The kernel can truncate these display bytes within a UTF-8 character.
+    let name = String::from_utf8_lossy(&name[..length]);
     Ok(BsdInfo {
         pid,
         ppid,
-        name: if name.is_empty() { "unknown" } else { name }.to_owned(),
+        name: if name.is_empty() {
+            "unknown".to_owned()
+        } else {
+            name.into_owned()
+        },
         start_seconds: seconds,
         start_microseconds: microseconds,
     })
