@@ -7,6 +7,15 @@ namespace Aegis.EtwLifecycle;
 // A qualification-only normal-token witness. It has no ETW control path.
 internal static class FileOrphanObserver
 {
+    internal sealed record TerminalObservation(string type, JsonElement receipt, int custodianExit, int[]? originalExits);
+    internal static async Task<TerminalObservation> ObserveTerminal(JsonElement value, Func<Task> waitPeer,
+        Func<int> peerExit, Func<Task<int[]>>? waitOriginals)
+    {
+        await waitPeer();
+        int custodianExit = peerExit();
+        int[]? originalExits = waitOriginals == null ? null : await waitOriginals();
+        return new("terminal", value, custodianExit, originalExits);
+    }
     [DllImport("kernel32.dll")] private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint pid);
     private static void Print(object value)
     {
@@ -40,8 +49,8 @@ internal static class FileOrphanObserver
                 var value = await ReadObservation(pipe, deadline.Token);
                 if (value.GetProperty("kind").GetString() != "terminal")
                 { Print(new { type = "phase", kind = value.GetProperty("kind").GetString() }); continue; }
-                await peer.WaitForExitAsync(TimeSpan.FromSeconds(8));
-                Print(new { type = "terminal", receipt = value, custodianExit = peer.ExitCode });
+                Print(await ObserveTerminal(value, () => peer.WaitForExitAsync(TimeSpan.FromSeconds(8)),
+                    () => peer.ExitCode, originals == null ? null : originals.Wait));
                 return 0;
             }
             return 2;

@@ -77,13 +77,19 @@ function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({}), settin
 describe('Observatory host boundary', () => {
   it('retains admitted object reads without manufacturing a path and feeds the exact process risk', () => {
     const run = setup();
-    const owner = agent('123:object');
+    const owner = {
+      ...agent('123:object'),
+      category: 'ai',
+      createTime100ns: '133644736000000000',
+      generationWitness: '133644736000000000',
+    };
     const observed = {
       observationKind: 'bound-object-read',
       eventId: '00000000-0000-4000-8000-000000000902',
       agent: owner.agent,
       pid: owner.pid,
       instanceId: owner.instanceId,
+      createTime100ns: owner.createTime100ns,
       parentEditor: null,
       cwd: null,
       action: 'accessed',
@@ -111,6 +117,19 @@ describe('Observatory host boundary', () => {
     const rows = instances(run.current);
     expect(rows.find((row) => row.instanceId === owner.instanceId).riskScore).toBeGreaterThan(0);
     expect(rows.find((row) => row.instanceId === '123:other').riskScore).toBe(0);
+    run.listeners.onScanBatch({
+      stats: healthy,
+      agents: [
+        {
+          ...owner,
+          createTime100ns: '133644736000000001',
+          generationWitness: '133644736000000001',
+        },
+      ],
+    });
+    expect(
+      instances(run.current).find((row) => row.instanceId === owner.instanceId).riskScore,
+    ).toBe(0);
     run.dispose();
   });
   it('keeps measured totals and explicit collection pause together, including recovery and legacy arrays', () => {

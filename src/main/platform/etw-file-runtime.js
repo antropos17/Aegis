@@ -194,7 +194,7 @@ function createRuntime({
       !diagnosticPackage ||
       observers.length !== 1 ||
       !validObserver ||
-      !(fault?.startsWith('orphan-') || fault === 'custodian-exit'))
+      !(fault?.startsWith('orphan-') || fault === 'custodian-exit' || objectMode))
   )
     sensor.setUnavailable('FAILED', 'invalid-diagnostic-observer');
   else if (!exists(executable)) sensor.setUnavailable('FAILED', 'diagnostic-broker-missing');

@@ -124,7 +124,7 @@ function callSequence(body) {
 
 /**
  * Derive one site's sequence from the product's source.
- * @param {{file: string, anchor: string}} site
+ * @param {{file: string, anchor: string, delegates?: ReadonlyArray<{name:string,anchor:string}>}} site
  * @returns {string[]}
  */
 function sequenceFromSource(site) {
@@ -136,7 +136,30 @@ function sequenceFromSource(site) {
       'site by hand (harness.js ORCHESTRATION); if it was renamed or restructured, the harness ' +
       'has to follow before this guard can pass',
   ).not.toBeNull();
-  return callSequence(body);
+  return composedSequence(src, body, site.delegates ?? []);
+}
+
+/** Inline only the explicitly declared product helper calls, where actually
+ * invoked. Keeping the audit helper disconnected cannot satisfy the drift guard.
+ * @param {string} src Stripped product source.
+ * @param {string} body Entry-point body.
+ * @param {ReadonlyArray<{name:string,anchor:string}>} delegates Explicit helper sites.
+ * @returns {string[]} Effective watched calls in invocation order.
+ */
+function composedSequence(src, body, delegates) {
+  const names = [...WATCHED, ...delegates.map((site) => site.name)];
+  const pattern = new RegExp(`\\b(${names.join('|')})\\b`, 'g');
+  const found = [];
+  for (const match of body.matchAll(pattern)) {
+    const delegate = delegates.find((site) => site.name === match[1]);
+    if (!delegate) found.push(match[1]);
+    else {
+      const nested = bodyAfter(src, delegate.anchor);
+      expect(nested, `delegated product helper ${delegate.anchor} must exist`).not.toBeNull();
+      found.push(...callSequence(nested));
+    }
+  }
+  return found;
 }
 
 /** A `calls` object that records the order it is used in. */
@@ -221,6 +244,26 @@ describe('orchestration drift — the product side', () => {
     expect(bodyAfter('function somethingElse() { return 1; }', 'async function doFileScan(')).toBe(
       null,
     );
+  });
+
+  it('CAN fail when the actual delegated audit call or its invocation is removed', () => {
+    const site = harness.ORCHESTRATION_SITES['fs.event'];
+    const real = stripCommentsAndStrings(fs.readFileSync(path.join(REPO_ROOT, site.file), 'utf8'));
+    const entry = bodyAfter(real, site.anchor);
+    const delegated = bodyAfter(real, site.delegates[0].anchor);
+    expect(composedSequence(real, entry, site.delegates)).toEqual([
+      'dedupFileEvent',
+      'logAuditForFile',
+    ]);
+    const noAudit = real.replace(
+      delegated,
+      delegated.replace(/\blogAuditForFile\b/, 'removedAudit'),
+    );
+    expect(composedSequence(noAudit, bodyAfter(noAudit, site.anchor), site.delegates)).toEqual([
+      'dedupFileEvent',
+    ]);
+    const noInvocation = entry.replace(/\bpublishLiveFileEvent\b/, 'removedPublish');
+    expect(composedSequence(real, noInvocation, site.delegates)).toEqual(['dedupFileEvent']);
   });
 
   it('ignores a step named only in a comment or a string', () => {

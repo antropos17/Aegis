@@ -158,6 +158,7 @@ function issue(sequence, objectKey = 'object-1', scopeGeneration = 'scope-1') {
 
 describe('production main native object-read wiring', () => {
   it('uses the actual runtime callback to deliver one UUID to activity, alert, baseline and displayed risk', () => {
+    expect(main.getNativeFileAdmissionEvidence()).toBeNull();
     expect(typeof options.onOperationalRead).toBe('function');
     const before = enrichAgents([actor], [], {}, [], [])[0].riskScore;
     const raw = issue(1);

@@ -4,6 +4,27 @@ internal static class FileOrphanTests
 {
     internal static void Run(Action<string, Action> test)
     {
+        test("normal terminal observer waits for all original objects and preserves actual exit codes", () =>
+        {
+            using var value = System.Text.Json.JsonDocument.Parse("{\"kind\":\"terminal\"}");
+            var originals = new TaskCompletionSource<int[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            bool custodianObserved = false;
+            var observation = FileOrphanObserver.ObserveTerminal(value.RootElement, () =>
+                { custodianObserved = true; return Task.CompletedTask; }, () => 0, () => originals.Task);
+            Check(custodianObserved && !observation.IsCompleted);
+            originals.SetResult([0, 0, 0, 0, 70]);
+            var terminal = observation.GetAwaiter().GetResult();
+            Check(terminal.custodianExit == 0 && terminal.originalExits!.SequenceEqual(new[] { 0, 0, 0, 0, 70 }));
+        });
+        test("normal terminal observer never invents missing or timed-out original closure", () =>
+        {
+            using var value = System.Text.Json.JsonDocument.Parse("{\"kind\":\"terminal\"}");
+            var diagnostic = FileOrphanObserver.ObserveTerminal(value.RootElement, () => Task.CompletedTask,
+                () => 0, null).GetAwaiter().GetResult();
+            Check(diagnostic.originalExits == null);
+            Reject(() => FileOrphanObserver.ObserveTerminal(value.RootElement, () => Task.CompletedTask,
+                () => 0, () => Task.FromException<int[]>(new TimeoutException())).GetAwaiter().GetResult());
+        });
         const string reservation = "12345678123456781234567812345678";
         test("custodian recovers only after all five original objects including main exit", () =>
         {

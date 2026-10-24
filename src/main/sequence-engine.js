@@ -1002,6 +1002,7 @@ function observePopulation(agents, reliable) {
   const ambiguous = new Set();
   if (reliable && Array.isArray(agents) && agents.length <= 4096) {
     for (const row of agents) {
+      if (!_isMap(row)) continue;
       if (
         typeof row?.instanceId !== 'string' ||
         !row.instanceId ||

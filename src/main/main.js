@@ -1039,6 +1039,98 @@ function initializeEtwFileRuntime() {
   return etwFile;
 }
 
+/** Read actual operational state only in a marked, explicitly opted-in QA package.
+ * No admission, actor, event, policy or renderer store can be supplied here.
+ * @returns {Object|null} Bounded evidence for the external cloud driver.
+ * @since v0.20.1
+ */
+function getNativeFileAdmissionEvidence() {
+  const flags = process.argv.filter((value) => value.startsWith('--etw-file-object-policy'));
+  const metadata = /** @type {{aegisEtwDiagnostic?:boolean}} */ (require('../../package.json'));
+  if (
+    app.isPackaged !== true ||
+    metadata.aegisEtwDiagnostic !== true ||
+    flags.length !== 1 ||
+    flags[0] !== '--etw-file-object-policy'
+  )
+    return null;
+  const { projectBoundReadObject } = require('../shared/bound-read-object');
+  const log = scanner?.activityLog ?? [];
+  const actors = latestAgents
+    .filter((row) => row.category === 'ai' && row.instanceId)
+    .slice(0, 128);
+  const buckets = baselines?.getSessionData?.() ?? {};
+  const health = getAppHealth();
+  return {
+    schemaVersion: 1,
+    capturedAt: Date.now(),
+    readiness: {
+      populationReliable: health.populationReliable,
+      identityDegraded: health.identityDegraded,
+      monitoringPaused,
+    },
+    admission: nativeFileIngress?.getStats() ?? null,
+    agents: actors.map((row) => ({
+      agent: row.agent,
+      pid: row.pid,
+      instanceId: row.instanceId,
+      createTime100ns: row.createTime100ns ?? null,
+      instanceIdSource: row.instanceIdSource ?? null,
+    })),
+    observations: log
+      .filter((row) => row.observationKind === 'bound-object-read')
+      .slice(-16)
+      .map((row) => ({
+        observationKind: row.observationKind,
+        eventId: row.eventId,
+        agent: row.agent,
+        pid: row.pid,
+        instanceId: row.instanceId,
+        createTime100ns: row.createTime100ns,
+        timestamp: row.timestamp,
+        action: row.action,
+        sensitive: row.sensitive,
+        selfAccess: row.selfAccess,
+        reason: row.reason,
+        object: projectBoundReadObject(row.object),
+        attribution: row.attribution
+          ? {
+              status: row.attribution.status,
+              evidence: [...row.attribution.evidence],
+            }
+          : null,
+      })),
+    eventCountsByInstance: actors.map((actor) => ({
+      instanceId: actor.instanceId,
+      pathObservations: log.filter(
+        (row) => row.instanceId === actor.instanceId && row.observationKind !== 'bound-object-read',
+      ).length,
+      objectReads: log.filter(
+        (row) =>
+          row.instanceId === actor.instanceId &&
+          row.observationKind === 'bound-object-read' &&
+          row.createTime100ns === actor.createTime100ns,
+      ).length,
+    })),
+    alerts: sensitiveAlertJournal?.list() ?? null,
+    baselines: actors.map((actor) => {
+      const bucket = buckets[actor.instanceId];
+      const generationCurrent =
+        bucket?.objectBirth100ns == null || bucket.objectBirth100ns === actor.createTime100ns;
+      return {
+        instanceId: actor.instanceId,
+        createTime100ns: actor.createTime100ns ?? null,
+        generationCurrent,
+        objectBindings: generationCurrent ? (bucket?.objects?.size ?? 0) : null,
+        sensitiveObjectReads: generationCurrent ? (bucket?.objectSensitiveCount ?? 0) : null,
+        legacyFiles: bucket?.files?.size ?? 0,
+        legacyDirectories: bucket?.directories?.size ?? 0,
+      };
+    }),
+    sequences: sequenceEngine?.getStats?.() ?? null,
+  };
+}
+
 /**
  * The `onDetection` consumer the sequence engine is initialised with (roadmap §5
  * "Emission"): a completed sequence becomes a `sequence-detection` audit record ON THE
@@ -1651,6 +1743,7 @@ module.exports = {
   // pre-`loadDeferredModules` branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
+  getNativeFileAdmissionEvidence,
   /** Read main-only diagnostic metadata; no preload exposure.
    * @returns {Object|undefined} Bounded diagnostic snapshot. @since v0.19.2 */
   getEtwFileDiagnostics: () =>

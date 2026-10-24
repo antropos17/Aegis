@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { dialog, shell, app } = require('electron');
 const { UNKNOWN_SOURCE_LABEL, EVIDENCE_CODES } = require('./attribution');
+const { projectBoundReadObject, boundReadObjectKey } = require('../shared/bound-read-object');
 const { writePrivateReport, startPrivateReportRetention } = require('./private-report-temp');
 const {
   describeObservation,
@@ -29,6 +30,17 @@ const {
 const { version } = require('../../package.json');
 
 let _state = null;
+
+/** Render object labels with their limited provenance, never as observed paths.
+ * @param {Object} event File observation.
+ * @returns {string} Explicit binding-label text or the observed legacy path.
+ * @since v0.20.1
+ */
+function fileTarget(event) {
+  if (event.observationKind !== 'bound-object-read') return event.file;
+  const object = projectBoundReadObject(event.object);
+  return `Binding label (access path unknown): ${object?.label ?? 'Unavailable'}`;
+}
 
 // Recorded file-observation source labels only; never derive one from an action
 // or accept arbitrary text (which could carry contents or credentials).
@@ -163,7 +175,16 @@ async function exportLog(canComplete = () => true) {
           ? e.instanceId
           : null,
       source: FILE_OBSERVATION_SOURCES.has(e.source) ? e.source : null,
-      file: e.file,
+      ...(e.observationKind === 'bound-object-read'
+        ? {
+            observationKind: 'bound-object-read',
+            object: projectBoundReadObject(e.object),
+            createTime100ns:
+              typeof e.createTime100ns === 'string' && /^[1-9]\d{0,19}$/.test(e.createTime100ns)
+                ? e.createTime100ns
+                : null,
+          }
+        : { file: e.file }),
       sensitive: e.sensitive,
       reason: e.reason,
       action: e.action || 'accessed',
@@ -199,9 +220,10 @@ async function exportCsv(canComplete = () => true) {
   const rows = _state.activityLog
     .map((e) => {
       const ts = new Date(e.timestamp).toISOString();
-      const action = e.action || 'accessed';
+      const action =
+        e.observationKind === 'bound-object-read' ? 'bound-object-read' : e.action || 'accessed';
       const sensitive = e.sensitive ? 'yes' : 'no';
-      return [ts, displayAgent(e), action, e.file, sensitive].map(csvEscape).join(',');
+      return [ts, displayAgent(e), action, fileTarget(e), sensitive].map(csvEscape).join(',');
     })
     .join('\n');
   const netConns = _state.getLatestNetConnections();
@@ -258,7 +280,13 @@ async function generateReport() {
         escHtml(displayAgent(group.latest)) +
         '</td><td>' +
         new Set(
-          group.rows.map((row) => canonicalObservationPath(String(row.file || ''))).filter(Boolean),
+          group.rows
+            .map((row) =>
+              row.observationKind === 'bound-object-read'
+                ? boundReadObjectKey(row.object)
+                : canonicalObservationPath(String(row.file || '')),
+            )
+            .filter(Boolean),
         ).size +
         '</td><td>' +
         group.rows.length +
@@ -284,7 +312,8 @@ async function generateReport() {
               '</td><td><code>' +
               escHtml(
                 [
-                  item.file || endpointLabel({ ...item, domain: '' }),
+                  (item.observationKind === 'bound-object-read' ? fileTarget(item) : item.file) ||
+                    endpointLabel({ ...item, domain: '' }),
                   item.localIp || item.localPort
                     ? 'Local ' +
                       (endpointLabel({ remoteIp: item.localIp, remotePort: item.localPort }) ||

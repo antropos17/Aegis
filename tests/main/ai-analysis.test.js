@@ -164,6 +164,40 @@ describe('ai-analysis', () => {
   });
 
   describe('prompt injection hardening', () => {
+    it.each(['agent', 'session'])('keeps binding-label semantics in %s analysis', async (scope) => {
+      const object = {
+        objectKey: 'opaque-object',
+        bindingId: 'binding-1',
+        label: 'C:\\fixture\\.ssh\\id_ed25519',
+        scopeGeneration: 'scope-1',
+        policyGeneration: 'policy-1',
+        provenance: 'issuer-handle-file-id',
+        policy: { sensitive: true, reason: 'SSH private key', classification: 'ssh-aws' },
+        volumeSerial: 'RAW-VOLUME',
+        fileId128: 'RAW-ID',
+      };
+      setupState({
+        agents: [{ agent: 'Claude', pid: 100, process: 'claude', category: 'ai' }],
+        activityLog: [
+          {
+            agent: 'Claude',
+            observationKind: 'bound-object-read',
+            object,
+            sensitive: true,
+            reason: 'SSH private key',
+            action: 'accessed',
+          },
+        ],
+      });
+      const req = mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
+      if (scope === 'agent') await analysis.analyzeAgentActivity('Claude');
+      else await analysis.analyzeSessionActivity();
+      const message = JSON.parse(req.write.mock.calls[0][0]).messages[0].content;
+      expect(message).toContain('Bound object; binding label (access path unknown):');
+      expect(message).toContain('id_ed25519');
+      expect(message).not.toMatch(/RAW-VOLUME|RAW-ID|undefined/);
+    });
+
     it.each(['agent', 'session'])(
       'keeps a hostile observed path inside %s analysis data',
       async (scope) => {
