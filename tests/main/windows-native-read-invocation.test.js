@@ -15,7 +15,7 @@ import {
   projectStartupDiagnostics,
   retainStartupFailure,
   waitForJournalReservation,
-} from '../../frontend/observatory/tests/etw-startup-evidence.mjs';
+} from '../../tools/development/etw-startup-evidence.mjs';
 import { observeCustodian } from '../../frontend/observatory/tests/etw-custodian-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

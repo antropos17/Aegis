@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { ERROR_CODES } = require('../../../src/main/platform/etw-file-protocol');
+const { ERROR_CODES } = require('../../src/main/platform/etw-file-protocol');
 const REASONS = new Set([
   ...ERROR_CODES,
   'mapping-uncertain',

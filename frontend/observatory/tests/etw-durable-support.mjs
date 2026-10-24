@@ -6,7 +6,10 @@ import { ownedPids, exitWithin } from './sensor-support.mjs';
 import { observeCustodian } from './etw-custodian-support.mjs';
 import { waitOwnedExit } from './etw-failure-support.mjs';
 import { observePackageWindow } from './package-window-observation.mjs';
-import { retainStartupFailure, waitForJournalReservation } from './etw-startup-evidence.mjs';
+import {
+  retainStartupFailure,
+  waitForJournalReservation,
+} from '../../../tools/development/etw-startup-evidence.mjs';
 
 /** Launch an owned, marked package with a normal read-only witness.
  * @param {object} options Executable/output/canary/fault/total.
