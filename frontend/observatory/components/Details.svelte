@@ -17,6 +17,7 @@
   import SectionTabs from './SectionTabs.svelte';
   import FalsePositiveToggle from './FalsePositiveToggle.svelte';
   import { exactExceptionTarget } from '../runtime/false-positive-control';
+  import { pathActionTarget } from '../runtime/object-read';
   let {
     host,
     telemetry,
@@ -237,15 +238,10 @@
           ? $t('Reviewed')
           : $t('Mark reviewed')}</button
       >{/if}
-    {#if current && (current.row.file || current.row.cwd || (current.row.path && current.row.type !== 'network-connection'))}<Action
+    {#if current && pathActionTarget(current.row)}<Action
         action={async () =>
-          confirmed(
-            await invoke(
-              host,
-              'revealInExplorer',
-              current.row.file || current.row.cwd || current.row.path,
-            ),
-          )}>{$t('Show in folder')}</Action
+          confirmed(await invoke(host, 'revealInExplorer', pathActionTarget(current.row)))}
+        >{$t('Show in folder')}</Action
       >{/if}
     {#if current}
       {@const exceptionTarget = exactExceptionTarget(current.row)}

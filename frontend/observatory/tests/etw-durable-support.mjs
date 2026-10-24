@@ -1,24 +1,40 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { _electron as electron } from 'playwright';
-import { scenarioPaths, diagnostics, delay, traceHelpers } from './etw-support.mjs';
-import { ownedPids, exitWithin } from './sensor-support.mjs';
+import { scenarioPaths, diagnostics } from './etw-support.mjs';
+import { exitWithin } from './sensor-support.mjs';
+import { captureDurableProcessInventory } from '../../../tools/development/etw-process-inventory.mjs';
 import { observeCustodian } from './etw-custodian-support.mjs';
 import { waitOwnedExit } from './etw-failure-support.mjs';
+import { observePackageWindow } from './package-window-observation.mjs';
+import {
+  retainStartupFailure,
+  waitForJournalReservation,
+} from '../../../tools/development/etw-startup-evidence.mjs';
 
 /** Launch an owned, marked package with a normal read-only witness.
  * @param {object} options Executable/output/canary/fault/total.
  * @returns {Promise<object>} Owned process resources. @since v0.19.2
  */
-export async function durableLaunch({ executable, out, canary, fault, total = false }) {
+export async function durableLaunch({
+  executable,
+  out,
+  canary,
+  fault,
+  total = false,
+  collectInventory = captureDurableProcessInventory,
+}) {
   const p = scenarioPaths(out, canary);
   const env = { ...process.env, USERPROFILE: p.home, HOME: p.home, TEMP: p.temp, TMP: p.temp };
   delete env.ELECTRON_RUN_AS_NODE;
   const helper = path.join(path.dirname(executable), 'resources/etw-file/EtwFile.exe');
   const observer = observeCustodian(helper, out, env, total);
   let app;
+  let lastObserved = null,
+    stage = 'observer-endpoint';
   try {
     const endpoint = await observer.until((m) => m.type === 'endpoint', 10000);
+    stage = 'app-launch';
     app = await electron.launch({
       executablePath: executable,
       env,
@@ -31,38 +47,44 @@ export async function durableLaunch({ executable, out, canary, fault, total = fa
       ],
     });
     const child = app.process();
-    const observed = await app.evaluate(({ app, BrowserWindow }) => {
-      const require = process.mainModule
-        .require('node:module')
-        .createRequire(app.getAppPath() + '/package.json');
-      const w = BrowserWindow.getAllWindows()[0];
-      w.setIgnoreMouseEvents(true);
-      w.setFocusable(false);
-      w.blur();
-      return {
-        mainPid: process.pid,
-        packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
-        diagnosticBuild: require('./package.json').aegisEtwDiagnostic === true,
-        windowInputIsolated: !w.isFocusable() && !w.isFocused(),
-      };
-    });
-    assert(observed.packaged && observed.diagnosticBuild && observed.windowInputIsolated);
+    stage = 'window';
+    const observed = await observePackageWindow(app, path.join(out, 'window-observation.json'));
     const page = await app.firstWindow();
+    stage = 'monitoring-heading';
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
-    const until = Date.now() + 135000;
-    while (!observer.events().some((m) => m.type === 'reserved') && Date.now() < until) {
-      const data = await diagnostics(app);
-      if (data.summaries.length)
-        throw Error('Capture ended before journal reservation: ' + data.summaries.at(-1).exitCode);
-      await delay(100);
-    }
-    const reserved = await observer.until((m) => m.type === 'reserved', 1000);
-    const own = await ownedPids(app, child.pid, env);
-    const helpers = traceHelpers(own, env, (await diagnostics(app)).nativeProcessIds);
+    stage = 'journal-reservation';
+    const reserved = await waitForJournalReservation({
+      observer,
+      readDiagnostics: () => diagnostics(app),
+      onSnapshot: (data) => {
+        lastObserved = data;
+      },
+    });
+    stage = 'process-inventory';
+    const { own, helpers } = await collectInventory({
+      app,
+      rootPid: child.pid,
+      nativeIds: (await diagnostics(app)).nativeProcessIds,
+      originalPids: reserved.originalPids,
+      custodianPid: reserved.custodianPid,
+      env,
+    });
     return { app, child, page, p, env, helper, observer, reserved, own, helpers, observed };
   } catch (error) {
-    if (app) await app.evaluate(() => process.exit(73)).catch(() => {});
-    observer.stop();
+    try {
+      await retainStartupFailure({
+        out,
+        stage,
+        lastObserved,
+        observer,
+        readDiagnostics: () => (app ? diagnostics(app) : null),
+        closeMain: async () => {
+          if (app) await app.evaluate(() => process.exit(73)).catch(() => {});
+        },
+      });
+    } catch {
+      /* The owned main/observer are closed by the retention helper even if evidence I/O fails. */
+    }
     throw error;
   }
 }

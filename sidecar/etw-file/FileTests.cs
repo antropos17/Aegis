@@ -163,6 +163,7 @@ internal static class FileTests
         });
         FileBurstTests.Run(Test);
         FileIssuerTests.Run(Test);
+        FileObjectTests.Run(Test);
         FileIssuerPreparationTests.Run(Test);
         FileGuardTests.Run(Test);
         FileReservationTests.Run(Test);

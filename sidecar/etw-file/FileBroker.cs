@@ -137,7 +137,7 @@ internal static class FileBroker
                 {
                     var command = await controls.Read(input, true, deadline.Token);
                     if (command.t == "consent-ack") return;
-                    if (command.t is not ("ping" or "stop" or "prime-issuers")) throw new InvalidDataException();
+                    if (command.t is not ("ping" or "stop" or "prime-issuers" or "bind-object-policy")) throw new InvalidDataException();
                 }
             }
             var outbound = Task.Run(async () =>

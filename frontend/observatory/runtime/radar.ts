@@ -2,6 +2,7 @@ import { instances, measured, type Telemetry, type RecordData } from './host';
 import { activityBins } from './activity';
 import { completeStatisticsTotal } from './statistics-metrics';
 import { canonicalObservationPath } from '../../../src/shared/observation-display.js';
+import { isObjectRead, objectReadMatchesProcess, objectResourceKey } from './object-read';
 export type ObservedInstance = ReturnType<typeof instances>[number];
 export interface RadarGroup {
   key: string;
@@ -55,7 +56,12 @@ interface GroupEvidence {
 /** Roll up exact-identity observations and complete token measurements. @param group Product group @param state Telemetry @returns Group evidence @since 0.14.1 */
 export function groupEvidence(group: RadarGroup, state: Telemetry): GroupEvidence {
   const ids = new Set(group.members.map((a) => a.instanceId).filter(Boolean));
-  const events = state.events.filter((e) => e.instanceId && ids.has(e.instanceId));
+  const events = state.events.filter(
+    (e) =>
+      e.instanceId &&
+      ids.has(e.instanceId) &&
+      group.members.some((member) => objectReadMatchesProcess(e, member)),
+  );
   const tokens = group.members.map((a) =>
     a.instanceId ? state.tokens.find((t) => t.instanceId === a.instanceId) : undefined,
   );
@@ -67,7 +73,9 @@ export function groupEvidence(group: RadarGroup, state: Telemetry): GroupEvidenc
     files: new Set(
       events
         .filter((e) => !e.selfAccess && e.attribution?.status !== 'unattributed')
-        .map((e) => canonicalObservationPath(e.file))
+        .map((e) =>
+          isObjectRead(e) ? objectResourceKey(e) : canonicalObservationPath(e.file ?? ''),
+        )
         .filter(Boolean),
     ).size,
     network: state.network.filter((n) => n.instanceId && ids.has(n.instanceId)).length,
@@ -81,7 +89,12 @@ export function groupEvidence(group: RadarGroup, state: Telemetry): GroupEvidenc
 export function groupActivity(group: RadarGroup, state: Telemetry, end: number) {
   const ids = new Set(group.members.map((a) => a.instanceId).filter(Boolean));
   return activityBins(
-    state.events.filter((e) => e.instanceId && ids.has(e.instanceId)),
+    state.events.filter(
+      (e) =>
+        e.instanceId &&
+        ids.has(e.instanceId) &&
+        group.members.some((member) => objectReadMatchesProcess(e, member)),
+    ),
     end,
     300000,
     10,

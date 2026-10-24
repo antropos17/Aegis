@@ -109,7 +109,8 @@ function assess(rule, steps) {
   if (rule.evidencePolicy !== POLICY) return null;
   const [file, connection] = steps;
   const reasons = [];
-  const readObserved = file.action === 'file-accessed';
+  const objectRead = file.action === 'bound-object-read';
+  const readObserved = file.action === 'file-accessed' || objectRead;
   const ownershipComplete = steps.every(
     (step) =>
       ['confirmed', 'inferred'].includes(step.attribution?.status) &&
@@ -158,6 +159,13 @@ function assess(rule, steps) {
             : 'direct-relation-only'
           : 'same-instance-only',
         'file-contents-unobserved',
+        ...(objectRead
+          ? [
+              'access-path-unobserved',
+              'pre-bound-object-policy',
+              'network-observed-before-native-delivery-not-reordered',
+            ]
+          : []),
       ],
     },
   };

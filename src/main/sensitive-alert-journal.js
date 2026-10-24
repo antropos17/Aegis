@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { projectBoundReadObject } = require('../shared/bound-read-object');
 
 const FILE_NAME = 'sensitive-alerts.json';
 const LIMIT = 100;
@@ -36,7 +37,10 @@ function validEntry(value) {
     typeof row.agent === 'string' &&
     row.agent.length <= 100 &&
     ['confirmed', 'inferred', 'unattributed'].includes(row.attribution) &&
-    typeof row.reviewed === 'boolean'
+    typeof row.reviewed === 'boolean' &&
+    (row.observationKind === undefined ||
+      (row.observationKind === 'bound-object-read' &&
+        row.labelSemantics === 'binding-label-access-path-unknown'))
   );
 }
 
@@ -79,7 +83,7 @@ function createSensitiveAlertJournal(userDataPath, io = fs) {
       // Retention is best effort; journal restore still proceeds.
     }
   }
-  /** @type {Array<{eventId:string,timestamp:number,basename:string,action:string,agent:string,attribution:string,reviewed:boolean}>} */
+  /** @type {Array<{eventId:string,timestamp:number,basename:string,action:string,agent:string,attribution:string,reviewed:boolean,observationKind?:string,labelSemantics?:string}>} */
   let items = [];
   let status = 'ready';
   let revision = 0;
@@ -113,6 +117,12 @@ function createSensitiveAlertJournal(userDataPath, io = fs) {
         agent: row.agent,
         attribution: row.attribution,
         reviewed: row.reviewed,
+        ...(row.observationKind === 'bound-object-read'
+          ? {
+              observationKind: 'bound-object-read',
+              labelSemantics: 'binding-label-access-path-unknown',
+            }
+          : {}),
       }));
     if (items.length !== parsed.items.length) {
       revision++;
@@ -225,9 +235,13 @@ function createSensitiveAlertJournal(userDataPath, io = fs) {
     record(event) {
       if (!event || event.sensitive !== true || !UUID.test(event.eventId || '')) return;
       if (items.some((row) => row.eventId === event.eventId)) return;
-      if (typeof event.file !== 'string' || event.file.length > 32768) return;
+      const object =
+        event.observationKind === 'bound-object-read' ? projectBoundReadObject(event.object) : null;
+      if (event.observationKind === 'bound-object-read' && !object) return;
+      const label = object ? object.label : event.file;
+      if (typeof label !== 'string' || label.length > 32768) return;
       if (!ACTIONS.has(event.action)) return;
-      const basename = path.basename(event.file.replace(/\\/g, '/')).slice(0, 200);
+      const basename = path.basename(label.replace(/\\/g, '/')).slice(0, 200);
       if (!basename) return;
       const row = {
         eventId: event.eventId,
@@ -239,6 +253,12 @@ function createSensitiveAlertJournal(userDataPath, io = fs) {
           ? event.attribution.status
           : 'unattributed',
         reviewed: false,
+        ...(object
+          ? {
+              observationKind: 'bound-object-read',
+              labelSemantics: 'binding-label-access-path-unknown',
+            }
+          : {}),
       };
       const now = Date.now();
       const next = [row, ...items.filter((item) => now - item.timestamp <= MAX_AGE_MS)].slice(

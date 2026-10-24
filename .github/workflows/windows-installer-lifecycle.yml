@@ -14,6 +14,7 @@ on:
           - windows11-x64-updater
           - windows11-x64-all-users
           - windows11-x64-all-users-updater
+          - windows11-x64-native-reads
       candidate:
         description: Use the signed published installer or build this exact workflow revision
         type: choice
@@ -160,7 +161,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   installer-x64:
-    if: startsWith(inputs.target, 'windows11-x64')
+    if: startsWith(inputs.target, 'windows11-x64') && inputs.target != 'windows11-x64-native-reads'
     runs-on: windows-2025-vs2026
     timeout-minutes: 45
     strategy:
@@ -215,5 +216,93 @@ jobs:
         with:
           name: installer-lifecycle-windows11-x64-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.AEGIS_X64_EVIDENCE }}/
+          if-no-files-found: error
+          retention-days: 7
+  native-read-admission:
+    if: inputs.target == 'windows11-x64-native-reads'
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 110
+    defaults:
+      run:
+        shell: powershell
+    env:
+      HUSKY: '0'
+      CI: 'true'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      npm_config_logs_max: '1'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Allocate isolated current-source build storage
+        run: |
+          $ErrorActionPreference='Stop'
+          if ('${{ inputs.candidate }}' -ne 'build') { throw 'Native-read qualification requires this exact source build' }
+          $root='D:\aegis-native-read-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT
+          if (Test-Path -LiteralPath $root) { throw 'Fresh cloud native-read root required' }
+          if ((Get-PSDrive D).Free -lt 40GB) { throw 'Insufficient cloud build and guest storage' }
+          New-Item -ItemType Directory -Path ($root+'\bootstrap') | Out-Null
+          git worktree add --detach ($root+'\source') $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated cloud worktree creation failed' }
+          @(
+            ('AEGIS_NATIVE_ROOT='+$root)
+            ('TEMP='+$root+'\bootstrap')
+            ('TMP='+$root+'\bootstrap')
+            ('npm_config_cache='+$root+'\bootstrap\npm')
+            ('ELECTRON_CACHE='+$root+'\bootstrap\electron')
+            ('ELECTRON_BUILDER_CACHE='+$root+'\bootstrap\builder')
+            ('NUGET_PACKAGES='+$root+'\bootstrap\nuget')
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+      - name: Install locked current-source build dependencies
+        timeout-minutes: 5
+        run: |
+          Set-Location -LiteralPath ($env:AEGIS_NATIVE_ROOT+'\source')
+          npm ci --no-audit --no-fund --loglevel=error
+          if ($LASTEXITCODE -ne 0) { throw 'Locked cloud dependency installation failed' }
+      - name: Verify native object admission controls and load-bearing mutations
+        timeout-minutes: 25
+        run: |
+          Set-Location -LiteralPath ($env:AEGIS_NATIVE_ROOT+'\source')
+          $env:GITHUB_WORKSPACE=$env:AEGIS_NATIVE_ROOT+'\source'
+          node scripts/verify-native-object-gate.mjs --output ($env:AEGIS_NATIVE_ROOT+'\gate\native-object-gate.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Native object control/mutation gate failed' }
+      - name: Build and bind marked diagnostic candidate without publication
+        timeout-minutes: 15
+        run: |
+          Set-Location -LiteralPath ($env:AEGIS_NATIVE_ROOT+'\source')
+          node tools/development/packaged-desktop.mjs --etw-build-only --source-sha $env:GITHUB_SHA --output ($env:AEGIS_NATIVE_ROOT+'\build')
+          if ($LASTEXITCODE -ne 0) { throw 'Current-candidate package qualification failed' }
+      - name: Qualify guest restart and native read through alert and displayed risk
+        run: |
+          $env:GITHUB_WORKSPACE=$env:AEGIS_NATIVE_ROOT+'\source'
+          & ($env:GITHUB_WORKSPACE+'\scripts\qualification\windows-native-read-cloud.ps1') -Source $env:GITHUB_WORKSPACE -Build ($env:AEGIS_NATIVE_ROOT+'\build')
+      - name: Check bounded private qualification evidence
+        if: always() && env.AEGIS_NATIVE_ROOT != ''
+        run: |
+          $root=$env:AEGIS_NATIVE_ROOT
+          $stage=Join-Path $root 'upload'
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          if (Test-Path -LiteralPath ($root+'\build\evidence')) { Copy-Item -LiteralPath ($root+'\build\evidence') -Destination ($stage+'\build') -Recurse }
+          if (Test-Path -LiteralPath ($root+'\evidence')) { Copy-Item -LiteralPath ($root+'\evidence') -Destination ($stage+'\cloud') -Recurse }
+          if (Test-Path -LiteralPath ($root+'\gate')) { Copy-Item -LiteralPath ($root+'\gate') -Destination ($stage+'\gate') -Recurse }
+          $files=@(Get-ChildItem -LiteralPath $stage -Recurse -File)
+          if ($files.Count -gt 100 -or ($files | Measure-Object Length -Sum).Sum -gt 32MB -or @(Get-ChildItem -LiteralPath $stage -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Native-read evidence budget/layout exceeded' }
+          'AEGIS_NATIVE_UPLOAD_READY=true' | Add-Content -LiteralPath $env:GITHUB_ENV
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && env.AEGIS_NATIVE_UPLOAD_READY == 'true'
+        with:
+          name: native-read-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_NATIVE_ROOT }}/upload/
           if-no-files-found: error
           retention-days: 7

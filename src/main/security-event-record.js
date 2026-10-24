@@ -3,6 +3,7 @@ const { randomUUID } = require('crypto');
 const { EVIDENCE_CODES } = require('./attribution');
 const { projectToolContext, unavailableToolContext } = require('./tool-context-record');
 const { projectNativeObservation, unavailableNativeObservation } = require('./native-observation');
+const { projectBoundReadObject } = require('../shared/bound-read-object');
 
 const SENSORS = Object.freeze(['file-watch', 'file-handle', 'process', 'network', 'other']);
 const TYPES = new Set(['file-access', 'config-access', 'agent-enter', 'network-connection']);
@@ -70,6 +71,21 @@ function projectRecord(input) {
   } else if (input.type === 'agent-enter') {
     if (Number.isSafeInteger(d.extra?.startTime)) extra.startTime = d.extra.startTime;
   } else {
+    if (d.eventId !== undefined) {
+      if (
+        typeof d.eventId !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          d.eventId,
+        )
+      )
+        throw new Error('invalid-record');
+      extra.eventId = d.eventId;
+    }
+    if (d.boundObject !== undefined) {
+      const object = projectBoundReadObject(d.boundObject);
+      if (!object || details.path !== '') throw new Error('invalid-record');
+      extra.boundObject = object;
+    }
     if (d.createTime100ns != null) extra.createTime100ns = text(d.createTime100ns, 32);
     if (Number.isSafeInteger(d.repeatCount) && d.repeatCount > 0) extra.repeatCount = d.repeatCount;
   }
@@ -118,7 +134,13 @@ function replayRecord(value) {
   if (!/^[a-f0-9-]{36}$/.test(value.deliveryId)) throw new Error('invalid-record');
   const record = projectRecord(value);
   // File and native metadata are reintroduced through the same closed input fields.
-  for (const key of ['createTime100ns', 'repeatCount', 'nativeObservation']) {
+  for (const key of [
+    'createTime100ns',
+    'repeatCount',
+    'nativeObservation',
+    'boundObject',
+    'eventId',
+  ]) {
     if (value.details?.extra?.[key] !== undefined) {
       const projected = projectRecord({
         ...value,

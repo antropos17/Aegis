@@ -726,6 +726,58 @@ describe('exports', () => {
     expect(csv).toContain('Local 10.0.0.2:52002 · PID 17 · Established');
   });
 
+  it('exports bound-object evidence without converting its label into an access path', async () => {
+    const object = {
+      objectKey: 'opaque-object',
+      bindingId: 'binding-1',
+      label: 'C:\\fixture\\.ssh\\id_ed25519',
+      scopeGeneration: 'scope-1',
+      policyGeneration: 'policy-1',
+      provenance: 'issuer-handle-file-id',
+      policy: { sensitive: true, reason: 'SSH private key', classification: 'ssh-aws' },
+      volumeSerial: 'RAW-VOLUME',
+      fileId128: 'RAW-ID',
+    };
+    initExporter({
+      activityLog: [
+        {
+          observationKind: 'bound-object-read',
+          object,
+          timestamp: 1720000000123,
+          agent: 'Claude',
+          pid: 100,
+          instanceId: '100:1720000000000',
+          createTime100ns: '133644736000000000',
+          sensitive: true,
+          reason: 'SSH private key',
+          action: 'accessed',
+          attribution: { status: 'confirmed', evidence: ['etw-file-object'] },
+        },
+      ],
+    });
+    const jsonPath = path.join(tmpDir, 'object.json');
+    mockShowSaveDialog.mockResolvedValueOnce({ filePath: jsonPath });
+    await exporter.exportLog();
+    const payload = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    expect(payload.events[0]).toMatchObject({
+      observationKind: 'bound-object-read',
+      createTime100ns: '133644736000000000',
+      object: { objectKey: 'opaque-object', label: object.label },
+    });
+    expect(payload.events[0]).not.toHaveProperty('file');
+    expect(JSON.stringify(payload)).not.toMatch(/RAW-VOLUME|RAW-ID/);
+    const csvPath = path.join(tmpDir, 'object.csv');
+    mockShowSaveDialog.mockResolvedValueOnce({ filePath: csvPath });
+    await exporter.exportCsv();
+    expect(fs.readFileSync(csvPath, 'utf8')).toContain(
+      'bound-object-read,Binding label (access path unknown):',
+    );
+    const report = await exporter.generateReport();
+    const html = fs.readFileSync(report.path, 'utf8');
+    expect(html).toContain('Binding label (access path unknown):');
+    expect(html).not.toMatch(/RAW-VOLUME|RAW-ID/);
+  });
+
   describe('formatUptimeReport (tested through generateReport)', () => {
     it('formats hours, minutes, seconds correctly', async () => {
       initExporter({

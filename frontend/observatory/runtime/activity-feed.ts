@@ -39,6 +39,8 @@ function evidence(row: RecordData): string {
     row.pid,
     row.agent,
     row.file,
+    row.observationKind,
+    row.object,
     row.path,
     row.timestamp,
     row.action,

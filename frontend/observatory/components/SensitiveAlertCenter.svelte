@@ -3,6 +3,7 @@
   import { t } from '../runtime/i18n';
   import type { SensitiveAlert } from '../runtime/sensitive-alerts';
   import { alertBasename } from '../runtime/sensitive-alerts';
+  import { isObjectRead, observationLabel, OBJECT_READ_EXPLANATION } from '../runtime/object-read';
   import Icon from './Icon.svelte';
 
   let {
@@ -106,7 +107,7 @@
     {#each visible as item (item.id)}
       <li class:reviewed={item.reviewed}>
         <div class="record-head">
-          <strong>{alertBasename(item.event.file)}</strong>
+          <strong>{alertBasename(observationLabel(item.event))}</strong>
           <span class="status"
             >{item.reviewed
               ? item.savedReview
@@ -118,7 +119,14 @@
         <p class="source">
           {sourceLabel(item)}{item.event._demo === true ? ` · ${$t('Simulated data')}` : ''}
         </p>
-        {#if item.live}<p class="path">{item.event.file}</p>{/if}
+        {#if item.live}<p class="path">{observationLabel(item.event)}</p>{/if}
+        {#if isObjectRead(item.event)}<p class="details">
+            {$t(
+              item.live
+                ? OBJECT_READ_EXPLANATION
+                : 'Saved object-read summary; name is a binding label. Access path unknown.',
+            )}
+          </p>{/if}
         {#if !item.live}<p class="details">
             {$t('Saved summary; full evidence is unavailable in this window.')}
           </p>{/if}

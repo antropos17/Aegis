@@ -30,14 +30,15 @@ function make(options = {}) {
     ...options,
   });
   owners.push(sensor);
-  function running() {
-    expect(sensor.control({ action: 'start', root: 'C:\\fixture' })).toEqual({ success: true });
+  function running(action = 'start', objectBridge) {
+    expect(sensor.control({ action, root: 'C:\\fixture' })).toEqual({ success: true });
     const child = transport.children.at(-1);
     child.message('hello', 1);
     child.flush();
     child.message('ready', 2, {
       ...message('ready').data,
       requestId: child.writes[0].data.requestId,
+      ...(objectBridge === undefined ? {} : { objectBridge }),
     });
     child.flush();
     return child;
@@ -45,6 +46,20 @@ function make(options = {}) {
   return { sensor, transport, powerMonitor, spawnProcess, checkRoot, running };
 }
 describe('ordinary packaged ETW file reads', () => {
+  it('enables object policy only after the separate explicit start action', () => {
+    const normal = make();
+    const first = normal.running();
+    expect(first.writes[0].data).not.toHaveProperty('objectPolicy');
+    const explicit = make();
+    const second = explicit.running('start-object', 'win11-x64-26300.9457-experimental');
+    expect(second.writes[0].data.objectPolicy).toBe(true);
+    expect(explicit.sensor.getReadView()).toMatchObject({
+      captureMode: 'object-bound',
+      admission: { qualified: true },
+    });
+    explicit.sensor.setPaused(true);
+    expect(explicit.sensor.getReadView().admission.qualified).toBe(false);
+  });
   it('offers controls without automatically prompting or requiring diagnostic metadata', () => {
     const { sensor, spawnProcess } = make();
     expect(sensor.start()).toBe(false);

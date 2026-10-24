@@ -32,6 +32,8 @@ export type AttributionEvidence =
   | 'handle-scan-pid'
   /** OS connection table reported this PID as the socket owner, same scan tick. @since v0.12.0 */
   | 'os-tcp-owner-pid'
+  /** Kernel read of a pre-bound object, exact issuing process and full birth witness. */
+  | 'etw-file-object'
   | 'self-config-path'
   | 'cwd-containment'
   | 'no-owner-match'
@@ -155,8 +157,26 @@ export interface ToolContextCapsule {
   readonly candidates: readonly ToolContextCandidate[];
 }
 
-/** File access event from watcher or handle scan */
-export interface FileEvent {
+/** Classification frozen before a native bound-object read became eligible. */
+export interface BoundObjectPolicy {
+  readonly sensitive: boolean;
+  readonly reason: string;
+  readonly classification: 'ssh-aws' | 'agent-config' | 'sensitive' | 'ordinary';
+}
+
+/** A pre-read object label; this is never the pathname used by the observed read. */
+export interface BoundReadObject {
+  readonly objectKey: string;
+  readonly bindingId: string;
+  readonly label: string;
+  readonly scopeGeneration: string;
+  readonly policyGeneration: string;
+  readonly provenance: 'issuer-handle-file-id';
+  readonly policy: BoundObjectPolicy;
+}
+
+/** Common identity and operational fields for file observations. */
+interface FileEventBase {
   /** Random UUID of this observation; absent on historical/demo records. */
   readonly eventId?: string;
   /** Owning agent's display name, or `''` when the event is unattributed. */
@@ -188,13 +208,6 @@ export interface FileEvent {
   readonly createTime100ns?: string;
   readonly parentEditor: string | null;
   readonly cwd: string | null;
-  readonly file: string;
-  /** Path-derived skill identity, independent of actor attribution; absent on older events. */
-  readonly skill?: {
-    readonly name: string;
-    readonly rootPath: string;
-    readonly relativePath: string;
-  } | null;
   readonly sensitive: boolean;
   readonly selfAccess: boolean;
   readonly reason: string;
@@ -214,6 +227,32 @@ export interface FileEvent {
    */
   readonly _demo?: boolean;
 }
+
+/** A path observed by the existing watcher or polling provider. */
+export interface PathFileEvent extends FileEventBase {
+  readonly observationKind?: 'path';
+  readonly file: string;
+  readonly object?: never;
+  /** Path-derived skill identity, independent of actor attribution. */
+  readonly skill?: {
+    readonly name: string;
+    readonly rootPath: string;
+    readonly relativePath: string;
+  } | null;
+}
+
+/** A read of an independently pre-bound object; its access alias is unknown. */
+export interface BoundObjectReadEvent extends FileEventBase {
+  readonly createTime100ns: string;
+  readonly observationKind: 'bound-object-read';
+  readonly object: BoundReadObject;
+  readonly file?: never;
+  readonly skill?: never;
+  readonly action: 'accessed';
+  readonly selfAccess: false;
+}
+
+export type FileEvent = PathFileEvent | BoundObjectReadEvent;
 
 /**
  * Classification of a remote endpoint. A hard three-way distinction, like

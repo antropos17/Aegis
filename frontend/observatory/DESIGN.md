@@ -61,6 +61,19 @@ and file-channel filters. Keep candidate path, unverified issuer, potential risk
 loss and retained-state labels visible. This table does not alter scored events
 or audit history; see the [journey contract](../../docs/development/agent-sensitive-read.md).
 
+The October 24 native-admission brief adds an unchecked, explicit object-read
+opt-in next to the existing folder controls. Ordinary Start remains display-only;
+the opt-in sends `start-object` only when the host reports it available. The
+disclosure explains bindings valid for up to ten seconds, rename/move behavior,
+and unverified short-lived or unproven objects. Startup, resume and unpause never
+start either mode. Admitted object reads can enter Events, sensitive alerts and
+risk. Their names are binding labels with an unknown access path; preserve this
+distinction in rows, evidence, details and restored alert summaries. They do not
+offer Show in folder, path exceptions or parent-folder navigation. Resource
+grouping uses opaque object identity and scope/policy generations, never labels.
+This is a scoped live-data adaptation of the existing controls and evidence
+surfaces; retain the approved density, typography, themes and stylesheet order.
+
 Follow [Observatory instructions](AGENTS.md) and the
 [verification workflow](../../docs/development/workflow.md#selecting-verification).
 Compare affected rendered states with the applicable reference at matching
