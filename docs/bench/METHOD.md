@@ -169,6 +169,15 @@ are its own matching bound, not a universal latency budget for other modes.
 
 ## Future resource capture and repetitions
 
+The [own-Node acquisition session](SELF_RESOURCE_SESSION.md) supplies a bounded
+artifact-persistence path for the existing self sampler and acquisition-window
+consumer. It retains a declared waiting-only plan, source-byte inventory, raw
+observations and conditional derived intervals. It observes its own Node process,
+including instrumentation work, and supplies no product/cohort population,
+independent calibration or overhead result. Its cooperative duration bounds do
+not provide an external hard deadline; the complete protocol below remains future
+qualification work.
+
 The following values are protocol settings proposed for future implementation,
 not observed performance. Freeze them with the collector implementation before
 the first qualification run. Each fixed commit/platform/mode/agent/workload cell

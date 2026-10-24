@@ -3928,3 +3928,23 @@ removing each new checkpoint lost its corresponding restart marker, and the
 frozen source was restored by hash. Rejection checkpoints add synchronous I/O;
 the delivery document records a bounded diagnostic and its limits. Hosted checks
 remain the merge gate; full native-producer and application acceptance remain open.
+
+## W8 own-Node resource acquisition session — 2026-10-24
+
+Added an explicit CLI joining the existing own-process sampler to retained raw
+observations and acquisition-window interval derivation. A fixed waiting-only
+plan and source inventory are persisted before acquisition; raw observations are
+persisted before derivation. The fresh five-file bundle has exclusive writes,
+confirmed prior-file closure, per-file limits and a whole-session quota.
+
+Receipts retain incomplete acquisition, uncertain cleanup, source endpoint
+changes and partial publication. Final records cannot attest their own write
+or close; successful publication also requires the caller's result. Separate
+CPU/RSS brackets and the end-exclusive unobserved tail remain intact.
+
+Behavioral and source-copy mutation controls are included in the required CI
+suite, alongside one short real CLI acquisition without performance thresholds.
+Local checks are limited to syntax, scoped formatting and diff inspection under
+the host storage constraint. This supplies calling-Node instrumentation only;
+product/cohort capture, external deadlines, calibration, overhead and full W8/T8
+acceptance remain open.
