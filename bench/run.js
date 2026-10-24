@@ -101,6 +101,7 @@ const {
 const sensor = require('./lib/sensor');
 const sysmon = require('./lib/oracles/sysmon');
 const { writeFixtureOutcomes } = require('./lib/fixture-outcomes');
+const { writeFileReadOutcomes } = require('./lib/file-read-outcomes');
 
 /** @type {string} Where run directories are created. Gitignored. */
 const RUNS_DIR = path.join(manifest.ROOT, 'bench', 'runs');
@@ -1040,7 +1041,19 @@ function writeScenarioArtifacts(opts) {
           arm: opts.arm,
           outcomes: opts.outcome.fixtureOutcomes,
         });
-  return { cataloguePath, stepsPath, fixturePath };
+  const reads =
+    opts.outcome.readOutcomes === undefined
+      ? {}
+      : {
+          fileReadPath: writeFileReadOutcomes({
+            dir: opts.dir,
+            runId: opts.runId,
+            scenario: opts.scenario,
+            arm: opts.arm,
+            outcomes: opts.outcome.readOutcomes,
+          }),
+        };
+  return { cataloguePath, stepsPath, fixturePath, ...reads };
 }
 
 module.exports = {
