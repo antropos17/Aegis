@@ -236,7 +236,7 @@ const mutants = [
     id: 'observer-notice-failure-stage',
     file: observer,
     edits: [['at(FailureStage.NoticeParse);', 'at(FailureStage.NoticeRead);']],
-    failure: 'observer QA failure identifies actual notice rejection without publishing input',
+    failure: 'observer accepts the actual framed reserved notice and refuses malformed shapes',
   },
   {
     id: 'package-window-two-safe-samples',
