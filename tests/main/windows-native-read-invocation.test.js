@@ -584,6 +584,44 @@ try {
     try { [void](& $entry 'Unexpected' $launch 1 $launch $baseline $false $true) }
     catch { if($_.Exception.Message -cne 'Native task observation refused') { throw 'fixture-task-refusal-code' };$refused=$true }
     if(-not $refused) { throw 'fixture-task-unknown-state' };$cases++
+  } elseif($Scenario -ceq 'consent') {
+    $step='consent-attempts'
+    $entry=[scriptblock]::Create((Get-Command Invoke-NativeReadConsentAttempts -CommandType Function).ScriptBlock.ToString())
+    function Invoke-FixtureConsent([string]$Mode) {
+      $clock=@{ms=0;verified=0;sent=0;gone=$false};$audit=[Collections.Generic.List[object]]::new();$outcome=$null;$refused=$false
+      $verify={
+        $clock.verified++
+        if($Mode -ceq 'revalidation-refused' -and $clock.verified -eq 2) { throw 'fixture-consent-identity-refused' }
+        if($Mode -ceq 'gone-during-revalidation') { $clock.gone=$true }
+        if($Mode -ceq 'revalidation-deadline') { $clock.ms=15000 }
+        return 'fixed-owned-keyboard'
+      }
+      $send={param($Keyboard)
+        if($Keyboard -cne 'fixed-owned-keyboard') { throw 'fixture-consent-keyboard' }
+        $clock.sent++;return @(0,0,0)
+      }
+      $closed={ return ($Mode -ceq 'already-gone' -or $clock.gone -or ($Mode -ceq 'late-dialog' -and $clock.sent -ge 2)) }
+      try {
+        $outcome=& $entry -Verify $verify -Send $send -TestClosed $closed -Elapsed { $clock.ms } -Pause {param($Milliseconds) $clock.ms+=$Milliseconds} -OnAttempt {param($Fact) [void]$audit.Add($Fact)}
+      } catch {
+        if($Mode -cne 'revalidation-refused' -or $_.Exception.Message -cne 'fixture-consent-identity-refused') { throw }
+        $refused=$true
+      }
+      return @{clock=$clock;audit=$audit.ToArray();outcome=$outcome;refused=$refused}
+    }
+    $value=Invoke-FixtureConsent 'late-dialog'
+    if(-not $value.outcome.closedObserved -or $value.clock.sent -ne 2 -or $value.clock.verified -ne 2 -or $value.audit.Count -ne 2 -or $value.audit[0].elapsedMs -lt 500 -or ($value.audit[1].elapsedMs-$value.audit[0].elapsedMs) -lt 3000 -or $value.clock.ms -ge 15000) { throw 'fixture-consent-late-dialog' }
+    foreach($fact in $value.audit) { if(-not $fact.identityRechecked -or -not $fact.vmKeyboardRechecked -or $fact.returnCodes.Count -ne 3 -or @($fact.returnCodes | Where-Object { $_ -ne 0 }).Count) { throw 'fixture-consent-attempt-facts' } };$cases++
+    $value=Invoke-FixtureConsent 'revalidation-refused'
+    if(-not $value.refused -or $value.clock.verified -ne 2 -or $value.clock.sent -ne 1 -or $value.audit.Count -ne 1) { throw 'fixture-consent-refusal' };$cases++
+    $value=Invoke-FixtureConsent 'gone-during-revalidation'
+    if(-not $value.outcome.closedObserved -or $value.clock.verified -ne 1 -or $value.clock.sent -ne 0 -or $value.audit.Count -ne 0) { throw 'fixture-consent-gone' };$cases++
+    $value=Invoke-FixtureConsent 'never-closes'
+    if($value.outcome.closedObserved -or $value.clock.sent -ne 3 -or $value.clock.verified -ne 3 -or $value.audit.Count -ne 3 -or $value.clock.ms -ne 15000) { throw 'fixture-consent-budget' };$cases++
+    $value=Invoke-FixtureConsent 'revalidation-deadline'
+    if($value.outcome.closedObserved -or $value.clock.verified -ne 1 -or $value.clock.sent -ne 0 -or $value.audit.Count -ne 0 -or $value.clock.ms -ne 15000) { throw 'fixture-consent-deadline' };$cases++
+    $value=Invoke-FixtureConsent 'already-gone'
+    if(-not $value.outcome.closedObserved -or $value.clock.verified -ne 0 -or $value.clock.sent -ne 0 -or $value.audit.Count -ne 0) { throw 'fixture-consent-already-gone' };$cases++
   } else { throw 'fixture-feedback-scenario' }
   @{status='PASS';version=$PSVersionTable.PSVersion.ToString();scenario=$Scenario;cases=$cases} | ConvertTo-Json -Compress
 } catch {
@@ -597,6 +635,13 @@ try {
     'fixture-bundle-refusal-code' {'unexpected-refusal'}
     'fixture-bundle-mutation-survived' {'guard-survived'}
     'fixture-task-done-publication' {'task-done-publication'}
+    'fixture-consent-late-dialog' {'consent-late-dialog'}
+    'fixture-consent-attempt-facts' {'consent-attempt-facts'}
+    'fixture-consent-refusal' {'consent-refusal'}
+    'fixture-consent-gone' {'consent-gone'}
+    'fixture-consent-budget' {'consent-budget'}
+    'fixture-consent-deadline' {'consent-deadline'}
+    'fixture-consent-already-gone' {'consent-already-gone'}
     'Native input manifest refused' {'manifest-shape'}
     'Input manifest mismatch' {'input-mismatch'}
     'Native input verifier refused' {'verifier-input'}
@@ -637,6 +682,7 @@ describe.skipIf(process.platform !== 'win32')(
     it.each([
       ['bundle', 4],
       ['task', 20],
+      ['consent', 6],
     ])(
       'checks actual %s feedback boundaries in Windows PowerShell 5.1',
       (scenario, cases) => {

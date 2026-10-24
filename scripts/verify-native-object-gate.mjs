@@ -226,6 +226,11 @@ function native(label, expectedPass, expectedFailure) {
 }
 const mutants = [
   {
+    id: 'consent-single-dispatch-misses-late-dialog',
+    file: logon,
+    edits: [['$attempts.Count -lt 3', '$attempts.Count -lt 1']],
+  },
+  {
     id: 'package-window-deactivation-transition',
     file: windowObservation,
     edits: [['owned.hide();', 'void 0;']],

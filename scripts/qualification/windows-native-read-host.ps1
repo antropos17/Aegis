@@ -249,6 +249,36 @@ function Test-NativeReadCapability($Session) {
   }
 }
 
+function Invoke-NativeReadConsentAttempts {
+  param([scriptblock]$Verify,[scriptblock]$Send,[scriptblock]$TestClosed,[scriptblock]$Elapsed=$null,[scriptblock]$Pause=$null,[scriptblock]$OnAttempt=$null)
+  $watch=[Diagnostics.Stopwatch]::StartNew()
+  if($null -eq $Elapsed) { $Elapsed={ $watch.Elapsed.TotalMilliseconds } }
+  if($null -eq $Pause) { $Pause={param($Milliseconds) Start-Sleep -Milliseconds $Milliseconds} }
+  $attempts=[Collections.Generic.List[object]]::new();$nextAttempt=500
+  while((& $Elapsed) -lt 15000) {
+    $closed=[bool](& $TestClosed)
+    if((& $Elapsed) -ge 15000) { break }
+    if($closed) { return @{closedObserved=$true;attempts=$attempts.ToArray()} }
+    if($attempts.Count -lt 3 -and (& $Elapsed) -ge $nextAttempt) {
+      $context=& $Verify
+      if((& $Elapsed) -ge 15000) { break }
+      $closed=[bool](& $TestClosed)
+      if((& $Elapsed) -ge 15000) { break }
+      if($closed) { return @{closedObserved=$true;attempts=$attempts.ToArray()} }
+      $at=[long](& $Elapsed)
+      $codes=@(& $Send $context)
+      if($codes.Count -ne 3 -or @($codes | Where-Object { $_ -ne 0 }).Count) { throw 'Owned consent keyboard result failed' }
+      $fact=@{index=$attempts.Count+1;elapsedMs=$at;identityRechecked=$true;vmKeyboardRechecked=$true;returnCodes=$codes}
+      [void]$attempts.Add($fact)
+      if($null -ne $OnAttempt) { & $OnAttempt $fact }
+      $nextAttempt=(& $Elapsed)+3000
+    }
+    $remaining=15000-(& $Elapsed)
+    if($remaining -gt 0) { & $Pause ([int][Math]::Min(250,$remaining)) }
+  }
+  return @{closedObserved=$false;attempts=$attempts.ToArray()}
+}
+
 function Confirm-NativeReadConsent($Session,[string]$Root,$State,[string]$Id,[string]$Name,[string]$VmRoot,[string]$Phase) {
   $consent=@(Invoke-Command -Session $Session -ScriptBlock {
     @(Get-CimInstance Win32_Process -Filter "Name='consent.exe'") | Select-Object ProcessId,SessionId,ExecutablePath,CreationDate
@@ -266,28 +296,47 @@ function Confirm-NativeReadConsent($Session,[string]$Root,$State,[string]$Id,[st
   if($State.Count -ge 12) { throw 'Consent count budget exceeded' }
   $capture=Save-NativeReadCapture $Id $Name $VmRoot (Join-Path $Root 'evidence') (100+$State.Count) $Phase
   if($capture.status -ne 'CAPTURED') { throw 'Native-read consent screenshot unavailable' }
-  $vm=Get-VM -Id ([guid]$Id)
-  if($vm.Name -cne $Name -or $vm.State -ne 'Running' -or -not $vm.ConfigurationLocation.StartsWith($VmRoot,[StringComparison]::OrdinalIgnoreCase)) { throw 'Consent VM ownership changed' }
-  $keyboard=@(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_Keyboard -Filter ("SystemName='"+$Id+"'"))
-  if($keyboard.Count -ne 1 -or $keyboard[0].SystemCreationClassName -ne 'Msvm_ComputerSystem' -or $keyboard[0].CreationClassName -ne 'Msvm_Keyboard') { throw 'Owned VM keyboard unavailable' }
-  $codes=@()
-  try {
-    $codes+=([uint32]$keyboard[0].PressKey([uint32]18).ReturnValue)
-    if($codes[0] -ne 0) { throw 'Owned Alt press failed' }
-    $codes+=([uint32]$keyboard[0].TypeKey([uint32]89).ReturnValue)
-  } finally { $codes+=([uint32]$keyboard[0].ReleaseKey([uint32]18).ReturnValue) }
-  if(@($codes | Where-Object { $_ -ne 0 }).Count) { throw 'Owned consent keyboard result failed' }
-  $deadline=[DateTime]::UtcNow.AddSeconds(15)
-  do {
-    $present=Invoke-Command -Session $Session -ArgumentList ([int]$verified.pid),$verified.createdAt -ScriptBlock {
-      param($ConsentPid,$Birth)
+  $entry=@{phase=$Phase;observation=$verified;capture=$capture;interaction='Bounded Alt+Y on exact owned cloud guest';returnCodes=@();attempts=@();closedObserved=$false}
+  [void]$State.Add($entry)
+  $verify={
+    Invoke-Command -Session $Session -ArgumentList ([int]$verified.pid),$verified.createdAt,([int]$verified.sessionId) -ScriptBlock {
+      param($ConsentPid,$Birth,$ExpectedSession)
       $process=Get-CimInstance Win32_Process -Filter ('ProcessId='+$ConsentPid)
-      return [bool]($process -and $process.CreationDate.ToUniversalTime().ToString('o') -ceq $Birth)
+      if($process) {
+        $policy=Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+        $signature=Get-AuthenticodeSignature -LiteralPath $process.ExecutablePath
+        if($process.CreationDate.ToUniversalTime().ToString('o') -cne $Birth -or $process.SessionId -ne $ExpectedSession -or $process.ExecutablePath -ine 'C:\Windows\System32\consent.exe' -or $signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft' -or $policy.EnableLUA -ne 1 -or $policy.PromptOnSecureDesktop -ne 1) { throw 'Secure consent revalidation failed' }
+      }
+    } | Out-Null
+    $vm=Get-VM -Id ([guid]$Id)
+    $actual=[IO.Path]::GetFullPath($vm.ConfigurationLocation).TrimEnd('\');$expected=[IO.Path]::GetFullPath($VmRoot).TrimEnd('\')
+    if($vm.Id.ToString() -cne $Id -or $vm.Name -cne $Name -or $vm.State -ne 'Running' -or ($actual -ine $expected -and -not $actual.StartsWith($expected+'\',[StringComparison]::OrdinalIgnoreCase))) { throw 'Consent VM ownership changed' }
+    $keyboard=@(Get-WmiObject -Namespace root/virtualization/v2 -Class Msvm_Keyboard -Filter ("SystemName='"+$Id+"'"))
+    if($keyboard.Count -ne 1 -or $keyboard[0].SystemName -ine $Id -or $keyboard[0].SystemCreationClassName -ne 'Msvm_ComputerSystem' -or $keyboard[0].CreationClassName -ne 'Msvm_Keyboard') { throw 'Owned VM keyboard unavailable' }
+    return $keyboard[0]
+  }
+  $send={param($Keyboard)
+    $codes=@()
+    try {
+      $codes+=([uint32]$Keyboard.PressKey([uint32]18).ReturnValue)
+      if($codes[0] -ne 0) { throw 'Owned Alt press failed' }
+      $codes+=([uint32]$Keyboard.TypeKey([uint32]89).ReturnValue)
+    } finally { $codes+=([uint32]$Keyboard.ReleaseKey([uint32]18).ReturnValue) }
+    return $codes
+  }
+  $closed={
+    Invoke-Command -Session $Session -ArgumentList ([int]$verified.pid),$verified.createdAt,([int]$verified.sessionId) -ScriptBlock {
+      param($ConsentPid,$Birth,$ExpectedSession)
+      $process=Get-CimInstance Win32_Process -Filter ('ProcessId='+$ConsentPid)
+      if(-not $process) { return $true }
+      if($process.CreationDate.ToUniversalTime().ToString('o') -cne $Birth -or $process.SessionId -ne $ExpectedSession -or $process.ExecutablePath -ine 'C:\Windows\System32\consent.exe') { throw 'Consent identity changed' }
+      return $false
     }
-    if(-not $present) { break };Start-Sleep -Milliseconds 250
-  } while([DateTime]::UtcNow -lt $deadline)
-  [void]$State.Add(@{phase=$Phase;observation=$verified;capture=$capture;interaction='Alt+Y on exact owned cloud guest';returnCodes=$codes;closedObserved=(-not $present)})
-  if($present) { throw 'Native-read consent did not close' }
+  }
+  $onAttempt={param($Fact) $entry.attempts+=@($Fact);$entry.returnCodes+=@($Fact.returnCodes)}
+  $outcome=Invoke-NativeReadConsentAttempts $verify $send $closed -OnAttempt $onAttempt
+  $entry.closedObserved=$outcome.closedObserved
+  if(-not $outcome.closedObserved) { throw 'Native-read consent did not close' }
 }
 
 function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[string]$Id,[string]$Name,[string]$VmRoot) {

@@ -377,17 +377,20 @@ describe('actual admission window preparation adapter', () => {
     };
     const receipt = {};
     const readDpi = vi.fn(() => 96);
-    const checked = expect(
-      prepareNativeReadWindow(
-        run.application,
-        path.join(run.output, 'admission-window.json'),
-        {},
-        receipt,
-        readDpi,
-      ),
-    ).rejects.toThrow('Admission window was replaced');
+    const observed = prepareNativeReadWindow(
+      run.application,
+      path.join(run.output, 'admission-window.json'),
+      {},
+      receipt,
+      readDpi,
+    ).then(
+      () => null,
+      (error) => error,
+    );
     await vi.advanceTimersByTimeAsync(60);
-    await checked;
+    const failure = await observed;
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toContain('Admission window was replaced');
     expect(receipt.window.sameWindow).toBe(false);
     expect(readDpi).not.toHaveBeenCalled();
     expect(replacement.setBounds).not.toHaveBeenCalled();
@@ -404,11 +407,20 @@ describe('actual admission window preparation adapter', () => {
       run.electron.screen.getDisplayMatching = () => ({ scaleFactor });
       const receipt = {};
       const destination = path.join(run.output, 'admission-window.json');
-      const checked = expect(
-        prepareNativeReadWindow(run.application, destination, {}, receipt, () => dpi),
-      ).rejects.toThrow(message);
+      const observed = prepareNativeReadWindow(
+        run.application,
+        destination,
+        {},
+        receipt,
+        () => dpi,
+      ).then(
+        () => null,
+        (error) => error,
+      );
       await vi.advanceTimersByTimeAsync(60);
-      await checked;
+      const failure = await observed;
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure.message).toContain(message);
       expect(receipt.window.scaleFactor).toBe(scaleFactor);
       expect(JSON.parse(fs.readFileSync(destination, 'utf8')).windowInputIsolated).toBe(true);
       expect(receipt.window).not.toHaveProperty('handle');
