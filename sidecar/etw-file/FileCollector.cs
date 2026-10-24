@@ -63,6 +63,7 @@ internal static class FileCollector
             authorize.CancelAfter(TimeSpan.FromSeconds(10));
             var start = await read.Read(pipe, true, authorize.Token);
             if (start.t != "start") throw new InvalidDataException();
+            string? objectBridge = start.data.TryGetProperty("objectPolicy", out _) ? pipeline.EnableObjectPolicy() : null;
             if (trace != null)
             {
                 if (guard?.Alive != true || fallback?.Alive != true || args.Length == 11 && orphan?.Alive != true) throw new IOException();
@@ -95,7 +96,8 @@ internal static class FileCollector
                 frequency = Stopwatch.Frequency.ToString(),
                 clock = new { qpc = before.ToString(), unixMs = unix, uncertaintyQpc = (after - before + (Stopwatch.Frequency + 999) / 1000).ToString() },
                 buffers = new { count = stats.Buffers ?? 256, sizeKiB = stats.Size ?? 64 },
-                telemetry = Telemetry()
+                telemetry = Telemetry(),
+                objectBridge
             }, lifetime.Token);
             if (orphan != null) await orphan.Phase("running");
             var stopSignal = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -115,6 +117,7 @@ internal static class FileCollector
                         var command = await read.Read(pipe, true, lease.Token);
                         if (command.t == "stop") { stopSignal.TrySetResult(command.data.GetProperty("requestId").GetString()!); return; }
                         if (command.t == "prime-issuers") { pipeline.RequestPreparation(FileIssuerRequest.Parse(command.data)); continue; }
+                        if (command.t == "bind-object-policy") { pipeline.RequestBinding(FileObjectBinding.Parse(command.data)); continue; }
                         if (command.t != "ping") throw new InvalidDataException();
                     }
                 }
@@ -232,6 +235,8 @@ internal static class FileCollector
             try
             {
                 bool prepared = false;
+                if (pipeline.TakeBinding() is { } bound)
+                { await send.Write(pipe, "object-policy-bound", bound, token); prepared = true; }
                 if (pipeline.TakePreparation() is { } request)
                 {
                     await send.Write(pipe, "issuers-primed", pipeline.Prepare(request), token);

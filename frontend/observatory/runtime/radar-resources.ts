@@ -1,6 +1,7 @@
 import { record, type Telemetry, type RecordData } from './host';
 import { isScopedProcess } from './agent-scope';
 import { describeProtectionObservation, type ProtectionActivity } from './protection';
+import { isObjectRead, objectResourceKey, observationLabel } from './object-read';
 import {
   describeObservation,
   canonicalObservationPath,
@@ -58,7 +59,9 @@ export function radarResources(state: Telemetry, layer: string): RadarResource[]
       exact.length === 1 ? (exact as unknown as RecordData[]) : [],
     );
     const facts = describeProtectionObservation(row, network);
-    const address = network ? networkAddress(row) : String(row.file || '').trim();
+    const objectKey = objectResourceKey(row);
+    if (isObjectRead(row) && !objectKey) continue;
+    const address = network ? networkAddress(row) : observationLabel(row).trim();
     if (!address) continue;
     const ip = String(row.remoteIp || '').trim();
     const key = network
@@ -66,7 +69,9 @@ export function radarResources(state: Telemetry, layer: string): RadarResource[]
           ip.toLowerCase() || String(row.domain || '').toLowerCase(),
           row.remotePort ?? null,
         ])
-      : canonicalObservationPath(address);
+      : isObjectRead(row)
+        ? objectKey
+        : canonicalObservationPath(address);
     const resource: RadarResource = grouped.get(key) ?? {
       key,
       label: network ? address : info.resource,

@@ -6,6 +6,8 @@ const { spawn } = require('node:child_process');
 const { createSupervisor } = require('./etw-file-supervisor');
 const { createReadView } = require('./etw-file-attribution');
 const { selectIssuerTargets } = require('./etw-file-issuer-preparation');
+const { createAdmission } = require('./etw-file-admission');
+const { randomUUID } = require('node:crypto');
 const scope = require('./etw-file-scope');
 
 /** Attach the scoped backend to application lifetime.
@@ -28,6 +30,9 @@ function createRuntime({
   getAgents = () => [],
   getPopulationHealth = () => ({}),
   classifySensitive = () => null,
+  onOperationalRead = () => false,
+  onBindingCandidate = () => null,
+  isPolicyCurrent = () => false,
   checkRoot = scope.checkRoot,
   now,
   mono,
@@ -36,6 +41,17 @@ function createRuntime({
   const prefix = '--etw-file-diagnostic-root=';
   const roots = argv.filter((value) => value.startsWith(prefix));
   let root = roots[0]?.slice(prefix.length);
+  let objectMode = false;
+  const admission = createAdmission({
+    now,
+    getAgents,
+    getHealth: getPopulationHealth,
+    getRoot: () => root,
+    onRead: onOperationalRead,
+    onBindingCandidate,
+    isPolicyCurrent,
+    sendBinding: (request) => sensor.bindObjectPolicy(request),
+  });
   const faults = argv.filter((value) => value.startsWith('--etw-file-diagnostic-fault='));
   const observers = argv.filter((value) => value.startsWith('--etw-file-diagnostic-observer='));
   const observer = observers[0]?.slice('--etw-file-diagnostic-observer='.length);
@@ -82,6 +98,13 @@ function createRuntime({
   };
   const fault = faults[0]?.slice('--etw-file-diagnostic-fault='.length);
   const diagnosticPackage = packageMetadata.aegisEtwDiagnostic === true;
+  const objectFlags = argv.filter((value) => value.startsWith('--etw-file-object-policy'));
+  if (
+    diagnosticPackage &&
+    objectFlags.length === 1 &&
+    objectFlags[0] === '--etw-file-object-policy'
+  )
+    objectMode = true;
   const ordinaryPackage = app.isPackaged && !diagnosticPackage;
   const executable = app.isPackaged
     ? path.join(resourcesPath, 'etw-file', 'EtwFile.exe')
@@ -91,8 +114,17 @@ function createRuntime({
     now,
     mono,
     onHealthChange,
-    onObservations: (records) => readView.accept(records),
-    onSessionStart: () => readView.reset(),
+    onObservations: (records) => {
+      readView.accept(records);
+      admission.accept(records);
+    },
+    onSessionStart: () => {
+      readView.reset();
+      admission.begin(objectMode ? randomUUID() : null);
+    },
+    onAdmissionState: (context) => admission.update(context),
+    onObjectBound: (value) => admission.bound(value),
+    objectPolicy: () => objectMode,
     getIssuerTargets: () => selectIssuerTargets(getAgents(), getPopulationHealth()),
     spawnBroker: (launchId, sessionId) =>
       spawnProcess(
@@ -140,6 +172,15 @@ function createRuntime({
   else if (roots.length !== 1 || !scope.validRoot(root))
     sensor.setUnavailable('FAILED', 'invalid-diagnostic-root');
   else if (
+    objectFlags.length &&
+    (!diagnosticPackage ||
+      objectFlags.length !== 1 ||
+      objectFlags[0] !== '--etw-file-object-policy')
+  )
+    sensor.setUnavailable('FAILED', 'invalid-object-policy-opt-in');
+  else if (objectMode && !checkRoot(root))
+    sensor.setUnavailable('FAILED', 'invalid-object-policy-root');
+  else if (
     faults.length &&
     (!app.isPackaged ||
       !diagnosticPackage ||
@@ -186,7 +227,7 @@ function createRuntime({
       return { success: true };
     }
     if (
-      request.action !== 'start' ||
+      !['start', 'start-object'].includes(request.action) ||
       keys.length !== 2 ||
       !Object.hasOwn(request, 'root') ||
       !scope.validRoot(request.root)
@@ -197,9 +238,12 @@ function createRuntime({
       return fail('Wait for the previous capture to finish cleanup');
     if (!checkRoot(request.root)) return fail('Choose an existing folder without a reparse alias');
     const previousRoot = root;
+    const previousObjectMode = objectMode;
     root = request.root;
+    objectMode = request.action === 'start-object';
     if (!sensor.start()) {
       root = previousRoot;
+      objectMode = previousObjectMode;
       return fail('File read monitoring could not start');
     }
     return { success: true };
@@ -215,6 +259,7 @@ function createRuntime({
     },
     getHealth: sensor.getHealth,
     getDiagnostics: sensor.getDiagnostics,
+    takeAdmission: (observation) => admission.take(observation),
     getReadView: () =>
       permitted
         ? {
@@ -223,10 +268,17 @@ function createRuntime({
             lossCount: sensor.getHealth().lossCount,
             losses: sensor.getLossView(),
             mode: ordinaryPackage ? 'ordinary' : 'diagnostic',
+            captureMode: objectMode ? 'object-bound' : 'display',
+            admission: admission.snapshot(),
             ...(ordinaryPackage
               ? {
                   root: root ?? '',
                   controls: {
+                    canStartObject:
+                      !paused &&
+                      !suspended &&
+                      !sensor.isActive() &&
+                      !sensor.getDiagnostics().restartBlocked,
                     canStart:
                       !paused &&
                       !suspended &&

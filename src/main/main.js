@@ -147,6 +147,8 @@ let sensitiveAlertJournal;
 let updates;
 let etwFile;
 let nativeSensor = null;
+let nativeFileIngress = null;
+let objectPolicyGeneration = randomUUID().replace(/-/g, '');
 const { createBatcher } = require('./ipc-batcher');
 // Pure domain modules — no I/O, no Electron, no timers — so they cost nothing to load
 // on the fast path to a visible window. `file-access-batching` must be here rather than
@@ -387,6 +389,7 @@ function getAppHealth() {
   if (etwFile) records.push(etwFile.getHealth());
   if (nativeSensor) records.push(nativeSensor.getHealth());
   if (securityEvents) records.push(securityEvents.getStats().health);
+  if (nativeFileIngress?.getHealth) records.push(nativeFileIngress.getHealth());
   const derived = appHealth.deriveAppHealth({
     bootPhase: true,
     capabilities,
@@ -585,6 +588,7 @@ function getStats() {
       auditDelivery: getAuditDelivery(),
       fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
       nativeSensor: nativeSensor?.getStatus() ?? null,
+      nativeFileAdmission: nativeFileIngress?.getStats() ?? null,
     };
   }
   const log = scanner.activityLog;
@@ -618,6 +622,7 @@ function getStats() {
     auditDelivery: getAuditDelivery(),
     fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
     nativeSensor: nativeSensor?.getStatus() ?? null,
+    nativeFileAdmission: nativeFileIngress?.getStats() ?? null,
   };
 }
 
@@ -920,6 +925,16 @@ function startWatchersWhenLoaded(webContents) {
 function onFileEvent(ev) {
   const deduped = scanLoop.dedupFileEvent(ev);
   if (!deduped) return;
+  publishLiveFileEvent(deduped);
+}
+
+/** Publish one already-deduplicated observation; replay never calls this function.
+ * @param {Object} deduped Accepted live observation.
+ * @param {boolean} [auditAlreadyAdmitted] True only after native audit custody.
+ * @returns {void}
+ * @since v0.20.1
+ */
+function publishLiveFileEvent(deduped, auditAlreadyAdmitted = false) {
   recordAcceptedFileEvent(deduped);
   fileAccessBatcher.push(deduped);
   // An unattributed hit carries category 'other' (no agent to take it from),
@@ -936,9 +951,52 @@ function onFileEvent(ev) {
   // builds exactly one, at flush.
   statsUpdateBatcher.pushLazy(getStats);
   tray.updateTrayIcon();
-  scanLoop.logAuditForFile(deduped);
+  if (!auditAlreadyAdmitted) scanLoop.logAuditForFile(deduped);
   // Tap 1 (roadmap §5): after the audit record, the same deduped object.
   sequenceEngine.ingest(deduped);
+}
+
+/** Wire the private operational object-read consumer to the existing live sinks.
+ * @returns {Object} The sole ingress owner, shared with ETW's lifetime callbacks.
+ * @since v0.20.1
+ */
+function initializeNativeFileIngress() {
+  nativeFileIngress = require('./native-file-ingress').createNativeFileIngress({
+    takeAdmission: (observation) => etwFile?.takeAdmission?.(observation) ?? null,
+    isReady: (claim) =>
+      !isQuitting &&
+      !monitoringPaused &&
+      Boolean(
+        securityEvents &&
+        scanner &&
+        watcher &&
+        baselines &&
+        scanLoop &&
+        sequenceEngine &&
+        Array.isArray(scanner.activityLog) &&
+        (!claim?.actor || sessionTracker.hasInstance(claim.actor.instanceId)),
+      ),
+    getPolicyGeneration: () => objectPolicyGeneration,
+    classifySensitive: (label) => watcher.classifySensitive(label),
+    acceptAudit: (record) => securityEvents.push(record),
+    dedupLive: (event) => scanLoop.dedupFileEvent(event, 'other', { auditAlreadyAdmitted: true }),
+    recordActivity: (event) => {
+      scanner.activityLog.push(event);
+      onActivityPush(event);
+      if (scanner.activityLog.length > 10000)
+        for (const old of scanner.activityLog.splice(0, scanner.activityLog.length - 10000))
+          onActivityEvict(old);
+    },
+    recordBaseline: (event) => {
+      if (baselines.recordBoundObjectRead(event) !== true)
+        throw new Error('object-baseline-instance-unavailable');
+    },
+    publishLive: (event) => publishLiveFileEvent(event, true),
+    onLoss: () => {
+      if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+    },
+  });
+  return nativeFileIngress;
 }
 
 /**
@@ -1112,6 +1170,7 @@ function initDeferredSubsystems(userData) {
   config.init({
     knownAgentNames: scanner.AI_AGENTS.map((a) => a.name),
     applyCallback: () => {
+      objectPolicyGeneration = randomUUID().replace(/-/g, '');
       scanLoop.stopScanIntervals();
       if (!monitoringPaused) {
         const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
@@ -1160,6 +1219,7 @@ function initDeferredSubsystems(userData) {
     },
   });
   baselines.loadBaselines();
+  initializeNativeFileIngress();
   startWatchersWhenLoaded(mainWindow.webContents);
   startNativeSensor();
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
@@ -1273,6 +1333,10 @@ app.whenReady().then(() => {
     getAgents: () => latestAgents,
     getPopulationHealth: getAppHealth,
     classifySensitive: (file) => watcher?.classifySensitive(file) ?? null,
+    onBindingCandidate: (candidate, context) =>
+      nativeFileIngress?.prepareBinding?.(candidate, context) ?? null,
+    isPolicyCurrent: (generation) => generation === objectPolicyGeneration,
+    onOperationalRead: (observation) => nativeFileIngress?.offer(observation) === true,
     onHealthChange: () => {
       if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
         statsUpdateBatcher.pushLazy(getStats);
@@ -1547,6 +1611,13 @@ module.exports = {
   // The watcher's per-event handler, exposed so the sequence-engine tap inside it can
   // be driven with a real dedup and a fake engine (tests/main/main-file-event-tap.test.js).
   onFileEvent,
+  _initializeNativeFileIngressForTest: initializeNativeFileIngress,
+  _setSecurityEventsForTest: (value) => {
+    securityEvents = value;
+  },
+  _setBaselinesForTest: (value) => {
+    baselines = value;
+  },
   // The engine's detection consumer, exposed so the `sequence-detection` record it
   // writes can be pinned with a fake audit sink (tests/main/main-sequence-emission.test.js).
   onSequenceDetection,

@@ -690,6 +690,12 @@ function _applyRule(rule, key, doc, categories, observedAt) {
   const states = _open.get(rule.id);
   if (states !== undefined) {
     let state = states.get(key);
+    if (
+      state !== undefined &&
+      doc.event?.action === 'bound-object-read' &&
+      observedAt < state.openedAt
+    )
+      return;
 
     // 1 — an expired state leaves as `expired` and the event goes on as if there were none.
     if (state !== undefined && _elapsed(state, observedAt) > rule.timespanMs) {
@@ -898,13 +904,31 @@ function ingest(carrier) {
   // With no rules there is nothing an event could open, and the projection is the expensive
   // part: the engine costs a length check per event until a ruleset is loaded.
   if (_rules.length === 0) return;
-  const observedAt = _now();
+  const receivedAt = _now();
+  let observedAt = receivedAt;
   if (!_isMap(carrier)) {
     // The same refusal `normalizeToEcs` makes, taken one step earlier so the `instanceId` read
     // below is safe on any argument.
     _global.ingestErrors++;
     _warnIngestError(observedAt, null);
     return;
+  }
+  if (carrier.observationKind === 'bound-object-read') {
+    const capturedAt = carrier.timestamp;
+    // Only the closed native ingress emits this carrier. Keep its calibrated
+    // observation time, bounded again here so malformed direct callers cannot
+    // manufacture sequence order from an arbitrary old or future timestamp.
+    if (
+      !Number.isSafeInteger(capturedAt) ||
+      capturedAt <= 0 ||
+      capturedAt > receivedAt + 10 ||
+      receivedAt - capturedAt > 10000
+    ) {
+      _global.ingestErrors++;
+      _warnIngestError(receivedAt, null);
+      return;
+    }
+    observedAt = capturedAt;
   }
   const key = carrier.instanceId;
   if (!_isString(key) || key === '') {
@@ -921,7 +945,8 @@ function ingest(carrier) {
     return;
   }
   const categories = _categoriesOf(doc);
-  const network = _tupleHistory?.observe(carrier, observedAt);
+  const network =
+    typeof carrier.remoteIp === 'string' ? _tupleHistory?.observe(carrier, receivedAt) : null;
   if (network) doc.sequenceNetwork = network;
   for (const rule of _rules) {
     try {

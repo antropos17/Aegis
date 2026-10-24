@@ -23,6 +23,12 @@ internal static class Program
         try
         {
             if (args is ["self-test"]) return FileTests.Run();
+            if (args is ["object-bridge-probe"])
+            {
+                bool qualified = FileObjectNative.Qualify() != null;
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { profile = FileObjectNative.Profile, qualified }));
+                return qualified ? 0 : 2;
+            }
             if (args.Length == 2 && args[0] == "qualification-launcher") return await FileQualificationClient.Launcher(args[1]);
             if (args.Length == 5 && args[0] == "qualification-host") return await FileQualificationHost.Run(args);
             if (args is ["observe-custodian"]) return await FileOrphanObserver.Run();

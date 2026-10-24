@@ -5,6 +5,7 @@ import {
   getTimeDecayWeight,
 } from './risk-scoring.js';
 import { buildInstanceKey } from '../../../shared/instance-key.js';
+import { boundReadObjectKey } from '../../../shared/bound-read-object.js';
 import type {
   DetectedAgent,
   FileEvent,
@@ -188,25 +189,36 @@ export function enrichAgents(
     const seen = new Map<string, number>();
     for (const ev of candidateEvents) {
       if (ev.selfAccess) continue;
-      if (ev.file) {
-        const prev = seen.get(ev.file);
+      const objectRead = ev.observationKind === 'bound-object-read';
+      const identity = objectRead ? `object:${boundReadObjectKey(ev.object)}` : ev.file;
+      if (identity) {
+        const prev = seen.get(identity);
         if (prev && ev.timestamp - prev < 30000) continue;
-        seen.set(ev.file, ev.timestamp);
+        seen.set(identity, ev.timestamp);
       }
       const w = getTimeDecayWeight(ev.timestamp);
+      const sensitive = objectRead ? ev.object.policy.sensitive : ev.sensitive;
+      const config = objectRead
+        ? ev.object.policy.classification === 'agent-config'
+        : ev.reason?.startsWith('AI agent config');
+      const sshAws = objectRead
+        ? ev.object.policy.classification === 'ssh-aws'
+        : /SSH|AWS/i.test(ev.reason);
       fileCount += w;
-      if (ev.sensitive) sensitiveFiles += w;
-      if (ev.reason?.startsWith('AI agent config')) configFiles += w;
-      if (/SSH|AWS/i.test(ev.reason)) sshAwsFiles += w;
+      if (sensitive) sensitiveFiles += w;
+      if (config) configFiles += w;
+      if (sshAws) sshAwsFiles += w;
       const fpPatterns = fpPatternsByName.get(ev.agent) ?? [];
-      if (ev.file && fpPatterns.some((pattern) => pattern.test(ev.file))) {
+      // A bound label is not the event-time access alias; path exceptions cannot
+      // suppress this separately opted-in object policy.
+      if (!objectRead && ev.file && fpPatterns.some((pattern) => pattern.test(ev.file!))) {
         exceptedFile = true;
         continue;
       }
       scoredFileCount += w;
-      if (ev.sensitive) scoredSensitiveFiles += w;
-      if (ev.reason?.startsWith('AI agent config')) scoredConfigFiles += w;
-      if (/SSH|AWS/i.test(ev.reason)) scoredSshAwsFiles += w;
+      if (sensitive) scoredSensitiveFiles += w;
+      if (config) scoredConfigFiles += w;
+      if (sshAws) scoredSshAwsFiles += w;
     }
 
     // Same direct lookup for network connections.

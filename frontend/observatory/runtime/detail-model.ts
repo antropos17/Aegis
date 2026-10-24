@@ -1,6 +1,7 @@
 import { instances, record, records, type RecordData, type Telemetry } from './host';
 import { radarGroups } from './radar';
 import { describeObservation } from '../../../src/shared/observation-display.js';
+import { isObjectRead } from './object-read';
 export interface DetailTab {
   id: string;
   label: string;
@@ -19,7 +20,7 @@ export function detailKind(row: RecordData): DetailKind {
         ? 'records'
         : row.displayName
           ? 'catalog'
-          : row.file || row.path || row.remoteIp || row.domain
+          : isObjectRead(row) || row.file || row.path || row.remoteIp || row.domain
             ? 'resource'
             : 'information';
 }

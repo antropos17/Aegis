@@ -10,6 +10,7 @@
   import Icon from './Icon.svelte';
   import ObservationHistory from './ObservationHistory.svelte';
   import ObservationResource from './ObservationResource.svelte';
+  import { isObjectRead } from '../runtime/object-read';
   let {
     row,
     telemetry,
@@ -44,7 +45,7 @@
       }),
     ),
   );
-  let path = $derived(String(row.file || row.path || row.cwd || ''));
+  let path = $derived(isObjectRead(row) ? '' : String(row.file || row.path || row.cwd || ''));
   let isNetwork = $derived(describeObservation(row).kind === 'Network');
   let parent = $derived(
     !isNetwork

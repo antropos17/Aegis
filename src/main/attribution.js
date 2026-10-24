@@ -31,6 +31,9 @@
  *   kernel-reported PID observations. The same-tick constraint holds by construction —
  *   network-monitor builds its pid map from the agents passed into the very same call —
  *   which is what keeps a recycled pid from being credited to a dead agent.
+ * - `etw-file-object` — a Kernel-File read matched the issuing process's exact
+ *   birth and a retained file object after an acknowledged pre-read policy bind.
+ *   This establishes object/actor evidence; it does not establish an access path.
  *
  * Heuristic (→ `inferred`):
  * - `self-config-path` — the path matches this agent's OWN config dir.
@@ -52,6 +55,7 @@ const EVIDENCE = Object.freeze({
   RM_HOLDER_PID: 'rm-holder-pid',
   HANDLE_SCAN_PID: 'handle-scan-pid',
   OS_TCP_OWNER_PID: 'os-tcp-owner-pid',
+  ETW_FILE_OBJECT: 'etw-file-object',
   SELF_CONFIG_PATH: 'self-config-path',
   CWD_CONTAINMENT: 'cwd-containment',
   NO_OWNER_MATCH: 'no-owner-match',
@@ -62,7 +66,7 @@ const EVIDENCE = Object.freeze({
 /**
  * Every legal evidence code, in declaration order.
  *
- * The `AttributionEvidence` union in src/shared/types/events.ts mirrors all EIGHT
+ * The `AttributionEvidence` union in src/shared/types/events.ts mirrors all
  * codes, `population-unavailable` included. `tsc` cannot see this runtime list, so the
  * two halves are held together by a test that reads events.ts and compares them
  * member-for-member in declaration order — never by the compiler. The write path is
@@ -97,6 +101,7 @@ const PID_EVIDENCE = new Set([
   EVIDENCE.RM_HOLDER_PID,
   EVIDENCE.HANDLE_SCAN_PID,
   EVIDENCE.OS_TCP_OWNER_PID,
+  EVIDENCE.ETW_FILE_OBJECT,
 ]);
 
 /** @type {Set<string>} Heuristic codes — any one of them means `inferred`. */
