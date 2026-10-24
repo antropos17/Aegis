@@ -18,7 +18,7 @@ is never stopped and no permission, ACL or global policy is changed.
 accepts `{adapter, assets, requestMs, sessionMs, cleanupMs}` and returns a
 shared single use across `read(source, file, selection)` and
 `readTail(source, file, selection)`. `readTail` requires an explicit JSONL selection;
-Unsupported source/path, non-JSONL format and caller-supplied truncation flags
+Unsupported sources or lexically refused paths, non-JSONL format and caller-supplied truncation flags
 return an unavailable owner batch before starting the helper. Other selection
 fields are validated by the owner parser after file IO.
 The original owner and its
