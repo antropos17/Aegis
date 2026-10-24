@@ -90,7 +90,11 @@ describe('Windows explicit stable-file JSONL tails', () => {
     }
     const m = model({ bytes: large() });
     expect((await m.reader().read('claude-code', selected, tailSelection)).available).toBe(false);
-    expect(m.events).toEqual(['open', 'cleanup', 'parse', 'cleanup']);
+    expect(m.events[0]).toBe('open');
+    expect(m.pipe.request.mock.calls.some(([body]) => body.op === 'read')).toBe(false);
+    expect(m.adapter.parse).toHaveBeenCalledTimes(1);
+    expect(m.adapter.parse.mock.calls[0][1]).toBeNull();
+    expect(m.events.indexOf('cleanup')).toBeLessThan(m.events.indexOf('parse'));
   });
 
   it.each([
