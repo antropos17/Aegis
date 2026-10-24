@@ -86,6 +86,12 @@ investigation roster, the probe uses the normal Settings flow to enable
 Each transition has a ten-second limit. Only the owned guest profile preference
 changes; the page is not reloaded and the existing probe is installed once.
 
+After normal process closure, audit custody is checked against the canonical
+on-disk envelope: type, actor PID/instance, empty access path, and the event and
+binding IDs stored under `details`. Exactly one matching row is required. The
+private receipt records only owned-row and matching-row counts; raw audit files
+and the guest profile remain excluded from upload.
+
 Recovery uses the existing `etw-reboot.mjs` prepare/resume drivers. A limited
 interactive task must produce a valid PREPARED receipt before the controller
 requests Windows Restart inside the exact owned VM. A fresh later boot is

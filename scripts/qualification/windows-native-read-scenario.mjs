@@ -11,6 +11,7 @@ import path from 'node:path';
 import { _electron as electron } from 'playwright';
 import { GUI_EXECUTABLE } from '../produce-protected-gui-manifest.mjs';
 import { launchNativeReadElectron } from './windows-native-read-launch.mjs';
+import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
 import {
   diagnostics,
   readFixture,
@@ -337,10 +338,9 @@ export async function runNativeReadScenario({
     r.witness.pid,
     canary,
   );
-  assert(
-    audit.some((row) => row.extra?.eventId === r.event.eventId || row.eventId === r.event.eventId),
-    'Persisted audit custody missing',
-  );
+  const matchingAudit = matchingNativeAuditRows(audit, r.event);
+  r.auditCustody = { ownedRows: audit.length, matchingRows: matchingAudit.length };
+  assert.equal(matchingAudit.length, 1, 'Persisted audit custody missing or ambiguous');
   r.persistedAuditObserved = true;
   return { actualObjectEventId: r.event.eventId };
 }
