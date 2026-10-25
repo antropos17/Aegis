@@ -6,69 +6,104 @@ on:
   pull_request:
     branches: [master]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+      - name: Select verification scope
+        id: scope
+        env:
+          AEGIS_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.scope.outputs.runtime == 'true'
         with:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+        if: steps.scope.outputs.runtime == 'true'
       - run: npm run build:renderer
+        if: steps.scope.outputs.runtime == 'true'
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+      - name: Select verification scope
+        id: scope
+        env:
+          AEGIS_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.scope.outputs.runtime == 'true'
         with:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+        if: steps.scope.outputs.runtime == 'true'
       - name: Check formatting
+        if: steps.scope.outputs.runtime == 'true'
         run: npm run format:check
       - name: lint
+        if: steps.scope.outputs.runtime == 'true'
         run: npm run lint
+      - name: Validate project skill catalog
+        run: node scripts/sync-agent-skills.mjs
 
   svelte-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+      - name: Select verification scope
+        id: scope
+        env:
+          AEGIS_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.scope.outputs.runtime == 'true'
         with:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+        if: steps.scope.outputs.runtime == 'true'
       - run: npm run typecheck
+        if: steps.scope.outputs.runtime == 'true'
       - run: npm run typecheck:svelte
+        if: steps.scope.outputs.runtime == 'true'
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+      - name: Select verification scope
+        id: scope
+        env:
+          AEGIS_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+        if: steps.scope.outputs.runtime == 'true'
+      - name: Install locked metadata dependencies for documentation checks
+        if: steps.scope.outputs.runtime == 'false'
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run test:coverage
-      # Injection proof, inside the existing job so no required status context
-      # changes: 4 mutants over TWO properties — m1-m3 break the generation-witness
-      # comparison, m4 breaks the birth-time freshness link — and the witness suite
-      # must go red for each. A green suite otherwise only proves the suite ran
-      # (memory-bank/ai-mistakes.md #21).
-      - name: Verify the generation-witness gate is load-bearing
-        run: npm run verify:gate
-      # The same proof for the sequence engine, inside the same job so no required
-      # status context changes: 4 sequence-engine mutants — m1 accepts a step at any
-      # index, m2 never expires a state, m3 collapses the state key to the rule, m4
-      # lifts both caps — and the gate suite must go red for each. The engine's own
-      # suite hard-imports the real module and runs as the control only: a kill by a
-      # suite that never loaded the mutant is not a kill (memory-bank/ai-mistakes.md #21).
-      - name: Verify the sequence-engine gate is load-bearing
-        run: npm run verify:seq-gate
+        if: steps.scope.outputs.runtime == 'true'
       # Derives the repo's countable facts from the tree and fails on every tracked
       # file that declares a different number (memory-bank/ai-mistakes.md #24: nothing
       # went red when a hand-maintained count stopped being true). BLOCKING since the
@@ -77,7 +112,7 @@ jobs:
       - name: Check derived counts against declared ones
         run: npm run counts:check
       - name: Upload coverage
-        if: always()
+        if: always() && steps.scope.outputs.runtime == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
@@ -87,10 +122,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+      - name: Select verification scope
+        id: scope
+        env:
+          AEGIS_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.scope.outputs.runtime == 'true'
         with:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+        if: steps.scope.outputs.runtime == 'true'
       - name: Security audit (production deps)
+        if: steps.scope.outputs.runtime == 'true'
         run: npm audit --audit-level=high --omit=dev

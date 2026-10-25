@@ -65,6 +65,13 @@ checkpoints above retain their historical scope; read current source and receipt
 before scheduling work. This revision grants no cloud dispatch, rerun, release
 or host/profile intervention; the current cloud-run allowance is exhausted.
 
+Revision 4 (2026-10-26) implements the owner's delivery-process correction:
+no mutation campaigns, no duplicate full verification, and completion of existing
+user-visible slices before additional preparation. Section 7 names the next
+closure milestones. Required PR checks and actual native acceptance remain in
+force. Dated execution allowances above are historical; the active request and
+the exact run's authorization receipt determine whether a new run is allowed.
+
 ## 1. Instruction priority
 
 When two sources disagree, the higher one wins:
@@ -203,7 +210,7 @@ small integration fixes that touch files no running worker owns.
 | `ui-designer` | existing | inherits | yes | Observatory visual work inside the approved template |
 | `bench-engineer` | new | gpt-6.1-sol / medium | yes | `bench/`, `docs/bench/`, measurement scripts |
 | `security-reviewer` | existing | inherits | no | Review of every PR touching IPC, policy, secrets, privileges, sidecars |
-| `test-auditor` | existing | inherits | no | Read-only judgment of whether new tests are meaningful, using the writer's recorded mutation results |
+| `test-auditor` | existing | inherits | no | Read-only judgment of regression assertions, independent expected results and recorded checks |
 | `consistency-reviewer` | existing | inherits | no | Docs-versus-code check before any user-facing text merges |
 | `auditor` | existing | inherits | no | Check matching CI evidence at wave transitions; execute only missing or invalidated checks |
 | `shipper` | existing | inherits | yes | Release preparation once the owner approves a release |
@@ -215,7 +222,7 @@ selection is available, use `xhigh` for those briefs.
 
 ### 5.2 Delegation
 
-- Spawn read-only agents in parallel whenever several independent questions are
+- Only when the owner requests delegation, spawn read-only agents in parallel when independent questions are
   open. Spawn writers in parallel only for workstreams whose owned paths do not
   overlap (section 5.3).
 - Keep at most three writers running at once. Reviewers and researchers do not
@@ -273,8 +280,9 @@ Before merging, each PR gets:
 
 - `security-reviewer` when it touches IPC, policy, secrets, privileges,
   sidecars, network egress or installers;
-- `test-auditor` when it adds tests for sensors, identity, policy or correlation;
-  it reads the tests and the writer's mutation record and runs nothing;
+- `test-auditor` when delegation is authorized and it adds tests for sensors,
+  identity, policy or correlation; it reads assertions and recorded behavioral
+  evidence and runs nothing;
 - `consistency-reviewer` when it changes README, docs or UI text that makes a
   factual claim.
 
@@ -314,6 +322,13 @@ repository, schema in Appendix C. The orchestrator updates it after every merge,
 block, owner decision and wave transition. `memory-bank/progress.md` in the
 repository receives one short handoff entry per merged workstream block,
 following its existing format.
+
+Keep completed preparation, delivered implementation and verified acceptance
+separate. The visual roadmap counts completed substeps; adding another helper
+inside a partial substep does not increase that percentage. Record each delivery
+under its existing substep with the remaining closure condition. Never add
+artificial substeps or mark acceptance complete to make the percentage move.
+Reports name the nearest unfinished substep and what observable result closes it.
 
 ## 6. Workstreams
 
@@ -773,6 +788,37 @@ Prefer completing an existing slice over adding more dormant utilities. Shared
 infrastructure is scheduled only when the next slice demonstrates its need.
 Reuse completed prerequisites rather than reopening them without changed inputs.
 
+### Next closure milestones
+
+Use this queue when selecting new work. Existing task ownership remains in force;
+independent integration proceeds while the Windows run is pending.
+
+| Priority | Existing substep | Next deliverable and closure evidence |
+| --- | --- | --- |
+| 1 | W11.2 / W11.4 | Consume the single authorized Windows diagnostic run. Diagnose its first failing stage from the saved artifact. Close read-to-audit/alert/risk and recovery only when the actual candidate proves them; otherwise implement the narrow demonstrated fix before considering another run. |
+| 2 | W4.2, then W4.3–W4.4 | Connect one supported local session source through trusted process/session binding to an explanation visible in the active application. Cover missing/truncated data, privacy and clock mismatch. Reuse bounded readers; a new reader utility alone does not close this path. |
+| 3 | W6.3, then W6.4 | Connect the existing review/backup/readback operations to an owner-visible preview, install and remove flow for one supported provider. Demonstrate rollback on a disposable profile, then qualify that provider's real pre-execution behavior before using Blocking verified. |
+
+W8.1 and W8.2 already represent method and educational harness preparation in
+the tracker. Additional oracle adapters, replay validators or synthetic controls
+are scheduled only for a named missing input to W8.3's first real workload.
+Next measurement names one agent/version, platform/mode, independent oracle,
+loss/completeness accounting and the method's planned repetitions. Publish its
+bounded results under W8.4. Keep cross-platform completion as the long-term goal.
+
+Each new task names the existing substep, final consumer, acceptance observation,
+missing dependency and smallest relevant verification. If its deliverable is
+another dormant component, identify the concrete integration it unblocks first.
+No mutation campaign is part of task completion. No VM is launched for a docs,
+skill, offline parser or unrelated UI change. Diagnose the first failed stage
+before another expensive run; keep failures and unexecuted stages visible.
+
+The five required checks remain tied to the current PR revision and strict
+branch protection. Run focused checks during implementation, then use hosted CI
+for final verification. Do not duplicate the full suite locally. After merging,
+confirm the merge and observe master CI while starting independent work. A
+master failure blocks dependent integration/release, not all useful work.
+
 ```
 Wave 0  W0 (parallel researchers) -> completion-baseline.md merged
         -> plan deviations recorded before any writer starts
@@ -809,14 +855,16 @@ dependent merge; independent authorized work can continue.
 A workstream block is done when:
 
 - its PR is merged and `gh pr view` shows it merged;
-- all five required contexts passed on the merged head;
+- all five required contexts passed on the current PR revision before merge;
+  the merge is confirmed and any post-merge failure is investigated before
+  dependent integration or release;
 - its acceptance criteria hold, with any live or hardware run recorded in a dated
   evidence file naming commit, machine, OS and versions;
-- the writer recorded meaningful regression evidence, including mutation checks
-  for changed identity, authority, loss, policy or correlation invariants and
-  load-bearing test oracles; `test-auditor` reviews that evidence without repeating
-  it. Reuse unchanged mutation evidence. Reversible low-impact maintenance does
-  not require a new artificial test group or mutation campaign;
+- the writer recorded meaningful behavioral regression evidence and independent
+  expected results for changed contracts; no mutation campaigns or deliberate
+  source breakage are required or run. Review existing evidence without
+  repeating it. Reversible low-impact maintenance needs relevant structural
+  checks and does not require an artificial test group;
 - `npm run counts:check` passes and documentation numbers match source;
 - the tracker and `memory-bank/progress.md` are updated.
 

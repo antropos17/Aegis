@@ -20,7 +20,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+      - name: Select verification scope
+        id: scope
+        env:
+          AEGIS_CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.scope.outputs.runtime == 'true'
         with:
           node-version: '24'
           cache: 'npm'
@@ -28,10 +36,14 @@ jobs:
             package-lock.json
             tools/development/package-lock.json
       - name: Install application dependencies
+        if: steps.scope.outputs.runtime == 'true'
         run: npm ci
       - name: Install separately locked development tools
+        if: steps.scope.outputs.runtime == 'true'
         run: npm ci --prefix tools/development --ignore-scripts
       - name: Check inventory behavior and reject forbidden imports
+        if: steps.scope.outputs.runtime == 'true'
         run: npm run dev:tools:test
       - name: Check the source dependency graph
+        if: steps.scope.outputs.runtime == 'true'
         run: npm run dev:map

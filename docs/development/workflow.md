@@ -129,9 +129,43 @@ During iteration, run affected tests first. Before merging, run all required gat
 defined in [the current CI workflow](../../.github/workflows/ci.yml); resolve their
 commands through `package.json`. Every required context must succeed on the current
 PR revision; pending, missing or skipped checks do not satisfy the gate. Do not
-rerun an unchanged passing suite without a reason. Run temporary mutation gates
-separately from tree-scanning checks.
+rerun an unchanged passing suite without a reason. Mutation campaigns and
+deliberately breaking source are excluded from routine development and CI.
+Existing mutation receipts remain historical evidence; they are not a recurring
+acceptance requirement. Use regression assertions and independent expected
+results instead.
 The optional developer tools are not new required GitHub contexts.
+CI defines 15 verification commands across the five contexts, including scope and
+catalog checks; conditional runs execute only the applicable subset.
+
+CI classifies the exact event range. An allowlisted Markdown-only change runs
+whitespace, skill-catalog and derived-count checks. Only the test job installs
+locked dependencies, with lifecycle scripts disabled, for the count parser;
+runtime build/types/coverage/audit are not repeated. Each context records
+that limited scope. Code, test, dependency, workflow, agent-configuration or unknown
+paths select full checks; missing range metadata conservatively selects full checks.
+Renames include both source and destination paths. Superseded PR CI is canceled;
+master CI is retained.
+
+Use hosted required CI for the final revision instead of repeating its full
+suite locally. Locally run the focused checks needed to implement or diagnose
+the change. Record a failed assertion/stage, the proposed cause and the changed
+input before retrying; repeat only the failed scope when available. A previously
+passing prerequisite is reopened only by changed relevant inputs or a concrete
+unresolved defect. Planned repetitions for benchmark variance remain part of
+the measurement method.
+
+Required contexts apply to the current PR revision. After merging, confirm the
+merge and observe master CI while continuing independent work. Investigate a
+master failure before dependent integration or release; do not add a second
+blocking full-suite wait to every completed task. Keep strict branch protection.
+
+Native runs start with a specific failed stage or an acceptance question, exact
+candidate inputs, bounded diagnostics and a stopping condition. Obtain useful
+failure codes before provisioning another guest. Documentation, skill edits and
+offline adapters do not justify a VM. Fresh Windows installation is required only
+for scenarios whose acceptance depends on it; a reusable clean guest is a future
+optimization requiring image integrity, isolation and reset verification.
 
 The active Electron smoke test is `npm run frontend:test:electron`; it launches the
 real host and writes bounded named screenshots under `dist/electron-qa`. Inspect its
