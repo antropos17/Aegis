@@ -42,6 +42,12 @@ path and a fixed inert CPU fixture. It retains discovered tick units and declare
 quantization bounds. This is conditional API/unit evidence; collector cost,
 resident-memory qualification and product/helper overhead remain separate work.
 
+The [offline Linux CPU bundle checker](../docs/bench/LINUX_CPU_REPLAY.md)
+validates the five retained artifacts and repeats their comparison with the
+current model. It preserves missing and contradictory evidence, fingerprints
+current code separately, and leaves original publication and measurement
+acceptance unqualified.
+
 [Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
 caller-declared profile and same-run receipt, normalizing only successful
 positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified
