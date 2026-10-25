@@ -1,9 +1,10 @@
 # AEGIS completion plan — October 2026
 
-Status: approved by the repository owner on 2026-10-19 for execution by a Codex
-orchestrator running GPT-6.1 Sol with subagents. Baseline: master `bf65076`
-(2026-10-19, after #976 and #985), package `0.19.2-beta`. PR #974 is open. The
-owner's main checkout may sit on an older commit with uncommitted changes; leave
+Scope approved by the repository owner on 2026-10-19 for execution by a Codex
+orchestrator running GPT-6.1 Sol with subagents. Historical baseline: master `bf65076`
+(2026-10-19, after #976 and #985), package `0.19.2-beta`. PR #974 was later
+superseded by #1007. The owner's main checkout may sit on an older commit with
+uncommitted changes; leave
 it untouched and work only in fresh worktrees from `origin/master`.
 
 Revision 2 (2026-10-19) incorporates the first plan review: a dedicated Windows
@@ -55,6 +56,14 @@ checks passed. The owner confirmed the wire merges. W1b can now proceed after
 its two merged prerequisites. Separate Linux/macOS library crate roots prepare
 parallel implementation; native providers, host/session behavior and packaged
 application qualification remain open.
+
+Revision 3 (2026-10-25) preserves T1–T10 and their acceptance requirements while
+removing unnecessary execution barriers. Section 7 prioritizes complete paths
+from a real caller to a visible result, reuses matching verification evidence,
+and separates the next Windows milestone from later expansion lanes. The dated
+checkpoints above retain their historical scope; read current source and receipts
+before scheduling work. This revision grants no cloud dispatch, rerun, release
+or host/profile intervention; the current cloud-run allowance is exhausted.
 
 ## 1. Instruction priority
 
@@ -196,7 +205,7 @@ small integration fixes that touch files no running worker owns.
 | `security-reviewer` | existing | inherits | no | Review of every PR touching IPC, policy, secrets, privileges, sidecars |
 | `test-auditor` | existing | inherits | no | Read-only judgment of whether new tests are meaningful, using the writer's recorded mutation results |
 | `consistency-reviewer` | existing | inherits | no | Docs-versus-code check before any user-facing text merges |
-| `auditor` | existing | inherits | no | Full CI-gate readiness run at the end of each wave |
+| `auditor` | existing | inherits | no | Check matching CI evidence at wave transitions; execute only missing or invalidated checks |
 | `shipper` | existing | inherits | yes | Release preparation once the owner approves a release |
 
 Run the root session with `gpt-6.1-sol` at effort `high`. For the identity
@@ -323,7 +332,8 @@ Run in parallel, one `researcher` per question, each returning at most 40 lines:
    events, and coalescing of benign self-churn? What is missing for event rates
    of 2,000 events per second sustained and 20,000 per second in bursts?
 2. Windows ETW: list the open items in `docs/roadmap/etw-sensor-design.md`,
-   `docs/roadmap/etw-durable-recovery.md`, open PR #974 and merged PRs #976 and
+    `docs/roadmap/etw-durable-recovery.md`, then-open PR #974 (superseded by #1007)
+    and merged PRs #976 and
    #985 and #986. Preserve #985's historical idle-first-read failure and assess
    the fix, source-bound qualification and remaining limits recorded by #986.
    State which items block admission of Kernel-File reads into
@@ -607,7 +617,9 @@ run and a fixed seed recorded in CI output; translator tests; docs page
 
 ### W6 — Guard mode for supported agents
 
-Owner: `integration-engineer` with `ui-designer`. Depends on W5.
+Owner: `integration-engineer` with `ui-designer`. Installation and qualification
+may use existing supported policy evaluators independently of W5. A Cedar-backed
+route depends on the applicable W5 translation, equivalence and runtime evidence.
 
 Offer a guided installation of each agent's native pre-execution hook (Claude Code
 hooks, Codex hooks, Gemini CLI before-tool hook, Cursor where a supported hook
@@ -647,7 +659,10 @@ commands.
 
 ### W8 — Measurement
 
-Owner: `bench-engineer`. Starts when W1 merges; publishes after W2–W4.
+Owner: `bench-engineer`. Preparation starts from the available W1 contracts.
+Measure and publish each qualified platform/mode independently; missing Linux,
+macOS or explanation work does not block a scoped Windows result. Report missing
+rows explicitly and retain the full per-platform acceptance target.
 
 - Effectiveness (roadmap D1): scenario catalogue of ordinary agent tasks and
   unsafe-action tasks (sensitive file reads, writes outside the project,
@@ -687,6 +702,11 @@ existing panels.
 
 Owner: `integration-engineer`, with `shipper` once the owner approves a release.
 
+Prepare a current-candidate integration artifact alongside each platform slice
+so its actual host, preload and sensor can be qualified before broad measurement.
+Reuse the existing build path. Signing, submission and public distribution remain
+later owner-dependent work; a development artifact is not release acceptance.
+
 Prepare, and stop before any step that needs credentials:
 
 - Windows: Authenticode signing step in the release build that activates when a
@@ -714,9 +734,9 @@ Blocks, each its own PR:
    Preserve #985's historical failure and the uncertainty about its unique cause.
    Schedule another repair or live qualification only for a demonstrated residual
    gap or changed runtime inputs; do not repeat the accepted renewal repair.
-2. Recovery: decide with evidence which remaining checks from #974 (restart and
-   post-restart capture) are needed for admission, and prepare the owner steps
-   for the machine restart.
+2. Recovery: decide with evidence which remaining restart and post-restart
+   capture checks from the recovery track (#974, superseded by #1007) are needed
+   for admission, and prepare the owner steps for the machine restart.
 3. Admission: once blocks 1 and 2 are qualified, connect verified Kernel-File
    reads to FileEvents, audit, baselines, sequences and risk through the W1
    pipeline, with loss markers and an explicit label for unverified reads.
@@ -733,6 +753,26 @@ mode, polling mode or a mix; the documented coverage limits in README and
 
 ## 7. Execution order
 
+The original waves below are a dependency map, not barriers requiring every
+platform to finish together. Next work follows three milestones:
+
+1. Close the bounded Windows diagnostic admission and recovery path on one
+   identified packaged candidate. Reuse unaffected receipts and fix demonstrated
+   failures narrowly. Synthetic read fixtures establish only their recorded
+   diagnostic scope; they do not establish `productionAdmission`.
+2. Qualify the existing ordinary packaged-agent path through the application,
+   audit, alert/risk and coverage view with a supported real-agent caller; fix
+   only demonstrated gaps. Then measure one useful workload with an independent
+   oracle. Record the actual version, mode, losses and limits.
+3. Expand through complete caller-to-visible-result slices: another platform or
+   mode, explanation, one provider Guard route, Cedar, or Protected Session.
+   Choose ready slices by user value and an available qualification environment.
+   Their order is selectable; all T1–T10 remain in the long-term completion target.
+
+Prefer completing an existing slice over adding more dormant utilities. Shared
+infrastructure is scheduled only when the next slice demonstrates its need.
+Reuse completed prerequisites rather than reopening them without changed inputs.
+
 ```
 Wave 0  W0 (parallel researchers) -> completion-baseline.md merged
         -> plan deviations recorded before any writer starts
@@ -746,18 +786,23 @@ Wave 2  W11 blocks 3-4 | W2 Linux | W3 macOS     (Rust writers per 5.3)
         W4 explanation once an integration slot is free
         W9 panel skeleton once W1b merges
         W7 Protected Session whenever the Windows writer is free
-Wave 3  W5 Cedar -> W6 guard mode
+Wave 3  W5 Cedar | W6 on existing policy; Cedar-backed routes after W5
         W9 extended with every merged sensor and surface
-Wave 4  W8 measurement on merged master, results published
-Wave 5  W10 packaging prepared; release only on owner approval
+Wave 4  W8 source-bound results per qualified platform/mode, independently
+Wave 5  W10 distribution prepared; integration artifacts accompany earlier slices
+        Release only on owner approval
 ```
 
 The three-writer cap applies across all lines of a wave; the orchestrator picks
 which ready block runs next by dependency and by which target it advances.
 
-At the end of each wave, `auditor` runs the full CI gate on master and the
-orchestrator records the result. A failing gate is fixed before the next wave
-starts writing.
+At wave transitions, `auditor` reads the existing required CI results for the
+matching merged head and inputs. Do not repeat a passing full gate merely for a
+checkpoint. Changed heads need fresh mandatory contexts; changed relevant inputs,
+failures or a concrete unresolved risk justify additional verification. Preserve
+unaffected local evidence within its recorded scope. Exact source matching does
+not establish native/runtime qualification. A failing required gate blocks the
+dependent merge; independent authorized work can continue.
 
 ## 8. Global definition of done
 
@@ -767,9 +812,11 @@ A workstream block is done when:
 - all five required contexts passed on the merged head;
 - its acceptance criteria hold, with any live or hardware run recorded in a dated
   evidence file naming commit, machine, OS and versions;
-- the writer ran a mutation check for each new test group (removed or broke the
-  covered code, saw the test fail, restored it) and recorded the result in the
-  PR description, and `test-auditor` found the tests meaningful;
+- the writer recorded meaningful regression evidence, including mutation checks
+  for changed identity, authority, loss, policy or correlation invariants and
+  load-bearing test oracles; `test-auditor` reviews that evidence without repeating
+  it. Reuse unchanged mutation evidence. Reversible low-impact maintenance does
+  not require a new artificial test group or mutation campaign;
 - `npm run counts:check` passes and documentation numbers match source;
 - the tracker and `memory-bank/progress.md` are updated.
 
