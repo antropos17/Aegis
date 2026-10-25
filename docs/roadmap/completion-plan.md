@@ -276,6 +276,10 @@ contexts are build, lint, svelte-check, test and audit. `gh pr merge` may report
 nothing or exit 1 on success; confirm state with `gh pr view --json
 state,mergedAt` before moving on.
 
+When delegation is authorized, assign the relevant reviewers below. Otherwise
+perform the scoped review in the current session; the independent-review
+requirement for the critical contracts below remains separate.
+
 Before merging, each PR gets:
 
 - `security-reviewer` when it touches IPC, policy, secrets, privileges,
@@ -290,9 +294,22 @@ Findings of real defects are fixed in the same PR. Style-only remarks are noted
 in the PR and do not block.
 
 PRs that change identity, the wire contract, policy evaluation or the Protected
-Session carry the label `needs-independent-review`. The owner runs a separate
-review session on them; the orchestrator continues with other work and merges
-these PRs after the owner confirms.
+Session carry the label `needs-independent-review`. Record an independent review
+of the final relevant changes before merging. When that review and required CI
+have passed, the already authorized Git cycle proceeds without a second routine
+owner-confirmation checkpoint. Missing independent review remains an explicit
+gap; continue independent work while resolving it. Releases, protected files,
+privilege/profile changes and other actions listed in AGENTS.md retain their
+actual authorization boundaries.
+
+For multiple writers contributing to one user-visible milestone, prefer one
+coherent integration PR. Collect frozen commits and focused evidence, review
+each owned delta, and run final required CI on the combined current revision.
+Do not merge every dormant helper separately when that creates repeated strict
+branch updates without an independently usable result. Independently useful
+deliverables still use separate PRs. Coordinate the merge order across active
+chats so a cosmetic sibling change does not invalidate a nearly finished
+integration run. This does not relax strict checks or permit merging an old head.
 
 ### 5.5 Tools available to agents
 
