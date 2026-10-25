@@ -513,8 +513,10 @@ describe('actual admission window preparation adapter', () => {
       const error = await pending;
       expect(error).toBeInstanceOf(Error);
       expect(error.message).not.toContain('PRIVATE');
-      expect(receipt.window.dpiQuery.completed).toBe(true);
-      expect(receipt.window.dpiQuery.sameWindowAfter).toBe(false);
+      expect(receipt.window.dpiQuery).toMatchObject({
+        completed: true,
+        sameWindowAfter: false,
+      });
       expect(JSON.stringify(receipt.window)).not.toContain('PRIVATE');
     }
   });
