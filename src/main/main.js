@@ -142,6 +142,7 @@ const desktopShell = require('./platform/desktop-shell').createDesktopShell({
 });
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
+const { createLiveToolContext } = require('./live-tool-context');
 const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
@@ -640,12 +641,17 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   mode: 'latest',
 });
 let securityEvents = null;
+const liveToolContext = createLiveToolContext({
+  getAgents: () =>
+    scanner?.getProcessCapabilities?.().populationReliable === true ? latestAgents : [],
+});
 
 /** Preserve watcher UUIDs; stamp accepted legacy/test events before display or audit. */
 function recordAcceptedFileEvent(event) {
   if (typeof event.eventId !== 'string' || !FILE_EVENT_ID.test(event.eventId))
     event.eventId = randomUUID();
   if (event.sensitive === true) sensitiveAlertJournal?.record(event);
+  liveToolContext.record(event);
 }
 
 /**
@@ -1307,6 +1313,7 @@ app.whenReady().then(() => {
   });
   ipc.init({
     sensitiveAlertJournal,
+    explainToolContext: (eventId) => liveToolContext.explain(eventId),
     controlFileReads: (request) => etwFile.control(request),
     updates,
     getWindow: () => mainWindow,

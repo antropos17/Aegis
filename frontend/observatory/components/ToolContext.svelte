@@ -1,11 +1,32 @@
 <script lang="ts">
-  import type { RecordData } from '../runtime/host';
+  import { confirmed, invoke, type Host, type RecordData } from '../runtime/host';
   import { toolContextView } from '../runtime/tool-context-display';
   import { t } from '../runtime/i18n';
 
-  let { row }: { row: RecordData } = $props();
+  let { row, host = null }: { row: RecordData; host?: Host | null } = $props();
   const id = $props.id();
-  let context = $derived(toolContextView(row));
+  let loaded = $state<{ eventId: string; value: unknown } | null>(null);
+  let pending = $state<string | null>(null);
+  let failed = $state<string | null>(null);
+  let eventId = $derived(typeof row.eventId === 'string' ? row.eventId : null);
+  let canExplain = $derived(eventId !== null && typeof host?.explainToolContext === 'function');
+  let hasLive = $derived(loaded !== null && loaded.eventId === eventId);
+  let context = $derived(toolContextView(hasLive ? { toolContext: loaded?.value } : row));
+
+  async function explain() {
+    if (!canExplain || !eventId || pending !== null) return;
+    const selected = eventId;
+    pending = selected;
+    failed = null;
+    try {
+      const result = confirmed(await invoke(host, 'explainToolContext', selected));
+      loaded = { eventId: selected, value: result.toolContext };
+    } catch {
+      failed = selected;
+    } finally {
+      pending = null;
+    }
+  }
 </script>
 
 <section class="detail-section tool-context" aria-labelledby={id}>
@@ -16,9 +37,31 @@
       'A preceding call is temporal context. It does not establish causation or change PID attribution.',
     )}
   </p>
-  <p class="limit">
-    {$t('Live tool correlation is unavailable. This section displays recorded metadata.')}
-  </p>
+  {#if canExplain}
+    <button
+      class="button"
+      onclick={explain}
+      disabled={pending !== null}
+      aria-busy={pending === eventId}
+    >
+      {$t(pending === eventId ? 'Reading local history…' : 'Explain from local history')}
+    </button>
+    <p class="limit">
+      {$t(
+        'Reads local Claude Code history for this observation. Prompts and argument values stay private.',
+      )}
+    </p>
+    {#if hasLive}<p class="limit" role="status">
+        {$t('Local history checked. This explanation does not modify the recorded audit evidence.')}
+      </p>{/if}
+    {#if failed === eventId}<p class="context-warning" role="status">
+        {$t('Local history could not be read. The recorded observation is unchanged.')}
+      </p>{/if}
+  {:else}
+    <p class="limit">
+      {$t('Live tool correlation is unavailable. This section displays recorded metadata.')}
+    </p>
+  {/if}
   <dl>
     <div>
       <dt>{$t('Session binding')}</dt>

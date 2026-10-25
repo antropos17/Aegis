@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import DetailSummary from '../../../frontend/observatory/components/DetailSummary.svelte';
+import ToolContext from '../../../frontend/observatory/components/ToolContext.svelte';
 import Details from '../../../frontend/observatory/components/Details.svelte';
 import { emptyTelemetry, type RecordData } from '../../../frontend/observatory/runtime/host';
 import { withoutToolContext } from '../../../frontend/observatory/runtime/tool-context-display';
@@ -47,6 +48,51 @@ const show = (row: RecordData, section = 'overview') =>
     telemetry: emptyTelemetry(),
     section,
   });
+
+it('loads local history through the host using only the retained event ID', async () => {
+  const eventId = '98765432-1234-4234-9234-123456789abc';
+  const explainToolContext = vi.fn(async () => ({
+    success: true,
+    toolContext: capsule({
+      strength: 'inferred',
+      sessionBinding: 'unavailable',
+      reasons: ['session-binding-inferred', 'clock-skew-assumed-local'],
+      candidates: [candidate({ strength: 'inferred' })],
+    }),
+  }));
+  render(ToolContext, { row: observation({ eventId }), host: { explainToolContext } });
+  expect(explainToolContext).not.toHaveBeenCalled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  await waitFor(() => expect(screen.getByText('Claude Code · Read')).toBeInTheDocument());
+  expect(explainToolContext).toHaveBeenCalledExactlyOnceWith(eventId);
+  expect(screen.getByRole('region', { name: 'Preceding tool call' })).toHaveTextContent(
+    'clock alignment was not measured',
+  );
+  expect(screen.queryByText('Matched preceding call')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'does not modify the recorded audit evidence',
+  );
+});
+
+it('does not attach a delayed explanation to a newly selected observation', async () => {
+  let complete!: (_value: unknown) => void;
+  const host = {
+    explainToolContext: vi.fn(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+  };
+  const { rerender } = render(ToolContext, { row: observation({ eventId: 'old-event' }), host });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  await rerender({ row: observation({ eventId: 'new-event' }), host });
+  complete({ success: true, toolContext: capsule() });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Explain from local history' })).toBeEnabled(),
+  );
+  expect(screen.queryByText('Claude Code · Read')).not.toBeInTheDocument();
+});
 
 it('shows preceding metadata after Observation without converting tool strength into PID attribution', () => {
   const { container } = show(observation({ toolContext: capsule() }));

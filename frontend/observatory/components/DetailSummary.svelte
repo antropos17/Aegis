@@ -4,7 +4,14 @@
   import { resourceVisual } from '../runtime/resource-visual';
   import { t } from '../runtime/i18n';
 
-  import { instances, measured, record, type RecordData, type Telemetry } from '../runtime/host';
+  import {
+    instances,
+    measured,
+    record,
+    type Host,
+    type RecordData,
+    type Telemetry,
+  } from '../runtime/host';
   import type { SignatureConflict } from '../runtime/catalog';
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import { detailActivity, detailKind } from '../runtime/detail-model';
@@ -21,11 +28,13 @@
   import { hasToolContext, withoutToolContext } from '../runtime/tool-context-display';
   let {
     row,
+    host = null,
     telemetry,
     section = 'overview',
     changeSection,
   }: {
     row: RecordData;
+    host?: Host | null;
     telemetry: Telemetry;
     section?: string;
     changeSection?: (_section: string) => void;
@@ -240,7 +249,7 @@
     <Metadata value={withoutToolContext(overview, $t('Additional metadata unavailable'))} />
   </section>
   {#if kind === 'resource' || hasToolContext(row)}
-    <ToolContext {row} />
+    <ToolContext {row} {host} />
   {/if}
 {/if}
 

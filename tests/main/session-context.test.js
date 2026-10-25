@@ -48,6 +48,19 @@ const link = (engine, batch, ev = event, proof = evidence, window = timing, proc
   engine.correlate(ev, [engine.bind(batch, process, proof)], window);
 
 describe('source-backed bounded session context parsing', () => {
+  it('never confirms a matching verified session when local clock alignment is only assumed', () => {
+    const engine = make();
+    const batch = engine.parse('claude-code', fixture('claude'), selection);
+    const binding = engine.bind(batch, proc, evidence);
+    expect(binding.strength).toBe('confirmed');
+    const result = engine.correlate(event, [binding], {
+      clockBasis: 'same-host-assumed',
+      missingEndToleranceMs: 1500,
+    });
+    expect(result.strength).toBe('inferred');
+    expect(result.reasons).toContain('clock-skew-assumed-local');
+    expect(result.candidates[0].strength).toBe('inferred');
+  });
   it.each([
     ['claude-code', 'claude', 'Read'],
     ['codex', 'codex', 'exec_command'],

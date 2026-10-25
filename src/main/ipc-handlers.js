@@ -149,6 +149,19 @@ function register() {
     Boolean(event) && ownsTopLevelRenderer(event, window, deps.rendererUrl);
   const denied = () => ({ success: false, error: 'Renderer request denied' });
   const stillOwned = (event, window) => deps.getWindow?.() === window && isOwned(event, window);
+  ipcMain.handle('tool-context:explain', async (event, eventId) => {
+    const window = deps.getWindow?.();
+    if (!isOwned(event, window)) return denied();
+    if (typeof eventId !== 'string' || !/^[a-f0-9-]{36}$/i.test(eventId))
+      return { success: false, error: 'Invalid observation' };
+    try {
+      const result = await deps.explainToolContext?.(eventId);
+      if (!stillOwned(event, window)) return denied();
+      return result ?? { success: false, error: 'Local history is unavailable' };
+    } catch {
+      return { success: false, error: 'Local history is unavailable' };
+    }
+  });
   ipcMain.handle('file-reads:control', (event, request) => {
     if (!isOwned(event)) return denied();
     try {
