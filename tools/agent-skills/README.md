@@ -4,6 +4,10 @@ This directory is the versioned source for project skills. Edit each skill here;
 installations in `.agents/skills/` (Codex) and `.claude/skills/` (Claude Code) are
 ignored local copies. Do not force-add those copies or copy local settings into
 the catalog. A skill's location never selects the source checkout.
+Before synchronization from a preserved checkout, resolve
+[process-policy freshness](../../docs/development/current-context.md#process-policy-freshness).
+Do not replace newer installed guidance with an older catalog merely because its
+receipt permits the write. Preserve local customizations and inspect drift first.
 
 Run from the intended worktree, with the repository's Node version:
 

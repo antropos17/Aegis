@@ -21,6 +21,11 @@ Human authorisation is required for cutting a release tag, force pushing, regene
 
 ## Delivery and verification
 
+When starting or resuming in a preserved checkout, resolve current process rules
+using [policy freshness](docs/development/current-context.md#process-policy-freshness)
+before selecting checks or installing skills. Old source stays pinned; obsolete
+workflow requirements do not become current authorization.
+
 Choose the next task by the unfinished user-visible milestone in
 [the completion plan](docs/roadmap/completion-plan.md#7-execution-order).
 Finish existing integration before adding another dormant helper.
@@ -32,6 +37,8 @@ scoped retry. Observe an authorized in-flight VM; do not start another without
 its own task authorization and a concrete diagnostic or acceptance question.
 Post-merge CI observation does not block independent work. Preserve the five
 required contexts and strict branch protection.
+Use [the delivery loop](docs/development/workflow.md#delivery-loop) to state the
+observable result, select checks and finish without reopening completed scope.
 
 ## Writing
 

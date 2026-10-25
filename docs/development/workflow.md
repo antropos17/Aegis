@@ -75,6 +75,51 @@ only when necessary. Keep generated output local and regenerate after source or
 configuration changes. Run `npm run dev:tools:test` to verify the inventory and
 the architecture rules, including deliberately invalid import boundaries.
 
+## Delivery loop
+
+Start from the requested observable outcome and the nearest unfinished acceptance
+row. In the existing task note or brief, name the real caller/consumer, owned
+paths, the smallest relevant checks and the observation that finishes the task.
+This is a short execution note, not an extra planning or approval phase. Reuse
+the existing baseline; reopen only facts affected by changed code or new evidence.
+
+Implement a coherent path to that outcome. A helper, export script or fixture
+adapter is a prerequisite when its production consumer remains disconnected.
+Before adding another abstraction, adapter, report or plugin, identify the
+specific acceptance blocker it removes. Stop expanding a solved prerequisite.
+Keep independent product work moving while an unrelated native lane is blocked.
+
+Use the cheapest test boundary that can detect the relevant defect. Logic belongs
+in focused tests; add integration checks for wiring, ownership and lifetime;
+reserve a real host/provider/OS check for behavior fixtures cannot establish.
+Expected results come from the requirement, protocol or recorded defect, not a
+second copy of the implementation. For bug fixes, preserve a behavioral failing
+case when feasible and verify the fix. Do not deliberately modify production
+source to manufacture a failing test. Broad mocks, file-content assertions and
+test counts alone do not prove a real consumer works.
+
+Review assertions and the final diff within scope, then overlap hosted CI with
+review/preparation of the handoff. Reuse a check only when its relevant source,
+dependencies, configuration and environment match; record the receipt and what
+would invalidate it. A changed PR head still needs the required current contexts.
+Do not remove tests or weaken assertions, timeouts, security checks or branch
+protection just to shorten a run. Redundant higher-level cases may be consolidated
+only after identifying the equivalent retained coverage and unique boundary risk.
+
+If a check fails, preserve the first result and isolate the failed stage. A retry
+needs a changed relevant input, observed infrastructure recovery, or a defined
+measurement of intermittent behavior. Keep the initial failure visible; a green
+retry is not a diagnosis. If the same stage fails again without new evidence,
+inspect its existing diagnostics before another expensive attempt. Poll a run
+only when a result can change the next action; use completion notifications or a
+bounded wait and continue independent work when possible.
+
+Finish when the requested outcome and applicable checks are complete. Report
+delivered behavior, evidence, acceptance gaps and the next concrete blocker.
+Keep these in the existing tracker/handoff; avoid another report or confirmation
+round for the same result. Track elapsed CI/VM time from receipts when assessing
+speed; count accepted behavior separately from commits, agents and test totals.
+
 ## Selecting verification
 
 For bounded native Windows fixtures, failure diagnosis, current-candidate inputs,
