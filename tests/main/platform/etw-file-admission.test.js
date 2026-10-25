@@ -110,6 +110,153 @@ function make(options = {}) {
   };
 }
 describe('raw ETW object-policy admission custody', () => {
+  it('retains the first immutable qualification refusal across healthy telemetry and cleanup', () => {
+    const h = make();
+    const continuity = {
+      telemetryAvailable: true,
+      operational: true,
+      querySucceeded: false,
+      eventsLostZero: false,
+      realTimeBuffersLostZero: false,
+      logBuffersLostZero: false,
+      droppedZero: true,
+      decoderErrorsZero: true,
+      mapEpochZero: true,
+      mapResetsZero: true,
+      mapConflictsZero: true,
+      stickyClear: true,
+    };
+    h.owner.update(context({ continuous: false, continuity }));
+    const first = h.owner.snapshot().qualification;
+    expect(first).toEqual({
+      schema: 'aegis-etw-object-qualification/1',
+      conditions: {
+        qualified: false,
+        revoked: true,
+        scopePresent: true,
+        contextPresent: true,
+        contextActive: true,
+        continuous: false,
+        exactProfile: true,
+      },
+      continuity,
+      firstRevocation: {
+        cause: 'continuity',
+        conditions: {
+          qualified: false,
+          revoked: true,
+          scopePresent: true,
+          contextPresent: true,
+          contextActive: true,
+          continuous: false,
+          exactProfile: true,
+        },
+        continuity,
+      },
+    });
+    continuity.querySucceeded = true;
+    h.owner.update(context());
+    h.owner.revoke();
+    h.owner.update(context({ active: false }));
+    expect(h.owner.snapshot().qualification.firstRevocation).toEqual(first.firstRevocation);
+    expect(first.firstRevocation.continuity.querySucceeded).toBe(false);
+    for (const value of [
+      first,
+      first.conditions,
+      first.continuity,
+      first.firstRevocation,
+      first.firstRevocation.conditions,
+      first.firstRevocation.continuity,
+    ])
+      expect(Object.isFrozen(value)).toBe(true);
+    h.owner.begin('scope-2');
+    h.owner.update(context({ sessionId: 'session-2' }));
+    expect(h.owner.snapshot()).toMatchObject({
+      qualified: true,
+      qualification: { conditions: { qualified: true, revoked: false }, firstRevocation: null },
+    });
+  });
+
+  it.each([
+    ['explicit', {}],
+    ['continuity', { continuous: false }],
+    ['profile', { objectBridge: null }],
+    ['both', { continuous: false, objectBridge: null }],
+  ])('retains the closed %s cause until the existing new-session boundary', (cause, change) => {
+    const h = make();
+    if (cause === 'explicit') h.owner.revoke();
+    else h.owner.update(context(change));
+    const first = h.owner.snapshot().qualification.firstRevocation;
+    expect(first).toMatchObject({
+      cause,
+      conditions: { qualified: false, revoked: true, scopePresent: true, contextActive: true },
+    });
+    expect(first.conditions.continuous).toBe(change.continuous !== false);
+    expect(first.conditions.exactProfile).toBe(change.objectBridge !== null);
+    h.owner.update(context());
+    expect(h.owner.snapshot().qualified).toBe(false);
+    expect(h.owner.snapshot().qualification.firstRevocation).toEqual(first);
+    h.owner.begin('next-scope');
+    expect(h.owner.snapshot().qualification).toMatchObject({
+      conditions: { revoked: false, contextPresent: false, qualified: false },
+      firstRevocation: null,
+    });
+    h.owner.update(context({ sessionId: 'next-session' }));
+    expect(h.owner.snapshot().qualified).toBe(true);
+  });
+
+  it('projects only strict closed booleans and never private context or arbitrary continuity data', () => {
+    const h = make();
+    const continuity = {
+      telemetryAvailable: true,
+      operational: 'true',
+      querySucceeded: 1,
+      eventsLostZero: {},
+      realTimeBuffersLostZero: [],
+      logBuffersLostZero: null,
+      droppedZero: false,
+      decoderErrorsZero: undefined,
+      mapEpochZero: 'PRIVATE_QUALIFICATION_CANARY',
+      mapResetsZero: true,
+      mapConflictsZero: true,
+      stickyClear: true,
+      privatePath: 'PRIVATE_QUALIFICATION_CANARY',
+    };
+    h.owner.update(
+      context({ active: false, continuity, sessionId: 'PRIVATE_QUALIFICATION_CANARY' }),
+    );
+    const value = h.owner.snapshot().qualification;
+    expect(Object.keys(value)).toEqual(['schema', 'conditions', 'continuity', 'firstRevocation']);
+    expect(Object.keys(value.conditions)).toEqual([
+      'qualified',
+      'revoked',
+      'scopePresent',
+      'contextPresent',
+      'contextActive',
+      'continuous',
+      'exactProfile',
+    ]);
+    expect(value.continuity).toEqual({
+      telemetryAvailable: true,
+      operational: false,
+      querySucceeded: false,
+      eventsLostZero: false,
+      realTimeBuffersLostZero: false,
+      logBuffersLostZero: false,
+      droppedZero: false,
+      decoderErrorsZero: false,
+      mapEpochZero: false,
+      mapResetsZero: true,
+      mapConflictsZero: true,
+      stickyClear: true,
+    });
+    expect(Object.values(value.conditions).every((flag) => typeof flag === 'boolean')).toBe(true);
+    expect(value.firstRevocation).toBeNull();
+    expect(JSON.stringify(value)).not.toContain('PRIVATE_QUALIFICATION_CANARY');
+    continuity.mapResetsZero = false;
+    expect(value.continuity.mapResetsZero).toBe(true);
+  });
+
   it('requires pre-read policy ACK and later source watermark, then admits correct actor once', () => {
     const h = make();
     h.bind();

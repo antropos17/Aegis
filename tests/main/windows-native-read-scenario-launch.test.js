@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   observeCustodian: vi.fn(),
   exitWithin: vi.fn(),
   until: vi.fn(),
+  displayedRisk: vi.fn(),
 }));
 
 vi.mock('playwright', () => ({ _electron: { launch: mocks.launch } }));
@@ -16,7 +17,7 @@ vi.mock('../../scripts/produce-protected-gui-manifest.mjs', () => ({
 vi.mock('../../scripts/qualification/windows-native-read-support.mjs', () => ({
   until: mocks.until,
   evidence: vi.fn(),
-  displayedRisk: vi.fn(),
+  displayedRisk: mocks.displayedRisk,
   prepareNativeReadWindow: mocks.prepareNativeReadWindow,
   probeRetainedObjectRelease: vi.fn(),
 }));
@@ -38,7 +39,39 @@ import { runNativeReadScenario } from '../../scripts/qualification/windows-nativ
 import {
   projectIssuerPreparationReadiness,
   recordIssuerPreparationReadiness,
+  projectOperationalAdmission,
 } from '../../scripts/qualification/windows-native-read-readiness.mjs';
+
+const admissionFixture = () => ({
+  qualified: true,
+  qualification: {
+    schema: 'aegis-etw-object-qualification/1',
+    conditions: {
+      qualified: true,
+      revoked: false,
+      scopePresent: true,
+      contextPresent: true,
+      contextActive: true,
+      continuous: true,
+      exactProfile: true,
+    },
+    continuity: {
+      telemetryAvailable: true,
+      operational: true,
+      querySucceeded: true,
+      eventsLostZero: true,
+      realTimeBuffersLostZero: true,
+      logBuffersLostZero: true,
+      droppedZero: true,
+      decoderErrorsZero: true,
+      mapEpochZero: true,
+      mapResetsZero: true,
+      mapConflictsZero: true,
+      stickyClear: true,
+    },
+    firstRevocation: null,
+  },
+});
 
 describe('actual native-read scenario launch composition', () => {
   let app;
@@ -393,6 +426,152 @@ describe('actual native-read scenario launch composition', () => {
     expect(observer.stop).toHaveBeenCalledOnce();
   });
 
+  it('retains every admission condition and first revocation before immediate refusal and cleanup', async () => {
+    const controls = {
+      getByRole: () => controls,
+      waitFor: vi.fn(),
+      click: vi.fn(),
+      check: vi.fn(),
+    };
+    const admission = admissionFixture();
+    admission.qualified = false;
+    Object.assign(admission.qualification.conditions, {
+      qualified: false,
+      revoked: true,
+      continuous: false,
+      exactProfile: false,
+    });
+    Object.assign(admission.qualification.continuity, {
+      querySucceeded: false,
+      eventsLostZero: false,
+      mapEpochZero: false,
+    });
+    admission.qualification.firstRevocation = {
+      cause: 'both',
+      conditions: { ...admission.qualification.conditions },
+      continuity: { ...admission.qualification.continuity },
+    };
+    const page = {
+      getByRole: () => controls,
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ admission, raw: 'PRIVATE_PATH_GUID_CLOCK' }),
+    };
+    app.firstWindow = vi.fn().mockResolvedValue(page);
+    mocks.launch.mockResolvedValue(app);
+    mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
+    fixture.command = vi.fn();
+    mocks.until
+      .mockImplementationOnce(async () => ({ agents: [{ pid: 42, createTime100ns: '123' }] }))
+      .mockImplementationOnce(async (_read, accept) => {
+        expect(
+          accept({
+            phase: 'running',
+            issuerPreparation: { prepared: [{ pid: 42, createTime100ns: '123', threads: 2 }] },
+          }),
+        ).toBe(true);
+      });
+    fixture.close.mockImplementation(async () => {
+      admission.qualified = true;
+      admission.qualification.conditions.revoked = false;
+      admission.qualification.continuity.querySucceeded = true;
+      admission.qualification.firstRevocation.cause = 'PRIVATE_CAUSE';
+      fixture.child.exitCode = 0;
+    });
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+        candidate: 'X:/owned/candidate',
+        helper: 'helper.exe',
+      }),
+    ).rejects.toThrow('Native object admission unavailable: revoked-both');
+    expect(receipt.operationalAdmission).toMatchObject({
+      qualified: false,
+      qualificationValid: true,
+      accepted: false,
+      refusalCode: 'revoked-both',
+      qualification: {
+        conditions: { revoked: true, continuous: false, exactProfile: false },
+        continuity: { querySucceeded: false, eventsLostZero: false, mapEpochZero: false },
+        firstRevocation: {
+          cause: 'both',
+          conditions: { revoked: true },
+          continuity: { querySucceeded: false },
+        },
+      },
+    });
+    expect(Object.keys(receipt.operationalAdmission.qualification.conditions)).toHaveLength(7);
+    expect(Object.keys(receipt.operationalAdmission.qualification.continuity)).toHaveLength(12);
+    expect(
+      Object.isFrozen(receipt.operationalAdmission.qualification.firstRevocation.conditions),
+    ).toBe(true);
+    expect(JSON.stringify(receipt.operationalAdmission)).not.toMatch(
+      /PRIVATE|"pid"|"createTime100ns"/,
+    );
+    expect(mocks.until).toHaveBeenCalledTimes(2);
+    expect(observer.until).toHaveBeenCalledOnce();
+    expect(fixture.command).not.toHaveBeenCalled();
+    expect(mocks.displayedRisk).not.toHaveBeenCalled();
+    expect(fixture.close).toHaveBeenCalledOnce();
+    expect(app.close).toHaveBeenCalledOnce();
+  });
+
+  it('continues the strictly qualified capture immediately without adding another readiness wait', async () => {
+    const controls = {
+      getByRole: () => controls,
+      waitFor: vi.fn(),
+      click: vi.fn(),
+      check: vi.fn(),
+    };
+    app.firstWindow = vi.fn().mockResolvedValue({
+      getByRole: () => controls,
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ admission: admissionFixture() }),
+    });
+    mocks.launch.mockResolvedValue(app);
+    mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
+    mocks.until
+      .mockImplementationOnce(async () => ({ agents: [{ pid: 42, createTime100ns: '123' }] }))
+      .mockImplementationOnce(async (_read, accept) => {
+        expect(
+          accept({
+            phase: 'running',
+            issuerPreparation: { prepared: [{ pid: 42, createTime100ns: '123', threads: 2 }] },
+          }),
+        ).toBe(true);
+      });
+    observer.until
+      .mockResolvedValueOnce({ type: 'endpoint', address: 'owned-endpoint' })
+      .mockRejectedValueOnce(new Error('fixture-after-qualified-admission'));
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+        candidate: 'X:/owned/candidate',
+        helper: 'helper.exe',
+      }),
+    ).rejects.toThrow('fixture-after-qualified-admission');
+    expect(receipt.operationalAdmission).toMatchObject({
+      qualified: true,
+      qualificationValid: true,
+      accepted: true,
+      refusalCode: null,
+    });
+    expect(mocks.until).toHaveBeenCalledTimes(2);
+    expect(observer.until).toHaveBeenCalledTimes(2);
+    expect(mocks.displayedRisk).not.toHaveBeenCalled();
+  });
+
   it('uses the owned-profile Settings flow before subscribing in the Simple investigation workspace', async () => {
     let simple = false;
     let workspace = 'Monitoring';
@@ -613,5 +792,107 @@ describe('issuer preparation readiness projection', () => {
     expect(Object.isFrozen(receipt.first)).toBe(true);
     expect(JSON.stringify(receipt)).not.toContain('PRIVATE');
     expect(JSON.stringify(receipt).length).toBeLessThan(2000);
+  });
+});
+
+describe('closed operational admission projection', () => {
+  it('copies only the complete contract and preserves the existing qualified authority', () => {
+    const admission = admissionFixture();
+    for (const key of Object.keys(admission.qualification.continuity))
+      admission.qualification.continuity[key] = false;
+    const result = projectOperationalAdmission({ admission, raw: 'PRIVATE_PATH_GUID_CLOCK' });
+    expect(result).toMatchObject({
+      qualified: true,
+      qualificationValid: true,
+      accepted: true,
+      refusalCode: null,
+    });
+    expect(Object.isFrozen(result.qualification.continuity)).toBe(true);
+    expect(Object.keys(result)).toEqual([
+      'schema',
+      'admissionAvailable',
+      'qualified',
+      'qualificationValid',
+      'accepted',
+      'refusalCode',
+      'qualification',
+    ]);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE');
+  });
+
+  it('rejects unknown, malformed and inconsistent data without granting qualification', () => {
+    const controls = [
+      (a) => {
+        a.qualified = 'true';
+      },
+      (a) => {
+        a.qualified = false;
+      },
+      (a) => {
+        a.qualification.schema = 'PRIVATE_SCHEMA';
+      },
+      (a) => {
+        delete a.qualification.continuity.querySucceeded;
+      },
+      (a) => {
+        a.qualification.conditions.contextActive = 'true';
+      },
+      (a) => {
+        a.qualification.conditions.extra = 'PRIVATE_ID';
+      },
+      (a) => {
+        a.qualification.conditions.qualified = false;
+      },
+      (a) => {
+        a.qualification.firstRevocation = {
+          cause: 'PRIVATE_CAUSE',
+          conditions: {},
+          continuity: {},
+        };
+      },
+      (a) => {
+        a.qualification.conditions.revoked = true;
+      },
+      (a) => {
+        a.qualification.conditions.contextPresent = false;
+      },
+    ];
+    for (const change of controls) {
+      const admission = admissionFixture();
+      change(admission);
+      const result = projectOperationalAdmission({ admission });
+      expect(result.accepted).toBe(false);
+      expect(result.refusalCode).toBe('invalid-qualification');
+      expect(JSON.stringify(result)).not.toContain('PRIVATE');
+    }
+    for (const view of [null, {}, { admission: { qualified: false } }, { admission: null }])
+      expect(projectOperationalAdmission(view)).toMatchObject({
+        accepted: false,
+        refusalCode: 'invalid-qualification',
+      });
+  });
+
+  it('retains each first revocation cause after current conditions recover without requalifying', () => {
+    for (const cause of ['explicit', 'continuity', 'profile', 'both']) {
+      const admission = admissionFixture();
+      admission.qualified = false;
+      Object.assign(admission.qualification.conditions, { qualified: false, revoked: true });
+      const conditions = { ...admission.qualification.conditions };
+      if (cause === 'continuity' || cause === 'both') conditions.continuous = false;
+      if (cause === 'profile' || cause === 'both') conditions.exactProfile = false;
+      admission.qualification.firstRevocation = {
+        cause,
+        conditions,
+        continuity: { ...admission.qualification.continuity },
+      };
+      const result = projectOperationalAdmission({ admission });
+      expect(result).toMatchObject({
+        qualified: false,
+        qualificationValid: true,
+        accepted: false,
+        refusalCode: 'revoked-' + cause,
+      });
+      expect(result.qualification.firstRevocation.conditions).toEqual(conditions);
+    }
   });
 });

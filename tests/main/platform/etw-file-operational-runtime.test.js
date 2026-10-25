@@ -100,17 +100,20 @@ function make({ consume = true } = {}) {
     child.message(kind, ++seq, data);
     child.flush();
   }
-  function start(action = 'start-object') {
+  function start(action = 'start-object', { mutateReady = () => {}, onStarting = () => {} } = {}) {
     expect(owner.control({ action, root: 'C:\\fixture' })).toEqual({ success: true });
+    onStarting();
     child = transport.children.at(-1);
     seq = 0;
     eventSeq = 0;
     send('hello');
-    send('ready', {
+    const ready = {
       ...message('ready').data,
       requestId: child.writes[0].data.requestId,
       objectBridge: action === 'start-object' ? PROFILE : null,
-    });
+    };
+    mutateReady(ready);
+    send('ready', ready);
     const prime = child.writes.find((value) => value.t === 'prime-issuers');
     if (prime)
       send('issuers-primed', {
@@ -190,6 +193,169 @@ function make({ consume = true } = {}) {
   };
 }
 describe('actual ETW runtime transport composition', () => {
+  it('qualifies only after real ready while retaining independent issuer preparation', () => {
+    const h = make();
+    h.start('start-object', {
+      onStarting() {
+        expect(h.owner.getReadView().admission.qualification).toMatchObject({
+          conditions: { qualified: false, revoked: false, contextActive: false },
+          continuity: {
+            telemetryAvailable: false,
+            operational: false,
+            querySucceeded: false,
+            eventsLostZero: false,
+            realTimeBuffersLostZero: false,
+            logBuffersLostZero: false,
+            droppedZero: false,
+            decoderErrorsZero: false,
+            mapEpochZero: false,
+            mapResetsZero: false,
+            mapConflictsZero: false,
+            stickyClear: true,
+          },
+          firstRevocation: null,
+        });
+      },
+    });
+    expect(h.owner.getDiagnostics()).toMatchObject({
+      phase: 'running',
+      issuerPreparation: { prepared: [{ pid: actor.pid, createTime100ns: BIRTH }] },
+    });
+    const view = h.owner.getReadView();
+    expect(view.admission.qualified).toBe(true);
+    expect(view.admission.qualification).toEqual({
+      schema: 'aegis-etw-object-qualification/1',
+      conditions: {
+        qualified: true,
+        revoked: false,
+        scopePresent: true,
+        contextPresent: true,
+        contextActive: true,
+        continuous: true,
+        exactProfile: true,
+      },
+      continuity: {
+        telemetryAvailable: true,
+        operational: true,
+        querySucceeded: true,
+        eventsLostZero: true,
+        realTimeBuffersLostZero: true,
+        logBuffersLostZero: true,
+        droppedZero: true,
+        decoderErrorsZero: true,
+        mapEpochZero: true,
+        mapResetsZero: true,
+        mapConflictsZero: true,
+        stickyClear: true,
+      },
+      firstRevocation: null,
+    });
+  });
+  it.each([
+    [
+      'unmeasured native query',
+      (ready) => {
+        Object.assign(ready.telemetry.counters, {
+          queryStatus: 5,
+          eventsLost: null,
+          realTimeBuffersLost: null,
+          logBuffersLost: null,
+        });
+      },
+      'continuity',
+      'querySucceeded',
+    ],
+    [
+      'kernel loss',
+      (ready) => {
+        ready.telemetry.counters.eventsLost = '1';
+      },
+      'continuity',
+      'eventsLostZero',
+    ],
+    [
+      'mapping epoch change',
+      (ready) => {
+        ready.telemetry.totals.mapEpoch = '1';
+      },
+      'continuity',
+      'mapEpochZero',
+    ],
+    [
+      'missing object bridge',
+      (ready) => {
+        ready.objectBridge = null;
+      },
+      'profile',
+      null,
+    ],
+  ])(
+    'keeps running preparation separate from refused %s and preserves the first cause',
+    (_label, mutateReady, cause, failedCounter) => {
+      const h = make();
+      h.start('start-object', { mutateReady });
+      expect(h.owner.getDiagnostics()).toMatchObject({
+        phase: 'running',
+        issuerPreparation: { prepared: [{ pid: actor.pid, createTime100ns: BIRTH }] },
+      });
+      const first = h.owner.getReadView().admission.qualification;
+      expect(first.conditions).toEqual({
+        qualified: false,
+        revoked: true,
+        scopePresent: true,
+        contextPresent: true,
+        contextActive: true,
+        continuous: cause === 'profile',
+        exactProfile: cause !== 'profile',
+      });
+      if (failedCounter) expect(first.continuity[failedCounter]).toBe(false);
+      expect(first.firstRevocation).toEqual({
+        cause,
+        conditions: first.conditions,
+        continuity: first.continuity,
+      });
+      h.heartbeat(200);
+      const later = h.owner.getReadView().admission;
+      expect(later).toMatchObject({
+        qualified: false,
+        qualification: {
+          conditions: { revoked: true },
+          firstRevocation: first.firstRevocation,
+        },
+      });
+      if (failedCounter) expect(later.qualification.continuity[failedCounter]).toBe(true);
+      h.finish();
+      expect(h.owner.getReadView().admission.qualification.firstRevocation).toEqual(
+        first.firstRevocation,
+      );
+      expect(h.delivered).toEqual([]);
+    },
+  );
+  it('resets the first admission refusal only for a new explicit capture', () => {
+    const h = make();
+    h.start('start-object', {
+      mutateReady(ready) {
+        ready.telemetry.totals.mapEpoch = '1';
+      },
+    });
+    const first = h.owner.getReadView().admission.qualification.firstRevocation;
+    expect(first).toMatchObject({
+      cause: 'continuity',
+      continuity: { mapEpochZero: false },
+    });
+    h.heartbeat(200);
+    h.finish();
+    expect(h.owner.getReadView().admission.qualification.firstRevocation).toEqual(first);
+    h.start();
+    expect(h.owner.getReadView().admission).toMatchObject({
+      qualified: true,
+      qualification: { conditions: { revoked: false }, firstRevocation: null },
+    });
+    expect(h.owner.getDiagnostics()).toMatchObject({
+      phase: 'running',
+      issuerPreparation: { prepared: [{ pid: actor.pid, createTime100ns: BIRTH }] },
+    });
+  });
   it.each([
     ['marked explicit object mode', true, true, true, true, true],
     ['ordinary package', false, true, true, true, false],

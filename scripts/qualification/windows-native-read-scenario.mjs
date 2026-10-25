@@ -15,6 +15,7 @@ import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
 import {
   recordScannerReadiness,
   recordIssuerPreparationReadiness,
+  recordOperationalAdmission,
 } from './windows-native-read-readiness.mjs';
 import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 import {
@@ -120,7 +121,7 @@ export async function runNativeReadScenario({
     const view = await page.evaluate(
       async () => (await window.aegis.getStats()).fileReadDiagnostics,
     );
-    assert.equal(view.admission?.qualified, true, 'Exact object ABI profile not qualified');
+    recordOperationalAdmission(view, r);
     r.originalCohort = await observer.until((message) => message.type === 'reserved', 10000);
     assert(
       r.originalCohort.originalObjectsObserved === true &&

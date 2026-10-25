@@ -6,6 +6,20 @@ const scope = require('./etw-file-scope');
 const PROFILE = 'win11-x64-26300.9457-experimental';
 const MAX_PENDING = 256;
 const MAX_BYTES = 1024 * 1024;
+const CONTINUITY_KEYS = [
+  'telemetryAvailable',
+  'operational',
+  'querySucceeded',
+  'eventsLostZero',
+  'realTimeBuffersLostZero',
+  'logBuffersLostZero',
+  'droppedZero',
+  'decoderErrorsZero',
+  'mapEpochZero',
+  'mapResetsZero',
+  'mapConflictsZero',
+  'stickyClear',
+];
 const withinRoot = (label, root) =>
   scope.validRoot(root) &&
   typeof label === 'string' &&
@@ -38,6 +52,7 @@ function createAdmission({
     pendingBytes = 0,
     lastSeq = 0n;
   let revoked = false,
+    firstRevocation = null,
     consumerRejected = 0,
     pendingDropped = 0,
     accepted = 0,
@@ -95,6 +110,38 @@ function createAdmission({
       context.continuous === true &&
       context.objectBridge === PROFILE
     );
+  }
+  function qualificationConditions() {
+    return Object.freeze({
+      qualified: active(),
+      revoked,
+      scopePresent: scopeGeneration !== null,
+      contextPresent: context !== null,
+      contextActive: context?.active === true,
+      continuous: context?.continuous === true,
+      exactProfile: context?.objectBridge === PROFILE,
+    });
+  }
+  function continuityConditions() {
+    return Object.freeze(
+      Object.fromEntries(CONTINUITY_KEYS.map((key) => [key, context?.continuity?.[key] === true])),
+    );
+  }
+  function rememberRevocation(cause) {
+    if (firstRevocation === null)
+      firstRevocation = Object.freeze({
+        cause,
+        conditions: qualificationConditions(),
+        continuity: continuityConditions(),
+      });
+  }
+  function qualification() {
+    return Object.freeze({
+      schema: 'aegis-etw-object-qualification/1',
+      conditions: qualificationConditions(),
+      continuity: continuityConditions(),
+      firstRevocation,
+    });
   }
   function policyValid(value) {
     return (
@@ -264,11 +311,13 @@ function createAdmission({
       scopeGeneration = generation;
       context = null;
       revoked = false;
+      firstRevocation = null;
       secret = randomBytes(32);
       lastSeq = 0n;
     },
     revoke() {
       revoked = true;
+      rememberRevocation('explicit');
       clear();
     },
     update(value) {
@@ -276,6 +325,9 @@ function createAdmission({
       context = value;
       if (value.active && (!value.continuous || value.objectBridge !== PROFILE)) {
         revoked = true;
+        rememberRevocation(
+          !value.continuous ? (value.objectBridge !== PROFILE ? 'both' : 'continuity') : 'profile',
+        );
         clear();
       }
       if (!value.active) clear();
@@ -345,6 +397,7 @@ function createAdmission({
       pendingBindings: [...bindings.values()].filter((value) => value.ack === null).length,
       mode: scopeGeneration === null ? 'display' : 'object-bound',
       qualified: active(),
+      qualification: qualification(),
     }),
   };
 }

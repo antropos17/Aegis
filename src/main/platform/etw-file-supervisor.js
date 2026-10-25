@@ -123,6 +123,20 @@ function createSupervisor({
       frequency: capture?.frequency,
       clock: capture?.clock,
       objectBridge: capture?.objectBridge ?? null,
+      continuity: {
+        telemetryAvailable: sample !== null && sample !== undefined,
+        operational: sample?.operational === true,
+        querySucceeded: sample?.counters.queryStatus === 0,
+        eventsLostZero: sample?.counters.eventsLost === '0',
+        realTimeBuffersLostZero: sample?.counters.realTimeBuffersLost === '0',
+        logBuffersLostZero: sample?.counters.logBuffersLost === '0',
+        droppedZero: sample?.totals.dropped === '0',
+        decoderErrorsZero: sample?.totals.decoderErrors === '0',
+        mapEpochZero: sample?.totals.mapEpoch === '0',
+        mapResetsZero: sample?.totals.mapResets === '0',
+        mapConflictsZero: sample?.totals.mapConflicts === '0',
+        stickyClear: current?.sticky.length === 0,
+      },
     };
   }
 

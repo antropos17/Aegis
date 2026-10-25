@@ -117,6 +117,23 @@ one prepared entry matching both actor PID and full birth. This fixes lost
 failure context and waiting after a confirmed end; it does not establish the
 cause of a historical native exit or qualify native reads, alerts or risk.
 
+After issuer preparation, the probe checks operational object admission before
+reserving the cohort or issuing a read. This aggregate requires an unrevoked
+scope, active and continuous capture, and the exact object-bridge profile. Its
+fixed boolean diagnostics distinguish those conditions and the underlying
+telemetry, query, native-loss, collector-drop, decoder, mapping and sticky-fault
+conditions. The first revocation cause and its detached condition snapshot are
+retained until the existing fresh-session boundary, so a later healthy sample
+or cleanup cannot replace the original refusal context. Identifiers, raw
+counters, profile strings and arbitrary errors are excluded from this metadata.
+The scenario retains a validated, immutable copy before its immediate strict
+admission check and reports a closed operational refusal code. Missing or
+malformed diagnostic contracts and inconsistent aggregate or first-revocation
+metadata fail closed. The twelve detail flags do not replace the original
+aggregate continuity decision. No extra polling, retry, automatic restart
+or revocation reset is introduced; clock and event-time checks remain in the
+later read oracle. A false aggregate is not a diagnosis of ABI or OS failure.
+
 After normal process closure, audit custody is checked against the canonical
 on-disk envelope: type, actor PID/instance, empty access path, and the event and
 binding IDs stored under `details`. Exactly one matching row is required. The

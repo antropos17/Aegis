@@ -186,3 +186,148 @@ export function recordIssuerPreparationReadiness(value, witness, observation) {
     throw new Error('Native issuer preparation refused: capture-ended');
   return observation.last.accepted;
 }
+
+const ADMISSION_CONDITIONS = [
+  'qualified',
+  'revoked',
+  'scopePresent',
+  'contextPresent',
+  'contextActive',
+  'continuous',
+  'exactProfile',
+];
+const CONTINUITY_CONDITIONS = [
+  'telemetryAvailable',
+  'operational',
+  'querySucceeded',
+  'eventsLostZero',
+  'realTimeBuffersLostZero',
+  'logBuffersLostZero',
+  'droppedZero',
+  'decoderErrorsZero',
+  'mapEpochZero',
+  'mapResetsZero',
+  'mapConflictsZero',
+  'stickyClear',
+];
+const REVOCATION_CAUSES = ['explicit', 'continuity', 'profile', 'both'];
+const exactKeys = (value, keys) =>
+  value !== null &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  Object.keys(value).length === keys.length &&
+  keys.every((key) => Object.hasOwn(value, key));
+const booleans = (value, keys) =>
+  exactKeys(value, keys) && keys.every((key) => typeof value[key] === 'boolean')
+    ? Object.freeze(Object.fromEntries(keys.map((key) => [key, value[key]])))
+    : null;
+const consistentConditions = (value) =>
+  value !== null &&
+  value.qualified ===
+    (!value.revoked &&
+      value.scopePresent &&
+      value.contextActive &&
+      value.continuous &&
+      value.exactProfile) &&
+  (value.contextPresent || (!value.contextActive && !value.continuous && !value.exactProfile));
+
+/** Copy only the complete closed operational-admission diagnostic contract.
+ * Continuity detail is evidence, not a replacement for the existing qualified predicate.
+ * @param {object|null} view Actual fileReadDiagnostics projection.
+ * @returns {object} Immutable metadata-only qualification snapshot and closed refusal code.
+ * @since v0.20.1
+ */
+export function projectOperationalAdmission(view) {
+  const admission = view?.admission;
+  const source = admission?.qualification;
+  const admissionAvailable =
+    admission !== null && typeof admission === 'object' && !Array.isArray(admission);
+  const qualified = typeof admission?.qualified === 'boolean' ? admission.qualified : null;
+  const conditions = booleans(source?.conditions, ADMISSION_CONDITIONS);
+  const continuity = booleans(source?.continuity, CONTINUITY_CONDITIONS);
+  let firstRevocation = null;
+  let firstValid = source?.firstRevocation === null;
+  if (exactKeys(source?.firstRevocation, ['cause', 'conditions', 'continuity'])) {
+    const first = source.firstRevocation;
+    const firstConditions = booleans(first.conditions, ADMISSION_CONDITIONS);
+    const firstContinuity = booleans(first.continuity, CONTINUITY_CONDITIONS);
+    firstValid =
+      REVOCATION_CAUSES.includes(first.cause) &&
+      firstConditions !== null &&
+      firstContinuity !== null;
+    if (firstValid)
+      firstRevocation = Object.freeze({
+        cause: first.cause,
+        conditions: firstConditions,
+        continuity: firstContinuity,
+      });
+  }
+  const shapeValid =
+    exactKeys(source, ['schema', 'conditions', 'continuity', 'firstRevocation']) &&
+    source.schema === 'aegis-etw-object-qualification/1' &&
+    conditions !== null &&
+    continuity !== null &&
+    firstValid;
+  const qualification = shapeValid
+    ? Object.freeze({ schema: source.schema, conditions, continuity, firstRevocation })
+    : null;
+  const firstConsistent =
+    firstRevocation === null ||
+    (consistentConditions(firstRevocation.conditions) &&
+      firstRevocation.conditions.revoked &&
+      !firstRevocation.conditions.qualified &&
+      (firstRevocation.cause === 'explicit' ||
+        (firstRevocation.conditions.contextActive &&
+          firstRevocation.conditions.continuous === (firstRevocation.cause === 'profile') &&
+          firstRevocation.conditions.exactProfile === (firstRevocation.cause === 'continuity'))));
+  const qualificationValid =
+    shapeValid &&
+    qualified !== null &&
+    conditions.qualified === qualified &&
+    consistentConditions(conditions) &&
+    firstConsistent &&
+    conditions.revoked === (firstRevocation !== null);
+  const accepted = qualified === true && qualificationValid;
+  let refusalCode = null;
+  if (!accepted) {
+    refusalCode = !qualificationValid
+      ? 'invalid-qualification'
+      : conditions.revoked
+        ? 'revoked-' + firstRevocation.cause
+        : !conditions.scopePresent
+          ? 'scope-unavailable'
+          : !conditions.contextPresent
+            ? 'context-unavailable'
+            : !conditions.contextActive
+              ? 'capture-inactive'
+              : !conditions.continuous
+                ? 'capture-discontinuous'
+                : !conditions.exactProfile
+                  ? 'profile-unqualified'
+                  : 'invalid-qualification';
+  }
+  return Object.freeze({
+    schema: 'aegis-native-object-admission/1',
+    admissionAvailable,
+    qualified,
+    qualificationValid,
+    accepted,
+    refusalCode,
+    qualification,
+  });
+}
+
+/** Preserve complete conditions before enforcing the immediate strict qualification guard.
+ * @param {object|null} view Actual fileReadDiagnostics projection.
+ * @param {object} receipt Owned scenario receipt, before cleanup.
+ * @returns {object} The accepted closed operational snapshot.
+ * @since v0.20.1
+ */
+export function recordOperationalAdmission(view, receipt) {
+  receipt.operationalAdmission = projectOperationalAdmission(view);
+  if (!receipt.operationalAdmission.accepted)
+    throw new Error(
+      'Native object admission unavailable: ' + receipt.operationalAdmission.refusalCode,
+    );
+  return receipt.operationalAdmission;
+}
