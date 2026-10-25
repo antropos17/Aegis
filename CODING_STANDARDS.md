@@ -20,4 +20,4 @@ Consult this section before changing process identity, snapshot-session handling
 
 A birth time is observed on the pass that stamps it or is `null`; no cache stores one. A snapshot outage freezes sessions and never splits them.
 
-Sequence rules are consumed through five scan taps in `src/main/main.js` and `src/main/scan-loop.js`, hot-reloaded through `setupSequenceRulesWatcher` in `src/main/file-watcher.js`, and verified by `npm run verify:seq-gate`.
+Sequence rules are consumed through five scan taps in `src/main/main.js` and `src/main/scan-loop.js`, hot-reloaded through `setupSequenceRulesWatcher` in `src/main/file-watcher.js`, and covered by the sequence-engine behavioral suites in `tests/main/`. Routine verification does not run source-mutation gates.

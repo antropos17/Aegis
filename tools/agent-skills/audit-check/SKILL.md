@@ -7,12 +7,12 @@ description: Audit AEGIS repository health or readiness for a push or release, u
 
 Record the checkout, commit and working-tree changes first. An audit reports findings; fixes follow the user's requested scope and preserve concurrent work.
 
-For a full pre-push or pre-release audit, read AGENTS.md, package.json and .github/workflows/ci.yml, then run the verification commands defined by the current workflow. Include its type checks, tests, mutation gates, derived-count check and production dependency audit, rather than treating format/build/lint as the complete gate. For a specifically limited check, run that scope and state what remains unchecked.
+For a full pre-push or pre-release audit, read AGENTS.md, package.json and .github/workflows/ci.yml, then inspect matching hosted results and run only missing or invalidated checks. Account for type checks, behavioral tests, derived counts and the production dependency audit. Do not repeat a green full suite locally. For a specifically limited check, run that scope and state what remains unchecked.
 
 - Use npm run counts:check for maintained counts and documentation declarations. Counting occurrences of a word in README does not validate a claim; compare other relevant claims with source or measured output.
 - Match the CI dependency audit scope: currently npm audit --audit-level=high --omit=dev. Distinguish a requested broader development-dependency audit.
 - Check tracked internals with git ls-files and the current .gitignore. tools/agent-skills/ is the versioned skill source; .agents/ and .claude/ contain ignored local installations. Check the catalog and synchronization rather than force-adding installed copies. Judge .codex/, .mcp.json and memory-bank/ from current repository policy and tracking rather than a blanket exclusion.
-- Run temporary-source mutation gates separately from format/lint/build checks so transient fixtures do not contaminate results.
+- Do not run mutation campaigns or deliberately break source. Evaluate test assertions against independent expected results and reuse existing receipts within their scope.
 - Do not run repository-wide formatting to repair unrelated concurrent edits.
 
 Report actual commands, failures, unavailable checks and relevant dirty files. Preserve the distinction between a check that passed, one that failed, and one that never ran.

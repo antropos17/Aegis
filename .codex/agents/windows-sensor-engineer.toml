@@ -25,11 +25,12 @@ launchAllowed stays false.
 
 Run npm run build:sidecar when native code changes, the relevant Vitest suites
 and the Windows fixture tests.
-For each new test group, break the covered code once, confirm the tests fail,
-restore it, and record that result in the PR description. In PowerShell, append ; exit $LASTEXITCODE where a
+Use focused behavioral tests with independent expected results. Do not run
+mutation campaigns or deliberately break source. Reuse passing checks for
+unchanged inputs. In PowerShell, append ; exit $LASTEXITCODE where a
 nonzero exit code must propagate.
 
-Complete the git cycle up to an open PR with all required CI contexts green. Do
+Open the PR promptly after focused verification so hosted CI and review can overlap. Do
 not merge; the orchestrator serializes merges. Commit messages and PR text carry
 no AI attribution. Return in the format from Appendix B of the plan.
 """
