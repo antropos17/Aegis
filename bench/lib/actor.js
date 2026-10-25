@@ -44,6 +44,10 @@ const Ajv = require('ajv');
 const catalogue = require('./catalogue');
 const manifest = require('./manifest');
 const { writeFixture } = require('./fixture');
+const { executeFileReadStep } = require('./file-read');
+const { executeLoopbackStep } = require('./loopback-step');
+const { safeId } = require('./fixture-outcomes');
+const scenarioProvenance = require('./scenario-provenance');
 
 /** @type {string} Where scenario directories live. */
 const SCENARIOS_DIR = path.join(manifest.ROOT, 'bench', 'scenarios');
@@ -89,6 +93,8 @@ const SEEDED_SECRET_BYTES = ['{"bench":"seeded secret file — inert, not a cred
  * @type {Readonly<Object<string, string|null>>}
  */
 const STEP_KINDS = Object.freeze({
+  'read-fixture': 'file.access',
+  'send-loopback-canary': 'network.start',
   'copy-binary': 'file.creation',
   'write-fixture': 'file.creation',
   'spawn-process': 'process.start',
@@ -108,6 +114,7 @@ const KIND_NAMES = Object.freeze(Object.keys(STEP_KINDS));
  * @type {Readonly<Object<string, string|string[]>>}
  */
 const FROM_STEP_KIND = Object.freeze({
+  'read-fixture': 'write-fixture',
   'spawn-process': 'copy-binary',
   'terminate-process': 'spawn-process',
   'delete-file': ['copy-binary', 'write-fixture'],
@@ -159,7 +166,7 @@ function loadScenario(id) {
   }
   let scenario;
   try {
-    scenario = JSON.parse(fs.readFileSync(file, 'utf8'));
+    scenario = scenarioProvenance.load(file);
   } catch (err) {
     throw new Error(`${file} is not valid JSON: ${err.message}`, { cause: err });
   }
@@ -227,6 +234,14 @@ function formatSchemaErrors(errors) {
  * @throws {Error} On the first problem, named.
  */
 function validateSteps(scenario) {
+  const reads = scenario.steps.filter((step) => step.kind === 'read-fixture');
+  if (
+    reads.length > 1 ||
+    reads.some((step) => !safeId(step.id) || !safeId(step.with?.fromStep) || !safeId(scenario.id))
+  )
+    throw new Error('file-read-step-input-invalid');
+  if (scenario.steps.filter((step) => step.kind === 'send-loopback-canary').length > 1)
+    throw new Error('loopback-step-input-invalid');
   const expectations = new Map();
   for (const e of scenario.expect) {
     if (expectations.has(e.id)) throw new Error(`expectation "${e.id}" is declared twice`);
@@ -379,6 +394,8 @@ function isInsideStageDir(resolvedPath, resolvedStageDir, platform = process.pla
  * @type {Readonly<Object<string, function(Object, Object): Promise<Object>>>}
  */
 const KIND_IMPL = Object.freeze({
+  'read-fixture': executeFileReadStep,
+  'send-loopback-canary': executeLoopbackStep,
   'write-fixture': async (step, ctx) => writeFixture(step.with, ctx.runDir),
   'copy-binary': async (step, ctx) => {
     const from = expandEnv(step.with.from);
@@ -601,15 +618,26 @@ function cleanup(children, log) {
  * @param {Object} scenario - Through {@link validateScenario} and {@link validateSteps}.
  * @param {Object} opts
  * @param {string} opts.runDir - Absolute path of the run directory.
+ * @param {string} [opts.runId] - Actual runner identity; required for loopback/read steps.
  * @param {string} [opts.homeDir] - The run-scoped home the sensor was pointed at, for
  *   scenarios that seed a secret file. Absent for every scenario that does not.
  * @param {string} [opts.agentDatabasePath] - Override, for tests.
  * @param {function(string): void} [opts.log] - Progress sink.
- * @returns {Promise<{ok: boolean, events: Object[], steps: Object[]}>}
+ * @returns {Promise<{ok: boolean, events: Object[], steps: Object[], fixtureOutcomes?: Object[], readOutcomes?: Object[]}>}
  */
 async function execute(scenario, opts) {
+  const hasLoopback = scenario.steps.some((step) => step.kind === 'send-loopback-canary');
+  const hasRead = scenario.steps.some((step) => step.kind === 'read-fixture');
+  if (hasLoopback || hasRead) {
+    validateScenario(scenario);
+    validateSteps(scenario);
+    if (!safeId(opts.runId))
+      throw new Error(hasRead ? 'file-read-input-invalid' : 'loopback-step-input-invalid');
+  }
   const log = opts.log ?? (() => {});
   const ctx = {
+    runId: opts.runId,
+    scenario: scenario.id,
     runDir: opts.runDir,
     stageDir: path.join(opts.runDir, STAGE_DIRNAME),
     // The run-scoped home the sensor was pointed at, when this scenario asked for
@@ -622,6 +650,8 @@ async function execute(scenario, opts) {
   };
   const events = [];
   const steps = [];
+  const fixtureOutcomes = [];
+  const readOutcomes = [];
   let ok = true;
 
   try {
@@ -633,6 +663,14 @@ async function execute(scenario, opts) {
       const startedAt = new Date().toISOString();
       try {
         const outcome = await KIND_IMPL[step.kind](step, ctx);
+        if (step.kind === 'read-fixture') {
+          readOutcomes.push(outcome.readOutcome);
+          if (outcome.failed) throw new Error('file-read-incomplete');
+        }
+        if (step.kind === 'send-loopback-canary') {
+          fixtureOutcomes.push(outcome.fixtureOutcome);
+          if (outcome.failed) throw new Error('loopback-sender-unavailable');
+        }
         ctx.results.set(step.id, outcome.result);
         const shapeName = STEP_KINDS[step.kind];
         if (shapeName !== null) {
@@ -663,7 +701,13 @@ async function execute(scenario, opts) {
   } finally {
     cleanup(ctx.children, log);
   }
-  return { ok, events, steps };
+  return {
+    ok,
+    events,
+    steps,
+    ...(hasLoopback ? { fixtureOutcomes } : {}),
+    ...(hasRead ? { readOutcomes } : {}),
+  };
 }
 
 module.exports = {

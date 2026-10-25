@@ -41,6 +41,36 @@ const file = (id) => ({
     extra: { prompt: 'DO NOT STORE' },
   },
 });
+const rejectionCases = [
+  ['replay-pending', 'replay-pending'],
+  ['invalid-record', 'invalid-record'],
+  ['projection-oversize', 'record-oversize'],
+  ['bucket-oversize', 'record-oversize'],
+];
+function rejectedInput(kind, id) {
+  const input = file(id);
+  if (kind === 'invalid-record') input.type = 'unsupported';
+  if (kind === 'projection-oversize') input.details.path = '\u754c'.repeat(24000);
+  if (kind === 'bucket-oversize') input.details.path = '/fixture/' + 'x'.repeat(5000);
+  return input;
+}
+function rejectionFixture(kind, options = {}) {
+  const value = fixture({ consume: () => false, ...options });
+  if (kind !== 'replay-pending') return value;
+  value.pipeline.push(file(1));
+  value.pipeline.push(file(2));
+  value.pipeline.destroy();
+  const pipeline = createSecurityBatcher({
+    directory: value.directory,
+    capacity: 2,
+    byteCapacity: 4096,
+    intervalMs: 60000,
+    consume: () => false,
+    ...options,
+  });
+  pipelines.push(pipeline);
+  return { ...value, pipeline };
+}
 afterEach(() => {
   for (const p of pipelines.splice(0)) p.destroy();
   for (const dir of roots.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
@@ -108,6 +138,149 @@ describe('security event pipeline', () => {
       code: 'replay-pending',
       count: 1,
     });
+  });
+
+  it.each(rejectionCases)(
+    'recovers exact %s rejection loss after interruption before flush or destroy',
+    (kind, code) => {
+      vi.useFakeTimers();
+      try {
+        const { pipeline, directory } = rejectionFixture(kind);
+        expect(pipeline.push(rejectedInput(kind, 99))).toBe(false);
+        expect(pipeline.push(rejectedInput(kind, 98))).toBe(false);
+        const before = pipeline.getStats();
+        const ledgerPath = path.join(directory, 'loss.json');
+        const saved = fs.existsSync(ledgerPath)
+          ? JSON.parse(fs.readFileSync(ledgerPath, 'utf8'))
+          : null;
+        vi.clearAllTimers(); // Interrupt without calling this instance's shutdown hooks.
+        const replayed = [];
+        const restart = createSecurityBatcher({
+          directory,
+          intervalMs: 60000,
+          consume: (rows) => {
+            replayed.push(...rows);
+            return true;
+          },
+        });
+        pipelines.push(restart);
+        const markers = replayed.filter((row) => row.type === 'pipeline-loss');
+        expect(markers).toHaveLength(1);
+        expect(markers[0]).toMatchObject({
+          deliveryId: saved.pending[0].deliveryId,
+          timestamp: file(99).timestamp,
+          replayed: true,
+          details: { path: '' },
+        });
+        expect(markers[0].details.extra).toEqual({
+          code,
+          sensor: 'file-watch',
+          count: 2,
+          firstTimestamp: file(98).timestamp,
+          lastTimestamp: file(99).timestamp,
+          unknownCount: false,
+        });
+        expect(before).toMatchObject({
+          pendingLoss: 2,
+          markerDurable: true,
+          health: { state: 'DEGRADED', lossCount: 2 },
+        });
+        const history = replayed.filter((row) => row.type === 'file-access');
+        expect(history.map((row) => row.details.path)).toEqual(
+          kind === 'replay-pending' ? ['/fixture/1', '/fixture/2'] : [],
+        );
+        expect(history.every((row) => row.replayed && row.details.instanceId === '12:100')).toBe(
+          true,
+        );
+        expect(restart.push(file(100))).toBe(true);
+        restart.flush();
+        expect(replayed.at(-1).details.path).toBe('/fixture/100');
+      } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(rejectionCases)(
+    'retains %s rejection loss through failed ledger writes and persistence recovery',
+    (kind, code) => {
+      vi.useFakeTimers();
+      let failLossWrite = false;
+      let failedWrites = 0;
+      try {
+        const { pipeline, directory } = rejectionFixture(kind, {
+          fs: {
+            ...fs,
+            renameSync: (from, to) => {
+              if (failLossWrite && to.endsWith('loss.json')) {
+                failedWrites++;
+                throw new Error('private storage failure');
+              }
+              fs.renameSync(from, to);
+            },
+          },
+        });
+        failLossWrite = true;
+        expect(pipeline.push(rejectedInput(kind, 99))).toBe(false);
+        expect(pipeline.push(rejectedInput(kind, 98))).toBe(false);
+        expect(failedWrites).toBe(2);
+        expect(pipeline.getStats()).toMatchObject({
+          pendingLoss: 2,
+          markerDurable: false,
+          health: { state: 'DEGRADED', lossCount: 2 },
+        });
+        failLossWrite = false;
+        pipeline.flush(); // Persist the pending marker; the consumer still refuses it.
+        expect(pipeline.getStats()).toMatchObject({ pendingLoss: 2, markerDurable: true });
+        const saved = JSON.parse(fs.readFileSync(path.join(directory, 'loss.json'), 'utf8'));
+        expect(saved.pending).toEqual([]);
+        expect(saved.inflight).toHaveLength(1);
+        expect(JSON.stringify(saved)).not.toContain('private storage failure');
+        vi.clearAllTimers();
+        const replayed = [];
+        const restart = createSecurityBatcher({
+          directory,
+          intervalMs: 60000,
+          consume: (rows) => {
+            replayed.push(...rows);
+            return true;
+          },
+        });
+        pipelines.push(restart);
+        const markers = replayed.filter((row) => row.type === 'pipeline-loss');
+        expect(markers).toHaveLength(1);
+        expect(markers[0].deliveryId).toBe(saved.inflight[0].deliveryId);
+        expect(markers[0].details.extra).toEqual({
+          code,
+          sensor: 'file-watch',
+          count: 2,
+          firstTimestamp: file(98).timestamp,
+          lastTimestamp: file(99).timestamp,
+          unknownCount: false,
+        });
+        expect(
+          replayed.filter((row) => row.type === 'file-access').map((row) => row.details.path),
+        ).toEqual(kind === 'replay-pending' ? ['/fixture/1', '/fixture/2'] : []);
+        expect(restart.getStats().pendingLoss).toBe(0);
+      } finally {
+        failLossWrite = false;
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it('keeps ordinary admission free of loss-ledger synchronization', () => {
+    const renameSync = vi.fn((from, to) => fs.renameSync(from, to));
+    const fsyncSync = vi.fn((fd) => fs.fsyncSync(fd));
+    const { pipeline, directory, delivered } = fixture({ fs: { ...fs, renameSync, fsyncSync } });
+    expect(pipeline.push(file(1))).toBe(true);
+    pipeline.flush();
+    expect(delivered.map((row) => row.details.path)).toEqual(['/fixture/1']);
+    expect(renameSync).not.toHaveBeenCalled();
+    expect(fsyncSync).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(directory, 'loss.json'))).toBe(false);
   });
 
   it('counts quota rejection exactly and persists its fixed-code marker with degraded health', () => {

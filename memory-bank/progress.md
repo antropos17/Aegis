@@ -3704,3 +3704,426 @@ The merged-input local check passed 62 process/client/thread tests, scoped
 lint/format and derived counts (267 main modules). #1038's real-worker
 regressions are included. Node 24.20.0 and prepared Electron 44.8.0 were used;
 no current native helper/ASAR matrix is claimed. Required hosted CI is pending.
+
+## W3 bounded process-name decoding — 2026-10-24
+
+The macOS libproc reader uses replacement characters for invalid UTF-8 within
+bounded, NUL-delimited display names. Truncated name bytes no longer reject an
+otherwise valid BSD process response. Exact response lengths, numeric process
+identity, birth arithmetic, unique IDs and boot UUID validation retain their
+existing checks. Population observations remain best effort.
+
+The portable native and sensor suites passed 35 tests on Windows with Rust
+1.99.1. Restoring strict name decoding made two new behavioral tests fail;
+the original source hash was restored before final validation. Formatting and
+Clippy passed. This evidence does not establish macOS SDK linkage, ABI,
+permissions or live process observation. Full W3 acceptance remains open.
+
+## W4 explicit JSONL tail preparation — 2026-10-24
+
+Added opt-in `readTail()` for explicitly selected JSONL files through
+caller-supplied positioned IO. It reads a final window of at most 512 KiB plus
+an EOF probe, discards the possibly partial leading line and preserves
+incomplete-source status. Existing complete-file reads retain their size limit.
+Stable path/handle metadata, closure checks and metadata-only parser output
+remain required; missing session headers or binding evidence are never
+synthesized.
+
+Focused verification passed 149 tests with no skips on Node 24.20.0. Three
+temporary source mutations failed behavioral assertions, and the original
+source hash was restored. Main typecheck, targeted lint and formatting passed.
+The sequential native Windows provider remains capped at 512 KiB; no production
+caller, transcript discovery or live-provider qualification was added. Full W4
+acceptance remains open.
+
+## W8 offline Procmon CSV staging — 2026-10-24
+
+Added a bounded offline importer for one strict, caller-declared Procmon CSV
+profile. A separately authored receipt binds the exact input hash, run identity,
+fixed-offset capture window, evidence provenance and closed source-path mapping.
+The normalized result retains only safe fixture identifiers and successful,
+positive-length `ReadFile` rows; unsupported, unsuccessful, out-of-window,
+zero-length and unmapped rows are accounted for without copying raw source
+paths, process names or detail text into evidence.
+
+The importer is deliberately outside the benchmark manifest and scoring path.
+It neither launches Procmon nor parses PML, and its result remains explicitly
+unqualified for capture, export compatibility, catalogue confirmation and
+sensor scoring. Native collection, same-run independent confirmation and W8/T8
+acceptance remain open.
+
+Validation on Node 24.20.0 passed 126 Procmon/Sysmon oracle tests, derived-count
+checks, all three configured TypeScript projects, repository lint with no
+errors, repository formatting, focused formatting and `git diff --check`.
+Two assertion mutants demonstrated that duplicate fixture-ID rejection and
+exclusive output creation are exercised, then were restored byte-for-byte.
+Independent requirements, logic and test-evidence reviews found no remaining
+actionable issue. Exact hosted CI remains the merge gate.
+
+## W8 offline three-run reproducibility — 2026-10-24
+
+Added a bounded evaluator and explicit CLI for the variance rule in METHOD.md.
+The declared plan binds exactly three run IDs, comparison identities, metric
+cells, populations and explicit absolute/relative tolerances. The result retains
+all supplied attempts and compares each eligible cell using exact canonical
+decimal arithmetic, including signed values and products beyond Number range.
+Incomplete populations, incompatible identities, late plan declarations and
+unknown calibration uncertainty remain ineligible with explicit reasons.
+
+The CLI validates bounded UTF-8 JSON, preserves input hashes and creates a fresh
+output exclusively. Its result remains unauthenticated and unqualified for
+collection or measurement acceptance. Real precollection freezing, calibration,
+complete run disclosure and W8/T8 acceptance still need separate evidence.
+
+Validation on Node 24.20.0 passed 78 new tests and 40 adjacent resource-interval
+tests. Ten targeted source mutations were killed by assertions, then production
+files were restored byte-for-byte and all 118 tests passed again. Independent
+requirements, logic and test-evidence reviews passed after correcting non-string
+status coercion and strengthening the relevant tests. Derived counts, focused
+lint, formatting and syntax checks passed. Exact hosted CI remains the merge gate.
+
+## W8 executable owned loopback scenario — 2026-10-24
+
+Connected the existing bounded Node loopback control to S7, the scenario actor,
+catalogue and production runner. The catalogue records only observed sender
+write completion and its byte count. A separate fresh-only fixture-outcomes.json
+preserves receiver hashes, counts, uncertainty and cleanup with the actual run,
+scenario, step and generated nonce. Outcomes are written after capture stops;
+legacy scenarios retain their existing artifacts.
+
+The actual ephemeral loopback and runner path execute in focused tests. A
+controlled sensor failure verifies persistence order without launching Electron.
+Injected negative receipts distinguish sender execution from receiver outcome.
+Network expectations remain retained at category-not-scored, outside all four
+existing measurable sensor denominators. OS confirmation, agent attribution,
+network scoring, ATT&CK mapping and W8/T8 acceptance remain open.
+
+Validation on Node 24.20.0 passed 199 tests across seven focused and neighboring
+suites. Ten temporary source faults were detected at their intended behavioral
+boundaries. Production files were restored byte-for-byte and all 199 tests passed
+again. Independent requirements, logic and test-evidence reviews passed after
+requiring enumerable receipt fields and strengthening the discriminating tests.
+Focused lint, formatting, syntax and diff checks passed. Exact hosted CI remains
+the merge gate.
+
+## W8 executable owned file-read scenario — 2026-10-24
+
+Added S8's bounded ordinary read of a previously created public inert canary.
+Creation hashes the exact written UTF-8 buffer without a preparatory content
+readback. The reader binds original, opened and final named file identities,
+checks actual returned bytes/hash and requires confirmed descriptor closure.
+Failures retain known partial progress and skip later steps without emitting a
+successful access event. Separate fresh-only file-read-outcomes.json artifacts
+bind the actual run and source step and are written after capture stops.
+
+The production actor/artifact/main paths execute in tests. Access expectations
+remain category-not-scored, outside existing metric denominators. This supplies
+owned synthetic fixture evidence; sensitive files, real agents, cold-cache
+behavior, independent OS confirmation and W8/T8 acceptance remain open.
+
+Independent requirements, logic and test-evidence reviews passed after adding
+discriminating successful-artifact privacy, post-descriptor identity and
+supported-platform symlink-at-open tests. Fifteen temporary source faults were
+detected at their intended behavioral boundaries, then all files were restored
+byte-for-byte. The restored nine-suite gate passed 272 tests with one explicit
+Windows skip: O_NOFOLLOW is unavailable on this host, so its real symlink-at-open
+case requires supported-platform CI. Focused lint, formatting, syntax and diff
+checks passed. Exact hosted CI remains the merge gate.
+
+## W8 recorded synthetic corpus reports — 2026-10-24
+
+Added an offline CLI that consumes explicitly supplied S3–S8 run artifacts and
+writes a fresh bounded JSON/Markdown bundle. It retains every supplied attempt,
+failed/skipped steps, missing-artifact states and pending inventory. Recorded
+step/catalogue/control facts are reconciled without treating a manifest or
+all-ok steps as whole-run success. S7 sender and receiver facts remain separate;
+S8 preserves partial bytes, hashes, source bindings and closure uncertainty.
+
+The reporter hashes exact input, current-definition and reporting-source bytes.
+Current definitions are inventory only: historical manifests lack an executed
+definition digest. Capture assessment remains unperformed; oracle admission,
+sensor scoring, ATT&CK qualification and W8/T8 acceptance remain open.
+
+Six owned controls executed through the production runner's C path, which starts
+no sensor or oracle. Their report retained all eight steps/events; independent
+decoding agreed with the counts, and all 24 original files stayed byte-identical.
+Reversing the six inputs produced byte-identical JSON and Markdown. Private paths,
+canary contents and branch metadata were absent from the generated output.
+
+Independent requirements, engineering and test-evidence reviews passed after
+closing missing-step catalogue/outcome contradictions and invalid receiver-state
+relations. Seventeen temporary source faults failed their selected behavioral
+assertions, then all 14 frozen files were restored byte-for-byte. The restored
+13-suite gate passed 395 tests with two explicit Windows O_NOFOLLOW skips;
+supported-platform CI must execute those cases. Focused lint, formatting, syntax
+and diff checks passed. Exact hosted CI remains the merge gate.
+
+## W8 loaded scenario-byte provenance — 2026-10-24
+
+New production-runner manifests declare the exact scenario bytes parsed, with a
+private object association and an immutable main-runner snapshot. A separate
+final source inspection records unchanged, changed or unavailable endpoints;
+changed/unavailable results fail the run. Unconfirmed sensor exit leaves the
+initial pending evidence and preserves the execution error. Final manifests use
+an exclusive staged descriptor, confirmed close and rename, preserving the
+initial manifest when final publication fails.
+
+The corpus report compares recorded loaded hashes and byte lengths with current
+inventory while retaining independent endpoint states and historical unverified
+attempts. These declarations supply no source authentication, continuous source
+stability, native capture qualification or W8/T8 acceptance.
+
+Independent requirements, engineering and test reviews passed. Sixteen temporary
+source faults failed targeted behavioral assertions; all frozen files were then
+restored byte-for-byte. The restored bench suite passed 1,144 tests with three
+explicit Windows O_NOFOLLOW skips across 36 files. Scoped lint, formatting,
+syntax and diff checks passed. Real S3/S8 controls executed through the C path,
+which starts no sensor or OS oracle. Their loaded-byte declarations matched
+independent source hashes, and reversing the supplied runs produced byte-identical
+JSON and Markdown without modifying the original artifacts. The current PR's
+required hosted checks remain the merge gate.
+
+## W10 Windows packaging architecture boundary — 2026-10-24
+
+The packaging preflight now requires the declared Windows target to be x64
+before building the renderer or the x64-only native helpers. This makes the
+current packaging support boundary explicit; it does not establish that every
+mixed-architecture combination would fail under emulation. Linux and macOS
+retain their existing renderer preflight. The unchanged-hook negative control
+failed all five new refusal cases, and the fixed actual-hook fixture passed ten
+cases without starting build subprocesses. Native platform qualification and
+full W10 acceptance remain open; hosted CI is the separate merge gate.
+
+## W5 Cedar literal encoding and discriminating equivalence cases — 2026-10-24
+
+The schema-3 translator now emits Cedar Unicode escapes for accepted control
+characters in exact executable and working-directory predicates. Literal
+backslashes stay distinct. Generated field mutations begin from matching actions,
+including the empty environment-value case, so unrelated mismatches cannot hide
+the predicate being checked.
+
+The unchanged translator failed both new path compilation regressions. The fix
+passed 31 focused tests across five suites, including 10,000 generated inputs
+with seed 6221251. An environment-value-erasure fault failed the relevant
+behavioral assertion; the schema was restored byte-for-byte. Seven affected
+tests passed after the final test-only refinement. Scoped lint, formatting and
+the configured main typecheck passed; main checkJs remains false. Production
+activation, native resource qualification and full W5 acceptance remain open.
+
+## W2 empty-comm polling continuity — 2026-10-24
+
+PR #1069 merged as `6c0a6e9d` after a separate requirements and
+correctness/security review. Its final integrated head passed seven hosted PR
+checks. A valid empty process display name now preserves fresh procfs birth
+observations and named-agent session continuity; malformed PID/tick records
+still fail closed. Native Linux sensor qualification remains open.
+
+## W1 rejection loss-ledger checkpoints — 2026-10-24
+
+Startup replay, projection failures and bucket-size rejection now use the existing
+loss-ledger checkpoint before returning. Nine regression cases cover interrupted
+restart, failed renames followed by retry, and ordinary admission without ledger
+synchronization. Bounded real-API controls also exercised write/fsync failure;
+removing each new checkpoint lost its corresponding restart marker, and the
+frozen source was restored by hash. Rejection checkpoints add synchronous I/O;
+the delivery document records a bounded diagnostic and its limits. Hosted checks
+remain the merge gate; full native-producer and application acceptance remain open.
+
+## W8 own-Node resource acquisition session — 2026-10-24
+
+Added an explicit CLI joining the existing own-process sampler to retained raw
+observations and acquisition-window interval derivation. A fixed waiting-only
+plan and source inventory are persisted before acquisition; raw observations are
+persisted before derivation. The fresh five-file bundle has exclusive writes,
+confirmed prior-file closure, per-file limits and a whole-session quota.
+
+Receipts retain incomplete acquisition, uncertain cleanup, source endpoint
+changes and partial publication. Final records cannot attest their own write
+or close; successful publication also requires the caller's result. Separate
+CPU/RSS brackets and the end-exclusive unobserved tail remain intact.
+
+Behavioral and source-copy mutation controls are included in the required CI
+suite, alongside one short real CLI acquisition without performance thresholds.
+Local checks are limited to syntax, scoped formatting and diff inspection under
+the host storage constraint. This supplies calling-Node instrumentation only;
+product/cohort capture, external deadlines, calibration, overhead and full W8/T8
+acceptance remain open.
+
+## 2026-10-25 — W8 fixed-child resource supervision
+
+Added a bench-only supervisor around the unchanged own-Node resource session.
+It predeclares a fresh parent bundle, launches only the fixed collector with a
+minimal environment, observes a monotonic wall limit from a separate parent event
+loop, requests termination only of its owned child, and records exit and pipe
+confirmation independently. Output retention consists of bounded prefix hashes
+and counters; partial child evidence is preserved. Parent source endpoints and
+closed-file publication are recorded without authenticating loaded code or
+admitting the child's measurement bundle.
+
+CI tests cover the real shortest fixed-child session, controlled lifecycle and
+publication failures, private blocked/output fixtures, and copied-source mutation
+controls with an independent assertion oracle. Local validation is limited to
+syntax, scoped formatting and diff inspection because of host disk pressure;
+behavioral execution and the full mandatory gates run in CI. This is a W8
+prerequisite only: product/helper population, calibration, measurement acceptance,
+OS containment and an externally enforced deadline for the parent remain open.
+
+## W5 explicit schema-2 Cedar preparation — 2026-10-25
+
+An explicit schema-2 translator now shares the existing exact-predicate emitter
+while preserving both version-specific entrypoints. Schema 2 never gains review
+annotations. Original schema-2/3 production preparation still uses the legacy
+evaluator; no migration or production translator caller was added.
+
+The standalone Node/WASM gate passed 44 tests across eight suites, including
+10,000 selected-JSON-valid schema-2 requests and 10,000 actual official WASM
+calls with seed 5426906. Three temporary semantic faults failed behavioral
+assertions and were restored byte-for-byte. The preliminary TypeError probe is
+preserved separately and excluded from those kills. Scoped format/lint/diff
+checks have zero-exit receipts. Local Electron setup was omitted because the
+available dependency tree had an older Electron; unchanged configured hosted
+CI remains the separate merge gate.
+
+Preparation equivalence is bounded to selected-JSON-valid descriptors and
+translated files fitting the existing selected-file limit. Explicit regressions
+retain lone-surrogate refusal and oversized-envelope refusal without launch.
+Broader policy families, native resource qualification and full W5 remain open.
+
+## 2026-10-25 — W4 Windows explicit stable-file JSONL tails
+
+The dormant Windows reader exposes a single-use `readTail` alongside its existing
+complete `read`. The tail operation requires explicit JSONL selection and reads
+only the fixed final 512 KiB, with contiguous requests, a separate cumulative raw
+byte limit, the original full-file EOF, unchanged identity/version proofs, and
+confirmed original-child exit plus all stream closure before synchronous owner
+parsing. Complete reads retain their 512 KiB file limit. Both JS and C# enforce
+the tail mode; older pinned helper bundles refuse its new opcode. Truncated
+sources remain incomplete and at most inferred, including after owner binding.
+
+Local Windows evidence uses installed SDK 10.0.302/runtime 10.0.10, a freshly
+built production helper, an isolated C# metadata/EOF fixture, and owned inert
+files. The actual-host driver passed 22 production-host controls plus one
+separately named fixture control; the actual JS-wrapper/owner driver passed four
+cases, including bytes, privacy, partial/inferred results, child/stream closure
+and file unlock before parse. Ten standalone JS controls passed with mocked
+transport. Three temporary JS mutations (fixed start, data-call limit and parser
+closure barrier) each failed their relevant control; original source hashes were
+restored and the clean controls passed. These local controls are distinct from
+the canonical Vitest suite and required hosted checks. Two earlier offline
+build attempts failed during NuGet restore before compilation; their receipts
+are retained separately. The corrected driver supplies isolated SDK profile and
+machine-config paths on the data drive and builds without package downloads.
+
+There is no application/renderer bridge integration, profile discovery, active
+transcript collection, trusted process/session binding, production activation or
+full W4 acceptance. Native sharing can still refuse/block a writer during the
+stable-file pass. The existing automatic native CI job does not compile this
+helper. Source/model safe-integer bounds do not establish execution on a file of
+that maximum size. The private completion tracker contains the task-local
+receipts and the ten-agent ownership roster; W5 Cedar, W11 native admission and
+W8 resource sessions remain reserved to their other chats.
+
+## 2026-10-25 — W8 supervised resource bundle replay
+
+Added an offline checker for the fixed supervision/session artifact bundle. It
+rehashes retained bytes, checks declarations and predecessor accounting, and
+recomputes conditional intervals with the current evaluator. Missing evidence,
+contradictions, reported lifecycle support and original publication uncertainty
+remain separate. Historical source declarations do not authenticate collection
+or identify the loaded implementation; current evaluator provenance is recorded
+independently. The checker preserves inputs and publishes a bounded fresh report.
+
+CI covers the actual shortest supervisor/child pipeline followed by offline
+replay, coherent tampering, incomplete evidence, strict parsing and bounded
+descriptor/publication failures. Paired source-copy fault controls require an
+independent baseline oracle to pass and the same oracle to reject a valid source
+mutation. Local work is limited to syntax, scoped formatting and diff checks
+under host disk pressure. This closes the retained-bundle inspection connection;
+qualified collection, calibrated product/helper overhead and full W8/T8
+measurement acceptance remain open.
+
+## W5 explicit selected-policy export — 2026-10-25
+
+Added a developer-only command accepting one selected schema-2/3 input and one
+fresh schema-4 output path. It reuses the existing reader, parser and translators,
+checks the serialized byte limit before creation, writes exclusively and confirms
+close, created-file identity and exact readback bytes. Fixed status metadata
+excludes private values. Unconfirmed outputs are retained; the utility never
+evaluates or activates a policy and leaves the application CLI unchanged.
+
+The initial standalone real subprocess gate recorded two behavioral failures
+and five passes before writer implementation. Later local test, lint and format
+execution was held because the host's system drive reached critical free space.
+The required hosted suite contains original/artifact preparation comparisons,
+failure and preservation fixtures, and copied-source controls for the output
+byte limit, close confirmation and created-file identity. Hosted results remain
+the merge gate. Windows ACLs, hostile-filesystem containment, atomic publication,
+packaged runtime behavior, broader policy migration and full W5 remain open.
+
+## 2026-10-25 — W8 Linux own-CPU reference
+
+Added a fixed-self Linux CPU reference path around the real Node CPU API through
+the existing sampler's instrumentation seam. Bounded proc reads retain observed
+start-time ticks and cumulative CPU counters, and a fixed bounded inert workload
+provides nonzero comparison evidence. Discovered tick units, acquisition windows
+and exact declared quantization bounds remain in the retained bundle; insufficient
+resolution, incomplete work and unavailable collection do not become success.
+
+CI exercises the real Linux fixture, independently checks its arithmetic work
+and retained comparisons, and runs parser, lifecycle, IO, refusal and paired
+source-copy fault controls. Local checks remain syntax, scoped formatting and
+diff inspection because of host storage pressure. This corroborates API/unit
+behavior under its declared model only. Source authentication, memory and
+instrumentation-cost calibration, product/helper overhead and full W8/T8
+measurement acceptance remain open.
+
+## 2026-10-25 — W6 private owner-bound hook review
+
+Added a dormant private owner-review capability over one internally constructed
+real owned hook writer. It binds an exact process-local owner, one opaque plan ID
+and a bounded monotonic deadline to the writer's original private ticket.
+Selection primitives are captured before asynchronous IO. Replacement,
+cancellation, expiry and release invalidate pending admission; unresolved
+preparation retains its busy slot and cannot publish late authority. Confirmation
+consumes the ID before applying the original writer ticket once.
+
+Expiry and cancellation cover apply admission. An admitted writer can still
+commit after owner release or expiry, and its actual installed, removed or
+uncertain outcome is preserved. The same writer retains installation ownership,
+backup limits and sticky uncertainty. Native provider lifetime/cleanup remains
+with the embedding. Ordinary statuses contain only fixed code/presence fields;
+private path/command/fragments/hashes/manifests and IDs remain private. Revocation
+does not erase transaction bytes retained inside the unchanged writer.
+
+Nine bounded standalone Node controls passed against the actual CommonJS broker,
+writer and planner with owned in-memory IO. They verify independent literal
+install/removal bytes, provider receiver binding, owner/ID/replay, exact expiry,
+clock refusal, deferred preparation, selection snapshot, admitted outcomes,
+uncertainty and retained removal ownership. Three copied-source faults in owner
+admission, post-prepare expiry and status privacy each failed the relevant
+control; clean baselines passed and production source hashes stayed unchanged.
+The first mutation driver stopped at a stale source anchor; its earlier evidence
+is retained separately from the corrected run. Canonical hosted tests remain the
+merge gate; the global coverage allowlist does not instrument these modules.
+
+There is no application caller, renderer/IPC bridge, real profile access, native
+qualification or hook command execution. This supplies part of W6.3 preparation;
+owner-visible installation, supported provider/version behavior, coverage-loss
+signals, denial enforcement and full W6 acceptance remain open.
+
+## 2026-10-25 — W8 Linux CPU bundle replay
+
+Added an offline command for the fixed five-file Linux own-CPU reference bundle.
+It checks exact artifact bytes, predecessor hashes, raw CPU/window relations,
+workload and source declarations, then recomputes the retained comparison with
+the current model. Missing or failed evidence stays explicit; available
+contradictions cannot be hidden by an incomplete tail. The deterministic fresh
+report separates current code identity, historical declarations and original
+publication uncertainty.
+
+CI covers the actual Linux producer followed by repeated offline replay,
+coherent semantic tampering, partial evidence, strict parsing, bounded IO,
+publication failures and paired private-source mutation controls. Local checks
+remain syntax, scoped formatting and diff inspection under host storage pressure.
+Source authentication, physical accuracy, RSS/instrumentation calibration,
+product/helper overhead and full W8/T8 acceptance remain open.

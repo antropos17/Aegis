@@ -7,6 +7,10 @@ rate bounds and phase-admitted RSS values. The module has no I/O, clock, process
 discovery, runtime integration or CLI. Its only scope is the calling Node process
 described by the supplied raw packet.
 
+The optional [retained session](../docs/bench/SELF_RESOURCE_SESSION.md) connects the
+actual sampler, fresh raw-file storage and this unchanged evaluator. Its source
+hash binds the exact retained session-plan bytes, with raw-file hashes separate.
+
 ## Inputs and source evidence
 
 The input is a closed ordinary JSON object with exactly `raw`, `plan` and

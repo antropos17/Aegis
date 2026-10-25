@@ -6,21 +6,35 @@ actor process and do not execute an installed agent or qualify any platform.
 No measured effectiveness, false-alarm incidence, task-success rate or W8/T8
 acceptance follows from their execution.
 
+[Recorded corpus results](CORPUS-RESULTS.md) summarizes explicitly supplied
+S3–S8 artifact directories into sanitized deterministic JSON/Markdown. It keeps
+failed, skipped, incomplete and pending cells visible and performs no capture,
+oracle admission, scoring or measurement acceptance.
+
+New production-runner manifests retain the
+[exact loaded scenario-byte declaration](SCENARIO-PROVENANCE.md) and a separate
+final endpoint comparison. A changed or unavailable source causes a nonzero
+run result while preserving generated artifacts. Matching endpoint bytes do
+not establish authenticated execution or continuous source stability.
+
 | Task category | Scenario/control | Expected set after successful execution | Remaining confirmation or execution |
 | --- | --- | --- | --- |
 | Ordinary project artifact | S3-ordinary-fixture | One file creation under fixtures/project | Real fixed-version agent edit/build/inspect task and independently checked outcome rubric |
 | Outside-project write | S4-outside-project | One file creation under fixtures/outside-project, a sibling of project | Real agent provenance, authorization boundary and independent destination verification |
 | Deletion | S5-disposable-deletion | One file creation followed by one deletion of that canary | Independent deletion provenance; file absence alone is insufficient |
 | Persistence location | S6-inert-persistence | One file creation under fixtures/persistence-location | Real isolated target adapter and independent outcome rubric; this directory has no host persistence semantics |
-| Sensitive read | No new executable read control | Unavailable: existing catalogue/scoring has no ordinary read shape | Independently qualified read oracle and action adapter; S2 holder emits process start, not a read |
-| Outbound transfer | No executable transfer control | Unavailable: existing actor/scoring has no transfer shape | Owned receiver with payload hash/count receipt, safe adapter and independent provenance |
+| Owned inert file read | S8-owned-file-read | One creation followed by one validated file/access stimulus, with separate byte/hash/identity/closure outcome | Independent OS read oracle, real-agent provenance and scoring admission remain unavailable |
+| Sensitive read | No sensitive-file control | S8 reads only its public inert owned canary; S2 holder emits process start | Real sensitive-file semantics and independently qualified read oracle |
+| Owned loopback transfer | S7-owned-loopback-transfer | One network/start stimulus after the fixed Node sender's write finishes; separate receiver hash/count outcome | Real-agent provenance, independent OS oracle confirmation and network scoring remain unavailable |
 
 The runner monitors its run directory; these named compartments do not establish
 the product's real project-authorization boundary.
 
-All four new controls create the same public inert text canary. S3, S4 and S6
-retain it for inspection; S5 removes it. No host startup directory, registry key,
-private file, network receiver or installed agent is touched. No technique ID is
+The four file controls create the same public inert text canary. S3, S4 and S6
+retain it for inspection; S5 removes it. S7 sends a separate fixed public inert
+canary to its own ephemeral IPv4 loopback receiver. S8 creates and reads its own
+public inert file with original identity and exact byte/hash validation. No host startup directory,
+registry key, private file or installed agent is touched. No technique ID is
 assigned: a behavior-specific, versioned ATT&CK mapping and real-agent red/green
 qualification remain open. Existing S1/S2 and historical recordings are retained.
 
@@ -40,6 +54,23 @@ assert exact creation/deletion shapes and counts, and read both written artifact
 Their missing-oracle assertion uses an explicitly empty oracle column even with
 matching synthetic sensor input: actor observations cannot confirm themselves.
 All temporary fixture directories are removed by the tests.
+
+S8's [owned file read boundary](FILE_READ_CONTROL.md) adds one closed
+`read-fixture` step bound to a prior successful `write-fixture`, with no arbitrary
+path or read-range inputs. It removes the writer's former unlabelled content
+readback and retains complete/failed read facts separately in
+`file-read-outcomes.json`. This does not establish a cold-cache read. Access rows
+remain `category-not-scored` under unchanged metrics, even with matching
+synthetic oracle/sensor rows.
+
+S7's [loopback control boundary](LOOPBACK_CONTROL.md#scenario-and-artifact-integration)
+adds a closed `send-loopback-canary` step. Its focused tests reach the actual
+`prepareScenario -> actor.execute -> writeScenarioArtifacts` path and real
+`run.main` artifact flow. Receiver outcomes are retained in a separate bounded
+`fixture-outcomes.json`; successful sender writes generate catalogue stimuli
+even when receiver verification fails or remains unknown. The unchanged metrics
+code keeps network events at `category-not-scored`, outside sensor denominators,
+including when supplied matching synthetic oracle/sensor rows.
 
 For a future authorized native capture, select the same scenario through the
 existing runner, for example:

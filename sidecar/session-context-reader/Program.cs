@@ -25,9 +25,10 @@ try
             switch (op)
             {
                 case "open":
+                case "tail":
                     Wire.Exact(root, "id", "op", "path");
                     if (lease is not null || id != 1) throw new InvalidDataException();
-                    lease = ReadLease.Open(Wire.Text(root, "path", 240));
+                    lease = ReadLease.Open(Wire.Text(root, "path", 240), op == "tail");
                     WriteStamp(id, lease.Stat(true));
                     break;
                 case "stat":

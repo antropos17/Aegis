@@ -26,7 +26,7 @@ describe('packaging production preflight', () => {
   it('builds the desktop renderer before Windows helpers, independently of caller cwd', () => {
     const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
     const beforeBuild = require(hookPath);
-    expect(beforeBuild({ platform: { name: 'windows' } })).toBe(true);
+    expect(beforeBuild({ platform: { name: 'windows' }, arch: 'x64' })).toBe(true);
     expect(build).toHaveBeenCalledTimes(3);
     const [executable, args, options] = build.mock.calls[0];
     expect(executable).toBe(process.execPath);
@@ -48,8 +48,29 @@ describe('packaging production preflight', () => {
       .mockImplementationOnce(() => {
         throw new Error('ETW publish failed');
       });
-    expect(() => require(hookPath)({ platform: { name: 'windows' } })).toThrow(
+    expect(() => require(hookPath)({ platform: { name: 'windows' }, arch: 'x64' })).toThrow(
       'ETW publish failed',
     );
   });
+
+  it.each(['ia32', 'arm64', 'armv7l', 'universal', undefined])(
+    'refuses Windows %s packaging before building x64-only native helpers',
+    (arch) => {
+      const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
+      expect(() => require(hookPath)({ platform: { name: 'windows' }, arch })).toThrow(
+        'Windows packaging requires x64',
+      );
+      expect(build).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['linux', 'mac'])(
+    'preserves the %s renderer build without Windows helpers for arm64',
+    (name) => {
+      const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
+      expect(require(hookPath)({ platform: { name }, arch: 'arm64' })).toBe(true);
+      expect(build).toHaveBeenCalledTimes(1);
+      expect(build.mock.calls[0][1]).toContain('build');
+    },
+  );
 });

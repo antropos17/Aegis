@@ -85,19 +85,22 @@ partial diagnostics, unexpected result IDs or invalid responses return
 policy structure returns `policy-invalid`. Existing malformed-file, missing-file,
 invalid-request and changed-binding reasons retain their previous meanings.
 
-## Explicit schema-3 translation
+## Explicit schema-2/3 translation
 
-`translateSchema3Policy(policy)` returns `{ ok: true, policy }` for a valid
-schema-3 policy or `{ ok: false, reason: "policy-invalid" }`. It uses the existing
-validator, including whole-policy validation, exact duplicate rejection and
-nonempty unique review references to explicit allow actions. It does not migrate
-or rewrite selected files. Schemas 1/2 and other policy families are unsupported
-translation inputs.
+`translateSchema2Policy(policy)` and `translateSchema3Policy(policy)` return
+`{ ok: true, policy }` for their respective execution-policy version, or
+`{ ok: false, reason: "policy-invalid" }`. Each entrypoint rejects the other
+version. Both snapshot input through the existing bounded JSON parser and use
+the unchanged validator for whole-policy validation and exact duplicate
+rejection. Schema 2 forbids a `reviewRequired` field and emits no review
+annotations. Schema 3 retains its nonempty unique review references to explicit
+allow actions. The functions do not migrate or rewrite selected files. Schema 1
+and other policy families remain unsupported translation inputs.
 
 For rule `i`, the generated condition is its exact predicate and the negation of
 every earlier rule's predicate. Deny becomes forbid; allow becomes permit; ask
-uses the ask annotation. Listed review actions use the review annotation. The
-explicit default excludes every rule's predicate, with the policy's deny/ask
+uses the ask annotation. Listed schema-3 review actions use the review annotation.
+The explicit default excludes every rule's predicate, with the policy's deny/ask
 behavior. Thus translated defaults have their own deciding `default` ID and do
 not depend on Cedar's implicit deny. Existing exact predicates are disjoint in
 valid policies; equivalent duplicates are invalid.
@@ -110,6 +113,60 @@ policies have an 8 MiB compilation ceiling because earlier-rule exclusions expan
 translation output; this does not increase the selected-file limit. A large
 translation may therefore be usable in memory but exceed the selected JSON file
 limit. No file migration is automatic.
+
+A schema-2 preparation fixture records this representability boundary: an
+original policy below 64 KiB can produce an expanded Cedar envelope above that
+limit. In-memory evaluation and original-file preparation can allow the request,
+while selecting the oversized translated file returns `input-unavailable`
+without launch. Preparation equivalence is qualified to envelopes that fit the
+existing selected-file limit.
+
+## Developer-only file export
+
+From a source checkout, explicitly select one input policy and one fresh output:
+
+```sh
+node scripts/translate-execution-policy.cjs <selected-schema2-or3.json> <fresh-schema4.json>
+```
+
+Exactly two nonempty paths are required. The utility performs no discovery,
+chooses no default destination and changes no existing selection or activation.
+It reads the selected input through the existing stable-handle, bounded regular
+file reader and strict JSON parser, then calls the matching schema-2 or schema-3
+translator. It never loads the Cedar runtime/WASM or evaluates an action.
+
+The artifact is deterministic compact JSON followed by one newline. The entire
+serialized file, including that newline, must fit 65,536 bytes before destination
+creation is attempted. Existing destinations, including source-as-destination
+and existing leaf links, are refused. The destination's parent is canonicalized;
+UNC/device paths, alternate-stream/control basenames, reserved Windows device
+names and trailing-space/dot aliases are refused. See [Windows naming rules](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
+
+The writer requests a fresh regular file with exclusive-create/no-follow flags
+where supported and mode `0600`. Effective permissions remain platform-dependent.
+It writes through positive partial writes, syncs, confirms close once, reads the
+bounded bytes back and checks the created file identity, size, canonical parent
+and stable readback metadata. See [Node filesystem flags and handle operations](https://nodejs.org/docs/latest-v24.x/api/fs.html#file-system-flags).
+No atomic publication, directory containment, authentication or crash durability
+is established by these checks. The new name is visible while writing.
+
+One JSON status record is written to stdout. Exit `0` means `exported` after
+write/close/readback verification, with byte length and SHA-256 over the artifact.
+The hash describes the exported bytes and supplies no authentication. Exit `2`
+means a fixed refusal, such as invalid input, unsupported policy, excessive
+output or an unavailable destination. Exit `3` means `unconfirmed-output` after
+uncertain creation, writing, syncing, closing or verification. Every status
+contains `evaluated: false` and `activated: false`; it contains no selected paths,
+action values, policy text or exception details. The artifact retains the policy's
+private values. Available input, output and readback buffers are cleared.
+
+An unconfirmed named output may be absent, empty, partial, complete or replaced.
+It is retained for explicit inspection. The utility never deletes output after
+failure, and an uncertain close is never blindly retried. The utility writes at
+most 65,536 bytes to one explicit new name per invocation; no automatic cleanup
+is configured.
+The output filesystem dependency seam is available only to in-process tests and
+cannot be selected by CLI arguments or policy data.
 
 ## Availability limits and isolation boundary
 
@@ -156,7 +213,7 @@ launch path or claiming a hard time/memory bound.
 `tests/main/cedar-*.test.js` exercise native forbid/permit/ask/review behavior,
 redacted runtime failures, authority-field rejection, literal execution matching,
 validation, private launch eligibility and selected-file binding checks. The
-property test compares 10,000 generated inputs with the current execution
+schema-3 property test compares 10,000 generated inputs with the current execution
 evaluator using fixed seed `0x5eedc3` (`6221251`), reporting the seed and category
 counts. An instrumented call count records 7,300 actual WASM authorization calls;
 the other 2,500 requests fail the shared descriptor validator before WASM, and
@@ -164,6 +221,30 @@ the other 2,500 requests fail the shared descriptor validator before WASM, and
 executable, cwd, ordered arguments, exact environment values/key sets, defaults,
 review classification, request failures and duplicate/invalid policy cases.
 Translator tests also cover the execution-policy maximum (32 entries) and the maximum argument/environment counts.
+
+The schema-2 property test separately compares 10,000 generated requests using
+seed `0x52ceda` (`5426906`). Each generated request passes the selected-input JSON
+parser and descriptor validator, and all 10,000 reach the instrumented official
+WASM authorization call. Each generated translation also fits the selected-file
+limit. Matching unusual literals and single-field near misses cover exact paths,
+ordered arguments, environment keys/values, both explicit
+defaults and rule orders. Invalid policies and requests are separate cases.
+
+This generated domain is the selected-JSON-valid request domain. A hand-built
+JavaScript descriptor containing a lone surrogate can pass the pure legacy
+descriptor validator, while the selected-file JSON parser refuses that value.
+Preparation regressions characterize the existing `input-unavailable` result for
+both original schema 2 and translated schema 4. The translator also refuses
+policy JSON containing those values. No validator or runtime behavior outside
+the selected-file domain is changed by this translation entrypoint.
+
+Selected schema-2 and translated schema-4 fixtures compare fixed metadata and
+the complete private launch descriptor for allow/ask/deny, both defaults and
+strict boolean review. They also cover environment suppression, request-first
+validation, changed/missing pinned inputs, malformed files and redacted Cedar
+initialization/evaluation failure without launch. Original schema-2 preparation
+continues to work when Cedar initialization is unavailable.
+
 Runtime-input tests reject excess policy counts, oversized source and overlong IDs
 before loading WASM. The execution/approval tests keep production preparation and
 mediation active while replacing OS spawn with an in-memory child. They cover
@@ -173,7 +254,7 @@ The public execution report retains its existing fixed reason mapping; private
 preparation exposes the redacted Cedar failure code.
 
 The existing characterization suites remain a regression gate for the separate
-policy families. Native schema-4 execution preparation and translated schema-3
+policy families. Native schema-4 execution preparation and translated schema-2/3
 behavior are covered here; equivalence of Cedar adapters for Claude, Gemini,
 deletion and MCP, trusted instance/health inputs, packaged Electron WASM loading,
 and live provider/OS enforcement remain outside this slice. This implementation

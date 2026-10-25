@@ -25,6 +25,10 @@ explicitly `null` with reasons.
 Use [acquisition-window intervals](BRACKETED_RESOURCE_INTERVALS.md) to derive
 conditional own-process CPU bounds and RSS phase admission from these raw readings.
 
+The optional [retained session](../docs/bench/SELF_RESOURCE_SESSION.md) supplies a
+fresh bounded bundle and explicit plan around this unchanged library. It retains
+calling-process scope and adds no product or measurement acceptance.
+
 ## APIs, time and raw values
 
 Default collection calls [`process.cpuUsage()`](https://nodejs.org/docs/latest-v24.x/api/process.html#processcpuusagepreviousvalue)
