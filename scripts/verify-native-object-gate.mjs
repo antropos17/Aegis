@@ -176,42 +176,41 @@ try {
   receipt.controls.native = validateNativeControls(native.stdout, native.status, build.status);
 } catch (error) {
   failure = error;
-} finally {
-  try {
-    receipt.sourceAfter = source();
-    receipt.sourceHashesAfter = sourceHashes();
-    receipt.sourceUnchanged =
-      receipt.source?.head === receipt.sourceAfter.head &&
-      receipt.source?.tree === receipt.sourceAfter.tree &&
-      NATIVE_OBJECT_SOURCE_PATHS.every(
-        (name) => receipt.sourceHashes?.[name] === receipt.sourceHashesAfter[name],
-      );
-    if (!receipt.sourceUnchanged) throw new Error('Source changed during controls');
-  } catch (error) {
-    failure ??= error;
-  }
-  try {
-    disk('after-controls');
-  } catch (error) {
-    failure ??= error;
-  }
-  receipt.endedAt = new Date().toISOString();
-  if (!failure) {
-    try {
-      receipt.status = 'PASS';
-      validateNativeObjectControls(receipt);
-    } catch (error) {
-      failure = error;
-    }
-  }
-  if (failure) {
-    receipt.status = 'FAIL';
-    receipt.error = failure.message;
-  }
-  const bytes = JSON.stringify(receipt, null, 2);
-  if (Buffer.byteLength(bytes) > 256 * 1024) throw new Error('Controls receipt budget exceeded');
-  fs.writeFileSync(OUTPUT, bytes, { flag: 'wx' });
 }
+try {
+  receipt.sourceAfter = source();
+  receipt.sourceHashesAfter = sourceHashes();
+  receipt.sourceUnchanged =
+    receipt.source?.head === receipt.sourceAfter.head &&
+    receipt.source?.tree === receipt.sourceAfter.tree &&
+    NATIVE_OBJECT_SOURCE_PATHS.every(
+      (name) => receipt.sourceHashes?.[name] === receipt.sourceHashesAfter[name],
+    );
+  if (!receipt.sourceUnchanged) throw new Error('Source changed during controls');
+} catch (error) {
+  failure ??= error;
+}
+try {
+  disk('after-controls');
+} catch (error) {
+  failure ??= error;
+}
+receipt.endedAt = new Date().toISOString();
+if (!failure) {
+  try {
+    receipt.status = 'PASS';
+    validateNativeObjectControls(receipt);
+  } catch (error) {
+    failure = error;
+  }
+}
+if (failure) {
+  receipt.status = 'FAIL';
+  receipt.error = failure.message;
+}
+const bytes = JSON.stringify(receipt, null, 2);
+if (Buffer.byteLength(bytes) > 256 * 1024) throw new Error('Controls receipt budget exceeded');
+fs.writeFileSync(OUTPUT, bytes, { flag: 'wx' });
 console.log(
   JSON.stringify({
     status: receipt.status,
