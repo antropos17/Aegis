@@ -189,6 +189,15 @@ an installed agent's integration. The first read primes a retained object;
 subsequent reads in the same handle lifetime require the pre-read policy ACK and
 the later zero-loss telemetry watermark.
 
+The reader transport retains its twelve-second response deadline, sixteen-KiB
+combined lifetime output budget and eight-frame queue ceiling. It counts raw
+stream bytes before retaining a partial line, owns one expected response at a
+time, and refuses malformed, unsolicited or unavailable responses with a closed
+metadata snapshot captured before cleanup. Cleanup still requires exit zero and
+drained child streams within one ten-second deadline. These local transport
+controls do not identify the cause of an earlier guest refusal or prove native
+read, alert or risk acceptance.
+
 The probe requires the actual object event UUID to reach audit custody, the
 sensitive alert journal, the separate object baseline, preload delivery and a
 higher displayed score in the real Observatory roster. Each workload links its

@@ -13,6 +13,7 @@ import { GUI_EXECUTABLE } from '../produce-protected-gui-manifest.mjs';
 import { launchNativeReadElectron } from './windows-native-read-launch.mjs';
 import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
 import { recordScannerReadiness } from './windows-native-read-readiness.mjs';
+import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 import {
   diagnostics,
   readFixture,
@@ -269,6 +270,8 @@ export async function runNativeReadScenario({
     r.retention.captureContinued = (await diagnostics(app)).phase === 'running';
     assert(r.retention.captureContinued, 'Capture ended during release observation');
   } catch (error) {
+    const fixtureFailure = projectReadFixtureFailure(error);
+    if (fixtureFailure && !r.fixtureFailure) r.fixtureFailure = fixtureFailure;
     failure =
       r.launch?.phase === 'failed'
         ? new Error(
@@ -283,6 +286,8 @@ export async function runNativeReadScenario({
         await fixture.close();
         r.fixtureExit = fixture.child.exitCode;
       } catch (error) {
+        const fixtureFailure = projectReadFixtureFailure(error);
+        if (fixtureFailure && !r.fixtureFailure) r.fixtureFailure = fixtureFailure;
         r.fixtureCleanupUnconfirmed = true;
         failure ??= error;
       }

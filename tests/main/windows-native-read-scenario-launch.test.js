@@ -71,6 +71,100 @@ describe('actual native-read scenario launch composition', () => {
 
   afterEach(() => vi.useRealTimers());
 
+  it('retains a closed reader failure before cleanup changes its observed exit state', async () => {
+    const diagnostic = {
+      phase: 'ready',
+      expectedCommand: 'ready',
+      stdoutBytes: 80,
+      stderrBytes: 12,
+      queuedLines: 0,
+      exitCode: null,
+      signalCode: null,
+      stdoutEnded: true,
+      stdinFailed: false,
+      privateOutput: 'PRIVATE_READER_CANARY',
+    };
+    fixture.next.mockRejectedValue(
+      Object.assign(new Error('Read fixture refused: stdout-ended'), {
+        code: 'AEGIS_READ_FIXTURE_STDOUT_ENDED',
+        fixtureDiagnostic: diagnostic,
+      }),
+    );
+    fixture.close.mockImplementation(async () => {
+      diagnostic.exitCode = 0;
+      diagnostic.phase = 'close';
+      fixture.child.exitCode = 0;
+    });
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+      }),
+    ).rejects.toThrow('Read fixture refused: stdout-ended');
+    expect(mocks.launch).not.toHaveBeenCalled();
+    expect(receipt.fixtureExit).toBe(0);
+    expect(receipt.fixtureFailure).toMatchObject({
+      schema: 'aegis-read-fixture-failure/1',
+      failureCode: 'stdout-ended',
+      phase: 'ready',
+      exitCode: null,
+    });
+    expect(Object.isFrozen(receipt.fixtureFailure)).toBe(true);
+    expect(JSON.stringify(receipt.fixtureFailure)).not.toContain('PRIVATE_READER_CANARY');
+  });
+
+  it('does not invent a reader diagnostic from an unrelated scenario error', async () => {
+    fixture.next.mockRejectedValue(new Error('Unrelated startup refusal'));
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+      }),
+    ).rejects.toThrow('Unrelated startup refusal');
+    expect(receipt.fixtureFailure).toBeUndefined();
+    expect(fixture.close).toHaveBeenCalledOnce();
+  });
+
+  it('retains a cleanup-only reader refusal without replacing the original scenario failure', async () => {
+    fixture.next.mockRejectedValue(new Error('Unrelated startup refusal'));
+    fixture.close.mockRejectedValue(
+      Object.assign(new Error('Read fixture refused: close-unconfirmed'), {
+        code: 'AEGIS_READ_FIXTURE_CLOSE_UNCONFIRMED',
+        fixtureDiagnostic: {
+          phase: 'close',
+          expectedCommand: null,
+          stdoutBytes: 0,
+          stderrBytes: 0,
+          queuedLines: 0,
+          exitCode: null,
+          signalCode: null,
+          stdoutEnded: false,
+          stdinFailed: false,
+        },
+      }),
+    );
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+      }),
+    ).rejects.toThrow('Unrelated startup refusal');
+    expect(receipt.fixtureFailure).toMatchObject({
+      failureCode: 'close-unconfirmed',
+      phase: 'close',
+    });
+    expect(receipt.fixtureCleanupUnconfirmed).toBe(true);
+  });
+
   it('lets the real scenario cross a 45 second cold connection under the 90 second bound', async () => {
     vi.useFakeTimers();
     mocks.launch.mockImplementation(

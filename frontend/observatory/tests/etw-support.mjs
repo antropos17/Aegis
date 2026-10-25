@@ -3,8 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
-import { createInterface } from 'node:readline';
-import { exitWithin } from './sensor-support.mjs';
+import { readFixtureProtocol } from './etw-read-fixture-protocol.mjs';
 
 /** @param {number} ms @returns {Promise<void>} @since v0.19.2 */
 export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -54,34 +53,7 @@ export function readFixture(executable, file, env, short = false, denyDeleteShar
       stdio: ['pipe', 'pipe', 'pipe'],
     },
   );
-  child.stdin.on('error', () => {});
-  const lines = [];
-  let bytes = 0;
-  createInterface({ input: child.stdout }).on('line', (line) => {
-    bytes += Buffer.byteLength(line);
-    if (bytes <= 16384 && lines.length < 8) lines.push(line);
-  });
-  child.stderr.on('data', (data) => {
-    bytes += data.length;
-  });
-  const next = async () => {
-    const until = Date.now() + 12000;
-    while (!lines.length && !child.stdout.readableEnded && Date.now() < until) await delay(20);
-    assert(bytes <= 16384 && lines.length, 'Read fixture unavailable or output budget exceeded');
-    return JSON.parse(lines.shift());
-  };
-  return {
-    child,
-    next,
-    async command(mode) {
-      child.stdin.write(mode + '\n');
-      return next();
-    },
-    async close() {
-      child.stdin.end();
-      assert.equal(await exitWithin(child), 0);
-    },
-  };
+  return readFixtureProtocol(child, short);
 }
 
 /** Observe bounded real records while fixture commands are in flight.
