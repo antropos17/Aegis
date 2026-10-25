@@ -12,7 +12,10 @@ import { _electron as electron } from 'playwright';
 import { GUI_EXECUTABLE } from '../produce-protected-gui-manifest.mjs';
 import { launchNativeReadElectron } from './windows-native-read-launch.mjs';
 import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
-import { recordScannerReadiness } from './windows-native-read-readiness.mjs';
+import {
+  recordScannerReadiness,
+  recordIssuerPreparationReadiness,
+} from './windows-native-read-readiness.mjs';
 import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 import {
   diagnostics,
@@ -107,13 +110,10 @@ export async function runNativeReadScenario({
       'Actual reliable scanner identity unavailable',
     );
     r.actor = ready.agents.find((agent) => agent.pid === witness.pid);
+    r.issuerPreparationWait = { samples: 0, first: null, last: null };
     await until(
       () => diagnostics(app),
-      (value) =>
-        value?.phase === 'running' &&
-        value?.issuerPreparation?.prepared?.some(
-          (target) => target.pid === witness.pid && target.createTime100ns === witness.birth,
-        ),
+      (value) => recordIssuerPreparationReadiness(value, witness, r.issuerPreparationWait),
       30000,
       'Native issuer preparation did not complete',
     );

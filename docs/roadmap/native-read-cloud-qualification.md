@@ -104,6 +104,19 @@ deadline and strict acceptance conditions remain unchanged. A missing sample is
 unknown evidence; these diagnostics do not establish the cause of an older run
 whose rejected snapshots were not retained.
 
+The issuer-preparation wait retains a capped sample count and fixed first/latest
+condition snapshots before cleanup. They distinguish capture phase, preparation
+availability and an exact actor match, with closed ended-session metadata and
+strict pending-cleanup flags. Raw diagnostic records, actor identifiers and
+arbitrary error text are excluded. A failed, stopped or recovered capture refuses
+preparation immediately only when both cleanup flags are explicitly false and a
+validated latest ended-session summary matches that phase. A starting, unknown
+or pending-cleanup state keeps polling within the existing thirty-second budget.
+Success still requires a running capture and
+one prepared entry matching both actor PID and full birth. This fixes lost
+failure context and waiting after a confirmed end; it does not establish the
+cause of a historical native exit or qualify native reads, alerts or risk.
+
 After normal process closure, audit custody is checked against the canonical
 on-disk envelope: type, actor PID/instance, empty access path, and the event and
 binding IDs stored under `details`. Exactly one matching row is required. The

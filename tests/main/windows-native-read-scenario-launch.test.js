@@ -35,6 +35,10 @@ vi.mock('../../frontend/observatory/tests/etw-custodian-support.mjs', () => ({
 }));
 
 import { runNativeReadScenario } from '../../scripts/qualification/windows-native-read-scenario.mjs';
+import {
+  projectIssuerPreparationReadiness,
+  recordIssuerPreparationReadiness,
+} from '../../scripts/qualification/windows-native-read-readiness.mjs';
 
 describe('actual native-read scenario launch composition', () => {
   let app;
@@ -295,6 +299,100 @@ describe('actual native-read scenario launch composition', () => {
     expect(observer.stop).toHaveBeenCalledOnce();
   });
 
+  it('retains preparation conditions and refuses an ended capture before polling again or cleanup', async () => {
+    const controls = {
+      getByRole: () => controls,
+      waitFor: vi.fn(),
+      click: vi.fn(),
+      check: vi.fn(),
+    };
+    app.firstWindow = vi.fn().mockResolvedValue({ getByRole: () => controls, evaluate: vi.fn() });
+    mocks.launch.mockResolvedValue(app);
+    mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
+    fixture.command = vi.fn();
+    const scanner = {
+      readiness: { populationReliable: true, identityDegraded: false, monitoringPaused: false },
+      agents: [{ pid: 42, instanceIdSource: 'os', createTime100ns: '123' }],
+    };
+    const terminal = {
+      phase: 'failed',
+      issuerPreparation: null,
+      restartBlocked: true,
+      recoveryPending: false,
+      cleanupConsentPending: false,
+      summaries: [
+        {
+          phase: 'failed',
+          reasons: ['protocol-failed'],
+          stopReason: null,
+          exitCode: 2,
+          stopVerified: false,
+          recoveryVerified: false,
+          launchId: 'PRIVATE_SESSION',
+          capture: 'PRIVATE_CAPTURE',
+        },
+      ],
+    };
+    let samples = 0;
+    mocks.until
+      .mockImplementationOnce(async (_read, accept) => {
+        expect(accept(scanner)).toBe(true);
+        return scanner;
+      })
+      .mockImplementationOnce(async (_read, accept, ms, message) => {
+        expect(ms).toBe(30000);
+        expect(message).toBe('Native issuer preparation did not complete');
+        samples++;
+        expect(accept({ phase: 'starting', issuerPreparation: null })).toBe(false);
+        samples++;
+        accept(terminal);
+        samples++;
+        throw new Error('fixture-terminal-polled-again');
+      });
+    fixture.close.mockImplementation(async () => {
+      terminal.phase = 'stopped';
+      terminal.summaries[0].exitCode = 0;
+      fixture.child.exitCode = 0;
+    });
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+        candidate: 'X:/owned/candidate',
+        helper: 'helper.exe',
+      }),
+    ).rejects.toThrow('Native issuer preparation refused: capture-ended');
+    expect(samples).toBe(2);
+    expect(receipt.issuerPreparationWait).toMatchObject({
+      samples: 2,
+      first: { capturePhase: 'starting', captureRunning: false, preparationAvailable: false },
+      last: {
+        capturePhase: 'failed',
+        captureRunning: false,
+        accepted: false,
+        captureEnded: true,
+        latestSummary: {
+          phase: 'failed',
+          reasons: ['protocol-failed'],
+          stopReason: null,
+          exitCode: 2,
+        },
+      },
+    });
+    expect(Object.isFrozen(receipt.issuerPreparationWait.first)).toBe(true);
+    expect(Object.isFrozen(receipt.issuerPreparationWait.last)).toBe(true);
+    expect(JSON.stringify(receipt.issuerPreparationWait)).not.toMatch(
+      /PRIVATE|"pid"|"birth"|"createTime100ns"/,
+    );
+    expect(fixture.command).not.toHaveBeenCalled();
+    expect(fixture.close).toHaveBeenCalledOnce();
+    expect(app.close).toHaveBeenCalledOnce();
+    expect(observer.stop).toHaveBeenCalledOnce();
+  });
+
   it('uses the owned-profile Settings flow before subscribing in the Simple investigation workspace', async () => {
     let simple = false;
     let workspace = 'Monitoring';
@@ -374,5 +472,146 @@ describe('actual native-read scenario launch composition', () => {
     expect(fixture.close).toHaveBeenCalledOnce();
     expect(app.close).toHaveBeenCalledOnce();
     expect(observer.stop).toHaveBeenCalledOnce();
+  });
+});
+
+describe('issuer preparation readiness projection', () => {
+  const witness = { pid: 42, birth: '123' };
+  const prepared = () => ({
+    phase: 'running',
+    issuerPreparation: { prepared: [{ pid: 42, createTime100ns: '123', threads: 2 }] },
+  });
+  const ended = (phase = 'failed') => ({
+    phase,
+    recoveryPending: false,
+    cleanupConsentPending: false,
+    summaries: [
+      {
+        phase,
+        reasons: ['protocol-failed'],
+        stopReason: null,
+        exitCode: phase === 'stopped' ? 0 : phase === 'recovered' ? 4 : 2,
+        stopVerified: phase === 'stopped',
+        recoveryVerified: phase === 'recovered',
+      },
+    ],
+  });
+
+  it('continues from starting to exact prepared identity without extending or bypassing the wait', () => {
+    const receipt = { samples: 0, first: null, last: null };
+    expect(recordIssuerPreparationReadiness({ phase: 'starting' }, witness, receipt)).toBe(false);
+    expect(recordIssuerPreparationReadiness(prepared(), witness, receipt)).toBe(true);
+    expect(receipt).toMatchObject({
+      samples: 2,
+      first: { capturePhase: 'starting', accepted: false },
+      last: { capturePhase: 'running', actorExactMatch: true, accepted: true },
+    });
+    for (const value of [
+      null,
+      { phase: 'running' },
+      { phase: 'running', issuerPreparation: { prepared: {} } },
+      { phase: 'running', issuerPreparation: { prepared: [null] } },
+      { phase: 'running', issuerPreparation: { prepared: [{ pid: 42, createTime100ns: '0123' }] } },
+      {
+        phase: 'running',
+        issuerPreparation: {
+          prepared: [
+            { pid: 42, createTime100ns: '124' },
+            { pid: 43, createTime100ns: '123' },
+          ],
+        },
+      },
+      { ...prepared(), phase: 'starting' },
+    ])
+      expect(projectIssuerPreparationReadiness(value, witness).accepted).toBe(false);
+  });
+
+  it('requires matching validated ended summary and strict false pending flags before refusing', () => {
+    for (const phase of ['failed', 'stopped', 'recovered']) {
+      const value = ended(phase);
+      expect(projectIssuerPreparationReadiness(value, witness).captureEnded).toBe(true);
+      expect(() =>
+        recordIssuerPreparationReadiness(value, witness, { samples: 0, first: null, last: null }),
+      ).toThrow('Native issuer preparation refused: capture-ended');
+    }
+    for (const value of [
+      { ...ended(), phase: 'starting' },
+      { ...ended(), phase: 'recovering' },
+      { ...ended(), recoveryPending: true },
+      { ...ended(), cleanupConsentPending: true },
+      { ...ended(), recoveryPending: undefined },
+      { ...ended(), cleanupConsentPending: null },
+      { ...ended(), recoveryPending: 'false' },
+      { ...ended(), cleanupConsentPending: 0 },
+      { ...ended(), summaries: [] },
+      { ...ended(), summaries: [null] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], phase: 'stopped' }] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], exitCode: null }] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], exitCode: 2 ** 40 }] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], stopReason: 'PRIVATE' }] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], reasons: ['PRIVATE'] }] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], stopVerified: 'false' }] },
+      { ...ended(), summaries: [{ ...ended().summaries[0], recoveryVerified: undefined }] },
+      { ...ended('stopped'), summaries: [{ ...ended('stopped').summaries[0], exitCode: 2 }] },
+      {
+        ...ended('recovered'),
+        summaries: [{ ...ended('recovered').summaries[0], recoveryVerified: false }],
+      },
+    ])
+      expect(projectIssuerPreparationReadiness(value, witness).captureEnded).toBe(false);
+  });
+
+  it('retains a closed duration-limit reason and finite exit without copying raw summary data', () => {
+    const value = ended('stopped');
+    Object.assign(value.summaries[0], {
+      stopReason: 'duration-limit',
+      exitCode: 0,
+      launchId: 'PRIVATE_GUID',
+      sessionId: 'PRIVATE_GUID',
+      capture: { path: 'PRIVATE_PATH' },
+      reason: 'PRIVATE_ERROR',
+    });
+    value.issuerPreparation = {
+      requestId: 'PRIVATE_REQUEST',
+      prepared: [{ pid: 42, createTime100ns: '123' }],
+    };
+    const result = projectIssuerPreparationReadiness(value, witness);
+    expect(result.latestSummary).toMatchObject({
+      stopReason: 'duration-limit',
+      stopReasonKnown: true,
+      exitCode: 0,
+      exitCodeKnown: true,
+      valid: true,
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /PRIVATE|"pid"|"createTime100ns"|"sessionId"|"launchId"/,
+    );
+    expect(Object.isFrozen(result.latestSummary.reasons)).toBe(true);
+    expect(Object.keys(result.latestSummary)).toEqual([
+      'phase',
+      'reasons',
+      'reasonsKnown',
+      'stopReason',
+      'stopReasonKnown',
+      'exitCode',
+      'exitCodeKnown',
+      'valid',
+    ]);
+  });
+
+  it('retains only immutable first/latest conditions and saturates the sample count', () => {
+    const receipt = { samples: 0, first: null, last: null };
+    const value = { phase: 'starting', issuerPreparation: null };
+    for (let sample = 0; sample < 600; sample++)
+      recordIssuerPreparationReadiness(value, witness, receipt);
+    value.phase = 'PRIVATE';
+    recordIssuerPreparationReadiness(null, witness, receipt);
+    expect(Object.keys(receipt)).toEqual(['samples', 'first', 'last']);
+    expect(receipt.samples).toBe(512);
+    expect(receipt.first.capturePhase).toBe('starting');
+    expect(receipt.last.capturePhase).toBe('unknown');
+    expect(Object.isFrozen(receipt.first)).toBe(true);
+    expect(JSON.stringify(receipt)).not.toContain('PRIVATE');
+    expect(JSON.stringify(receipt).length).toBeLessThan(2000);
   });
 });
