@@ -63,6 +63,61 @@ internal static class FileQualificationTests
             }
             finally { FileQualificationDiagnostic.Step = 0; Environment.SetEnvironmentVariable(FileQualificationPolicy.Variable, original); }
         });
+        test("collector failure diagnostics require explicit collector initialization and never retain exception text", () =>
+        {
+            string? original = Environment.GetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable);
+            try
+            {
+                Environment.SetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable, null);
+                FileQualificationDiagnostic.BeginCollector();
+                using var disabled = new StringWriter();
+                FileQualificationDiagnostic.Report(new IOException("private-path"), disabled);
+                if (disabled.ToString() != "") throw new InvalidOperationException();
+                Environment.SetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable, "1");
+                // A launch marker alone cannot make another role emit collector diagnostics.
+                FileQualificationDiagnostic.Report(new IOException("private-path"), disabled);
+                if (disabled.ToString() != "") throw new InvalidOperationException();
+                var child = Program.Child("guard");
+                if (child.Environment.ContainsKey(FileQualificationDiagnostic.CollectorVariable)) throw new InvalidOperationException();
+                FileQualificationDiagnostic.BeginCollector(); FileQualificationDiagnostic.Stage("trace-start");
+                using var output = new StringWriter();
+                FileQualificationDiagnostic.Report(new System.ComponentModel.Win32Exception(5, "private-path"), output);
+                var parsed = FileQualificationDiagnostic.Drain(new StringReader(output.ToString())).GetAwaiter().GetResult();
+                if (parsed != new FileCollectorDiagnostic("trace-start", "win32", 5) || output.ToString().Contains("private-path"))
+                    throw new InvalidOperationException();
+                FileQualificationDiagnostic.Step = 6;
+                if (FileQualificationDiagnostic.Failure != 2) throw new InvalidOperationException();
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable, original);
+                FileQualificationDiagnostic.Step = 0;
+                // Do not leave collector emission enabled in the self-test process.
+                Environment.SetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable, null);
+                FileQualificationDiagnostic.BeginCollector();
+                Environment.SetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable, original);
+            }
+        });
+        test("collector stderr drain rejects overflow, extra records, duplicate keys and nonfinite diagnostic shapes", () =>
+        {
+            const string valid = "{\"stage\":\"guard\",\"kind\":\"hresult\",\"code\":-2147467259}";
+            if (FileQualificationDiagnostic.Drain(new StringReader(valid)).GetAwaiter().GetResult() == null) throw new InvalidOperationException();
+            foreach (string invalid in new[] { new string('x', 1024), valid + "\n" + valid,
+                "{\"stage\":\"guard\",\"stage\":\"stop\",\"kind\":\"win32\",\"code\":5}",
+                valid.Replace("guard", "private-path"), valid.Replace("hresult", "exception"),
+                valid.Replace("-2147467259", "2147483648"), valid.Replace("}", ",\"message\":\"secret\"}"),
+                "null", "[]", "{}" })
+                if (FileQualificationDiagnostic.Drain(new StringReader(invalid)).GetAwaiter().GetResult() != null)
+                    throw new InvalidOperationException();
+        });
+        test("maximum bounded qualification finish diagnostics fit the existing private wire", () =>
+        {
+            var diagnostics = new FileCollectorDiagnostic?[64];
+            for (int i = 0; i < 4; i++) diagnostics[i] = new("capture-start", "hresult", int.MinValue);
+            var finish = new FileQualificationFinished(64, 0, Enumerable.Repeat(int.MinValue, 64).ToArray(), diagnostics);
+            byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(finish);
+            if (bytes.Length > 2048) throw new InvalidOperationException();
+        });
     }
     private static void Reject(Action action) { bool rejected = false; try { action(); } catch { rejected = true; } if (!rejected) throw new InvalidOperationException(); }
 }

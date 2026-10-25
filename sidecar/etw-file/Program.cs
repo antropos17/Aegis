@@ -15,6 +15,8 @@ internal static class Program
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
+        if (Environment.GetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable) != null)
+            info.Environment.Remove(FileQualificationDiagnostic.CollectorVariable);
         foreach (string arg in args) info.ArgumentList.Add(arg);
         return info;
     }
@@ -67,6 +69,6 @@ internal static class Program
             if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }
-        catch { return FileQualificationDiagnostic.Failure; } // Finite qualification checkpoint only; no raw exception/path/SID/nonce.
+        catch (Exception error) { FileQualificationDiagnostic.Report(error); return FileQualificationDiagnostic.Failure; } // Finite qualification checkpoint only; no raw exception/path/SID/nonce.
     }
 }

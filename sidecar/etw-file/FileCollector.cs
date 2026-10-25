@@ -6,11 +6,13 @@ internal static class FileCollector
 {
     internal static async Task<int> Run(string[] args)
     {
+        FileQualificationDiagnostic.BeginCollector();
         bool live = args[0] is not ("check-collector" or "check-loss-collector");
         if (Security.Current().Elevated != live || !FileWire.Id(args[1]) || !FileWire.Id(args[2]) || args[7] != FileWire.Profile) return 3;
         using var parent = Process.GetProcessById(int.Parse(args[4]));
         using var pipe = Security.Client(args[3]);
         Security.Verify(pipe, parent, ulong.Parse(args[5]), false, false);
+        FileQualificationDiagnostic.Stage("pipeline");
         var scope = new FileScope(args[6]);
         var ingress = new FileIngress();
         bool checkLoss = args[0] == "check-loss-collector";
@@ -29,11 +31,14 @@ internal static class FileCollector
             "dual-collector" or "dual-prearm-collector" or "dual-prestart-collector" or "triple-collector" or
             "triple-prearm-collector" or "triple-prestart-collector" or "triple-fallback-collector" or "group-parent-collector" => "exit-with-owner", _ => "normal"
         };
+        FileQualificationDiagnostic.Stage("guard");
         await using var guard = live ? await FileGuardOwner.Start(args[8], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, guardMode) : null;
+        FileQualificationDiagnostic.Stage("fallback");
         await using var fallback = live ? await FileGuardOwner.Start(args[9], parent, ulong.Parse(args[5]), pipe,
             trace!.Reservation, args[0] == "triple-fallback-collector" ? "exit-after-reserve" :
                 args[0].StartsWith("triple-", StringComparison.Ordinal) || args[0] == "group-parent-collector" || orphanFault ? "exit-with-owner" : "normal", guard!.Identity) : null;
+        FileQualificationDiagnostic.Stage("custody");
         using var orphan = await FileOrphanCollector.Start(args, pipe, parent, guard, fallback, trace?.Reservation);
         FileStats stats = new(50, null, null, null, null, null);
         bool owns = false, stopped = false, drained = false;
@@ -53,6 +58,7 @@ internal static class FileCollector
         });
         try
         {
+            FileQualificationDiagnostic.Stage("hello");
             await send.Write(pipe, "hello", new
             {
                 build = live ? "etw-file-diagnostic-10-issuer-preparation" : "etw-file-synthetic-check-10",
@@ -61,6 +67,7 @@ internal static class FileCollector
             }, lifetime.Token);
             using var authorize = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
             authorize.CancelAfter(TimeSpan.FromSeconds(10));
+            FileQualificationDiagnostic.Stage("authorize");
             var start = await read.Read(pipe, true, authorize.Token);
             if (start.t != "start") throw new InvalidDataException();
             string? objectBridge = start.data.TryGetProperty("objectPolicy", out _) ? pipeline.EnableObjectPolicy() : null;
@@ -69,12 +76,19 @@ internal static class FileCollector
                 if (guard?.Alive != true || fallback?.Alive != true || args.Length == 11 && orphan?.Alive != true) throw new IOException();
                 if (args[0] is "orphan-prestart-collector" or "orphan-total-prestart-collector" or "orphan-recovery-denial-collector") await FileOrphanCollector.Pause(orphan, "before-start", pipe, read);
                 if (args[0] is "prestart-collector" or "dual-prestart-collector" or "triple-prestart-collector") Environment.Exit(70);
+                FileQualificationDiagnostic.Stage("trace-start");
                 stats = trace.Start(); owns = true;
                 if (stats.Status != 0 || stats.Buffers == null || stats.Size == null) throw new InvalidOperationException();
                 if (args[0] is "orphan-prearm-collector" or "orphan-total-prearm-collector") await FileOrphanCollector.Pause(orphan, "before-arm", pipe, read);
                 if (args[0] is "prearm-collector" or "dual-prearm-collector" or "triple-prearm-collector") Environment.Exit(70);
+                FileQualificationDiagnostic.Stage("guard-arm");
                 await guard!.Arm(trace.Token); // Ready is impossible before the independent guard is armed.
-                capture!.Start(); trace.Enable(); stats = trace.Query();
+                FileQualificationDiagnostic.Stage("capture-start");
+                capture!.Start();
+                FileQualificationDiagnostic.Stage("trace-enable");
+                trace.Enable();
+                FileQualificationDiagnostic.Stage("trace-query");
+                stats = trace.Query();
                 if (stats.Status != 0) throw new InvalidOperationException();
                 CheckStats();
             }
@@ -90,6 +104,7 @@ internal static class FileCollector
             lastSample = before;
             string unix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
             long after = Stopwatch.GetTimestamp();
+            FileQualificationDiagnostic.Stage("ready");
             await send.Write(pipe, "ready", new
             {
                 requestId = start.data.GetProperty("requestId").GetString(),
@@ -99,6 +114,7 @@ internal static class FileCollector
                 telemetry = Telemetry(),
                 objectBridge
             }, lifetime.Token);
+            FileQualificationDiagnostic.Stage("running");
             if (orphan != null) await orphan.Phase("running");
             var stopSignal = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             if (args[0] is "crash-collector" or "dual-collector" or "triple-collector" or "orphan-native-collector") _ = Task.Run(async () =>
@@ -146,6 +162,7 @@ internal static class FileCollector
                 }
                 if (!await Pump(lifetime.Token)) await Idle(lifetime.Token, stopSignal.Task, capture?.Consumer);
             }
+            FileQualificationDiagnostic.Stage("stop");
             stopRequest = await stopSignal.Task;
             if (trace != null) { stats = trace.Stop(); stopped = stats.Status == 0; owns = !stopped; CheckStats(); }
             else stopped = true;
