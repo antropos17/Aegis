@@ -4110,3 +4110,20 @@ There is no application caller, renderer/IPC bridge, real profile access, native
 qualification or hook command execution. This supplies part of W6.3 preparation;
 owner-visible installation, supported provider/version behavior, coverage-loss
 signals, denial enforcement and full W6 acceptance remain open.
+
+## 2026-10-25 — W8 Linux CPU bundle replay
+
+Added an offline command for the fixed five-file Linux own-CPU reference bundle.
+It checks exact artifact bytes, predecessor hashes, raw CPU/window relations,
+workload and source declarations, then recomputes the retained comparison with
+the current model. Missing or failed evidence stays explicit; available
+contradictions cannot be hidden by an incomplete tail. The deterministic fresh
+report separates current code identity, historical declarations and original
+publication uncertainty.
+
+CI covers the actual Linux producer followed by repeated offline replay,
+coherent semantic tampering, partial evidence, strict parsing, bounded IO,
+publication failures and paired private-source mutation controls. Local checks
+remain syntax, scoped formatting and diff inspection under host storage pressure.
+Source authentication, physical accuracy, RSS/instrumentation calibration,
+product/helper overhead and full W8/T8 acceptance remain open.
