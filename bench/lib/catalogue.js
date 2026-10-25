@@ -61,6 +61,83 @@ const ISO_UTC_MS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
  * @type {Readonly<Object<string, Object>>}
  */
 const EVENT_SHAPES = Object.freeze({
+  'file.access': Object.freeze({
+    category: 'file',
+    type: 'access',
+    action: 'fixture-file-read',
+    observed: Object.freeze([
+      'timestamp',
+      'pid',
+      'executable',
+      'runId',
+      'sourceStep',
+      'fixtureLabel',
+      'bytes',
+      'sha256',
+    ]),
+    build: (o) => {
+      const id = (value) =>
+        typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value);
+      if (
+        !id(o.runId) ||
+        !id(o.sourceStep) ||
+        typeof o.executable !== 'string' ||
+        !o.executable.trim() ||
+        typeof o.timestamp !== 'string' ||
+        !Number.isFinite(Date.parse(o.timestamp)) ||
+        new Date(o.timestamp).toISOString() !== o.timestamp ||
+        typeof o.fixtureLabel !== 'string' ||
+        !/^(project|outside-project|persistence-location)\/canary-[a-z0-9-]{1,40}\.txt$/.test(
+          o.fixtureLabel,
+        ) ||
+        !Number.isSafeInteger(o.bytes) ||
+        o.bytes <= 0 ||
+        o.bytes > 16384 ||
+        typeof o.sha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(o.sha256)
+      )
+        throw new Error('file-read-catalogue-input-invalid');
+      return {
+        process: { pid: o.pid, executable: o.executable },
+        file: { size: o.bytes, hash: { sha256: o.sha256 } },
+        bench: {
+          runId: o.runId,
+          sourceStep: o.sourceStep,
+          fixtureLabel: o.fixtureLabel,
+          timestampBasis: 'harness-read-completion-observation',
+        },
+      };
+    },
+  }),
+  'network.start': Object.freeze({
+    category: 'network',
+    type: 'start',
+    action: 'loopback-canary-write-finished',
+    observed: Object.freeze(['timestamp', 'pid', 'executable', 'sentBytes', 'runId', 'nonce']),
+    build: (o) => {
+      const safeId = (value) =>
+        typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value);
+      if (
+        !safeId(o.runId) ||
+        !safeId(o.nonce) ||
+        typeof o.executable !== 'string' ||
+        !o.executable.trim() ||
+        !Number.isSafeInteger(o.sentBytes) ||
+        o.sentBytes <= 0 ||
+        o.sentBytes > 512 ||
+        typeof o.timestamp !== 'string' ||
+        !Number.isFinite(Date.parse(o.timestamp)) ||
+        new Date(o.timestamp).toISOString() !== o.timestamp
+      )
+        throw new Error('loopback-catalogue-input-invalid');
+      return {
+        process: { pid: o.pid, executable: o.executable },
+        destination: { ip: '127.0.0.1' },
+        network: { transport: 'tcp', protocol: 'http', bytes: o.sentBytes },
+        bench: { runId: o.runId, nonce: o.nonce, timestampBasis: 'harness-completion-observation' },
+      };
+    },
+  }),
   'process.start': Object.freeze({
     category: 'process',
     type: 'start',
@@ -197,11 +274,42 @@ function buildEvent(opts) {
       `catalogue: unknown event shape "${opts.shape}" — known shapes are ${SHAPE_NAMES.join(', ')}`,
     );
   }
-  assertObserved(opts.shape, opts.step, opts.observed, shape.observed);
+  if (opts.shape === 'network.start' || opts.shape === 'file.access') {
+    const value = opts.observed;
+    if (
+      !value ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(value)) ||
+      Reflect.ownKeys(value).length !== shape.observed.length ||
+      shape.observed.some(
+        (key) => !Object.hasOwn(Object.getOwnPropertyDescriptor(value, key) || {}, 'value'),
+      )
+    )
+      throw new Error(
+        opts.shape === 'file.access'
+          ? 'file-read-catalogue-input-invalid'
+          : 'loopback-catalogue-input-invalid',
+      );
+  }
   // A shape may hand back a `bench` fragment for an observation ECS has no
   // field for. It is merged into the bench block, never allowed to overwrite
   // the three keys that identify where the line came from.
-  const { bench: benchExtra, ...fields } = shape.build(opts.observed);
+  let built;
+  if (opts.shape === 'network.start' || opts.shape === 'file.access') {
+    try {
+      assertObserved(opts.shape, opts.step, opts.observed, shape.observed);
+      built = shape.build(opts.observed);
+    } catch {
+      throw new Error(
+        opts.shape === 'file.access'
+          ? 'file-read-catalogue-input-invalid'
+          : 'loopback-catalogue-input-invalid',
+      );
+    }
+  } else {
+    assertObserved(opts.shape, opts.step, opts.observed, shape.observed);
+    built = shape.build(opts.observed);
+  }
+  const { bench: benchExtra, ...fields } = built;
   return neutralizeRecorded({
     '@timestamp': opts.observed.timestamp,
     ecs: { version: ECS_VERSION },

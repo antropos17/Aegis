@@ -17,8 +17,60 @@ bounded preparation library for per-lifetime CPU, resident memory and per-run
 estimates. Its fixture tests qualify arithmetic and refusal behavior only; it
 adds no collector, measured overhead or W8 acceptance.
 
-For each scenario the bench **generates an expected-event catalogue as a by-product of
-running a deterministic script**, then confirms every row of that catalogue against an
+The [own-Node acquisition session](../docs/bench/SELF_RESOURCE_SESSION.md)
+connects the existing self sampler to retained raw observations and conditional
+acquisition-window intervals. It writes a predeclared waiting-only plan and
+source inventory before sampling, then preserves incomplete acquisition and
+publication failures. Its scope is the calling Node process; product/cohort
+footprint, calibrated overhead and full W8 acceptance remain open.
+
+The [fixed-child resource supervisor](../docs/bench/RESOURCE_SUPERVISOR.md)
+adds a separate parent deadline observer and confirmed-exit bookkeeping around
+that CLI. It launches only the fixed collector, retains bounded output-prefix
+digests, and preserves incomplete child evidence on termination. Its lifecycle
+receipt does not admit the child's resource bundle or qualify product overhead.
+
+The [offline resource replay checker](../docs/bench/RESOURCE_REPLAY.md) checks
+the fixed supervision and child artifacts together, rehashes their byte bindings
+and recomputes the retained conditional intervals. Its report separates recorded
+lifecycle claims, publication uncertainty and current-evaluator comparison.
+Structural consistency supplies no authenticated measurement or product overhead.
+
+The [Linux own-CPU reference](../docs/bench/LINUX_OWN_CPU_REFERENCE.md)
+corroborates the real Node CPU API through a separate bounded `/proc/self/stat`
+path and a fixed inert CPU fixture. It retains discovered tick units and declared
+quantization bounds. This is conditional API/unit evidence; collector cost,
+resident-memory qualification and product/helper overhead remain separate work.
+
+[Procmon CSV offline staging](../docs/bench/PROCMON-IMPORT.md) accepts a strict
+caller-declared profile and same-run receipt, normalizing only successful
+positive-length ReadFile rows to fixture IDs. It supplies no capture, qualified
+export profile, catalogue confirmation or scoring integration; loss and
+completeness remain unknown.
+
+[Offline three-run reproducibility](../docs/bench/REPRODUCIBILITY.md) evaluates
+supplied per-run estimates against explicit, declared variance bounds. It retains
+each planned repetition and evaluates each metric cell separately. Its result
+describes the supplied arithmetic; collection and W8 acceptance require their
+own evidence.
+
+The [owned loopback scenario](../docs/bench/LOOPBACK_CONTROL.md) connects the
+bounded public-canary sender and receiver to the scenario runner. Its catalogue
+records an observed sender write; `fixture-outcomes.json` retains the separate
+receiver result. Network expectations remain outside the legacy scoring categories.
+
+The [owned file-read scenario](../docs/bench/FILE_READ_CONTROL.md) reads only a
+canary created by an earlier fixture step. It checks the source identity, size
+and actual read hash, retaining success and failure in `file-read-outcomes.json`.
+Its `file/access` expectation remains outside the legacy scoring categories.
+
+The [synthetic corpus report](../docs/bench/CORPUS-RESULTS.md) combines explicitly
+supplied S3–S8 run artifacts into reproducible JSON and Markdown tables. It
+retains failed, skipped and incomplete attempts and keeps oracle admission,
+sensor scoring and ATT&CK qualification pending.
+
+For supported scoring categories the bench **generates an expected-event catalogue as a by-product of
+running a deterministic script**, then attempts to confirm each row against an
 independent oracle (Sysmon, Procmon), and only afterwards compares it with what the AEGIS
 sensor recorded.
 
@@ -43,14 +95,14 @@ and independent native qualification are still pending.
 
 ## Windows-only
 
-Sysmon, Procmon, the Restart Manager path and `reg query` are all Windows facilities. The
-bench does not run on Linux or macOS and does not pretend to: on another platform the
-manifest records each Windows fact as **absent with a reason**, rather than substituting a
-plausible value.
+The native capture harness depends on Windows facilities: Sysmon, Procmon, the
+Restart Manager path and `reg query`. On another platform the manifest records
+each unavailable Windows fact with a reason. Offline report/arithmetic tools and
+owned Node fixture tests remain separate from native capture qualification.
 
-Nested virtualisation is unsupported on GitHub runners and the required contexts all run on
-`ubuntu-latest`, so **the bench never runs in CI**. What CI does cover is `bench/` source
-quality: `npm run lint` and `npm run format:check` both walk this tree.
+Required CI contexts run on `ubuntu-latest`; they execute configured benchmark
+unit/fixture tests and check source quality through lint and formatting. They do
+not run the Hyper-V/Sysmon/Procmon accuracy protocol.
 
 ## Numbers from a development machine are not accuracy figures
 
@@ -174,7 +226,7 @@ built — nothing below exists yet:
 
 | path | sub-block |
 |---|---|
-| `bench/lib/oracles/procmon.js`, `bench/oracles/procmon-bench.pmc` | B2.6 |
+| Procmon live capture, qualified export profile and scoring integration; `bench/oracles/procmon-bench.pmc` | B2.6 (offline staging exists separately) |
 | `bench/report.js` | B2.9 |
 
 ## Scenarios
@@ -575,7 +627,8 @@ offline is an explicit `{value: null, unavailable}`, the manifest's own conventi
 
 ### Arm B is a PARTIAL calibration, and says so
 
-Arm B is defined as **Sysmon + Procmon**, and B2.6 does not exist. There is no new report field for
+Arm B is defined as **Sysmon + Procmon**, and B2.6 collection remains unimplemented.
+The offline CSV staging importer is not wired into arm B. There is no new report field for
 that: the manifest's `oracles.procmon` entry is `unavailable` with the reason, `armDescription`
 names both oracles, and `run.js` sweeps `oracles` alongside `host` and `sensor` for absent facts
 and prints them at the end of the run. A B run therefore states which of the two columns it
@@ -1506,6 +1559,9 @@ Two fields worth knowing about:
 - **`sensor.workingTreeDirty`** means the measured sensor is not exactly the commit named in
   `sensor.gitSha`. It is recorded, not refused: running against uncommitted work is
   legitimate while building the harness, and dishonest only if left unsaid.
+- **`scenarioProvenance`** records the exact scenario bytes parsed by the runner,
+  with a separate final source check. Older manifests retain absent provenance.
+  See [the scenario-byte contract](../docs/bench/SCENARIO-PROVENANCE.md).
 - **`reportRenderer`** is the sha256 of the two files that turn this run into
   `run-report.json`, frozen while they were loaded. It is not a `{value, source}` probe
   because it is not a fact about this machine: it is the identity of the code that writes

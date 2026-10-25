@@ -11,15 +11,35 @@ accuracy or overhead figures, W8 acceptance or T8 completion.
 [Q9](../roadmap/completion-baseline.md#q9--benchmark-method-corpus-and-oracles)
 inventories the baseline boundary: two process-based synthetic scenarios,
 a renamed lifecycle process and a renamed Node process holding an inert file.
-The [fixture corpus](CORPUS.md) adds four bounded write/deletion controls in
-exclusively owned run directories. These six controls do not constitute a
-real-agent task corpus. Reuse
+The [fixture corpus](CORPUS.md) adds bounded write/deletion and owned-read controls in
+exclusively owned run directories and an owned loopback canary transfer.
+These synthetic controls do not constitute a real-agent task corpus. Reuse
 `bench/scenario.schema.json`, `bench/lib/actor.js`, `bench/lib/catalogue.js` and
 their existing validation. The schema defines scenario shape; the actor checks
 executable step kinds and expectation compatibility before execution. Preserve
 `expected.ndjson` and `steps.json` provenance, including failed/unexecuted steps.
 Extend supported actions, observation mappings and independent confirmation
 together before scoring a new category; declaring a scenario does not implement it.
+
+The loopback control records sender-write execution separately from receiver
+hash/count verification in `fixture-outcomes.json`. Its network expectation is
+retained outside legacy scoring; receiver outcome evidence does not populate an
+OS oracle column.
+
+The [owned read control](FILE_READ_CONTROL.md) reads a previously created inert
+fixture and retains source identity, actual byte/hash and closure observations
+separately. Its `file/access` row remains outside legacy scoring and does not
+independently confirm Procmon or native sensor events.
+
+The [synthetic corpus report](CORPUS-RESULTS.md) renders existing recorded
+artifacts into deterministic tables, retaining supplied attempts and pending
+controls. Its counts describe fixture execution. Historical manifests lack an
+exact executed scenario-definition hash, so current inventory hashes do not
+authenticate those executions. New runs can carry the
+[loaded scenario-byte declaration and final endpoint comparison](SCENARIO-PROVENANCE.md).
+This covers scenario input provenance only; it cannot authenticate capture or
+prove that source bytes stayed unchanged between observations. The report
+supplies no measurement acceptance.
 
 These are existing entrypoints, verified against `package.json` and their source:
 
@@ -85,7 +105,7 @@ own independent oracle.
 
 | Platform | Future controlled environment and oracle columns | Current limitation |
 | --- | --- | --- |
-| Windows | Hyper-V Gen2 gold image with pinned Windows build; separate Sysmon and Procmon evidence/configuration/loss columns | Sysmon adapter is LIVE-UNVALIDATED; Procmon adapter is absent |
+| Windows | Hyper-V Gen2 gold image with pinned Windows build; separate Sysmon and Procmon evidence/configuration/loss columns | Sysmon adapter is LIVE-UNVALIDATED; Procmon has only [offline CSV staging](PROCMON-IMPORT.md), with capture/export qualification and scoring admission absent |
 | Linux | Pinned image/kernel; independent auditd configuration, availability, privileges and loss accounting | auditd adapter and native qualification remain future work |
 | macOS | Pinned OS/image; independent `eslogger` when available, with privileges/entitlements and loss accounting | Adapter and native qualification remain future work; unavailable collection needs a reason |
 
@@ -148,6 +168,38 @@ delivery are separate endpoints. The existing sensor join's three scan intervals
 are its own matching bound, not a universal latency budget for other modes.
 
 ## Future resource capture and repetitions
+
+The [own-Node acquisition session](SELF_RESOURCE_SESSION.md) supplies a bounded
+artifact-persistence path for the existing self sampler and acquisition-window
+consumer. It retains a declared waiting-only plan, source-byte inventory, raw
+observations and conditional derived intervals. It observes its own Node process,
+including instrumentation work, and supplies no product/cohort population,
+independent calibration or overhead result. Its cooperative duration bounds do
+not provide an external hard deadline; the complete protocol below remains future
+qualification work.
+
+An optional [fixed-child supervisor](RESOURCE_SUPERVISOR.md) can request
+termination independently of a blocked collector event loop. It retains observed
+exit, pipe closure, deadline crossing and bounded output-prefix evidence
+separately. Its parent can itself be delayed, and it supplies neither OS
+containment nor a hard deadline for the parent. Child-bundle admission, complete
+product/helper accounting and measurement qualification remain separate work.
+
+The [offline resource replay checker](RESOURCE_REPLAY.md) checks the retained
+supervision/session relationship and recomputes the conditional derivation from
+exact plan and raw input bytes. It distinguishes missing evidence, contradictory
+declarations, recorded lifecycle support and original publication uncertainty.
+Its current evaluator identity is separate from historical source declarations.
+This supports reproducible inspection of one owned bundle; qualified collection,
+calibration and complete product/helper accounting remain open.
+
+The [Linux own-CPU reference](LINUX_OWN_CPU_REFERENCE.md) supplies an executable
+API/unit corroboration fixture using the Node reader and separately bracketed
+kernel CPU counters. Its declared tick-quantization model and fixed inert work
+make scale errors observable while retaining insufficient or failed evidence.
+The paths share kernel accounting and do not establish independent physical CPU
+accuracy, RSS bounds or collector-on/off cost. Product/cohort qualification still
+requires the planned collection and experiments below.
 
 The following values are protocol settings proposed for future implementation,
 not observed performance. Freeze them with the collector implementation before
@@ -230,6 +282,12 @@ term then contributes zero. There are no default bounds: absent predeclared
 bounds means qualification is not ready. Failed runs remain in the record;
 replacement-run reasons and all IDs are disclosed. Do not select tolerances or
 discard outliers after seeing results.
+
+The [offline reproducibility evaluator](REPRODUCIBILITY.md) applies this rule to
+three declared repetitions with explicit per-cell bounds. It retains failed or
+incomplete repetitions and does not select replacement runs. Its hash and time
+checks validate agreement between supplied declarations; they cannot establish
+prior freezing, authentic capture or complete disclosure of the run history.
 
 ## Reproducibility, privacy and execution prerequisites
 

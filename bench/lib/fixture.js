@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { identityFromStat } = require('./file-read-identity');
 
 const TARGETS = Object.freeze(['project', 'outside-project', 'persistence-location']);
 
@@ -54,9 +55,36 @@ function writeFixture(input, runDir) {
     assertDirectory(directory);
   }
   const destination = path.join(directory, input.name);
-  fs.writeFileSync(destination, input.content, { encoding: 'utf8', flag: 'wx' });
+  const bytes = Buffer.from(input.content, 'utf8');
+  const fd = fs.openSync(
+    destination,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      (fs.constants.O_NOFOLLOW || 0),
+    0o600,
+  );
+  let created = null;
+  try {
+    fs.writeFileSync(fd, bytes);
+    try {
+      created = identityFromStat(fs.fstatSync(fd, { bigint: true }));
+    } catch {
+      /* Creation remains valid; a later read cannot use unavailable identity. */
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  let identity = null;
+  try {
+    const named = identityFromStat(fs.lstatSync(destination, { bigint: true }));
+    if (created && named && ['dev', 'ino', 'size'].every((key) => created[key] === named[key]))
+      identity = named;
+  } catch {
+    /* Never fabricate identity when post-close inspection is unavailable. */
+  }
   const timestamp = new Date().toISOString();
-  const bytes = fs.readFileSync(destination);
+  const digest = crypto.createHash('sha256').update(bytes).digest('hex');
   return {
     observed: {
       timestamp,
@@ -66,9 +94,21 @@ function writeFixture(input, runDir) {
       name: input.name,
       directory,
       sizeBytes: bytes.length,
-      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      sha256: digest,
     },
-    result: { path: destination, name: input.name },
+    result: {
+      path: destination,
+      name: input.name,
+      ownedFixture: {
+        version: 'owned-fixture/1',
+        compartment: input.target,
+        name: input.name,
+        identity,
+        expectedBytes: bytes.length,
+        expectedSha256: digest,
+        creationClosed: true,
+      },
+    },
   };
 }
 
