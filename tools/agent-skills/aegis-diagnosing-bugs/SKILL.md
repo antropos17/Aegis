@@ -42,6 +42,6 @@ For complex failures, rank a small set of falsifiable hypotheses, test one varia
 
 Where a meaningful test boundary exists, add a regression test before the minimal fix. Exercise the actual triggering pattern, including multiple callers when needed. Re-run the original scenario and relevant neighboring tests. If no adequate boundary exists, explain what the current test cannot prove rather than adding a misleading test or starting an unrelated redesign.
 
-Derive required checks from current AGENTS.md and CI. Use npm run typecheck and the applicable Svelte check; bare tsc --noEmit against the root solution may inspect no source. Run mutation gates separately from format/build/type checks and other tasks using the same source tree; use an isolated checkout when they temporarily modify source.
+Derive required checks from current AGENTS.md and CI. Use npm run typecheck and the applicable Svelte check; bare tsc --noEmit against the root solution may inspect no source. Do not run mutation campaigns or deliberately break source. Preserve the initial failure, diagnose it, then rerun the affected scope after a relevant change. Reuse matching hosted checks instead of duplicating a full local suite.
 
 Remove only this task's instrumentation and fixtures. Report measured cause, change, executed checks and remaining live-environment limits. Do not equate passing tests, a merged PR and an installed application.

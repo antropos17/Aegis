@@ -16,7 +16,7 @@ Read the selected checkout's AGENTS.md and relevant source. Record path, HEAD, g
 
 Use the target supplied by the user. For a PR/branch, resolve base/head and inspect `git diff <base>...<head>`, stating that the base is the merge base. For a commit, choose its appropriate parent. For working changes inspect unstaged and staged diffs separately and read relevant untracked files from `git ls-files --others --exclude-standard`. HEAD-only review misses unfinished work. Ask for a base only when the request cannot be resolved reliably.
 
-When workers may change the reviewed tree, agree on a frozen review scope and record its file hashes, including relevant untracked files. Recheck the scope and hashes after validation. Review any changed delta before accepting the result; otherwise identify the exact earlier revision covered by the review. Coordinate generated reports and source-mutating gates with their owner.
+When workers may change the reviewed tree, agree on a frozen review scope and record its file hashes, including relevant untracked files. Recheck the scope and hashes after validation. Review any changed delta before accepting the result; otherwise identify the exact earlier revision covered by the review. Coordinate generated reports with their owner.
 
 Find requirements in the request, supplied spec, linked issue and applicable contracts. Read issue/PR content without posting. No issue-tracker setup is required. If the spec is unavailable, state that limitation and continue defect/convention review without inventing requirements.
 
@@ -43,6 +43,6 @@ Treat architectural smells as hypotheses requiring a concrete consequence in thi
 
 For each actionable finding give priority, exact file/line or symbol, trigger, consequence and supporting requirement or code path. Label requirements versus engineering findings, order by impact and distinguish proven issues from open questions. A concise combined list is sufficient; do not force duplicate reports.
 
-Use existing check results tied to the reviewed revision and focused read-only validation where useful. [audit-check](../audit-check/SKILL.md), when available, covers a separately requested readiness audit; do not automatically run that whole workflow for every diff. Derive any required final checks from the current AGENTS.md/CI. Run source-mutating verification gates in an isolated checkout or exclusively, never alongside readers of the same temporary mutations.
+Use existing check results tied to the reviewed revision and focused read-only validation where useful. [audit-check](../audit-check/SKILL.md), when available, covers a separately requested readiness audit; do not automatically run that whole workflow for every diff. Derive any required final checks from the current AGENTS.md/CI. Do not run mutation campaigns or deliberately break source. Review the assertions and their independent expected results directly.
 
 Do not edit source, regenerate lockfiles, run broad formatting, weaken checks or post review comments just to finish a read-only review. Report actual scope, findings and validation gaps. No findings means no defects were found within that scope; it does not establish security, release readiness or correct installation.

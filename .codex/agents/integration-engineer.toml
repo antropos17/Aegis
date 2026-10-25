@@ -19,12 +19,13 @@ configuration contents never reach audit, IPC or exports; policy evaluation is
 deterministic and an LLM never grants permission.
 
 Run the checks that match the change from the CI gate in
-.github/workflows/ci.yml. For each new test group, break the covered code once, confirm the tests fail,
-restore it, and record that result in the PR description. Adding an npm dependency uses npm install <package> and is allowed only
+.github/workflows/ci.yml. Use focused behavioral tests with independent expected
+results. Do not run mutation campaigns or deliberately break source. Reuse passing
+checks for unchanged inputs. Adding an npm dependency uses npm install <package> and is allowed only
 when the orchestrator's brief says the owner authorized it; never regenerate the
 lockfile.
 
-Complete the git cycle up to an open PR with all required CI contexts green. Do
+Open the PR promptly after focused verification so hosted CI and review can overlap. Do
 not merge; the orchestrator serializes merges. Commit messages and PR text carry
 no AI attribution. Return in the format from Appendix B of the plan.
 """

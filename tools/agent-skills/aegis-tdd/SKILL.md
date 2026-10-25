@@ -38,7 +38,7 @@ Read the relevant failure history in memory-bank/ai-mistakes.md. These examples 
 
 Use public behavior rather than private method calls, duplicated formulas or mocks that reproduce the implementation. Do not write tests for reversible low-impact edits that merely check wording or formatting. Existing tests can be extended instead of creating a parallel harness.
 
-For a critical regression, a targeted mutation can demonstrate that the assertion detects the fault. Restore only the temporary change you made, preserve unrelated edits, and run source-mutating gates in isolation from other readers. Do not invent a mutation gate for every edit.
+Do not deliberately break source or run mutation campaigns. Reproduce a reported defect against the existing behavior, then verify the intended fix with independently specified expectations. Reuse passing focused evidence until relevant inputs change.
 
 ## Honest completion
 

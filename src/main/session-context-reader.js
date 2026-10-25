@@ -5,12 +5,35 @@ const path = require('node:path');
 const MAX_BYTES = 512 * 1024;
 const CHUNK_BYTES = 64 * 1024;
 const KEYS = ['kind', 'symlink', 'reparse', 'volumeId', 'fileId', 'size', 'mtimeNs', 'ctimeNs'];
+const SELECTION_KEYS = ['sessionId', 'cwd', 'platform', 'format', 'headTruncated', 'tailTruncated'];
 
 /** @typedef {{kind:string,symlink:boolean,reparse:boolean,volumeId:string,fileId:string,size:number,mtimeNs:string,ctimeNs:string}} FileStamp */
 /** @typedef {{stat:()=>Promise<unknown>,read:(target:Buffer,offset:number,length:number,position:number)=>Promise<number>,close:()=>Promise<void>}} ReadHandle */
 /** @typedef {{pathStyle:'win32'|'posix',statPath:(file:string)=>Promise<unknown>,openRead:(file:string)=>Promise<ReadHandle>}} FileProvider */
 /** @typedef {{parse:(source:string,bytes:Buffer|null,selection:object)=>object}} Adapter */
 /** @typedef {{sessionId:string,cwd:string,platform:'win32'|'posix',format?:'json'|'jsonl',headTruncated?:boolean,tailTruncated?:boolean}} Selection */
+
+/** Copy only inert selection fields before caller-owned asynchronous IO starts.
+ * Invalid scalar values remain for the adapter's existing validation. Accessors
+ * and reference values cannot change which selection is parsed after an await.
+ * @param {Selection} selection @returns {Readonly<Selection>}
+ */
+function snapshotSelection(selection) {
+  if (!selection || typeof selection !== 'object' || Array.isArray(selection)) throw new Error();
+  const descriptors = Object.getOwnPropertyDescriptors(selection);
+  const selected = /** @type {Record<string, unknown>} */ ({});
+  for (const key of SELECTION_KEYS) {
+    const descriptor = descriptors[key];
+    if (!descriptor) continue;
+    if (
+      !Object.hasOwn(descriptor, 'value') ||
+      (descriptor.value !== null && ['object', 'function'].includes(typeof descriptor.value))
+    )
+      throw new Error();
+    selected[key] = descriptor.value;
+  }
+  return Object.freeze(/** @type {Selection} */ (/** @type {unknown} */ (selected)));
+}
 
 /** Capture a provider-proved regular, non-link identity/version without references.
  * Unknown regularity, reparse state, identity or exact timestamps is unavailable.
@@ -141,17 +164,17 @@ function createSessionContextReader(options) {
       probe = null;
     /** @type {ReadHandle|null} */ let handle = null;
     /** @type {boolean} */ let complete;
-    let selected = selection,
+    let selected = /** @type {Readonly<Selection>} */ (Object.freeze({})),
       start = 0;
     const maxSize = tail ? Number.MAX_SAFE_INTEGER : MAX_BYTES;
     try {
+      selected = snapshotSelection(selection);
       if (
         selectedSource === 'unsupported' ||
         !explicitPath(file, files.pathStyle) ||
-        !selection ||
-        (tail && selection.format !== 'jsonl') ||
-        selection.headTruncated ||
-        selection.tailTruncated
+        (tail && selected.format !== 'jsonl') ||
+        selected.headTruncated ||
+        selected.tailTruncated
       )
         throw new Error();
       const before = stamp(await files.statPath(file), maxSize);
@@ -166,7 +189,7 @@ function createSessionContextReader(options) {
         throw new Error();
       if (!same(before, stamp(await handle.stat(), maxSize))) throw new Error();
       start = Math.max(0, before.size - MAX_BYTES);
-      if (start > 0) selected = { ...selection, headTruncated: true };
+      if (start > 0) selected = Object.freeze({ ...selected, headTruncated: true });
       bytes = Buffer.alloc(before.size - start);
       probe = Buffer.alloc(1);
       let position = 0,

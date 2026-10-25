@@ -13,7 +13,7 @@ was published on 6 October 2026 (UTC) from `0bda7dc` through
 has the same Git tree as the release commit. The exact release PR
 [CI](https://github.com/antropos17/Aegis/actions/runs/37427939809) and
 [release master CI](https://github.com/antropos17/Aegis/actions/runs/37430070653)
-passed all five required contexts, covering all ten verification commands.
+passed all five required contexts, covering the then-current verification steps.
 The fresh production-only npm audit reported zero vulnerabilities.
 
 The [release workflow](https://github.com/antropos17/Aegis/actions/runs/37430071034)
@@ -56,7 +56,7 @@ audit has zero findings. See [release notes](releases/0.19.2-beta.md).
 was published on 6 October 2026 (UTC) from `759801a` through
 [PR #759](https://github.com/antropos17/Aegis/pull/759). The release PR and
 [release master CI](https://github.com/antropos17/Aegis/actions/runs/37407594135) passed all five required contexts, covering
-all ten verification commands. A fresh Windows coverage run passed 431
+the then-current verification steps. A fresh Windows coverage run passed 431
 files, 7,689 tests and 8 skipped tests, with two workers.
 
 One initial two-worker Windows run timed out in a renderer focus test. The
@@ -224,7 +224,7 @@ Authenticode remain unqualified; publication does not complete those gates.
 
 On a fresh Windows checkout, run `npm ci`, then warm Electron with
 `node -e "require('electron')"` and run `npm run build:sidecar` before the
-ten verification commands. The lazy Electron download must finish before tests
+verification steps defined by the selected revision. The lazy Electron download must finish before tests
 using fake timers start; selected-action CLI tests also use the default built
 Windows helper. Preparation does not change their assertions or deadlines.
 
