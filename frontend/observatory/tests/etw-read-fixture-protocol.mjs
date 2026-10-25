@@ -32,7 +32,7 @@ export function projectReadFixtureFailure(error) {
     !failureCode ||
     !value ||
     !['ready', 'short', 'command', 'close'].includes(value.phase) ||
-    ![null, 'ready', 'short', 'sync', 'async'].includes(value.expectedCommand) ||
+    ![null, 'ready', 'short', 'sync', 'async', 'window-dpi'].includes(value.expectedCommand) ||
     !integer(value.stdoutBytes, OUTPUT_LIMIT + 1) ||
     !integer(value.stderrBytes, OUTPUT_LIMIT + 1) ||
     !integer(value.queuedLines, QUEUE_LIMIT) ||
@@ -169,7 +169,18 @@ export function readFixtureProtocol(child, short) {
         !value ||
         typeof value !== 'object' ||
         Array.isArray(value) ||
-        value.command !== incoming
+        value.command !== incoming ||
+        (incoming === 'window-dpi' &&
+          (Object.keys(value).length !== 5 ||
+            !['command', 'schema', 'windowExists', 'ownerMatched', 'dpi'].every((key) =>
+              Object.hasOwn(value, key),
+            ) ||
+            value.schema !== 'aegis-window-dpi/1' ||
+            typeof value.windowExists !== 'boolean' ||
+            typeof value.ownerMatched !== 'boolean' ||
+            !Number.isInteger(value.dpi) ||
+            value.dpi < 0 ||
+            value.dpi > 0xffffffff))
       ) {
         refuse('unexpected-response');
         break;
@@ -188,7 +199,7 @@ export function readFixtureProtocol(child, short) {
     if (partial) refuse('invalid-response');
   });
 
-  const take = async (command, write) => {
+  const take = async (command, write, request = command) => {
     if (failure) throw report();
     if (active || closed) throw report('protocol-state');
     active = true;
@@ -202,7 +213,7 @@ export function readFixtureProtocol(child, short) {
       if (write) {
         if (stdoutEnded || child.exitCode !== null) throw report('stdout-ended');
         try {
-          child.stdin.write(command + '\n', (error) => {
+          child.stdin.write(request + '\n', (error) => {
             if (error) {
               stdinFailed = true;
               refuse('stdin-error');
@@ -240,6 +251,27 @@ export function readFixtureProtocol(child, short) {
       if (short || nextCommand || !['sync', 'async'].includes(mode))
         return Promise.reject(report('protocol-state'));
       return take(mode, true);
+    },
+    /** Query a pinned target without putting its identifiers in failure metadata.
+     * @param {object} target Canonical positive PID and signed-64-bit HWND decimal.
+     * @returns {Promise<object>} Strict DPI response from the existing child. @since v0.20.1
+     */
+    windowDpi(target) {
+      if (
+        short ||
+        nextCommand ||
+        !target ||
+        typeof target !== 'object' ||
+        Array.isArray(target) ||
+        !Number.isInteger(target.mainPid) ||
+        target.mainPid <= 0 ||
+        target.mainPid > 0x7fffffff ||
+        typeof target.handle !== 'string' ||
+        !/^[1-9]\d{0,18}$/.test(target.handle) ||
+        BigInt(target.handle) > 0x7fffffffffffffffn
+      )
+        return Promise.reject(report('protocol-state'));
+      return take('window-dpi', true, `window-dpi ${target.mainPid} ${target.handle}`);
     },
     async close() {
       closed = true;

@@ -85,6 +85,13 @@ describe('actual native-read scenario launch composition', () => {
     fixture = {
       child: { pid: 42, exitCode: null },
       next: vi.fn().mockResolvedValue({ pid: 42, birth: '123', shareDelete: false }),
+      windowDpi: vi.fn().mockResolvedValue({
+        command: 'window-dpi',
+        schema: 'aegis-window-dpi/1',
+        windowExists: true,
+        ownerMatched: true,
+        dpi: 96,
+      }),
       close: vi.fn(async () => {
         fixture.child.exitCode = 0;
       }),
@@ -214,7 +221,13 @@ describe('actual native-read scenario launch composition', () => {
           }, 45_000);
         }),
     );
-    mocks.prepareNativeReadWindow.mockRejectedValue(new Error('stop after launch composition'));
+    const target = { handle: '1234', mainPid: 73 };
+    mocks.prepareNativeReadWindow.mockImplementation(
+      async (_app, _destination, _env, _receipt, queryDpi) => {
+        await queryDpi(target);
+        throw new Error('stop after launch composition');
+      },
+    );
 
     const pending = runNativeReadScenario({
       fixtureExe: 'fixture.exe',
@@ -238,6 +251,7 @@ describe('actual native-read scenario launch composition', () => {
       elapsedMilliseconds: 45_000,
     });
     expect(mocks.prepareNativeReadWindow).toHaveBeenCalledOnce();
+    expect(fixture.windowDpi).toHaveBeenCalledWith(target);
     expect(fixture.close).toHaveBeenCalledOnce();
     expect(app.close).toHaveBeenCalledOnce();
     expect(observer.stop).toHaveBeenCalledOnce();

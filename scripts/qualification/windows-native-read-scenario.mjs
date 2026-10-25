@@ -72,7 +72,13 @@ export async function runNativeReadScenario({
       observation: r.launch,
     });
     appProcess = app.process();
-    await prepareNativeReadWindow(app, path.join(out, 'window-observation.json'), hostEnv, r);
+    await prepareNativeReadWindow(
+      app,
+      path.join(out, 'window-observation.json'),
+      hostEnv,
+      r,
+      (query) => fixture.windowDpi(query),
+    );
     page = await app.firstWindow();
     await observeQuit(app, path.join(out, 'shutdown.json'));
     await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();

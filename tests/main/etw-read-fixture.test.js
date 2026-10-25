@@ -14,6 +14,14 @@ const canary = 'PRIVATE_FIXTURE_CONTENT_path_token';
 let child;
 const emit = (value) => child.stdout.write(JSON.stringify(value) + '\n');
 const ready = () => ({ command: 'ready', pid: 42, birth: '123', reads: 0 });
+const dpiResponse = (overrides = {}) => ({
+  command: 'window-dpi',
+  schema: 'aegis-window-dpi/1',
+  windowExists: true,
+  ownerMatched: true,
+  dpi: 96,
+  ...overrides,
+});
 const settle = () => vi.advanceTimersByTimeAsync(20);
 const finish = (code = 0) => {
   child.exitCode = code;
@@ -65,6 +73,154 @@ describe('actual native read fixture protocol', () => {
     expect(JSON.stringify({ message: error.message, ...error.fixtureDiagnostic })).not.toContain(
       canary,
     );
+  });
+
+  it('roundtrips a target-bound window DPI query through the actual fixture transport', async () => {
+    const fixture = await start();
+    const response = {
+      command: 'window-dpi',
+      schema: 'aegis-window-dpi/1',
+      windowExists: true,
+      ownerMatched: true,
+      dpi: 96,
+    };
+    const pending = Promise.resolve()
+      .then(() => fixture.windowDpi({ mainPid: 8872, handle: '1234567890123' }))
+      .catch((error) => error);
+    await Promise.resolve();
+    emit(response);
+    await settle();
+    expect(child.stdin.read()?.toString()).toBe('window-dpi 8872 1234567890123\n');
+    expect(await pending).toEqual(response);
+    const read = fixture.command('sync');
+    emit({ command: 'sync', reads: 160 });
+    await settle();
+    expect((await read).reads).toBe(160);
+    finish();
+    await fixture.close();
+  });
+
+  it.each([
+    { windowExists: false, ownerMatched: false, dpi: 0 },
+    { windowExists: true, ownerMatched: true, dpi: 0xffffffff },
+  ])(
+    'preserves valid native DPI flags and uint32 values without defaulting (%j)',
+    async (flags) => {
+      const fixture = await start();
+      const pending = fixture.windowDpi({ mainPid: 0x7fffffff, handle: '9223372036854775807' });
+      emit(dpiResponse(flags));
+      await settle();
+      expect(await pending).toEqual(dpiResponse(flags));
+      expect(child.stdin.read().toString()).toBe('window-dpi 2147483647 9223372036854775807\n');
+    },
+  );
+
+  it.each([
+    ['zero PID', { mainPid: 0, handle: '1' }],
+    ['negative PID', { mainPid: -1, handle: '1' }],
+    ['overflow PID', { mainPid: 2147483648, handle: '1' }],
+    ['fractional PID', { mainPid: 42.5, handle: '1' }],
+    ['text PID', { mainPid: '42', handle: '1' }],
+    ['missing target', null],
+    ['zero HWND', { mainPid: 42, handle: '0' }],
+    ['padded HWND', { mainPid: 42, handle: '01' }],
+    ['negative HWND', { mainPid: 42, handle: '-1' }],
+    ['whitespace HWND', { mainPid: 42, handle: ' 1' }],
+    ['injected HWND', { mainPid: 42, handle: '1\nasync' }],
+    ['overflow HWND', { mainPid: 42, handle: '9223372036854775808' }],
+    ['numeric HWND', { mainPid: 42, handle: 1 }],
+  ])('rejects %s before writing a DPI command', async (_name, target) => {
+    const fixture = await start();
+    const error = await fixture.windowDpi(target).catch((value) => value);
+    expect(error.code).toBe('AEGIS_READ_FIXTURE_PROTOCOL_STATE');
+    expect(child.stdin.read()).toBeNull();
+  });
+
+  it.each([
+    ['schema', { schema: canary }],
+    ['command', { command: 'sync' }],
+    ['window flag', { windowExists: 1 }],
+    ['owner flag', { ownerMatched: 'true' }],
+    ['negative DPI', { dpi: -1 }],
+    ['fractional DPI', { dpi: 96.5 }],
+    ['overflow DPI', { dpi: 4294967296 }],
+    ['text DPI', { dpi: '96' }],
+    ['extra key', { raw: canary }],
+    ['missing key', { ownerMatched: undefined }],
+  ])(
+    'refuses a malformed DPI %s without retaining the response or target',
+    async (_name, patch) => {
+      const fixture = await start();
+      const pending = fixture
+        .windowDpi({ mainPid: 8872, handle: '1234567890123' })
+        .catch((error) => error);
+      emit(dpiResponse(patch));
+      await settle();
+      const error = await pending;
+      expect(error.code).toBe('AEGIS_READ_FIXTURE_UNEXPECTED_RESPONSE');
+      const snapshot = projectReadFixtureFailure(error);
+      expect(snapshot).toMatchObject({ phase: 'command', expectedCommand: 'window-dpi' });
+      expect(JSON.stringify(snapshot)).not.toContain(canary);
+      expect(JSON.stringify(snapshot)).not.toContain('1234567890123');
+      expect(JSON.stringify(snapshot)).not.toContain('8872');
+      expect(await fixture.command('sync').catch((value) => value)).toBe(error);
+      expect(child.stdin.read().toString()).toBe('window-dpi 8872 1234567890123\n');
+      expect(child.stdin.read()).toBeNull();
+    },
+  );
+
+  it.each(['before-ready', 'short'])(
+    'requires normal ready ownership before DPI (%s)',
+    async (mode) => {
+      const fixture = readFixture('owned.exe', 'owned-file', {}, mode === 'short');
+      if (mode === 'short') {
+        emit(ready());
+        await fixture.next();
+      }
+      const error = await fixture.windowDpi({ mainPid: 42, handle: '1' }).catch((value) => value);
+      expect(error.code).toBe('AEGIS_READ_FIXTURE_PROTOCOL_STATE');
+      expect(child.stdin.read()).toBeNull();
+    },
+  );
+
+  it('does not admit raw DPI wire text through the legacy read-command API', async () => {
+    const fixture = await start();
+    const error = await fixture.command('window-dpi 42 1').catch((value) => value);
+    expect(error.code).toBe('AEGIS_READ_FIXTURE_PROTOCOL_STATE');
+    expect(child.stdin.read()).toBeNull();
+  });
+
+  it('gives a DPI query sole response ownership without writing an overlapping read', async () => {
+    const fixture = await start();
+    const pending = fixture.windowDpi({ mainPid: 42, handle: '1' }).catch((value) => value);
+    const overlapping = await fixture.command('sync').catch((value) => value);
+    await settle();
+    expect(overlapping.code).toBe('AEGIS_READ_FIXTURE_PROTOCOL_STATE');
+    expect(await pending).toBe(overlapping);
+    expect(child.stdin.read().toString()).toBe('window-dpi 42 1\n');
+    expect(child.stdin.read()).toBeNull();
+  });
+
+  it('keeps the same twelve-second DPI bound and retains only its closed tag on timeout', async () => {
+    const fixture = await start();
+    const pending = fixture
+      .windowDpi({ mainPid: 8872, handle: '1234567890123' })
+      .catch((value) => value);
+    await vi.advanceTimersByTimeAsync(12000);
+    const error = await pending;
+    expect(error.code).toBe('AEGIS_READ_FIXTURE_TIMEOUT');
+    const snapshot = projectReadFixtureFailure(error);
+    expect(snapshot).toMatchObject({ phase: 'command', expectedCommand: 'window-dpi' });
+    expect(JSON.stringify(snapshot)).not.toContain('1234567890123');
+    expect(JSON.stringify(snapshot)).not.toContain('8872');
+    expect(await fixture.windowDpi({ mainPid: 42, handle: '1' }).catch((value) => value)).toBe(
+      error,
+    );
+    expect(child.stdin.read().toString()).toBe('window-dpi 8872 1234567890123\n');
+    expect(child.stdin.read()).toBeNull();
+    finish();
+    await fixture.close();
+    expect(projectReadFixtureFailure(error)).toEqual(snapshot);
   });
 
   it('preserves chunked ready and serial sync/async response identity without changing native fields', async () => {

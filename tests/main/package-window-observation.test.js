@@ -14,6 +14,13 @@ import { prepareNativeReadWindow } from '../../scripts/qualification/windows-nat
 const roots = [];
 const originalMain = Object.getOwnPropertyDescriptor(process, 'mainModule');
 const load = createRequire(import.meta.url);
+const nativeDpiReply = (dpi = 96) => ({
+  command: 'window-dpi',
+  schema: 'aegis-window-dpi/1',
+  windowExists: true,
+  ownerMatched: true,
+  dpi,
+});
 afterEach(() => {
   vi.useRealTimers();
   if (originalMain) Object.defineProperty(process, 'mainModule', originalMain);
@@ -321,7 +328,13 @@ describe('actual admission window preparation adapter', () => {
     run.window.blur.mockImplementation(() => {});
     const receipt = {};
     const env = { TEMP: 'owned-temp' };
-    const readDpi = vi.fn(() => 96);
+    const readDpi = vi.fn(async () => ({
+      command: 'window-dpi',
+      schema: 'aegis-window-dpi/1',
+      windowExists: true,
+      ownerMatched: true,
+      dpi: 96,
+    }));
     const destination = path.join(run.output, 'admission-window.json');
     let finished = false;
     let failure = null;
@@ -349,7 +362,7 @@ describe('actual admission window preparation adapter', () => {
     expect(run.window.hide).toHaveBeenCalledTimes(1);
     expect(run.window.showInactive).toHaveBeenCalledTimes(1);
     expect(run.window.setBounds).toHaveBeenCalledWith({ width: 1280, height: 800 });
-    expect(readDpi).toHaveBeenCalledWith('1234', env);
+    expect(readDpi).toHaveBeenCalledWith({ handle: '1234', mainPid: process.pid }, env);
     expect(receipt.window).toMatchObject({
       sameWindow: true,
       packaged: true,
@@ -376,7 +389,7 @@ describe('actual admission window preparation adapter', () => {
       return evaluate(fn, args);
     };
     const receipt = {};
-    const readDpi = vi.fn(() => 96);
+    const readDpi = vi.fn(async () => nativeDpiReply());
     const observed = prepareNativeReadWindow(
       run.application,
       path.join(run.output, 'admission-window.json'),
@@ -412,7 +425,7 @@ describe('actual admission window preparation adapter', () => {
         destination,
         {},
         receipt,
-        () => dpi,
+        async () => nativeDpiReply(dpi),
       ).then(
         () => null,
         (error) => error,
@@ -424,6 +437,140 @@ describe('actual admission window preparation adapter', () => {
       expect(receipt.window.scaleFactor).toBe(scaleFactor);
       expect(JSON.parse(fs.readFileSync(destination, 'utf8')).windowInputIsolated).toBe(true);
       expect(receipt.window).not.toHaveProperty('handle');
+    },
+  );
+
+  it('awaits the existing fixture and rechecks the exact native window handle after its reply', async () => {
+    const run = fixture();
+    const receipt = {};
+    let resolve;
+    const readDpi = vi.fn(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    let finished = false;
+    const pending = prepareNativeReadWindow(
+      run.application,
+      path.join(run.output, 'dpi.json'),
+      {},
+      receipt,
+      readDpi,
+    ).then(
+      () => {
+        finished = true;
+        return null;
+      },
+      (error) => {
+        finished = true;
+        return error;
+      },
+    );
+    await vi.advanceTimersByTimeAsync(60);
+    expect(readDpi).toHaveBeenCalledOnce();
+    expect(finished).toBe(false);
+    expect(receipt.window.dpiQuery.completed).toBe(false);
+    run.window.getNativeWindowHandle = () => {
+      const value = Buffer.alloc(8);
+      value.writeBigUInt64LE(5678n);
+      return value;
+    };
+    resolve(nativeDpiReply());
+    const error = await pending;
+    expect(error.message).toBe('Admission window changed during native DPI query');
+    expect(receipt.window.dpiQuery).toMatchObject({
+      completed: true,
+      responseValid: true,
+      sameWindowAfter: false,
+    });
+    expect(receipt.window.dpi).toBe(96);
+    expect(receipt.window).not.toHaveProperty('handle');
+  });
+
+  it('refuses unavailable ownership, zero DPI and malformed native metadata without echoing it', async () => {
+    for (const response of [
+      { ...nativeDpiReply(), windowExists: false },
+      { ...nativeDpiReply(), ownerMatched: false },
+      nativeDpiReply(0),
+      { ...nativeDpiReply(), schema: 'PRIVATE_SCHEMA' },
+      { ...nativeDpiReply(), extra: 'PRIVATE_PATH' },
+      nativeDpiReply('PRIVATE_DPI'),
+    ]) {
+      const run = fixture();
+      const receipt = {};
+      const pending = prepareNativeReadWindow(
+        run.application,
+        path.join(run.output, 'dpi.json'),
+        {},
+        receipt,
+        async () => response,
+      ).then(
+        () => null,
+        (error) => error,
+      );
+      await vi.advanceTimersByTimeAsync(60);
+      const error = await pending;
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).not.toContain('PRIVATE');
+      expect(receipt.window.dpiQuery.completed).toBe(true);
+      expect(receipt.window.dpiQuery.sameWindowAfter).toBe(false);
+      expect(JSON.stringify(receipt.window)).not.toContain('PRIVATE');
+    }
+  });
+
+  it('has no fallback provider and sends no query for an invalid native target', async () => {
+    const run = fixture();
+    await expect(
+      prepareNativeReadWindow(run.application, path.join(run.output, 'missing.json'), {}, {}),
+    ).rejects.toThrow('Native window DPI provider unavailable');
+    expect(run.window.setBounds).not.toHaveBeenCalled();
+    run.window.getNativeWindowHandle = () => Buffer.alloc(8);
+    const provider = vi.fn(async () => nativeDpiReply());
+    const pending = prepareNativeReadWindow(
+      run.application,
+      path.join(run.output, 'invalid.json'),
+      {},
+      {},
+      provider,
+    ).then(
+      () => null,
+      (error) => error,
+    );
+    await vi.advanceTimersByTimeAsync(60);
+    expect((await pending).message).toBe('Native window DPI target invalid');
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it.each(['replacement', 'focus', 'scale'])(
+    'refuses %s changes during the native DPI query',
+    async (change) => {
+      const run = fixture();
+      const receipt = {};
+      const provider = async () => {
+        if (change === 'replacement') {
+          const replacement = fixture().window;
+          replacement.id = 72;
+          run.replaceWindows([replacement]);
+        }
+        if (change === 'focus') run.state.focused = true;
+        if (change === 'scale')
+          run.electron.screen.getDisplayMatching = () => ({ scaleFactor: 1.25 });
+        return nativeDpiReply();
+      };
+      const pending = prepareNativeReadWindow(
+        run.application,
+        path.join(run.output, 'dpi.json'),
+        {},
+        receipt,
+        provider,
+      ).then(
+        () => null,
+        (error) => error,
+      );
+      await vi.advanceTimersByTimeAsync(60);
+      expect((await pending).message).toBe('Admission window changed during native DPI query');
+      expect(receipt.window.dpiQuery.sameWindowAfter).toBe(false);
     },
   );
 });

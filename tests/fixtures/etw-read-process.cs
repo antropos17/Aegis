@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Win32.SafeHandles;
@@ -9,6 +10,67 @@ using Microsoft.Win32.SafeHandles;
 // reads a user path or logs the synthetic file contents. The caller owns this process.
 internal static class EtwReadProcess
 {
+    internal struct WindowOwner
+    {
+        internal readonly uint Thread, Pid;
+        internal WindowOwner(uint thread, uint pid) { Thread=thread; Pid=pid; }
+    }
+    internal sealed class DpiMetadata
+    {
+        internal readonly bool WindowExists, OwnerMatched;
+        internal readonly uint Dpi;
+        internal DpiMetadata(bool exists, bool matched, uint dpi) { WindowExists=exists; OwnerMatched=matched; Dpi=dpi; }
+        internal string ToJson()
+        {
+            return "{\"command\":\"window-dpi\",\"schema\":\"aegis-window-dpi/1\",\"windowExists\":"+
+                (WindowExists?"true":"false")+",\"ownerMatched\":"+(OwnerMatched?"true":"false")+
+                ",\"dpi\":"+Dpi.ToString(CultureInfo.InvariantCulture)+"}";
+        }
+    }
+    internal static void PreloadWindowDpi(Func<string,uint,IntPtr> load)
+    {
+        if(load("user32.dll",0x800)==IntPtr.Zero)throw new IOException();
+    }
+    internal static bool TryWindowDpi(string command, Func<long,bool> exists,
+        Func<long,WindowOwner> owner, Func<long,uint> read, out DpiMetadata metadata)
+    {
+        metadata=null;
+        if(string.IsNullOrEmpty(command))return false;
+        var parts=command.Split(' ');
+        long pid,window;
+        if(parts.Length!=3 || parts[0]!="window-dpi" ||
+            !PositiveNumber(parts[1],int.MaxValue,out pid) ||
+            !PositiveNumber(parts[2],long.MaxValue,out window))return false;
+        if(!exists(window)) { metadata=new DpiMetadata(false,false,0);return true; }
+        var before=owner(window);
+        if(before.Thread==0 || before.Pid!=(uint)pid) { metadata=new DpiMetadata(true,false,0);return true; }
+        uint dpi=read(window);
+        if(!exists(window)) { metadata=new DpiMetadata(false,false,0);return true; }
+        var after=owner(window);
+        metadata=after.Thread==0 || after.Pid!=(uint)pid ?
+            new DpiMetadata(true,false,0) : new DpiMetadata(true,true,dpi);
+        return true;
+    }
+    private static bool PositiveNumber(string text,long maximum,out long value)
+    {
+        value=0;
+        if(string.IsNullOrEmpty(text) || text[0]=='0')return false;
+        foreach(char digit in text)if(digit<'0' || digit>'9')return false;
+        return long.TryParse(text,NumberStyles.None,CultureInfo.InvariantCulture,out value) && value>0 && value<=maximum;
+    }
+    [DllImport("kernel32.dll",EntryPoint="LoadLibraryExW",CharSet=CharSet.Unicode,SetLastError=true)]
+    private static extern IntPtr LoadLibraryEx(string name,IntPtr file,uint flags);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window,out uint pid);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr window);
+    private static bool WindowExists(long window) { return IsWindow(new IntPtr(window)); }
+    private static WindowOwner WindowIdentity(long window)
+    {
+        uint pid=0;
+        uint thread=GetWindowThreadProcessId(new IntPtr(window),out pid);
+        return new WindowOwner(thread,pid);
+    }
+    private static uint WindowDpi(long window) { return GetDpiForWindow(new IntPtr(window)); }
     private static uint fileShare=7;
     [StructLayout(LayoutKind.Sequential)]
     private struct Overlapped { public IntPtr Internal, InternalHigh; public uint Offset, OffsetHigh; public IntPtr Event; }
@@ -81,11 +143,15 @@ internal static class EtwReadProcess
         using(var timer=new Timer(_=>Environment.Exit(71),null,240000,Timeout.Infinite))
         {
             if(args.Length==2 && args[1]=="short") { Report("ready",0); long from=Stopwatch.GetTimestamp(); Read(args[0],false,64,false); Report("short",64,from,Stopwatch.GetTimestamp()); return 0; }
+            // Hold a system-only loader reference before Ready; no window is probed or warmed up.
+            PreloadWindowDpi((name,flags)=>LoadLibraryEx(name,IntPtr.Zero,flags));
             Report("ready",0);
             string command;
             while((command=Console.ReadLine())!=null)
             {
                 if(command=="exit")return 0;
+                DpiMetadata dpi;
+                if(TryWindowDpi(command,WindowExists,WindowIdentity,WindowDpi,out dpi)) { Console.WriteLine(dpi.ToJson());continue; }
                 if(command!="sync" && command!="async")return 3;
                 long from=Stopwatch.GetTimestamp();
                 int pending=Read(args[0],command=="async",160,true);

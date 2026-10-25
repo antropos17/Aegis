@@ -88,6 +88,21 @@ code; paths, endpoint values, environment data and raw exception text are not
 retained. All window, event, alert, risk and process-closure guards remain
 unchanged after the connection returns.
 
+Guest window DPI is queried through a metadata command on the already running
+synthetic reader, rather than starting PowerShell and compiling another helper
+at this boundary. The reader loads system User32 before its ready handshake.
+For the requested window it checks existence and the expected owning process
+before and after `GetDpiForWindow`. Electron then rechecks the same window,
+native handle, process, visibility, input isolation, dimensions and scale factor.
+Both native 96 DPI and Electron scale factor one remain mandatory. A missing,
+malformed, zero or contradictory result refuses qualification; there is no
+fallback or retry. The metadata command does not issue the fixture's workload
+reads or satisfy any read, alert or risk oracle. It uses the existing bounded
+reader transport and does not expose window identifiers in failure metadata.
+Controlled local tests cover this flow without calling native window APIs;
+actual guest behavior, including any later system-library I/O, remains subject
+to a separately authorized qualification run and the unchanged read oracles.
+
 Fresh profiles open in Advanced mode. Before reading the actor-specific
 investigation roster, the probe uses the normal Settings flow to enable
 `Simple interface`, opens `Investigate`, and waits for `Investigation workspace`.

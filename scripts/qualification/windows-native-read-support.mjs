@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { delay } from '../../frontend/observatory/tests/etw-support.mjs';
 import { boundedCommand } from '../../tools/development/bounded-command.mjs';
 import { observePackageWindow } from '../../frontend/observatory/tests/package-window-observation.mjs';
+import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 
 /** Wait for actual bounded evidence. @param {Function} read @param {Function} accept @param {number} ms @param {string} message @returns {Promise<object>} @since v0.20.1 */
 export const until = async (read, accept, ms, message) => {
@@ -38,36 +38,14 @@ export async function displayedRisk(page) {
   assert(match && Number(match[1]) <= 100, 'Actual displayed risk unavailable');
   return { score: Number(match[1]), text, meta };
 }
-/** Query the actual owned window DPI. @param {string} handle @param {object} env @returns {number} @since v0.20.1 */
-export function windowDpi(handle, env) {
-  assert(/^\d{1,20}$/.test(handle));
-  const script =
-    'Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public static class NativeReadDpi{[DllImport("user32.dll")]public static extern uint GetDpiForWindow(IntPtr hwnd);}\';' +
-    '[NativeReadDpi]::GetDpiForWindow([IntPtr]::new([long]' +
-    handle +
-    '))';
-  return Number(
-    execFileSync(
-      path.join(process.env.WINDIR, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-      ['-NoProfile', '-NonInteractive', '-Command', script],
-      { env, windowsHide: true, timeout: 30000, maxBuffer: 4096, encoding: 'utf8' },
-    ).trim(),
-  );
-}
-
 /** Prepare the actual admission window through the shared bounded isolation observer.
  * @param {object} application Owned Electron application. @param {string} destination Fresh flag receipt.
  * @param {object} env Owned environment. @param {object} receipt Scenario receipt updated before guards.
- * @param {Function} [readDpi] Native DPI query, injected only by offline fixture tests.
+ * @param {Function} readDpi Explicit bounded query on the existing native fixture.
  * @returns {Promise<void>} Exact same-window 1280x800, 100%/96-DPI observation. @since v0.20.1
  */
-export async function prepareNativeReadWindow(
-  application,
-  destination,
-  env,
-  receipt,
-  readDpi = windowDpi,
-) {
+export async function prepareNativeReadWindow(application, destination, env, receipt, readDpi) {
+  assert.equal(typeof readDpi, 'function', 'Native window DPI provider unavailable');
   const windowId = await application.evaluate(({ BrowserWindow }) => {
     const windows = BrowserWindow.getAllWindows();
     if (windows.length !== 1 || windows[0].isDestroyed())
@@ -77,7 +55,7 @@ export async function prepareNativeReadWindow(
     return window.id;
   });
   receipt.window = await observePackageWindow(application, destination);
-  const measured = await application.evaluate(({ app, BrowserWindow, screen }, expectedId) => {
+  const measure = ({ app, BrowserWindow, screen }, expectedId) => {
     const windows = BrowserWindow.getAllWindows();
     const window = BrowserWindow.fromId(expectedId);
     if (!window || window.isDestroyed() || windows.length !== 1 || windows[0] !== window)
@@ -94,7 +72,8 @@ export async function prepareNativeReadWindow(
       isolated: !window.isFocused() && !window.isFocusable(),
       visible: window.isVisible(),
     };
-  }, windowId);
+  };
+  const measured = await application.evaluate(measure, windowId);
   const { handle, ...metadata } = measured;
   Object.assign(receipt.window, metadata);
   assert.equal(receipt.window.sameWindow, true, 'Admission window was replaced');
@@ -104,8 +83,71 @@ export async function prepareNativeReadWindow(
   assert.equal(receipt.window.width, 1280, 'Admission window width changed');
   assert.equal(receipt.window.height, 800, 'Admission window height changed');
   assert.equal(receipt.window.scaleFactor, 1, 'Only 100% display scaling is qualified');
-  receipt.window.dpi = readDpi(handle, env);
+  assert(
+    Number.isInteger(measured.mainPid) && measured.mainPid > 0 && measured.mainPid <= 2147483647,
+    'Native window DPI target invalid',
+  );
+  assert(
+    typeof handle === 'string' &&
+      /^[1-9]\d{0,18}$/.test(handle) &&
+      BigInt(handle) <= 9223372036854775807n,
+    'Native window DPI target invalid',
+  );
+  receipt.window.dpiQuery = {
+    responseValid: false,
+    windowExists: null,
+    ownerMatched: null,
+    completed: false,
+    sameWindowAfter: false,
+  };
+  let native;
+  try {
+    native = await readDpi({ handle, mainPid: measured.mainPid }, env);
+  } catch (error) {
+    if (projectReadFixtureFailure(error)) throw error;
+    // eslint-disable-next-line preserve-caught-error -- Unrecognized causes may contain private target or environment data.
+    throw new Error('Native window DPI query failed');
+  }
+  receipt.window.dpiQuery.completed = true;
+  const keys = ['command', 'schema', 'windowExists', 'ownerMatched', 'dpi'];
+  const valid =
+    native !== null &&
+    typeof native === 'object' &&
+    !Array.isArray(native) &&
+    Object.keys(native).length === keys.length &&
+    keys.every((key) => Object.hasOwn(native, key)) &&
+    native.command === 'window-dpi' &&
+    native.schema === 'aegis-window-dpi/1' &&
+    typeof native.windowExists === 'boolean' &&
+    typeof native.ownerMatched === 'boolean' &&
+    Number.isInteger(native.dpi) &&
+    native.dpi >= 0 &&
+    native.dpi <= 4294967295;
+  receipt.window.dpiQuery.responseValid = valid;
+  assert(valid, 'Native window DPI response invalid');
+  receipt.window.dpiQuery.windowExists = native.windowExists;
+  receipt.window.dpiQuery.ownerMatched = native.ownerMatched;
+  receipt.window.dpi = native.dpi;
+  assert(native.windowExists, 'Native window DPI window unavailable');
+  assert(native.ownerMatched, 'Native window DPI owner mismatch');
   assert.equal(receipt.window.dpi, 96, 'Only 100% window DPI is qualified');
+  const after = await application.evaluate(measure, windowId);
+  receipt.window.dpiQuery.sameWindowAfter =
+    after.sameWindow === true &&
+    [
+      'handle',
+      'mainPid',
+      'packaged',
+      'isolated',
+      'visible',
+      'width',
+      'height',
+      'scaleFactor',
+    ].every((key) => after[key] === measured[key]);
+  assert(
+    receipt.window.dpiQuery.sameWindowAfter,
+    'Admission window changed during native DPI query',
+  );
 }
 
 /** Measure release using only the closed issuer's owned synthetic file.
