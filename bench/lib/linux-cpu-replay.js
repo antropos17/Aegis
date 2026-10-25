@@ -84,13 +84,14 @@ async function replayLinuxCpu(options) {
     const plan = b[N[0]]?.value,
       w = b[N[3]]?.value,
       f = b[N[4]]?.value;
-    const historical = (plan?.sources ?? f?.sources.after)?.files.find(
+    const historicalSources = plan?.sources ?? f?.sources.after;
+    const historical = historicalSources?.files.find(
       (x) => x.file === 'bench/lib/linux-own-cpu-model.js',
     );
     if (historical) {
       report.current.historicalModel = {
         ...historical,
-        nodeVersion: (plan?.sources ?? f?.sources.after).nodeVersion,
+        nodeVersion: historicalSources.nodeVersion,
         basis: plan ? 'recorded-plan-declaration' : 'recorded-final-after-declaration',
       };
       if (before) {
