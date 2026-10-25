@@ -77,8 +77,15 @@ function createOwnedHookReview(options) {
   /** @type {Pending|null} */
   let pending = null;
   let last = status(true, 'IDLE');
+  /** @type {Status|null} */
+  let retainedOutcome = null;
   /** @param {Status} result */
-  const finish = (result) => (last = result);
+  const finish = (result) => {
+    if (result.code === 'WRITE_UNCERTAIN' || result.code === 'READBACK_FAILED')
+      retainedOutcome ||= result;
+    last = retainedOutcome || result;
+    return result;
+  };
   /** @param {unknown} caller */
   const admission = (caller) =>
     caller !== owner
@@ -204,6 +211,7 @@ function createOwnedHookReview(options) {
   }
   /**
    * Revoke pending/preparing admission; an admitted apply is already too late.
+   * Completed mutation uncertainty survives cancellation and requires recovery.
    * @param {object} caller Exact constructor owner.
    * @returns Fixed sanitized cancellation status.
    * @since v0.19.3
@@ -214,10 +222,11 @@ function createOwnedHookReview(options) {
     if (phase === 'apply') return status(false, 'APPLY_IN_PROGRESS');
     generation += 1;
     pending = null;
-    return finish(status(true, 'CANCELLED'));
+    return finish(retainedOutcome || status(true, 'CANCELLED'));
   }
   /**
    * Permanently close future admission. Does not abort, retry or roll back apply.
+   * Closing a completed uncertain mutation preserves its actual failure outcome.
    * @param {object} caller Exact constructor owner.
    * @returns Fixed sanitized release/in-progress status.
    * @since v0.19.3
@@ -230,7 +239,7 @@ function createOwnedHookReview(options) {
     pending = null;
     return phase === 'apply'
       ? status(false, 'APPLY_IN_PROGRESS')
-      : finish(status(true, 'RELEASED'));
+      : finish(retainedOutcome || status(true, 'RELEASED'));
   }
   /**
    * Fixed public projection only. Expiry is logical on calls; no timer runs.
