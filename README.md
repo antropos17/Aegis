@@ -6,7 +6,7 @@ Local AI-agent monitoring, security reviews and explicitly configured action con
 
 [Install](#install) · [Use AEGIS](#use-aegis) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
 
-> **Windows beta:** [0.19.2-beta](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.19.2-beta), published 6 October 2026.
+> **Windows beta:** see [published releases and installers](https://github.com/antropos17/Aegis/releases).
 > [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 >
 > **Current source version**: 0.20.1-beta <!-- x-release-please-version -->
@@ -164,7 +164,7 @@ acceptance remain open. [Administrative contract](docs/roadmap/enforcement-e2/pr
 
 Snapshot: 18 October 2026, merged through [#975](https://github.com/antropos17/Aegis/pull/975)
 at [master `96b63b16`](https://github.com/antropos17/Aegis/tree/96b63b165ac932e9615815f93c587765e6bde1b8).
-[Changes since the beta](https://github.com/antropos17/Aegis/compare/aegis-v0.19.2-beta...96b63b165ac932e9615815f93c587765e6bde1b8).
+[Source changes](CHANGELOG.md).
 Each evidence record identifies its own tested revision and package.
 
 | Area | Merged work |
