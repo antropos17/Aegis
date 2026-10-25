@@ -201,6 +201,12 @@ The paths share kernel accounting and do not establish independent physical CPU
 accuracy, RSS bounds or collector-on/off cost. Product/cohort qualification still
 requires the planned collection and experiments below.
 
+The [offline Linux CPU replay](LINUX_CPU_REPLAY.md) checks exact retained bytes,
+cross-file declarations and the current model's recomputation without collecting
+again. It preserves incomplete or refused evidence and separates historical
+source declarations from current code identity. Consistency does not authenticate
+capture, prove original final publication or qualify measurements.
+
 The following values are protocol settings proposed for future implementation,
 not observed performance. Freeze them with the collector implementation before
 the first qualification run. Each fixed commit/platform/mode/agent/workload cell
