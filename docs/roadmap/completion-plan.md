@@ -72,6 +72,12 @@ closure milestones. Required PR checks and actual native acceptance remain in
 force. Dated execution allowances above are historical; the active request and
 the exact run's authorization receipt determine whether a new run is allowed.
 
+Revision 5 (2026-10-26) resolves policy drift in preserved checkouts and makes
+the [delivery loop](../development/workflow.md#delivery-loop) the common execution
+procedure. Reuse existing baseline evidence, keep the selected model and perform
+implementation directly when delegation was not requested. This is a workflow
+correction; it does not promote any product acceptance row.
+
 ## 1. Instruction priority
 
 When two sources disagree, the higher one wins:
@@ -196,9 +202,11 @@ would change what gets built.
 
 ### 5.1 Roles
 
-The root session is the orchestrator. It owns requirements, ordering, briefs,
-merge serialization, the tracker and the final report. It writes code only for
-small integration fixes that touch files no running worker owns.
+When delegation is requested, the root session coordinates requirements,
+ordering, briefs, merge serialization, the tracker and the final report. It may
+implement unowned work while workers proceed. Without delegation, the current
+session implements and reviews the authorized task directly. A role catalog is
+not an instruction to create agents or wait for another worker.
 
 | Agent | Source | Model / effort | Writes | Use for |
 | --- | --- | --- | --- | --- |
@@ -215,10 +223,10 @@ small integration fixes that touch files no running worker owns.
 | `auditor` | existing | inherits | no | Check matching CI evidence at wave transitions; execute only missing or invalidated checks |
 | `shipper` | existing | inherits | yes | Release preparation once the owner approves a release |
 
-Run the root session with `gpt-6.1-sol` at effort `high`. For the identity
-conversion work in W2 and W3, the wire contract in W1a and Cedar equivalence in
-W5, brief the worker to treat it as high-cost-of-error work; if per-spawn effort
-selection is available, use `xhigh` for those briefs.
+Keep the user's selected model and effort. The role table describes configured
+roles when those roles are explicitly delegated; it does not authorize switching
+the root model or starting an external CLI. Identity conversion in W2/W3, the W1a
+wire contract and W5 Cedar equivalence retain their independent-review requirement.
 
 ### 5.2 Delegation
 
@@ -235,11 +243,9 @@ selection is available, use `xhigh` for those briefs.
   Independent steps proceed while others run.
 - Messages between agents are read by humans: complete sentences, normal spacing
   between words and numbers, file paths written in full.
-- Fallback when an in-session spawn ignores the configured model or effort: the
-  orchestrator writes the brief to `X:/aegis-briefs/<workstream>.md` and the
-  owner (or the orchestrator, when shell launch is available) starts a separate
-  `codex exec` session with the model and effort set at launch, in the
-  workstream's worktree. The return format stays the same.
+- If a delegated role cannot use the authorized model or effort, report that
+  limitation and continue independent work. Starting an external AI CLI requires
+  the owner's request; tool availability alone does not authorize that fallback.
 
 ### 5.3 Worktrees and path ownership
 
@@ -357,7 +363,10 @@ done for that workstream; section 8 adds the global gate.
 
 Purpose: replace assumptions in this plan with facts from current master.
 
-Run in parallel, one `researcher` per question, each returning at most 40 lines:
+Use the existing baseline first and refresh only rows affected by new evidence.
+When delegation is requested, independent missing rows may be assigned to one
+`researcher` per question, each returning at most 40 lines. Otherwise inspect
+the needed rows directly; starting another workstream does not repeat W0:
 
 1. Bounded pipeline: does `src/main/ipc-batcher.js` and the file-access batching
    path have capacity, high-water and loss counters, spill-to-disk for security
