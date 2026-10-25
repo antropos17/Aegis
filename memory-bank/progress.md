@@ -4127,3 +4127,7 @@ publication failures and paired private-source mutation controls. Local checks
 remain syntax, scoped formatting and diff inspection under host storage pressure.
 Source authentication, physical accuracy, RSS/instrumentation calibration,
 product/helper overhead and full W8/T8 acceptance remain open.
+
+## Delivery process correction — 2026-10-26
+
+The owner requested no mutation campaigns or meaningless repeated checks. Routine CI now omits witness/sequence mutation execution, selects scoped structural verification for allowlisted Markdown-only changes and retains full verification for code or unknown inputs. Project skills and implementation-agent instructions use focused behavioral checks and existing evidence. The completion plan names Windows diagnostic closure, live W4 explanation and W6 owner-visible install/remove as the next deliverables; more dormant W8 adapters require a concrete measurement dependency. Required contexts and strict protection remain unchanged. See [the delivery review](../docs/development/delivery-process-review.md) for observations and scope. This process change supplies no native/product acceptance or release authorization.

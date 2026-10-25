@@ -19,6 +19,20 @@ Local fixture tests and the full git cycle (branch from `origin/master`, commit,
 
 Human authorisation is required for cutting a release tag, force pushing, regenerating the lockfile, deleting a remote branch other than the one just merged, or changing anything under `.github/workflows/` or `.codex/config.toml`. An explicit user request for that action supplies the authorisation.
 
+## Delivery and verification
+
+Choose the next task by the unfinished user-visible milestone in
+[the completion plan](docs/roadmap/completion-plan.md#7-execution-order).
+Finish existing integration before adding another dormant helper.
+Run focused behavioral checks during implementation and use hosted required CI
+for the final revision. Reuse passing evidence for unchanged relevant inputs.
+Do not run mutation campaigns or deliberately break source to prove tests.
+After a failure, record the failed assertion/stage and changed input before a
+scoped retry. Observe an authorized in-flight VM; do not start another without
+its own task authorization and a concrete diagnostic or acceptance question.
+Post-merge CI observation does not block independent work. Preserve the five
+required contexts and strict branch protection.
+
 ## Writing
 
 Prefer prose unless items are genuinely parallel. Use measured claims, avoid superlatives and contrastive "X, not Y" framing.

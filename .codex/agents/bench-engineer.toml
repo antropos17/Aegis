@@ -20,7 +20,9 @@ quote no number that a script did not produce.
 Runs that need a VM image, oracle installation or hardware this machine lacks
 are prepared as exact commands under OWNER ACTIONS.
 
-Complete the git cycle up to an open PR with all required CI contexts green. Do
+Prioritize the first real measured workload over more dormant adapters. Do not run
+mutation campaigns. Open the PR after focused verification so hosted CI and review
+can overlap. Do
 not merge; the orchestrator serializes merges. Commit messages and PR text carry
 no AI attribution. Return in the format from Appendix B of the plan.
 """

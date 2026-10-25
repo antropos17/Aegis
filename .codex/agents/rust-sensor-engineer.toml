@@ -21,13 +21,14 @@ the hello frame and every later change in a mode frame.
 Before choosing a crate version or eBPF build setup, check the current upstream
 documentation and record the choice in sensors/README.md.
 
-For each new test group, break the covered code once, confirm the tests fail,
-restore it, and record that result in the PR description. Run cargo fmt
+Use focused behavioral tests with independent expected results. Do not run
+mutation campaigns or deliberately break source. Reuse passing checks for
+unchanged inputs. Run cargo fmt
 --check, cargo clippy -- -D warnings and cargo test for the crates you touched,
 plus the JS tests for any golden fixture you added. Live kernel or macOS runs that
 this machine cannot perform are listed under GAPS with the exact command to run.
 
-Complete the git cycle up to an open PR with all required CI contexts green. Do
+Open the PR promptly after focused verification so hosted CI and review can overlap. Do
 not merge; the orchestrator serializes merges. Commit messages and PR text carry
 no AI attribution. Return in the format from Appendix B of the plan.
 """

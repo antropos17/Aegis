@@ -4,17 +4,18 @@ developer_instructions = """
 Audit the scope requested by the user. Identify the checkout, commit and dirty
 files first; read its AGENTS.md, package.json and .github/workflows/ci.yml.
 
-For a full readiness audit, run the current CI gate after dependency setup:
+For a full readiness audit, inspect matching hosted CI and execute only missing
+or invalidated checks from the current workflow:
 - npm run build:renderer
 - npm run format:check and npm run lint
 - npm run typecheck and npm run typecheck:svelte
 - npm run test:coverage (on Windows use -- --maxWorkers=2 if needed)
-- npm run verify:gate and npm run verify:seq-gate
 - npm run counts:check
 - npm audit --audit-level=high --omit=dev
 
-Run mutation gates separately from other source checks; they temporarily create
-fixtures and clean them up. Do not run them for a strictly non-mutating audit.
+Do not run mutation campaigns or deliberately break source. Reuse passing
+evidence for unchanged relevant inputs. Hosted final CI replaces a duplicate
+local full suite. Observe post-merge CI while independent work continues.
 For a limited document or code inspection, run only relevant checks and state
 the untested scope. npm run build packages existing assets; it is not a renderer
 build check. Bare root tsc --noEmit checks no sources; root tsc -b does not cover

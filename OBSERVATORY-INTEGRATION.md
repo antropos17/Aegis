@@ -161,7 +161,7 @@ Additional fixes: permission drafts survive new scans; null identities cannot se
 ## Validation results — 2026-09-09
 
 - npm ci completed in an independent dependency directory. package-lock.json unchanged. A junction was suitable for initial checks but omitted transitive dependencies during packaging; it was detached without changing the original installation.
-- All 10 verification commands passed: renderer build, formatting, lint (warnings remain), TypeScript, Svelte, coverage, witness gate, sequence gate, counts and production dependency audit. Latest suite: 2851 passed, 4 skipped, 155 test files. No coverage threshold was lowered.
+- The then-current verification steps passed: renderer build, formatting, lint (warnings remain), TypeScript, Svelte, coverage, witness gate, sequence gate, counts and production dependency audit. Latest suite: 2851 passed, 4 skipped, 155 test files. No coverage threshold was lowered.
 - Browser: 132 view/viewport/theme/scale combinations, dialog/escape, production fixture exclusion, preview isolation. Dev preview loaded on an alternate local port because the prepared preview owns 8770.
 - Headless preview frame sample: 90 requestAnimationFrame intervals, median 16.7 ms, p95 16.8 ms, four fixture agents at 1200x800. This is a narrow rendering measurement, not a whole-app throughput guarantee.
 - Electron and packaged executable: all 11 workspaces; reliable live process population separately verified in the visible renderer; six export handlers; settings persisted after restart; config import preserved the local key and exported config omitted it. contextIsolation and sandbox true; nodeIntegration false.
