@@ -51,7 +51,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (61 channels: 50 invoke + 11 push)        │
+│              contextBridge API (62 channels: 51 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -187,12 +187,13 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 50 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
+The 51 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
 | `local-security:review` | local-security-ipc + local-security-review | Dialog-selected local review, retained-report export and snapshot actions |
 | `get-stats` | main | File counts, agent counts, uptime, attribution counters |
+| `tool-context:explain` | live-tool-context | Read bounded local history for a retained event UUID; return metadata-only inferred context |
 | `file-reads:control` | etw-file-runtime | Owned-renderer explicit scoped Start/Stop; no startup capture |
 | `sensitive-alerts:list` | sensitive-alert-journal | Bounded saved sensitive alert summaries and journal status |
 | `sensitive-alerts:set-reviewed` | sensitive-alert-journal | Persist review state for one event UUID |

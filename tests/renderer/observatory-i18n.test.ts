@@ -80,6 +80,7 @@ describe('Observatory localization', () => {
       'call-limit',
       'candidate-limit',
       'clock-skew-unavailable',
+      'clock-skew-assumed-local',
       'duplicate-call-id',
       'duplicate-tool-end',
       'end-time-unavailable',

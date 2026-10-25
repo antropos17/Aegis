@@ -202,6 +202,7 @@
           {#if current.tab === tab.id}
             {#if ['overview', 'attributes', 'signatures'].includes(tab.id)}<DetailSummary
                 row={current.row}
+                {host}
                 {telemetry}
                 section={tab.id}
                 changeSection={changeTab}

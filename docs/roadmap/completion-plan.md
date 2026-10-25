@@ -607,6 +607,13 @@ live Windows run reuses the #975 harness (installed Claude Code reading a
 synthetic `.env`) and shows the read linked to the tool call that issued it; a
 test asserts that no prompt or argument text reaches audit, IPC or exports.
 
+The [live local explanation path](../development/live-tool-explanations.md)
+connects native local Claude main-session metadata to the selected observation
+through owned IPC. Its registry hint and explicit same-host clock assumption
+permit inferred context only. This is a W4.2 application integration; independently
+confirmed session ownership, measured clock alignment and genuine-agent installed
+acceptance above remain open and must not be inferred from fixture evidence.
+
 ### W5 — Cedar action policies
 
 Owner: `integration-engineer`. Depends on W0 question 6. Starts after W4's first

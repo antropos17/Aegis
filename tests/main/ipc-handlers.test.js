@@ -334,6 +334,39 @@ describe('ipc-handlers', () => {
     expect(mockElectron.app.quit).not.toHaveBeenCalled();
   });
 
+  it('limits live explanations to retained-ID requests from the owned renderer and rechecks ownership', async () => {
+    let finish;
+    const explainToolContext = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ explainToolContext });
+    const handle = getHandler('tool-context:explain');
+    const id = '98765432-1234-4234-9234-123456789abc';
+    expect(await handle({ ...event, senderFrame: {} }, id)).toMatchObject({ success: false });
+    expect(await handle(event, { eventId: id, file: 'private' })).toMatchObject({ success: false });
+    expect(explainToolContext).not.toHaveBeenCalled();
+    const pending = handle(event, id);
+    expect(explainToolContext).toHaveBeenCalledExactlyOnceWith(id);
+    frame.url = 'https://untrusted.example';
+    finish({ success: true, toolContext: {} });
+    expect(await pending).toMatchObject({ success: false });
+  });
+
+  it('returns the live explanation through the existing owned IPC boundary', async () => {
+    const answer = {
+      success: true,
+      source: 'claude-code',
+      toolContext: { strength: 'unattributed' },
+    };
+    const { event } = registerOwnedRenderer({ explainToolContext: async () => answer });
+    expect(
+      await getHandler('tool-context:explain')(event, '98765432-1234-4234-9234-123456789abc'),
+    ).toEqual(answer);
+  });
+
   it('limits sensitive alert reads and review writes to the owned top-level frame', async () => {
     const journal = {
       list: vi.fn(() => ({ success: true, status: 'ready', items: [] })),
