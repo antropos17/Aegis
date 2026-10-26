@@ -299,6 +299,86 @@ it('retains delivery counters after RPC failure but does not present old byte si
 });
 
 it.each([
+  {
+    storage: 'uninitialized',
+    history: 'building',
+    storageNotice: 'Audit journal has not been initialized.',
+    historyNotice: 'Historical audit counters are still loading.',
+  },
+  {
+    storage: 'unavailable',
+    history: 'unavailable',
+    storageNotice: 'Storage measurements unavailable. Delivery counters are separate observations.',
+    historyNotice:
+      'Historical audit counters unavailable. Live queue and loss observations remain separate.',
+  },
+])(
+  'hides stale delivery status during refresh failure and restores fresh status: $storage',
+  async ({ storage, history, storageNotice, historyNotice }) => {
+    const pending = deferred<unknown>();
+    const host = {
+      getAuditStats: vi
+        .fn()
+        .mockResolvedValueOnce({
+          storageReadState: storage,
+          historyReadState: history,
+          bufferDepth: 7,
+          index: { state: 'building' },
+        })
+        .mockReturnValueOnce(pending.promise)
+        .mockResolvedValueOnce({
+          storageReadState: 'uninitialized',
+          historyReadState: 'unavailable',
+          bufferDepth: 8,
+          index: { state: 'ready' },
+        }),
+      getAuditEntriesBefore: vi.fn(async () => [row()]),
+    };
+    render(Reports, {
+      host,
+      telemetry: telemetry(),
+      audit: true,
+      inspect: vi.fn(),
+      navigate: vi.fn(),
+    });
+    expect(await screen.findByText(storageNotice)).toBeVisible();
+    expect(screen.getByText(historyNotice)).toBeVisible();
+    const delivery = screen.getByRole('region', { name: 'Delivery' });
+    const indexSummary = within(delivery).getByText('Index').closest('summary')!;
+    await fireEvent.click(indexSummary);
+    expect(within(indexSummary.parentElement!).getByText('building', { exact: true })).toBeVisible();
+    const queued = screen.getByText('queued').parentElement!;
+    const lastQueued = storage === 'uninitialized' ? '—' : '7';
+    expect(within(queued).getByText(lastQueued)).toBeVisible();
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery counters' }));
+    expect(screen.queryByText(storageNotice)).toBeNull();
+    expect(screen.queryByText(historyNotice)).toBeNull();
+    expect(screen.queryByText('building', { exact: true })).toBeNull();
+    expect(within(queued).getByText(lastQueued)).toBeVisible();
+    pending.reject(new Error('refresh failed'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Showing last loaded values');
+    expect(screen.queryByText(storageNotice)).toBeNull();
+    expect(screen.queryByText(historyNotice)).toBeNull();
+    expect(screen.queryByText('building', { exact: true })).toBeNull();
+    expect(within(queued).getByText(lastQueued)).toBeVisible();
+    expect(screen.getByText(row().file)).toBeVisible();
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery counters' }));
+    expect(await screen.findByText('Audit journal has not been initialized.')).toBeVisible();
+    expect(
+      screen.getByText(
+        'Historical audit counters unavailable. Live queue and loss observations remain separate.',
+      ),
+    ).toBeVisible();
+    expect(within(queued).getByText('—')).toBeVisible();
+    const recoveredIndex = within(delivery).getByText('Index').closest('summary')!;
+    await fireEvent.click(recoveredIndex);
+    expect(within(recoveredIndex.parentElement!).getByText('ready', { exact: true })).toBeVisible();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(host.getAuditEntriesBefore).toHaveBeenCalledOnce();
+  },
+);
+
+it.each([
   { storage: 'uninitialized', expected: ['—', '—', '—', '—'] },
   { storage: 'unavailable', expected: ['0', '0', '0', '—'] },
   { storage: 'ready', expected: ['0', '0', '0', '1.0 KB'] },
