@@ -98,13 +98,14 @@ function quote(value) {
     typeof value !== 'string' ||
     !path.isAbsolute(value) ||
     value.length > 4096 ||
-    /["'`$%!?&|<>^\p{Cc}]/u.test(value)
+    /["'`$%!?|<>^\p{Cc}]/u.test(value)
   )
     throw Error('unsupported-path');
   return '"' + value.replaceAll('\\', '/') + '"';
 }
 
-/** Construct the fixed AEGIS hook route, refusing shell metacharacters in selections.
+/** Construct the fixed hook route with quoted paths; literal ampersands stay inside the quotes.
+ * Quote, expansion, control and other shell-operator syntax remains unsupported.
  * @param {string} executable Application executable. @param {string} appPath Application source/package.
  * @param {string} policyPath Native-dialog selected policy.
  * @returns {string} Private command shown only in native review. @since v0.21.0 */
