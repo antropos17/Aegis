@@ -1149,6 +1149,7 @@ function initDeferredSubsystems(userData) {
     getStats,
   });
   analysis.init({
+    getPopulationHealth: getAppHealth,
     getSettings: config.getSettings,
     activityLog: scanner.activityLog,
     getLatestAgents: () => latestAgents,
