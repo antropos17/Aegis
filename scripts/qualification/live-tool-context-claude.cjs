@@ -22,7 +22,7 @@ const cli = path.join(os.homedir(), '.local', 'bin', 'claude.exe');
 const id = randomUUID();
 let eventId = randomUUID();
 const project =
-    mode === 'write'
+    mode === 'write' && scenario === 'single'
       ? path.join(root, 'out', 'development', 'w4-write-' + id, 'project')
       : path.join(out, 'project'),
   file = path.join(project, mode === 'write' ? 'w4-real-write.txt' : 'w4-native-fixture.env'),
@@ -57,7 +57,43 @@ let scenarioFailure = null,
   primaryCancelAttempted = false,
   primaryCancelSucceeded = null,
   primaryReportedCost = null,
-  peerPreflightDiagnostic = null;
+  peerPreflightDiagnostic = null,
+  projectSelectionDiagnostic = null;
+
+/** Seed only an owned disposable profile through the real selection owner before startup.
+ * Scripted fixture authorization is not native owner consent.
+ * @param {string} profile Fresh owned profile. @param {string} project Selected external owned directory.
+ * @param {string} sourceRoot Blocked application source. @returns {Promise<object>} Closed fixture evidence.
+ * @since v0.21.0 */
+async function seedOwnedProjectSelection(profile, project, sourceRoot) {
+  const { createProjectWatchSelection } = require('../../src/main/project-watch-selection');
+  await fs.mkdir(profile);
+  const fixtureWindow = { isDestroyed: () => false };
+  const owner = createProjectWatchSelection({
+    userData: profile,
+    getWindow: () => fixtureWindow,
+    dialog: { showOpenDialog: async () => ({ canceled: false, filePaths: [project] }) },
+    blockedTrees: [sourceRoot],
+  });
+  try {
+    assert.deepEqual(await owner.handle('select', () => true), {
+      success: true,
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+    });
+    return {
+      authority: 'scripted-owned-profile-fixture',
+      nativeOwnerConsent: false,
+      fixturePersisted: true,
+      appUserDataMatched: false,
+      publicStatusSelected: false,
+      projectRootReady: false,
+    };
+  } finally {
+    owner.close();
+  }
+}
 
 /** Project peer ownership conditions from the actual renderer scan snapshot.
  * @param {object} selection Selected owner identifiers/CWD; tests may supply the scan rows.
@@ -306,6 +342,7 @@ async function componentHashes() {
     'src/main/live-session-file.js',
     'src/main/file-watcher.js',
     'src/main/attribution.js',
+    'src/main/project-watch-selection.js',
     'src/main/process-utils.js',
     'src/main/live-session-process.js',
     'src/main/session-context.js',
@@ -443,7 +480,7 @@ async function main() {
   assert.equal((await fs.realpath(outputParent)).toLowerCase(), outputParent.toLowerCase());
   await fs.mkdir(out); // EEXIST refuses every prior attempt before writing anything.
   outputCreated = true;
-  if (mode === 'write') {
+  if (mode === 'write' && scenario === 'single') {
     for (const directory of [root, path.join(root, 'out'), path.join(root, 'out', 'development')]) {
       await fs.mkdir(directory, { recursive: true });
       const stat = await fs.lstat(directory);
@@ -461,6 +498,9 @@ async function main() {
   hashesBefore = await componentHashes();
   if (mode === 'read') await fs.writeFile(file, marker + '\n');
   const settings = await prepareActorSettings(out, selectedTool, file);
+  const profile = path.join(out, 'profile');
+  if (scenario === 'instances-restart')
+    projectSelectionDiagnostic = await seedOwnedProjectSelection(profile, project, root);
   const config = JSON.parse(
     await fs
       .readFile(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')
@@ -474,7 +514,7 @@ async function main() {
   app = await electron.launch({
     args: [
       root,
-      '--user-data-dir=' + path.join(out, 'profile'),
+      '--user-data-dir=' + profile,
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
     ],
@@ -482,6 +522,15 @@ async function main() {
     timeout: 45000,
   });
   appChild = app.process();
+  if (scenario === 'instances-restart') {
+    const actual = await app.evaluate(({ app }) => app.getPath('userData'));
+    assert.equal(
+      path.resolve(actual).toLowerCase(),
+      path.resolve(profile).toLowerCase(),
+      'owned-profile-not-active',
+    );
+    projectSelectionDiagnostic.appUserDataMatched = true;
+  }
   page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   await page
@@ -597,6 +646,17 @@ async function main() {
     'process-scan-cadence-unqualified',
   );
   const ownerWaitMs = processGap + 5000;
+  if (scenario === 'instances-restart') {
+    const status = await page.evaluate(() => window.aegis.controlProjectWatch('status'));
+    assert(
+      status?.success === true &&
+        status.code === 'SELECTED' &&
+        status.selected === true &&
+        status.available === true,
+      'persisted-external-project-not-selected',
+    );
+    projectSelectionDiagnostic.publicStatusSelected = true;
+  }
   if (mode === 'write') {
     const readyDeadline = Date.now() + 30000;
     for (;;) {
@@ -609,7 +669,10 @@ async function main() {
           .groups.find((group) => group.id === 'project-dir');
         return root?.state === 'ready' && root.hasLiveWatcher === true;
       });
-      if (ready) break;
+      if (ready) {
+        if (projectSelectionDiagnostic) projectSelectionDiagnostic.projectRootReady = true;
+        break;
+      }
       assert(Date.now() < readyDeadline, 'real-project-watcher-not-ready');
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -1355,6 +1418,7 @@ async function main() {
           instanceStages: { ...instanceStages },
           peerTranscriptRead: false,
           peerPreflightDiagnostic,
+          projectSelectionDiagnostic,
         }
       : {}),
     ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
@@ -1446,6 +1510,7 @@ if (require.main === module) {
               instanceStages: { ...instanceStages },
               peerTranscriptRead: false,
               peerPreflightDiagnostic,
+              projectSelectionDiagnostic,
             }
           : {}),
         reportedTotalCostUsd: primaryReportedCost,
@@ -1605,4 +1670,5 @@ module.exports = {
   prepareActorSettings,
   restoreReadOverlap,
   peerComponentDiagnostic,
+  seedOwnedProjectSelection,
 };
