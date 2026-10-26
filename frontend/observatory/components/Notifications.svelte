@@ -72,23 +72,27 @@
   $effect(() => {
     if (telemetry.stale) return;
     const scores: Record<string, number | undefined> = Object.create(null);
-    const agents = new Map<string, (typeof telemetry.agents)[number]>();
-    const duplicates = new Set<string>();
+    const agents: Record<string, (typeof telemetry.agents)[number]> = Object.create(null);
+    const duplicates: Record<string, boolean> = Object.create(null);
     for (const agent of telemetry.agents) {
       const id = agent.instanceId;
       if (!id) continue;
-      if (agents.has(id)) duplicates.add(id);
-      else agents.set(id, agent);
+      if (Object.hasOwn(agents, id)) duplicates[id] = true;
+      else agents[id] = agent;
     }
-    for (const [id, agent] of agents) {
-      if (duplicates.has(id) || !isScopedProcess(agent) || agent.instanceIdSource !== 'os') {
+    for (const [id, agent] of Object.entries(agents)) {
+      if (
+        Object.hasOwn(duplicates, id) ||
+        !isScopedProcess(agent) ||
+        agent.instanceIdSource !== 'os'
+      ) {
         scores[id] = undefined;
         continue;
       }
       scores[id] = Object.hasOwn(telemetry.anomalies, id) ? telemetry.anomalies[id] : undefined;
     }
     for (const id of anomalyTracker.ingest(scores)) {
-      const agent = agents.get(id)!;
+      const agent = agents[id];
       addToast(`Anomaly: ${agent.agent} (PID ${agent.pid}) score ${scores[id]}`, 'warning');
     }
   });

@@ -16,7 +16,7 @@ const process = (pid: number, birth: number) =>
     pid,
     instanceId: `${pid}:${birth}`,
     instanceIdSource: 'os',
-  }) as DetectedAgent;
+  }) as DetectedAgent & { instanceId: string };
 
 it('reports sequential threshold crossings independently for same-name instances', async () => {
   vi.useFakeTimers();
