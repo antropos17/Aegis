@@ -33,6 +33,14 @@ const project =
     `${id}.jsonl`,
   );
 const marker = 'W4_PRIVATE_FIXTURE_' + randomUUID();
+const writeStages = {
+  watcherEventVerified: false,
+  independentWriteVerified: false,
+  auditMatched: false,
+  stableIPCBinding: false,
+  DOMDetailsVerified: false,
+  originalAuditRowsPreserved: false,
+};
 let app,
   page,
   child,
@@ -583,6 +591,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     assert.equal(event.createTime100ns, observed.createTime100ns);
     assert.deepEqual(event.attribution, { status: 'inferred', evidence: ['cwd-containment'] });
     assert.match(event.eventId, /^[a-f0-9-]{36}$/i);
+    writeStages.watcherEventVerified = true;
     eventId = event.eventId; // Only the actual accepted watcher UUID selects history.
     writeObservation = {
       eventId,
@@ -774,6 +783,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       assert(bytes.equals(Buffer.from(marker + '\n')), 'genuine-write-bytes-mismatch');
       writeObservation.outputBytes = bytes.length;
       writeObservation.outputSha256 = createHash('sha256').update(bytes).digest('hex');
+      writeStages.independentWriteVerified = true;
     } finally {
       bytes.fill(0);
     }
@@ -799,6 +809,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       ),
       'genuine-write-audit-unavailable',
     );
+    writeStages.auditMatched = true;
   }
   console.log(`Genuine ${selectedTool} succeeded and Claude is held at Stop`);
   await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -811,16 +822,19 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
   assert.equal(reply.toolContext.strength, 'inferred');
   assert(reply.toolContext.candidates.some((row) => row.toolName === selectedTool));
   assert(!JSON.stringify(reply).includes(marker));
+  if (mode === 'write') writeStages.stableIPCBinding = true;
   // Reuse the returned explanation's real UI command after the one-second rate gate.
   await page
     .locator('.sidebar')
     .getByRole('button', { name: 'Events', exact: true })
     .evaluate((button) => button.click());
   await page.getByLabel('Search events').fill(path.basename(file));
-  await page
-    .locator('.observation-open')
-    .first()
-    .evaluate((button) => button.click());
+  const resourceButton =
+    mode === 'write'
+      ? page.locator('.observation-open').filter({ has: page.getByTitle(file, { exact: true }) })
+      : page.locator('.observation-open').first();
+  if (mode === 'write') assert.equal(await resourceButton.count(), 1, 'write-resource-not-unique');
+  await resourceButton.evaluate((button) => button.click());
   await page.waitForFunction(
     () =>
       document.querySelector('.tool-context button') ||
@@ -829,7 +843,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
   if (await page.locator('.observation-history .recent-event').count()) {
     const selected =
       mode === 'write'
-        ? page.locator('[data-detail-focus="record-event:' + eventId + '"]')
+        ? page.locator('[data-detail-focus="record-event:' + eventId + ':0"]')
         : page.locator('.observation-history .recent-event').first();
     await selected.evaluate((button) => button.click());
   }
@@ -842,6 +856,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
   const rendered = await section.innerText();
   assert(rendered.includes('Recorded session binding; association limited'));
   assert(!rendered.includes(marker));
+  if (mode === 'write') writeStages.DOMDetailsVerified = true;
   await fs.writeFile(path.join(out, 'rendered-explanation.txt'), rendered);
   if (mode === 'write') {
     const auditAfter = await app.evaluate(async ({ app }, target) => {
@@ -872,6 +887,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     const auditBytes = JSON.stringify(auditAfter);
     assert(!auditBytes.includes(marker));
     writeObservation.originalRecordsPreserved = true;
+    writeStages.originalAuditRowsPreserved = true;
     writeObservation.originalAuditRecords = writeObservation.auditBefore.length;
     writeObservation.observedAuditRecordsAfter = auditAfter.length;
     writeObservation.auditSha256 = createHash('sha256').update(auditBytes).digest('hex');
@@ -890,6 +906,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     association: 'inferred',
     genuineClaude: true,
     mode,
+    ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
     processObservation:
       'production scanner plus held-handle full-resolution birth/cwd/session selector',
     osEventSynthetic: mode !== 'write',
@@ -965,6 +982,7 @@ main()
     failedReceipt = {
       passed: false,
       mode,
+      ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
       claudeSpawned: Number.isSafeInteger(child?.pid),
       modelRequestReleased,
       processPreflight,
