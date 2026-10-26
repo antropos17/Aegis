@@ -19,6 +19,7 @@
   import SensitiveAlertCenter from './SensitiveAlertCenter.svelte';
   import { matchesFalsePositive } from '../../../src/shared/false-positive-match.js';
   import { createSensitivePresentation } from '../runtime/sensitive-presentation';
+  import { isScopedProcess } from '../runtime/agent-scope';
 
   let {
     telemetry,
@@ -70,13 +71,26 @@
 
   $effect(() => {
     if (telemetry.stale) return;
-    const scores: Record<string, number> = {};
+    const scores: Record<string, number | undefined> = Object.create(null);
+    const agents = new Map<string, (typeof telemetry.agents)[number]>();
+    const duplicates = new Set<string>();
     for (const agent of telemetry.agents) {
-      const score = agent.instanceId ? (telemetry.anomalies[agent.instanceId] ?? 0) : 0;
-      scores[agent.agent] = Math.max(scores[agent.agent] ?? 0, score);
+      const id = agent.instanceId;
+      if (!id) continue;
+      if (agents.has(id)) duplicates.add(id);
+      else agents.set(id, agent);
     }
-    for (const name of anomalyTracker.ingest(scores))
-      addToast(`Anomaly: ${name} score ${scores[name]}`, 'warning');
+    for (const [id, agent] of agents) {
+      if (duplicates.has(id) || !isScopedProcess(agent) || agent.instanceIdSource !== 'os') {
+        scores[id] = undefined;
+        continue;
+      }
+      scores[id] = Object.hasOwn(telemetry.anomalies, id) ? telemetry.anomalies[id] : undefined;
+    }
+    for (const id of anomalyTracker.ingest(scores)) {
+      const agent = agents.get(id)!;
+      addToast(`Anomaly: ${agent.agent} (PID ${agent.pid}) score ${scores[id]}`, 'warning');
+    }
   });
   $effect(() => {
     const delivery = sensitiveTracker.ingest(telemetry.events);
