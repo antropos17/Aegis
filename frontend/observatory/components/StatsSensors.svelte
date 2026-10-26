@@ -64,6 +64,7 @@
     },
   };
   const detailLabels: Record<string, string> = {
+    'provider-failure': 'Provider failed',
     'rm-owns-observation': 'Resource Manager is handling this observation.',
     'diagnostic-opt-in-required': 'Optional diagnostic capture is off.',
     class5: 'Windows process snapshot provider is active.',

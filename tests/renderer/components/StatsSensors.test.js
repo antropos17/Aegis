@@ -11,6 +11,20 @@ function telemetry(health, scanCadence, wslInventory) {
   return { ...emptyTelemetry(), stats: { appHealth: health, scanCadence, wslInventory } };
 }
 
+it('shows the network provider failure in both supported languages', async () => {
+  render(StatsSensors, {
+    telemetry: telemetry({
+      sensors: { byId: { network: { state: 'FAILED', detail: 'provider-failure' } } },
+    }),
+  });
+  const card = screen.getByRole('heading', { name: 'Network connections' }).closest('article');
+  expect(card).toHaveTextContent('Provider failed');
+  expect(card).not.toHaveTextContent('provider-failure');
+  language.set('pt');
+  await tick();
+  expect(card).toHaveTextContent('Falha no provedor');
+});
+
 it('shows process-scan overruns separately from observed event loss', async () => {
   const health = {
     state: 'HEALTHY',

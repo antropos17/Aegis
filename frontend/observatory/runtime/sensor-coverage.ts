@@ -109,6 +109,7 @@ export const coverageReasons: Labels = {
   'hello-timeout': 'Provider startup timed out',
   'child-closed': 'Provider exited',
   'sensor-failed': 'Provider failed',
+  'provider-failure': 'Provider failed',
   'sink-rejected': 'Event delivery rejected',
   'custody-unconfirmed': 'Event custody unconfirmed',
   'binary-missing': 'Sensor executable is missing',
