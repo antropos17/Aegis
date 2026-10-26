@@ -6,6 +6,7 @@
 
 /** IPC invoke channel names (renderer -> main, request-response) */
 export type IpcInvokeChannel =
+  | 'project-watch:control'
   | 'app:quit'
   | 'local-security:review'
   | 'updates:status'

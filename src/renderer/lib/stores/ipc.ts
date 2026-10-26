@@ -171,6 +171,7 @@ interface AegisIpcBridge {
   reviewClaudeHookProfile(
     action: 'status' | 'install' | 'remove' | 'open-profile',
   ): Promise<Record<string, unknown>>;
+  controlProjectWatch(action: 'status' | 'select' | 'clear'): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
   /**
    * Paginated audit records strictly before `beforeTs` (ISO), oldest-first, exactly as

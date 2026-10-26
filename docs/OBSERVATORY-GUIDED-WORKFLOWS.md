@@ -40,6 +40,38 @@ banners remain on telemetry-dependent pages including Analysis and Reports, whil
 the independent guide and file/action checks omit them. Global sensor status
 is still accessible.
 
+## Choose a project folder
+
+In **Settings → Monitoring → File coverage**, choose one ordinary local project
+folder with the desktop folder picker. Selection applies immediately and is
+saved separately from public settings. **Refresh folder status** checks the
+saved selection; **Clear project folder** removes it. The preview cannot choose
+folders. Home roots, system and app-data trees, explicit UNC/device paths and
+symlink/junction ancestry are refused. Qualification covers ordinary local fixture
+folders; mapped-drive locality and every Windows reparse tag are not established.
+
+The selection is private to the main process and is absent from settings responses,
+configuration import/export and ZIP settings. Normal activity still includes
+observed file paths in event details and explicit audit exports. Monitoring uses
+the existing depth-five limit and saved exclusions; selecting a folder does not
+enable file-read collection or grant permission to read its contents.
+
+The chosen directory works independently of the installation path, including an
+ASAR installation. If it disappears or its identity changes, project coverage
+becomes unavailable without choosing another root. The existing health poll
+checks this transition within its 30-second interval. Choose the folder again to
+approve its current identity. Clearing selection restores the existing source
+checkout behavior; an ASAR app root remains inapplicable. Use **Monitoring** for
+live watcher health rather than interpreting saved selection as active coverage.
+
+Focused fixture and browser checks cover this flow. A source-run Electron 45 smoke
+also observed an external file creation through production IPC and persisted audit,
+then reported unavailable coverage after an owned directory rename within the
+existing health poll. Public clear restored the legacy watch root. That smoke
+seeded its disposable profile through a scripted fixture dialog; it does not
+establish native owner consent. Physical folder-picker input, a packaged
+application and wider network/reparse coverage remain separate acceptance steps.
+
 ## Optional terminal setup
 
 **Connect an agent to selected actions** in Start here explains MCP configuration,

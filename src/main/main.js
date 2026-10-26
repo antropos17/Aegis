@@ -147,6 +147,7 @@ const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
 let claudeHookProfile;
+let projectWatchSelection;
 let etwFile;
 let nativeSensor = null;
 const { createBatcher } = require('./ipc-batcher');
@@ -772,6 +773,7 @@ function watchFilterKey(settings) {
     [
       ...new Set(Array.isArray(settings.ignoredDirectories) ? settings.ignoredDirectories : []),
     ].sort(),
+    projectWatchSelection?.getWatchKey() ?? null,
   ]);
 }
 
@@ -798,6 +800,13 @@ function onSettingsApplied() {
   scanLoop.stopScanIntervals();
   if (!monitoringPaused) scanLoop.startScanIntervals((settings.scanIntervalSec || 10) * 1000);
   fileWatchFiltersPending = watchFilterKey(settings) !== fileWatchFilterKey;
+  if (fileWatchFiltersPending) queueFileWatchRefresh();
+}
+
+/** Reconfigure only the watch owner after a private native folder operation. @returns {void} */
+function onProjectWatchSelectionChanged() {
+  if (isQuitting || !watchersStarted) return;
+  fileWatchFiltersPending = watchFilterKey(config.getSettings()) !== fileWatchFilterKey;
   if (fileWatchFiltersPending) queueFileWatchRefresh();
 }
 
@@ -830,6 +839,11 @@ function scheduleFileWatchRetry() {
     if (isQuitting || generation !== fileWatchRetryGeneration) return;
     let plan;
     try {
+      if (projectWatchSelection && watchFilterKey(config.getSettings()) !== fileWatchFilterKey) {
+        fileWatchFiltersPending = true;
+        queueFileWatchRefresh();
+        return;
+      }
       plan = watcher.getWatchPlan();
     } catch {
       scheduleFileWatchRetry();
@@ -1178,6 +1192,8 @@ function initDeferredSubsystems(userData) {
   scanner.init({ trackSeenAgent: config.trackSeenAgent });
   watcher.init({
     getSettings: () => config.getSettings(),
+    getProjectWatchRoot: () =>
+      projectWatchSelection?.resolveRoot() ?? Promise.resolve({ state: 'unselected' }),
     getCustomRules: config.getCustomSensitiveRules,
     getLatestAgents: () => latestAgents,
     getLatestAiAgents: () => latestAiAgents,
@@ -1364,6 +1380,13 @@ app.whenReady().then(() => {
     },
   });
   const applicationPath = path.resolve(__dirname, '../..');
+  projectWatchSelection = require('./project-watch-selection').createProjectWatchSelection({
+    userData,
+    getWindow: () => mainWindow,
+    dialog: require('electron').dialog,
+    blockedTrees: [app.getPath('appData'), applicationPath, process.resourcesPath].filter(Boolean),
+    onChanged: onProjectWatchSelectionChanged,
+  });
   claudeHookProfile = require('./claude-hook-app').createClaudeHookApp({
     userData,
     assetsRoot: path.join(
@@ -1377,6 +1400,7 @@ app.whenReady().then(() => {
     getWindow: () => mainWindow,
   });
   ipc.init({
+    projectWatchSelection,
     claudeHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
@@ -1409,6 +1433,7 @@ app.whenReady().then(() => {
 let alertQuitDrainStarted = false;
 let alertQuitDrainFinished = false;
 app.on('before-quit', (event) => {
+  projectWatchSelection?.close();
   dockerDiscovery?.stop();
   podmanDiscovery?.stop();
   wslInventory?.stop();
@@ -1617,6 +1642,10 @@ function _loadDeferredModulesForTest() {
 // Exported for the startup-ordering and stats-shape regression tests only — nothing in
 // the app requires main.js. Electron runs it as the entry point.
 module.exports = {
+  /** @internal Inject the private selection owner for lifecycle tests. @param {object} owner @returns {void} */
+  _setProjectWatchSelectionForTest: (owner) => {
+    projectWatchSelection = owner;
+  },
   _initDeferredSubsystemsForTest: initDeferredSubsystems,
   /** Drop the test owner after observing bounded child cleanup.
    * @returns {Promise<void>} Fixture cleanup. @since 0.19.2-beta */
