@@ -588,6 +588,7 @@ function controlledChild() {
   return Object.assign(new EventEmitter(), {
     pid: 12345,
     exitCode: null,
+    signalCode: null,
     stdin: new PassThrough(),
     stdout: new PassThrough(),
     stderr: new PassThrough(),
@@ -649,6 +650,42 @@ it('genuine child confirms ordinary close and clears both cleanup clocks', async
   });
   expect(result.stdout.toString()).toBe('bounded result');
   expect(killTree).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+  child.stdin.destroy();
+  child.stdout.destroy();
+  child.stderr.destroy();
+});
+
+it.each([
+  { code: 0, signal: null, close: true },
+  { code: null, signal: 'SIGTERM', close: true },
+  { code: 0, signal: null, close: false },
+  { code: null, signal: 'SIGTERM', close: false },
+])('genuine child never targets an exited PID while awaiting close: %j', async ({ code, signal, close }) => {
+  vi.useFakeTimers();
+  const child = controlledChild();
+  const killTree = vi.fn();
+  let settled = false;
+  const pending = boundedChild('owned.exe', [], {
+    cwd: root,
+    env: {},
+    deadlineMs: 150,
+    spawnChild: () => child,
+    killTree,
+  }).then((result) => {
+    settled = true;
+    return result;
+  });
+  child.exitCode = code;
+  child.signalCode = signal;
+  child.emit('exit', code, signal);
+  await vi.advanceTimersByTimeAsync(5149);
+  expect(settled).toBe(false);
+  if (close) child.emit('close', code, signal);
+  else await vi.advanceTimersByTimeAsync(1);
+  const result = await pending;
+  expect(killTree).not.toHaveBeenCalled();
+  expect(result).toMatchObject({ cleanupConfirmed: close, code, signal });
   expect(vi.getTimerCount()).toBe(0);
   child.stdin.destroy();
   child.stdout.destroy();

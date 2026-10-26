@@ -320,8 +320,8 @@ function boundedChild(
     const terminate = () => {
       if (settled || terminated) return;
       terminated = true;
-      cleanupTimer = setTimeout(() => finish(child.exitCode, null, false), 5000);
-      if (child.exitCode === null) {
+      cleanupTimer = setTimeout(() => finish(child.exitCode, child.signalCode, false), 5000);
+      if (child.exitCode === null && child.signalCode === null) {
         try {
           killTree(child.pid);
         } catch {
