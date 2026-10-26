@@ -64,9 +64,13 @@ approve its current identity. Clearing selection restores the existing source
 checkout behavior; an ASAR app root remains inapplicable. Use **Monitoring** for
 live watcher health rather than interpreting saved selection as active coverage.
 
-Focused fixture and browser checks cover this flow. Physical folder-picker input,
-a packaged application and wider network/reparse coverage remain separate
-acceptance steps.
+Focused fixture and browser checks cover this flow. A source-run Electron 45 smoke
+also observed an external file creation through production IPC and persisted audit,
+then reported unavailable coverage after an owned directory rename within the
+existing health poll. Public clear restored the legacy watch root. That smoke
+seeded its disposable profile through a scripted fixture dialog; it does not
+establish native owner consent. Physical folder-picker input, a packaged
+application and wider network/reparse coverage remain separate acceptance steps.
 ## Optional terminal setup
 
 **Connect an agent to selected actions** in Start here explains MCP configuration,
