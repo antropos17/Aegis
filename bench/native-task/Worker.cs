@@ -21,6 +21,12 @@ internal static class NativeTaskWorker {
                 string task;
                 while ((task = Console.ReadLine()) != null) {
                     if (task == "stop") return 0;
+                    if (task == "resource") {
+                        own.Refresh();
+                        Emit(new { kind = "resource", cpuUs = own.TotalProcessorTime.Ticks / 10,
+                            workingSetBytes = own.WorkingSet64 });
+                        continue;
+                    }
                     if (task != "ordinary" && task != "outside-write") return 2;
                     own.Refresh();
                     long cpuBefore = own.TotalProcessorTime.Ticks;

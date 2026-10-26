@@ -82,4 +82,52 @@ function markdown(summary) {
     '\n'
   );
 }
-module.exports = { summarizeRun, markdown };
+/** Publish actual native-worker resource observations consumed by the existing evaluator.
+ * @param {object} evidence Retained real acquisition and independent output checks.
+ * @returns {object} Public diagnostic summary, never product overhead. @since unreleased */
+function summarizeResourceRun(evidence) {
+  return {
+    version: 'native-worker-resources-summary/1',
+    context: evidence.context,
+    repetitions: evidence.repetitions.map((r) => ({
+      id: r.id,
+      usefulOutput: r.usefulOutput,
+      cleanup: r.cleanup,
+      corroboration: r.evaluation.corroboration,
+      estimates: r.evaluation.result.estimates,
+      excludedBoundaryIntervals: r.evaluation.result.intervals.filter((x) => x.reason !== null),
+      rawSampleCount: r.samples.length,
+    })),
+    productOverhead: { cpu: null, rss: null },
+    sensor: { hits: null, misses: null, recall: null, falseAlarms: null },
+    calibration:
+      'Shared-kernel API/unit corroboration only; independent physical accuracy and collector-on/off cost unqualified.',
+    acceptance:
+      'Controlled native workload resources only; no AI-agent, complete product cohort, sensor or W8 acceptance.',
+  };
+}
+
+/** Render only script-produced native resource figures. @param {object} summary Summary.
+ * @returns {string} Markdown. @since unreleased */
+function resourceMarkdown(summary) {
+  return (
+    '# Controlled Windows native worker resources\n\n' +
+    `Source: \`${summary.context.sourceCommit}\`; machine \`${summary.context.machine}\`; OS \`${summary.context.os.release}\` ${summary.context.os.arch}; worker \`${summary.context.agent.version}\`; sensor mode: ${summary.context.sensorMode}; method: \`${summary.context.method}\`.\n\n` +
+    '| Repetition | Useful files verified | Samples | CPU p50 / p95 (% one core) | Working set p50 / p95 (bytes) | API corroboration |\n|---|---:|---:|---|---|---|\n' +
+    summary.repetitions
+      .map((r) => {
+        const cpu = r.estimates.find((x) => x.metric === 'cpu-one-core-pct');
+        const rss = r.estimates.find((x) => x.metric === 'resident-bytes');
+        return `| ${r.id} | ${r.usefulOutput.filter((x) => x.exactBytes && x.inventoryMatches).length} | ${r.rawSampleCount} | ${cpu.p50} / ${cpu.p95} | ${rss.p50} / ${rss.p95} | ${r.corroboration.state} |`;
+      })
+      .join('\n') +
+    '\n\n' +
+    summary.calibration +
+    '\n\n' +
+    'Three fixed repetitions are retained separately. First/last acquisition brackets and boundary exclusions remain in JSON; late final endpoints are excluded by the unchanged evaluator, not moved into the phase. CPU includes the fixed task and waiting within each sampled interval. Working set can include shared pages. Sampler/reference processes are outside the named single-worker scope; no product-cohort total is inferred.\n\n' +
+    'Independent output checks use a closed-form CSV sum, exact bytes and owned-directory inventory. Sysmon and Procmon were not captured; hits, misses, recall, false alarms and calibrated product CPU/RSS overhead remain unavailable.\n\n' +
+    summary.acceptance +
+    '\n'
+  );
+}
+module.exports = { summarizeRun, markdown, summarizeResourceRun, resourceMarkdown };
