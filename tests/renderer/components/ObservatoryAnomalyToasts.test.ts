@@ -59,7 +59,7 @@ it('freezes stale and missing scores and rejects untrusted or duplicate identiti
   await view.rerender({ telemetry: { ...initial, anomalies: { [b.instanceId]: 0 } } });
   await view.rerender({ telemetry: initial });
   expect(screen.queryByText(/Anomaly:/)).toBeNull();
-  const unknown = { ...b, instanceIdSource: 'unknown' };
+  const unknown: DetectedAgent = { ...b, instanceIdSource: 'unknown' };
   await view.rerender({
     telemetry: {
       ...initial,
