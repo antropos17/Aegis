@@ -1,9 +1,12 @@
 # Windows beta readiness
 
-Current release: **0.19.2-beta**, Windows desktop monitoring and explicitly reviewed
-selected-action workflows. Check the [release page](https://github.com/antropos17/Aegis/releases)
-for published versions and complete artifacts. Changing the prerelease channel
-does not itself publish an installer or establish release readiness.
+Historical readiness record for **0.19.2-beta**, published on 6 October 2026,
+covering Windows desktop monitoring and explicitly reviewed selected-action
+workflows. Check [GitHub Releases](https://github.com/antropos17/Aegis/releases)
+for current published versions and complete artifacts. The hashes and qualification
+below apply only to the named artifacts and revisions, not to later installers.
+Changing the prerelease channel does not itself publish an installer or establish
+release readiness.
 
 ## Published Windows beta
 
