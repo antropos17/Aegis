@@ -140,4 +140,22 @@ and a new Details request, while original audit rows stay preserved. Peer histor
 is never read. Each held side process has a 60-second owner deadline before the
 hook's 90-second automatic return; uncertainty cancels the owned scenario without
 releasing side barriers or retrying termination. This scenario has local lifecycle
-and rendered-state controls but is not yet genuine-agent qualified.
+and rendered-state controls.
+
+The local Windows scenario on 2026-10-26 at `1a235a15` passed with installed
+Claude Code 2.1.292 and the configured Opus model. The actual app restored the
+scripted disposable-profile selection and reported its external project watcher
+ready. Two same-name processes had distinct observed generations and directories;
+only the primary was released to perform the genuine Write. Its real watcher
+event reached the retained audit and event-specific Details explanation with
+confirmed process-to-session binding and inferred attribution and association.
+After the peer was retired and the primary exited normally, a held replacement
+resumed the primary history under a new observed generation. Fresh IPC and Details
+requests for the original event UUID returned unavailable without borrowed tool
+candidates, while the original audit rows retained their exact sequence, hash and
+contents. All eight instance stages and six Write stages passed; both held side
+processes were terminated before their hook deadlines, and owned cleanup was
+confirmed. Peer history was not read. This qualifies the selected local external
+project and restart case; scripted selection does not establish native owner
+consent, and the result makes no native read-sensor, measured-clock or packaged
+installation claim.
