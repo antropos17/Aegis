@@ -226,10 +226,20 @@ plus disappearance of that held main generation after application quit. The
 Electron main exit code was unavailable and is not inferred from the wrapper.
 Both attempt receipts remain retained.
 
-A genuine packaged-Claude caller was prepared but was not executed because of
-host memory/commit pressure. This qualification incurred no provider call and
-does not extend the source-run provider result above. Native dialogs, installation,
-portable runtime discovery and wider bypass coverage remain open. The separate
+A genuine packaged-Claude caller was initially held because of host memory/commit
+pressure. After headroom recovered, one Claude CLI `2.1.292` qualification using
+the configured Opus model passed with the same packaged command, producer-fixture
+settings, policy and working directory. Exactly two Bash requests matched their
+full expected inputs and corresponding results. The allowed request wrote exactly
+17 bytes, `AEGIS_W6_ALLOWED` followed by LF; the denied request returned an explicit
+policy denial and created no denied output file. Reported cost was $0.0470262 and
+total elapsed time was 19.951 seconds. The CLI exited 0 with confirmed cleanup and
+no forced termination; captured raw buffers were wiped. Source/package `7725f734`
+and fixture hashes stayed unchanged. The earlier 16-check ASAR/input qualification
+remains a separate provider-free result. Native dialogs, installation, portable
+runtime discovery and wider bypass coverage remain open. These fixture-based
+results do not establish full Guard acceptance or authorize a Blocking verified
+label. The separate
 native-read candidate `e456` failed its visibility precondition (expected true,
 observed false); its heading stage was not reached. That failure establishes no
 renderer, VM boot or cadence diagnosis and no native-read acceptance.
