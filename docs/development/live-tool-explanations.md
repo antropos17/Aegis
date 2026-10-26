@@ -126,8 +126,13 @@ inferred. It establishes neither the OS write issuer nor native read-sensor
 acceptance, measured clock alignment, other providers or general sensor completeness.
 
 The optional `AEGIS_CLAUDE_QUALIFICATION_SCENARIO=instances-restart` with Write mode
-prepares a separate instance-isolation case. A second Claude in a disjoint owned
-directory remains at SessionStart while only the primary performs one Write.
+prepares a separate instance-isolation case in an external owned project. Before
+app startup the production selection owner seeds only the disposable profile
+using a scripted fixture dialog/guard; this does not establish native owner
+consent. Normal startup must restore that selection, report public `SELECTED`,
+and ready its project watcher under the exact owned user-data directory before
+any model release. A second Claude in a disjoint owned directory remains at
+SessionStart while only the primary performs one Write.
 After that proof the peer is terminated and the primary finishes normally. A
 replacement resumes the primary history under fresh, unreleased startup settings;
 the existing event UUID must then yield no borrowed candidate through both IPC

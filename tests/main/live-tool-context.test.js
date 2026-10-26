@@ -12,6 +12,7 @@ const {
   prepareActorSettings,
   restoreReadOverlap,
   peerComponentDiagnostic,
+  seedOwnedProjectSelection,
 } = require('../../scripts/qualification/live-tool-context-claude.cjs');
 let home, cwd, agents, service, registry, transcript;
 const start = 1792900000000;
@@ -293,6 +294,45 @@ it('keeps peer and resumed replacement barrier settings isolated from an already
   await expect(prepareActorSettings(roots[0], 'Write', 'unused')).rejects.toMatchObject({
     code: 'EEXIST',
   });
+});
+
+it('seeds and restores only an external owned profile through the production project selection owner', async () => {
+  const profile = path.join(home, 'owned-profile');
+  const selected = path.join(home, 'external-project');
+  await fs.mkdir(selected);
+  const seed = await seedOwnedProjectSelection(profile, selected, cwd);
+  expect(seed).toEqual({
+    authority: 'scripted-owned-profile-fixture',
+    nativeOwnerConsent: false,
+    fixturePersisted: true,
+    appUserDataMatched: false,
+    publicStatusSelected: false,
+    projectRootReady: false,
+  });
+  const { createProjectWatchSelection } = require('../../src/main/project-watch-selection');
+  const showOpenDialog = vi.fn();
+  const readbackWindow = { isDestroyed: () => false };
+  const owner = createProjectWatchSelection({
+    userData: profile,
+    getWindow: () => readbackWindow,
+    dialog: { showOpenDialog },
+    blockedTrees: [cwd],
+  });
+  try {
+    expect(await owner.handle('status', () => true)).toEqual({
+      success: true,
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+    });
+    const restored = await owner.resolveRoot();
+    expect(restored.state).toBe('selected');
+    expect(restored.path).toBe(await fs.realpath(selected));
+    expect(restored.isCurrent()).toBe(true);
+    expect(showOpenDialog).not.toHaveBeenCalled();
+  } finally {
+    owner.close();
+  }
 });
 
 function changeDuringRead(file, change, phase = 'read', afterVerification) {
