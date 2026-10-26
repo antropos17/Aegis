@@ -99,9 +99,10 @@ input attempt on the recovery build also failed at navigation with the same
 error; its disposable target stayed byte-identical and the owned process was
 closed. No alternate input was attempted. The actual native confirmation
 journey remains unqualified. Main-process inspector-based
-test launchers are intentionally refused by private IO. Actual installed Claude
-hook loading, its version contract, command-shell compatibility, bypass behavior,
-historical backup restoration and full W6 acceptance remain open. `launchAllowed` remains false.
+test launchers are intentionally refused by private IO. The installed-Claude
+source-run result below covers one version and command shell. Other versions,
+bypass behavior, historical backup restoration, installed-package qualification
+and full W6 acceptance remain open. `launchAllowed` remains false.
 
 ### Explicit installed-Claude qualification
 
@@ -141,10 +142,21 @@ counts and cost rather than arguments or raw output. Passing also requires the
 exact allowed marker, absence of the denied marker and the explicit AEGIS denial
 in the provider's denied tool result. A final model claim is insufficient.
 
-This mode remains unqualified until an authorized actual run passes. A mismatch
-is retained as an inconclusive allow/deny result; it does not widen permission.
-It does not establish real native-dialog acceptance or protection against missing
-hooks, launch failures, alternate tools or bypass routes.
+On 2026-10-26, this mode passed once on source revision
+`57f614731067b99aced701a361810029a3fadb8e`, with installed Claude Code file product
+version `2.1.292.0` and verified Git Bash. The existing configured Opus model was
+preserved and observed in the provider result. Reported cost was **$0.047539**.
+The exact two whole Bash inputs and working directory matched the predeclared
+policy. The allowed tool result succeeded and created the exact marker; the
+denied result carried the explicit AEGIS denial and created no denied marker.
+Profile and policy hashes stayed unchanged. Claude exited with code zero,
+confirmed cleanup and no forced termination. The final documentation update
+preserves the qualified runtime and runner sources.
+
+Any future mismatch is retained as an inconclusive allow/deny result and never
+widens permission. This bounded source-run result leaves real native-dialog
+acceptance, installed-package behavior, other versions, missing hooks, launch
+failures, alternate tools and bypass routes open.
 
 ### Windows inherited input
 
@@ -160,5 +172,6 @@ not cancel a pending held-open read; it required the outer supervisor to kill th
 owned process and failed qualification. The final pipe wrapper passed the four
 native cases through the exact generated Git Bash command: allow, deny, malformed
 input and held-open deadline with actual process exit. No environment prefix,
-console switch or fuse change is needed. These are native transport cases, not
-installed-Claude or real-dialog acceptance.
+console switch or fuse change is needed. This table qualifies native transport;
+the separate provider result above covers the installed-Claude source run.
+Real-dialog acceptance remains open.
