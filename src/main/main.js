@@ -323,6 +323,24 @@ function loadDeferredModules() {
   }
 }
 
+/** Project only the configured project watcher's readiness, never its path.
+ * @param {object} plan Existing in-memory root plan. @returns {string} Closed project state. */
+function projectWatchState(plan) {
+  if (!Array.isArray(plan?.groups) || !Array.isArray(plan?.absentGroups)) return 'unknown';
+  const roots = plan.groups.filter((root) => root?.id === 'project-dir');
+  const absent = plan.absentGroups.includes('project-dir');
+  if (!roots.length) return absent ? 'not-observed' : 'unknown';
+  if (roots.length !== 1 || absent) return 'unknown';
+  const root = roots[0];
+  if (typeof root.hasLiveWatcher !== 'boolean') return 'unknown';
+  if (['registration-failed', 'not-attempted', 'errored'].includes(root.state))
+    return 'unavailable';
+  if (root.state === 'ready') return root.hasLiveWatcher === true ? 'observed' : 'unavailable';
+  if (root.state === 'planned' || (root.state === 'registered' && root.hasLiveWatcher === true))
+    return 'starting';
+  return 'unknown';
+}
+
 /**
  * Compose the app-level health from the honest signals the sensor modules already
  * publish. READ-ONLY: not one `mark*` call happens here. A leaf record is written only
@@ -434,6 +452,7 @@ function getAppHealth() {
       state: watchPlan.state,
       liveWatcherCount: watchPlan.liveWatcherCount,
       unavailableGroups: watchPlan.unavailableGroups,
+      projectState: projectWatchState(watchPlan),
     },
   };
 }

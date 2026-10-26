@@ -129,6 +129,10 @@
     sectionRequests.stats = { id: 'sensors', revision: ++sectionRevision };
     void navigate('stats');
   }
+  function openProjectSettings() {
+    sectionRequests.settings = { id: 'monitoring', revision: ++sectionRevision };
+    void navigate('settings');
+  }
   function openAuditDelivery() {
     sectionRequests.audit = { id: 'delivery', revision: ++sectionRevision };
     void navigate('audit');
@@ -870,7 +874,13 @@
               />
             </div>{/if}
           {#if tabs.includes('coverage')}<div hidden={view !== 'coverage'}>
-              <CoveragePanel {telemetry} {navigate} openSensorDetails={openSensors} {preview} />
+              <CoveragePanel
+                {telemetry}
+                {navigate}
+                openSensorDetails={openSensors}
+                {openProjectSettings}
+                {preview}
+              />
             </div>{/if}
           <div hidden={view !== 'stats'}>
             <Statistics

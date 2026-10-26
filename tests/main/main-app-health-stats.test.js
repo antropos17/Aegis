@@ -62,6 +62,61 @@ afterAll(() => {
 });
 
 describe('getStats() — app health composition', () => {
+  it('projects project readiness independently of healthy other roots without reading selection paths', () => {
+    const mainPath = require_.resolve('../../src/main/main.js');
+    const previous = require_.cache[mainPath];
+    delete require_.cache[mainPath];
+    const partial = require_(mainPath);
+    try {
+      partial._loadDeferredModulesForTest();
+      const watcher = require_('../../src/main/file-watcher');
+      const selection = { getWatchKey: vi.fn(), resolveRoot: vi.fn() };
+      partial._setProjectWatchSelectionForTest(selection);
+      const root = (state, hasLiveWatcher = true) => ({
+        id: 'project-dir',
+        state,
+        hasLiveWatcher,
+        path: 'PRIVATE_PROJECT_PATH',
+      });
+      const cases = [
+        [[], ['project-dir'], 'not-observed'],
+        [[root('planned', false)], [], 'starting'],
+        [[root('registered')], [], 'starting'],
+        [[root('ready')], [], 'observed'],
+        [[root('ready', false)], [], 'unavailable'],
+        [[root('registration-failed', false)], [], 'unavailable'],
+        [[root('errored')], [], 'unavailable'],
+        [[root('not-attempted', false)], [], 'unavailable'],
+        [[], [], 'unknown'],
+        [[root('PRIVATE_PROJECT_PATH')], [], 'unknown'],
+        [[root('ready')], ['project-dir'], 'unknown'],
+      ];
+      for (const [groups, absentGroups, expected] of cases) {
+        partial._setWatcherForTest({
+          ...watcher,
+          getWatchPlan: () => ({
+            state: 'HEALTHY',
+            liveWatcherCount: 3,
+            unavailableGroups: [],
+            groups,
+            absentGroups,
+          }),
+        });
+        const view = partial.getStats().appHealth.watchPlan;
+        expect(view).toEqual({
+          state: 'HEALTHY',
+          liveWatcherCount: 3,
+          unavailableGroups: [],
+          projectState: expected,
+        });
+        expect(JSON.stringify(view)).not.toContain('PRIVATE_PROJECT_PATH');
+      }
+      expect(selection.getWatchKey).not.toHaveBeenCalled();
+      expect(selection.resolveRoot).not.toHaveBeenCalled();
+    } finally {
+      require_.cache[mainPath] = previous;
+    }
+  });
   it('keeps reentrant health and stats reads BOOTING throughout the real deferred require pass', () => {
     const mainPath = require_.resolve('../../src/main/main.js');
     const previousMain = require_.cache[mainPath];

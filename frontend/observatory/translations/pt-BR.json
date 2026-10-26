@@ -2145,5 +2145,13 @@
   "Another folder selection is in progress.": "Outra seleção de pasta está em andamento.",
   "Choose one folder to observe project changes up to five levels deep. Existing exclusions apply. The private selection is restored after restart; file reads require a separate source.": "Escolha uma pasta para observar mudanças no projeto até cinco níveis de profundidade. As exclusões existentes se aplicam. A seleção privada é restaurada após reiniciar; leituras de arquivos exigem uma fonte separada.",
   "Project folder selection requires the desktop connection.": "A seleção de pasta do projeto exige a conexão com o aplicativo desktop.",
-  "Checking saved project folder…": "Verificando a pasta de projeto salva…"
+  "Checking saved project folder…": "Verificando a pasta de projeto salva…",
+  "The configured project watcher is starting. Coverage is not established yet.": "O observador do projeto configurado está iniciando. A cobertura ainda não foi estabelecida.",
+  "The configured project watcher is ready. Only its root and current exclusions are covered.": "O observador do projeto configurado está pronto. A cobertura se limita à raiz e às exclusões atuais.",
+  "Monitoring is paused. Watcher readiness does not mean events are being collected.": "O monitoramento está pausado. Um observador pronto não significa que eventos estejam sendo coletados.",
+  "Project changes are not observed. Choose a project folder in Monitoring settings.": "As mudanças no projeto não são observadas. Escolha uma pasta de projeto nas configurações de Monitoramento.",
+  "Project folder settings": "Configurações da pasta do projeto",
+  "Project changes are unavailable. Review the folder in Monitoring settings.": "As mudanças no projeto estão indisponíveis. Revise a pasta nas configurações de Monitoramento.",
+  "Project changes": "Mudanças no projeto",
+  "Current project change coverage is unknown.": "A cobertura atual de mudanças no projeto é desconhecida."
 }
