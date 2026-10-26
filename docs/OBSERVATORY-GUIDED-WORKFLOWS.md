@@ -71,6 +71,7 @@ existing health poll. Public clear restored the legacy watch root. That smoke
 seeded its disposable profile through a scripted fixture dialog; it does not
 establish native owner consent. Physical folder-picker input, a packaged
 application and wider network/reparse coverage remain separate acceptance steps.
+
 ## Optional terminal setup
 
 **Connect an agent to selected actions** in Start here explains MCP configuration,
