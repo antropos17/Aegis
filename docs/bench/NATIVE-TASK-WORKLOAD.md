@@ -6,6 +6,11 @@ evaluators. This supplies an executed native-program diagnostic baseline. The
 worker is a controlled program, not an AI agent; it makes no provider/model call.
 It does not close the real-agent corpus, qualified OS-oracle capture or W8/T8.
 
+The [2026-10-26 script-generated result](windows-native-task-pairs-2026-10-26.md)
+and [JSON](windows-native-task-pairs-2026-10-26.json) retain the first executed cell.
+The tested clean source commit is recorded in those files; later documentation
+publication does not relabel the execution as a measurement of a newer product.
+
 ```powershell
 npm run build:renderer
 npm run build:sidecar
