@@ -28,15 +28,37 @@ describe('ai-analysis', () => {
   });
 
   function setupState(overrides = {}) {
+    const agents = (overrides.agents || []).map((row) => ({
+      instanceId: `${row.pid}:1`,
+      instanceIdSource: 'os',
+      ...row,
+    }));
+    // Existing format/transport fixtures predate stamped instance IDs. Give their
+    // unambiguous rows a fixture identity; explicit missing/ambiguous IDs stay so.
+    const stamped = (rows) =>
+      rows.map((row) => {
+        const matches = agents.filter((agent) => agent.agent === row.agent);
+        return !Object.hasOwn(row, 'instanceId') && matches.length === 1
+          ? { ...row, instanceId: matches[0].instanceId }
+          : row;
+      });
     const state = {
       getSettings: () => ({ anthropicApiKey: 'test-key', ...(overrides.settings || {}) }),
-      activityLog: overrides.activityLog || [],
-      getLatestAgents: () => overrides.agents || [],
-      getLatestNetConnections: () => overrides.netConns || [],
+      activityLog: stamped(overrides.activityLog || []),
+      getLatestAgents: () => agents,
+      getPopulationHealth: overrides.getPopulationHealth || (() => ({ populationReliable: true })),
+      getLatestNetConnections: () => stamped(overrides.netConns || []),
       getAnomalyScores: overrides.getAnomalyScores || (() => ({})),
     };
     analysis.init(state);
     return state;
+  }
+
+  function setupAgentState(overrides = {}) {
+    return setupState({
+      agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
+      ...overrides,
+    });
   }
 
   function mockHttpSuccess(body) {
@@ -258,6 +280,157 @@ describe('ai-analysis', () => {
   });
 
   describe('analyzeAgentActivity', () => {
+    it('rejects ambiguous legacy names and unknown identities before HTTP', async () => {
+      setupAgentState({
+        agents: [
+          { agent: 'Claude', pid: 101, instanceId: '101:1' },
+          { agent: 'Claude', pid: 202, instanceId: '202:1' },
+          { agent: 'Unknown', pid: 303, instanceId: '303:u', instanceIdSource: 'unknown' },
+        ],
+      });
+      expect(analysis.captureAgentTarget('Claude')).toBeNull();
+      expect((await analysis.analyzeAgentActivity('Claude')).success).toBe(false);
+      expect((await analysis.analyzeAgentActivity({ instanceId: '303:u' })).success).toBe(false);
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it('revalidates the precise generation captured before consent instead of re-resolving its name', async () => {
+      const state = setupAgentState({
+        agents: [
+          {
+            agent: 'Claude',
+            pid: 202,
+            instanceId: '202:2000',
+            createTime100ns: '116444736020000000',
+          },
+        ],
+      });
+      const target = analysis.captureAgentTarget({
+        instanceId: '202:2000',
+        createTime100ns: '116444736020000000',
+      });
+      expect(target).not.toBeNull();
+      state.getLatestAgents = () => [
+        {
+          agent: 'Claude',
+          pid: 202,
+          instanceId: '202:2000',
+          instanceIdSource: 'os',
+          createTime100ns: '116444736020000001',
+        },
+      ];
+      expect(await analysis.analyzeAgentActivity(target)).toEqual({
+        success: false,
+        error: 'Selected process instance is unavailable',
+      });
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+    it('sends only the selected instance and excludes same-name and mismatched-generation observations', async () => {
+      setupAgentState({
+        agents: [
+          {
+            agent: 'Claude',
+            pid: 101,
+            instanceId: '101:2000',
+            process: 'first.exe',
+            parentChain: ['first-parent'],
+          },
+          {
+            agent: 'Claude',
+            pid: 202,
+            instanceId: '202:2000',
+            createTime100ns: '116444736020000000',
+            process: 'second.exe',
+            parentChain: ['second-parent'],
+          },
+        ],
+        activityLog: [
+          {
+            agent: 'Claude',
+            instanceId: '101:2000',
+            file: '/FIRST_ONLY',
+            sensitive: true,
+            action: 'read',
+          },
+          {
+            agent: 'Claude',
+            instanceId: '202:2000',
+            createTime100ns: '116444736020000000',
+            file: '/SECOND_ONLY',
+            sensitive: true,
+            action: 'read',
+          },
+          {
+            agent: 'Claude',
+            instanceId: '202:2000',
+            createTime100ns: '116444736020000001',
+            file: '/OLD_GENERATION',
+            sensitive: true,
+            action: 'read',
+          },
+          { agent: 'Claude', file: '/UNSCOPED', sensitive: true, action: 'read' },
+        ],
+        netConns: [
+          { agent: 'Claude', instanceId: '101:2000', remoteIp: '198.51.100.1', remotePort: 443 },
+          { agent: 'Claude', instanceId: '202:2000', remoteIp: '203.0.113.2', remotePort: 443 },
+        ],
+      });
+      const req = mockHttpSuccess({ content: [{ text: '{"summary":"selected"}' }] });
+      const result = await analysis.analyzeAgentActivity({
+        instanceId: '202:2000',
+        createTime100ns: '116444736020000000',
+      });
+      const body = JSON.parse(req.write.mock.calls[0][0]).messages[0].content;
+      expect(body).toContain('/SECOND_ONLY');
+      expect(body).toContain('PID 202');
+      expect(body).toContain('Instance: 202:2000');
+      expect(body).toContain('second-parent');
+      expect(body).toContain('203.0.113.2');
+      for (const excluded of [
+        'FIRST_ONLY',
+        'OLD_GENERATION',
+        'UNSCOPED',
+        'first-parent',
+        '198.51.100.1',
+      ])
+        expect(body).not.toContain(excluded);
+      expect(result.counts).toEqual({
+        totalFiles: 1,
+        totalSensitive: 1,
+        totalAgents: 1,
+        totalNet: 1,
+      });
+    });
+    it('rejects a stale or incomplete precise selector before capturing consent', async () => {
+      setupAgentState({
+        agents: [
+          {
+            agent: 'Claude',
+            pid: 202,
+            instanceId: '202:2000',
+            createTime100ns: '116444736020000001',
+          },
+        ],
+      });
+      for (const selection of [
+        { instanceId: '202:2000' },
+        { instanceId: '202:2000', createTime100ns: '116444736020000000' },
+      ]) {
+        expect(analysis.captureAgentTarget(selection)).toBeNull();
+        expect((await analysis.analyzeAgentActivity(selection)).success).toBe(false);
+      }
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it.each([false, undefined])(
+      'rejects retained populations with reliability %s before HTTP',
+      async (populationReliable) => {
+        setupAgentState({ getPopulationHealth: () => ({ populationReliable }) });
+        expect(analysis.captureAgentTarget('TestAgent')).toBeNull();
+        expect((await analysis.analyzeAgentActivity({ instanceId: '100:1' })).success).toBe(false);
+        expect(mockRequest).not.toHaveBeenCalled();
+      },
+    );
     it('returns error when no API key configured', async () => {
       analysis.init({
         getSettings: () => ({}),
@@ -282,7 +455,7 @@ describe('ai-analysis', () => {
     });
 
     it('makes HTTPS request with correct headers', async () => {
-      setupState({
+      setupAgentState({
         agents: [
           {
             agent: 'TestAgent',
@@ -307,7 +480,7 @@ describe('ai-analysis', () => {
     });
 
     it('returns structured result on valid JSON response', async () => {
-      setupState({
+      setupAgentState({
         agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
       });
       mockHttpSuccess({
@@ -321,7 +494,9 @@ describe('ai-analysis', () => {
     });
 
     it('returns success without structured when JSON extraction fails', async () => {
-      setupState({ agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }] });
+      setupAgentState({
+        agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
+      });
       mockHttpSuccess({ content: [{ text: 'plain text no json here' }] });
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -331,7 +506,7 @@ describe('ai-analysis', () => {
     });
 
     it('handles API error response', async () => {
-      setupState();
+      setupAgentState();
       mockHttpSuccess({
         error: { type: 'authentication_error', message: 'PRIVATE_API_RESPONSE_CANARY' },
       });
@@ -343,7 +518,7 @@ describe('ai-analysis', () => {
     });
 
     it('uses a generic error for unknown API error types', async () => {
-      setupState();
+      setupAgentState();
       mockHttpSuccess({
         error: { type: 'PRIVATE_ERROR_TYPE_CANARY', message: 'PRIVATE_API_RESPONSE_CANARY' },
       });
@@ -353,7 +528,7 @@ describe('ai-analysis', () => {
     });
 
     it('handles unexpected API response format', async () => {
-      setupState();
+      setupAgentState();
       mockHttpSuccess({ something: 'unexpected' });
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -362,7 +537,7 @@ describe('ai-analysis', () => {
     });
 
     it('handles network error', async () => {
-      setupState();
+      setupAgentState();
       mockHttpError('PRIVATE_NETWORK_ERROR_CANARY');
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -372,7 +547,7 @@ describe('ai-analysis', () => {
     });
 
     it('aborts an oversized multi-chunk API response before parsing it', async () => {
-      setupState();
+      setupAgentState();
       const req = mockHttpChunks([
         Buffer.alloc(600 * 1024, 'a'),
         Buffer.alloc(500 * 1024, 'b'),
@@ -389,7 +564,7 @@ describe('ai-analysis', () => {
     });
 
     it('handles request timeout', async () => {
-      setupState();
+      setupAgentState();
       const req = mockHttpTimeout();
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -399,7 +574,7 @@ describe('ai-analysis', () => {
     });
 
     it('handles malformed API response body', async () => {
-      setupState();
+      setupAgentState();
       mockHttpBadBody('{{{{ not json at all');
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -408,7 +583,9 @@ describe('ai-analysis', () => {
     });
 
     it('extracts JSON from markdown code fences', async () => {
-      setupState({ agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }] });
+      setupAgentState({
+        agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
+      });
       mockHttpSuccess({
         content: [{ text: '```json\n{"summary":"fenced","riskLevel":"HIGH"}\n```' }],
       });
@@ -419,7 +596,9 @@ describe('ai-analysis', () => {
     });
 
     it('extracts JSON embedded in prose', async () => {
-      setupState({ agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }] });
+      setupAgentState({
+        agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
+      });
       mockHttpSuccess({
         content: [
           {
@@ -433,16 +612,19 @@ describe('ai-analysis', () => {
       expect(result.structured.summary).toBe('embedded');
     });
 
-    it('handles agent not found in agents list', async () => {
-      setupState({ agents: [] });
+    it('rejects an agent absent from the current population without an API request', async () => {
+      setupAgentState({ agents: [] });
       mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
 
       const result = await analysis.analyzeAgentActivity('MissingAgent');
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(mockRequest).not.toHaveBeenCalled();
     });
 
     it('handles agent with no parentChain', async () => {
-      setupState({ agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }] });
+      setupAgentState({
+        agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
+      });
       mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -450,7 +632,7 @@ describe('ai-analysis', () => {
     });
 
     it('includes sensitive and network details in request body', async () => {
-      setupState({
+      setupAgentState({
         activityLog: [
           {
             agent: 'TestAgent',
@@ -725,12 +907,12 @@ describe('ai-analysis', () => {
         { agent: 'Cursor', pid: 3 },
       ];
       const activityLog = [
-        { agent: 'Codex', sensitive: true },
-        { agent: 'Codex' },
+        { agent: 'Codex', instanceId: '1:1', sensitive: true },
+        { agent: 'Codex', instanceId: '1:1' },
         { agent: 'Cursor' },
       ];
-      const netConns = [{ agent: 'Codex' }, { agent: 'Cursor' }];
-      setupState({ agents, activityLog, netConns });
+      const netConns = [{ agent: 'Codex', instanceId: '1:1' }, { agent: 'Cursor' }];
+      const state = setupState({ agents, activityLog, netConns });
       mockHttpSuccess({
         content: [
           {
@@ -745,10 +927,10 @@ describe('ai-analysis', () => {
       });
       const pending =
         mode === 'agent'
-          ? analysis.analyzeAgentActivity('Codex')
+          ? analysis.analyzeAgentActivity({ instanceId: '1:1' })
           : analysis.analyzeSessionActivity();
-      agents.push({ agent: 'Later' });
-      activityLog.push({ agent: 'Later', sensitive: true });
+      state.getLatestAgents().push({ agent: 'Later' });
+      state.activityLog.push({ agent: 'Later', sensitive: true });
       netConns.push({ agent: 'Later' });
       const result = await pending;
       expect(result.success).toBe(true);

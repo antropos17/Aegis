@@ -298,11 +298,15 @@ function register() {
     return { success: true };
   });
 
-  ipcMain.handle('analyze-agent', async (event, name) => {
-    const refusal = await confirmAnalysisEgress(event);
-    if (refusal) return refusal;
+  ipcMain.handle('analyze-agent', async (event, selection) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
-      return await analysis.analyzeAgentActivity(name);
+      const target = analysis.captureAgentTarget(selection);
+      if (!target) return { success: false, error: 'Selected process instance is unavailable' };
+      const refusal = await confirmAnalysisEgress(event);
+      if (refusal) return refusal;
+      return await analysis.analyzeAgentActivity(target);
     } catch (_) {
       logger.error('IPC analyze-agent failed');
       return { success: false, error: 'Analysis failed' };

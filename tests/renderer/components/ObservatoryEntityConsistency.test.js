@@ -202,26 +202,65 @@ it('keeps captured request counts and scope while newer telemetry and selection 
     analyzeAgent: vi.fn(() => pending),
     openThreatReport: vi.fn(async () => ({ success: true })),
   };
-  const mounted = render(Analysis, { host, telemetry: state() });
+  const telemetry = state();
+  const selectedProcess = telemetry.agents[1];
+  selectedProcess.createTime100ns = '116444736000010000';
+  selectedProcess.generationWitness = '116444736000010000';
+  selectedProcess.generationWitnessSource = 'createTime100ns';
+  const mounted = render(Analysis, { host, telemetry });
   await screen.findByText('API key saved · verified on first analysis');
   await fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'agent' } });
-  await fireEvent.change(screen.getByLabelText('Agent'), { target: { value: 'Codex' } });
+  await fireEvent.change(screen.getByLabelText('Process'), { target: { value: '102:1' } });
   await fireEvent.click(screen.getByRole('button', { name: 'Run analysis' }));
-  await waitFor(() => expect(host.analyzeAgent).toHaveBeenCalledExactlyOnceWith('Codex'));
+  await waitFor(() =>
+    expect(host.analyzeAgent).toHaveBeenCalledExactlyOnceWith({
+      instanceId: '102:1',
+      createTime100ns: '116444736000010000',
+      generationWitness: '116444736000010000',
+      generationWitnessSource: 'createTime100ns',
+    }),
+  );
+  selectedProcess.instanceId = '102:2';
+  selectedProcess.pid = 999;
   await fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'session' } });
   await mounted.rerender({ telemetry: { ...state(), agents: [], stats: { totalFiles: 999 } } });
   resolve({
     success: true,
-    structured: { summary: 'Captured fixture', riskLevel: 'HIGH', counts: { totalFiles: 999 } },
+    structured: {
+      summary: 'Captured fixture',
+      riskLevel: 'HIGH',
+      counts: { totalFiles: 999 },
+      instanceId: 'forged',
+      pid: 999,
+    },
     counts: { totalFiles: 3, totalSensitive: 1, totalAgents: 1, totalNet: 2 },
   });
   await screen.findByText('Captured fixture');
   await fireEvent.click(screen.getByRole('button', { name: 'Open report' }));
   await waitFor(() => expect(host.openThreatReport).toHaveBeenCalledTimes(1));
   expect(host.openThreatReport.mock.calls[0][0]).toMatchObject({
-    scope: 'Codex',
+    scope: 'Codex · PID 102 · 102:1',
+    instanceId: '102:1',
+    pid: 102,
     counts: { totalFiles: 3, totalSensitive: 1, totalAgents: 1, totalNet: 2 },
   });
+});
+
+it('disables process analysis when the displayed population becomes stale', async () => {
+  const host = {
+    getSettings: async () => ({ anthropicApiKeyConfigured: true }),
+    analyzeAgent: vi.fn(),
+  };
+  const telemetry = state();
+  const mounted = render(Analysis, { host, telemetry });
+  await screen.findByText('API key saved · verified on first analysis');
+  await fireEvent.change(screen.getByLabelText('Scope'), { target: { value: 'agent' } });
+  await fireEvent.change(screen.getByLabelText('Process'), { target: { value: '102:1' } });
+  expect(screen.getByRole('button', { name: 'Run analysis' })).toBeEnabled();
+  await mounted.rerender({ telemetry: { ...telemetry, stale: true } });
+  expect(screen.getByRole('button', { name: 'Run analysis' })).toBeDisabled();
+  expect(screen.queryByRole('option', { name: 'Codex · PID 102 · 102:1' })).not.toBeInTheDocument();
+  expect(host.analyzeAgent).not.toHaveBeenCalled();
 });
 
 it('preserves legacy ID conflicts while saving another custom definition', async () => {
