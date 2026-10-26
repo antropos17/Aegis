@@ -10,6 +10,7 @@ const { createHash } = require('node:crypto');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { createWindowsHookIO } = require('../../src/main/claude-hook-windows-io');
 const { equalActionValue } = require('../../src/main/action-policy');
+const { profileCommand } = require('../../src/main/claude-hook-app-profile');
 const root = path.resolve(__dirname, '../..');
 const output =
   process.argv[2] && path.isAbsolute(process.argv[2]) ? path.resolve(process.argv[2]) : null;
@@ -269,6 +270,7 @@ function boundedChild(
     cwd,
     env,
     input,
+    endInput = true,
     deadlineMs,
     spawnChild = spawn,
     killTree = (pid) =>
@@ -347,7 +349,8 @@ function boundedChild(
     child.once('close', (code, signal) => {
       finish(code, signal, true);
     });
-    child.stdin.end(input || '');
+    if (endInput) child.stdin.end(input || '');
+    else if (input) child.stdin.write(input);
   });
 }
 
@@ -394,21 +397,29 @@ async function qualifyClaude(target, policy) {
   assert(/opus/i.test(configured), 'Configured Opus required; no model substitution');
   receipt.configuredOpusPreserved = true;
   stage = 'real-electron-hook-preflight';
+  const command = JSON.parse(await fs.readFile(target, 'utf8')).hooks.PreToolUse[0].hooks[0]
+    .command;
+  assert.equal(command, profileCommand(require('electron'), root, policy));
+  receipt.generatedProfileCommandMatched = true;
   receipt.hookPreflight = [];
   for (const [index, input] of qualificationRequests().entries()) {
-    const result = await boundedChild(require('electron'), [root, '--action-policy-hook', policy], {
-      cwd: output,
-      env,
-      deadlineMs: 5000,
-      input: JSON.stringify({
-        session_id: 'owned-qualification',
-        tool_use_id: 'preflight-' + index,
-        hook_event_name: 'PreToolUse',
+    const result = await boundedChild(
+      preflight.shellPath,
+      ['--noprofile', '--norc', '-c', command],
+      {
         cwd: output,
-        tool_name: 'Bash',
-        tool_input: input,
-      }),
-    });
+        env,
+        deadlineMs: 5000,
+        input: JSON.stringify({
+          session_id: 'owned-qualification',
+          tool_use_id: 'preflight-' + index,
+          hook_event_name: 'PreToolUse',
+          cwd: output,
+          tool_name: 'Bash',
+          tool_input: input,
+        }),
+      },
+    );
     try {
       const expected = index === 0 ? 'allow' : 'deny';
       const evidence = {

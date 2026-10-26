@@ -57,6 +57,89 @@ afterEach(() => {
 });
 
 describe('action policy command-hook boundary', () => {
+  it('Windows Electron fd constructor failure emits only fixed deny with code two', async () => {
+    const output = [],
+      evaluate = vi.fn();
+    hook._setDepsForTest({
+      runtime: { platform: 'win32', versions: { electron: '45.0.0' } },
+      createSocket: () => {
+        throw Error('PRIVATE_FD_CONSTRUCTOR');
+      },
+      evaluate,
+    });
+    expect(await hook.handleActionPolicyHook(args, (text) => output.push(text))).toBe(2);
+    expect(output.map(JSON.parse)).toEqual([deny]);
+    expect(evaluate).not.toHaveBeenCalled();
+  });
+  it('Windows Electron fd reader delivers the exact inherited request instead of synthetic EOF', async () => {
+    const input = new PassThrough(),
+      fallback = new PassThrough();
+    fallback.end();
+    const createSocket = vi.fn(() => input),
+      output = [];
+    let captured;
+    hook._setDepsForTest({
+      runtime: { platform: 'win32', versions: { electron: '45.0.0' }, stdin: fallback },
+      createSocket,
+      evaluate: async (_file, raw) => {
+        captured = Buffer.from(raw);
+        return { decision: 'allow' };
+      },
+    });
+    const done = hook.handleActionPolicyHook(args, (text) => output.push(text));
+    const expected = Buffer.alloc(311, 65);
+    input.end(expected);
+    expect(await done).toBe(0);
+    expect(createSocket).toHaveBeenCalledExactlyOnceWith({
+      fd: 0,
+      readable: true,
+      writable: false,
+    });
+    expect(captured).toEqual(expected);
+    expect(JSON.parse(output[0]).hookSpecificOutput.permissionDecision).toBe('allow');
+    captured.fill(0);
+    expected.fill(0);
+  });
+  it.each([
+    { platform: 'win32', versions: {} },
+    { platform: 'linux', versions: { electron: '45.0.0' } },
+  ])('Windows Electron fd selection preserves ordinary runtime %#', async (runtime) => {
+    const input = new PassThrough(),
+      createSocket = vi.fn();
+    hook._setDepsForTest({
+      runtime: { ...runtime, stdin: input },
+      createSocket,
+      evaluate: async () => ({ decision: 'deny' }),
+    });
+    const output = [];
+    const done = hook.handleActionPolicyHook(args, (text) => output.push(text));
+    input.end('{}');
+    expect(await done).toBe(0);
+    expect(createSocket).not.toHaveBeenCalled();
+    expect(output.map(JSON.parse)).toEqual([deny]);
+  });
+  it.each(['error', 'oversize', 'deadline'])(
+    'Windows Electron fd reader closes on %s with fixed deny',
+    async (failure) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+      const input = new PassThrough(),
+        evaluate = vi.fn(),
+        output = [];
+      hook._setDepsForTest({
+        runtime: { platform: 'win32', versions: { electron: '45.0.0' } },
+        createSocket: () => input,
+        evaluate,
+      });
+      const done = hook.handleActionPolicyHook(args, (text) => output.push(text));
+      if (failure === 'error') input.destroy(Error('PRIVATE_FD_ERROR'));
+      else if (failure === 'oversize') input.write(Buffer.alloc(65537));
+      else await vi.advanceTimersByTimeAsync(1500);
+      expect(await done).toBe(2);
+      expect(input.destroyed).toBe(true);
+      expect(evaluate).not.toHaveBeenCalled();
+      expect(output.map(JSON.parse)).toEqual([deny]);
+    },
+  );
   it.each(['allow', 'ask', 'deny'])(
     'emits only the official %s decision without evaluator detail',
     async (decision) => {

@@ -121,8 +121,8 @@ in force; the runner refuses a different configured model.
 
 The mode creates and installs a separate fixture profile using actual guarded IO
 with scripted confirmation, then closes that native session. Before any provider
-call, it feeds two synthetic requests to the actual Electron application
-`--action-policy-hook` route and requires the fixed allow/deny decisions. The
+call, it feeds two synthetic requests through verified Git Bash using the exact
+read-back generated application command and requires the fixed allow/deny decisions. The
 policy and provider prompt predeclare two entire Bash input objects, including
 command, description and timeout. The policy defaults to deny and permits only
 the first exact object. Both commands write fixed markers only in the owned
@@ -145,3 +145,20 @@ This mode remains unqualified until an authorized actual run passes. A mismatch
 is retained as an inconclusive allow/deny result; it does not widen permission.
 It does not establish real native-dialog acceptance or protection against missing
 hooks, launch failures, alternate tools or bypass routes.
+
+### Windows inherited input
+
+Electron 45 [replaces `process.stdin` with an ended stream on Windows](https://github.com/electron/electron/blob/v45.0.0/lib/common/init.ts#L56-L67).
+The action-policy hook therefore wraps inherited descriptor zero as a read-only
+`net.Socket`, matching [Node 24.22's pipe-input bootstrap](https://github.com/nodejs/node/blob/v24.22.0/lib/internal/bootstrap/switches/is_main_thread.js#L199-L220).
+It creates no connection or listening endpoint. The existing 64 KiB input limit,
+1.5-second deadline and fixed denial responses remain in force. Ordinary Node,
+other operating systems and the other CLI routes keep their existing inputs.
+
+The first filesystem-stream candidate delivered allow/deny correctly but could
+not cancel a pending held-open read; it required the outer supervisor to kill the
+owned process and failed qualification. The final pipe wrapper passed the four
+native cases through the exact generated Git Bash command: allow, deny, malformed
+input and held-open deadline with actual process exit. No environment prefix,
+console switch or fuse change is needed. These are native transport cases, not
+installed-Claude or real-dialog acceptance.
