@@ -948,7 +948,12 @@ main()
     if (outputCreated)
       await fs.writeFile(path.join(out, 'failure.txt'), String(error), { flag: 'wx' });
     let ownedRowDiagnostic = { available: false };
-    if (page && Number.isSafeInteger(child?.pid)) {
+    if (
+      page &&
+      appChild?.exitCode === null &&
+      appChild?.signalCode === null &&
+      Number.isSafeInteger(child?.pid)
+    ) {
       const observed = page
         .evaluate((pid) => {
           const agents = Array.isArray(window.__w4Agents) ? window.__w4Agents : [];
@@ -1007,7 +1012,8 @@ main()
       electronExitCode: null,
       confirmed: true,
     };
-    if (app) await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
+    if (app && appChild?.exitCode === null && appChild?.signalCode === null)
+      await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
     if (child?.exitCode === null) {
       try {
         execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
