@@ -14,10 +14,57 @@ import {
   coverageReasons,
   coveragePhases,
   coverageSurfaces,
+  projectCoverageStates,
+  projectCoverageDetails,
 } from '../../frontend/observatory/runtime/sensor-coverage';
 import portuguese from '../../frontend/observatory/translations/pt-BR.json';
 
 describe('closed runtime coverage projection', () => {
+  it.each(['stale', 'not-ready', 'error'])(
+    'qualifies project readiness when telemetry is %s',
+    (state) => {
+      const input = coverageFixture();
+      record(input.stats.appHealth).watchPlan = { projectState: 'observed' };
+      input.stats.monitoringPaused = true;
+      input.stale = state === 'stale';
+      input.ready = state !== 'not-ready';
+      input.error = state === 'error' ? 'PRIVATE_FAILURE' : '';
+      expect(sensorCoverage(input).project).toEqual({
+        state: 'Unknown',
+        detail: projectCoverageDetails.unknown,
+        paused: false,
+      });
+      expect(record(record(input.stats.appHealth).watchPlan).projectState).toBe('observed');
+    },
+  );
+  it.each(['not-observed', 'starting', 'observed', 'unavailable', 'unknown'])(
+    'keeps project %s distinct from aggregate healthy file changes',
+    (projectState) => {
+      const input = coverageFixture('windows');
+      const health = record(input.stats.appHealth);
+      health.watchPlan = { state: 'HEALTHY', projectState, path: 'PRIVATE_ROOT' };
+      record(health.sensors).byId = { 'fs-chokidar': { state: 'HEALTHY' } };
+      const model = sensorCoverage(input);
+      expect(model.project).toEqual({
+        state: projectCoverageStates[projectState],
+        detail: projectCoverageDetails[projectState],
+        paused: false,
+      });
+      expect(model.sensors[0].state).toBe('Healthy');
+      expect(JSON.stringify(model)).not.toContain('PRIVATE_ROOT');
+    },
+  );
+  it('keeps missing and hostile project states unknown and operator pause separate', () => {
+    const input = coverageFixture();
+    expect(sensorCoverage(input).project.state).toBe('Unknown');
+    record(input.stats.appHealth).watchPlan = { projectState: '__proto__' };
+    input.stats.monitoringPaused = true;
+    expect(sensorCoverage(input).project).toEqual({
+      state: 'Unknown',
+      detail: projectCoverageDetails.unknown,
+      paused: true,
+    });
+  });
   it('covers the checked-in factory lifecycle and fixed launcher/transport failure vocabulary', () => {
     const paths = [
       'sensor-host.js',
@@ -149,6 +196,8 @@ describe('closed runtime coverage projection', () => {
       coverageReasons,
       coveragePhases,
       coverageSurfaces,
+      projectCoverageStates,
+      projectCoverageDetails,
     ]) {
       for (const label of Object.values(labels))
         expect(Object.hasOwn(portuguese, label), label).toBe(true);

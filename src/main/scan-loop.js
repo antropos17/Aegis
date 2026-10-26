@@ -181,7 +181,7 @@ function dedupFileEvent(ev, sensor = 'file-watch', { auditAlreadyAdmitted = fals
     : (attribution?.evidence ?? null);
   const key = JSON.stringify([
     instanceId,
-    ev.action === 'holding' && typeof ev.createTime100ns === 'string' ? ev.createTime100ns : null,
+    typeof ev.createTime100ns === 'string' ? ev.createTime100ns : null,
     ev.observationKind === 'bound-object-read' ? boundReadObjectKey(ev.object) : ev.file,
     ev.observationKind ?? 'path',
     ev.action,

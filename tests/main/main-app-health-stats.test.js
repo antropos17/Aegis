@@ -62,6 +62,112 @@ afterAll(() => {
 });
 
 describe('getStats() — app health composition', () => {
+  it('projects project readiness independently of healthy other roots without reading selection paths', () => {
+    const mainPath = require_.resolve('../../src/main/main.js');
+    const previous = require_.cache[mainPath];
+    delete require_.cache[mainPath];
+    const partial = require_(mainPath);
+    try {
+      partial._loadDeferredModulesForTest();
+      const watcher = require_('../../src/main/file-watcher');
+      const selection = { getWatchKey: vi.fn(), resolveRoot: vi.fn() };
+      partial._setProjectWatchSelectionForTest(selection);
+      const root = (state, hasLiveWatcher = true) => ({
+        id: 'project-dir',
+        state,
+        hasLiveWatcher,
+        path: 'PRIVATE_PROJECT_PATH',
+      });
+      const cases = [
+        [[], ['project-dir'], 'not-observed'],
+        [[root('planned', false)], [], 'starting'],
+        [[root('registered')], [], 'starting'],
+        [[root('ready')], [], 'observed'],
+        [[root('ready', false)], [], 'unavailable'],
+        [[root('registration-failed', false)], [], 'unavailable'],
+        [[root('errored')], [], 'unavailable'],
+        [[root('not-attempted', false)], [], 'unavailable'],
+        [[], [], 'unknown'],
+        [[root('PRIVATE_PROJECT_PATH')], [], 'unknown'],
+        [[root('ready')], ['project-dir'], 'unknown'],
+      ];
+      for (const [groups, absentGroups, expected] of cases) {
+        partial._setWatcherForTest({
+          ...watcher,
+          getWatchPlan: () => ({
+            state: 'HEALTHY',
+            liveWatcherCount: 3,
+            unavailableGroups: [],
+            groups,
+            absentGroups,
+          }),
+        });
+        const view = partial.getStats().appHealth.watchPlan;
+        expect(view).toEqual({
+          state: 'HEALTHY',
+          liveWatcherCount: 3,
+          unavailableGroups: [],
+          projectState: expected,
+        });
+        expect(JSON.stringify(view)).not.toContain('PRIVATE_PROJECT_PATH');
+      }
+      expect(selection.getWatchKey).not.toHaveBeenCalled();
+      expect(selection.resolveRoot).not.toHaveBeenCalled();
+    } finally {
+      require_.cache[mainPath] = previous;
+    }
+  });
+  it('keeps reentrant health and stats reads BOOTING throughout the real deferred require pass', () => {
+    const mainPath = require_.resolve('../../src/main/main.js');
+    const previousMain = require_.cache[mainPath];
+    const previousLoad = Module._load;
+    const boundaries = [
+      './network-monitor',
+      './platform',
+      './ide-extension-detector',
+      './wsl-detector',
+      './llm-runtime-detector',
+    ];
+    const observed = [];
+    delete require_.cache[mainPath];
+    try {
+      const partial = require_(mainPath);
+      Module._load = function (request, parent, isMain) {
+        if (parent?.filename === mainPath && boundaries.includes(request)) {
+          observed.push({
+            boundary: request,
+            health: partial.getAppHealth(),
+            statsHealth: partial.getStats().appHealth,
+          });
+        }
+        return previousLoad.call(this, request, parent, isMain);
+      };
+      partial._loadDeferredModulesForTest();
+      expect(observed.map((row) => row.boundary)).toEqual(boundaries);
+      for (const { health, statsHealth } of observed) {
+        expect(health).toEqual({
+          state: APP_HEALTH_STATE.BOOTING,
+          reasons: [],
+          populationState: null,
+          populationReliable: false,
+          populationAsOf: null,
+          identityQuality: null,
+          identityDegraded: false,
+          sensors: { byId: {}, raw: null, effective: null, projections: [] },
+          watchPlan: null,
+        });
+        expect(statsHealth).toEqual(health);
+      }
+      const initialized = partial.getAppHealth();
+      expect(initialized.state).not.toBe(APP_HEALTH_STATE.BOOTING);
+      expect(initialized.sensors.byId).toHaveProperty('process');
+      expect(initialized.populationReliable).toBe(false);
+      expect(partial.getStats().appHealth).toEqual(initialized);
+    } finally {
+      Module._load = previousLoad;
+      require_.cache[mainPath] = previousMain;
+    }
+  });
   it('21. answers BOOTING before the deferred modules load, and does not throw', () => {
     const stats = main.getStats();
     expect(stats.appHealth.state).toBe(APP_HEALTH_STATE.BOOTING);

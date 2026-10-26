@@ -3,9 +3,16 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 const require = createRequire(import.meta.url);
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
+const { profileCommand } = require('../../src/main/claude-hook-app-profile');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
+const {
+  projectClaudeEvidence,
+  boundedChild,
+} = require('../../scripts/qualification/claude-hook-app.cjs');
 let root, target, policy, service, state, options;
 const original = '{ "private": "PROFILE_PRIVATE_CANARY", "hooks": {"PreToolUse":[]} }\n';
 beforeEach(async () => {
@@ -93,6 +100,54 @@ afterEach(async () => {
     expect(path.dirname(path.resolve(root))).toBe(path.resolve(os.tmpdir()));
     expect(path.basename(root)).toMatch(/^aegis-hook-app-/);
     await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+it('quotes the default packaged executable and literal ampersands in every hook path', () => {
+  const executable = path.join(root, 'AEGIS - AI Monitoring & Threat Detection.exe');
+  const appPath = path.join(root, 'resources & application', 'app.asar');
+  const policyPath = path.join(root, 'policy & scope.json');
+  expect(profileCommand(executable, appPath, policyPath)).toBe(
+    `"${executable.replaceAll('\\', '/')}" "${appPath.replaceAll('\\', '/')}" --action-policy-hook "${policyPath.replaceAll('\\', '/')}"`,
+  );
+  const doubled = path.join(root, 'literal&&name.json');
+  expect(
+    profileCommand(executable, appPath, doubled).endsWith(
+      `--action-policy-hook "${doubled.replaceAll('\\', '/')}"`,
+    ),
+  ).toBe(true);
+});
+
+it('retains hook-path quote, substitution, operator and control rejection in every argument', () => {
+  const safe = [process.execPath, path.join(root, 'app'), path.join(root, 'policy.json')];
+  const unsafe = [
+    '" & injected',
+    "'",
+    '`injected`',
+    '$(injected)',
+    '${injected}',
+    '%EXPANSION%',
+    '!EXPANSION!',
+    '?',
+    '|injected',
+    '<input',
+    '>output',
+    '^escape',
+    '\u0000',
+    '\n',
+    '\r',
+    '\t',
+    '\u0085',
+  ];
+  for (const suffix of unsafe) {
+    for (let index = 0; index < safe.length; index++) {
+      const selected = [...safe];
+      selected[index] = path.join(root, `selected${suffix}`);
+      expect(() => profileCommand(...selected)).toThrow('unsupported-path');
+    }
+  }
+  for (const value of ['relative-path', '', null, path.join(root, 'x'.repeat(4097))]) {
+    expect(() => profileCommand(value, safe[1], safe[2])).toThrow('unsupported-path');
   }
 });
 
@@ -401,4 +456,201 @@ it('reveals only the fixed retained profile when native assets disappear', async
     error: 'Renderer request denied',
   });
   expect(state.opened).toEqual([target]);
+});
+
+function genuineRecords() {
+  return [
+    {
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'one',
+            name: 'Bash',
+            input: {
+              command: "printf 'AEGIS_W6_ALLOWED\\n' > aegis-w6-allowed.txt",
+              description: 'AEGIS W6 allowed fixture',
+              timeout: 1000,
+            },
+          },
+        ],
+      },
+    },
+    {
+      type: 'user',
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'one', content: 'PRIVATE_RESULT_CANARY' }],
+      },
+    },
+    {
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'two',
+            name: 'Bash',
+            input: {
+              command: "printf 'AEGIS_W6_DENIED\\n' > aegis-w6-denied.txt",
+              description: 'AEGIS W6 denied fixture',
+              timeout: 1000,
+            },
+          },
+        ],
+      },
+    },
+    {
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'two',
+            is_error: true,
+            content: 'AEGIS policy does not allow this tool request.',
+          },
+        ],
+      },
+    },
+    {
+      type: 'result',
+      is_error: false,
+      total_cost_usd: 0.12,
+      modelUsage: { 'claude-opus-4-6': {} },
+    },
+    { type: 'system', subtype: 'init', cwd: 'X:\\fixture' },
+  ];
+}
+const projectRecords = (rows) =>
+  projectClaudeEvidence(rows.map((row) => JSON.stringify(row)).join('\n'), 'X:\\fixture');
+it('genuine qualification requires both exact whole inputs and explicit denied tool result', () => {
+  const receipt = projectRecords(genuineRecords());
+  expect(receipt).toMatchObject({
+    cwdMatched: true,
+    exactTwoRequests: true,
+    allowResultSucceeded: true,
+    denyResultObserved: true,
+    providerCompleted: true,
+    costWithinLimit: true,
+    opusObserved: true,
+  });
+  expect(JSON.stringify(receipt)).not.toContain('PRIVATE_RESULT_CANARY');
+  expect(JSON.stringify(receipt)).not.toContain('printf');
+  const rows = genuineRecords();
+  rows[3].message.content[0].content = 'Denied by a different permission mechanism';
+  expect(projectRecords(rows).denyResultObserved).toBe(false);
+});
+it('genuine qualification refuses metadata drift without adapting the allowed request', () => {
+  for (const change of [
+    (input) => {
+      delete input.description;
+    },
+    (input) => {
+      input.timeout = 2000;
+    },
+    (input) => {
+      input.extra = 'PRIVATE_EXTRA_CANARY';
+    },
+  ]) {
+    const rows = genuineRecords();
+    change(rows[0].message.content[0].input);
+    const receipt = projectRecords(rows);
+    expect(receipt.exactTwoRequests).toBe(false);
+    expect(receipt.attempts[0].exactInput).toBe(false);
+    expect(JSON.stringify(receipt)).not.toContain('PRIVATE_EXTRA_CANARY');
+  }
+});
+it('genuine qualification refuses retries, duplicate results, unpriced output and model substitution', () => {
+  const duplicate = genuineRecords();
+  duplicate.splice(2, 0, duplicate[1]);
+  expect(projectRecords(duplicate).exactTwoRequests).toBe(false);
+  const retry = genuineRecords();
+  retry.splice(2, 0, retry[0]);
+  expect(projectRecords(retry).exactTwoRequests).toBe(false);
+  const unpriced = genuineRecords();
+  delete unpriced[4].total_cost_usd;
+  expect(projectRecords(unpriced).costWithinLimit).toBe(false);
+  const expensive = genuineRecords();
+  expensive[4].total_cost_usd = 0.51;
+  expect(projectRecords(expensive).costWithinLimit).toBe(false);
+  const replaced = genuineRecords();
+  replaced[4].modelUsage = { 'claude-sonnet': {} };
+  expect(projectRecords(replaced).opusObserved).toBe(false);
+  replaced[4].modelUsage = { 'not-opus': {} };
+  expect(projectRecords(replaced).opusObserved).toBe(false);
+  const wrongCwd = genuineRecords();
+  wrongCwd[5].cwd = 'X:\\other-fixture';
+  expect(projectRecords(wrongCwd).cwdMatched).toBe(false);
+});
+
+function controlledChild() {
+  return Object.assign(new EventEmitter(), {
+    pid: 12345,
+    exitCode: null,
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+  });
+}
+it('genuine child bounds cleanup settlement when the owned tree never closes', async () => {
+  vi.useFakeTimers();
+  const child = controlledChild(),
+    killTree = vi.fn(() => {
+      throw Error('fixed controlled failure');
+    });
+  let settled = false;
+  const pending = boundedChild('owned.exe', [], {
+    cwd: root,
+    env: {},
+    deadlineMs: 150,
+    spawnChild: () => child,
+    killTree,
+  }).then((value) => {
+    settled = true;
+    return value;
+  });
+  await vi.advanceTimersByTimeAsync(150);
+  expect(killTree).toHaveBeenCalledExactlyOnceWith(12345);
+  await vi.advanceTimersByTimeAsync(4999);
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  const result = await pending;
+  expect(result).toMatchObject({
+    cleanupConfirmed: false,
+    ownedPid: 12345,
+    code: null,
+    terminated: true,
+  });
+  expect(child.stdin.destroyed && child.stdout.destroyed && child.stderr.destroyed).toBe(true);
+  expect(killTree).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
+});
+it('genuine child confirms ordinary close and clears both cleanup clocks', async () => {
+  vi.useFakeTimers();
+  const child = controlledChild(),
+    killTree = vi.fn();
+  const pending = boundedChild('owned.exe', [], {
+    cwd: root,
+    env: {},
+    deadlineMs: 150,
+    spawnChild: () => child,
+    killTree,
+  });
+  child.stdout.write(Buffer.from('bounded result'));
+  child.exitCode = 0;
+  child.emit('close', 0, null);
+  const result = await pending;
+  expect(result).toMatchObject({
+    cleanupConfirmed: true,
+    code: 0,
+    terminated: false,
+    stdoutBytes: 14,
+  });
+  expect(result.stdout.toString()).toBe('bounded result');
+  expect(killTree).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+  child.stdin.destroy();
+  child.stdout.destroy();
+  child.stderr.destroy();
 });

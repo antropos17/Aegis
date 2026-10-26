@@ -41,6 +41,8 @@
  *
  * Negative (→ `unattributed`):
  * - `no-owner-match` — no self-config and no cwd containment matched any AI agent.
+ * - `ambiguous-owner-match` — multiple agents matched the selected path heuristic;
+ *   the observation is retained without choosing an owner.
  * - `no-ai-agents-online` — no AI-category agent was online to own the event.
  * - `population-unavailable` — the process sensor could not vouch for the agent
  *   population at this instant, so no owner was even looked for. Deliberately NOT
@@ -59,6 +61,7 @@ const EVIDENCE = Object.freeze({
   SELF_CONFIG_PATH: 'self-config-path',
   CWD_CONTAINMENT: 'cwd-containment',
   NO_OWNER_MATCH: 'no-owner-match',
+  AMBIGUOUS_OWNER_MATCH: 'ambiguous-owner-match',
   NO_AI_AGENTS_ONLINE: 'no-ai-agents-online',
   POPULATION_UNAVAILABLE: 'population-unavailable',
 });

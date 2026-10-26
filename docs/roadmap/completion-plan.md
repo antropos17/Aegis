@@ -685,14 +685,19 @@ test asserts that no prompt or argument text reaches audit, IPC or exports.
 
 The [live local explanation path](../development/live-tool-explanations.md)
 connects native local Claude main-session metadata to the selected observation
-through owned IPC. Independently confirmed session ownership is available for
-the native Windows explicit-selector case. The same-host clock assumption still
-limits tool association to inferred context. Measured clock alignment and genuine native
-file-read sensor acceptance above remain open. The genuine Claude application
-journey retains a synthetic OS observation and does not close that sensor scope.
-The next W4 deliverable qualifies that existing caller, including a live writer,
-process restart, two same-name instances and an unavailable source. Add another
-provider only after its consumer and missing ownership evidence are named.
+through owned IPC. Read-history and active growing-source journeys retain a
+synthetic OS observation; they do not qualify the native file-read sensor. The
+real FileWatcher Write journey in #1106 instead checks the actual event, output
+bytes, persisted audit and Details through the original event UUID. The external
+project scenario recorded at `1a235a14` for #1108 additionally passed its retained
+stages for two same-name Claude instances and restart/resume of the old event UUID.
+Reuse those scoped receipts rather than queueing the same paid cases again.
+Independently confirmed native Windows process-to-session binding does not
+confirm the OS write issuer: path attribution and tool association remain inferred
+under the same-host clock assumption. Remaining W4 work includes measured clock
+alignment, genuine native file-read acceptance and other providers with named
+consumers and missing ownership evidence. Packaged runtime and native owner-consent
+acceptance remain open; these cases do not complete T4 or all W4 substeps.
 
 ### W5 — Cedar action policies
 
@@ -975,7 +980,7 @@ independent integration proceeds while the Windows run is pending.
 | Priority | Existing substep | Next deliverable and closure evidence |
 | --- | --- | --- |
 | 1 | W11.2 / W11.4 | Consume the single authorized Windows diagnostic run. Diagnose its first failing stage from the saved artifact. Close read-to-audit/alert/risk and recovery only when the actual candidate proves them; otherwise implement the narrow demonstrated fix before considering another run. |
-| 2 | W4.3–W4.4, retaining partial W4.2 | Qualify the native local Claude explanation caller delivered in #1088: process/session ownership, active writer, clock alignment, two same-name instances, missing/truncated data and privacy. Record the genuine installed-agent observation-to-explanation path. Keep inferred association explicit; another reader utility is not this deliverable. |
+| 2 | W4.3–W4.4, retaining partial W4.2 | Reuse the recorded native Claude ownership, active-writer, real Write, external-project, two-instance and restart/resume receipts (#1106, #1108). Continue measured clock alignment, native file-read acceptance and named remaining source/privacy gaps; qualify another provider only with its consumer and missing ownership evidence named. Keep inferred association explicit and packaged/native-consent acceptance open. |
 | 3 | W6.3, then W6.4; W9 | Connect existing review/backup/readback operations to owner-visible preview, install and remove for one provider. Demonstrate rollback on a disposable profile, then a real denied and allowed operation with a visible outcome. Verify the selected route before using Blocking verified; exercise expiry/replay/bypass within that route's contract. |
 | 4 | W8.3–W8.4; existing W4/W6/W9 consumers | Measure one real ordinary/unauthorized task pair with an independent oracle; record available explanation/decision/response outcomes and unavailable surfaces. Publish false alarms, misses, task completion, latency and coverage limits. Only then run the bounded decoy comparison if it answers a remaining detection question. |
 

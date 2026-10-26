@@ -2,9 +2,86 @@ import { it, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import Module from 'node:module';
 import { EventEmitter } from 'node:events';
-import { execFile as realExecFile } from 'node:child_process';
+import { spawn, execFile as realExecFile } from 'node:child_process';
+import { once } from 'node:events';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { createInterface } from 'node:readline';
 const require = createRequire(import.meta.url);
 const transport = require('../../src/main/platform/windows-observer');
+
+it
+  .runIf(process.platform === 'win32' && process.env.AEGIS_CWD_PARITY_OBSERVER)
+  .each(['no-directory-flags', 'misleading-argv'])(
+  'native actual CWD agrees with independent owned process and birth reference: %s',
+  async (cell) => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'cwd-Δ справка '));
+    const argv =
+      cell === 'misleading-argv' ? ['--cwd', 'X:/PRIVATE_BAIT', '--project', 'X:/OTHER_BAIT'] : [];
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        'process.stdout.write(JSON.stringify({cwd:process.cwd()})+"\\n");setInterval(()=>{},1000)',
+        '--',
+        ...argv,
+      ],
+      { cwd: directory, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    const closed = once(child, 'close');
+    const lines = createInterface({ input: child.stdout });
+    let timer,
+      cleanupConfirmed;
+    try {
+      const [line] = await Promise.race([
+        once(lines, 'line'),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(Error('owned-cwd-reference-timeout')), 5000);
+        }),
+      ]);
+      clearTimeout(timer);
+      const reference = JSON.parse(line);
+      const birth = await new Promise((resolve, reject) =>
+        realExecFile(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `(Get-Process -Id ${child.pid}).StartTime.ToUniversalTime().ToFileTimeUtc().ToString([Globalization.CultureInfo]::InvariantCulture)`,
+          ],
+          { windowsHide: true, timeout: 5000, maxBuffer: 4096 },
+          (error, stdout) =>
+            error ? reject(Error('independent-birth-unavailable')) : resolve(stdout.trim()),
+        ),
+      );
+      const client = transport.createWindowsObserver({
+        execFile: realExecFile,
+        resolveExe: () => process.env.AEGIS_CWD_PARITY_OBSERVER,
+        mode: 'auto',
+      });
+      const rows = await client.tryRequest('cwd', { pids: [child.pid] }, (rows) =>
+        transport.validateCwds(rows, [child.pid]),
+      );
+      expect(Array.isArray(rows) && rows.length === 1).toBe(true);
+      expect(
+        rows?.[0]?.Cwd.replace(/[\\/]+$/, '').toLowerCase() === reference.cwd.toLowerCase(),
+      ).toBe(true);
+      expect(rows?.[0]?.CreateTime100ns === birth).toBe(true);
+      expect(child.exitCode === null).toBe(true);
+    } finally {
+      clearTimeout(timer);
+      lines.close();
+      if (child.exitCode === null) child.kill();
+      const [exitCode, signal] = await closed;
+      await fs.rmdir(directory);
+      cleanupConfirmed = exitCode !== null || signal !== null;
+    }
+    expect(cleanupConfirmed).toBe(true);
+  },
+  15000,
+);
 
 async function withProviders(responses, run) {
   const files = ['../../src/main/platform/win32', '../../src/main/platform/restart-manager'].map(
@@ -53,6 +130,20 @@ async function withProviders(responses, run) {
   }
 }
 const native = (rows) => JSON.stringify({ version: 1, rows });
+const actualCwd = (rows) => JSON.stringify({ version: 2, rows });
+it('uses the same actual native CWD contract for the single-process API', async () => {
+  await withProviders(
+    [
+      actualCwd([
+        { ProcessId: 42, Cwd: 'X:/owned directory', CreateTime100ns: '133614736000000001' },
+      ]),
+    ],
+    async (win, rm, exec) => {
+      expect(await win.getProcessCwd(42)).toBe('X:/owned directory');
+      expect(exec.mock.calls.map((call) => call[1])).toEqual([['cwd']]);
+    },
+  );
+});
 const socket = {
   OwningProcess: 42,
   RemoteAddress: '203.0.113.1',
@@ -107,41 +198,12 @@ it('keeps read detection unavailable when both native and PowerShell probes fail
   );
 });
 
-it.skipIf(process.platform !== 'win32')(
-  'preserves Unicode through the actual CWD fallback pipeline',
-  async () => {
-    await withProviders(
-      [
-        new Error('helper missing'),
-        (file, args, opts, cb) => {
-          const fixture =
-            'function Get-CimInstance { [pscustomobject]@{ProcessId=42;CommandLine=(\'node --cwd "X:\\проект"\');CreationDate=([DateTimeOffset]::FromUnixTimeMilliseconds(1717000000000)).UtcDateTime} };';
-          realExecFile(
-            file,
-            [...args.slice(0, -1), fixture + args.at(-1)],
-            { ...opts, windowsHide: true },
-            cb,
-          );
-        },
-      ],
-      async (win) => {
-        expect(await win.getProcessCwds([42])).toEqual(
-          new Map([
-            [
-              42,
-              {
-                cwd: 'X:\\проект',
-                createTime100ns: null,
-                startTimeMs: 1717000000000,
-              },
-            ],
-          ]),
-        );
-      },
-    );
-  },
-  15000,
-);
+it('does not run a command-line fallback when actual CWD is unavailable', async () => {
+  await withProviders([new Error('helper missing')], async (win, rm, exec) => {
+    expect(await win.getProcessCwds([42])).toEqual(new Map());
+    expect(exec.mock.calls.map((call) => call[1][0])).toEqual(['cwd']);
+  });
+});
 
 it('routes TCP through the helper and validates scope before returning endpoint tuples', async () => {
   await withProviders(
@@ -171,18 +233,18 @@ it('keeps network failure rejecting after both native and fallback fail', async 
     await expect(win.getRawTcpConnections([42])).rejects.toThrow('fallback');
   });
 });
-it('preserves CWD extraction, null and absent processes with fresh native observations', async () => {
+it('uses actual CWD and paired unknowns from fresh native v2 observations', async () => {
   await withProviders(
     [
-      native([
+      actualCwd([
         {
           ProcessId: 42,
-          CommandLine: 'node --cwd "X:\\проект"',
+          Cwd: 'X:\\проект',
           CreateTime100ns: '133614736000000001',
         },
-        { ProcessId: 43, CommandLine: null, CreateTime100ns: '133614736000000002' },
+        { ProcessId: 43, Cwd: null, CreateTime100ns: null },
       ]),
-      native([]),
+      actualCwd([]),
     ],
     async (win, rm, exec) => {
       expect(await win.getProcessCwds([42, 43, 44])).toEqual(
@@ -195,7 +257,7 @@ it('preserves CWD extraction, null and absent processes with fresh native observ
               startTimeMs: 1717000000000,
             },
           ],
-          [43, { cwd: null, createTime100ns: '133614736000000002', startTimeMs: 1717000000000 }],
+          [43, { cwd: null, createTime100ns: null, startTimeMs: null }],
         ]),
       );
       expect(await win.getProcessCwds([42])).toEqual(new Map());
@@ -203,7 +265,7 @@ it('preserves CWD extraction, null and absent processes with fresh native observ
     },
   );
 });
-it('falls back after malformed CWD output and retains the legacy empty-on-error contract', async () => {
+it('returns unavailable after malformed CWD output without a command-line fallback', async () => {
   await withProviders(['invalid', new Error('fallback')], async (win) => {
     expect(await win.getProcessCwds([42])).toEqual(new Map());
   });

@@ -101,6 +101,8 @@ export interface AppHealthWatchPlan {
   /** FAILED means this is zero: no live watcher object exists at all. */
   readonly liveWatcherCount: number;
   readonly unavailableGroups: ReadonlyArray<{ id: string; state: string; reason: string }>;
+  /** Configured project-root readiness; independent of other watch roots and operator pause. */
+  readonly projectState: 'not-observed' | 'starting' | 'observed' | 'unavailable' | 'unknown';
 }
 
 /**

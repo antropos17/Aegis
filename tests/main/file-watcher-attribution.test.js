@@ -107,6 +107,130 @@ describe('file-watcher attribution — chokidar path (no PID available)', () => 
     );
   });
 
+  it.each(['same', 'nested', 'same-reversed', 'nested-reversed'])(
+    'retains a write without selecting an arbitrary %s cwd candidate',
+    (layout) => {
+      const agents = state.getLatestAiAgents();
+      agents[0].cwd = '/home/user/b';
+      agents[1].cwd = layout.startsWith('nested') ? '/home/user/b/src' : '/home/user/b';
+      if (layout.endsWith('reversed')) agents.reverse();
+      fileWatcher.handleWatcherEvent('created', '/home/user/b/src/output.txt');
+      const event = state.activityLog[0];
+      expect(event).toMatchObject({
+        pid: null,
+        instanceId: null,
+        cwd: null,
+        agent: '',
+        attribution: { status: 'unattributed', evidence: ['ambiguous-owner-match'] },
+      });
+      expect(event).not.toHaveProperty('createTime100ns');
+      expect(state.recordFileAccess).not.toHaveBeenCalled();
+      expect(state.onFileEvent).toHaveBeenCalledExactlyOnceWith(event);
+      expect(state.onActivityPush).toHaveBeenCalledExactlyOnceWith(event);
+    },
+  );
+
+  it('preserves a unique candidate snapshot full birth without promoting path attribution', () => {
+    const candidate = state.getLatestAiAgents()[1];
+    Object.assign(candidate, {
+      startTime: 1700000005000,
+      instanceIdSource: 'os',
+      createTime100ns: '133444736050000007',
+      generationWitnessSource: 'createTime100ns',
+      generationWitness: '133444736050000007',
+    });
+    fileWatcher.handleWatcherEvent('created', '/home/user/b/output.txt');
+    expect(state.activityLog[0]).toMatchObject({
+      pid: 200,
+      instanceId: '200:1700000005000',
+      createTime100ns: '133444736050000007',
+      attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+    });
+  });
+
+  it.each([null, '0133444736050000000', '18446744073709551616', '133444736000000000'])(
+    'keeps prior unique-owner inference without copying invalid or contradictory birth %s',
+    (ticks) => {
+      const candidate = state.getLatestAiAgents()[1];
+      Object.assign(candidate, {
+        startTime: 1700000005000,
+        instanceIdSource: 'os',
+        createTime100ns: ticks,
+        generationWitnessSource: 'createTime100ns',
+        generationWitness: ticks,
+      });
+      fileWatcher.handleWatcherEvent('modified', '/home/user/b/output.txt');
+      const event = state.activityLog[0];
+      expect(event).toMatchObject({
+        pid: 200,
+        instanceId: candidate.instanceId,
+        attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+      });
+      expect(event).not.toHaveProperty('createTime100ns');
+    },
+  );
+
+  it('withholds a full birth that contradicts the generation proof used for cwd', () => {
+    Object.assign(state.getLatestAiAgents()[1], {
+      startTime: 1700000005000,
+      instanceIdSource: 'os',
+      createTime100ns: '133444736050000007',
+      generationWitnessSource: 'createTime100ns',
+      generationWitness: '133444736050000001',
+    });
+    fileWatcher.handleWatcherEvent('created', '/home/user/b/output.txt');
+    expect(state.activityLog[0].attribution.status).toBe('inferred');
+    expect(state.activityLog[0]).not.toHaveProperty('createTime100ns');
+  });
+
+  it.each(['missing-to-known', 'same-ms-reuse'])(
+    'delivers both modifications when candidate birth changes through %s inside the debounce window',
+    (transition) => {
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(1700000010000);
+      try {
+        const candidate = state.getLatestAiAgents()[1];
+        const firstTicks = transition === 'missing-to-known' ? null : '133444736050000001';
+        Object.assign(candidate, {
+          startTime: 1700000005000,
+          instanceIdSource: 'os',
+          createTime100ns: firstTicks,
+          generationWitnessSource: 'createTime100ns',
+          generationWitness: firstTicks,
+        });
+        fileWatcher.handleWatcherEvent('modified', '/home/user/b/output.txt');
+        Object.assign(candidate, {
+          createTime100ns: '133444736050000007',
+          generationWitness: '133444736050000007',
+        });
+        fileWatcher.handleWatcherEvent('modified', '/home/user/b/output.txt');
+        expect(state.activityLog).toHaveLength(2);
+        expect(state.onFileEvent).toHaveBeenCalledTimes(2);
+        expect(state.activityLog.map((event) => event.createTime100ns ?? null)).toEqual([
+          firstTicks,
+          '133444736050000007',
+        ]);
+        expect(state.activityLog.every((event) => event.attribution.status === 'inferred')).toBe(
+          true,
+        );
+        expect(state.activityLog[0].eventId).not.toBe(state.activityLog[1].eventId);
+      } finally {
+        clock.mockRestore();
+      }
+    },
+  );
+
+  it('does not select the first same-named process for a shared self-config path', () => {
+    state.getLatestAiAgents()[1].agent = 'Claude Code';
+    fileWatcher.handleWatcherEvent('modified', '/home/user/.claude/settings.json');
+    expect(state.activityLog[0]).toMatchObject({
+      pid: null,
+      instanceId: null,
+      selfAccess: false,
+      attribution: { status: 'unattributed', evidence: ['ambiguous-owner-match'] },
+    });
+    expect(state.recordFileAccess).not.toHaveBeenCalled();
+  });
+
   it('case 3: an agent own config dir → inferred via self-config-path, exempted', () => {
     fileWatcher.handleWatcherEvent('modified', '/home/user/.opencode/auth.json');
 
@@ -304,6 +428,7 @@ describe('attribution evidence is a closed list (case 8)', () => {
       'self-config-path',
       'cwd-containment',
       'no-owner-match',
+      'ambiguous-owner-match',
       'no-ai-agents-online',
       'population-unavailable',
     ]);
@@ -313,6 +438,11 @@ describe('attribution evidence is a closed list (case 8)', () => {
     // It must never read as PID proof or as a heuristic match: nothing was matched,
     // and the reason is that there was no trustworthy list to match against.
     expect(deriveStatus(['population-unavailable'])).toBe('unattributed');
+  });
+
+  it('keeps native object evidence PID-backed and ambiguous ownership negative', () => {
+    expect(deriveStatus(['etw-file-object'])).toBe('confirmed');
+    expect(deriveStatus(['ambiguous-owner-match'])).toBe('unattributed');
   });
 
   it('the typed AttributionEvidence union mirrors EVIDENCE_CODES exactly', () => {

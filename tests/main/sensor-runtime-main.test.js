@@ -356,3 +356,189 @@ describe('actual deferred startup, process scan and main stats', () => {
     },
   );
 });
+
+describe('existing watch-filter settings wiring', () => {
+  function wire(initial = {}) {
+    const config = require_('../../src/main/config-manager');
+    let settings = {
+      scanIntervalSec: 10,
+      ignoreCommonBuildDirs: true,
+      ignoredDirectories: [],
+      ...initial,
+    };
+    config.getSettings.mockImplementation(() => settings);
+    const configInit = vi.spyOn(config, 'init');
+    const watcherInit = vi.spyOn(h.watcher, 'init');
+    const setup = vi.spyOn(h.watcher, 'setupFileWatchers').mockResolvedValue();
+    const rules = vi.spyOn(h.watcher, 'setupRulesWatcher').mockReturnValue(null);
+    const sequences = vi.spyOn(h.watcher, 'setupSequenceRulesWatcher').mockReturnValue(null);
+    vi.spyOn(h.scanLoop, 'staggeredStartup').mockImplementation(() => {});
+    const stop = vi.spyOn(h.scanLoop, 'stopScanIntervals');
+    const start = vi.spyOn(h.scanLoop, 'startScanIntervals').mockImplementation(() => {});
+    main._initDeferredSubsystemsForTest(directory);
+    const state = watcherInit.mock.calls.at(-1)[0];
+    const callback = configInit.mock.calls.at(-1)[0].applyCallback;
+    return {
+      state,
+      setup,
+      rules,
+      sequences,
+      stop,
+      start,
+      callback,
+      set: (patch) => {
+        settings = { ...settings, ...patch };
+      },
+      current: () => settings,
+      apply: () => config.applySettings(),
+    };
+  }
+  it('injects the live current config getter and registers the actual apply callback', async () => {
+    const t = wire();
+    expect(typeof t.callback).toBe('function');
+    expect(t.state.getSettings()).toBe(t.current());
+    t.set({ ignoredDirectories: ['selected-exclusion'] });
+    expect(t.state.getSettings()).toBe(t.current());
+    expect(t.state.getSettings().ignoredDirectories).toEqual(['selected-exclusion']);
+    t.apply();
+    await h.flush();
+    expect(t.setup).not.toHaveBeenCalled();
+    await main.startWatchers();
+    expect(t.setup).toHaveBeenCalledOnce();
+  });
+  it('refreshes selected watch filters and retires the native policy generation on the same settings save', async () => {
+    const factory = vi.spyOn(
+      require_('../../src/main/native-file-ingress'),
+      'createNativeFileIngress',
+    );
+    const t = wire();
+    const ingress = factory.mock.calls.at(-1)[0];
+    const originalGeneration = ingress.getPolicyGeneration();
+    await main.startWatchers();
+    t.set({ ignoredDirectories: ['new-private-filter'] });
+    t.apply();
+    await h.flush();
+    expect(ingress.getPolicyGeneration()).not.toBe(originalGeneration);
+    expect(t.setup).toHaveBeenCalledTimes(2);
+    expect(t.state.getSettings().ignoredDirectories).toEqual(['new-private-filter']);
+    expect(t.stop).toHaveBeenCalledOnce();
+    expect(t.start).toHaveBeenCalledExactlyOnceWith(10000);
+  });
+  it('keeps file watchers for theme, interval and identical effective exclusion saves', async () => {
+    const t = wire({ ignoredDirectories: ['one', 'two'] });
+    await main.startWatchers();
+    t.set({ darkMode: true, scanIntervalSec: 20 });
+    t.apply();
+    t.set({ ignoredDirectories: ['two', 'one', 'one'] });
+    t.apply();
+    await h.flush();
+    expect(t.setup).toHaveBeenCalledOnce();
+    expect(t.stop).toHaveBeenCalledTimes(2);
+    expect(t.start).toHaveBeenLastCalledWith(20000);
+  });
+  it('coalesces filter saves into one setup consuming the latest settings without duplicating rules', async () => {
+    const t = wire();
+    await main.startWatchers();
+    let observed;
+    t.setup.mockImplementation(async () => {
+      observed = t.state.getSettings();
+    });
+    t.set({ ignoredDirectories: ['one'] });
+    t.apply();
+    t.set({ ignoredDirectories: ['two'], ignoreCommonBuildDirs: false });
+    t.apply();
+    expect(t.setup).toHaveBeenCalledOnce();
+    await h.flush();
+    expect(t.setup).toHaveBeenCalledTimes(2);
+    expect(observed).toBe(t.current());
+    expect(observed).toMatchObject({ ignoredDirectories: ['two'], ignoreCommonBuildDirs: false });
+    expect(t.rules).toHaveBeenCalledOnce();
+    expect(t.sequences).toHaveBeenCalledOnce();
+  });
+  it('cancels a reverted filter change before recreating healthy roots', async () => {
+    const t = wire();
+    await main.startWatchers();
+    t.set({ ignoredDirectories: ['temporary'] });
+    t.apply();
+    t.set({ ignoredDirectories: [] });
+    t.apply();
+    await h.flush();
+    expect(t.setup).toHaveBeenCalledOnce();
+  });
+  it('applies a build-directory toggle alone without changing exclusions', async () => {
+    const t = wire({ ignoredDirectories: ['retained'] });
+    await main.startWatchers();
+    t.set({ ignoreCommonBuildDirs: false });
+    t.apply();
+    await h.flush();
+    expect(t.setup).toHaveBeenCalledTimes(2);
+    expect(t.state.getSettings()).toMatchObject({
+      ignoreCommonBuildDirs: false,
+      ignoredDirectories: ['retained'],
+    });
+  });
+  it.each([false, true])(
+    'serializes latest filters behind in-flight setup (reject=%s)',
+    async (reject) => {
+      const t = wire();
+      let settle;
+      t.setup.mockImplementationOnce(
+        () =>
+          new Promise((resolve, fail) => {
+            settle = () => (reject ? fail(Error('controlled setup failure')) : resolve());
+          }),
+      );
+      const starting = main.startWatchers();
+      t.set({ ignoredDirectories: ['one'] });
+      t.apply();
+      t.set({ ignoredDirectories: ['latest'] });
+      t.apply();
+      expect(t.setup).toHaveBeenCalledOnce();
+      settle();
+      await starting;
+      await h.flush();
+      expect(t.setup).toHaveBeenCalledTimes(2);
+      expect(t.state.getSettings().ignoredDirectories).toEqual(['latest']);
+      expect(t.rules).toHaveBeenCalledOnce();
+      expect(t.sequences).toHaveBeenCalledOnce();
+    },
+  );
+  it('fences a queued settings refresh at quit and does not restart scan intervals afterward', async () => {
+    const t = wire();
+    await main.startWatchers();
+    t.set({ ignoredDirectories: ['queued'] });
+    t.apply();
+    events.emit('before-quit', { preventDefault: vi.fn() });
+    const starts = t.start.mock.calls.length;
+    t.set({ ignoredDirectories: ['after-quit'] });
+    t.apply();
+    await h.flush();
+    expect(t.setup).toHaveBeenCalledOnce();
+    expect(t.start).toHaveBeenCalledTimes(starts);
+  });
+  it('existing watch health poll retires a changed private selection without a settings view or restart storm', async () => {
+    let current = true;
+    const privateOwner = {
+      getWatchKey: vi.fn(() => (current ? 'selected-private-key' : 'unavailable-private-key')),
+      resolveRoot: async () => ({ state: current ? 'selected' : 'unavailable' }),
+      close: vi.fn(),
+    };
+    main._setProjectWatchSelectionForTest(privateOwner);
+    const t = wire();
+    const observed = [];
+    t.setup.mockImplementation(async () => {
+      observed.push(await t.state.getProjectWatchRoot());
+    });
+    await main.startWatchers();
+    const reads = privateOwner.getWatchKey.mock.calls.length;
+    main.getStats();
+    main.getStats();
+    expect(privateOwner.getWatchKey).toHaveBeenCalledTimes(reads);
+    current = false;
+    await h.advance(30000);
+    expect(t.setup).toHaveBeenCalledTimes(2);
+    expect(observed).toEqual([{ state: 'selected' }, { state: 'unavailable' }]);
+    await h.advance(60000);
+    expect(t.setup).toHaveBeenCalledTimes(2);
+  });
+});
