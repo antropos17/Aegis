@@ -49,6 +49,49 @@ const show = (row: RecordData, section = 'overview') =>
     section,
   });
 
+it('refreshes the same retained UUID after restart instead of retaining its prior positive explanation', async () => {
+  const eventId = '12345678-1234-4234-9234-123456789abc';
+  const explainToolContext = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      toolContext: capsule({
+        strength: 'inferred',
+        reasons: ['clock-skew-assumed-local'],
+        candidates: [
+          candidate({
+            toolName: 'Write',
+            argsShape: { operation: 'write', objectKind: 'path' },
+            strength: 'inferred',
+          }),
+        ],
+      }),
+    })
+    .mockResolvedValueOnce({
+      success: true,
+      toolContext: capsule({
+        strength: 'unattributed',
+        sessionBinding: 'unavailable',
+        objectMatch: 'unavailable',
+        candidateCount: 0,
+        candidates: [],
+        reasons: ['process-identity-unavailable'],
+      }),
+    });
+  render(ToolContext, {
+    row: observation({ eventId, action: 'created' }),
+    host: { explainToolContext },
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByText('Claude Code · Write')).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(
+    await screen.findByText('The process identity needed for binding is unavailable.'),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Claude Code · Write')).toBeNull();
+  expect(explainToolContext.mock.calls).toEqual([[eventId], [eventId]]);
+});
+
 it('loads local history through the host using only the retained event ID', async () => {
   const eventId = '98765432-1234-4234-9234-123456789abc';
   const explainToolContext = vi.fn(async () => ({

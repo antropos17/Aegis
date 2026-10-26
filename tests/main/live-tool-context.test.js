@@ -3,8 +3,14 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 const require = createRequire(import.meta.url);
 const { createLiveToolContext } = require('../../src/main/live-tool-context');
+const {
+  createHeldOwner,
+  prepareActorSettings,
+} = require('../../scripts/qualification/live-tool-context-claude.cjs');
 let home, cwd, agents, service, registry, transcript;
 const start = 1792900000000;
 const sessionId = '12345678-1234-4234-9234-123456789abc';
@@ -81,8 +87,89 @@ beforeEach(async () => {
   });
 });
 afterEach(async () => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   if (home) await fs.rm(home, { recursive: true, force: true });
+});
+
+it('stops a held peer at sixty seconds exactly once and confirms termination before hook expiry', async () => {
+  vi.useFakeTimers();
+  const actor = Object.assign(new EventEmitter(), {
+    pid: 42,
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+  });
+  const killTree = vi.fn(() => actor.emit('close', 1, null));
+  const onFailure = vi.fn();
+  const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
+  await vi.advanceTimersByTimeAsync(59999);
+  expect(killTree).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  const first = owner.stop();
+  expect(owner.stop()).toBe(first);
+  expect(await first).toMatchObject({
+    deadlineExpired: true,
+    confirmed: true,
+    stoppedBeforeHookExpiry: true,
+    modelRequestReleased: false,
+    reportedTotalCostUsd: null,
+  });
+  expect(killTree).toHaveBeenCalledExactlyOnceWith(42);
+  expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-deadline');
+});
+
+it('does not convert an uncertain held replacement kill into confirmed cleanup or retry it', async () => {
+  vi.useFakeTimers();
+  const actor = Object.assign(new EventEmitter(), { pid: 43 });
+  const killTree = vi.fn(() => {
+    throw Error('owned-termination-unavailable');
+  });
+  const onFailure = vi.fn();
+  const owner = createHeldOwner(actor, 'replacement', { killTree, onFailure });
+  const result = owner.stop();
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(await result).toMatchObject({
+    confirmed: false,
+    killSucceeded: false,
+    exit: null,
+    stoppedBeforeHookExpiry: false,
+    modelRequestReleased: false,
+  });
+  await owner.stop();
+  expect(killTree).toHaveBeenCalledTimes(1);
+  expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-termination-unconfirmed');
+});
+
+it('treats an unplanned held peer exit as cancellation and never kills the already closed child', async () => {
+  const actor = Object.assign(new EventEmitter(), { pid: 44 });
+  const killTree = vi.fn(),
+    onFailure = vi.fn();
+  const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
+  actor.emit('close', 0, null);
+  expect(owner.held()).toBe(false);
+  expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-exited-before-release');
+  expect((await owner.stop()).confirmed).toBe(true);
+  expect(killTree).not.toHaveBeenCalled();
+});
+
+it('keeps peer and resumed replacement barrier settings isolated from an already released primary', async () => {
+  const roots = ['primary', 'peer', 'replacement'].map((name) => path.join(home, name));
+  const commands = [];
+  for (const root of roots) {
+    await fs.mkdir(root);
+    const settings = await prepareActorSettings(root, 'Write', path.join(root, 'unused.txt'));
+    const parsed = JSON.parse(await fs.readFile(settings, 'utf8'));
+    commands.push(parsed.hooks.SessionStart[0].hooks[0].command);
+  }
+  await fs.writeFile(path.join(roots[0], 'release-SessionStart'), 'release');
+  expect(new Set(commands).size).toBe(3);
+  for (const root of roots.slice(1))
+    await expect(fs.stat(path.join(root, 'release-SessionStart'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  await expect(prepareActorSettings(roots[0], 'Write', 'unused')).rejects.toMatchObject({
+    code: 'EEXIST',
+  });
 });
 
 function changeDuringRead(file, change, phase = 'read', afterVerification) {

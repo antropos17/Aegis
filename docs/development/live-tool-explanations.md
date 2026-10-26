@@ -124,3 +124,15 @@ and both Claude and Electron exited with code 0. This confirms the selected
 process-to-session binding while path attribution and tool association remain
 inferred. It establishes neither the OS write issuer nor native read-sensor
 acceptance, measured clock alignment, other providers or general sensor completeness.
+
+The optional `AEGIS_CLAUDE_QUALIFICATION_SCENARIO=instances-restart` with Write mode
+prepares a separate instance-isolation case. A second Claude in a disjoint owned
+directory remains at SessionStart while only the primary performs one Write.
+After that proof the peer is terminated and the primary finishes normally. A
+replacement resumes the primary history under fresh, unreleased startup settings;
+the existing event UUID must then yield no borrowed candidate through both IPC
+and a new Details request, while original audit rows stay preserved. Peer history
+is never read. Each held side process has a 60-second owner deadline before the
+hook's 90-second automatic return; uncertainty cancels the owned scenario without
+releasing side barriers or retrying termination. This scenario has local lifecycle
+and rendered-state controls but is not yet genuine-agent qualified.
