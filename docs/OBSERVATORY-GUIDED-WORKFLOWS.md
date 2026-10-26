@@ -46,8 +46,9 @@ In **Settings → Monitoring → File coverage**, choose one ordinary local proj
 folder with the desktop folder picker. Selection applies immediately and is
 saved separately from public settings. **Refresh folder status** checks the
 saved selection; **Clear project folder** removes it. The preview cannot choose
-folders. Home roots, system and app-data trees, network paths and linked folders
-are refused.
+folders. Home roots, system and app-data trees, explicit UNC/device paths and
+symlink/junction ancestry are refused. Qualification covers ordinary local fixture
+folders; mapped-drive locality and every Windows reparse tag are not established.
 
 The selection is private to the main process and is absent from settings responses,
 configuration import/export and ZIP settings. Normal activity still includes
@@ -63,8 +64,9 @@ approve its current identity. Clearing selection restores the existing source
 checkout behavior; an ASAR app root remains inapplicable. Use **Monitoring** for
 live watcher health rather than interpreting saved selection as active coverage.
 
-Focused fixture and browser checks cover this flow. Physical folder-picker input
-and a packaged application remain separate acceptance steps.
+Focused fixture and browser checks cover this flow. Physical folder-picker input,
+a packaged application and wider network/reparse coverage remain separate
+acceptance steps.
 ## Optional terminal setup
 
 **Connect an agent to selected actions** in Start here explains MCP configuration,
