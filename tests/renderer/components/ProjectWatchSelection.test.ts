@@ -26,14 +26,12 @@ it('selects and clears through fixed native operations without sending a folder 
   expect(control.mock.calls).toEqual([['status'], ['select'], ['clear']]);
 });
 it('renders only a fixed unavailable outcome and discards arbitrary backend text', async () => {
-  const control = vi
-    .fn()
-    .mockResolvedValue({
-      success: true,
-      code: 'PRIVATE_ROOT_CANARY',
-      path: 'PRIVATE_PATH',
-      error: 'PRIVATE_ERROR',
-    });
+  const control = vi.fn().mockResolvedValue({
+    success: true,
+    code: 'PRIVATE_ROOT_CANARY',
+    path: 'PRIVATE_PATH',
+    error: 'PRIVATE_ERROR',
+  });
   mount({ controlProjectWatch: control } as Host);
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'The private folder selection could not be saved. The previous selection is retained.',

@@ -197,6 +197,7 @@ function createProjectWatchSelection(options) {
       throw Error('store-unavailable');
     }
     const temporary = storage + '.' + randomUUID() + '.tmp';
+    let cleanupError;
     try {
       fs.writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600 });
       fs.renameSync(temporary, storage);
@@ -209,9 +210,10 @@ function createProjectWatchSelection(options) {
       try {
         fs.unlinkSync(temporary);
       } catch (error) {
-        if (error.code !== 'ENOENT') throw Error('store-unavailable');
+        if (error.code !== 'ENOENT') cleanupError = error;
       }
     }
+    if (cleanupError) throw Error('store-unavailable', { cause: cleanupError });
   }
   async function handle(action, guard) {
     if (!['status', 'select', 'clear'].includes(action))

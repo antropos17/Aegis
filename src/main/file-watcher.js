@@ -557,20 +557,23 @@ function applyWatchPlaneHealth(now) {
 function bindWatcherEvents(watcher, rootId, generation) {
   const current = () =>
     generation === _watchGeneration && _rootRecovery.get(rootId)?.watcher === watcher;
+  // A selected root gains delivery authority only after this proxy's identity-ready
+  // check. Workers can emit changes while traversing their initial directory tree.
+  let admitted = !_rootRecovery.get(rootId)?.isCurrent;
   // noteRootDelivery lives HERE, not in handleWatcherEvent: the handler is exported
   // and called directly with no root context by the attribution/ignore suites.
   watcher.on('add', (p) => {
-    if (!current()) return;
+    if (!current() || !admitted) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('created', p);
   });
   watcher.on('change', (p) => {
-    if (!current()) return;
+    if (!current() || !admitted) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('modified', p);
   });
   watcher.on('unlink', (p) => {
-    if (!current()) return;
+    if (!current() || !admitted) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('deleted', p);
   });
@@ -604,7 +607,10 @@ function bindWatcherEvents(watcher, rootId, generation) {
     }
     clearTimeout(recovery.readyTimer);
     recovery.readyTimer = null;
-    if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
+    if (markRootReady(rootId)) {
+      admitted = true;
+      applyWatchPlaneHealth(Date.now());
+    }
   });
   watcher.on('progress', () => {
     if (!current() || rootId !== 'project-dir' || !_rootRecovery.get(rootId).readyTimer) return;

@@ -374,7 +374,13 @@ describe('chokidar watch-root registry (step B)', () => {
       ignoreInitial: true,
       ignoredDirectories: ['private-output'],
     });
+    project.emit('add', path.join(selected, 'before-ready.js'));
+    expect(state.activityLog).toEqual([]);
     readyAll();
+    project.emit('add', path.join(selected, 'after-ready.js'));
+    expect(state.activityLog).toMatchObject([
+      { action: 'created', file: path.join(selected, 'after-ready.js') },
+    ]);
     expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
     expect(JSON.stringify(fileWatcher.getWatchPlan())).not.toContain(selected);
     state.getProjectWatchRoot = async () => ({ state: 'unselected' });
@@ -430,6 +436,10 @@ describe('chokidar watch-root registry (step B)', () => {
       await fileWatcher.setupFileWatchers();
       const project = fakeWatchers.find((w) => w._paths === selected);
       current = false;
+      project.emit('add', path.join(selected, 'replaced-before-ready.js'));
+      project.emit('change', path.join(selected, 'replaced-before-ready.js'));
+      project.emit('unlink', path.join(selected, 'replaced-before-ready.js'));
+      expect(state.activityLog).toEqual([]);
       readyAll();
       expect(project.close).toHaveBeenCalledOnce();
       await vi.advanceTimersByTimeAsync(4000);
