@@ -56,7 +56,50 @@ const instanceStages = {
 let scenarioFailure = null,
   primaryCancelAttempted = false,
   primaryCancelSucceeded = null,
-  primaryReportedCost = null;
+  primaryReportedCost = null,
+  peerPreflightDiagnostic = null;
+
+/** Project peer ownership conditions from the actual renderer scan snapshot.
+ * @param {object} selection Selected owner identifiers/CWD; tests may supply the scan rows.
+ * @returns {object} Closed counts, enums and booleans only. @since v0.21.0 */
+function peerComponentDiagnostic({ agents = globalThis.window?.__w4Agents, pid, primaryPid, cwd }) {
+  const population = Array.isArray(agents) ? agents : [];
+  const peers = population.filter((row) => row.agent === 'Claude Code');
+  const rows = population.filter((row) => row.pid === pid);
+  const row = rows.length === 1 ? rows[0] : null;
+  const normalize = (value) =>
+    typeof value === 'string' && value.length > 0
+      ? value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+      : null;
+  const raw = row?.createTime100ns;
+  const rawBirthValid =
+    typeof raw === 'string' &&
+    /^[1-9][0-9]{0,19}$/.test(raw) &&
+    BigInt(raw) <= 18446744073709551615n;
+  const startValid = Number.isSafeInteger(row?.startTime) && row.startTime > 0;
+  return {
+    sameNameCount: Math.min(peers.length, 128),
+    primaryPresent: peers.some((peer) => peer.pid === primaryPid),
+    ownedRowCount: Math.min(rows.length, 128),
+    rowUnique: rows.length === 1,
+    agentExpected: row?.agent === 'Claude Code',
+    sourceExpected: row?.instanceIdSource === 'os',
+    keyCoherent: startValid && row.instanceId === `${pid}:${row.startTime}`,
+    rawBirthValid,
+    birthMatchesStart:
+      rawBirthValid &&
+      startValid &&
+      Number((BigInt(raw) - 116444736000000000n) / 10000n) === row.startTime,
+    witnessSourceEnum: ['createTime100ns', 'sequence', 'startTimeMs'].includes(
+      row?.generationWitnessSource,
+    )
+      ? row.generationWitnessSource
+      : 'unavailable',
+    witnessMatchesRaw: typeof row?.generationWitness === 'string' && row.generationWitness === raw,
+    cwdPresent: normalize(row?.cwd) !== null,
+    cwdMatchesExpected: normalize(cwd) !== null && normalize(row?.cwd) === normalize(cwd),
+  };
+}
 
 /** Own one held CLI's deadline and one confirmed stop before its 90s hook expiry.
  * @param {object} processChild Owned child process. @param {'peer'|'replacement'} role Fixed owner role.
@@ -729,27 +772,26 @@ async function main() {
   console.log('Production scanner observed real Claude generation');
   if (peerOwner) {
     assert(peerOwner.held(), 'peer-must-remain-at-session-start');
-    const peerMatches = await page.evaluate(
-      ({ pid, primaryPid, cwd }) => {
-        const peers = window.__w4Agents.filter((row) => row.agent === 'Claude Code');
-        if (peers.length !== 2 || !peers.some((row) => row.pid === primaryPid)) return false;
-        const rows = window.__w4Agents.filter((row) => row.pid === pid);
-        const row = rows.length === 1 ? rows[0] : null;
-        return (
-          row?.agent === 'Claude Code' &&
-          row.instanceIdSource === 'os' &&
-          Number.isSafeInteger(row.startTime) &&
-          row.instanceId === `${pid}:${row.startTime}` &&
-          typeof row.createTime100ns === 'string' &&
-          /^[1-9][0-9]{0,19}$/.test(row.createTime100ns) &&
-          Number((BigInt(row.createTime100ns) - 116444736000000000n) / 10000n) === row.startTime &&
-          typeof row.cwd === 'string' &&
-          row.cwd.replaceAll('\\', '/').toLowerCase() === cwd.replaceAll('\\', '/').toLowerCase()
-        );
-      },
-      { pid: peerOwner.child.pid, primaryPid: child.pid, cwd: peerProject },
+    peerPreflightDiagnostic = await page.evaluate(peerComponentDiagnostic, {
+      pid: peerOwner.child.pid,
+      primaryPid: child.pid,
+      cwd: peerProject,
+    });
+    assert(
+      peerPreflightDiagnostic.sameNameCount === 2 &&
+        peerPreflightDiagnostic.primaryPresent &&
+        peerPreflightDiagnostic.rowUnique &&
+        peerPreflightDiagnostic.agentExpected &&
+        peerPreflightDiagnostic.sourceExpected &&
+        peerPreflightDiagnostic.keyCoherent &&
+        peerPreflightDiagnostic.rawBirthValid &&
+        peerPreflightDiagnostic.birthMatchesStart &&
+        peerPreflightDiagnostic.witnessSourceEnum === 'createTime100ns' &&
+        peerPreflightDiagnostic.witnessMatchesRaw &&
+        peerPreflightDiagnostic.cwdPresent &&
+        peerPreflightDiagnostic.cwdMatchesExpected,
+      'peer-generation-and-disjoint-cwd-unavailable',
     );
-    assert(peerMatches, 'peer-generation-and-disjoint-cwd-unavailable');
     instanceStages.peerHeldDuringPrimary = true;
   }
   if (mode === 'write') {
@@ -1309,7 +1351,11 @@ async function main() {
     mode,
     scenario,
     ...(scenario === 'instances-restart'
-      ? { instanceStages: { ...instanceStages }, peerTranscriptRead: false }
+      ? {
+          instanceStages: { ...instanceStages },
+          peerTranscriptRead: false,
+          peerPreflightDiagnostic,
+        }
       : {}),
     ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
     processObservation:
@@ -1396,7 +1442,11 @@ if (require.main === module) {
         mode,
         scenario,
         ...(scenario === 'instances-restart'
-          ? { instanceStages: { ...instanceStages }, peerTranscriptRead: false }
+          ? {
+              instanceStages: { ...instanceStages },
+              peerTranscriptRead: false,
+              peerPreflightDiagnostic,
+            }
           : {}),
         reportedTotalCostUsd: primaryReportedCost,
         ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
@@ -1550,4 +1600,9 @@ if (require.main === module) {
       if (!cleanup.confirmed) process.exitCode = 1;
     });
 }
-module.exports = { createHeldOwner, prepareActorSettings, restoreReadOverlap };
+module.exports = {
+  createHeldOwner,
+  prepareActorSettings,
+  restoreReadOverlap,
+  peerComponentDiagnostic,
+};

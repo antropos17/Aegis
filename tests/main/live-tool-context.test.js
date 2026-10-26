@@ -11,6 +11,7 @@ const {
   createHeldOwner,
   prepareActorSettings,
   restoreReadOverlap,
+  peerComponentDiagnostic,
 } = require('../../scripts/qualification/live-tool-context-claude.cjs');
 let home, cwd, agents, service, registry, transcript;
 const start = 1792900000000;
@@ -195,6 +196,84 @@ it('bounds Read scheduling restoration when the owned dispatcher never acknowled
   expect(evaluate).toHaveBeenCalledTimes(1);
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it.each(['X:/owned/peer-project', 'x:\\OWNED\\peer-project\\'])(
+  'accepts the same peer CWD spelling %s without weakening birth or population proof',
+  (actualCwd) => {
+    const agents = [
+      { pid: 42, agent: 'Claude Code' },
+      {
+        pid: 43,
+        agent: 'Claude Code',
+        startTime: 1700000005000,
+        instanceIdSource: 'os',
+        instanceId: '43:1700000005000',
+        createTime100ns: '133444736050000007',
+        generationWitnessSource: 'createTime100ns',
+        generationWitness: '133444736050000007',
+        cwd: actualCwd,
+      },
+    ];
+    const diagnostic = peerComponentDiagnostic({
+      agents,
+      pid: 43,
+      primaryPid: 42,
+      cwd: 'X:/owned/peer-project',
+    });
+    expect(diagnostic).toEqual({
+      sameNameCount: 2,
+      primaryPresent: true,
+      ownedRowCount: 1,
+      rowUnique: true,
+      agentExpected: true,
+      sourceExpected: true,
+      keyCoherent: true,
+      rawBirthValid: true,
+      birthMatchesStart: true,
+      witnessSourceEnum: 'createTime100ns',
+      witnessMatchesRaw: true,
+      cwdPresent: true,
+      cwdMatchesExpected: true,
+    });
+    const serialized = JSON.stringify(diagnostic);
+    expect(serialized).not.toContain(actualCwd);
+    expect(serialized).not.toContain('133444736050000007');
+    expect(serialized).not.toContain('43:1700000005000');
+  },
+);
+
+it.each([
+  { cwd: 'X:/owned/other-project', failed: 'cwdMatchesExpected' },
+  { cwd: 'X:/owned/peer-project', ticks: null, failed: 'rawBirthValid' },
+  { cwd: 'X:/owned/peer-project', ticks: '133444736000000007', failed: 'birthMatchesStart' },
+])(
+  'retains a closed negative peer condition for true CWD/birth mismatch: %j',
+  ({ cwd, ticks, failed }) => {
+    const raw = ticks === undefined ? '133444736050000007' : ticks;
+    const diagnostic = peerComponentDiagnostic({
+      pid: 43,
+      primaryPid: 42,
+      cwd: 'X:/owned/peer-project',
+      agents: [
+        { pid: 42, agent: 'Claude Code' },
+        {
+          pid: 43,
+          agent: 'Claude Code',
+          startTime: 1700000005000,
+          instanceIdSource: 'os',
+          instanceId: '43:1700000005000',
+          createTime100ns: raw,
+          generationWitnessSource: 'createTime100ns',
+          generationWitness: raw,
+          cwd,
+        },
+      ],
+    });
+    expect(diagnostic[failed]).toBe(false);
+    expect(diagnostic.sameNameCount).toBe(2);
+    expect(diagnostic.keyCoherent).toBe(true);
+  },
+);
 
 it('keeps peer and resumed replacement barrier settings isolated from an already released primary', async () => {
   const roots = ['primary', 'peer', 'replacement'].map((name) => path.join(home, name));
