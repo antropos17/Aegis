@@ -29,7 +29,7 @@ function harness(responses, options = {}) {
     }),
   };
 }
-const response = (rows) => JSON.stringify({ version: 1, rows });
+const response = (rows, version = 1) => JSON.stringify({ version, rows });
 
 describe('one-shot Windows observer', () => {
   it.each([false, true])(
@@ -115,7 +115,7 @@ describe('one-shot Windows observer', () => {
       [
         new Error('failure'),
         response([]),
-        response([{ ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' }]),
+        response([{ ProcessId: 42, Cwd: 'X:\\проект', CreateTime100ns: '133000000000000001' }], 2),
       ],
       { now: () => now },
     );
@@ -124,13 +124,27 @@ describe('one-shot Windows observer', () => {
     expect(await client.tryRequest('tcp', { pids: [42] }, (r) => r)).toEqual([]);
     now = 60000;
     expect(await client.tryRequest('cwd', { pids: [42] }, (r) => validateCwds(r, [42]))).toEqual([
-      { ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' },
+      { ProcessId: 42, Cwd: 'X:\\проект', CreateTime100ns: '133000000000000001' },
     ]);
     expect(execFile).toHaveBeenCalledTimes(3);
   });
   it('falls back on invalid parsed rows rather than reporting healthy empty', async () => {
-    const { client } = harness([response([{ ProcessId: 99, CommandLine: null }])]);
+    const { client } = harness([response([{ ProcessId: 99, Cwd: null }], 2)]);
     expect(await client.tryRequest('cwd', { pids: [42] }, (r) => validateCwds(r, [42]))).toBeNull();
+  });
+  it('rejects a legacy command-line CWD envelope before decoding it as actual CWD', async () => {
+    const decode = vi.fn((rows) => rows);
+    const { client } = harness([
+      response([
+        {
+          ProcessId: 42,
+          CommandLine: 'private --cwd X:/bait',
+          CreateTime100ns: '133000000000000001',
+        },
+      ]),
+    ]);
+    expect(await client.tryRequest('cwd', { pids: [42] }, decode)).toBeNull();
+    expect(decode).not.toHaveBeenCalled();
   });
   it.each([{ mode: 'powershell' }, { resolveExe: () => null }])(
     'supports rollback or missing binaries (%j)',
@@ -175,24 +189,28 @@ describe('one-shot Windows observer', () => {
   });
   it.each([
     [{ ProcessId: 42 }],
-    [{ ProcessId: 99, CommandLine: null }],
-    [{ ProcessId: 42, CommandLine: 12 }],
-    [{ ProcessId: 42, CommandLine: null, CreateTime100ns: Number('133000000000000001') }],
+    [{ ProcessId: 99, Cwd: null }],
+    [{ ProcessId: 42, Cwd: 12 }],
+    [{ ProcessId: 42, Cwd: null, CreateTime100ns: Number('133000000000000001') }],
+    [{ ProcessId: 42, Cwd: 'relative', CreateTime100ns: '133000000000000001' }],
+    [{ ProcessId: 42, Cwd: 'X:/owned', CreateTime100ns: null }],
+    [{ ProcessId: 42, Cwd: 'X:/owned', CreateTime100ns: '0133000000000000001' }],
+    [{ ProcessId: 42, Cwd: null, CreateTime100ns: null, CommandLine: 'private' }],
     [
-      { ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' },
-      { ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' },
+      { ProcessId: 42, Cwd: 'X:/one', CreateTime100ns: '133000000000000001' },
+      { ProcessId: 42, Cwd: 'X:/two', CreateTime100ns: '133000000000000001' },
     ],
   ])('rejects malformed or out-of-scope CWD rows (%j)', (...rows) => {
     expect(() => validateCwds(rows, [42])).toThrow();
   });
-  it('preserves null, Unicode and exited PID absence in command lines', () => {
+  it('preserves actual Unicode CWD, paired unknowns and absent processes', () => {
     const rows = [
       {
         ProcessId: 42,
-        CommandLine: 'node --cwd "X:\\проект"',
+        Cwd: 'X:\\проект',
         CreateTime100ns: '133000000000000001',
       },
-      { ProcessId: 43, CommandLine: null, CreateTime100ns: null },
+      { ProcessId: 43, Cwd: null, CreateTime100ns: null },
     ];
     expect(validateCwds(rows, [42, 43, 44])).toBe(rows);
   });

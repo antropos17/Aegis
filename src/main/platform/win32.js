@@ -423,111 +423,40 @@ function resumeProcess(pid, createTime100ns) {
 }
 
 /**
- * Get the working directory of a process via PowerShell.
- * Windows has limited support for this — gracefully returns null on failure.
- * @param {number} pid
- * @returns {Promise<string|null>}
+ * Get one actual working directory, or null when native observation is unavailable.
+ * @param {number} pid Process identifier. @returns {Promise<string|null>} Native directory.
  * @since v0.5.0
  */
-function getProcessCwd(pid) {
+async function getProcessCwd(pid) {
   pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const psScript = `$ErrorActionPreference="SilentlyContinue";[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$p=Get-CimInstance Win32_Process -Filter "ProcessId=${pid}";if($p -and $p.CommandLine){$m=$p.CommandLine -match '(?:--cwd|--project)\\s+"?([^"]+)"?';if($m){$Matches[1]}else{""}}else{""}`;
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 5000 },
-      (err, stdout) => {
-        if (err) {
-          resolve(null);
-          return;
-        }
-        const result = stdout.trim();
-        resolve(result || null);
-      },
-    );
-  });
+  if (!Number.isInteger(pid) || pid <= 0 || pid > 0xffffffff) return null;
+  return (await getProcessCwds([pid])).get(pid)?.cwd ?? null;
 }
 
 /**
- * Extract CWD from a process CommandLine string.
- * Looks for --cwd or --project flags followed by a path.
- * @param {string|null} commandLine
- * @returns {string|null}
- */
-function extractCwdFromCommandLine(commandLine) {
-  if (!commandLine) return null;
-  const m = commandLine.match(/(?:--cwd|--project)\s+"?([^"]+)"?/);
-  return m ? m[1] : null;
-}
-
-/**
- * Batch CWD lookup — one native observation or PowerShell fallback for multiple PIDs.
- * A native row carries held-handle creation ticks; CIM fallback carries only its
- * creation millisecond. Callers must compare that proof to the earlier PID stamp.
- * @param {number[]} pids
+ * Batch actual x64 CWD lookup under held process birth handles. CIM command-line
+ * flags cannot establish a working directory, so unsupported observation stays empty.
+ * @param {number[]} pids Process identifiers.
  * @returns {Promise<Map<number, {cwd:string|null, createTime100ns:string|null, startTimeMs:number|null}>>}
  * @since v0.5.0
  */
 async function getProcessCwds(pids) {
   const validPids = pids.map(Number).filter((p) => Number.isInteger(p) && p > 0 && p <= 0xffffffff);
-  if (validPids.length === 0) return Promise.resolve(new Map());
+  if (validPids.length === 0) return new Map();
   const native = await observer.tryRequest('cwd', { pids: validPids }, (rows) =>
     validateCwds(rows, validPids),
   );
-  if (native !== null)
-    return new Map(
-      native.map((row) => [
-        row.ProcessId,
-        {
-          cwd: extractCwdFromCommandLine(row.CommandLine),
-          createTime100ns: row.CreateTime100ns,
-          startTimeMs: row.CreateTime100ns ? snapshot.ticksToEpochMs(row.CreateTime100ns) : null,
-        },
-      ]),
-    );
-  return new Promise((resolve) => {
-    const pidFilter = validPids.map((p) => `ProcessId=${p}`).join(' OR ');
-    const psScript = `$ErrorActionPreference="SilentlyContinue";[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine,CreationDate | ForEach-Object{[pscustomobject]@{ProcessId=$_.ProcessId;CommandLine=$_.CommandLine;CreateTime100ns=$null;StartTimeMs=$(if($_.CreationDate){([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds()}else{$null})}} | ConvertTo-Json -Compress`;
-    const t0 = performance.now();
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 8000 },
-      (err, stdout) => {
-        logSpawnTax('cim-cwd', t0);
-        const map = new Map();
-        if (err || !stdout.trim()) {
-          resolve(map);
-          return;
-        }
-        try {
-          let entries = JSON.parse(stdout.trim());
-          if (!Array.isArray(entries)) entries = [entries];
-          validateCwds(entries, validPids);
-          if (
-            entries.some(
-              (proc) =>
-                proc.StartTimeMs !== null &&
-                (!Number.isSafeInteger(proc.StartTimeMs) || proc.StartTimeMs <= 0),
-            )
-          )
-            throw new Error('Invalid CWD birth time');
-          for (const proc of entries) {
-            map.set(proc.ProcessId, {
-              cwd: extractCwdFromCommandLine(proc.CommandLine),
-              createTime100ns: null,
-              startTimeMs: proc.StartTimeMs,
-            });
-          }
-        } catch (_) {
-          // parse failure — return empty map
-        }
-        resolve(map);
+  if (native === null) return new Map();
+  return new Map(
+    native.map((row) => [
+      row.ProcessId,
+      {
+        cwd: row.Cwd,
+        createTime100ns: row.CreateTime100ns,
+        startTimeMs: row.CreateTime100ns ? snapshot.ticksToEpochMs(row.CreateTime100ns) : null,
       },
-    );
-  });
+    ]),
+  );
 }
 
 module.exports = {
