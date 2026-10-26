@@ -617,9 +617,8 @@
     pointer-events: none;
   }
   .radar-message {
-    position: absolute;
-    bottom: 12px;
-    width: 100%;
+    margin: 0;
+    padding: var(--space-3) var(--space-3) 0;
     text-align: center;
     pointer-events: none;
     font-size: 12px;
