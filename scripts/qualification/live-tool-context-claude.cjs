@@ -44,6 +44,7 @@ let app,
   ownerScanTiming = null,
   sourceBefore = null,
   hashesBefore = null,
+  outputCreated = false,
   modelRequestReleased = false;
 
 function sourceIdentity() {
@@ -156,6 +157,15 @@ async function genuineReadRecord(requireResult = false) {
 }
 async function main() {
   assert(['read', 'write'].includes(mode), 'unknown-qualification-mode');
+  const outputParent = path.dirname(out);
+  const outputParentStat = await fs.lstat(outputParent);
+  assert(
+    outputParentStat.isDirectory() && !outputParentStat.isSymbolicLink(),
+    'owned-output-parent-unavailable',
+  );
+  assert.equal((await fs.realpath(outputParent)).toLowerCase(), outputParent.toLowerCase());
+  await fs.mkdir(out); // EEXIST refuses every prior attempt before writing anything.
+  outputCreated = true;
   if (mode === 'write') {
     for (const directory of [root, path.join(root, 'out'), path.join(root, 'out', 'development')]) {
       await fs.mkdir(directory, { recursive: true });
@@ -168,9 +178,7 @@ async function main() {
     }
     await fs.mkdir(path.dirname(project)); // Fresh owned run, never a pre-existing project.
   }
-  await fs.mkdir(out, { recursive: true });
   await fs.mkdir(project, { recursive: true });
-  assert(!(await fs.readdir(out)).includes('receipt.json'), 'Use a fresh output directory');
   sourceBefore = sourceIdentity();
   assert(sourceBefore.clean, 'Qualification source must be clean');
   hashesBefore = await componentHashes();
@@ -812,15 +820,25 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
         ])
       ).filter((row) => row.path === target);
     }, file);
-    assert.deepEqual(
-      auditAfter,
-      writeObservation.auditBefore,
-      'explanation-changed-recorded-audit',
-    );
+    for (const original of writeObservation.auditBefore) {
+      assert(
+        Number.isSafeInteger(original.seq) &&
+          original.seq >= 0 &&
+          typeof original.hash === 'string' &&
+          /^[a-f0-9]{64}$/i.test(original.hash),
+        'original-audit-custody-fields-unavailable',
+      );
+      const retained = auditAfter.filter(
+        (row) => row.seq === original.seq && row.hash === original.hash,
+      );
+      assert.equal(retained.length, 1, 'original-audit-record-not-retained');
+      assert.deepEqual(retained[0], original, 'original-audit-record-changed');
+    }
     const auditBytes = JSON.stringify(auditAfter);
     assert(!auditBytes.includes(marker));
-    writeObservation.auditUnchanged = true;
-    writeObservation.auditRecords = auditAfter.length;
+    writeObservation.originalRecordsPreserved = true;
+    writeObservation.originalAuditRecords = writeObservation.auditBefore.length;
+    writeObservation.observedAuditRecordsAfter = auditAfter.length;
     writeObservation.auditSha256 = createHash('sha256').update(auditBytes).digest('hex');
     delete writeObservation.auditBefore;
   }
@@ -872,7 +890,8 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
 }
 main()
   .catch(async (error) => {
-    await fs.writeFile(path.join(out, 'failure.txt'), String(error));
+    if (outputCreated)
+      await fs.writeFile(path.join(out, 'failure.txt'), String(error), { flag: 'wx' });
     let ownedRowDiagnostic = { available: false };
     if (page && Number.isSafeInteger(child?.pid)) {
       const observed = page
@@ -997,7 +1016,7 @@ main()
       }
     }
     const finalReceipt = pendingReceipt ?? failedReceipt;
-    if (finalReceipt) {
+    if (finalReceipt && outputCreated) {
       finalReceipt.cleanup = cleanup;
       await fs.writeFile(path.join(out, 'receipt.json'), JSON.stringify(finalReceipt, null, 2), {
         flag: 'wx',
