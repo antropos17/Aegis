@@ -186,7 +186,11 @@ function createLiveToolContext(options) {
       selected.cwd.replace(/[/\\:.]/g, '-'),
       `${selected.sessionId}.jsonl`,
     );
-    const { bytes, headTruncated } = await readLiveSessionFile(file, 512 * 1024, true);
+    const { bytes, headTruncated, tailTruncated } = await readLiveSessionFile(
+      file,
+      512 * 1024,
+      true,
+    );
     const adapter = createSessionContext({ digestKey });
     let batch;
     try {
@@ -195,6 +199,7 @@ function createLiveToolContext(options) {
         platform,
         format: 'jsonl',
         headTruncated,
+        tailTruncated,
       });
     } finally {
       bytes.fill(0);

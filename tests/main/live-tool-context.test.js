@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -81,7 +81,139 @@ beforeEach(async () => {
   });
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (home) await fs.rm(home, { recursive: true, force: true });
+});
+
+function changeDuringRead(file, change, phase = 'read', afterVerification) {
+  const open = fs.open.bind(fs);
+  let changed = false,
+    reads = 0,
+    totalBytes = 0;
+  const buffers = new Set();
+  vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+    const handle = await open(...args);
+    if (args[0] !== file) return handle;
+    if (phase === 'open' && !changed) {
+      changed = true;
+      await change();
+    }
+    const read = handle.read.bind(handle);
+    handle.read = async (...parameters) => {
+      const result = await read(...parameters);
+      reads++;
+      totalBytes += result.bytesRead;
+      buffers.add(parameters[0]);
+      if (phase === 'read' && !changed) {
+        changed = true;
+        await change();
+      }
+      if (reads === 2 && afterVerification) await afterVerification();
+      return result;
+    };
+    return handle;
+  });
+  return () => ({ changed, reads, totalBytes, buffers });
+}
+
+it('explains the stable complete prefix while a Claude transcript appends during reading', async () => {
+  const initial = await fs.readFile(transcript);
+  const activity = changeDuringRead(transcript, () =>
+    fs.appendFile(transcript, '{"private":"' + secret),
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('partial');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  expect(result.toolContext.candidates[0]).toMatchObject({ toolName: 'Read', deltaMs: 500 });
+  expect(result.toolContext.strength).toBe('inferred');
+  expect(result.toolContext.reasons).toContain('partial-source');
+  for (const raw of [secret, cwd, sessionId, 'call-1', '.env'])
+    expect(JSON.stringify(result)).not.toContain(raw);
+  expect(activity()).toMatchObject({ changed: true, reads: 2, totalBytes: initial.length * 2 });
+  expect([...activity().buffers].every((buffer) => buffer.every((byte) => byte === 0))).toBe(true);
+});
+
+it('discards an incomplete UTF-8 suffix when the writer grows the file before the handle snapshot', async () => {
+  changeDuringRead(
+    transcript,
+    () =>
+      fs.appendFile(
+        transcript,
+        Buffer.concat([Buffer.from('{"private":"' + secret), Buffer.from([0xf0, 0x9f])]),
+      ),
+    'open',
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('partial');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  expect(result.toolContext.candidates[0]).toMatchObject({ toolName: 'Read', deltaMs: 500 });
+  expect(result.toolContext.reasons).toContain('partial-source');
+  expect(JSON.stringify(result)).not.toContain(secret);
+});
+
+it('reserves both transcript reads inside the existing total byte budget', async () => {
+  const records = await fs.readFile(transcript);
+  await fs.writeFile(
+    transcript,
+    Buffer.concat([Buffer.from(' '.repeat(512 * 1024) + '\n'), records]),
+  );
+  const activity = changeDuringRead(transcript, () =>
+    fs.appendFile(transcript, '{"private":"' + secret),
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('partial');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  expect(activity().totalBytes).toBe(512 * 1024);
+  expect([...activity().buffers].every((buffer) => buffer.every((byte) => byte === 0))).toBe(true);
+});
+
+it.each(['shrink', 'replace', 'rewrite-prefix'])(
+  'refuses %s rather than treating it as append growth',
+  async (mode) => {
+    const original = await fs.readFile(transcript);
+    changeDuringRead(transcript, async () => {
+      if (mode === 'shrink') await fs.truncate(transcript, 1);
+      else if (mode === 'replace') {
+        await fs.rename(transcript, transcript + '.previous');
+        await fs.writeFile(transcript, original);
+      } else
+        await fs.writeFile(
+          transcript,
+          Buffer.concat([
+            Buffer.from(original.toString('utf8').replaceAll('.env', '.other')),
+            Buffer.from('{"private":"' + secret),
+          ]),
+        );
+    });
+    const result = await service.explain(eventId);
+    expect(result.availability).toBe('unavailable');
+    expect(result.toolContext.candidates).toHaveLength(0);
+    expect(result.toolContext.reasons).toContain('source-unavailable');
+    expect(JSON.stringify(result)).not.toContain(secret);
+  },
+);
+
+it('keeps registry metadata strict when its file grows during reading', async () => {
+  changeDuringRead(registry, () => fs.appendFile(registry, ' '));
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.candidates).toHaveLength(0);
+  expect(result.toolContext.reasons).toContain('source-unavailable');
+});
+
+it('refuses metadata-changing in-place writes after verifying a growing window', async () => {
+  const original = await fs.readFile(transcript, 'utf8');
+  const suffix = '{"private":"' + secret;
+  changeDuringRead(
+    transcript,
+    () => fs.appendFile(transcript, suffix),
+    'read',
+    () => fs.writeFile(transcript, original.replaceAll('.env', '.xxx') + suffix),
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.candidates).toHaveLength(0);
+  expect(result.toolContext.reasons).toContain('source-unavailable');
 });
 
 it('explains a retained observation from a real local transcript without exposing raw content', async () => {
