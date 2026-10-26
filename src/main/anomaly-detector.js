@@ -223,8 +223,8 @@ function checkDeviations() {
             message: `${agentName}: activity at unusual hour (${String(h).padStart(2, '0')}:00) — not seen in previous sessions`,
             anomalyScore: 0,
           });
+          break;
         }
-        break;
       }
     }
     // Build dimensions only when this instance produced new warnings. The local
