@@ -751,12 +751,54 @@ let fileWatchRetryTimer = null;
 let fileWatchSetupInFlight = false;
 let fileWatchSetupRejected = false;
 let fileWatchRetryGeneration = 0;
+let fileWatchFilterKey = null;
+let fileWatchFiltersPending = false;
+let fileWatchRefreshQueued = false;
+
+/** Compare effective filter inputs without retaining a mutable settings array.
+ * @param {object} settings Current validated settings. @returns {string} Private comparison key. */
+function watchFilterKey(settings) {
+  return JSON.stringify([
+    settings.ignoreCommonBuildDirs !== false,
+    [
+      ...new Set(Array.isArray(settings.ignoredDirectories) ? settings.ignoredDirectories : []),
+    ].sort(),
+  ]);
+}
+
+/** Coalesce explicit filter changes behind the existing single setup owner. @returns {void} */
+function queueFileWatchRefresh() {
+  if (isQuitting || !watchersStarted || fileWatchSetupInFlight || fileWatchRefreshQueued) return;
+  if (fileWatchRetryTimer !== null) clearTimeout(fileWatchRetryTimer);
+  fileWatchRetryTimer = null;
+  fileWatchRefreshQueued = true;
+  const generation = fileWatchRetryGeneration;
+  queueMicrotask(() => {
+    if (generation !== fileWatchRetryGeneration) return;
+    fileWatchRefreshQueued = false;
+    if (isQuitting) return;
+    if (fileWatchFiltersPending) void setupFileWatchers(generation, false);
+    else scheduleFileWatchRetry();
+  });
+}
+
+/** Apply current preferences and recreate file roots only for changed watch filters. @returns {void} */
+function onSettingsApplied() {
+  if (isQuitting) return;
+  const settings = config.getSettings();
+  scanLoop.stopScanIntervals();
+  if (!monitoringPaused) scanLoop.startScanIntervals((settings.scanIntervalSec || 10) * 1000);
+  fileWatchFiltersPending = watchFilterKey(settings) !== fileWatchFilterKey;
+  if (fileWatchFiltersPending) queueFileWatchRefresh();
+}
 
 /** Cancel the one pending file-watch retry check, if any. @returns {void} */
 function cancelFileWatchRetry() {
   if (fileWatchRetryTimer !== null) clearTimeout(fileWatchRetryTimer);
   fileWatchRetryTimer = null;
   fileWatchRetryGeneration++;
+  fileWatchFiltersPending = false;
+  fileWatchRefreshQueued = false;
 }
 
 /**
@@ -810,7 +852,9 @@ function scheduleFileWatchRetry() {
 async function setupFileWatchers(generation, retry) {
   if (isQuitting || generation !== fileWatchRetryGeneration || fileWatchSetupInFlight) return;
   fileWatchSetupInFlight = true;
+  fileWatchFiltersPending = false;
   try {
+    fileWatchFilterKey = watchFilterKey(config.getSettings());
     await watcher.setupFileWatchers();
     if (isQuitting || generation !== fileWatchRetryGeneration) return;
     fileWatchSetupRejected = false;
@@ -828,7 +872,8 @@ async function setupFileWatchers(generation, retry) {
     if (generation === fileWatchRetryGeneration) {
       fileWatchSetupInFlight = false;
       fileWatchRetryPolicy.finishSetup();
-      scheduleFileWatchRetry();
+      if (fileWatchFiltersPending) queueFileWatchRefresh();
+      else scheduleFileWatchRetry();
     }
   }
 }
@@ -1116,18 +1161,14 @@ function initDeferredSubsystems(userData) {
       latestNetConnections = c;
     },
   });
+  fileWatchFilterKey = watchFilterKey(config.getSettings());
   config.init({
     knownAgentNames: scanner.AI_AGENTS.map((a) => a.name),
-    applyCallback: () => {
-      scanLoop.stopScanIntervals();
-      if (!monitoringPaused) {
-        const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-        scanLoop.startScanIntervals(ms);
-      }
-    },
+    applyCallback: onSettingsApplied,
   });
   scanner.init({ trackSeenAgent: config.trackSeenAgent });
   watcher.init({
+    getSettings: () => config.getSettings(),
     getCustomRules: config.getCustomSensitiveRules,
     getLatestAgents: () => latestAgents,
     getLatestAiAgents: () => latestAiAgents,
@@ -1537,6 +1578,7 @@ function _resetWatchersForTest() {
   fileWatchRetryPolicy.reset();
   fileWatchSetupInFlight = false;
   fileWatchSetupRejected = false;
+  fileWatchFilterKey = null;
   isQuitting = false;
   fileWatchers.length = 0;
 }
