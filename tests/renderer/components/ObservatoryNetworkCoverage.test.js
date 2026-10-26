@@ -11,8 +11,61 @@ const state = (networkState, networkAt = null, network = []) => ({
   stale: false,
   lastScan: 1000,
   networkAt,
+  networkCurrent: networkAt !== null,
   network,
   stats: { appHealth: { sensors: { byId: { network: { state: networkState } } } } },
+});
+
+it.each([
+  ['missing health', { stats: {} }],
+  ['malformed health', { stats: { appHealth: { sensors: { byId: { network: { state: 0 } } } } } }],
+])('does not present a delivered snapshot as latest with %s', async (_label, overrides) => {
+  const telemetry = {
+    ...state('HEALTHY', 2000, [{ remoteIp: '192.0.2.1', remotePort: 443 }]),
+    ...overrides,
+  };
+  const view = render(Events, { telemetry, network: true, showPause: false, inspect: vi.fn() });
+  expect(view.container.querySelector('.evidence-status')).toHaveTextContent(
+    'Retained network snapshot',
+  );
+  await view.rerender({ telemetry: { ...telemetry, network: [] } });
+  expect(view.container.querySelector('.evidence-status')).toHaveTextContent(
+    'Network observation unavailable',
+  );
+});
+
+it('keeps a healthy network snapshot current when an unrelated telemetry read fails', () => {
+  const telemetry = { ...state('HEALTHY', 2000, []), error: 'Resource read failed' };
+  const view = render(Events, { telemetry, network: true, showPause: false, inspect: vi.fn() });
+  expect(view.container.querySelector('.evidence-status')).toHaveTextContent(
+    'Latest connection snapshot',
+  );
+});
+
+it('recognizes simulated network snapshots only with the preview marker', async () => {
+  const telemetry = state('SIMULATED', 2000, [{ remoteIp: '192.0.2.1', remotePort: 443 }]);
+  const view = render(Events, { telemetry, network: true, showPause: false, inspect: vi.fn() });
+  expect(view.container.querySelector('.evidence-status')).toHaveTextContent(
+    'Retained network snapshot',
+  );
+  const stats = {
+    appHealth: {
+      sensors: { byId: { network: { state: 'SIMULATED' }, preview: { state: 'SIMULATED' } } },
+    },
+  };
+  await view.rerender({ telemetry: { ...telemetry, stats } });
+  expect(view.container.querySelector('.evidence-status')).toHaveTextContent(
+    'Latest connection snapshot',
+  );
+  await view.rerender({
+    telemetry: {
+      ...telemetry,
+      stats: { appHealth: { sensors: { byId: { preview: { state: 'SIMULATED' } } } } },
+    },
+  });
+  expect(view.container.querySelector('.evidence-status')).toHaveTextContent(
+    'Latest connection snapshot',
+  );
 });
 
 it('keeps network counts unavailable until a healthy delivery and labels retained rows after sensor failure', async () => {
@@ -109,7 +162,10 @@ it('uses network coverage for the Network heading while other page headings keep
   expect(badge).not.toHaveTextContent('Live');
   await fireEvent.click(screen.getByRole('button', { name: 'Review sensor health' }));
   expect(screen.getByRole('heading', { name: 'Statistics', level: 1 })).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Sensors', exact: true })).toHaveAttribute('aria-current', 'location');
+  expect(screen.getByRole('button', { name: 'Sensors', exact: true })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
   expect(mounted.container.querySelector('#main')).toHaveFocus();
   await fireEvent.click(
     within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', {
