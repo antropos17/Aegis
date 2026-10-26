@@ -10,6 +10,7 @@ out/
 coverage/
 # Compiled snapshot sidecar — built from sidecar/procsnap, never committed
 build/sidecar/
+/build/hook-review/
 /build/etw-file/
 /sidecar/etw-file/bin/
 /sidecar/etw-file/obj/

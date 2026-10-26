@@ -146,6 +146,7 @@ const { createLiveToolContext } = require('./live-tool-context');
 const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
+let claudeHookProfile;
 let etwFile;
 let nativeSensor = null;
 const { createBatcher } = require('./ipc-batcher');
@@ -1311,7 +1312,21 @@ app.whenReady().then(() => {
       });
     },
   });
+  const applicationPath = path.resolve(__dirname, '../..');
+  claudeHookProfile = require('./claude-hook-app').createClaudeHookApp({
+    userData,
+    assetsRoot: path.join(
+      app.isPackaged ? process.resourcesPath : path.join(applicationPath, 'build'),
+      'hook-review',
+    ),
+    dialog: require('electron').dialog,
+    shell: require('electron').shell,
+    executable: process.execPath,
+    appPath: applicationPath,
+    getWindow: () => mainWindow,
+  });
   ipc.init({
+    claudeHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
     controlFileReads: (request) => etwFile.control(request),
@@ -1352,9 +1367,10 @@ app.on('before-quit', (event) => {
   }
   const etwActive = etwFile?.isActive?.() === true;
   const nativeActive = nativeSensor?.isActive() === true;
+  const hookReviewActive = claudeHookProfile?.hasPending() === true;
   if (
     !alertQuitDrainStarted &&
-    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive)
+    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive || hookReviewActive)
   ) {
     event.preventDefault();
     alertQuitDrainStarted = true;
@@ -1376,11 +1392,19 @@ app.on('before-quit', (event) => {
       }
     };
     Promise.race([
-      Promise.all([drain(), etwFile?.dispose(), nativeSensor?.dispose()]),
+      Promise.all([
+        drain(),
+        etwFile?.dispose(),
+        nativeSensor?.dispose(),
+        claudeHookProfile?.close(),
+      ]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.
         // Pending UAC or an unresponsive collector still cannot hold quit forever.
-        timeout = setTimeout(resolve, etwActive ? 15000 : nativeActive ? 2500 : 2000);
+        timeout = setTimeout(
+          resolve,
+          etwActive ? 15000 : hookReviewActive ? 5000 : nativeActive ? 2500 : 2000,
+        );
       }),
     ])
       .catch(() => {})

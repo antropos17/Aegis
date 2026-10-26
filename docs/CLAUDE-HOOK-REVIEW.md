@@ -1,11 +1,11 @@
 # Private owner review for Claude hook changes
 
-The dormant main-process `createOwnedHookReview` capability prepares owner-bound,
+The main-process `createOwnedHookReview` capability prepares owner-bound,
 expiring approval for the existing owned hook writer. It constructs and retains
-one real writer for one explicit target/IO pair. The application does not call
-this module. The supported scope is trusted local preparation with owned fixture
-IO; UI installation, application IPC and live provider/version qualification
-remain separate work under W6.
+one real writer for one explicit target/IO pair. The application now consumes it
+through the [separate profile flow](CLAUDE-HOOK-APP.md), with fixed main-owned
+paths, owned-frame IPC admission and a native Cancel-default confirmation.
+Live provider/version qualification and persistent recovery remain open under W6.
 
 ## Construction and private authority
 

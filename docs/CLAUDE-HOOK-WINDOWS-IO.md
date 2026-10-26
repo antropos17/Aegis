@@ -1,13 +1,14 @@
-# Private Windows hook IO fixture provider
+# Private Windows hook IO provider
 
 `createWindowsHookIO` in `src/main/claude-hook-windows-io.js` supplies the four
 private callbacks consumed by the [owned hook writer](CLAUDE-HOOK-WRITER.md).
-`sidecar/hook-transaction/` is its framework-only .NET stdio host. The only
-caller is a development fixture that creates explicit new inert files. There
-is no application/main/IPC/UI registration, profile discovery, default target,
-installer, policy evaluator, command invocation, hook loading or reference
-import. `ownedFixture: true` records the trusted caller's scope; it cannot
-authenticate ownership. The caller must own and select the target and storage.
+`sidecar/hook-transaction/` is its framework-only .NET stdio host. The
+[application profile review](CLAUDE-HOOK-APP.md) now consumes it for a fixed
+AEGIS-owned separate profile; existing development fixtures remain supported.
+`ownedFixture: true` or `ownedProfile: true` records the trusted caller's scope;
+neither literal assertion authenticates ownership. The caller must own and select
+the target and storage. This IO layer performs no profile discovery, policy
+evaluation, command invocation, hook loading or reference import.
 Sensitive policy activation remains owner pending, and `launchAllowed` remains
 false. Installation into an inert fixture proves no provider observation,
 blocking, enforcement, production readiness or full W6 acceptance.
