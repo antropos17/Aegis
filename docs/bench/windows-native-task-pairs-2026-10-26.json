@@ -1,0 +1,299 @@
+{
+  "version": "native-task-summary/1",
+  "context": {
+    "schema": "controlled-native-task-run/1",
+    "sourceCommit": "d3438d3cfbfd4bdb7b8912cd0539e9ec4702ade9",
+    "dirtySource": false,
+    "sourceSha256": "f991d972c3c20df6880c31d15797d7ba6832f296af73c15c0c9f012aa3de097a",
+    "source": {
+      "bench/native-task-run.cjs": "da6156e55f5e68eef61f45fee073ef2ef20cc07faf0f904170947e41a74ee0f0",
+      "bench/lib/native-task-setup.js": "10c1b2f8947fc98d2b5b98f2dd15cf5e8a24445dc2b12fcc62677152aa20b82b",
+      "bench/native-task/Worker.cs": "2fe427d07f8c6464452de035b3721d772025dd4b91e6ab507dd6434d9f886883",
+      "bench/lib/native-task-plan.js": "d854027ed9a8ca2fc8f070eab0eefd0451533969171a751a7ab3a6217ea5de7a",
+      "bench/lib/native-task-process.js": "09fe471338ef372ddbd24733eb87fd7f07a29b8507e597e13dc9f3a9bd594bcf",
+      "bench/lib/native-task-monitor.js": "f19789000bd7bcea35f22addff85d6889516cbb502adabb84ac8c6f437e551a7",
+      "bench/lib/native-task-report.js": "2c16568c9551060ace2ba081beaa17aed388aba6c0f5a261a830f3da8d9e2e8d",
+      "bench/lib/paired-task-latency.js": "30318ba24190fe27b151355b17c617e918e95a4519bdb78aea289d989157ccae",
+      "bench/lib/task-false-alarms.js": "bc2cc02843050838f60b02ee3c93eb08070c1f0102c7d30920a6d47083bc49e0"
+    },
+    "product": {
+      "sourceCommit": "d3438d3cfbfd4bdb7b8912cd0539e9ec4702ade9",
+      "artifacts": {
+        "dist/renderer/assets/aegis.svg": "37b13fc034817c0eb85d7e09d8652ddb76a27d39062983deb27ce38278024ce2",
+        "dist/renderer/assets/agents/catalog/agent-s.png": "d62326e676def3d53d58dc6226285e6f30db27f6d1cac61eae158b475a5c1d0a",
+        "dist/renderer/assets/agents/catalog/agentgpt.svg": "6b8af80e54f6fa03222f2568dd3afffde65ba77e326b44f1610faefe03ec7439",
+        "dist/renderer/assets/agents/catalog/ai-shell.png": "9ee1ab173aaf5be9cad13176207c70378230b18c3bb10b34b283395d5bcf57b9",
+        "dist/renderer/assets/agents/catalog/aide.svg": "d2216d2264fecd076adbb2bca65acb34732a6f9e32e26cd7f6f5aa3d2f97bfef",
+        "dist/renderer/assets/agents/catalog/aider.png": "6efbd1fc700f455630b59d233aa37bfc764cffb0bcb255a42e73837f12497a2b",
+        "dist/renderer/assets/agents/catalog/amazon-q.ico": "1dc902bf12f36533773b6e0399ca6dcfe2e19b88c7d1c3d9f211a4082d28d219",
+        "dist/renderer/assets/agents/catalog/antigravity.png": "81ff621394faed1deb9c5577c7d5b651c5759ce927c1594dc8f6f6382a434670",
+        "dist/renderer/assets/agents/catalog/anythingllm.png": "4a650703d2de75f4223c41c10fca33d7114ecf95a83a5f46d1ced3abedc31aa9",
+        "dist/renderer/assets/agents/catalog/apple-intelligence.ico": "5493c61cf725cf3a1d63cd9d07de75b0d6faa5564e772f7d0a6074f341442938",
+        "dist/renderer/assets/agents/catalog/askcodi.ico": "f4adcb07f4aa794f2b961cb5f795684e075e90aa91408b8540607b8fe7fcd3e6",
+        "dist/renderer/assets/agents/catalog/augment-code.svg": "f8b2eb449045fdde4cfef85b97848374a72429147a58be0a58ad62b3888445a3",
+        "dist/renderer/assets/agents/catalog/autogen.svg": "47c9192d337ca34934ea6aa701d63b27595712b59fad90c5ef433357970f6e86",
+        "dist/renderer/assets/agents/catalog/autogpt.png": "e5df60c0ffb041dbbdc5f509547ca767a912b06745d96ab7cc070031ef1be703",
+        "dist/renderer/assets/agents/catalog/bito-ai.png": "c4d91210834c4ed168c0b8469bf959354ceb87182cc6a371b8b02f7b02bf040c",
+        "dist/renderer/assets/agents/catalog/blackbox-ai.ico": "3ae69331666ed73966353e0a6d8dcbc9cffdfbe34413f7ac32d44736a38983d0",
+        "dist/renderer/assets/agents/catalog/bolt-new.png": "e8950aaa7a5d56f022a9b39c8c3880ba98b0cd91f80b51818ea1b49a6de080ec",
+        "dist/renderer/assets/agents/catalog/browseruse.png": "79038a3f370c0a247ac307a43443cf6e17a113b3962b2488aca2d9d28b1243ab",
+        "dist/renderer/assets/agents/catalog/chatgpt-desktop.png": "8d5575ee667ff715cd3e3074d5296edc68d5aadd89720d203e13131b68b22a04",
+        "dist/renderer/assets/agents/catalog/cline.png": "7df371e7eac36079e99b4d4e0dbda1890a1e7d5898d858f5e3a780b7241fd49f",
+        "dist/renderer/assets/agents/catalog/codacy-ai.png": "c4a940a6a7a1386f072a5b92bb85c1e799fb35da35d9bdbcc59181087500648e",
+        "dist/renderer/assets/agents/catalog/codegeex.png": "2779f83b80b9804caaac44b944ece611adc49dd694fc32be0b568f9645a08c16",
+        "dist/renderer/assets/agents/catalog/codegpt.png": "899ed898184f1a7256c0537a5ca75907ff5d1a6ebd240b9eb5e3634d48acb21a",
+        "dist/renderer/assets/agents/catalog/codeium-language-server.ico": "236892565896e893ac2d8889dabba9c10c3a4d2eeeb124eba649339efac5cf89",
+        "dist/renderer/assets/agents/catalog/composio.png": "924f588685ca9887ccf937952878404da76837b6297884731bb9b175879e6548",
+        "dist/renderer/assets/agents/catalog/continue-dev.png": "0476a2b1781547d4937a39036a67098cb0d7837d7750ae28443b79f8d38a17c5",
+        "dist/renderer/assets/agents/catalog/copilot-desktop.svg": "3deea64464fde078ef514c4d6fefecdf035a919728efe83ead8779688d1b95e6",
+        "dist/renderer/assets/agents/catalog/cosine-genie.png": "96ce186efaa3a74c927175bec045eb65ebce93d37130061f91b2c6acb62acc6d",
+        "dist/renderer/assets/agents/catalog/crewai.ico": "06d296767bd6a2acbf5aa4b1dafd318fc08762da6b0ee842eb2f05cf426cd2e9",
+        "dist/renderer/assets/agents/catalog/devika.png": "f6d36e9e0229e1ba1fedf816f669e08ddd6bc36287c844d1814841249c7ba930",
+        "dist/renderer/assets/agents/catalog/dify.svg": "72348ce12b2fe799a1787df6cf837d4c202389640bab83eadd5cbcc0ac253799",
+        "dist/renderer/assets/agents/catalog/docker-desktop.png": "a9e08fe48c361085d3348efdd81d5ac5830a8695aead9b616df96af88dddaac7",
+        "dist/renderer/assets/agents/catalog/e2b.ico": "ccbbfb504b0e3fda68fd0eb850971d13c58f6a0b52912cf8f73dc25d3441e052",
+        "dist/renderer/assets/agents/catalog/factory-ai.svg": "83a6fcfe2d515ccc75b9793f7141c9e00cc2c64e2af1c288e65ee8f817aba4be",
+        "dist/renderer/assets/agents/catalog/flowise.ico": "e10a0d80459be8e664f2c183bcedd765b1984f7feef288576d46fa39be4d0ab0",
+        "dist/renderer/assets/agents/catalog/gemini-cli.ico": "a65560d53f5e24d769d37ecf27bb63316da2f796eb983d301cf05ecc1e2ed28d",
+        "dist/renderer/assets/agents/catalog/gemini-code-assist.png": "194db0321189b763ac9097774dacf7c6b5f6efe86d772bb298330da62e14f792",
+        "dist/renderer/assets/agents/catalog/github-copilot.svg": "b5bfc7d50d1ec20a03e696f27fae38faa5376dcce0d6f2c49f25b3462d2a8e9b",
+        "dist/renderer/assets/agents/catalog/google-jules.png": "b96dc55bd1cf1e74f6dbe3dced38683c75df2d5f27bbe4cbab5879fcca002724",
+        "dist/renderer/assets/agents/catalog/goose.png": "73d0d111766fded5017c2224935de06cee513ef66f8928c7f07fcabca3549e33",
+        "dist/renderer/assets/agents/catalog/gpt-engineer.png": "29a40d56580a5366083461297773dbf146ec043d1156f432f5472cb3487f506b",
+        "dist/renderer/assets/agents/catalog/gpt-pilot.svg": "dbba4110b8342d05e9f3e5382bcad04b0d300f1521e242b84490734f7c46e914",
+        "dist/renderer/assets/agents/catalog/gpt4all.svg": "cae56d7a16913546896c04cca233745d2ce40a8294eea60ee673e8b6f0a73d1d",
+        "dist/renderer/assets/agents/catalog/grok-cli.ico": "fb0ad1c3708c11cd6c569608f4fc14fd5d51a5b29eb9309cf83916d40d0b6852",
+        "dist/renderer/assets/agents/catalog/hyperwrite.webp": "c26584df331d7168114c06e010bef74f5989e1e8fed96a57eeefac23c79c95d7",
+        "dist/renderer/assets/agents/catalog/jan.ico": "60426f33d57fd801ab7f25956784a6ca6db4a3305bfb76e72ad7fe1556abe412",
+        "dist/renderer/assets/agents/catalog/jetbrains-ai.png": "754e0bacaa46fa63273b1f6f7796bc917f6ed896f90bfeba16c7f0614ae21cee",
+        "dist/renderer/assets/agents/catalog/kilo-code.png": "db146064a959258970a4b1e28b9e767467978d6931ceb401fb1d873dbf3db580",
+        "dist/renderer/assets/agents/catalog/kiro.ico": "346572933d4d417c0050c112c7f20bcb8f1d3e20aa82fbe63eca38ad26399dd6",
+        "dist/renderer/assets/agents/catalog/koboldcpp.png": "6bf1ec74abc4de0d77bb2dfb01aa1b4c6080061a22fd0a69c19b40af7f0fb367",
+        "dist/renderer/assets/agents/catalog/langchain-agents.png": "b7af268b3930e445ea4ca3b09a46b4ced2b18d61a35b6652fb562342b7907175",
+        "dist/renderer/assets/agents/catalog/lavague.png": "c051e50a8f16e68a887124b34080f1d62e39148ca7f1af8d03c487ee4f76cffe",
+        "dist/renderer/assets/agents/catalog/letta.png": "19564f266ec4e5628ecafc936cfe2ba0f8633e4959feded7ddf4000abf6c6508",
+        "dist/renderer/assets/agents/catalog/llama-cpp-dark.svg": "d892170fcae343c4a3bade766a7bbcf5d0712ef9df91edbdaa4be1f71942c4da",
+        "dist/renderer/assets/agents/catalog/llama-cpp-light.svg": "8ee08d7fbc54fb8151d54e86434516faca05f2ca3c317fcb53b03e3d640e8329",
+        "dist/renderer/assets/agents/catalog/llama-cpp.svg": "b482aa5f3c6485a77f1754efec48f403c70aa650beeeacfadbf0c764310e99f3",
+        "dist/renderer/assets/agents/catalog/llamaindex-agents.png": "1f7d5b00f12dd3b3050cce22e0ef3929953641bf5318cedec06fda812fe76abf",
+        "dist/renderer/assets/agents/catalog/lm-studio.png": "e79ff2ac0fece5c0a76fcb8b20a29226794d11824ee7c7a2f521dcde0f88e12b",
+        "dist/renderer/assets/agents/catalog/localai.png": "ad78f1dc3c085c96813cb758ee3ee4f1cffd66fcac24fb6bba7d215c73bb07f8",
+        "dist/renderer/assets/agents/catalog/lovable.png": "29a40d56580a5366083461297773dbf146ec043d1156f432f5472cb3487f506b",
+        "dist/renderer/assets/agents/catalog/manus-ai.svg": "964ba6feaa6f824e7f291067935aa322592df172f034eb7ec990a12f31e90b59",
+        "dist/renderer/assets/agents/catalog/metagpt.ico": "44a465fa0b2adf0d753be680d04a42d857303a6b247899c87026ea8e47a0332b",
+        "dist/renderer/assets/agents/catalog/multion.svg": "de12a77e24a4d107bd48351ceef24c45a25d76c8a4b5b3082d13e924dc2aa0cf",
+        "dist/renderer/assets/agents/catalog/OCTICONS-LICENSE": "c238f05b133887803259eefea2f82586b56c2452a9d8c75ad505c5ff5cdf3bd5",
+        "dist/renderer/assets/agents/catalog/open-webui.png": "5698a3e39513e7b6304ec96c309373ab3af0f70fe794293461de395a94deaa65",
+        "dist/renderer/assets/agents/catalog/openai-operator.png": "8d5575ee667ff715cd3e3074d5296edc68d5aadd89720d203e13131b68b22a04",
+        "dist/renderer/assets/agents/catalog/openclaw.png": "e8c7ce0a3a6c52bd904cc55e31a5b3a8b6392dcd70ba9e220ecf0ef1d6bd8c16",
+        "dist/renderer/assets/agents/catalog/opencode.png": "2f2d5687a641f7fc1c3931072249a5984660375c091064fe8b374e4e43a8656c",
+        "dist/renderer/assets/agents/catalog/openhands.png": "b4beb7a5fa931f4ac8bb47894e689f5e95358f1a6fe3667650a993acbe2e3854",
+        "dist/renderer/assets/agents/catalog/pearai.ico": "197d977415742f92c5a2928bf85d877fbec3a4ebc0133848bee810597b1ffe08",
+        "dist/renderer/assets/agents/catalog/perplexity-desktop.ico": "df9a6478592660077e4e774d37bae6db1eb4d7d9d2cac31f0dcdab8804f76c06",
+        "dist/renderer/assets/agents/catalog/phidata.png": "c7de254fb82785c25d887d6f4290a8b6a4525cbf7bffabd4870e17756ad81873",
+        "dist/renderer/assets/agents/catalog/pieces.svg": "980f4c8eea3cfd9dc0986ceac326df5c8f08a857a82b49d493fa1e5423256d70",
+        "dist/renderer/assets/agents/catalog/qodo.png": "89c40b44eafbdce7177deddd15abc2ca2654cf722f854f9d863b0f24fc4271da",
+        "dist/renderer/assets/agents/catalog/qwen-agent.png": "cd9390bc4209c319121d111f3a1f535b3c7dd909b8f860d41acc9744138d58df",
+        "dist/renderer/assets/agents/catalog/refact-ai.png": "614a84ab392eb4eb4be750616012db192ae073a7f6f4bc0905374a0865cbdc91",
+        "dist/renderer/assets/agents/catalog/renovate-bot.png": "8680cbb7a7779b9014cbe42c2261b089c20a5f2415a5b6257fc5ef9aba049d71",
+        "dist/renderer/assets/agents/catalog/replit-agent.png": "cbd9fa5be81f1b59919c3ac2a43a6c0b98dc7c873b325a526df214e9ef7afea4",
+        "dist/renderer/assets/agents/catalog/roo-code.ico": "c1ffcbf089e060e6e0918a454b0e83cfddb29295b5c362ada664f09a489c75de",
+        "dist/renderer/assets/agents/catalog/screenpipe.ico": "fcd8bf4b8337b77d803106bb58b4998beea14c20ee7945b3875aeb5d16e9d608",
+        "dist/renderer/assets/agents/catalog/semantic-kernel.ico": "90cdaf487716184e4034000935c605d1633926d348116d198f355a98b8c6cd21",
+        "dist/renderer/assets/agents/catalog/semgrep-ai.svg": "cf749c1c4b7c2565b26f5b9076efc2b966a52ac9e403bfb7e9f18600a8dc79d7",
+        "dist/renderer/assets/agents/catalog/sm-agent.png": "d6e611a252d9da75ab15fe9987433ed2974f870d0bd8a7893df89bcbd80b2318",
+        "dist/renderer/assets/agents/catalog/snyk-ai.ico": "0fb446f9b4457a3d570f754dd403ab8c55813c146d22a77d846e321b04d94693",
+        "dist/renderer/assets/agents/catalog/sonarqube-ai.ico": "b0edc25df30529e9249d50f5d7b1ebb0c094dcd92b3e73a7108a0e0f70b6942d",
+        "dist/renderer/assets/agents/catalog/sourcegraph-cody.svg": "bcbc342f36c7baae388b4fc5ef451be7ba71802f13e09f66e5166c4890a251da",
+        "dist/renderer/assets/agents/catalog/sources.json": "2b37f492deb8803db317328d61ce8d2fd7fac01c8097dc97247c5a109006ea4c",
+        "dist/renderer/assets/agents/catalog/superagi.svg": "1bde34ca9729b737a87fdef7df8d02d3d46a6d6599aebe060680834667372f5c",
+        "dist/renderer/assets/agents/catalog/supermaven.png": "d6e611a252d9da75ab15fe9987433ed2974f870d0bd8a7893df89bcbd80b2318",
+        "dist/renderer/assets/agents/catalog/swe-agent.png": "712a12e09cfcd5f6f88fb693d039be4a93da7d6e9763b453b5d72e580b757f16",
+        "dist/renderer/assets/agents/catalog/sweep-ai.png": "3fa322896c4ecd9cb3e1ed0434f6737403e05cb4aa91653b97e27fdcacb18e65",
+        "dist/renderer/assets/agents/catalog/tabby.png": "169a3d158e89d4e6c439119d7d34ce0b01c04b69d51903cb4d3814e4175ff711",
+        "dist/renderer/assets/agents/catalog/tabnine-server.ico": "034a52932a601933883018528a25da5677f476478b0dbd20ab856af861f84623",
+        "dist/renderer/assets/agents/catalog/tabnine.ico": "034a52932a601933883018528a25da5677f476478b0dbd20ab856af861f84623",
+        "dist/renderer/assets/agents/catalog/text-generation-webui.png": "05f7583bfb4e3ca80b8356a9023636d2d9e51fddeeb718f24e3748fa1014527b",
+        "dist/renderer/assets/agents/catalog/trae-ide.png": "49d523938a22af5a70dd79923725df38674823026e2f917e76337319969f4af4",
+        "dist/renderer/assets/agents/catalog/v0-dev.svg": "234f561c4db09781786f4d0b24b2ecfaf876e78544710573b046aaafead3fbe6",
+        "dist/renderer/assets/agents/catalog/vllm.ico": "ea4688630804a87a53e107fe3a4514d1280b3fe7015e4ddf2d900a6ed598d347",
+        "dist/renderer/assets/agents/catalog/void-editor.png": "0dee4476593760d8a763ba84cd20131d30b93abe390bc5786a50b24653aa9069",
+        "dist/renderer/assets/agents/catalog/warp-ai.png": "e33a71051fe998bab0324c7a0bc58eb07cc458b155471c4adc944f6b4d6d3fc3",
+        "dist/renderer/assets/agents/catalog/windsurf.ico": "236892565896e893ac2d8889dabba9c10c3a4d2eeeb124eba649339efac5cf89",
+        "dist/renderer/assets/agents/catalog/zed-ai.png": "58b9df947e48ac31f953589d0afbf5924e227539c971aa29d789562104599c09",
+        "dist/renderer/assets/agents/claude.png": "95f9d0a9eee12535f50849787f7caf39effa06de41cecfb15462b799b32b8701",
+        "dist/renderer/assets/agents/codex.png": "51ccb56e6dcd8c5fb048c087267206773b24794154d2592440c3909cda0cd2f9",
+        "dist/renderer/assets/agents/cursor-dark.svg": "9e95e4a4db2e3dee5a9cccd2680a55c9f2436700398325389fee46c26bb2c9d6",
+        "dist/renderer/assets/agents/cursor-light.svg": "f3086e16e5176a750a7e1496b3d6164e6a870ca67ab458710fc4f6bff09d5511",
+        "dist/renderer/assets/agents/cursor.png": "267649be4d2a26dea632bb6cc1f7a400daa117e5cd3335a140ba5cb0148aaedc",
+        "dist/renderer/assets/agents/ollama.png": "5c5528504c307d34af504f39bc4e7007d2f6f31ee00dab699cc91584d1af8aca",
+        "dist/renderer/assets/agents/sources.json": "dea678c79fdb7f8822026e85f85c694a6b427ebfe834f5de4e33df411f40b38d",
+        "dist/renderer/assets/agents/SOURCES.md": "2d1cfca9e817b6a313c2855dc3a25560d8b51f18f145d2d90afae29288bed81f",
+        "dist/renderer/assets/index--kAauj_r.css": "e4bd4706aff61578c301376c6403cfa048a4842d7f77c96c09b3f5a3024a437f",
+        "dist/renderer/assets/index-j2SJtFxs.js": "1fc44fd64305bebefc117ed84b9ef284b3931c5fa7b2bcbd5e1b49d23343f93c",
+        "dist/renderer/assets/LocalSecurity-B4m29obe.js": "66c3a74b06f306eb419dd0c48bdfb5ebbb1521e95128d0afca6bfdc35e7a3f92",
+        "dist/renderer/assets/LocalSecurity-B5LJp9X2.css": "c95f85c69579b055d590efcdf9b47f2e66feedf9fab866c5e7dc38250e0707dd",
+        "dist/renderer/index.html": "602fdc9580f2973b22510e90790bf13db5cdcfa7b7223dfa23d5325e98585790",
+        "build/sidecar/aegis-main.exe": "94db5846a59df81c0d9aba3f1b54c61a44fc492867709b91b362fb18f49ee844",
+        "build/sidecar/aegis-mcpjob.exe": "d23030d6828db7899505d278b5449d93557fe753a904bd36628949845db9dc5a",
+        "build/sidecar/aegis-observer.exe": "f17e5d6f10d92e9215a01395ee76c12c8e99988570ea79749b3177d2dea48324",
+        "build/sidecar/aegis-owner.exe": "9d98381329912e01caea7d0e4452cc5f9f2c45191a557ef57f4e2d83520eb2ec",
+        "build/sidecar/aegis-procsnap.exe": "ec5685d06f7c9ca8abd4345189888cd29c7e95ab2694bbf9d379bdad08ecb171",
+        "build/sidecar/aegis-resources.exe": "837b93c356aa116e8407ad0d262cc68dc14cba9901110942e1481404f74fa3b7",
+        "build/sidecar/aegis-session.exe": "8ba0b9bed9b86fe75b67be77dcdb66589c7bd74c69a40149fcb906e9a1dafa58"
+      },
+      "electronVersion": "44.9.1"
+    },
+    "recordedAt": "2026-10-26T00:49:41.741Z",
+    "machine": "067d49c561f56bc7",
+    "os": {
+      "platform": "win32",
+      "release": "10.0.26200",
+      "arch": "x64",
+      "cpu": "Intel(R) Core(TM) Ultra 9 185H",
+      "logicalCpus": 22
+    },
+    "agent": {
+      "name": "controlled native CSV worker",
+      "version": "native-csv-worker/1",
+      "kind": "controlled-native-program",
+      "provider": "not-applicable",
+      "model": "not-applicable",
+      "binarySha256": "1823422598962589e85b8f6ece55d350e7526e0b45bb2202ee3b562dc605b2a9"
+    },
+    "sensorMode": "normal-monitoring-no-file-read-opt-in",
+    "method": "native-task-pairs/1",
+    "rows": 2000000,
+    "warmupMs": 5000,
+    "drainMs": 500,
+    "beforeDisk": {
+      "freeBytes": 42312716288
+    }
+  },
+  "observed": {
+    "started": 12,
+    "completed": 12,
+    "failed": 0,
+    "timedOut": 0,
+    "ordinaryCompleted": 6,
+    "controlledOutsideEffects": 6,
+    "taskLatencyMinMs": 442,
+    "taskLatencyMaxMs": 820,
+    "capturedFixtureFileEvents": 6,
+    "localCaptureEvictions": 0
+  },
+  "comparison": {
+    "status": "conditional-supplied-evidence",
+    "provenance": "Hashes bind supplied declarations; prior freeze, authenticity and completeness are unverified."
+  },
+  "repetitions": [
+    {
+      "pairId": "pair1",
+      "order": [
+        "disabled",
+        "enabled"
+      ],
+      "denominator": 2,
+      "disabled": {
+        "p50Ms": 462.5,
+        "p95Ms": 483,
+        "reason": null
+      },
+      "enabled": {
+        "p50Ms": 701.5,
+        "p95Ms": 820,
+        "reason": null
+      },
+      "pairedRatio": {
+        "p50": 1.5083635460873313,
+        "reason": null
+      },
+      "reasons": []
+    },
+    {
+      "pairId": "pair2",
+      "order": [
+        "enabled",
+        "disabled"
+      ],
+      "denominator": 2,
+      "disabled": {
+        "p50Ms": 558,
+        "p95Ms": 563,
+        "reason": null
+      },
+      "enabled": {
+        "p50Ms": 642,
+        "p95Ms": 661,
+        "reason": null
+      },
+      "pairedRatio": {
+        "p50": 1.1503248870202576,
+        "reason": null
+      },
+      "reasons": []
+    },
+    {
+      "pairId": "pair3",
+      "order": [
+        "disabled",
+        "enabled"
+      ],
+      "denominator": 2,
+      "disabled": {
+        "p50Ms": 469.5,
+        "p95Ms": 484,
+        "reason": null
+      },
+      "enabled": {
+        "p50Ms": 480.5,
+        "p95Ms": 486,
+        "reason": null
+      },
+      "pairedRatio": {
+        "p50": 1.024768413404777,
+        "reason": null
+      },
+      "reasons": []
+    }
+  ],
+  "falseAlarmIncidence": {
+    "value": null,
+    "unit": "fraction-of-eligible-started-tasks",
+    "numerator": 0,
+    "denominator": 3,
+    "reason": "empty-eligible-exposure"
+  },
+  "sensor": {
+    "hits": null,
+    "misses": null,
+    "falseAlarms": null,
+    "recall": null,
+    "detectionLatencyMs": null,
+    "responseLatencyMs": null
+  },
+  "overhead": {
+    "cpu": null,
+    "rss": null,
+    "calibratedTaskLatency": null
+  },
+  "oracles": {
+    "taskOutcome": "independent Node exact-byte/inventory checks",
+    "sysmon": {
+      "available": false,
+      "reason": "same-run-capture-not-configured"
+    },
+    "procmon": {
+      "available": false,
+      "reason": "same-run-capture-not-configured"
+    }
+  },
+  "unavailable": {
+    "recall": "independent-os-event-oracle-unavailable",
+    "falseAlarms": "complete-user-visible-alarm-inventory-unavailable",
+    "calibratedOverhead": "product-helper-population-and-instrumentation-calibration-unqualified",
+    "prevention": "no-prevention-route-selected",
+    "detectionLatency": "independent-event-time-and-delivery-qualification-unavailable"
+  },
+  "acceptance": "Controlled native-workload diagnostic only; real-AI-agent corpus, native oracle admission and W8/T8 acceptance remain open."
+}

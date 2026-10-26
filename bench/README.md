@@ -6,6 +6,13 @@ the project (`memory-bank/RESEARCH-BASELINE.md` §3, §10).
 
 ## Method
 
+The [controlled native task runner](../docs/bench/NATIVE-TASK-WORKLOAD.md)
+executes useful CSV aggregation and an owned outside-project-write control across
+three alternating desktop-disabled/enabled pairs. It connects actual task clocks
+and independently checked outputs to the existing evaluators. Missing OS oracles,
+alarm completeness and calibrated resources remain unavailable; this diagnostic
+does not establish a real-AI-agent corpus or full measurement acceptance.
+
 The [W8 measurement-method draft](../docs/bench/METHOD.md) defines a future
 qualification protocol for real-agent tasks, independent oracles and resource
 measurements. It adds no collector, result or W8 acceptance. The Bench V1
