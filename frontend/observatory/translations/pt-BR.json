@@ -2121,5 +2121,15 @@
   "The write outcome is uncertain. Retained backups require recovery review.": "O resultado da gravação é incerto. Os backups retidos requerem revisão de recuperação.",
   "The written profile could not be verified. Retained backups require recovery review.": "Não foi possível verificar o perfil gravado. Os backups retidos requerem revisão de recuperação.",
   "An uncertain result is retained. Another write is unavailable.": "Um resultado incerto foi retido. Outra gravação está indisponível.",
-  "Profile review could not complete. Retained files are preserved.": "Não foi possível concluir a revisão do perfil. Os arquivos retidos foram preservados."
+  "Profile review could not complete. Retained files are preserved.": "Não foi possível concluir a revisão do perfil. Os arquivos retidos foram preservados.",
+  "The recognized AEGIS hook was removed after a fresh review. Unrelated settings were preserved.": "O hook AEGIS reconhecido foi removido após uma nova revisão. As demais configurações foram preservadas.",
+  "An existing separate profile is available for a fresh targeted removal review.": "Um perfil separado existente está disponível para uma nova revisão de remoção direcionada.",
+  "No matching current AEGIS Bash hook was found in this separate profile.": "Nenhum hook Bash atual do AEGIS correspondente foi encontrado neste perfil separado.",
+  "More than one matching AEGIS hook was found. Targeted removal is unavailable.": "Mais de um hook AEGIS correspondente foi encontrado. A remoção direcionada está indisponível.",
+  "This profile does not match the supported AEGIS hook structure.": "Este perfil não corresponde à estrutura de hook AEGIS compatível.",
+  "This session did not install the existing hook. You can review its targeted removal.": "Esta sessão não instalou o hook existente. Você pode revisar sua remoção direcionada.",
+  "Previous setup approvals expired. Start a fresh review of the current separate profile.": "As aprovações anteriores de configuração expiraram. Inicie uma nova revisão do perfil separado atual.",
+  "After restart or session expiry, removal requires a fresh exact review of the recognized current AEGIS hook. Saved files do not restore old approvals.": "Após a reinicialização ou expiração da sessão, a remoção exige uma nova revisão exata do hook AEGIS atual reconhecido. Os arquivos salvos não restauram aprovações antigas.",
+  "Review AEGIS hook removal": "Revisar remoção do hook AEGIS",
+  "The previous native session has not confirmed shutdown. Another write is unavailable.": "O encerramento da sessão nativa anterior não foi confirmado. Outra gravação está indisponível."
 }

@@ -43,17 +43,22 @@ async function ordinary(file, allowMissing = false) {
 }
 
 /** Prepare one bounded app-owned draft; never discover or overwrite a personal profile.
- * @param {string} directory Fixed private application directory.
+ * @param {string} directory Fixed private application directory. @param {boolean} existingOnly Refuse a missing target during removal.
  * @returns {Promise<{targetPath:string,backupRoot:string}>} Private native selections. @since v0.21.0 */
-async function prepareProfile(directory) {
-  await ordinary(directory, true);
-  await fs.mkdir(directory, { recursive: true });
+async function prepareProfile(directory, existingOnly = false) {
+  await ordinary(directory, !existingOnly);
+  if (!existingOnly) await fs.mkdir(directory, { recursive: true });
   await ordinary(directory);
   const targetPath = path.join(directory, 'settings.json');
   let handle;
   try {
-    handle = await fs.open(targetPath, 'wx', 0o600);
-    await handle.writeFile('{}\n');
+    if (existingOnly) {
+      const present = await profilePresence(targetPath);
+      if (!present.reviewable) throw Error('profile-unavailable');
+    } else {
+      handle = await fs.open(targetPath, 'wx', 0o600);
+      await handle.writeFile('{}\n');
+    }
   } catch (error) {
     // eslint-disable-next-line preserve-caught-error -- Private filesystem paths are deliberately discarded.
     if (error.code !== 'EEXIST') throw Error('profile-unavailable');
@@ -68,6 +73,24 @@ async function prepareProfile(directory) {
     targetPath: path.win32.normalize(targetPath),
     backupRoot: path.win32.normalize(path.join(backups, randomUUID())),
   };
+}
+
+/** Read only bounded file metadata for advisory profile controls; creates no files.
+ * @param {string} target Fixed app-owned target. @returns {Promise<object>} Private metadata. @since v0.21.0 */
+async function profilePresence(target) {
+  try {
+    await ordinary(path.dirname(target));
+    const stat = await fs.lstat(target);
+    if (!stat.isFile() || stat.isSymbolicLink())
+      return { present: false, reviewable: false, mark: null };
+    return {
+      present: true,
+      reviewable: stat.size <= 262144,
+      mark: [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':'),
+    };
+  } catch {
+    return { present: false, reviewable: false, mark: null };
+  }
 }
 
 function quote(value) {
@@ -107,12 +130,15 @@ async function checkProfilePolicy(file) {
 /** Present only exact changed fragments privately, with no unrelated configuration context.
  * @param {object} review Real writer review. @param {string} target Fixed target.
  * @returns {string} Bounded native dialog text. @since v0.21.0 */
-function profileReviewText(review, target) {
+function profileReviewText(review, target, observedRemoval = false) {
   const fragments = review.changedFragments.map(
     (item) =>
       `Lines ${item.before.start.line}:${item.before.start.column}–${item.before.end.line}:${item.before.end.column}\nRemove: ${item.removed || '(empty)'}\nInsert: ${item.inserted || '(empty)'}`,
   );
-  const detail = `AEGIS-owned separate Claude settings profile:\n${target}\nPreToolUse · Bash\n\n${fragments.join('\n\n')}\n\nA private backup is retained before writing. This configures the Bash hook only; blocking is not verified. The profile is used only by launches explicitly selecting it with --settings.`;
+  const explanation = observedRemoval
+    ? 'This is a fresh authorization to remove only the recognized current AEGIS Bash hook. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.'
+    : 'This configures the Bash hook only; blocking is not verified.';
+  const detail = `AEGIS-owned separate Claude settings profile:\n${target}\nPreToolUse · Bash\n\n${fragments.join('\n\n')}\n\nA private backup is retained before writing. ${explanation} The profile is used only by launches explicitly selecting it with --settings.`;
   if (Buffer.byteLength(detail) > 8192) throw Error('preview-too-large');
   return detail;
 }
@@ -134,6 +160,7 @@ function profileDraftEligibility(review, bytes) {
 module.exports = {
   loadProfileAssets,
   prepareProfile,
+  profilePresence,
   profileCommand,
   checkProfilePolicy,
   profileReviewText,
