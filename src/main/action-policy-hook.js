@@ -20,7 +20,27 @@ let testDeps = null;
  * @since v0.15.1
  */
 function handleActionPolicyHook(args, write) {
-  const input = testDeps?.input || process.stdin;
+  const runtime = testDeps?.runtime || process;
+  // Electron's Windows bootstrap replaces process.stdin with an EOF stream.
+  // Match Node's inherited-pipe stdin wrapper so destroy cancels a pending read.
+  let input;
+  try {
+    input =
+      testDeps?.input ||
+      (runtime.platform === 'win32' && runtime.versions.electron
+        ? (testDeps?.createSocket || ((options) => new (require('node:net').Socket)(options)))({
+            fd: 0,
+            readable: true,
+            writable: false,
+          })
+        : runtime.stdin);
+  } catch {
+    try {
+      return Promise.resolve(respond());
+    } catch {
+      return Promise.resolve(2);
+    }
+  }
   const evaluate =
     testDeps?.evaluate ||
     ((policyPath, raw) => require('./action-policy').evaluateActionPolicy(policyPath, raw));
@@ -34,19 +54,20 @@ function handleActionPolicyHook(args, write) {
       if (!result || !Object.hasOwn(REASONS, result.decision)) return undefined;
       return { decision: result.decision, code: 0 };
     },
-    respond({ decision = 'deny', code = 2 } = {}) {
-      write(
-        JSON.stringify({
-          hookSpecificOutput: {
-            hookEventName: 'PreToolUse',
-            permissionDecision: decision,
-            permissionDecisionReason: REASONS[decision],
-          },
-        }),
-      );
-      return code;
-    },
+    respond,
   });
+  function respond({ decision = 'deny', code = 2 } = {}) {
+    write(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: decision,
+          permissionDecisionReason: REASONS[decision],
+        },
+      }),
+    );
+    return code;
+  }
 }
 
 /**
