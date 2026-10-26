@@ -96,6 +96,35 @@ describe('createAnomalyToastTracker', () => {
     });
   });
 
+  describe('unknown measurements', () => {
+    it('does not seed on missing, malformed, or nonfinite scores', () => {
+      const tracker = createAnomalyToastTracker();
+      expect(tracker.ingest({ a: undefined, b: null, c: '80', d: NaN, e: Infinity })).toEqual([]);
+      expect(tracker.ingest({ a: 80 })).toEqual([]);
+      expect(tracker.ingest({ a: 80, b: 50 })).toEqual(['b']);
+    });
+
+    it('seeds the first measurement of an already present unknown instance quietly', () => {
+      const tracker = createAnomalyToastTracker();
+      tracker.ingest({ a: 0, b: undefined });
+      expect(tracker.ingest({ a: 0, b: 70 })).toEqual([]);
+      expect(tracker.ingest({ a: 0, b: 70, c: 80 })).toEqual(['c']);
+      tracker.ingest({ a: 0, b: 0, c: 80 });
+      expect(tracker.ingest({ a: 0, b: 50, c: 80 })).toEqual(['b']);
+    });
+
+    it('preserves an active instance through unknown measurements while other scores update', () => {
+      const tracker = createAnomalyToastTracker();
+      tracker.ingest({ a: 80, b: 0 });
+      for (const unknown of [undefined, null, '0', NaN, Infinity]) {
+        expect(tracker.ingest({ a: unknown, b: 0 })).toEqual([]);
+        expect(tracker.ingest({ a: 80, b: 0 })).toEqual([]);
+      }
+      expect(tracker.ingest({ a: 0, b: 0 })).toEqual([]);
+      expect(tracker.ingest({ a: 50, b: 0 })).toEqual(['a']);
+    });
+  });
+
   // The gate is exported so the card can alert on exactly what toasts (AgentCard.svelte).
   // A second literal anywhere else would let the two drift apart — the case pinned by
   // AgentCard.test.ts at 49/50.

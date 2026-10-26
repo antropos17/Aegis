@@ -95,17 +95,23 @@ it('keeps population churn quiet and alerts only on an anomaly crossing', async 
   const initial = {
     ...emptyTelemetry(),
     stale: false,
-    agents: [{ agent: 'Claude', instanceId: 'a' }],
-    anomalies: { a: 49 },
+    agents: [{ agent: 'Claude', pid: 42, instanceId: '42:1000', instanceIdSource: 'os' }],
+    anomalies: { '42:1000': 49 },
   };
   const mounted = render(Notifications, { telemetry: initial });
   expect(screen.queryByText(/Anomaly:/)).toBeNull();
   await mounted.rerender({
-    telemetry: { ...initial, agents: [...initial.agents, { agent: 'Other', instanceId: 'b' }] },
+    telemetry: {
+      ...initial,
+      agents: [
+        ...initial.agents,
+        { agent: 'Other', pid: 43, instanceId: '43:1000', instanceIdSource: 'os' },
+      ],
+    },
   });
   expect(screen.queryByText(/Anomaly:/)).toBeNull();
-  await mounted.rerender({ telemetry: { ...initial, anomalies: { a: 50 } } });
-  expect(screen.getByText('Anomaly: Claude score 50')).toBeInTheDocument();
+  await mounted.rerender({ telemetry: { ...initial, anomalies: { '42:1000': 50 } } });
+  expect(screen.getByText('Anomaly: Claude (PID 42) score 50')).toBeInTheDocument();
 });
 
 it('shows one Windows resource row with mixed activities and keeps every original observation', async () => {
