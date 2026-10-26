@@ -65,7 +65,7 @@ const policy = (source) => ({ schemaVersion: 4, cedarSchema: 'aegis-execution-v1
     assert.deepEqual(decisions, expected);
     assert.equal(started, 2);
     assert.equal(exited, 2);
-    assert.equal(cedarVersion, missing ? null : '4.13.0');
+    assert.equal(cedarVersion, missing ? null : '4.14.0');
     console.log(JSON.stringify({ electron: process.versions.electron, node: process.versions.node, cedarVersion, decisions, started, exited, missing }));
   } finally { client.close(); }
 })().catch(() => { console.error('packaged-worker-smoke-failed'); process.exitCode = 1; });

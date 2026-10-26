@@ -2,12 +2,16 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { watch } from '../../src/main/watch-worker-client.js';
+const require_ = createRequire(import.meta.url);
+const fileWatcher = require_('../../src/main/file-watcher.js');
 
 const roots = [];
 const watchers = [];
 afterEach(async () => {
   await Promise.all(watchers.splice(0).map((w) => w.close()));
+  fileWatcher._resetForTest();
   for (const root of roots.splice(0)) {
     const resolved = await fs.realpath(root);
     expect(path.dirname(resolved)).toBe(await fs.realpath(os.tmpdir()));
@@ -201,5 +205,70 @@ describe('real worker filesystem delivery', () => {
     const received = waitFor(second, 'add', target);
     await fs.writeFile(target, 'fixture');
     await received;
+  });
+
+  it('reports a real rename at project depth and stops delivery after awaited close', async () => {
+    const root = await fixture();
+    const outside = await fixture();
+    const nested = path.join(root, 'one', 'two', 'three', 'four', 'five');
+    await fs.mkdir(nested, { recursive: true });
+    await fs.symlink(
+      outside,
+      path.join(root, 'linked'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    const w = start(root, { depth: 5, startupProgress: true });
+    const seen = [];
+    for (const type of ['add', 'change', 'unlink']) w.on(type, (p) => seen.push([type, p]));
+    await waitFor(w, 'ready');
+    await fs.writeFile(path.join(outside, 'outside.txt'), 'not followed');
+    const before = path.join(nested, 'before.txt');
+    const after = path.join(nested, 'after.txt');
+    let received = waitFor(w, 'add', before);
+    await fs.writeFile(before, 'fixture');
+    await received;
+    const renamed = Promise.all([waitFor(w, 'unlink', before), waitFor(w, 'add', after)]);
+    await fs.rename(before, after);
+    await renamed;
+    received = waitFor(w, 'unlink', after);
+    await fs.unlink(after);
+    await received;
+    await w.close();
+    const settled = [...seen];
+    await fs.writeFile(path.join(root, 'after-close.txt'), 'fixture');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(seen).toEqual(settled);
+    expect(seen.every(([, file]) => file === before || file === after)).toBe(true);
+    expect(seen).toContainEqual(['add', before]);
+    expect(seen).toContainEqual(['unlink', before]);
+    expect(seen).toContainEqual(['add', after]);
+    expect(seen).toContainEqual(['unlink', after]);
+  }, 15000);
+
+  it('uses real shallow rule watching with underscore filtering and no initial delivery', async () => {
+    const root = await fixture();
+    const rules = path.join(root, 'rules', 'sequences');
+    await fs.mkdir(path.join(rules, 'nested'), { recursive: true });
+    await fs.writeFile(path.join(rules, 'existing.yaml'), 'fixture');
+    fileWatcher._setDepsForTest({ appDir: root });
+    let reloads = 0;
+    const w = fileWatcher.setupSequenceRulesWatcher(() => {}, { reload: () => ++reloads });
+    watchers.push(w);
+    const seen = [];
+    for (const type of ['add', 'change', 'unlink']) w.on(type, (file) => seen.push({ type, file }));
+    await waitFor(w, 'ready');
+    expect(seen).toEqual([]);
+    expect(reloads).toBe(0);
+    await fs.writeFile(path.join(rules, '_ignored.yaml'), 'fixture');
+    await fs.writeFile(path.join(rules, 'nested', 'ignored.yaml'), 'fixture');
+    const selected = path.join(rules, 'selected.yaml');
+    const received = waitFor(w, 'add', selected);
+    await fs.writeFile(selected, 'fixture');
+    await received;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(seen).toContainEqual({ type: 'add', file: selected });
+    expect(seen.every((event) => event.file === selected)).toBe(true);
+    // A native create can deliver add followed by change as content is written.
+    expect(reloads).toBeGreaterThanOrEqual(1);
   });
 });

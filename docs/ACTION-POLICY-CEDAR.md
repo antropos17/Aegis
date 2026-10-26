@@ -14,11 +14,11 @@ OS enforcement or approval.
 ## Runtime and schema
 
 The runtime dependency is the official `@cedar-policy/cedar-wasm`, pinned to
-`4.13.0`, loaded lazily through its synchronous CommonJS
+`4.14.0`, loaded lazily through its synchronous CommonJS
 `@cedar-policy/cedar-wasm/nodejs` export. Initialization verifies that version.
 The runtime makes authorization decisions locally and performs no network request.
 See the [official package](https://www.npmjs.com/package/@cedar-policy/cedar-wasm)
-and [Node loading documentation](https://github.com/cedar-policy/cedar/blob/v4.13.0/cedar-wasm/README.md).
+and [Node loading documentation](https://github.com/cedar-policy/cedar/blob/v4.14.0/cedar-wasm/README.md).
 
 The required envelope is:
 

@@ -275,7 +275,7 @@ describe('Cedar closed worker metadata', () => {
 
 describe('Cedar thread official runtime semantics', () => {
   it('matches synchronous official allow, deny, ask, review, precedence and literal argument/environment semantics', () => {
-    expect(official.getCedarVersion()).toBe('4.13.0');
+    expect(official.getCedarVersion()).toBe('4.14.0');
     const matches =
       'permit(principal, action, resource) when { resource.args == "[\\\"PRIVATE_ARG\\\"]" && resource.env == "{\\\"SECRET\\\":\\\"PRIVATE_VALUE\\\"}" };';
     for (const policies of [
