@@ -7,6 +7,11 @@ generates the resource summary. This is an executed workload-resource diagnostic
 it supplies no real-AI cohort, complete product cohort, independent physical
 calibration, calibrated product overhead or W8 acceptance.
 
+The first executed cell is retained in the script-generated
+[2026-10-26 result](windows-native-resources-2026-10-26.md) and
+[JSON](windows-native-resources-2026-10-26.json). Its measured source is pinned in
+the result; documentation publication does not relabel it as newer code.
+
 ```powershell
 node bench/native-resource-run.cjs --output X:/task-storage/new-native-resources
 ```
