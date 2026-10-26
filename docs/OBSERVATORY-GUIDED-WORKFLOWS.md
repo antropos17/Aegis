@@ -68,8 +68,9 @@ live watcher health rather than interpreting saved selection as active coverage.
 sensors: not observed, starting, observed, unavailable or unknown. A healthy
 credential or environment watcher cannot establish project coverage. **Project
 folder settings** opens the existing Monitoring section without choosing a folder.
-Operator pause is displayed separately from watcher readiness; retained readings
-keep the existing freshness warning. Root readiness does not establish file reads,
+Operator pause is displayed separately from watcher readiness. Stale, offline or
+not-yet-ready deliveries show project coverage as unknown, with the existing
+page-level freshness warning. Root readiness does not establish file reads,
 agent ownership or blocking.
 
 Focused fixture and browser checks cover this flow. A source-run Electron 45 smoke

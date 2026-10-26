@@ -20,6 +20,23 @@ import {
 import portuguese from '../../frontend/observatory/translations/pt-BR.json';
 
 describe('closed runtime coverage projection', () => {
+  it.each(['stale', 'not-ready', 'error'])(
+    'qualifies project readiness when telemetry is %s',
+    (state) => {
+      const input = coverageFixture();
+      record(input.stats.appHealth).watchPlan = { projectState: 'observed' };
+      input.stats.monitoringPaused = true;
+      input.stale = state === 'stale';
+      input.ready = state !== 'not-ready';
+      input.error = state === 'error' ? 'PRIVATE_FAILURE' : '';
+      expect(sensorCoverage(input).project).toEqual({
+        state: 'Unknown',
+        detail: projectCoverageDetails.unknown,
+        paused: false,
+      });
+      expect(record(record(input.stats.appHealth).watchPlan).projectState).toBe('observed');
+    },
+  );
   it.each(['not-observed', 'starting', 'observed', 'unavailable', 'unknown'])(
     'keeps project %s distinct from aggregate healthy file changes',
     (projectState) => {

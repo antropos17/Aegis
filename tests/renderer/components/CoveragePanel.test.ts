@@ -17,6 +17,21 @@ const props = () => ({
   openSensorDetails: vi.fn(),
 });
 
+it('never shows retained project readiness as current for stale, not-ready or offline telemetry', async () => {
+  const input = props();
+  record(input.telemetry.stats.appHealth).watchPlan = { projectState: 'observed' };
+  const view = render(CoveragePanel, input);
+  const project = screen.getByRole('region', { name: 'Project changes' });
+  expect(within(project).getByText('Observed', { exact: true })).toBeVisible();
+  for (const flags of [{ stale: true }, { ready: false }, { error: 'PRIVATE_OFFLINE_REASON' }]) {
+    await view.rerender({ telemetry: { ...input.telemetry, ...flags } });
+    expect(within(project).getByText('Unknown', { exact: true })).toBeVisible();
+    expect(project).toHaveTextContent('Current project change coverage is unknown.');
+    expect(within(project).queryByText('Observed', { exact: true })).toBeNull();
+    expect(project).not.toHaveTextContent('PRIVATE_OFFLINE_REASON');
+  }
+});
+
 it('explains absent project coverage beside healthy sensors and opens only existing folder settings', async () => {
   const input = props();
   record(input.telemetry.stats.appHealth).watchPlan = {

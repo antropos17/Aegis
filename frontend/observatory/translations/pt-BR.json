@@ -2153,5 +2153,5 @@
   "Project folder settings": "Configurações da pasta do projeto",
   "Project changes are unavailable. Review the folder in Monitoring settings.": "As mudanças no projeto estão indisponíveis. Revise a pasta nas configurações de Monitoramento.",
   "Project changes": "Mudanças no projeto",
-  "Project change coverage has not been reported.": "A cobertura de mudanças no projeto não foi informada."
+  "Current project change coverage is unknown.": "A cobertura atual de mudanças no projeto é desconhecida."
 }

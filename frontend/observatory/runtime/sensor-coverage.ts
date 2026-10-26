@@ -47,7 +47,7 @@ export const projectCoverageDetails: Labels = {
   observed:
     'The configured project watcher is ready. Only its root and current exclusions are covered.',
   unavailable: 'Project changes are unavailable. Review the folder in Monitoring settings.',
-  unknown: 'Project change coverage has not been reported.',
+  unknown: 'Current project change coverage is unknown.',
 };
 export const coverageStates: Labels = {
   HEALTHY: 'Healthy',
@@ -206,8 +206,11 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
   const admission = record(native.admission);
   const restart = record(native.restart);
   const reportedProject = record(record(telemetry.stats.appHealth).watchPlan).projectState;
+  const projectCurrent = telemetry.ready && !telemetry.stale && !telemetry.error;
   const projectState =
-    typeof reportedProject === 'string' && Object.hasOwn(projectCoverageStates, reportedProject)
+    projectCurrent &&
+    typeof reportedProject === 'string' &&
+    Object.hasOwn(projectCoverageStates, reportedProject)
       ? reportedProject
       : 'unknown';
   const platform =
@@ -241,7 +244,7 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
     project: {
       state: projectCoverageStates[projectState],
       detail: projectCoverageDetails[projectState],
-      paused: telemetry.stats.monitoringPaused === true,
+      paused: !!projectCurrent && telemetry.stats.monitoringPaused === true,
     },
     agents,
     reported: Object.keys(native).length > 0,

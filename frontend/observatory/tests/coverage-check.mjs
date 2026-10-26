@@ -196,6 +196,7 @@ export async function checkCoverage(browser, url, out, only = []) {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     const data = fixture(scenario.platform);
+    if (scenario.state === 'stale') data.stats.appHealth.watchPlan.projectState = 'observed';
     if (scenario.platform === 'missing') delete data.stats.nativeSensor;
     if (scenario.state === 'factory-missing' || scenario.state === 'factory-restart') {
       Object.assign(data.stats.nativeSensor, {
@@ -273,6 +274,10 @@ export async function checkCoverage(browser, url, out, only = []) {
         await page.evaluate((stats) => window.coverageFixtureUpdate(stats), data.stats);
         await panel
           .getByText('Retained coverage readings. Current observation is unavailable.')
+          .waitFor();
+        await panel
+          .getByRole('region', { name: 'Project changes' })
+          .getByText('Unknown', { exact: true })
           .waitFor();
       }
       if (scenario.state === 'error') await panel.getByRole('alert').waitFor();
