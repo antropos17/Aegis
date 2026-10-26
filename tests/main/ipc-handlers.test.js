@@ -330,6 +330,44 @@ describe('ipc-handlers', () => {
     expect(await handler(event, 'status')).toEqual({ success: true, code: 'READY' });
     expect(handle).toHaveBeenCalledOnce();
   });
+  it('project selection accepts only closed owned actions and projects out private backend fields', async () => {
+    const handle = vi.fn(async (_action, owned) => ({
+      success: owned(),
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+      path: 'PRIVATE_SELECTED_ROOT',
+    }));
+    const { event } = registerOwnedRenderer({ projectWatchSelection: { handle } });
+    const handler = getHandler('project-watch:control');
+    expect(await handler({ ...event, senderFrame: {} }, 'select')).toMatchObject({
+      success: false,
+    });
+    expect(await handler(event, { action: 'select', path: 'PRIVATE_RENDERER_ROOT' })).toMatchObject(
+      { success: false },
+    );
+    expect(handle).not.toHaveBeenCalled();
+    expect(await handler(event, 'status')).toEqual({
+      success: true,
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+    });
+  });
+  it('project selection rechecks ownership after native asynchronous work', async () => {
+    let finish;
+    const handle = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ projectWatchSelection: { handle } });
+    const pending = getHandler('project-watch:control')(event, 'select');
+    frame.url = 'https://untrusted.example/';
+    finish({ success: true, code: 'SELECTED' });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
 
   it('rechecks Claude profile frame ownership after an asynchronous operation', async () => {
     let finish;
