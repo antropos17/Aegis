@@ -64,7 +64,12 @@ describe('native-read scanner readiness diagnostics', () => {
       capabilityClass: 'class5',
       sequence: false,
       topology: true,
-      firstFailure: { kind: 'child-exit', exitCode: 2, stderrClass: 'probe-birth-mismatch' },
+      firstFailure: {
+        kind: 'child-exit',
+        exitCode: 2,
+        stderrClass: 'probe-birth-mismatch',
+        nativeStatus: null,
+      },
     });
     expect(JSON.stringify(diagnostic)).not.toMatch(/PRIVATE|"pid"|"birth"/);
   });
@@ -113,6 +118,33 @@ describe('native-read scanner readiness diagnostics', () => {
       throw new Error('PRIVATE_LOAD');
     });
     expect(unavailable).toEqual(readScannerSnapshotDiagnostic({}));
+  });
+
+  it.each([
+    [3221225506, 3221225506],
+    [3221225475, 3221225475],
+    [0, 0],
+    [4294967295, 4294967295],
+    [-1, null],
+    [4294967296, null],
+    [1.5, null],
+    ['PRIVATE_0xC0000022', null],
+  ])('projects nativeStatus only as uint32: %s', (nativeStatus, expected) => {
+    const diagnostic = readScannerSnapshotDiagnostic({ app: {} }, (name) => {
+      if (name.endsWith('/process-snapshot.js')) throw new Error('unavailable');
+      return {
+        getState: () => ({
+          firstFailure: {
+            kind: 'child-exit',
+            exitCode: 2,
+            stderrClass: 'probe-query-failed',
+            nativeStatus,
+          },
+        }),
+      };
+    });
+    expect(diagnostic.firstFailure.nativeStatus).toBe(expected);
+    expect(JSON.stringify(diagnostic)).not.toContain('PRIVATE');
   });
   it('accepts only the exact actor with all three scanner conditions', () => {
     expect(projectScannerReadiness(ready(), witness)).toMatchObject({

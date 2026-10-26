@@ -96,6 +96,7 @@ let _firstFailure = null;
 let _stderrPrefix = null;
 let _stderrLength = 0;
 let _stderrClass = null;
+let _stderrNativeStatus = null;
 const FAILURE_KINDS = Object.freeze({
   'sidecar binary not found': 'binary-missing',
   'spawn-failed': 'spawn-failed',
@@ -119,6 +120,12 @@ function _clearStderr() {
 function _classifyStderr() {
   if (_stderrClass !== null) return _stderrClass;
   const text = _stderrPrefix?.toString('utf8', 0, _stderrLength) || '';
+  const firstLine = text.split('\n', 1)[0].replace(/\r$/, '');
+  const status =
+    /^probe failed: (?:SystemProcessInformation unavailable|NtQuerySystemInformation failed) \(0x([0-9a-fA-F]{8})\)$/.exec(
+      firstLine,
+    );
+  _stderrNativeStatus = status ? Number.parseInt(status[1], 16) : null;
   const patterns = [
     [/^probe failed: SystemProcessInformation unavailable /, 'probe-query-unavailable'],
     [/^probe failed: NtQuerySystemInformation failed /, 'probe-query-failed'],
@@ -148,6 +155,7 @@ function _retainFirstFailure(reason, exitCode = _child?.exitCode) {
         ? exitCode
         : null,
     stderrClass: _classifyStderr(),
+    nativeStatus: _stderrNativeStatus,
   });
 }
 
@@ -181,6 +189,7 @@ function _defaultExePath() {
 function _teardown(reason) {
   _clearStderr();
   _stderrClass = null;
+  _stderrNativeStatus = null;
   const pending = _pending;
   _pending = null;
   if (pending) {
@@ -352,6 +361,7 @@ function _startChild(timeoutMs) {
   _stderrPrefix = _firstFailure ? null : Buffer.alloc(512);
   _stderrLength = 0;
   _stderrClass = null;
+  _stderrNativeStatus = null;
   const decoder = createFrameDecoder();
   let stderrObserved = false;
   _installExitHook();
@@ -464,7 +474,7 @@ function requestSnapshot(opts = {}) {
  * Observable supervision state, for the provider chooser's health record.
  * @returns {{available: boolean, sticky: string|null, connected: boolean,
  *   caps: {class: string, sequence: boolean, topology: boolean}|null, failures: number,
- *   firstFailure: {kind:string,exitCode:number|null,stderrClass:string}|null}}
+ *   firstFailure: {kind:string,exitCode:number|null,stderrClass:string,nativeStatus:number|null}|null}}
  */
 function getState() {
   return {

@@ -150,6 +150,12 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
             'probe-self-missing',
             'probe-population-small',
           ]),
+          nativeStatus:
+            Number.isInteger(first.nativeStatus) &&
+            first.nativeStatus >= 0 &&
+            first.nativeStatus <= 4294967295
+              ? first.nativeStatus
+              : null,
         };
       result.clientAvailable = true;
     } catch {

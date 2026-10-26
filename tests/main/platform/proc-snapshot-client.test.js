@@ -174,6 +174,7 @@ describe('platform/proc-snapshot-client', () => {
         kind: 'binary-missing',
         exitCode: null,
         stderrClass: 'none',
+        nativeStatus: null,
       });
     });
 
@@ -204,6 +205,7 @@ describe('platform/proc-snapshot-client', () => {
         kind: 'snapshot-timeout',
         exitCode: null,
         stderrClass: 'none',
+        nativeStatus: null,
       });
       await expect(client.requestSnapshot({ timeoutMs: 20 })).rejects.toThrow(/backing off/);
       expect(spawnCalls).toHaveLength(1);
@@ -290,8 +292,8 @@ describe('platform/proc-snapshot-client', () => {
   });
 
   it.each([
-    ['SystemProcessInformation unavailable (0xC0000003)', 'probe-query-unavailable'],
-    ['NtQuerySystemInformation failed (0xC0000001)', 'probe-query-failed'],
+    ['SystemProcessInformation unavailable (0xC0000003)', 'probe-query-unavailable', 3221225475],
+    ['NtQuerySystemInformation failed (0xC0000001)', 'probe-query-failed', 3221225473],
     ['process table exceeds 67108864 bytes', 'probe-query-limit'],
     ['process table kept growing across 8 attempts', 'probe-query-growth'],
     ['GetProcessTimes failed on our own handle', 'probe-self-times'],
@@ -305,7 +307,7 @@ describe('platform/proc-snapshot-client', () => {
     ['PRIVATE_UNRECOGNIZED', 'probe-other'],
   ])(
     'retains only the fixed classification of split probe stderr: %s',
-    async (detail, classification) => {
+    async (detail, classification, nativeStatus = null) => {
       const promise = client.requestSnapshot({ timeoutMs: 60 });
       const child = children[0];
       const line = Buffer.from('probe failed: ' + detail + '\n');
@@ -317,6 +319,7 @@ describe('platform/proc-snapshot-client', () => {
         kind: 'child-exit',
         exitCode: 2,
         stderrClass: classification,
+        nativeStatus,
       });
       expect(logged()).not.toContain(detail);
       expect(JSON.stringify(client.getState())).not.toContain(detail);
@@ -344,7 +347,12 @@ describe('platform/proc-snapshot-client', () => {
     await expect(later).rejects.toThrow(/child exited/);
     expect(allocated).toHaveLength(1);
     const history = client.getState().firstFailure;
-    expect(history).toEqual({ kind: 'child-exit', exitCode: 2, stderrClass: 'other-stderr' });
+    expect(history).toEqual({
+      kind: 'child-exit',
+      exitCode: 2,
+      stderrClass: 'other-stderr',
+      nativeStatus: null,
+    });
     history.kind = 'PRIVATE_FORGED';
     expect(client.getState().firstFailure.kind).toBe('child-exit');
     client._resetForTest();
@@ -367,6 +375,27 @@ describe('platform/proc-snapshot-client', () => {
     expect(allocated[1].every((byte) => byte === 0)).toBe(true);
     expect(logged()).not.toContain('PRIVATE');
   });
+
+  it.each([
+    ['probe failed: NtQuerySystemInformation failed (0xC0000022)\r\n', 3221225506],
+    ['probe failed: SystemProcessInformation unavailable (0xC0000003)\n', 3221225475],
+    ['probe failed: NtQuerySystemInformation failed (0xC000002)\n', null],
+    ['probe failed: NtQuerySystemInformation failed (0xC0000022) PRIVATE_PATH\n', null],
+    ['probe failed: NtQuerySystemInformation failed (0xZZZZZZZZ)\n', null],
+    ['PRIVATE_PATH 0xC0000022\n', null],
+  ])(
+    'retains nativeStatus only from an exact complete C# query message: %s',
+    async (line, expected) => {
+      const promise = client.requestSnapshot({ timeoutMs: 60 });
+      children[0].stderr.emit('data', Buffer.from(line.slice(0, 9)));
+      children[0].stderr.emit('data', Buffer.from(line.slice(9)));
+      children[0].emit('exit', 2, null);
+      await expect(promise).rejects.toThrow(/child exited/);
+      expect(client.getState().firstFailure.nativeStatus).toBe(expected);
+      expect(JSON.stringify(client.getState())).not.toContain('PRIVATE');
+      expect(logged()).not.toContain('PRIVATE');
+    },
+  );
 
   it('redacts spawn and child exception text from logs and caller errors', async () => {
     client._setInternalsForTest({
