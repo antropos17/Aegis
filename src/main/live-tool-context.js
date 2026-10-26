@@ -4,6 +4,7 @@ const { createToolContext } = require('./tool-context-record');
 const { createSessionContext } = require('./session-context');
 const { readLiveSessionFile } = require('./live-session-file');
 const { readClaudeProcesses, processWitness } = require('./live-session-process');
+const { validCreateTime100ns } = require('./platform/windows-observer');
 const { randomBytes } = require('node:crypto');
 const path = require('node:path');
 const os = require('node:os');
@@ -106,6 +107,7 @@ function createLiveToolContext(options) {
         instanceId: event.instanceId,
         timestamp: event.timestamp,
         file: event.file,
+        createTime100ns: validCreateTime100ns(event.createTime100ns) ? event.createTime100ns : null,
       }),
     );
     for (const [id, row] of events) if (now() - row.timestamp > AGE_MS) events.delete(id);
@@ -121,6 +123,8 @@ function createLiveToolContext(options) {
     if (matches.length !== 1) return unavailable('process-identity-unavailable');
     const agent = { ...matches[0] },
       stamp = witness(agent);
+    if (event.createTime100ns !== null && event.createTime100ns !== agent.createTime100ns)
+      return unavailable('process-binding-mismatch');
     const population = snapshots.filter(observed);
     const populationStamp = population.map(witness).sort().join('|');
     if (population.length > 32) return unavailable('binding-limit');
@@ -151,6 +155,7 @@ function createLiveToolContext(options) {
       return unavailable('process-binding-mismatch');
     const peers = snapshots.filter((a) => observed(a) && a.pid !== agent.pid);
     let oneToOne =
+      event.createTime100ns !== null &&
       native?.SessionId === selected.sessionId &&
       Array.isArray(nativeBefore) &&
       nativeBefore.length === population.length &&

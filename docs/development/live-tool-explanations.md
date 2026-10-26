@@ -23,7 +23,10 @@ selector. It projects those fields inside the helper; raw command lines never
 leave it. Both observations surrounding the transcript read must agree with the
 current OS-stamped process population and selected registry. Missing peers,
 duplicate sessions, changed generations/directories/selectors and incomplete
-sources prevent confirmation. The source spelling is used for lexical digests
+sources prevent confirmation. The retained event's full-resolution birth witness must match
+the current process. A missing event witness permits inferred context only; a
+different witness rejects the join even when PID and birth millisecond coincide.
+The source spelling is used for lexical digests
 only after the native directory comparison, so a trailing directory separator
 cannot manufacture a mismatch. The same-user observation does not authenticate
 the executable publisher or establish resistance to same-account tampering.

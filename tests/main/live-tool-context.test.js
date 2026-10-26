@@ -114,6 +114,7 @@ it('confirms session ownership from matching live Windows birth, cwd and explici
     instanceId: `42:${start}`,
     timestamp: start + 1500,
     file: path.join(cwd, '.env'),
+    createTime100ns: ticks,
   });
   const result = await service.explain(eventId);
   expect(result.toolContext.sessionBinding).toBe('confirmed');
@@ -123,7 +124,7 @@ it('confirms session ownership from matching live Windows birth, cwd and explici
   expect(JSON.stringify(result)).not.toContain(cwd);
 });
 
-it.each(['birth', 'selector', 'drift', 'new-peer'])(
+it.each(['birth', 'selector', 'drift', 'new-peer', 'same-ms-event', 'missing-event'])(
   'does not confirm uncertain native evidence: %s',
   async (failure) => {
     const ticks = '134373736000000000';
@@ -154,6 +155,12 @@ it.each(['birth', 'selector', 'drift', 'new-peer'])(
       instanceId: `42:${start}`,
       timestamp: start + 1500,
       file: path.join(cwd, '.env'),
+      createTime100ns:
+        failure === 'same-ms-event'
+          ? '134373736000000001'
+          : failure === 'missing-event'
+            ? undefined
+            : ticks,
     });
     expect((await service.explain(eventId)).toolContext.sessionBinding).toBe('unavailable');
   },
