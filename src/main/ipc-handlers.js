@@ -149,6 +149,38 @@ function register() {
     Boolean(event) && ownsTopLevelRenderer(event, window, deps.rendererUrl);
   const denied = () => ({ success: false, error: 'Renderer request denied' });
   const stillOwned = (event, window) => deps.getWindow?.() === window && isOwned(event, window);
+  ipcMain.handle('project-watch:control', async (event, action) => {
+    const window = deps.getWindow?.();
+    if (!isOwned(event, window)) return denied();
+    if (!['status', 'select', 'clear'].includes(action))
+      return { success: false, error: 'Invalid project-watch operation' };
+    try {
+      const result = await deps.projectWatchSelection?.handle(action, () =>
+        stillOwned(event, window),
+      );
+      if (!stillOwned(event, window)) return denied();
+      if (result?.success !== true)
+        return { success: false, error: 'Project selection is unavailable' };
+      return {
+        success: true,
+        code: [
+          'SELECTED',
+          'UNSELECTED',
+          'UNAVAILABLE',
+          'DIRECTORY_REFUSED',
+          'STORE_UNAVAILABLE',
+          'CANCELLED',
+          'BUSY',
+        ].includes(result.code)
+          ? result.code
+          : 'STORE_UNAVAILABLE',
+        selected: result.selected === true,
+        available: result.available === true,
+      };
+    } catch {
+      return { success: false, error: 'Project selection could not complete' };
+    }
+  });
   ipcMain.handle('claude-hook:review', async (event, action) => {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();

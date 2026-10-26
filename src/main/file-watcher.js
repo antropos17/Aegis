@@ -590,6 +590,12 @@ function bindWatcherEvents(watcher, rootId, generation) {
   watcher.on('ready', () => {
     if (!current()) return;
     const recovery = _rootRecovery.get(rootId);
+    if (recovery.isCurrent && !recovery.isCurrent()) {
+      markRootTerminated(rootId, 'selected-project-unavailable');
+      applyWatchPlaneHealth(Date.now());
+      retireRootWatcher(rootId, watcher, generation);
+      return;
+    }
     clearTimeout(recovery.readyTimer);
     recovery.readyTimer = null;
     if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
@@ -800,7 +806,29 @@ async function setupFileWatchers() {
   await closing;
   if (generation !== _watchGeneration) return;
   const homeDir = os.homedir();
-  const projectDir = _appDir;
+  let projectSelection = { state: 'unselected' };
+  if (typeof _state.getProjectWatchRoot === 'function') {
+    try {
+      projectSelection = await _state.getProjectWatchRoot();
+    } catch {
+      projectSelection = { state: 'unavailable' };
+    }
+  }
+  const projectSelected =
+    projectSelection?.state === 'selected' &&
+    typeof projectSelection.path === 'string' &&
+    path.isAbsolute(projectSelection.path) &&
+    typeof projectSelection.isCurrent === 'function';
+  const projectUnavailable = !projectSelected && projectSelection?.state !== 'unselected';
+  const projectDir = projectSelected ? projectSelection.path : _appDir;
+  const projectCurrent = () => {
+    try {
+      return projectSelection.isCurrent() === true;
+    } catch {
+      return false;
+    }
+  };
+  if (generation !== _watchGeneration) return;
   // BOTH preflights complete before ANY registration (§1.2). The plan separates
   // intent from outcome: a group may leave it only because a completed probe proved
   // there is nothing to watch — never because a registration threw. Under the old
@@ -832,7 +860,10 @@ async function setupFileWatchers() {
     },
     // ASAR contents are a virtual, read-only tree. fs.watch cannot observe them;
     // registering them makes chokidar reject while its root may still report ready.
-    { id: WATCH_GROUP.PROJECT_DIR, applicable: path.extname(projectDir) !== '.asar' },
+    {
+      id: WATCH_GROUP.PROJECT_DIR,
+      applicable: projectSelected || projectUnavailable || path.extname(projectDir) !== '.asar',
+    },
     // Unconditional, so the plan is never empty even in an archived app.
     { id: WATCH_GROUP.ENV_FILES, applicable: true },
   ]);
@@ -873,8 +904,12 @@ async function setupFileWatchers() {
       ],
       [
         WATCH_GROUP.PROJECT_DIR,
-        () =>
-          watchWorker.watch(projectDir, {
+        () => {
+          if (projectSelected && !projectCurrent())
+            throw Object.assign(Error('project-unavailable'), {
+              code: 'AEGIS_PROJECT_UNAVAILABLE',
+            });
+          return watchWorker.watch(projectDir, {
             persistent: true,
             ignoreInitial: true,
             ignoredDirectories,
@@ -883,7 +918,9 @@ async function setupFileWatchers() {
             followSymlinks: false,
             depth: 5,
             startupProgress: true,
-          }),
+          });
+        },
+        projectUnavailable ? { unknown: true, paths: [] } : undefined,
       ],
       [
         WATCH_GROUP.ENV_FILES,
@@ -908,8 +945,21 @@ async function setupFileWatchers() {
         continue;
       }
       attempted = id;
-      const w = register();
-      _rootRecovery.set(id, { register, watcher: w, attempts: 0, unknown: !!probe?.unknown });
+      let w;
+      try {
+        w = register();
+      } catch (error) {
+        if (error.code !== 'AEGIS_PROJECT_UNAVAILABLE') throw error;
+        markRootRegistrationFailed(id, 'selected-project-unavailable');
+        continue;
+      }
+      _rootRecovery.set(id, {
+        register,
+        watcher: w,
+        attempts: 0,
+        unknown: !!probe?.unknown,
+        isCurrent: id === WATCH_GROUP.PROJECT_DIR && projectSelected ? projectCurrent : null,
+      });
       markRootRegistered(id, w);
       bindWatcherEvents(w, id, generation);
       armRootReadyTimeout(id, w, generation);

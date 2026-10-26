@@ -498,4 +498,29 @@ describe('existing watch-filter settings wiring', () => {
     expect(t.setup).toHaveBeenCalledOnce();
     expect(t.start).toHaveBeenCalledTimes(starts);
   });
+  it('existing watch health poll retires a changed private selection without a settings view or restart storm', async () => {
+    let current = true;
+    const privateOwner = {
+      getWatchKey: vi.fn(() => (current ? 'selected-private-key' : 'unavailable-private-key')),
+      resolveRoot: async () => ({ state: current ? 'selected' : 'unavailable' }),
+      close: vi.fn(),
+    };
+    main._setProjectWatchSelectionForTest(privateOwner);
+    const t = wire();
+    const observed = [];
+    t.setup.mockImplementation(async () => {
+      observed.push(await t.state.getProjectWatchRoot());
+    });
+    await main.startWatchers();
+    const reads = privateOwner.getWatchKey.mock.calls.length;
+    main.getStats();
+    main.getStats();
+    expect(privateOwner.getWatchKey).toHaveBeenCalledTimes(reads);
+    current = false;
+    await h.advance(30000);
+    expect(t.setup).toHaveBeenCalledTimes(2);
+    expect(observed).toEqual([{ state: 'selected' }, { state: 'unavailable' }]);
+    await h.advance(60000);
+    expect(t.setup).toHaveBeenCalledTimes(2);
+  });
 });

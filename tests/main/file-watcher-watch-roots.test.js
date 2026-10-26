@@ -45,7 +45,7 @@ function installChokidarMock({ failOnCall = null } = {}) {
   fakeWatchers = [];
   planAtFirstRegistration = null;
   let calls = 0;
-  const watchMock = vi.fn((paths) => {
+  const watchMock = vi.fn((paths, options) => {
     calls += 1;
     // Read the plan from INSIDE the first registration: this is the direct evidence
     // that the plan was fixed before any watcher existed, not assembled as they came.
@@ -62,6 +62,7 @@ function installChokidarMock({ failOnCall = null } = {}) {
       }),
       close: vi.fn(),
       _paths: paths,
+      _options: options,
       emit(event, ...args) {
         for (const cb of handlers.get(event) || []) cb(...args);
       },
@@ -349,6 +350,96 @@ describe('chokidar watch-root registry (step B)', () => {
 
   afterAll(() => {
     restoreChokidar();
+  });
+
+  it('selected external ordinary .asar folder is watched in an ASAR app with saved filters', async () => {
+    vi.restoreAllMocks();
+    stubPreflight(false);
+    const selected = path.join(os.tmpdir(), 'external-project.asar');
+    fileWatcher._setDepsForTest({ appDir: path.join(os.tmpdir(), 'resources', 'app.asar') });
+    state.getProjectWatchRoot = async () => ({
+      state: 'selected',
+      path: selected,
+      isCurrent: () => true,
+    });
+    state.getSettings = () => ({
+      ignoredDirectories: ['private-output'],
+      ignoreCommonBuildDirs: false,
+    });
+    await fileWatcher.setupFileWatchers();
+    const project = fakeWatchers.find((w) => w._paths === selected);
+    expect(project._options).toMatchObject({
+      depth: 5,
+      followSymlinks: false,
+      ignoreInitial: true,
+      ignoredDirectories: ['private-output'],
+    });
+    readyAll();
+    expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+    expect(JSON.stringify(fileWatcher.getWatchPlan())).not.toContain(selected);
+    state.getProjectWatchRoot = async () => ({ state: 'unselected' });
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    expect(project.close).toHaveBeenCalledOnce();
+    expect(fileWatcher.getWatchPlan().absentGroups).toContain('project-dir');
+    expect(state.watchers.some((w) => w._paths === selected)).toBe(false);
+  });
+  it('selected unavailable root remains a failed coverage group instead of an ASAR fallback', async () => {
+    vi.restoreAllMocks();
+    stubPreflight(false);
+    fileWatcher._setDepsForTest({ appDir: path.join(os.tmpdir(), 'app.asar') });
+    state.getProjectWatchRoot = async () => ({ state: 'unavailable' });
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    expect(root(fileWatcher.getWatchPlan(), 'project-dir')).toMatchObject({
+      state: 'registration-failed',
+      hasLiveWatcher: false,
+    });
+    expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+    expect(fakeWatchers).toHaveLength(1);
+  });
+  it('revalidates selected identity after asynchronous preflight before registering a worker', async () => {
+    let current = true;
+    state.getProjectWatchRoot = async () => ({
+      state: 'selected',
+      path: samplePath('project'),
+      isCurrent: () => current,
+    });
+    fsMod.promises.access.mockImplementation(async () => {
+      current = false;
+    });
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    expect(fakeWatchers.some((w) => w._paths === samplePath('project'))).toBe(false);
+    expect(root(fileWatcher.getWatchPlan(), 'project-dir')).toMatchObject({
+      state: 'registration-failed',
+      hasLiveWatcher: false,
+    });
+    expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+  });
+  it('refuses ready and recovery after the selected root identity changes', async () => {
+    vi.useFakeTimers();
+    try {
+      let current = true;
+      const selected = samplePath('project');
+      state.getProjectWatchRoot = async () => ({
+        state: 'selected',
+        path: selected,
+        isCurrent: () => current,
+      });
+      await fileWatcher.setupFileWatchers();
+      const project = fakeWatchers.find((w) => w._paths === selected);
+      current = false;
+      readyAll();
+      expect(project.close).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(fakeWatchers.filter((w) => w._paths === selected)).toHaveLength(1);
+      expect(root(fileWatcher.getWatchPlan(), 'project-dir').hasLiveWatcher).toBe(false);
+      expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+    } finally {
+      await fileWatcher.closeFileWatchers();
+      vi.useRealTimers();
+    }
   });
 
   it.each([true, false])(
