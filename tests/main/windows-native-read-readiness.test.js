@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   projectScannerReadiness,
   recordScannerReadiness,
+  readScannerSnapshotDiagnostic,
 } from '../../scripts/qualification/windows-native-read-readiness.mjs';
 
 const witness = { pid: 42, birth: '134373359662404617' };
@@ -11,6 +12,95 @@ const ready = () => ({
 });
 
 describe('native-read scanner readiness diagnostics', () => {
+  it('reads existing getters through a serialized self-contained closure and projects only safe bounded fields', () => {
+    const closed = new Function('return (' + readScannerSnapshotDiagnostic.toString() + ')')();
+    const requested = [];
+    const diagnostic = closed({ app: {} }, (name) => {
+      requested.push(name);
+      return name.endsWith('/process-snapshot.js')
+        ? {
+            getSnapshotHealth: () => ({
+              state: 'FAILED',
+              detail: 'none',
+              lastError: 'PRIVATE_C:/profile',
+              pid: 42,
+            }),
+            getSourceStats: () => ({ lastSource: 'none', transitions: 99999 }),
+            getMode: () => 'strict',
+          }
+        : {
+            getState: () => ({
+              connected: false,
+              sticky: 'PRIVATE_FAILURE',
+              failures: 999,
+              caps: { class: 'class5', sequence: false, topology: true },
+              private: 'PRIVATE_PATH',
+            }),
+          };
+    });
+    expect(requested).toEqual([
+      './src/main/platform/process-snapshot.js',
+      './src/main/platform/proc-snapshot-client.js',
+    ]);
+    expect(diagnostic).toEqual({
+      schema: 'aegis-native-read-snapshot-diagnostic/1',
+      snapshotAvailable: true,
+      clientAvailable: true,
+      state: 'FAILED',
+      detail: 'none',
+      source: 'none',
+      mode: 'strict',
+      transitions: 512,
+      errorPresent: true,
+      connected: false,
+      stickyPresent: true,
+      failures: 3,
+      capabilityClass: 'class5',
+      sequence: false,
+      topology: true,
+    });
+    expect(JSON.stringify(diagnostic)).not.toMatch(/PRIVATE|"pid"|birth/);
+  });
+
+  it('keeps unknown enum values and invalid counters null without exporting raw errors', () => {
+    const diagnostic = readScannerSnapshotDiagnostic({ app: {} }, (name) =>
+      name.endsWith('/process-snapshot.js')
+        ? {
+            getSnapshotHealth: () => ({
+              state: 'PRIVATE_STATE',
+              detail: 'PRIVATE_DETAIL',
+              lastError: {},
+            }),
+            getSourceStats: () => ({ lastSource: 'PRIVATE_SOURCE', transitions: -1 }),
+            getMode: () => 'PRIVATE_MODE',
+          }
+        : {
+            getState: () => ({
+              connected: 'true',
+              sticky: {},
+              failures: Infinity,
+              caps: { class: 'PRIVATE_CLASS' },
+            }),
+          },
+    );
+    expect(diagnostic).toMatchObject({
+      state: null,
+      detail: null,
+      source: null,
+      mode: null,
+      transitions: null,
+      errorPresent: null,
+      connected: null,
+      stickyPresent: null,
+      failures: null,
+      capabilityClass: null,
+    });
+    expect(JSON.stringify(diagnostic)).not.toContain('PRIVATE');
+    const unavailable = readScannerSnapshotDiagnostic({ app: {} }, () => {
+      throw new Error('PRIVATE_LOAD');
+    });
+    expect(unavailable).toEqual(readScannerSnapshotDiagnostic({}));
+  });
   it('accepts only the exact actor with all three scanner conditions', () => {
     expect(projectScannerReadiness(ready(), witness)).toMatchObject({
       accepted: true,

@@ -46,6 +46,77 @@ export function recordScannerReadiness(value, witness, observation) {
   observation.samples = Math.min(observation.samples + 1, 512);
   return observation.last.accepted;
 }
+
+/** Read existing main-process snapshot getters without exporting private diagnostics.
+ * This closure is self-contained because Playwright serializes it into Electron.
+ * @param {{app?:object}} electron Actual Electron exports, or no app for unavailable.
+ * @param {Function} [loadModule] Test-only module loader; production uses the app archive.
+ * @returns {object} Closed enums, booleans and capped counters only. @since v0.20.1
+ */
+export function readScannerSnapshotDiagnostic({ app }, loadModule) {
+  const result = {
+    schema: 'aegis-native-read-snapshot-diagnostic/1',
+    snapshotAvailable: false,
+    clientAvailable: false,
+    state: null,
+    detail: null,
+    source: null,
+    mode: null,
+    transitions: null,
+    errorPresent: null,
+    connected: null,
+    stickyPresent: null,
+    failures: null,
+    capabilityClass: null,
+    sequence: null,
+    topology: null,
+  };
+  if (!app) return result;
+  const pick = (value, choices) => (choices.includes(value) ? value : null);
+  const flag = (value) => (typeof value === 'boolean' ? value : null);
+  const count = (value, limit) =>
+    Number.isSafeInteger(value) && value >= 0 ? Math.min(value, limit) : null;
+  try {
+    const load =
+      loadModule ||
+      process.mainModule.require('node:module').createRequire(app.getAppPath() + '/package.json');
+    try {
+      const snapshot = load('./src/main/platform/process-snapshot.js');
+      const health = snapshot.getSnapshotHealth(),
+        source = snapshot.getSourceStats();
+      result.state = pick(health?.state, ['STARTING', 'HEALTHY', 'DEGRADED', 'FAILED']);
+      result.detail = pick(health?.detail, ['basic', 'class5', 'cim-fallback', 'cim', 'none']);
+      result.source = pick(source?.lastSource, ['basic', 'class5', 'cim', 'none']);
+      result.mode = pick(snapshot.getMode(), ['auto', 'strict', 'cim']);
+      result.transitions = count(source?.transitions, 512);
+      result.errorPresent =
+        typeof health?.lastError === 'string'
+          ? health.lastError.length > 0
+          : health?.lastError === null
+            ? false
+            : null;
+      result.snapshotAvailable = true;
+    } catch {
+      /* Keep unavailable fields fixed; never export raw exceptions. */
+    }
+    try {
+      const state = load('./src/main/platform/proc-snapshot-client.js').getState();
+      result.connected = flag(state?.connected);
+      result.stickyPresent =
+        state?.sticky === null ? false : typeof state?.sticky === 'string' ? true : null;
+      result.failures = count(state?.failures, 3);
+      result.capabilityClass = pick(state?.caps?.class, ['basic', 'class5']);
+      result.sequence = flag(state?.caps?.sequence);
+      result.topology = flag(state?.caps?.topology);
+      result.clientAvailable = true;
+    } catch {
+      /* Snapshot health remains useful when the client getter is absent. */
+    }
+  } catch {
+    /* Missing main-module loader leaves a fixed unavailable projection. */
+  }
+  return result;
+}
 import protocol from '../../src/main/platform/etw-file-protocol.js';
 
 const PHASES = ['starting', 'running', 'failed', 'recovering', 'recovered', 'stopped', 'disabled'];

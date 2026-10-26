@@ -40,6 +40,7 @@ import {
   projectIssuerPreparationReadiness,
   recordIssuerPreparationReadiness,
   projectOperationalAdmission,
+  readScannerSnapshotDiagnostic,
 } from '../../scripts/qualification/windows-native-read-readiness.mjs';
 
 const admissionFixture = () => ({
@@ -357,6 +358,28 @@ describe('actual native-read scenario launch composition', () => {
       evaluate: vi.fn(),
     });
     mocks.launch.mockResolvedValue(app);
+    app.evaluate = vi.fn((read) =>
+      read({ app: {} }, (name) =>
+        name.endsWith('/process-snapshot.js')
+          ? {
+              getSnapshotHealth: () => ({
+                state: 'FAILED',
+                detail: 'none',
+                lastError: 'PRIVATE_ERROR',
+              }),
+              getSourceStats: () => ({ lastSource: 'none', transitions: 2 }),
+              getMode: () => 'auto',
+            }
+          : {
+              getState: () => ({
+                connected: false,
+                sticky: 'PRIVATE_FAILURE',
+                failures: 3,
+                caps: null,
+              }),
+            },
+      ),
+    );
     mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
     mocks.until.mockImplementationOnce(async (_read, accept, ms, message) => {
       expect(ms).toBe(30_000);
@@ -398,11 +421,65 @@ describe('actual native-read scenario launch composition', () => {
       },
     });
     expect(JSON.stringify(receipt.identityWait)).not.toContain('PRIVATE');
+    expect(app.evaluate).toHaveBeenCalledExactlyOnceWith(readScannerSnapshotDiagnostic);
+    expect(receipt.identityWait.snapshotDiagnostic).toMatchObject({
+      snapshotAvailable: true,
+      clientAvailable: true,
+      state: 'FAILED',
+      source: 'none',
+      mode: 'auto',
+      stickyPresent: true,
+      failures: 3,
+    });
+    expect(app.evaluate.mock.invocationCallOrder[0]).toBeLessThan(
+      app.close.mock.invocationCallOrder[0],
+    );
     expect(receipt.reads).toEqual([]);
     expect(fixture.close).toHaveBeenCalledOnce();
     expect(app.close).toHaveBeenCalledOnce();
     expect(observer.stop).toHaveBeenCalledOnce();
   });
+
+  it.each(['timeout', 'rejection'])(
+    'preserves the original scanner failure through diagnostic %s and cleanup',
+    async (mode) => {
+      vi.useFakeTimers();
+      const controls = {
+        getByRole: () => controls,
+        waitFor: vi.fn(),
+        click: vi.fn(),
+        check: vi.fn(),
+      };
+      app.firstWindow = vi.fn().mockResolvedValue({ getByRole: () => controls, evaluate: vi.fn() });
+      app.evaluate = vi.fn(() =>
+        mode === 'timeout'
+          ? new Promise(() => {})
+          : Promise.reject(new Error('PRIVATE_TRANSPORT_FAILURE')),
+      );
+      mocks.launch.mockResolvedValue(app);
+      mocks.prepareNativeReadWindow.mockResolvedValue(undefined);
+      mocks.until.mockRejectedValueOnce(new Error('Actual reliable scanner identity unavailable'));
+      const pending = runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+        candidate: 'X:/owned/candidate',
+        helper: 'helper.exe',
+      });
+      const rejection = expect(pending).rejects.toThrow(
+        'Actual reliable scanner identity unavailable',
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      await rejection;
+      expect(receipt.identityWait.snapshotDiagnostic).toEqual(readScannerSnapshotDiagnostic({}));
+      expect(app.evaluate).toHaveBeenCalledOnce();
+      expect(fixture.close).toHaveBeenCalledOnce();
+      expect(app.close).toHaveBeenCalledOnce();
+      expect(receipt.reads).toEqual([]);
+    },
+  );
 
   it('retains preparation conditions and refuses an ended capture before polling again or cleanup', async () => {
     const controls = {

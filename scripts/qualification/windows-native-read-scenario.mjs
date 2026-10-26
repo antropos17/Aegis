@@ -14,6 +14,7 @@ import { launchNativeReadElectron } from './windows-native-read-launch.mjs';
 import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
 import {
   recordScannerReadiness,
+  readScannerSnapshotDiagnostic,
   recordIssuerPreparationReadiness,
   recordOperationalAdmission,
 } from './windows-native-read-readiness.mjs';
@@ -113,12 +114,31 @@ export async function runNativeReadScenario({
       });
     }, witness.pid);
     r.identityWait = { samples: 0, last: null };
-    const ready = await until(
-      () => evidence(app),
-      (value) => recordScannerReadiness(value, witness, r.identityWait),
-      30000,
-      'Actual reliable scanner identity unavailable',
-    );
+    let ready;
+    try {
+      ready = await until(
+        () => evidence(app),
+        (value) => recordScannerReadiness(value, witness, r.identityWait),
+        30000,
+        'Actual reliable scanner identity unavailable',
+      );
+    } catch (error) {
+      let diagnosticTimer;
+      const unavailable = () => readScannerSnapshotDiagnostic({});
+      try {
+        r.identityWait.snapshotDiagnostic = await Promise.race([
+          app.evaluate(readScannerSnapshotDiagnostic),
+          new Promise((resolve) => {
+            diagnosticTimer = setTimeout(() => resolve(unavailable()), 1000);
+          }),
+        ]);
+      } catch {
+        r.identityWait.snapshotDiagnostic = unavailable();
+      } finally {
+        clearTimeout(diagnosticTimer);
+      }
+      throw error;
+    }
     r.actor = ready.agents.find((agent) => agent.pid === witness.pid);
     r.issuerPreparationWait = { samples: 0, first: null, last: null };
     await until(
