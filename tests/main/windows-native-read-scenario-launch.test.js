@@ -175,6 +175,64 @@ describe('actual native-read scenario launch composition', () => {
     expect(fixture.close).toHaveBeenCalledOnce();
   });
 
+  it('consumes sanitized command diagnostics after cleanup while preserving the original failure projection', async () => {
+    fixture.next.mockRejectedValue(
+      Object.assign(new Error('Read fixture refused: timeout'), {
+        code: 'AEGIS_READ_FIXTURE_TIMEOUT',
+        fixtureDiagnostic: {
+          phase: 'command',
+          expectedCommand: 'sync',
+          stdoutBytes: 245,
+          stderrBytes: 100,
+          queuedLines: 0,
+          exitCode: null,
+          signalCode: null,
+          stdoutEnded: false,
+          stdinFailed: false,
+        },
+      }),
+    );
+    const atFailure = {
+      writeCompleted: true,
+      metadataPresent: true,
+      accepted: true,
+      opened: true,
+      completedReads: 32,
+      completed: false,
+      metadataInvalid: false,
+      elapsedMs: 12000,
+    };
+    fixture.commandDiagnostic = vi.fn(() => ({
+      schema: 'aegis-read-fixture-command/1',
+      command: 'sync',
+      atFailure,
+      afterClose: { ...atFailure, completedReads: 160, completed: true, elapsedMs: 13000 },
+      completionObservedAfterFailure: true,
+      closeConfirmed: true,
+      privateOutput: 'PRIVATE_READER_CANARY',
+    }));
+    await expect(
+      runNativeReadScenario({
+        fixtureExe: 'fixture.exe',
+        file: 'X:/owned/.env',
+        out: 'X:/owned/evidence',
+        env: {},
+        r: receipt,
+      }),
+    ).rejects.toThrow('Read fixture refused: timeout');
+    expect(receipt.fixtureFailure).toMatchObject({ failureCode: 'timeout', exitCode: null });
+    expect(receipt.fixtureCommandDiagnostic).toMatchObject({
+      atFailure: { completedReads: 32 },
+      afterClose: { completedReads: 160 },
+      completionObservedAfterFailure: true,
+      closeConfirmed: true,
+    });
+    expect(fixture.close.mock.invocationCallOrder[0]).toBeLessThan(
+      fixture.commandDiagnostic.mock.invocationCallOrder[0],
+    );
+    expect(JSON.stringify(receipt)).not.toContain('PRIVATE_READER_CANARY');
+  });
+
   it('retains a cleanup-only reader refusal without replacing the original scenario failure', async () => {
     fixture.next.mockRejectedValue(new Error('Unrelated startup refusal'));
     fixture.close.mockRejectedValue(

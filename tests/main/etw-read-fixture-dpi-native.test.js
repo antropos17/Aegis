@@ -68,10 +68,23 @@ internal static class ManagedDpiTests {
     try { EtwReadProcess.PreloadWindowDpi((name,flags)=>IntPtr.Zero); } catch(IOException) { refused=true; }
     Check(refused,"preload-refusal");Console.WriteLine("PASS");
   }
+  static void Progress() {
+    foreach(var command in new[]{"sync","async"}) {
+      Check(EtwReadProcess.ProgressMetadata(command,"accepted",0)=="AEGIS_READ_PROGRESS/1 "+command+" accepted 0","accepted-metadata");
+      Check(EtwReadProcess.ProgressMetadata(command,"opened",0)=="AEGIS_READ_PROGRESS/1 "+command+" opened 0","opened-metadata");
+      foreach(var count in new[]{32,64,96,128,160})Check(EtwReadProcess.ProgressMetadata(command,"reading",count)=="AEGIS_READ_PROGRESS/1 "+command+" reading "+count,"read-progress");
+      Check(EtwReadProcess.ProgressMetadata(command,"completed",160)=="AEGIS_READ_PROGRESS/1 "+command+" completed 160","completed-metadata");
+    }
+    foreach(var selection in new[]{new[]{"PRIVATE_PATH","accepted","0"},new[]{"sync","PRIVATE_VALUE","0"},new[]{"sync","opened","32"},new[]{"sync","reading","1"},new[]{"sync","completed","159"}}) {
+      bool refused=false;try { EtwReadProcess.ProgressMetadata(selection[0],selection[1],int.Parse(selection[2])); } catch(ArgumentException) { refused=true; }
+      Check(refused,"closed-progress-metadata");
+    }
+    Console.WriteLine("PASS");
+  }
   public static int Main(string[] args) {
     try {
       if(args.Length!=1)throw new Exception("fixture-mode");
-      switch(args[0]) { case "wire":Wire();break;case "before":Before();break;case "after":After();break;case "preload":Preload();break;default:throw new Exception("fixture-mode"); }
+      switch(args[0]) { case "wire":Wire();break;case "before":Before();break;case "after":After();break;case "preload":Preload();break;case "progress":Progress();break;default:throw new Exception("fixture-mode"); }
       return 0;
     } catch(Exception error) { Console.Error.WriteLine("FAIL:"+error.Message);return 1; }
   }
@@ -152,5 +165,8 @@ describe.skipIf(!available)('actual read fixture DPI metadata with managed-only 
   });
   it('preloads only system User32 and refuses an unavailable module without window probes', () => {
     expect(check('preload')).toBe('PASS');
+  });
+  it('emits only allowlisted command progress metadata without native reads or private values', () => {
+    expect(check('progress')).toBe('PASS');
   });
 });

@@ -17,7 +17,10 @@ import {
   recordIssuerPreparationReadiness,
   recordOperationalAdmission,
 } from './windows-native-read-readiness.mjs';
-import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
+import {
+  projectReadFixtureFailure,
+  projectReadFixtureCommandDiagnostic,
+} from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 import {
   diagnostics,
   readFixture,
@@ -298,6 +301,10 @@ export async function runNativeReadScenario({
         r.fixtureCleanupUnconfirmed = true;
         failure ??= error;
       }
+    }
+    if (r.fixtureFailure) {
+      const diagnostic = projectReadFixtureCommandDiagnostic(fixture?.commandDiagnostic?.());
+      if (diagnostic) r.fixtureCommandDiagnostic = diagnostic;
     }
     if (app) {
       try {

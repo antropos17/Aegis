@@ -8,7 +8,10 @@ vi.mock('node:child_process', async (original) => ({
   spawn: mocks.spawn,
 }));
 import { readFixture } from '../../frontend/observatory/tests/etw-support.mjs';
-import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
+import {
+  projectReadFixtureFailure,
+  projectReadFixtureCommandDiagnostic,
+} from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 
 const canary = 'PRIVATE_FIXTURE_CONTENT_path_token';
 let child;
@@ -516,5 +519,165 @@ describe('actual native read fixture protocol', () => {
       ).toBeNull();
     }
     expect(projectReadFixtureFailure({ ...unsafe, code: canary })).toBeNull();
+  });
+
+  it('retains command diagnostics at timeout and observes late native completion through close without accepting it', async () => {
+    const fixture = await start();
+    const progress = (stage, reads) =>
+      child.stderr.write(`AEGIS_READ_PROGRESS/1 sync ${stage} ${reads}\n`);
+    const pending = fixture.command('sync').catch((error) => error);
+    progress('accepted', 0);
+    progress('opened', 0);
+    progress('reading', 32);
+    await vi.advanceTimersByTimeAsync(12000);
+    const error = await pending;
+    const original = projectReadFixtureFailure(error);
+    expect(error.code).toBe('AEGIS_READ_FIXTURE_TIMEOUT');
+    expect(fixture.commandDiagnostic().atFailure).toMatchObject({
+      writeCompleted: true,
+      metadataPresent: true,
+      accepted: true,
+      opened: true,
+      completedReads: 32,
+      completed: false,
+      metadataInvalid: false,
+    });
+    const closing = fixture.close();
+    for (const reads of [64, 96, 128, 160]) progress('reading', reads);
+    progress('completed', 160);
+    emit({ command: 'sync', reads: 160 });
+    finish();
+    await settle();
+    await closing;
+    const receipt = fixture.commandDiagnostic();
+    expect(receipt).toMatchObject({
+      schema: 'aegis-read-fixture-command/1',
+      command: 'sync',
+      closeConfirmed: true,
+      completionObservedAfterFailure: true,
+      atFailure: { completedReads: 32, completed: false },
+      afterClose: { completedReads: 160, completed: true },
+    });
+    expect(Object.isFrozen(receipt.atFailure)).toBe(true);
+    expect(projectReadFixtureFailure(error)).toEqual(original);
+    expect(await fixture.command('sync').catch((value) => value)).toBe(error);
+    expect(projectReadFixtureCommandDiagnostic({ ...receipt, command: canary })).toBeNull();
+    expect(
+      projectReadFixtureCommandDiagnostic({
+        ...receipt,
+        afterClose: { ...receipt.afterClose, completedReads: 161 },
+      }),
+    ).toBeNull();
+  });
+
+  it('distinguishes missing stdin write completion from absent native progress in command diagnostics', async () => {
+    const fixture = await start();
+    let acknowledge;
+    vi.spyOn(child.stdin, 'write').mockImplementation((_data, callback) => {
+      acknowledge = callback;
+      return true;
+    });
+    const pending = fixture.command('sync').catch((error) => error);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect((await pending).code).toBe('AEGIS_READ_FIXTURE_TIMEOUT');
+    expect(fixture.commandDiagnostic().atFailure).toMatchObject({
+      writeCompleted: false,
+      metadataPresent: false,
+      completedReads: 0,
+    });
+    acknowledge();
+    finish();
+    await fixture.close();
+    expect(fixture.commandDiagnostic()).toMatchObject({
+      atFailure: { writeCompleted: false },
+      afterClose: { writeCompleted: true, metadataPresent: false },
+      completionObservedAfterFailure: false,
+      closeConfirmed: true,
+    });
+  });
+
+  it('accepts chunked allowlisted command diagnostics and excludes malformed, out-of-order and private stderr values', async () => {
+    const fixture = await start();
+    const pending = fixture.command('sync').catch((error) => error);
+    child.stderr.write('AEGIS_READ_PRO');
+    child.stderr.write('GRESS/1 sync accepted 0\r\n');
+    child.stderr.write(`AEGIS_READ_PROGRESS/1 sync ${canary} 0\n`);
+    child.stderr.write('AEGIS_READ_PROGRESS/1 sync reading 64\n');
+    child.stderr.write(canary.repeat(8) + '\n');
+    await vi.advanceTimersByTimeAsync(12000);
+    await pending;
+    const diagnostic = fixture.commandDiagnostic();
+    expect(diagnostic.atFailure).toMatchObject({
+      metadataPresent: true,
+      accepted: true,
+      opened: false,
+      completedReads: 0,
+      completed: false,
+      metadataInvalid: true,
+    });
+    expect(JSON.stringify(diagnostic)).not.toContain(canary);
+    expect(Object.keys(diagnostic.atFailure)).toEqual([
+      'writeCompleted',
+      'metadataPresent',
+      'accepted',
+      'opened',
+      'completedReads',
+      'completed',
+      'metadataInvalid',
+      'elapsedMs',
+    ]);
+    finish();
+    await fixture.close();
+    for (const selection of ['unissued', 'wrong-mode', 'repeated-mode']) {
+      for (const stream of [child.stdin, child.stdout, child.stderr]) stream.destroy();
+      child = Object.assign(new EventEmitter(), {
+        pid: 42,
+        exitCode: null,
+        signalCode: null,
+        stdin: new PassThrough(),
+        stdout: new PassThrough(),
+        stderr: new PassThrough(),
+      });
+      mocks.spawn.mockReturnValue(child);
+      const selected = await start();
+      const metadata = (stage, reads) =>
+        child.stderr.write(`AEGIS_READ_PROGRESS/1 sync ${stage} ${reads}\n`);
+      if (selection === 'unissued') metadata('accepted', 0);
+      let command = selected.command('sync').catch((error) => error);
+      if (selection === 'repeated-mode') {
+        metadata('accepted', 0);
+        metadata('opened', 0);
+        for (const reads of [32, 64, 96, 128, 160]) metadata('reading', reads);
+        metadata('completed', 160);
+        emit({ command: 'sync', reads: 160 });
+        await settle();
+        expect(await command).toMatchObject({ command: 'sync', reads: 160 });
+        command = selected.command('sync').catch((error) => error);
+        metadata('accepted', 0);
+        metadata('opened', 0);
+        for (const reads of [32, 64, 96, 128, 160]) metadata('reading', reads);
+        metadata('completed', 160);
+      } else {
+        if (selection === 'wrong-mode')
+          child.stderr.write('AEGIS_READ_PROGRESS/1 async accepted 0\n');
+        metadata('accepted', 0);
+        metadata('opened', 0);
+        metadata('reading', 32);
+      }
+      await vi.advanceTimersByTimeAsync(12000);
+      expect((await command).code).toBe('AEGIS_READ_FIXTURE_TIMEOUT');
+      expect(selected.commandDiagnostic().atFailure).toMatchObject({
+        writeCompleted: true,
+        metadataInvalid: true,
+        completed: false,
+        metadataPresent: selection !== 'repeated-mode',
+        completedReads: selection === 'repeated-mode' ? 0 : 32,
+      });
+      expect(child.stdin.read().toString()).toBe(
+        selection === 'repeated-mode' ? 'sync\nsync\n' : 'sync\n',
+      );
+      finish();
+      await selected.close();
+    }
   });
 });

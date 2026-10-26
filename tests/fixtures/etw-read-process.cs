@@ -101,7 +101,15 @@ internal static class EtwReadProcess
                 ",\"birth\":\""+birth+"\",\"reads\":"+reads+",\"pending\":"+pending+",\"shareDelete\":"+(fileShare==7?"true":"false")+",\"fromQpc\":\""+from+"\",\"toQpc\":\""+to+"\"}");
         }
     }
-    private static int Read(string path, bool asynchronous, int count, bool paced)
+    internal static string ProgressMetadata(string command,string stage,int reads)
+    {
+        if((command!="sync" && command!="async") ||
+            !((stage=="accepted" || stage=="opened") && reads==0 ||
+              stage=="reading" && reads>0 && reads<=160 && reads%32==0 ||
+              stage=="completed" && reads==160))throw new ArgumentException();
+        return "AEGIS_READ_PROGRESS/1 "+command+" "+stage+" "+reads.ToString(CultureInfo.InvariantCulture);
+    }
+    private static int Read(string path, bool asynchronous, int count, bool paced,Action<string,int> progress=null)
     {
         int pending=0;
         IntPtr aligned=asynchronous?VirtualAlloc(IntPtr.Zero,(UIntPtr)4096,0x3000,4):IntPtr.Zero;
@@ -111,6 +119,7 @@ internal static class EtwReadProcess
         using(var signal=new EventWaitHandle(false,EventResetMode.ManualReset))
         {
             if(file.IsInvalid)throw new IOException();
+            if(progress!=null)progress("opened",0);
             var buffer=new byte[4096];
             for(int i=0;i<count;i++)
             {
@@ -129,6 +138,7 @@ internal static class EtwReadProcess
                     long position;
                     if(!SetFilePointerEx(file,0,out position,0)||!ReadFile(file,buffer,4096,out read,IntPtr.Zero)||read!=4096)throw new IOException();
                 }
+                if(progress!=null && (i+1)%32==0)progress("reading",i+1);
                 if(paced)Thread.Sleep(20);
             }
         }
@@ -153,8 +163,11 @@ internal static class EtwReadProcess
                 DpiMetadata dpi;
                 if(TryWindowDpi(command,WindowExists,WindowIdentity,WindowDpi,out dpi)) { Console.WriteLine(dpi.ToJson());continue; }
                 if(command!="sync" && command!="async")return 3;
+                Action<string,int> progress=(stage,reads)=>Console.Error.WriteLine(ProgressMetadata(command,stage,reads));
+                progress("accepted",0);
                 long from=Stopwatch.GetTimestamp();
-                int pending=Read(args[0],command=="async",160,true);
+                int pending=Read(args[0],command=="async",160,true,progress);
+                progress("completed",160);
                 Report(command,160,from,Stopwatch.GetTimestamp(),pending);
             }
         }

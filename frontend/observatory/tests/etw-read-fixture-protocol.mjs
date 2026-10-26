@@ -19,6 +19,71 @@ const CODES = [
 const SIGNALS = ['SIGTERM', 'SIGKILL', 'SIGINT', 'SIGABRT', 'SIGBREAK', 'SIGHUP', 'other'];
 const errorCode = (code) => `AEGIS_READ_FIXTURE_${code.replaceAll('-', '_').toUpperCase()}`;
 
+const COMMAND_FIELDS = [
+  'writeCompleted',
+  'metadataPresent',
+  'accepted',
+  'opened',
+  'completedReads',
+  'completed',
+  'metadataInvalid',
+  'elapsedMs',
+];
+const validCommandSnapshot = (value) =>
+  value &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  Object.keys(value).length === COMMAND_FIELDS.length &&
+  COMMAND_FIELDS.every((key) => Object.hasOwn(value, key)) &&
+  ['writeCompleted', 'metadataPresent', 'accepted', 'opened', 'completed', 'metadataInvalid'].every(
+    (key) => typeof value[key] === 'boolean',
+  ) &&
+  [0, 32, 64, 96, 128, 160].includes(value.completedReads) &&
+  Number.isSafeInteger(value.elapsedMs) &&
+  value.elapsedMs >= 0 &&
+  value.elapsedMs <= 2147483647 &&
+  value.accepted === value.metadataPresent &&
+  (!value.opened || value.accepted) &&
+  (!value.completedReads || value.opened) &&
+  (!value.completed || value.completedReads === 160);
+
+/** Project only bounded metadata from the owned reader's failed command and close.
+ * @param {object} value Unknown private diagnostic. @returns {object|null} Closed frozen projection. @since v0.20.1 */
+export function projectReadFixtureCommandDiagnostic(value) {
+  if (
+    !value ||
+    value.schema !== 'aegis-read-fixture-command/1' ||
+    !['sync', 'async'].includes(value.command) ||
+    !validCommandSnapshot(value.atFailure) ||
+    !validCommandSnapshot(value.afterClose) ||
+    typeof value.closeConfirmed !== 'boolean' ||
+    typeof value.completionObservedAfterFailure !== 'boolean' ||
+    value.afterClose.completedReads < value.atFailure.completedReads ||
+    value.afterClose.elapsedMs < value.atFailure.elapsedMs ||
+    [
+      'writeCompleted',
+      'metadataPresent',
+      'accepted',
+      'opened',
+      'completed',
+      'metadataInvalid',
+    ].some((key) => value.atFailure[key] && !value.afterClose[key]) ||
+    value.completionObservedAfterFailure !==
+      (!value.atFailure.completed && value.afterClose.completed)
+  )
+    return null;
+  const copy = (snapshot) =>
+    Object.freeze(Object.fromEntries(COMMAND_FIELDS.map((key) => [key, snapshot[key]])));
+  return Object.freeze({
+    schema: 'aegis-read-fixture-command/1',
+    command: value.command,
+    atFailure: copy(value.atFailure),
+    afterClose: copy(value.afterClose),
+    completionObservedAfterFailure: value.completionObservedAfterFailure,
+    closeConfirmed: value.closeConfirmed,
+  });
+}
+
 /** Copy only a recognized reader refusal's closed immutable metadata snapshot.
  * @param {object} error Unknown caught failure.
  * @returns {object|null} Safe failure receipt, or null when the shape is unrecognized.
@@ -88,6 +153,77 @@ export function readFixtureProtocol(child, short) {
   let processClosedAt = null;
   let failureReported = false;
   let failure;
+  let issuedMode = null,
+    metadataEnabled = false;
+  const dispatched = { sync: false, async: false };
+  let writeCompleted = false,
+    commandStartedAt = null,
+    firstCommandFailure = null;
+  const progress = { sync: { stage: 'none', reads: 0 }, async: { stage: 'none', reads: 0 } };
+  let progressPartial = '',
+    progressDiscard = false,
+    progressInvalid = false;
+  const progressDecoder = new StringDecoder('utf8');
+  const commandSnapshot = (command) => {
+    const state = progress[command];
+    return Object.freeze({
+      writeCompleted,
+      metadataPresent: state.stage !== 'none',
+      accepted: state.stage !== 'none',
+      opened: ['opened', 'reading', 'completed'].includes(state.stage),
+      completedReads: state.reads,
+      completed: state.stage === 'completed',
+      metadataInvalid: progressInvalid,
+      elapsedMs: Math.min(
+        2147483647,
+        Math.max(0, Math.round(performance.now() - commandStartedAt)),
+      ),
+    });
+  };
+  const progressLine = (line) => {
+    const match =
+      /^AEGIS_READ_PROGRESS\/1 (sync|async) (accepted|opened|reading|completed) (0|32|64|96|128|160)$/.exec(
+        line,
+      );
+    if (!match) {
+      progressInvalid = true;
+      return;
+    }
+    const [, command, stage, text] = match;
+    if (command !== issuedMode || !metadataEnabled) {
+      progressInvalid = true;
+      return;
+    }
+    const reads = Number(text),
+      prior = progress[command];
+    const valid =
+      (stage === 'accepted' && reads === 0 && prior.stage === 'none') ||
+      (stage === 'opened' && reads === 0 && prior.stage === 'accepted') ||
+      (stage === 'reading' &&
+        ['opened', 'reading'].includes(prior.stage) &&
+        reads === prior.reads + 32) ||
+      (stage === 'completed' && prior.stage === 'reading' && prior.reads === 160 && reads === 160);
+    if (!valid) {
+      progressInvalid = true;
+      return;
+    }
+    progress[command] = { stage, reads };
+  };
+  const progressData = (data) => {
+    for (const character of progressDecoder.write(data)) {
+      if (character === '\n') {
+        if (!progressDiscard && progressPartial) progressLine(progressPartial.replace(/\r$/, ''));
+        progressPartial = '';
+        progressDiscard = false;
+      } else if (!progressDiscard) {
+        if (progressPartial.length === 128) {
+          progressPartial = '';
+          progressDiscard = true;
+          progressInvalid = true;
+        } else progressPartial += character;
+      }
+    }
+  };
 
   const diagnostic = () => ({
     phase,
@@ -107,6 +243,11 @@ export function readFixtureProtocol(child, short) {
   });
   const refuse = (code) => {
     if (!failure) {
+      if (['sync', 'async'].includes(expectedCommand))
+        firstCommandFailure = {
+          command: expectedCommand,
+          atFailure: commandSnapshot(expectedCommand),
+        };
       const fixtureDiagnostic = Object.freeze(diagnostic());
       failure = Object.assign(new Error(`Read fixture refused: ${code}`), {
         code: errorCode(code),
@@ -191,7 +332,15 @@ export function readFixtureProtocol(child, short) {
       lines.push({ value, at: Date.now() });
     }
   });
-  child.stderr.on('data', (data) => count('stderr', data));
+  child.stderr.on('data', (data) => {
+    count('stderr', data);
+    if (stdoutBytes + stderrBytes <= OUTPUT_LIMIT) progressData(data);
+  });
+  child.stderr.on('end', () => {
+    const trailing = progressDecoder.end();
+    if (progressPartial || trailing) progressInvalid = true;
+    progressPartial = '';
+  });
   child.stderr.on('error', () => refuse('stderr-error'));
   child.stdout.on('end', () => {
     stdoutEnded = true;
@@ -206,6 +355,17 @@ export function readFixtureProtocol(child, short) {
     expectedCommand = command;
     phase = command === 'ready' || command === 'short' ? command : 'command';
     responseReceived = false;
+    if (write) {
+      writeCompleted = false;
+      commandStartedAt = performance.now();
+      issuedMode = ['sync', 'async'].includes(command) ? command : null;
+      metadataEnabled = issuedMode !== null && !dispatched[issuedMode];
+      if (issuedMode !== null) {
+        progress[issuedMode] = { stage: 'none', reads: 0 };
+        dispatched[issuedMode] = true;
+        if (!metadataEnabled) progressInvalid = true;
+      }
+    }
     let written = !write;
     let writtenAt = write ? null : Date.now();
     const until = Date.now() + 12000;
@@ -219,6 +379,7 @@ export function readFixtureProtocol(child, short) {
               refuse('stdin-error');
             }
             written = !error;
+            writeCompleted = written;
             if (written) writtenAt = Date.now();
           });
         } catch {
@@ -243,6 +404,18 @@ export function readFixtureProtocol(child, short) {
   };
   return {
     child,
+    commandDiagnostic() {
+      if (!firstCommandFailure) return null;
+      const afterClose = commandSnapshot(firstCommandFailure.command);
+      return projectReadFixtureCommandDiagnostic({
+        schema: 'aegis-read-fixture-command/1',
+        ...firstCommandFailure,
+        afterClose,
+        completionObservedAfterFailure:
+          !firstCommandFailure.atFailure.completed && afterClose.completed,
+        closeConfirmed: processClosed,
+      });
+    },
     next() {
       if (!nextCommand) return Promise.reject(report('protocol-state'));
       return take(nextCommand, false);
