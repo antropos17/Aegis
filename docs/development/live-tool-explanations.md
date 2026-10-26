@@ -11,12 +11,27 @@ application selects `.claude/sessions/<observed-pid>.json` under its user's home
 then the corresponding `projects/<encoded-cwd>/<session-id>.jsonl`. Other
 providers, alternate homes, WSL, subagents and remote histories remain outside
 this integration. A healthy current process snapshot, exact instance key,
-matching observed working directory and registry startup within that process's
+matching working directory and registry startup within that process's
 lifetime are prerequisites. A session shared by monitored instances is rejected.
 The process snapshot and selected registry are checked again after reading.
 
-The registry is agent-reported metadata, not independent OS ownership proof.
-Live results therefore remain **inferred**, even with an exact object match.
+The registry alone is agent-reported metadata. On Windows x64, the ordinary
+observer helper can independently inspect a live native `claude.exe` through a
+retained process handle. It reads the full-resolution process birth, native
+current directory and an explicit `--session-id <UUID>` or `--resume <UUID>`
+selector. It projects those fields inside the helper; raw command lines never
+leave it. Both observations surrounding the transcript read must agree with the
+current OS-stamped process population and selected registry. Missing peers,
+duplicate sessions, changed generations/directories/selectors and incomplete
+sources prevent confirmation. The source spelling is used for lexical digests
+only after the native directory comparison, so a trailing directory separator
+cannot manufacture a mismatch. The same-user observation does not authenticate
+the executable publisher or establish resistance to same-account tampering.
+
+That path can report **confirmed session binding** independently of the tool's
+temporal association. Ordinary launches without an explicit selector, unavailable
+native evidence and other supported metadata-only cases remain inferred.
+Tool association still remains **inferred**, even with an exact object match.
 They explicitly record `clock-skew-assumed-local`: timestamps are compared in
 the native host's UTC time domain, without claiming a measured skew. The existing
 measured-skew path remains available to independently qualified callers; the new
@@ -49,7 +64,8 @@ return an explicit unavailable result without modifying the observed event.
 W4.2's application path is distinct from W4.3 association qualification and W4.4
 the installed genuine-agent end-to-end acceptance. Fixtures and an Electron
 integration journey must be reported as such; they do not qualify native reads,
-all providers, measured clock alignment or independently confirmed session ownership.
+all providers or measured clock alignment. The genuine-Claude journey below
+additionally checks independently observed ownership for its selected native case.
 
 Run the focused application journey with
 `node frontend/observatory/tests/live-tool-context-electron.mjs` after building
@@ -60,3 +76,13 @@ entering the reading surface, whose retained snapshot deliberately holds later
 arrivals. Native pointer delivery and compositor screenshots are outside this
 journey; use the browser interaction/layout suite for those UI checks. Its
 metadata-only result and original audit are checked for raw-content disclosure.
+
+`node scripts/qualification/live-tool-context-claude.cjs` runs one genuine installed
+Claude Code session on Windows with a disposable project and Electron profile.
+It preserves the configured model, allows only Read for the per-run task and caps
+the provider budget at USD 0.50. Hooks are supplied through task-local settings;
+personal settings and hooks are not edited. The production scanner discovers the
+real process. The case then checks the native binding, actual transcript and
+preload/UI explanation. Its selected OS observation is explicitly synthetic;
+this case does not qualify the native file-read sensor. Outputs are private
+diagnostics: review closed disposable logs after seven days and retain receipts.
