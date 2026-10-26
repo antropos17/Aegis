@@ -34,6 +34,8 @@ let app,
   childDone,
   processPreflight = null,
   pendingReceipt = null,
+  failedReceipt = null,
+  ownerScanTiming = null,
   sourceBefore = null,
   hashesBefore = null,
   modelRequestReleased = false;
@@ -205,7 +207,8 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
       const health = snapshot.getSnapshotHealth(),
         source = snapshot.getSourceStats();
       const client = require('./src/main/platform/proc-snapshot-client').getState();
-      const appHealth = require('./src/main/main.js').getStats().appHealth ?? {};
+      const stats = require('./src/main/main.js').getStats(),
+        appHealth = stats.appHealth ?? {};
       const choice = (value, allowed) => (allowed.includes(value) ? value : null);
       const count = (value) => (Number.isSafeInteger(value) && value >= 0 ? value : null);
       const flag = (value) => (typeof value === 'boolean' ? value : null);
@@ -268,6 +271,10 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
           ]),
           degraded: flag(appHealth.identityDegraded),
         },
+        cadence: {
+          maxProcessGapMs: count(stats.scanCadence?.maxProcessGapMs),
+          skippedProcessTicks: count(stats.scanCadence?.skippedProcessTicks),
+        },
       };
     });
     if (
@@ -294,9 +301,29 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
       processPreflight.population.degraded === false,
     'process-snapshot-preflight-unqualified',
   );
+  const processGap = processPreflight.cadence.maxProcessGapMs;
+  assert(
+    Number.isSafeInteger(processGap) && processGap > 0 && processGap + 5000 <= 60000,
+    'process-scan-cadence-unqualified',
+  );
+  const ownerWaitMs = processGap + 5000;
+  ownerScanTiming = {
+    maxProcessGapMs: processGap,
+    ownerWaitMs,
+    subscribedAt: Date.now(),
+    claudeSpawnedAt: null,
+    sessionStartAt: null,
+    ownerObservedAt: null,
+  };
   await page.evaluate(() => {
     window.__w4Agents = [];
+    window.__w4BatchCount = 0;
+    window.__w4FirstBatchAt = null;
+    window.__w4LastBatchAt = null;
     window.aegis.onScanBatch((batch) => {
+      window.__w4BatchCount++;
+      window.__w4FirstBatchAt ??= Date.now();
+      window.__w4LastBatchAt = Date.now();
       if (Array.isArray(batch.agents)) window.__w4Agents = batch.agents;
     });
     window.__w4Delivered = false;
@@ -331,6 +358,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  ownerScanTiming.claudeSpawnedAt = Date.now();
   let output = '',
     stderrBytes = 0;
   child.stdout.on('data', (value) => {
@@ -344,14 +372,20 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
     child.once('error', () => resolve({ code: -1 }));
   });
   timer = setTimeout(() => {
-    if (child.exitCode === null)
-      execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore',
-        timeout: 5000,
-      });
+    if (child.exitCode === null) {
+      try {
+        execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          timeout: 5000,
+        });
+      } catch {
+        /* Final cleanup records an unconfirmed exit and preserves failure. */
+      }
+    }
   }, 150000);
   console.log('Started owned Claude process; configured model preserved');
   const start = await waitFile('SessionStart.json');
+  ownerScanTiming.sessionStartAt = Date.now();
   assert.equal(start.sessionId, id);
   await page.waitForFunction(
     (pid) =>
@@ -359,7 +393,16 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
         (row) => row.pid === pid && row.agent === 'Claude Code' && row.instanceIdSource === 'os',
       ),
     child.pid,
-    { polling: 100, timeout: 30000 },
+    { polling: 100, timeout: ownerWaitMs },
+  );
+  ownerScanTiming.ownerObservedAt = Date.now();
+  Object.assign(
+    ownerScanTiming,
+    await page.evaluate(() => ({
+      batchCount: window.__w4BatchCount,
+      firstBatchAt: window.__w4FirstBatchAt,
+      lastBatchAt: window.__w4LastBatchAt,
+    })),
   );
   const observed = await page.evaluate((pid) => {
     const row = window.__w4Agents.find((a) => a.pid === pid);
@@ -618,6 +661,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
     stderrBytes,
     reply: reply.toolContext,
     processPreflight,
+    ownerScanTiming,
     claudeVersion: callId.version,
     source: sourceBefore,
     componentHashes: hashesBefore,
@@ -640,45 +684,85 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage+'.jso
 main()
   .catch(async (error) => {
     await fs.writeFile(path.join(out, 'failure.txt'), String(error));
-    if (processPreflight)
-      await fs
-        .writeFile(
-          path.join(out, 'receipt.json'),
-          JSON.stringify(
-            {
-              passed: false,
-              claudeSpawned: Number.isSafeInteger(child?.pid),
-              modelRequestReleased,
-              processPreflight,
-              source: sourceBefore,
-              componentHashes: hashesBefore,
-              nativeReadSensorQualified: false,
-              osEventSynthetic: true,
-            },
-            null,
-            2,
-          ),
-          { flag: 'wx' },
-        )
-        .catch(() => {});
+    let ownedRowDiagnostic = { available: false };
+    if (page && Number.isSafeInteger(child?.pid)) {
+      const observed = page
+        .evaluate((pid) => {
+          const agents = Array.isArray(window.__w4Agents) ? window.__w4Agents : [];
+          return {
+            available: true,
+            batchCount: window.__w4BatchCount ?? 0,
+            firstBatchAt: window.__w4FirstBatchAt ?? null,
+            lastBatchAt: window.__w4LastBatchAt ?? null,
+            agentCount: agents.length,
+            ownedRows: agents
+              .filter((row) => row.pid === pid)
+              .slice(0, 4)
+              .map((row) => ({
+                pidMatchesOwner: true,
+                agentLabel: row.agent === 'Claude Code' ? 'Claude Code' : 'other',
+                identitySource: ['os', 'unknown', 'synthetic'].includes(row.instanceIdSource)
+                  ? row.instanceIdSource
+                  : null,
+                hasStartTime: Number.isSafeInteger(row.startTime) && row.startTime > 0,
+                exactInstanceKey: row.instanceId === `${pid}:${row.startTime}`,
+                hasFullBirth:
+                  typeof row.createTime100ns === 'string' &&
+                  /^[1-9][0-9]{0,19}$/.test(row.createTime100ns),
+              })),
+          };
+        }, child.pid)
+        .catch(() => ({ available: false }));
+      ownedRowDiagnostic = await Promise.race([
+        observed,
+        new Promise((resolve) => setTimeout(() => resolve({ available: false }), 1000)),
+      ]);
+    }
+    failedReceipt = {
+      passed: false,
+      claudeSpawned: Number.isSafeInteger(child?.pid),
+      modelRequestReleased,
+      processPreflight,
+      ownerScanTiming,
+      source: sourceBefore,
+      componentHashes: hashesBefore,
+      ownedRowDiagnostic,
+      nativeReadSensorQualified: false,
+      osEventSynthetic: true,
+    };
     console.error(String(error));
     process.exitCode = 1;
   })
   .finally(async () => {
-    clearTimeout(timer);
+    const cleanup = {
+      barrierReleases: 0,
+      treeKillSucceeded: null,
+      claudeExit: null,
+      electronExitCode: null,
+      confirmed: true,
+    };
     if (app) await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
-    for (const kind of ['SessionStart', 'Read', 'Stop'])
-      await fs.writeFile(path.join(out, 'release-' + kind), 'release').catch(() => {});
     if (child?.exitCode === null) {
       try {
         execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
           stdio: 'ignore',
           timeout: 5000,
         });
+        cleanup.treeKillSucceeded = true;
       } catch {
-        /* Owned child exited. */
+        cleanup.treeKillSucceeded = false;
+        cleanup.confirmed = false;
       }
     }
+    if (childDone) {
+      cleanup.claudeExit = await Promise.race([
+        childDone,
+        new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+      if (!cleanup.claudeExit) cleanup.confirmed = false;
+    }
+    if (!child || cleanup.claudeExit) clearTimeout(timer);
+    // Cleanup never opens a held model/tool barrier, even if termination is uncertain.
     if (app) {
       const own = app.process();
       const appExited =
@@ -700,25 +784,39 @@ main()
       try {
         await app.close();
         const code = await appExited;
-        assert.equal(code, 0, 'Owned qualification app cleanup failed');
-        if (pendingReceipt)
-          pendingReceipt.cleanup = {
-            claudeExited: child.exitCode === 0,
-            electronExitCode: code,
-            readerSchedulingRestored: pendingReceipt.activeWriter.observed.restored,
-          };
+        cleanup.electronExitCode = code;
+        if (code !== 0) cleanup.confirmed = false;
+      } catch {
+        cleanup.confirmed = false;
       } finally {
         clearTimeout(kill);
       }
     }
     if (pendingReceipt) {
-      assert.deepEqual(sourceIdentity(), sourceBefore, 'Qualification source changed');
-      assert.deepEqual(await componentHashes(), hashesBefore, 'Qualification components changed');
-      await fs.writeFile(path.join(out, 'receipt.json'), JSON.stringify(pendingReceipt, null, 2), {
+      try {
+        assert(cleanup.confirmed, 'Owned cleanup unconfirmed');
+        assert.deepEqual(sourceIdentity(), sourceBefore, 'Qualification source changed');
+        assert.deepEqual(await componentHashes(), hashesBefore, 'Qualification components changed');
+      } catch {
+        failedReceipt = {
+          ...pendingReceipt,
+          passed: false,
+          failure: 'cleanup-or-source-unconfirmed',
+        };
+        pendingReceipt = null;
+      }
+    }
+    const finalReceipt = pendingReceipt ?? failedReceipt;
+    if (finalReceipt) {
+      finalReceipt.cleanup = cleanup;
+      await fs.writeFile(path.join(out, 'receipt.json'), JSON.stringify(finalReceipt, null, 2), {
         flag: 'wx',
       });
+    }
+    if (pendingReceipt) {
       console.log(
         'PASS: genuine writer overlap -> partial explanation -> stable binding and UI; owned cleanup confirmed',
       );
     }
+    if (!cleanup.confirmed) process.exitCode = 1;
   });
