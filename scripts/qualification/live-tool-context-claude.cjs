@@ -9,7 +9,6 @@ const os = require('node:os');
 const { randomUUID, createHash } = require('node:crypto');
 const { spawn, execFileSync } = require('node:child_process');
 const assert = require('node:assert/strict');
-const { _electron: electron } = require('playwright');
 
 const root = process.cwd();
 const mode = process.env.AEGIS_CLAUDE_QUALIFICATION_MODE || 'read';
@@ -511,6 +510,7 @@ async function main() {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.CLAUDECODE;
+  const { _electron: electron } = require('playwright');
   app = await electron.launch({
     args: [
       root,

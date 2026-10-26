@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { execFileSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const { createLiveToolContext } = require('../../src/main/live-tool-context');
 const {
@@ -19,6 +20,39 @@ const start = 1792900000000;
 const sessionId = '12345678-1234-4234-9234-123456789abc';
 const eventId = '98765432-1234-4234-9234-123456789abc';
 const secret = 'PRIVATE_PROMPT_AND_ARGUMENT_123';
+
+it('imports qualification helpers in a child without loading Playwright or starting an app', () => {
+  const source = `
+    const Module = require('node:module');
+    const load = Module._load;
+    let playwrightRequested = false;
+    Module._load = function (name, ...args) {
+      if (name === 'playwright') {
+        playwrightRequested = true;
+        throw Error('browser-sdk-loaded-during-helper-import');
+      }
+      const value = load.call(this, name, ...args);
+      if (name === 'node:child_process') return {
+        ...value,
+        spawn() { throw Error('app-spawn-during-helper-import'); },
+        execFileSync() { throw Error('command-during-helper-import'); },
+      };
+      return value;
+    };
+    const helpers = require(process.argv[1]);
+    const expected = ['createHeldOwner', 'prepareActorSettings', 'restoreReadOverlap',
+      'peerComponentDiagnostic', 'seedOwnedProjectSelection'];
+    if (expected.some((name) => typeof helpers[name] !== 'function'))
+      throw Error('qualification-helper-missing');
+    process.stdout.write(JSON.stringify({ playwrightRequested, helperCount: expected.length }));
+  `;
+  const result = execFileSync(
+    process.execPath,
+    ['-e', source, require.resolve('../../scripts/qualification/live-tool-context-claude.cjs')],
+    { timeout: 5000, maxBuffer: 8192, windowsHide: true, encoding: 'utf8' },
+  );
+  expect(JSON.parse(result)).toEqual({ playwrightRequested: false, helperCount: 5 });
+});
 
 beforeEach(async () => {
   home = await fs.mkdtemp(path.join(os.tmpdir(), 'aegis-live-context-'));
