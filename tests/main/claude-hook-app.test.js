@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 const require = createRequire(import.meta.url);
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
+const { profileCommand } = require('../../src/main/claude-hook-app-profile');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
 const {
   projectClaudeEvidence,
@@ -99,6 +100,54 @@ afterEach(async () => {
     expect(path.dirname(path.resolve(root))).toBe(path.resolve(os.tmpdir()));
     expect(path.basename(root)).toMatch(/^aegis-hook-app-/);
     await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+it('quotes the default packaged executable and literal ampersands in every hook path', () => {
+  const executable = path.join(root, 'AEGIS - AI Monitoring & Threat Detection.exe');
+  const appPath = path.join(root, 'resources & application', 'app.asar');
+  const policyPath = path.join(root, 'policy & scope.json');
+  expect(profileCommand(executable, appPath, policyPath)).toBe(
+    `"${executable.replaceAll('\\', '/')}" "${appPath.replaceAll('\\', '/')}" --action-policy-hook "${policyPath.replaceAll('\\', '/')}"`,
+  );
+  const doubled = path.join(root, 'literal&&name.json');
+  expect(
+    profileCommand(executable, appPath, doubled).endsWith(
+      `--action-policy-hook "${doubled.replaceAll('\\', '/')}"`,
+    ),
+  ).toBe(true);
+});
+
+it('retains hook-path quote, substitution, operator and control rejection in every argument', () => {
+  const safe = [process.execPath, path.join(root, 'app'), path.join(root, 'policy.json')];
+  const unsafe = [
+    '" & injected',
+    "'",
+    '`injected`',
+    '$(injected)',
+    '${injected}',
+    '%EXPANSION%',
+    '!EXPANSION!',
+    '?',
+    '|injected',
+    '<input',
+    '>output',
+    '^escape',
+    '\u0000',
+    '\n',
+    '\r',
+    '\t',
+    '\u0085',
+  ];
+  for (const suffix of unsafe) {
+    for (let index = 0; index < safe.length; index++) {
+      const selected = [...safe];
+      selected[index] = path.join(root, `selected${suffix}`);
+      expect(() => profileCommand(...selected)).toThrow('unsupported-path');
+    }
+  }
+  for (const value of ['relative-path', '', null, path.join(root, 'x'.repeat(4097))]) {
+    expect(() => profileCommand(value, safe[1], safe[2])).toThrow('unsupported-path');
   }
 });
 
