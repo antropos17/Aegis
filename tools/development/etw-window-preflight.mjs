@@ -18,6 +18,7 @@ const WINDOW_CODES = new Map([
   ['windowPresent', 'window-missing'],
   ['sameWindow', 'window-replaced'],
   ['windowStateObserved', 'window-state-unobserved'],
+  ['visible', 'window-not-visible'],
   ['isolationRequested', 'window-isolation-not-requested'],
   ['windowInputIsolated', 'window-isolation-unconfirmed'],
   ['settled', 'window-settling-unconfirmed'],
@@ -53,14 +54,23 @@ export async function runWindowPreflightSession({
   launch,
   baseEnv = process.env,
 }) {
-  const privatePaths = Object.fromEntries(
-    ['profile', 'home', 'appData', 'localAppData', 'temp'].map((name) => {
-      const location = path.join(output, name);
-      assert(path.dirname(location) === output);
-      fs.mkdirSync(location);
-      return [name, location];
-    }),
-  );
+  const directory = (parent, name) => {
+    const location = path.join(parent, name);
+    assert(path.dirname(location) === parent);
+    fs.mkdirSync(location); // Refuse existing paths; never reuse a private profile.
+    return location;
+  };
+  const home = directory(output, 'home');
+  // Windows known-folder lookup uses this tree even with APPDATA redirected.
+  // Sibling AppData folders leave app.getPath('appData') unavailable at startup.
+  const appData = directory(home, 'AppData');
+  const privatePaths = {
+    profile: directory(output, 'profile'),
+    home,
+    appData: directory(appData, 'Roaming'),
+    localAppData: directory(appData, 'Local'),
+    temp: directory(output, 'temp'),
+  };
   const env = {
     ...baseEnv,
     USERPROFILE: privatePaths.home,

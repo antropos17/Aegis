@@ -578,6 +578,49 @@ describe('actual admission window preparation adapter', () => {
 });
 
 describe('ordinary package-window preflight cleanup', () => {
+  it('refuses an existing private profile before launching or changing its contents', async () => {
+    const run = fixture();
+    const profile = path.join(run.output, 'profile');
+    fs.mkdirSync(profile);
+    const marker = path.join(profile, 'existing-settings-marker');
+    fs.writeFileSync(marker, 'leave existing bytes unchanged');
+    const launch = vi.fn();
+    await expect(
+      runWindowPreflightSession({
+        executable: 'C:\\candidate\\AEGIS.exe',
+        output: run.output,
+        launch,
+        baseEnv: {},
+      }),
+    ).rejects.toMatchObject({ code: 'EEXIST' });
+    expect(launch).not.toHaveBeenCalled();
+    expect(fs.readFileSync(marker, 'utf8')).toBe('leave existing bytes unchanged');
+    expect(fs.readdirSync(profile)).toEqual(['existing-settings-marker']);
+  });
+
+  it('visibility regression: classifies a hidden-window refusal without claiming heading failure', async () => {
+    const run = fixture({ rendered: false });
+    const pending = runWindowPreflightSession({
+      executable: 'C:\\candidate\\AEGIS.exe',
+      output: run.output,
+      launch: async () => run.application,
+      baseEnv: {},
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    const result = await pending;
+    expect(result).toMatchObject({
+      failureCode: 'window-not-visible',
+      window: { visible: false, windowInputIsolated: true, settled: false, timedOut: true },
+      monitoringHeadingObserved: false,
+      normalCloseObserved: true,
+      exitCode: 0,
+      forcedCleanupRequested: false,
+    });
+    expect(run.application.firstWindow).not.toHaveBeenCalled();
+    expect(run.window.hide).not.toHaveBeenCalled();
+    expect(run.window.showInactive).not.toHaveBeenCalled();
+  });
+
   it('uses only a fresh owned profile and private environment, then closes normally', async () => {
     const run = fixture();
     const baseEnv = {
@@ -612,6 +655,9 @@ describe('ordinary package-window preflight cleanup', () => {
     expect(result.monitoringHeadingObserved).toBe(true);
     const options = launch.mock.calls[0][0];
     expect(options.args).toEqual(['--user-data-dir=' + path.join(run.output, 'profile')]);
+    expect(options.env.HOME).toBe(options.env.USERPROFILE);
+    expect(options.env.APPDATA).toBe(path.join(options.env.USERPROFILE, 'AppData', 'Roaming'));
+    expect(options.env.LOCALAPPDATA).toBe(path.join(options.env.USERPROFILE, 'AppData', 'Local'));
     for (const name of ['USERPROFILE', 'HOME', 'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP']) {
       expect(path.relative(run.output, options.env[name])).not.toMatch(/^\.\./);
       expect(fs.statSync(options.env[name]).isDirectory()).toBe(true);
