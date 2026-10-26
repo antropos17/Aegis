@@ -20,10 +20,12 @@ const recordedNativeOutput = readFileSync(
 );
 function javascriptReport() {
   let index = 0;
+  // Recorded selected inventory, including the two new window-profile cases.
+  const suiteCounts = [25, 13, 17, 11, 5, 4, 7, 20, 26];
   return {
     success: true,
-    numTotalTests: JAVASCRIPT_ASSERTIONS,
-    numPassedTests: JAVASCRIPT_ASSERTIONS,
+    numTotalTests: 128,
+    numPassedTests: 128,
     numFailedTests: 0,
     numPendingTests: 0,
     numTodoTests: 0,
@@ -31,10 +33,10 @@ function javascriptReport() {
     numPassedTestSuites: 22,
     numFailedTestSuites: 0,
     numPendingTestSuites: 0,
-    testResults: NATIVE_OBJECT_SUITES.map((name) => ({
+    testResults: NATIVE_OBJECT_SUITES.map((name, suiteIndex) => ({
       name: path.resolve(root, name),
       status: 'passed',
-      assertionResults: Array.from({ length: 14 }, () => ({
+      assertionResults: Array.from({ length: suiteCounts[suiteIndex] }, () => ({
         fullName: `behavior ${++index}`,
         status: 'passed',
         failureMessages: [],
@@ -80,7 +82,18 @@ describe('single-pass native object controls evidence', () => {
     expect(validateNativeObjectControls(receipt())).toBe(true);
     const js = javascriptReport();
     js.numRuntimeErrorTestSuites = 0;
-    expect(validateJavascriptControls(js, 0, root).assertions).toBe(126);
+    expect(validateJavascriptControls(js, 0, root).assertions).toBe(128);
+    expect(JAVASCRIPT_ASSERTIONS).toBe(128);
+  });
+
+  it('refuses a complete-looking old 126-case inventory after the window-profile regressions', () => {
+    const report = javascriptReport();
+    report.testResults.at(-1).assertionResults.splice(-2);
+    report.numTotalTests = 126;
+    report.numPassedTests = 126;
+    expect(() => validateJavascriptControls(report, 0, root)).toThrow(
+      'Incomplete assertion inventory',
+    );
   });
 
   it('refuses passing totals hiding omitted, substituted, skipped, duplicated or failed assertions', () => {

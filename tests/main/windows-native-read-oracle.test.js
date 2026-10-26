@@ -90,8 +90,24 @@ function receipt() {
       labelSemantics: 'binding-label-access-path-unknown',
     },
     baseline: { instanceId, generationCurrent: true, objectBindings: 1, sensitiveObjectReads: 1 },
-    beforeRisk: { score: 0 },
-    afterRisk: { score: 15 },
+    beforeRisk: {
+      score: 0,
+      workerCount: 1,
+      displayedInstanceId: instanceId,
+      displayedPid: pid,
+      observedNow: true,
+      actorBefore: { pid, instanceId, createTime100ns: birth },
+      actorAfter: { pid, instanceId, createTime100ns: birth },
+    },
+    afterRisk: {
+      score: 15,
+      workerCount: 1,
+      displayedInstanceId: instanceId,
+      displayedPid: pid,
+      observedNow: true,
+      actorBefore: { pid, instanceId, createTime100ns: birth },
+      actorAfter: { pid, instanceId, createTime100ns: birth },
+    },
     actualPreloadDelivery: true,
     objectAlertObserved: true,
     displayedRiskIncreased: true,
@@ -118,6 +134,46 @@ describe('cloud native-read acceptance oracle', () => {
   it('accepts a complete linked synthetic OS-read to actual-consumer scenario', () => {
     expect(nativeReadPassed(receipt())).toBe(true);
   });
+  it.each(['beforeRisk', 'afterRisk'])('refuses coercible or invalid %s scores', (phase) => {
+    for (const score of [null, false, '0', '15', 0.5, NaN, Infinity, -1, 101]) {
+      const value = receipt();
+      value[phase].score = score;
+      expect(nativeReadPassed(value)).toBe(false);
+    }
+  });
+  it.each(['beforeRisk', 'afterRisk'])(
+    'refuses %s without both exact displayed actor witnesses',
+    (phase) => {
+      for (const field of [
+        'workerCount',
+        'actorBefore',
+        'actorAfter',
+        'displayedInstanceId',
+        'displayedPid',
+        'observedNow',
+      ]) {
+        const value = receipt();
+        delete value[phase][field];
+        expect(nativeReadPassed(value)).toBe(false);
+      }
+      for (const witness of ['actorBefore', 'actorAfter']) {
+        for (const field of ['pid', 'instanceId', 'createTime100ns']) {
+          const value = receipt();
+          value[phase][witness][field] = field === 'pid' ? 9999 : value.actor[field] + '1';
+          expect(nativeReadPassed(value)).toBe(false);
+        }
+      }
+      const ambiguous = receipt();
+      ambiguous[phase].workerCount = 2;
+      expect(nativeReadPassed(ambiguous)).toBe(false);
+      const wrongSelection = receipt();
+      wrongSelection[phase].displayedInstanceId += '-other';
+      expect(nativeReadPassed(wrongSelection)).toBe(false);
+      const wrongPid = receipt();
+      wrongPid[phase].displayedPid += 1;
+      expect(nativeReadPassed(wrongPid)).toBe(false);
+    },
+  );
   it.each([
     [
       'non-load-bearing sharing mode',

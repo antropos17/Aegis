@@ -12,7 +12,8 @@ export const NATIVE_OBJECT_SUITES = Object.freeze([
   'tests/main/windows-native-read-invocation.test.js',
   'tests/main/package-window-observation.test.js',
 ]);
-export const JAVASCRIPT_ASSERTIONS = 126;
+// Includes the fresh-profile refusal and hidden-window classification regressions.
+export const JAVASCRIPT_ASSERTIONS = 128;
 export const NATIVE_ASSERTIONS = 146;
 export const NATIVE_OBJECT_SOURCE_PATHS = Object.freeze([
   'src/main/platform/etw-file-admission.js',

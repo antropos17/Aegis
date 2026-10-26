@@ -8,8 +8,8 @@ installed application, personal profile, credentials or host Windows session.
 
 The `windows11-x64-native-reads` target of the installer lifecycle workflow
 requires `candidate=build`. Its separate job creates a real isolated Git worktree
-at the workflow SHA, installs locked dependencies, runs the object-admission
-control/mutation gate, then produces a marked diagnostic package through
+at the workflow SHA, installs locked dependencies, runs the single-pass
+object-admission controls with no source mutations, then produces a marked diagnostic package through
 `packaged-desktop.mjs --etw-build-only`. The package is unpublished and has the
 diagnostic metadata marker. Its executable and native helper, archived source,
 tracked runtime and harness inputs, lockfile, builder configuration and successful
@@ -245,8 +245,14 @@ read, alert or risk acceptance.
 
 The probe requires the actual object event UUID to reach audit custody, the
 sensitive alert journal, the separate object baseline, preload delivery and a
-higher displayed score in the real Observatory roster. Each workload links its
-own native binding to a consumed object event. The same actor must have zero
+higher displayed score for the selected worker in Observatory. Before and after
+reading that score, the marked main projection must contain exactly one Aider
+with the fixture's PID, instance key and full process birth in a reliable,
+unpaused population. The visible worker selection and PID must match that actor,
+and its displayed state must be current. An additional Aider, capped population,
+changed generation or unavailable selection refuses qualification; a grouped
+maximum cannot supply the risk witness. Each workload links its own native
+binding to a consumed object event. The same actor must have zero
 retained path observations and zero competing legacy file deliveries during the
 probe, so an unrelated file alert cannot satisfy the risk check. Labels describe
 the bound object; the access pathname remains unobserved. Raw kernel addresses

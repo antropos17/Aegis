@@ -158,7 +158,7 @@ export async function runNativeReadScenario({
         r.originalCohort.originalPids.includes(r.window.mainPid),
       'Original retained process cohort unavailable',
     );
-    r.beforeRisk = await displayedRisk(page);
+    r.beforeRisk = await displayedRisk(page, app, r.actor);
     r.beforeAdmission = ready.admission;
     assert(
       !ready.observations.some((event) => event.instanceId === r.actor.instanceId),
@@ -248,7 +248,7 @@ export async function runNativeReadScenario({
     r.baseline = baseline;
     r.admission = accepted.admission;
     r.afterRisk = await until(
-      () => displayedRisk(page),
+      () => displayedRisk(page, app, r.actor),
       (risk) => risk.score > r.beforeRisk.score,
       10000,
       'Displayed risk did not increase',

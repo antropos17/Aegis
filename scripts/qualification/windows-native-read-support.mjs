@@ -27,16 +27,88 @@ export const evidence = (app) =>
     if (typeof fn !== 'function') throw new Error('Diagnostic admission projection unavailable');
     return fn();
   });
-/** Read the actual fresh roster assessment. @param {object} page @returns {Promise<object>} @since v0.20.1 */
-export async function displayedRisk(page) {
+/** Read visible process risk bracketed by exact current OS identity observations.
+ * @param {object} page Actual renderer. @param {object} app Actual marked application.
+ * @param {object} actor Independently witnessed fixture actor.
+ * @returns {Promise<object>} Visible score with exact actor and process-selection witnesses.
+ * @since v0.20.1
+ */
+export async function displayedRisk(page, app, actor) {
+  assert(
+    typeof app?.evaluate === 'function' &&
+      actor?.agent === 'Aider' &&
+      Number.isSafeInteger(actor.pid) &&
+      actor.pid > 0 &&
+      typeof actor.instanceId === 'string' &&
+      actor.instanceId.length > 0 &&
+      actor.instanceIdSource === 'os' &&
+      typeof actor.createTime100ns === 'string' &&
+      /^[1-9]\d{0,19}$/.test(actor.createTime100ns),
+    'Displayed risk actor witness unavailable',
+  );
+  const readActor = async () => {
+    const value = await evidence(app);
+    const agents = value?.agents;
+    const peers = Array.isArray(agents) ? agents.filter((row) => row.agent === 'Aider') : [];
+    const current = peers[0];
+    assert(
+      value?.readiness?.populationReliable === true &&
+        value.readiness.identityDegraded === false &&
+        value.readiness.monitoringPaused === false &&
+        Array.isArray(agents) &&
+        agents.length < 128 &&
+        peers.length === 1 &&
+        current.pid === actor.pid &&
+        current.instanceId === actor.instanceId &&
+        current.createTime100ns === actor.createTime100ns &&
+        current.instanceIdSource === 'os',
+      'Displayed risk actor changed or is ambiguous',
+    );
+    return {
+      pid: current.pid,
+      instanceId: current.instanceId,
+      createTime100ns: current.createTime100ns,
+    };
+  };
+  const actorBefore = await readActor();
   const row = page.locator('.investigation-roster .roster-choice[aria-label="Aider"]');
   await row.waitFor({ timeout: 30000 });
   const meta = await row.locator('.roster-meta').innerText();
-  const text = await row.locator('.roster-risk').innerText();
-  assert(meta.includes('Observed now') && !text.includes('Retained'), 'Displayed actor is stale');
-  const match = /^Highest risk\s*·\s*(\d+)\/100$/.exec(text.trim());
+  assert(
+    meta.trim() === '1 worker process · Observed now',
+    'Displayed actor is stale or ambiguous',
+  );
+  await row.click({ timeout: 10000 });
+  const header = page.getByRole('region', { name: 'Agent investigation', exact: true });
+  const worker = header.getByRole('combobox', { name: 'Worker process', exact: true });
+  await worker.selectOption(actor.instanceId, { timeout: 10000 });
+  const displayedInstanceId = await worker.inputValue();
+  assert.equal(displayedInstanceId, actor.instanceId, 'Displayed risk actor selection changed');
+  const state = await header.locator('.observed-state').innerText();
+  const scope = await header.locator('.risk-scope').innerText();
+  assert(state.trim() === 'Observed now', 'Displayed actor is stale');
+  const scopedPid = /^This process\s*·\s*PID\s+(\d+)$/.exec(scope.trim());
+  assert(scopedPid && Number(scopedPid[1]) === actor.pid, 'Displayed risk actor scope changed');
+  const text = await header.locator('.risk-line strong').innerText();
+  const match = /^(\d+)\s*\/100$/.exec(text.trim());
   assert(match && Number(match[1]) <= 100, 'Actual displayed risk unavailable');
-  return { score: Number(match[1]), text, meta };
+  const actorAfter = await readActor();
+  assert.equal(
+    await worker.inputValue(),
+    displayedInstanceId,
+    'Displayed risk actor selection changed',
+  );
+  return {
+    score: Number(match[1]),
+    text,
+    meta,
+    workerCount: 1,
+    displayedInstanceId,
+    displayedPid: Number(scopedPid[1]),
+    observedNow: true,
+    actorBefore,
+    actorAfter,
+  };
 }
 /** Prepare the actual admission window through the shared bounded isolation observer.
  * @param {object} application Owned Electron application. @param {string} destination Fresh flag receipt.

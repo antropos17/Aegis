@@ -105,6 +105,22 @@ export function nativeReadPassed(receipt) {
     )
       return false;
     if (
+      ![r.beforeRisk, r.afterRisk].every(
+        (risk) =>
+          risk?.workerCount === 1 &&
+          Number.isInteger(risk.score) &&
+          risk.score >= 0 &&
+          risk.score <= 100 &&
+          risk.observedNow === true &&
+          risk.displayedInstanceId === actor.instanceId &&
+          risk.displayedPid === actor.pid &&
+          [risk.actorBefore, risk.actorAfter].every(
+            (witness) =>
+              witness?.pid === actor.pid &&
+              witness.instanceId === actor.instanceId &&
+              witness.createTime100ns === actor.createTime100ns,
+          ),
+      ) ||
       !(
         r.afterRisk?.score > r.beforeRisk?.score &&
         r.afterRisk.score <= 100 &&
