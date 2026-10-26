@@ -15,12 +15,22 @@
     CANCELLED: 'Review cancelled. The hook was not changed.',
     INSTALLED: 'Separate profile configured. Blocking is not verified.',
     REMOVED: 'The reviewed owned hook was removed.',
-    CONFIGURED_UNOWNED: 'An existing hook profile requires a separate ownership recovery review.',
+    OBSERVED_REMOVED:
+      'The recognized AEGIS hook was removed after a fresh review. Unrelated settings were preserved.',
+    PROFILE_REVIEW_AVAILABLE:
+      'An existing separate profile is available for a fresh targeted removal review.',
+    NO_MATCHING_HOOK: 'No matching current AEGIS Bash hook was found in this separate profile.',
+    AMBIGUOUS_HOOK: 'More than one matching AEGIS hook was found. Targeted removal is unavailable.',
+    PLAN_REFUSED: 'This profile does not match the supported AEGIS hook structure.',
+    CONFIGURED_UNOWNED:
+      'This session did not install the existing hook. You can review its targeted removal.',
     OWNED_INSTALL_EXISTS: 'This profile is already configured.',
     NO_OWNED_INSTALL: 'This session has no owned installation to remove.',
     EXPIRED: 'The review expired before confirmation. Review the current change again.',
     SESSION_ENDED:
-      'The setup session ended. Retained profile files need a separate recovery review.',
+      'Previous setup approvals expired. Start a fresh review of the current separate profile.',
+    SESSION_RELEASE_UNCONFIRMED:
+      'The previous native session has not confirmed shutdown. Another write is unavailable.',
     INVALID_POLICY: 'Select a valid AEGIS schema-1 Bash policy.',
     UNSUPPORTED_PATH: 'A selected path cannot be represented safely in this hook command.',
     RETENTION_LIMIT:
@@ -34,6 +44,7 @@
   const failedCodes = new Set([
     'UNAVAILABLE',
     'SESSION_ENDED',
+    'SESSION_RELEASE_UNCONFIRMED',
     'INVALID_POLICY',
     'UNSUPPORTED_PATH',
     'RETENTION_LIMIT',
@@ -41,8 +52,16 @@
     'WRITE_UNCERTAIN',
     'READBACK_FAILED',
     'RETAINED_UNKNOWN',
+    'AMBIGUOUS_HOOK',
+    'PLAN_REFUSED',
   ]);
-  let profileState = $state({ code: 'IDLE', canInstall: false, canRemove: false, canOpen: false });
+  let profileState = $state({
+    code: 'IDLE',
+    canInstall: false,
+    canRemove: false,
+    canReviewExisting: false,
+    canOpen: false,
+  });
   let pending = $state<Operation | null>(null);
   let failed = $state(false);
   let feedback = $state('');
@@ -66,6 +85,7 @@
         code,
         canInstall: value.canInstall === true,
         canRemove: value.canRemove === true,
+        canReviewExisting: value.canReviewExisting === true,
         canOpen: value.canOpen === true,
       };
       feedback =
@@ -99,7 +119,7 @@
     </p>
     <p class="muted">
       {$t(
-        'Install and removal belong to this setup session, for up to three minutes. Restart and expired-session recovery are not available here.',
+        'After restart or session expiry, removal requires a fresh exact review of the recognized current AEGIS hook. Saved files do not restore old approvals.',
       )}
     </p>
     <div class="profile-actions">
@@ -114,10 +134,14 @@
       >
       <button
         class="button"
-        disabled={!available || pending !== null || !profileState.canRemove}
+        disabled={!available ||
+          pending !== null ||
+          (!profileState.canRemove && !profileState.canReviewExisting)}
         aria-busy={pending === 'remove'}
         onclick={() => perform('remove')}
-        >{$t(pending === 'remove' ? 'Preparing native review…' : 'Review removal')}</button
+        >{$t(
+          pending === 'remove' ? 'Preparing native review…' : 'Review AEGIS hook removal',
+        )}</button
       >
       <button
         class="button"
