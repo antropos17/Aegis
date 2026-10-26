@@ -31,7 +31,7 @@ public static class ObserverProgram {
     }
 
     public static int Main(string[] args) {
-        if (args.Length != 1 || (args[0] != "tcp" && args[0] != "cwd" && args[0] != "holders" && args[0] != "rm-probe")) return 2;
+        if (args.Length != 1 || (args[0] != "tcp" && args[0] != "cwd" && args[0] != "holders" && args[0] != "rm-probe" && args[0] != "claude-session")) return 2;
         try {
             Console.InputEncoding = new UTF8Encoding(false, true);
             Console.OutputEncoding = new UTF8Encoding(false);
@@ -47,7 +47,9 @@ public static class ObserverProgram {
             json.RecursionLimit = 12;
             Dictionary<string, object> request = json.Deserialize<Dictionary<string, object>>(input.ToString());
             object rows;
-            if (args[0] == "rm-probe") {
+            if (args[0] == "claude-session") {
+                rows = ClaudeSession.Query(request);
+            } else if (args[0] == "rm-probe") {
                 if (request.Count != 0) throw new ArgumentException();
                 AegisRm.Probe();
                 rows = new object[] { new { available = true } };

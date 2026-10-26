@@ -13,6 +13,22 @@ const { candidate, result } = require('../fixtures/tool-context/capsule.cjs');
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
 describe('closed optional preceding-tool custody capsule', () => {
+  it('preserves independently confirmed session binding while refusing a confirmed time association', () => {
+    const raw = result({
+      strength: 'inferred',
+      reasons: ['exact-session-binding', 'clock-skew-assumed-local'],
+      candidates: [candidate(1, { strength: 'inferred' })],
+    });
+    const capsule = createToolContext(raw);
+    expect(capsule).toMatchObject({ strength: 'inferred', sessionBinding: 'confirmed' });
+    expect(projectToolContext(clone(capsule))).toEqual(capsule);
+    expect(createToolContext({ ...raw, strength: 'unattributed' }).sessionBinding).toBe(
+      'unavailable',
+    );
+    expect(
+      createToolContext({ ...raw, reasons: [...raw.reasons, 'partial-source'] }).sessionBinding,
+    ).toBe('unavailable');
+  });
   it('detaches a consistent synthetic association and preserves its closed JSON roundtrip', () => {
     const raw = result();
     const capsule = createToolContext(raw);

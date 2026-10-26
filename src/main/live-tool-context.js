@@ -3,6 +3,8 @@
 const { createToolContext } = require('./tool-context-record');
 const { createSessionContext } = require('./session-context');
 const { readLiveSessionFile } = require('./live-session-file');
+const { readClaudeProcesses, processWitness } = require('./live-session-process');
+const { validCreateTime100ns } = require('./platform/windows-observer');
 const { randomBytes } = require('node:crypto');
 const path = require('node:path');
 const os = require('node:os');
@@ -53,8 +55,7 @@ function observed(agent) {
     Number.isSafeInteger(agent.startTime) &&
     agent.startTime > 0 &&
     agent.instanceIdSource === 'os' &&
-    agent.instanceId === `${agent.pid}:${agent.startTime}` &&
-    normalized(agent.cwd)
+    agent.instanceId === `${agent.pid}:${agent.startTime}`
   );
 }
 const witness = (agent) =>
@@ -70,7 +71,12 @@ const witness = (agent) =>
  * @param {object} options Local source and process snapshot dependencies.
  * @returns {object} record and explain operations. @since v0.21.0 */
 function createLiveToolContext(options) {
-  const { getAgents, home = os.homedir(), now = Date.now } = options;
+  const {
+    getAgents,
+    home = os.homedir(),
+    now = Date.now,
+    observeProcesses = readClaudeProcesses,
+  } = options;
   const events = new Map();
   const digestKey = randomBytes(32);
   let busy = false,
@@ -101,6 +107,7 @@ function createLiveToolContext(options) {
         instanceId: event.instanceId,
         timestamp: event.timestamp,
         file: event.file,
+        createTime100ns: validCreateTime100ns(event.createTime100ns) ? event.createTime100ns : null,
       }),
     );
     for (const [id, row] of events) if (now() - row.timestamp > AGE_MS) events.delete(id);
@@ -116,6 +123,19 @@ function createLiveToolContext(options) {
     if (matches.length !== 1) return unavailable('process-identity-unavailable');
     const agent = { ...matches[0] },
       stamp = witness(agent);
+    if (event.createTime100ns !== null && event.createTime100ns !== agent.createTime100ns)
+      return unavailable('process-binding-mismatch');
+    const population = snapshots.filter(observed);
+    const populationStamp = population.map(witness).sort().join('|');
+    if (population.length > 32) return unavailable('binding-limit');
+    const nativeBefore = await observeProcesses(population);
+    const native = processWitness(nativeBefore, agent);
+    if (nativeBefore?.some((row) => row.ProcessId === agent.pid) && !native)
+      return unavailable('process-binding-mismatch');
+    if (native && normalized(agent.cwd) && normalized(agent.cwd) !== normalized(native.Cwd))
+      return unavailable('process-binding-mismatch');
+    const selectedCwd = native?.Cwd ?? agent.cwd;
+    if (!normalized(selectedCwd)) return unavailable('process-identity-unavailable');
     if (
       event.timestamp < agent.startTime ||
       event.timestamp > now() ||
@@ -124,24 +144,40 @@ function createLiveToolContext(options) {
       return unavailable('binding-unavailable-or-outside-lifetime');
     const selected = await registryAt(home, agent.pid);
     // Registry start is agent-reported startup, NOT an independent OS birth witness.
-    // Never copy the OS birth into registry evidence or claim verified-local-registry.
+    // Confirmation additionally requires the independently observed native launch
+    // selector, full-resolution birth and cwd before/after the source read.
     if (
       selected.startedAt < agent.startTime ||
       selected.startedAt > agent.startTime + 60000 ||
       selected.startedAt > event.timestamp ||
-      normalized(selected.cwd) !== normalized(agent.cwd)
+      normalized(selected.cwd) !== normalized(selectedCwd)
     )
       return unavailable('process-binding-mismatch');
     const peers = snapshots.filter((a) => observed(a) && a.pid !== agent.pid);
+    let oneToOne =
+      event.createTime100ns !== null &&
+      native?.SessionId === selected.sessionId &&
+      Array.isArray(nativeBefore) &&
+      nativeBefore.length === population.length &&
+      path.resolve(native.Cwd) === path.resolve(selected.cwd) &&
+      snapshots.filter((row) => row?.agent === 'Claude Code').length === population.length;
     if (peers.length > 31) return unavailable('binding-limit');
     for (const peer of peers) {
       let other;
       try {
         other = await registryAt(home, peer.pid);
       } catch {
+        oneToOne = false;
         continue;
       }
       if (other.sessionId === selected.sessionId) return unavailable('session-binding-mismatch');
+      const peerProof = processWitness(nativeBefore, peer);
+      if (
+        !peerProof ||
+        peerProof.SessionId !== other.sessionId ||
+        path.resolve(peerProof.Cwd) !== path.resolve(other.cwd)
+      )
+        oneToOne = false;
     }
     const file = path.join(
       home,
@@ -173,6 +209,18 @@ function createLiveToolContext(options) {
       ).length !== 1
     )
       return unavailable('process-binding-mismatch');
+    if (native) {
+      const nativeAfter = await observeProcesses(population);
+      const finalPopulation = getAgents();
+      if (
+        JSON.stringify(nativeAfter) !== JSON.stringify(nativeBefore) ||
+        !Array.isArray(finalPopulation) ||
+        finalPopulation.filter((row) => row?.agent === 'Claude Code').length !==
+          snapshots.filter((row) => row?.agent === 'Claude Code').length ||
+        finalPopulation.filter(observed).map(witness).sort().join('|') !== populationStamp
+      )
+        return unavailable('process-binding-mismatch');
+    }
     if (batch.availability === 'unavailable')
       return {
         ...unavailable('source-unavailable'),
@@ -182,16 +230,23 @@ function createLiveToolContext(options) {
           candidates: [],
         }),
       };
-    const binding = adapter.bind(batch, agent, {
-      sessionId: selected.sessionId,
-      pid: agent.pid,
-      cwd: selected.cwd,
-      oneToOne: false,
-      provenance: 'local-registry-hint',
-    });
+    const binding = adapter.bind(
+      batch,
+      // Source spelling is used after the independently observed directory check;
+      // the lexical digest intentionally preserves trailing separators and case.
+      { ...agent, cwd: selected.cwd },
+      {
+        sessionId: selected.sessionId,
+        pid: agent.pid,
+        cwd: selected.cwd,
+        processStartTime: oneToOne ? agent.startTime : undefined,
+        oneToOne,
+        provenance: oneToOne ? 'verified-local-registry' : 'local-registry-hint',
+      },
+    );
     // Native local Claude and AEGIS timestamps use this host's UTC wall clock.
     // This same-clock assumption is not a measured remote-clock calibration;
-    // binding stays inferred, and remote/WSL sources are not selected here.
+    // tool association stays inferred even when session ownership is confirmed.
     const result = adapter.correlate(
       {
         instanceId: event.instanceId,

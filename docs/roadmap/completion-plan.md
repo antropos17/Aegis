@@ -685,10 +685,11 @@ test asserts that no prompt or argument text reaches audit, IPC or exports.
 
 The [live local explanation path](../development/live-tool-explanations.md)
 connects native local Claude main-session metadata to the selected observation
-through owned IPC. Its registry hint and explicit same-host clock assumption
-permit inferred context only. This is a W4.2 application integration; independently
-confirmed session ownership, measured clock alignment and genuine-agent installed
-acceptance above remain open and must not be inferred from fixture evidence.
+through owned IPC. Independently confirmed session ownership is available for
+the native Windows explicit-selector case. The same-host clock assumption still
+limits tool association to inferred context. Measured clock alignment and genuine native
+file-read sensor acceptance above remain open. The genuine Claude application
+journey retains a synthetic OS observation and does not close that sensor scope.
 The next W4 deliverable qualifies that existing caller, including a live writer,
 process restart, two same-name instances and an unavailable source. Add another
 provider only after its consumer and missing ownership evidence are named.

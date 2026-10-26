@@ -140,6 +140,7 @@ function createSessionContext(options) {
    * @since v0.19.0 */
   function correlate(event, selected, timing) {
     const candidates = new Map();
+    const verifiedCandidates = new Set();
     const reasons = new Set();
     const reply = (strength) =>
       Object.freeze({
@@ -218,6 +219,7 @@ function createSessionContext(options) {
         const strength =
           binding.strength === 'confirmed' && oneToOne && !assumedLocal ? 'confirmed' : 'inferred';
         const candidateKey = `${call.callRef}:${call.argsDigest}:${call.startMs}:${call.endMs}`;
+        if (binding.strength === 'confirmed' && oneToOne) verifiedCandidates.add(candidateKey);
         if (!candidates.has(candidateKey) && candidates.size >= LIMITS.calls) {
           candidates.clear();
           reasons.add('candidate-limit');
@@ -249,8 +251,13 @@ function createSessionContext(options) {
       return reply('inferred');
     }
     const strength = [...candidates.values()][0].strength;
+    const confirmedBinding = [...candidates.keys()].every((key) => verifiedCandidates.has(key));
     reasons.add(
-      strength === 'confirmed' ? 'exact-binding-object-and-interval' : 'session-binding-inferred',
+      strength === 'confirmed'
+        ? 'exact-binding-object-and-interval'
+        : assumedLocal && confirmedBinding
+          ? 'exact-session-binding'
+          : 'session-binding-inferred',
     );
     return reply(strength);
   }

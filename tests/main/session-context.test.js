@@ -59,7 +59,25 @@ describe('source-backed bounded session context parsing', () => {
     });
     expect(result.strength).toBe('inferred');
     expect(result.reasons).toContain('clock-skew-assumed-local');
+    expect(result.reasons).toContain('exact-session-binding');
     expect(result.candidates[0].strength).toBe('inferred');
+  });
+  it('withdraws confirmed binding evidence when the instance acquires a competing session', () => {
+    const engine = make();
+    const binding = engine.bind(read(engine, [claude()]), proc, evidence);
+    const other = claude();
+    other.sessionId = 'other-session';
+    const otherBatch = engine.parse('claude-code', lines([other]), {
+      ...selection,
+      sessionId: 'other-session',
+    });
+    engine.bind(otherBatch, proc, { ...evidence, sessionId: 'other-session' });
+    const result = engine.correlate(event, [binding], {
+      clockBasis: 'same-host-assumed',
+      missingEndToleranceMs: 1500,
+    });
+    expect(result.reasons).not.toContain('exact-session-binding');
+    expect(result.reasons).toContain('session-binding-inferred');
   });
   it.each([
     ['claude-code', 'claude', 'Read'],

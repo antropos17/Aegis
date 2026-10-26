@@ -42,3 +42,19 @@ Run `node bench/observer-compare.cjs` on Windows for the disposable socket,
 held-file and command-line comparison. Unit/integration tests inject transports
 and cover missing/invalid helpers, recovery, scope validation and fallback.
 Linux CI does not execute the Windows binary.
+
+`claude-session` is an additional read-only Windows x64 mode with at most 32 PIDs.
+It holds query/read/synchronize process handles and rejects exited, inaccessible,
+WOW64 and non-`claude.exe` processes. For native Claude it returns only PID,
+full-resolution creation ticks, current directory and a unique explicit session
+selector parsed with `CommandLineToArgvW`. Raw argv never crosses stdout.
+The x64 PEB/process-parameter layouts are version-dependent; failed reads return
+no evidence. The host must compare fresh observations before and after source IO;
+there is no PowerShell fallback for confirmation. This is process/session
+association evidence, not executable-publisher authentication or protection from
+same-account tampering. The layout was exercised on Windows 11 build 26200 with
+Claude Code 2.1.292. `tests/ClaudeSessionTests.cs` covers native argv boundaries
+and rejection of a real non-Claude process without provider calls.
+Each native observation also enumerates current `claude` PIDs and refuses evidence
+when they differ from the requested population; a stale app scan cannot silently
+exclude a newly started second process.

@@ -70,7 +70,18 @@ function normalize(status, codes, count, selected) {
     candidatesTruncated: truncated,
     ambiguous,
     objectMatch: count > 0 ? 'matched' : 'unavailable',
-    sessionBinding: confirmed ? 'confirmed' : 'unavailable',
+    sessionBinding:
+      confirmed ||
+      (resultStrength === 'inferred' &&
+        !candidateIncomplete &&
+        !truncated &&
+        !ambiguous &&
+        count === 1 &&
+        codes.length === 2 &&
+        codes.includes('exact-session-binding') &&
+        codes.includes('clock-skew-assumed-local'))
+        ? 'confirmed'
+        : 'unavailable',
     candidates: selected.map((c) => ({ ...c, strength: confirmed ? 'confirmed' : 'inferred' })),
   };
   if (Buffer.byteLength(JSON.stringify(capsule), 'utf8') > LIMITS.bytes)

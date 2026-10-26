@@ -66,7 +66,12 @@ beforeEach(async () => {
       .map((row) => JSON.stringify(row))
       .join('\n') + '\n',
   );
-  service = createLiveToolContext({ home, getAgents: () => agents, now: () => start + 3000 });
+  service = createLiveToolContext({
+    home,
+    getAgents: () => agents,
+    now: () => start + 3000,
+    observeProcesses: async () => null,
+  });
   service.record({
     eventId,
     pid: 42,
@@ -89,6 +94,77 @@ it('explains a retained observation from a real local transcript without exposin
     expect(JSON.stringify(result)).not.toContain(raw);
   expect(result.toolContext.reasons).toContain('clock-skew-assumed-local');
 });
+
+it('confirms session ownership from matching live Windows birth, cwd and explicit launch selector without confirming the clock assumption', async () => {
+  const ticks = '134373736000000000';
+  agents[0].createTime100ns = ticks;
+  agents[0].cwd = null;
+  const observeProcesses = async () => [
+    { ProcessId: 42, CreateTime100ns: ticks, Cwd: cwd + path.sep, SessionId: sessionId },
+  ];
+  service = createLiveToolContext({
+    home,
+    getAgents: () => agents,
+    now: () => start + 3000,
+    observeProcesses,
+  });
+  service.record({
+    eventId,
+    pid: 42,
+    instanceId: `42:${start}`,
+    timestamp: start + 1500,
+    file: path.join(cwd, '.env'),
+    createTime100ns: ticks,
+  });
+  const result = await service.explain(eventId);
+  expect(result.toolContext.sessionBinding).toBe('confirmed');
+  expect(result.toolContext.strength).toBe('inferred');
+  expect(result.toolContext.reasons).toContain('exact-session-binding');
+  expect(result.toolContext.reasons).toContain('clock-skew-assumed-local');
+  expect(JSON.stringify(result)).not.toContain(cwd);
+});
+
+it.each(['birth', 'selector', 'drift', 'new-peer', 'same-ms-event', 'missing-event'])(
+  'does not confirm uncertain native evidence: %s',
+  async (failure) => {
+    const ticks = '134373736000000000';
+    agents[0].createTime100ns = ticks;
+    let observations = 0;
+    const observeProcesses = async () => {
+      observations++;
+      if (failure === 'new-peer' && observations === 2)
+        agents.push({ ...agents[0], pid: 43, instanceId: `43:${start}` });
+      return [
+        {
+          ProcessId: 42,
+          CreateTime100ns: failure === 'birth' ? '134373736000000001' : ticks,
+          Cwd: failure === 'drift' && observations === 2 ? path.join(home, 'other') : cwd,
+          SessionId: failure === 'selector' ? null : sessionId,
+        },
+      ];
+    };
+    service = createLiveToolContext({
+      home,
+      getAgents: () => agents,
+      now: () => start + 3000,
+      observeProcesses,
+    });
+    service.record({
+      eventId,
+      pid: 42,
+      instanceId: `42:${start}`,
+      timestamp: start + 1500,
+      file: path.join(cwd, '.env'),
+      createTime100ns:
+        failure === 'same-ms-event'
+          ? '134373736000000001'
+          : failure === 'missing-event'
+            ? undefined
+            : ticks,
+    });
+    expect((await service.explain(eventId)).toolContext.sessionBinding).toBe('unavailable');
+  },
+);
 
 it('rejects renderer-shaped objects and unknown event IDs instead of reading requested paths', async () => {
   expect(
