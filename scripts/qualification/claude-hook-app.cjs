@@ -16,7 +16,9 @@ const output =
 const genuine = process.argv[3] === '--claude';
 const receipt = {
   schemaVersion: 2,
-  scope: 'disposable-profile-restart-targeted-removal',
+  scope: genuine
+    ? 'installed-claude-owned-profile-two-bash-decisions'
+    : 'disposable-profile-restart-targeted-removal',
   actualNativeIO: true,
   nativeUI: false,
   installedClaude: false,
@@ -459,7 +461,11 @@ if (require.main === module)
       })
       .catch(() => {});
     console.error(
-      'Disposable targeted-removal qualification failed at ' + stage + '; private files retained.',
+      (genuine
+        ? 'Installed-Claude qualification failed at '
+        : 'Disposable targeted-removal qualification failed at ') +
+        stage +
+        '; private files retained.',
     );
     process.exitCode = 1;
   });
