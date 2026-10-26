@@ -6,6 +6,7 @@ import os from 'node:os';
 const require = createRequire(import.meta.url);
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
+const { projectClaudeEvidence } = require('../../scripts/qualification/claude-hook-app.cjs');
 let root, target, policy, service, state, options;
 const original = '{ "private": "PROFILE_PRIVATE_CANARY", "hooks": {"PreToolUse":[]} }\n';
 beforeEach(async () => {
@@ -401,4 +402,128 @@ it('reveals only the fixed retained profile when native assets disappear', async
     error: 'Renderer request denied',
   });
   expect(state.opened).toEqual([target]);
+});
+
+function genuineRecords() {
+  return [
+    {
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'one',
+            name: 'Bash',
+            input: {
+              command: "printf 'AEGIS_W6_ALLOWED\\n' > aegis-w6-allowed.txt",
+              description: 'AEGIS W6 allowed fixture',
+              timeout: 1000,
+            },
+          },
+        ],
+      },
+    },
+    {
+      type: 'user',
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'one', content: 'PRIVATE_RESULT_CANARY' }],
+      },
+    },
+    {
+      type: 'assistant',
+      message: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'two',
+            name: 'Bash',
+            input: {
+              command: "printf 'AEGIS_W6_DENIED\\n' > aegis-w6-denied.txt",
+              description: 'AEGIS W6 denied fixture',
+              timeout: 1000,
+            },
+          },
+        ],
+      },
+    },
+    {
+      type: 'user',
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'two',
+            is_error: true,
+            content: 'AEGIS policy does not allow this tool request.',
+          },
+        ],
+      },
+    },
+    {
+      type: 'result',
+      is_error: false,
+      total_cost_usd: 0.12,
+      modelUsage: { 'claude-opus-4-6': {} },
+    },
+    { type: 'system', subtype: 'init', cwd: 'X:\\fixture' },
+  ];
+}
+const projectRecords = (rows) =>
+  projectClaudeEvidence(rows.map((row) => JSON.stringify(row)).join('\n'), 'X:\\fixture');
+it('genuine qualification requires both exact whole inputs and explicit denied tool result', () => {
+  const receipt = projectRecords(genuineRecords());
+  expect(receipt).toMatchObject({
+    cwdMatched: true,
+    exactTwoRequests: true,
+    allowResultSucceeded: true,
+    denyResultObserved: true,
+    providerCompleted: true,
+    costWithinLimit: true,
+    opusObserved: true,
+  });
+  expect(JSON.stringify(receipt)).not.toContain('PRIVATE_RESULT_CANARY');
+  expect(JSON.stringify(receipt)).not.toContain('printf');
+  const rows = genuineRecords();
+  rows[3].message.content[0].content = 'Denied by a different permission mechanism';
+  expect(projectRecords(rows).denyResultObserved).toBe(false);
+});
+it('genuine qualification refuses metadata drift without adapting the allowed request', () => {
+  for (const change of [
+    (input) => {
+      delete input.description;
+    },
+    (input) => {
+      input.timeout = 2000;
+    },
+    (input) => {
+      input.extra = 'PRIVATE_EXTRA_CANARY';
+    },
+  ]) {
+    const rows = genuineRecords();
+    change(rows[0].message.content[0].input);
+    const receipt = projectRecords(rows);
+    expect(receipt.exactTwoRequests).toBe(false);
+    expect(receipt.attempts[0].exactInput).toBe(false);
+    expect(JSON.stringify(receipt)).not.toContain('PRIVATE_EXTRA_CANARY');
+  }
+});
+it('genuine qualification refuses retries, duplicate results, unpriced output and model substitution', () => {
+  const duplicate = genuineRecords();
+  duplicate.splice(2, 0, duplicate[1]);
+  expect(projectRecords(duplicate).exactTwoRequests).toBe(false);
+  const retry = genuineRecords();
+  retry.splice(2, 0, retry[0]);
+  expect(projectRecords(retry).exactTwoRequests).toBe(false);
+  const unpriced = genuineRecords();
+  delete unpriced[4].total_cost_usd;
+  expect(projectRecords(unpriced).costWithinLimit).toBe(false);
+  const expensive = genuineRecords();
+  expensive[4].total_cost_usd = 0.51;
+  expect(projectRecords(expensive).costWithinLimit).toBe(false);
+  const replaced = genuineRecords();
+  replaced[4].modelUsage = { 'claude-sonnet': {} };
+  expect(projectRecords(replaced).opusObserved).toBe(false);
+  const wrongCwd = genuineRecords();
+  wrongCwd[5].cwd = 'X:\\other-fixture';
+  expect(projectRecords(wrongCwd).cwdMatched).toBe(false);
 });

@@ -102,3 +102,43 @@ journey remains unqualified. Main-process inspector-based
 test launchers are intentionally refused by private IO. Actual installed Claude
 hook loading, its version contract, command-shell compatibility, bypass behavior,
 historical backup restoration and full W6 acceptance remain open. `launchAllowed` remains false.
+
+### Explicit installed-Claude qualification
+
+The same qualification script also has an opt-in `--claude` mode. This runs one
+paid provider session and requires explicit authorization for that attempt:
+
+```powershell
+node scripts/qualification/claude-hook-app.cjs X:/tmp/fresh-owned-claude --claude X:/tmp/owned-shell-preflight/receipt.json
+```
+
+The shell receipt must identify an already tested Git Bash executable, its
+unchanged SHA-256, a successful single `--noprofile --norc` fixed `printf` run in
+an owned directory and the exact retained output bytes. The script never invokes
+bare `bash`, WSL or an installer. It selects this verified executable only in the
+child's environment. Managed Claude controls and the configured Opus model remain
+in force; the runner refuses a different configured model.
+
+The mode creates and installs a separate fixture profile using actual guarded IO
+with scripted confirmation, then closes that native session. Before any provider
+call, it feeds two synthetic requests to the actual Electron application
+`--action-policy-hook` route and requires the fixed allow/deny decisions. The
+policy and provider prompt predeclare two entire Bash input objects, including
+command, description and timeout. The policy defaults to deny and permits only
+the first exact object. Both commands write fixed markers only in the owned
+working directory. Additional or missing input metadata is never adapted into a
+new permission.
+
+Only Bash is exposed; normal settings sources are omitted, managed controls still
+apply, MCP configuration is empty and strict, permission prompts have no responder,
+and the single Opus session has a $0.50 limit and a 150-second deadline. The runner
+does not retry or change the policy. Provider output stays bounded in memory;
+private receipts contain input/cwd equality booleans, fixed result flags, byte
+counts and cost rather than arguments or raw output. Passing also requires the
+exact allowed marker, absence of the denied marker and the explicit AEGIS denial
+in the provider's denied tool result. A final model claim is insufficient.
+
+This mode remains unqualified until an authorized actual run passes. A mismatch
+is retained as an inconclusive allow/deny result; it does not widen permission.
+It does not establish real native-dialog acceptance or protection against missing
+hooks, launch failures, alternate tools or bypass routes.
