@@ -20,6 +20,17 @@ import {
 import portuguese from '../../frontend/observatory/translations/pt-BR.json';
 
 describe('closed runtime coverage projection', () => {
+  it('shows the reported network provider failure without exposing unknown details', () => {
+    const input = coverageFixture('windows');
+    record(record(input.stats.appHealth).sensors).byId = {
+      network: { state: 'FAILED', detail: 'provider-failure' },
+    };
+    expect(sensorCoverage(input).sensors[0]).toMatchObject({
+      title: 'Network connections',
+      state: 'Failed',
+      detail: 'Provider failed',
+    });
+  });
   it.each(['stale', 'not-ready', 'error'])(
     'qualifies project readiness when telemetry is %s',
     (state) => {
