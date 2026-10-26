@@ -75,6 +75,7 @@ function createHeldOwner(processChild, role, options = {}) {
       }));
   const startedAt = performance.now();
   let closed = false,
+    exited = false,
     plannedStop = false,
     stopTask,
     exit = null,
@@ -89,6 +90,12 @@ function createHeldOwner(processChild, role, options = {}) {
     options.onFailure?.(reason);
   };
   const done = new Promise((resolve) => {
+    processChild.once('exit', (code, signal) => {
+      exited = true;
+      exit = { code, signal };
+      clearTimeout(timer);
+      if (!plannedStop) fail('held-actor-exited-before-release');
+    });
     processChild.once('close', (code, signal) => {
       closed = true;
       exit = { code, signal };
@@ -114,7 +121,12 @@ function createHeldOwner(processChild, role, options = {}) {
     clearTimeout(timer);
     stopTask = (async () => {
       let killSucceeded = null;
-      if (!closed) {
+      if (
+        !closed &&
+        !exited &&
+        processChild.exitCode === null &&
+        processChild.signalCode === null
+      ) {
         try {
           assert(Number.isSafeInteger(processChild.pid) && processChild.pid > 0);
           killTree(processChild.pid);
@@ -158,7 +170,41 @@ function createHeldOwner(processChild, role, options = {}) {
     fail('held-actor-deadline');
     void stop();
   }, deadlineMs);
-  return { child: processChild, role, done, stop, held: () => !closed && !plannedStop && !failure };
+  return {
+    child: processChild,
+    role,
+    done,
+    stop,
+    held: () =>
+      !closed &&
+      !exited &&
+      !plannedStop &&
+      !failure &&
+      processChild.exitCode === null &&
+      processChild.signalCode === null,
+  };
+}
+
+/** Bound restoration of the Read-only scheduling wrapper without holding owned cleanup.
+ * @param {object} application Owned Playwright app. @returns {Promise<boolean>} Restoration acknowledged.
+ * @since v0.21.0 */
+async function restoreReadOverlap(application) {
+  let deadline;
+  try {
+    return await Promise.race([
+      Promise.resolve()
+        .then(() => application.evaluate(() => globalThis.__w4ReadOverlap?.restore()))
+        .then(
+          () => true,
+          () => false,
+        ),
+      new Promise((resolve) => {
+        deadline = setTimeout(() => resolve(false), 1000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
 }
 
 function cancelScenario(reason) {
@@ -617,7 +663,7 @@ async function main() {
     child.once('error', () => resolve({ code: -1 }));
   });
   timer = setTimeout(() => {
-    if (child.exitCode === null && !primaryCancelAttempted) {
+    if (child.exitCode === null && child.signalCode === null && !primaryCancelAttempted) {
       primaryCancelAttempted = true;
       try {
         execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
@@ -995,7 +1041,7 @@ async function main() {
       assert(activeReply.toolContext.candidates.some((row) => row.toolName === 'Read'));
       assert(!JSON.stringify(activeReply).includes(marker));
     } finally {
-      await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
+      await restoreReadOverlap(app);
       await activeRequest;
     }
   }
@@ -1385,9 +1431,7 @@ if (require.main === module) {
           if (!stopped.confirmed || !stopped.stoppedBeforeHookExpiry) cleanup.confirmed = false;
         }
       }
-      if (app && appChild?.exitCode === null && appChild?.signalCode === null)
-        await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
-      if (child?.exitCode === null && !primaryCancelAttempted) {
+      if (child?.exitCode === null && child?.signalCode === null && !primaryCancelAttempted) {
         primaryCancelAttempted = true;
         try {
           execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
@@ -1412,6 +1456,10 @@ if (require.main === module) {
       }
       cleanup.treeKillSucceeded = primaryCancelSucceeded;
       if (!child || cleanup.claudeExit) clearTimeout(timer);
+      if (mode === 'read' && app && appChild?.exitCode === null && appChild?.signalCode === null) {
+        cleanup.readerSchedulingRestored = await restoreReadOverlap(app);
+        if (!cleanup.readerSchedulingRestored) cleanup.confirmed = false;
+      }
       // Cleanup never opens a held model/tool barrier, even if termination is uncertain.
       if (app && !appChild) cleanup.confirmed = false;
       if (appChild) {
@@ -1502,4 +1550,4 @@ if (require.main === module) {
       if (!cleanup.confirmed) process.exitCode = 1;
     });
 }
-module.exports = { createHeldOwner, prepareActorSettings };
+module.exports = { createHeldOwner, prepareActorSettings, restoreReadOverlap };

@@ -10,6 +10,7 @@ const { createLiveToolContext } = require('../../src/main/live-tool-context');
 const {
   createHeldOwner,
   prepareActorSettings,
+  restoreReadOverlap,
 } = require('../../scripts/qualification/live-tool-context-claude.cjs');
 let home, cwd, agents, service, registry, transcript;
 const start = 1792900000000;
@@ -96,6 +97,8 @@ it('stops a held peer at sixty seconds exactly once and confirms termination bef
   vi.useFakeTimers();
   const actor = Object.assign(new EventEmitter(), {
     pid: 42,
+    exitCode: null,
+    signalCode: null,
     stdout: new PassThrough(),
     stderr: new PassThrough(),
   });
@@ -120,7 +123,7 @@ it('stops a held peer at sixty seconds exactly once and confirms termination bef
 
 it('does not convert an uncertain held replacement kill into confirmed cleanup or retry it', async () => {
   vi.useFakeTimers();
-  const actor = Object.assign(new EventEmitter(), { pid: 43 });
+  const actor = Object.assign(new EventEmitter(), { pid: 43, exitCode: null, signalCode: null });
   const killTree = vi.fn(() => {
     throw Error('owned-termination-unavailable');
   });
@@ -141,7 +144,7 @@ it('does not convert an uncertain held replacement kill into confirmed cleanup o
 });
 
 it('treats an unplanned held peer exit as cancellation and never kills the already closed child', async () => {
-  const actor = Object.assign(new EventEmitter(), { pid: 44 });
+  const actor = Object.assign(new EventEmitter(), { pid: 44, exitCode: null, signalCode: null });
   const killTree = vi.fn(),
     onFailure = vi.fn();
   const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
@@ -150,6 +153,47 @@ it('treats an unplanned held peer exit as cancellation and never kills the alrea
   expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-exited-before-release');
   expect((await owner.stop()).confirmed).toBe(true);
   expect(killTree).not.toHaveBeenCalled();
+});
+
+it.each([
+  { code: 0, signal: null, close: true },
+  { code: null, signal: 'SIGTERM', close: true },
+  { code: 0, signal: null, close: false },
+  { code: null, signal: 'SIGTERM', close: false },
+])(
+  'does not treat an exited side owner as alive or kill its PID while awaiting close: %j',
+  async ({ code, signal, close }) => {
+    vi.useFakeTimers();
+    const actor = Object.assign(new EventEmitter(), { pid: 45, exitCode: null, signalCode: null });
+    const killTree = vi.fn(),
+      onFailure = vi.fn();
+    const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
+    actor.exitCode = code;
+    actor.signalCode = signal;
+    actor.emit('exit', code, signal);
+    expect(owner.held()).toBe(false);
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-exited-before-release');
+    const stopping = owner.stop();
+    expect(killTree).not.toHaveBeenCalled();
+    if (close) actor.emit('close', code, signal);
+    else await vi.advanceTimersByTimeAsync(5000);
+    expect(await stopping).toMatchObject({
+      confirmed: close,
+      killSucceeded: null,
+      exit: { code, signal },
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
+
+it('bounds Read scheduling restoration when the owned dispatcher never acknowledges it', async () => {
+  vi.useFakeTimers();
+  const evaluate = vi.fn(() => new Promise(() => {}));
+  const result = restoreReadOverlap({ evaluate });
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(await result).toBe(false);
+  expect(evaluate).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it('keeps peer and resumed replacement barrier settings isolated from an already released primary', async () => {
