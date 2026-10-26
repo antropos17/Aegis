@@ -99,6 +99,79 @@ input attempt on the recovery build also failed at navigation with the same
 error; its disposable target stayed byte-identical and the owned process was
 closed. No alternate input was attempted. The actual native confirmation
 journey remains unqualified. Main-process inspector-based
-test launchers are intentionally refused by private IO. Actual installed Claude
-hook loading, its version contract, command-shell compatibility, bypass behavior,
-historical backup restoration and full W6 acceptance remain open. `launchAllowed` remains false.
+test launchers are intentionally refused by private IO. The installed-Claude
+source-run result below covers one version and command shell. Other versions,
+bypass behavior, historical backup restoration, installed-package qualification
+and full W6 acceptance remain open. `launchAllowed` remains false.
+
+### Explicit installed-Claude qualification
+
+The same qualification script also has an opt-in `--claude` mode. This runs one
+paid provider session and requires explicit authorization for that attempt:
+
+```powershell
+node scripts/qualification/claude-hook-app.cjs X:/tmp/fresh-owned-claude --claude X:/tmp/owned-shell-preflight/receipt.json
+```
+
+The shell receipt must identify an already tested Git Bash executable, its
+unchanged SHA-256, a successful single `--noprofile --norc` fixed `printf` run in
+an owned directory and the exact retained output bytes. The script never invokes
+bare `bash`, WSL or an installer. It selects this verified executable only in the
+child's environment. Managed Claude controls and the configured Opus model remain
+in force; the runner refuses a different configured model.
+
+The mode creates and installs a separate fixture profile using actual guarded IO
+with scripted confirmation, then closes that native session. Before any provider
+call, it feeds two synthetic requests through verified Git Bash using the exact
+read-back generated application command and requires the fixed allow/deny decisions. The
+policy and provider prompt predeclare two entire Bash input objects, including
+command, description and timeout. The policy defaults to deny and permits only
+the first exact object. Both commands write fixed markers only in the owned
+working directory. Additional or missing input metadata is never adapted into a
+new permission.
+
+Only Bash is exposed; normal settings sources are omitted, managed controls still
+apply, MCP configuration is empty and strict, permission prompts have no responder,
+and the single Opus session has a $0.50 limit and a 150-second deadline. Cleanup
+settlement has a five-second guard after termination starts. Unconfirmed cleanup
+retains the owned PID and fixed `CHILD_CLEANUP_UNCONFIRMED` failure before the
+runner exits unsuccessfully; it never claims the child was released. The runner
+does not retry or change the policy. Provider output stays bounded in memory;
+private receipts contain input/cwd equality booleans, fixed result flags, byte
+counts and cost rather than arguments or raw output. Passing also requires the
+exact allowed marker, absence of the denied marker and the explicit AEGIS denial
+in the provider's denied tool result. A final model claim is insufficient.
+
+On 2026-10-26, this mode passed once on source revision
+`57f614731067b99aced701a361810029a3fadb8e`, with installed Claude Code file product
+version `2.1.292.0` and verified Git Bash. The existing configured Opus model was
+preserved and observed in the provider result. Reported cost was **$0.047539**.
+The exact two whole Bash inputs and working directory matched the predeclared
+policy. The allowed tool result succeeded and created the exact marker; the
+denied result carried the explicit AEGIS denial and created no denied marker.
+Profile and policy hashes stayed unchanged. Claude exited with code zero,
+confirmed cleanup and no forced termination. The final documentation update
+preserves the qualified runtime and runner sources.
+
+Any future mismatch is retained as an inconclusive allow/deny result and never
+widens permission. This bounded source-run result leaves real native-dialog
+acceptance, installed-package behavior, other versions, missing hooks, launch
+failures, alternate tools and bypass routes open.
+
+### Windows inherited input
+
+Electron 45 [replaces `process.stdin` with an ended stream on Windows](https://github.com/electron/electron/blob/v45.0.0/lib/common/init.ts#L56-L67).
+The action-policy hook therefore wraps inherited descriptor zero as a read-only
+`net.Socket`, matching [Node 24.22's pipe-input bootstrap](https://github.com/nodejs/node/blob/v24.22.0/lib/internal/bootstrap/switches/is_main_thread.js#L199-L220).
+It creates no connection or listening endpoint. The existing 64 KiB input limit,
+1.5-second deadline and fixed denial responses remain in force. Ordinary Node,
+other operating systems and the other CLI routes keep their existing inputs.
+
+The first filesystem-stream candidate delivered allow/deny correctly but could
+not cancel a pending held-open read; it required the outer supervisor to kill the
+owned process and failed qualification. The final pipe wrapper passed the four
+native cases through the exact generated Git Bash command: allow, deny, malformed
+input and held-open deadline with actual process exit. No environment prefix,
+console switch or fuse change is needed. This table qualifies native transport;
+the separate provider result above covers the installed-Claude source run.
+Real-dialog acceptance remains open.
