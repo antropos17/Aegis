@@ -31,7 +31,24 @@ export interface SensorCoverage {
     lastSuccessAt: number | null;
     detail: string;
   }[];
+  project: { state: string; detail: string; paused: boolean };
 }
+export const projectCoverageStates: Labels = {
+  'not-observed': 'Not observed',
+  starting: 'Starting',
+  observed: 'Observed',
+  unavailable: 'Unavailable',
+  unknown: 'Unknown',
+};
+export const projectCoverageDetails: Labels = {
+  'not-observed':
+    'Project changes are not observed. Choose a project folder in Monitoring settings.',
+  starting: 'The configured project watcher is starting. Coverage is not established yet.',
+  observed:
+    'The configured project watcher is ready. Only its root and current exclusions are covered.',
+  unavailable: 'Project changes are unavailable. Review the folder in Monitoring settings.',
+  unknown: 'Project change coverage has not been reported.',
+};
 export const coverageStates: Labels = {
   HEALTHY: 'Healthy',
   DEGRADED: 'Degraded',
@@ -188,6 +205,11 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
   const native = record(telemetry.stats.nativeSensor);
   const admission = record(native.admission);
   const restart = record(native.restart);
+  const reportedProject = record(record(telemetry.stats.appHealth).watchPlan).projectState;
+  const projectState =
+    typeof reportedProject === 'string' && Object.hasOwn(projectCoverageStates, reportedProject)
+      ? reportedProject
+      : 'unknown';
   const platform =
     native.platform === 'linux' ? 'Linux' : native.platform === 'darwin' ? 'macOS' : 'Not reported';
   const seen = new Set<string>();
@@ -216,6 +238,11 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
     };
   });
   return {
+    project: {
+      state: projectCoverageStates[projectState],
+      detail: projectCoverageDetails[projectState],
+      paused: telemetry.stats.monitoringPaused === true,
+    },
     agents,
     reported: Object.keys(native).length > 0,
     unsupported: telemetry.stats.nativeSensor === null,

@@ -6,11 +6,13 @@
     telemetry,
     navigate,
     openSensorDetails,
+    openProjectSettings = () => navigate('settings'),
     preview = false,
   }: {
     telemetry: Telemetry;
     navigate: (_view: string) => void;
     openSensorDetails: () => void;
+    openProjectSettings?: () => void;
     preview?: boolean;
   } = $props();
   const id = $props.id();
@@ -82,6 +84,17 @@
         'This first coverage view includes reported sensor health. Action provenance, event rates and per-agent enforcement coverage are not reported by this data source.',
       )}
     </p>
+  </section>
+  <section class="panel" aria-labelledby={id + '-project'}>
+    <header>
+      <h3 id={id + '-project'}>{$t('Project changes')}</h3>
+      <strong>{$t(model.project.paused ? 'Paused' : model.project.state)}</strong>
+    </header>
+    <p>{$t(model.project.detail)}</p>
+    {#if model.project.paused}<p>
+        {$t('Monitoring is paused. Watcher readiness does not mean events are being collected.')}
+      </p>{/if}
+    <button class="button" onclick={openProjectSettings}>{$t('Project folder settings')}</button>
   </section>
   <section class="panel" aria-labelledby={id + '-native'}>
     <header>

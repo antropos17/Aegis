@@ -64,6 +64,14 @@ approve its current identity. Clearing selection restores the existing source
 checkout behavior; an ASAR app root remains inapplicable. Use **Monitoring** for
 live watcher health rather than interpreting saved selection as active coverage.
 
+**Coverage → Project changes** reports this root separately from the other file
+sensors: not observed, starting, observed, unavailable or unknown. A healthy
+credential or environment watcher cannot establish project coverage. **Project
+folder settings** opens the existing Monitoring section without choosing a folder.
+Operator pause is displayed separately from watcher readiness; retained readings
+keep the existing freshness warning. Root readiness does not establish file reads,
+agent ownership or blocking.
+
 Focused fixture and browser checks cover this flow. A source-run Electron 45 smoke
 also observed an external file creation through production IPC and persisted audit,
 then reported unavailable coverage after an owned directory rename within the

@@ -17,6 +17,27 @@ const props = () => ({
   openSensorDetails: vi.fn(),
 });
 
+it('explains absent project coverage beside healthy sensors and opens only existing folder settings', async () => {
+  const input = props();
+  record(input.telemetry.stats.appHealth).watchPlan = {
+    projectState: 'not-observed',
+    state: 'HEALTHY',
+  };
+  const openProjectSettings = vi.fn();
+  const view = render(CoveragePanel, { ...input, openProjectSettings });
+  const project = screen.getByRole('region', { name: 'Project changes' });
+  expect(project).toHaveTextContent('Not observed');
+  expect(project).toHaveTextContent('Choose a project folder in Monitoring settings');
+  await fireEvent.click(within(project).getByRole('button', { name: 'Project folder settings' }));
+  expect(openProjectSettings).toHaveBeenCalledOnce();
+  expect(input.navigate).not.toHaveBeenCalled();
+  input.telemetry.stats.monitoringPaused = true;
+  record(input.telemetry.stats.appHealth).watchPlan = { projectState: 'observed' };
+  await view.rerender({ telemetry: structuredClone(input.telemetry) });
+  expect(project).toHaveTextContent('Paused');
+  expect(project).toHaveTextContent('Watcher readiness does not mean events are being collected');
+});
+
 it('shows current coverage while Overview is paused, including a later outage, and preserves the view pause on return', async () => {
   localStorage.setItem('aegis-advanced-mode', 'true');
   const callbacks = new Map<string, (value: unknown) => void>();
@@ -210,4 +231,14 @@ it('wires Settings, sidebar coverage, health entry, action control and sensor st
   expect(screen.getByRole('heading', { name: 'Action control', level: 1 })).toBeVisible();
   await fireEvent.click(within(navigation).getByRole('button', { name: 'Coverage' }));
   expect(screen.getByRole('heading', { name: 'Coverage', level: 1 })).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Project folder settings' }));
+  expect(screen.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+  expect(
+    within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', {
+      name: 'Monitoring',
+    }),
+  ).toHaveAttribute('aria-current', 'location');
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Monitoring', level: 2 })).toHaveFocus(),
+  );
 });
