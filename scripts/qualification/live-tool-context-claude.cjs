@@ -39,6 +39,7 @@ let app,
   timer,
   childDone,
   processPreflight = null,
+  writePreflightDiagnostic = null,
   pendingReceipt = null,
   failedReceipt = null,
   ownerScanTiming = null,
@@ -476,27 +477,61 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
   );
   console.log('Production scanner observed real Claude generation');
   if (mode === 'write') {
-    const unique = await page.evaluate(
-      ({ pid, target }) => {
+    writePreflightDiagnostic = await page.evaluate(
+      ({ pid, target, project }) => {
         const normalized = target.replaceAll('\\', '/').toLowerCase();
-        const candidates = window.__w4Agents.filter((row) => {
+        const agents = window.__w4Agents;
+        const candidates = agents.filter((row) => {
           if (row.category !== 'ai' || typeof row.cwd !== 'string') return false;
           const cwd = row.cwd.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
           return normalized === cwd || normalized.startsWith(cwd + '/');
         });
-        return (
-          candidates.length === 1 &&
-          candidates[0].pid === pid &&
-          candidates[0].generationWitnessSource === 'createTime100ns' &&
-          candidates[0].generationWitness === candidates[0].createTime100ns
-        );
+        const ownedRows = agents.filter((row) => row.pid === pid);
+        const owned = ownedRows.length === 1 ? ownedRows[0] : null;
+        const raw = owned?.createTime100ns;
+        const rawbirthValid =
+          typeof raw === 'string' &&
+          /^[1-9][0-9]{0,19}$/.test(raw) &&
+          BigInt(raw) <= 18446744073709551615n;
+        const cwdPresent = typeof owned?.cwd === 'string' && owned.cwd.length > 0;
+        return {
+          candidateCount: Math.min(candidates.length, 128),
+          ownedCandidateCount: Math.min(candidates.filter((row) => row.pid === pid).length, 128),
+          cwdPresent,
+          cwdMatchesProject:
+            cwdPresent &&
+            owned.cwd.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() ===
+              project.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase(),
+          categoryExpected: owned?.category === 'ai',
+          rawbirthValid,
+          keyCoherent:
+            owned?.instanceIdSource === 'os' &&
+            Number.isSafeInteger(owned.startTime) &&
+            owned.startTime > 0 &&
+            owned.instanceId === `${pid}:${owned.startTime}` &&
+            rawbirthValid &&
+            Number((BigInt(raw) - 116444736000000000n) / 10000n) === owned.startTime,
+          witnessSourceEnum: ['createTime100ns', 'sequence', 'startTimeMs'].includes(
+            owned?.generationWitnessSource,
+          )
+            ? owned.generationWitnessSource
+            : 'unavailable',
+          witnessMatchesRaw:
+            typeof owned?.generationWitness === 'string' && owned.generationWitness === raw,
+        };
       },
-      { pid: child.pid, target: file },
+      { pid: child.pid, target: file, project },
     );
     assert(
-      unique &&
-        typeof observed.cwd === 'string' &&
-        path.resolve(observed.cwd).toLowerCase() === project.toLowerCase(),
+      writePreflightDiagnostic.candidateCount === 1 &&
+        writePreflightDiagnostic.ownedCandidateCount === 1 &&
+        writePreflightDiagnostic.cwdPresent &&
+        writePreflightDiagnostic.cwdMatchesProject &&
+        writePreflightDiagnostic.categoryExpected &&
+        writePreflightDiagnostic.rawbirthValid &&
+        writePreflightDiagnostic.keyCoherent &&
+        writePreflightDiagnostic.witnessSourceEnum === 'createTime100ns' &&
+        writePreflightDiagnostic.witnessMatchesRaw,
       'write-owner-not-unique',
     );
     await page.evaluate((target) => {
@@ -864,6 +899,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     stderrBytes,
     reply: reply.toolContext,
     processPreflight,
+    writePreflightDiagnostic,
     ownerScanTiming,
     claudeVersion: callId.version,
     source: sourceBefore,
@@ -932,6 +968,7 @@ main()
       claudeSpawned: Number.isSafeInteger(child?.pid),
       modelRequestReleased,
       processPreflight,
+      writePreflightDiagnostic,
       ownerScanTiming,
       source: sourceBefore,
       componentHashes: hashesBefore,
