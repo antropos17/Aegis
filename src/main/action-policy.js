@@ -64,6 +64,8 @@ function equal(a, b) {
   );
 }
 
+/** Validate an already private schema-1 action policy without evaluating a request.
+ * @param {unknown} policy Parsed private input. @returns {boolean} Valid closed policy. @since v0.21.0 */
 function validPolicy(policy) {
   if (
     !keys(policy, ['schemaVersion', 'cwd', 'defaultDecision', 'rules']) ||
@@ -229,4 +231,5 @@ module.exports = {
   LIMITS,
   parseActionJson: parse,
   readActionFile: readPolicy,
+  validActionPolicy: validPolicy,
 };

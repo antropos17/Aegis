@@ -76,6 +76,14 @@
             "**/*",
             "!**/*.pdb"
           ]
+        },
+        {
+          "from": "build/hook-review",
+          "to": "hook-review",
+          "filter": [
+            "assets.json",
+            "host/*"
+          ]
         }
       ]
     },

@@ -316,6 +316,36 @@ describe('ipc-handlers', () => {
     expect(getHandler('get-settings')(event)).toMatchObject({ anthropicApiKeyConfigured: true });
   });
 
+  it('admits only fixed Claude profile operations from the current owned frame', async () => {
+    const handle = vi.fn(async (_action, owned) => ({ success: owned(), code: 'READY' }));
+    const { event } = registerOwnedRenderer({ claudeHookProfile: { handle } });
+    const handler = getHandler('claude-hook:review');
+    expect(await handler({ ...event, senderFrame: {} }, 'install')).toMatchObject({
+      success: false,
+    });
+    expect(await handler(event, { action: 'install', path: 'PRIVATE_PATH' })).toMatchObject({
+      success: false,
+    });
+    expect(handle).not.toHaveBeenCalled();
+    expect(await handler(event, 'status')).toEqual({ success: true, code: 'READY' });
+    expect(handle).toHaveBeenCalledOnce();
+  });
+
+  it('rechecks Claude profile frame ownership after an asynchronous operation', async () => {
+    let finish;
+    const handle = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ claudeHookProfile: { handle } });
+    const pending = getHandler('claude-hook:review')(event, 'install');
+    frame.url = 'https://untrusted.example/';
+    finish({ success: true, code: 'INSTALLED' });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
+
   it('requires explicit owned-frame confirmation before scheduling normal application exit', async () => {
     mockElectron.app.quit.mockClear();
     const { event } = registerOwnedRenderer();

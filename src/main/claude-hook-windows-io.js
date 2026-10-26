@@ -46,10 +46,12 @@ function decoded(value, max) {
 }
 
 /**
- * Create a PRIVATE Windows fixture-only IO session over an explicit owned inert file.
- * No caller, discovery, hook execution, reference import, restore or cleanup exists.
+ * Create a PRIVATE Windows IO session over an explicit owned file. The embedding
+ * establishes either inert-fixture or fixed application-owned profile scope;
+ * neither literal assertion authenticates ownership or authorizes a personal profile.
+ * No discovery, hook execution, reference import or automatic restore exists.
  * Owner-pinned assets and stable trusted load directories are prerequisites.
- * @param {object} options Explicit ownedFixture/targetPath/new backupRoot/assets and bounded limits.
+ * @param {object} options Explicit ownedFixture or ownedProfile assertion, targetPath/new backupRoot/assets and bounded limits.
  * @returns {Promise<object>} Four writer IO callbacks, bounded close and sanitized status.
  * @since v0.19.3
  */
@@ -57,9 +59,10 @@ async function createWindowsHookIO(options) {
   let pipe;
   try {
     privateMode();
+    const ownerFlag = Object.hasOwn(options, 'ownedProfile') ? 'ownedProfile' : 'ownedFixture';
     if (
       !exact(options, [
-        'ownedFixture',
+        ownerFlag,
         'targetPath',
         'backupRoot',
         'assets',
@@ -67,7 +70,7 @@ async function createWindowsHookIO(options) {
         'sessionMs',
         'cleanupMs',
       ]) ||
-      options.ownedFixture !== true ||
+      options[ownerFlag] !== true ||
       typeof options.targetPath !== 'string' ||
       typeof options.backupRoot !== 'string' ||
       !/^[A-Z]:\\/.test(options.targetPath) ||

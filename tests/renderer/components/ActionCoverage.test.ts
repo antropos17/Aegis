@@ -272,7 +272,7 @@ it('shows all catalog decisions without a protection verdict and excludes non-MC
   expect(within(result).getByText('Not retained as a binding or authorization')).toBeVisible();
   expect(within(result).getByText('Not performed')).toBeVisible();
   expect(document.body.textContent).not.toMatch(/Blocking verified|100%|safe verdict/i);
-  expect(screen.queryByRole('button', { name: /execute|export|install/i })).toBeNull();
+  expect(within(result).queryByRole('button', { name: /execute|export|install/i })).toBeNull();
 });
 it('counts captured catalog outcomes and exposes reasons for review and invalid rows', async () => {
   const reply = await example(true);
