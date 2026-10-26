@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Management;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -11,24 +10,6 @@ using System.Web.Script.Serialization;
 // or disk. No credentials/file contents are opened, and errors print no OS detail.
 public static class ObserverProgram {
     private const int Limit = 524288;
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool GetProcessTimes(IntPtr process, out long birth, out long exit, out long kernel, out long user);
-    [DllImport("kernel32.dll")]
-    private static extern bool CloseHandle(IntPtr process);
-
-    private static string ProcessBirth(uint pid, out IntPtr handle) {
-        handle = OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
-        if (handle == IntPtr.Zero) return null;
-        long birth, exit, kernel, user;
-        // Exit time is undefined while the process is running; the held handle pins its PID.
-        if (GetProcessTimes(handle, out birth, out exit, out kernel, out user) && birth > 0)
-            return birth.ToString(CultureInfo.InvariantCulture);
-        CloseHandle(handle);
-        handle = IntPtr.Zero;
-        return null;
-    }
 
     public static int Main(string[] args) {
         if (args.Length != 1 || (args[0] != "tcp" && args[0] != "cwd" && args[0] != "holders" && args[0] != "rm-probe" && args[0] != "claude-session")) return 2;
@@ -56,7 +37,7 @@ public static class ObserverProgram {
             } else {
                 rows = args[0] == "holders" ? Holders(request) : Query(args[0], request);
             }
-            string output = json.Serialize(new { version = 1, rows = rows });
+            string output = json.Serialize(new { version = args[0] == "cwd" ? 2 : 1, rows = rows });
             if (Encoding.UTF8.GetByteCount(output) > 2097152) return 1;
             Console.WriteLine(output);
             return 0;
@@ -82,6 +63,12 @@ public static class ObserverProgram {
             uint pid = Pid(value);
             if (wanted.Add(pid)) filters.Add(owner + "=" + pid.ToString(CultureInfo.InvariantCulture));
         }
+        if (mode == "cwd") {
+            List<object> directories = new List<object>();
+            foreach (uint pid in wanted) directories.Add(ClaudeSession.ObserveCwd(pid) ??
+                new { ProcessId = pid, Cwd = (string)null, CreateTime100ns = (string)null });
+            return directories;
+        }
         string[] fields = mode == "tcp"
             ? new string[] { "OwningProcess", "RemoteAddress", "RemotePort", "LocalAddress", "LocalPort", "State" }
             : new string[] { "ProcessId", "CommandLine" };
@@ -92,21 +79,6 @@ public static class ObserverProgram {
         options.Timeout = TimeSpan.FromSeconds(4);
         options.Rewindable = false;
         List<object> result = new List<object>();
-        Dictionary<uint, IntPtr> held = new Dictionary<uint, IntPtr>();
-        Dictionary<uint, string> births = new Dictionary<uint, string>();
-        try {
-            if (mode == "cwd") {
-                // Hold each process object before WMI reads its command line. A held
-                // handle prevents a recycled PID from pairing old text with new birth.
-                foreach (uint pid in wanted) {
-                    IntPtr handle;
-                    string birth = ProcessBirth(pid, out handle);
-                    if (handle != IntPtr.Zero) {
-                        held.Add(pid, handle);
-                        births.Add(pid, birth);
-                    }
-                }
-            }
             using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(scope, query, options))
             using (ManagementObjectCollection rows = searcher.Get()) {
                 foreach (ManagementObject row in rows) {
@@ -121,18 +93,11 @@ public static class ObserverProgram {
                         }
                         Dictionary<string, object> item = new Dictionary<string, object>();
                         foreach (string field in fields) item[field] = row[field];
-                        if (mode == "cwd") {
-                            string birth;
-                            item["CreateTime100ns"] = births.TryGetValue(pid, out birth) ? birth : null;
-                        }
                         result.Add(item);
                         if (result.Count > 16384) throw new InvalidOperationException();
                     }
                 }
             }
-        } finally {
-            foreach (IntPtr handle in held.Values) CloseHandle(handle);
-        }
         return result;
     }
 

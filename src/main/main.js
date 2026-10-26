@@ -146,6 +146,8 @@ const { createLiveToolContext } = require('./live-tool-context');
 const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
+let claudeHookProfile;
+let projectWatchSelection;
 let etwFile;
 let nativeSensor = null;
 const { createBatcher } = require('./ipc-batcher');
@@ -321,6 +323,24 @@ function loadDeferredModules() {
   }
 }
 
+/** Project only the configured project watcher's readiness, never its path.
+ * @param {object} plan Existing in-memory root plan. @returns {string} Closed project state. */
+function projectWatchState(plan) {
+  if (!Array.isArray(plan?.groups) || !Array.isArray(plan?.absentGroups)) return 'unknown';
+  const roots = plan.groups.filter((root) => root?.id === 'project-dir');
+  const absent = plan.absentGroups.includes('project-dir');
+  if (!roots.length) return absent ? 'not-observed' : 'unknown';
+  if (roots.length !== 1 || absent) return 'unknown';
+  const root = roots[0];
+  if (typeof root.hasLiveWatcher !== 'boolean') return 'unknown';
+  if (['registration-failed', 'not-attempted', 'errored'].includes(root.state))
+    return 'unavailable';
+  if (root.state === 'ready') return root.hasLiveWatcher === true ? 'observed' : 'unavailable';
+  if (root.state === 'planned' || (root.state === 'registered' && root.hasLiveWatcher === true))
+    return 'starting';
+  return 'unknown';
+}
+
 /**
  * Compose the app-level health from the honest signals the sensor modules already
  * publish. READ-ONLY: not one `mark*` call happens here. A leaf record is written only
@@ -329,7 +349,8 @@ function loadDeferredModules() {
  *
  * Total by construction, which matters because `statsUpdateBatcher.pushLazy` resolves
  * `getStats` on the flush timer, where a throw would have nowhere to go. `bootPhase`
- * is false until `loadDeferredModules` has run, and on that branch `deriveAppHealth`
+ * is false until every health dependency in `loadDeferredModules` is bound. A
+ * reentrant stats read may observe that require pass partway through. `deriveAppHealth`
  * returns before it reads anything else — so the module reads below cannot happen
  * against an undefined module.
  *
@@ -339,7 +360,15 @@ function loadDeferredModules() {
  * @since v0.12.0
  */
 function getAppHealth() {
-  if (!scanner || !watcher) {
+  if (
+    !scanner ||
+    !watcher ||
+    !network ||
+    !platform ||
+    !ideDetector ||
+    !wslDetector ||
+    !llmDetector
+  ) {
     const derived = appHealth.deriveAppHealth({ bootPhase: false });
     return {
       state: derived.state,
@@ -423,6 +452,7 @@ function getAppHealth() {
       state: watchPlan.state,
       liveWatcherCount: watchPlan.liveWatcherCount,
       unavailableGroups: watchPlan.unavailableGroups,
+      projectState: projectWatchState(watchPlan),
     },
   };
 }
@@ -750,12 +780,62 @@ let fileWatchRetryTimer = null;
 let fileWatchSetupInFlight = false;
 let fileWatchSetupRejected = false;
 let fileWatchRetryGeneration = 0;
+let fileWatchFilterKey = null;
+let fileWatchFiltersPending = false;
+let fileWatchRefreshQueued = false;
+
+/** Compare effective filter inputs without retaining a mutable settings array.
+ * @param {object} settings Current validated settings. @returns {string} Private comparison key. */
+function watchFilterKey(settings) {
+  return JSON.stringify([
+    settings.ignoreCommonBuildDirs !== false,
+    [
+      ...new Set(Array.isArray(settings.ignoredDirectories) ? settings.ignoredDirectories : []),
+    ].sort(),
+    projectWatchSelection?.getWatchKey() ?? null,
+  ]);
+}
+
+/** Coalesce explicit filter changes behind the existing single setup owner. @returns {void} */
+function queueFileWatchRefresh() {
+  if (isQuitting || !watchersStarted || fileWatchSetupInFlight || fileWatchRefreshQueued) return;
+  if (fileWatchRetryTimer !== null) clearTimeout(fileWatchRetryTimer);
+  fileWatchRetryTimer = null;
+  fileWatchRefreshQueued = true;
+  const generation = fileWatchRetryGeneration;
+  queueMicrotask(() => {
+    if (generation !== fileWatchRetryGeneration) return;
+    fileWatchRefreshQueued = false;
+    if (isQuitting) return;
+    if (fileWatchFiltersPending) void setupFileWatchers(generation, false);
+    else scheduleFileWatchRetry();
+  });
+}
+
+/** Apply current preferences and recreate file roots only for changed watch filters. @returns {void} */
+function onSettingsApplied() {
+  if (isQuitting) return;
+  const settings = config.getSettings();
+  scanLoop.stopScanIntervals();
+  if (!monitoringPaused) scanLoop.startScanIntervals((settings.scanIntervalSec || 10) * 1000);
+  fileWatchFiltersPending = watchFilterKey(settings) !== fileWatchFilterKey;
+  if (fileWatchFiltersPending) queueFileWatchRefresh();
+}
+
+/** Reconfigure only the watch owner after a private native folder operation. @returns {void} */
+function onProjectWatchSelectionChanged() {
+  if (isQuitting || !watchersStarted) return;
+  fileWatchFiltersPending = watchFilterKey(config.getSettings()) !== fileWatchFilterKey;
+  if (fileWatchFiltersPending) queueFileWatchRefresh();
+}
 
 /** Cancel the one pending file-watch retry check, if any. @returns {void} */
 function cancelFileWatchRetry() {
   if (fileWatchRetryTimer !== null) clearTimeout(fileWatchRetryTimer);
   fileWatchRetryTimer = null;
   fileWatchRetryGeneration++;
+  fileWatchFiltersPending = false;
+  fileWatchRefreshQueued = false;
 }
 
 /**
@@ -778,6 +858,11 @@ function scheduleFileWatchRetry() {
     if (isQuitting || generation !== fileWatchRetryGeneration) return;
     let plan;
     try {
+      if (projectWatchSelection && watchFilterKey(config.getSettings()) !== fileWatchFilterKey) {
+        fileWatchFiltersPending = true;
+        queueFileWatchRefresh();
+        return;
+      }
       plan = watcher.getWatchPlan();
     } catch {
       scheduleFileWatchRetry();
@@ -809,7 +894,9 @@ function scheduleFileWatchRetry() {
 async function setupFileWatchers(generation, retry) {
   if (isQuitting || generation !== fileWatchRetryGeneration || fileWatchSetupInFlight) return;
   fileWatchSetupInFlight = true;
+  fileWatchFiltersPending = false;
   try {
+    fileWatchFilterKey = watchFilterKey(config.getSettings());
     await watcher.setupFileWatchers();
     if (isQuitting || generation !== fileWatchRetryGeneration) return;
     fileWatchSetupRejected = false;
@@ -827,7 +914,8 @@ async function setupFileWatchers(generation, retry) {
     if (generation === fileWatchRetryGeneration) {
       fileWatchSetupInFlight = false;
       fileWatchRetryPolicy.finishSetup();
-      scheduleFileWatchRetry();
+      if (fileWatchFiltersPending) queueFileWatchRefresh();
+      else scheduleFileWatchRetry();
     }
   }
 }
@@ -1115,18 +1203,16 @@ function initDeferredSubsystems(userData) {
       latestNetConnections = c;
     },
   });
+  fileWatchFilterKey = watchFilterKey(config.getSettings());
   config.init({
     knownAgentNames: scanner.AI_AGENTS.map((a) => a.name),
-    applyCallback: () => {
-      scanLoop.stopScanIntervals();
-      if (!monitoringPaused) {
-        const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-        scanLoop.startScanIntervals(ms);
-      }
-    },
+    applyCallback: onSettingsApplied,
   });
   scanner.init({ trackSeenAgent: config.trackSeenAgent });
   watcher.init({
+    getSettings: () => config.getSettings(),
+    getProjectWatchRoot: () =>
+      projectWatchSelection?.resolveRoot() ?? Promise.resolve({ state: 'unselected' }),
     getCustomRules: config.getCustomSensitiveRules,
     getLatestAgents: () => latestAgents,
     getLatestAiAgents: () => latestAiAgents,
@@ -1149,6 +1235,7 @@ function initDeferredSubsystems(userData) {
     getStats,
   });
   analysis.init({
+    getPopulationHealth: getAppHealth,
     getSettings: config.getSettings,
     activityLog: scanner.activityLog,
     getLatestAgents: () => latestAgents,
@@ -1311,7 +1398,29 @@ app.whenReady().then(() => {
       });
     },
   });
+  const applicationPath = path.resolve(__dirname, '../..');
+  projectWatchSelection = require('./project-watch-selection').createProjectWatchSelection({
+    userData,
+    getWindow: () => mainWindow,
+    dialog: require('electron').dialog,
+    blockedTrees: [app.getPath('appData'), applicationPath, process.resourcesPath].filter(Boolean),
+    onChanged: onProjectWatchSelectionChanged,
+  });
+  claudeHookProfile = require('./claude-hook-app').createClaudeHookApp({
+    userData,
+    assetsRoot: path.join(
+      app.isPackaged ? process.resourcesPath : path.join(applicationPath, 'build'),
+      'hook-review',
+    ),
+    dialog: require('electron').dialog,
+    shell: require('electron').shell,
+    executable: process.execPath,
+    appPath: applicationPath,
+    getWindow: () => mainWindow,
+  });
   ipc.init({
+    projectWatchSelection,
+    claudeHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
     controlFileReads: (request) => etwFile.control(request),
@@ -1343,6 +1452,7 @@ app.whenReady().then(() => {
 let alertQuitDrainStarted = false;
 let alertQuitDrainFinished = false;
 app.on('before-quit', (event) => {
+  projectWatchSelection?.close();
   dockerDiscovery?.stop();
   podmanDiscovery?.stop();
   wslInventory?.stop();
@@ -1352,9 +1462,10 @@ app.on('before-quit', (event) => {
   }
   const etwActive = etwFile?.isActive?.() === true;
   const nativeActive = nativeSensor?.isActive() === true;
+  const hookReviewActive = claudeHookProfile?.hasPending() === true;
   if (
     !alertQuitDrainStarted &&
-    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive)
+    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive || hookReviewActive)
   ) {
     event.preventDefault();
     alertQuitDrainStarted = true;
@@ -1376,11 +1487,19 @@ app.on('before-quit', (event) => {
       }
     };
     Promise.race([
-      Promise.all([drain(), etwFile?.dispose(), nativeSensor?.dispose()]),
+      Promise.all([
+        drain(),
+        etwFile?.dispose(),
+        nativeSensor?.dispose(),
+        claudeHookProfile?.close(),
+      ]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.
         // Pending UAC or an unresponsive collector still cannot hold quit forever.
-        timeout = setTimeout(resolve, etwActive ? 15000 : nativeActive ? 2500 : 2000);
+        timeout = setTimeout(
+          resolve,
+          etwActive ? 15000 : hookReviewActive ? 5000 : nativeActive ? 2500 : 2000,
+        );
       }),
     ])
       .catch(() => {})
@@ -1512,6 +1631,7 @@ function _resetWatchersForTest() {
   fileWatchRetryPolicy.reset();
   fileWatchSetupInFlight = false;
   fileWatchSetupRejected = false;
+  fileWatchFilterKey = null;
   isQuitting = false;
   fileWatchers.length = 0;
 }
@@ -1541,6 +1661,10 @@ function _loadDeferredModulesForTest() {
 // Exported for the startup-ordering and stats-shape regression tests only — nothing in
 // the app requires main.js. Electron runs it as the entry point.
 module.exports = {
+  /** @internal Inject the private selection owner for lifecycle tests. @param {object} owner @returns {void} */
+  _setProjectWatchSelectionForTest: (owner) => {
+    projectWatchSelection = owner;
+  },
   _initDeferredSubsystemsForTest: initDeferredSubsystems,
   /** Drop the test owner after observing bounded child cleanup.
    * @returns {Promise<void>} Fixture cleanup. @since 0.19.2-beta */

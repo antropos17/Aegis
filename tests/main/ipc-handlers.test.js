@@ -80,6 +80,7 @@ const mockBaselines = {
 };
 
 const mockAnalysis = {
+  captureAgentTarget: vi.fn((selection) => ({ instanceId: '100:1', pid: 100, agent: selection })),
   analyzeAgentActivity: vi.fn(() => Promise.resolve({ success: true, analysis: 'ok' })),
   analyzeSessionActivity: vi.fn(() => Promise.resolve({ success: true, summary: 'ok' })),
 };
@@ -237,6 +238,9 @@ describe('ipc-handlers', () => {
     mockConfig.getCustomAgents.mockClear();
     mockConfig.saveCustomAgents.mockClear();
     mockConfig.addFalsePositive.mockClear();
+    mockAnalysis.captureAgentTarget
+      .mockReset()
+      .mockImplementation((selection) => ({ instanceId: '100:1', pid: 100, agent: selection }));
     mockAnalysis.analyzeAgentActivity
       .mockReset()
       .mockResolvedValue({ success: true, analysis: 'ok' });
@@ -310,6 +314,74 @@ describe('ipc-handlers', () => {
     mockElectron.app.isPackaged = false;
     const { event } = registerOwnedRenderer();
     expect(getHandler('get-settings')(event)).toMatchObject({ anthropicApiKeyConfigured: true });
+  });
+
+  it('admits only fixed Claude profile operations from the current owned frame', async () => {
+    const handle = vi.fn(async (_action, owned) => ({ success: owned(), code: 'READY' }));
+    const { event } = registerOwnedRenderer({ claudeHookProfile: { handle } });
+    const handler = getHandler('claude-hook:review');
+    expect(await handler({ ...event, senderFrame: {} }, 'install')).toMatchObject({
+      success: false,
+    });
+    expect(await handler(event, { action: 'install', path: 'PRIVATE_PATH' })).toMatchObject({
+      success: false,
+    });
+    expect(handle).not.toHaveBeenCalled();
+    expect(await handler(event, 'status')).toEqual({ success: true, code: 'READY' });
+    expect(handle).toHaveBeenCalledOnce();
+  });
+  it('project selection accepts only closed owned actions and projects out private backend fields', async () => {
+    const handle = vi.fn(async (_action, owned) => ({
+      success: owned(),
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+      path: 'PRIVATE_SELECTED_ROOT',
+    }));
+    const { event } = registerOwnedRenderer({ projectWatchSelection: { handle } });
+    const handler = getHandler('project-watch:control');
+    expect(await handler({ ...event, senderFrame: {} }, 'select')).toMatchObject({
+      success: false,
+    });
+    expect(await handler(event, { action: 'select', path: 'PRIVATE_RENDERER_ROOT' })).toMatchObject(
+      { success: false },
+    );
+    expect(handle).not.toHaveBeenCalled();
+    expect(await handler(event, 'status')).toEqual({
+      success: true,
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+    });
+  });
+  it('project selection rechecks ownership after native asynchronous work', async () => {
+    let finish;
+    const handle = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ projectWatchSelection: { handle } });
+    const pending = getHandler('project-watch:control')(event, 'select');
+    frame.url = 'https://untrusted.example/';
+    finish({ success: true, code: 'SELECTED' });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
+
+  it('rechecks Claude profile frame ownership after an asynchronous operation', async () => {
+    let finish;
+    const handle = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ claudeHookProfile: { handle } });
+    const pending = getHandler('claude-hook:review')(event, 'install');
+    frame.url = 'https://untrusted.example/';
+    finish({ success: true, code: 'INSTALLED' });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
   });
 
   it('requires explicit owned-frame confirmation before scheduling normal application exit', async () => {
@@ -1628,6 +1700,73 @@ describe('ipc-handlers', () => {
       expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
     });
 
+    it('rejects an unresolved analysis target before consent or provider activity', async () => {
+      const { event } = registerOwnedRenderer();
+      mockAnalysis.captureAgentTarget.mockReturnValueOnce(null);
+      expect(await getHandler('analyze-agent')(event, { instanceId: '999:1' })).toEqual({
+        success: false,
+        error: 'Selected process instance is unavailable',
+      });
+      expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
+      expect(mockAnalysis.analyzeAgentActivity).not.toHaveBeenCalled();
+    });
+
+    it.each(['generation change', 'population outage'])(
+      'revalidates analysis after consent: %s prevents HTTP',
+      async (change) => {
+        const { event } = registerOwnedRenderer();
+        const actual = originalLoad.call(Module, analysisPath, null, false);
+        const https = originalLoad.call(Module, 'https', null, false);
+        let agents = [
+          {
+            agent: 'Claude',
+            pid: 202,
+            instanceId: '202:2000',
+            instanceIdSource: 'os',
+            createTime100ns: '116444736020000000',
+          },
+        ];
+        let populationReliable = true;
+        actual.init({
+          getSettings: () => ({ anthropicApiKey: 'test-key' }),
+          getPopulationHealth: () => ({ populationReliable }),
+          getLatestAgents: () => agents,
+          activityLog: [],
+          getLatestNetConnections: () => [],
+        });
+        mockAnalysis.captureAgentTarget.mockImplementation(actual.captureAgentTarget);
+        mockAnalysis.analyzeAgentActivity.mockImplementation(actual.analyzeAgentActivity);
+        let answer;
+        mockElectron.dialog.showMessageBox.mockReturnValueOnce(
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+        );
+        const request = vi.spyOn(https, 'request').mockImplementation(() => {
+          throw Error('Provider must not be called');
+        });
+        try {
+          const selector = { instanceId: '202:2000', createTime100ns: '116444736020000000' };
+          const pending = getHandler('analyze-agent')(event, selector);
+          expect(mockAnalysis.captureAgentTarget).toHaveBeenCalledExactlyOnceWith({
+            instanceId: '202:2000',
+            createTime100ns: '116444736020000000',
+          });
+          if (change === 'generation change')
+            agents = [{ ...agents[0], createTime100ns: '116444736020000001' }];
+          else populationReliable = false;
+          answer({ response: 1 });
+          expect(await pending).toEqual({
+            success: false,
+            error: 'Selected process instance is unavailable',
+          });
+          expect(request).not.toHaveBeenCalled();
+        } finally {
+          request.mockRestore();
+        }
+      },
+    );
+
     it.each(['analyze-agent', 'analyze-session'])(
       '%s rejects a foreign renderer before showing consent or sending activity',
       async (channel) => {
@@ -1673,7 +1812,9 @@ describe('ipc-handlers', () => {
         const result = await getHandler(channel)(event, 'Claude');
         expect(result.success).toBe(true);
         if (channel === 'analyze-agent') {
-          expect(mockAnalysis.analyzeAgentActivity).toHaveBeenCalledExactlyOnceWith('Claude');
+          expect(mockAnalysis.analyzeAgentActivity).toHaveBeenCalledExactlyOnceWith(
+            mockAnalysis.captureAgentTarget.mock.results[0].value,
+          );
           expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
         } else {
           expect(mockAnalysis.analyzeSessionActivity).toHaveBeenCalledExactlyOnceWith();

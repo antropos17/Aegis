@@ -21,10 +21,17 @@ function fixture(platform) {
     stats: {
       appHealth: {
         state: 'DEGRADED',
+        watchPlan: {
+          state: 'HEALTHY',
+          liveWatcherCount: 3,
+          unavailableGroups: [],
+          projectState: 'not-observed',
+        },
         populationReliable: true,
         identityDegraded: false,
         sensors: {
           byId: {
+            'fs-chokidar': { state: 'HEALTHY', lossCount: 0, consecutiveFailures: 0 },
             process: {
               state: 'HEALTHY',
               lossCount: 0,
@@ -189,6 +196,7 @@ export async function checkCoverage(browser, url, out, only = []) {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     const data = fixture(scenario.platform);
+    if (scenario.state === 'stale') data.stats.appHealth.watchPlan.projectState = 'observed';
     if (scenario.platform === 'missing') delete data.stats.nativeSensor;
     if (scenario.state === 'factory-missing' || scenario.state === 'factory-restart') {
       Object.assign(data.stats.nativeSensor, {
@@ -218,6 +226,7 @@ export async function checkCoverage(browser, url, out, only = []) {
           localStorage.setItem('aegis-motion', scenario.motion ?? 'reduce');
           localStorage.setItem('aegis.language', scenario.locale);
           const listeners = new Map();
+          window.projectFixtureCalls = [];
           window.coverageFixtureUpdate = (stats) => listeners.get('onStatsUpdate')?.(stats);
           window.coverageFixtureBatch = (batch) => listeners.get('onScanBatch')?.(batch);
           window.aegis = new Proxy(
@@ -231,7 +240,8 @@ export async function checkCoverage(browser, url, out, only = []) {
                       queueMicrotask(() => callback(data));
                     return () => listeners.delete(key);
                   };
-                return async () => {
+                return async (...args) => {
+                  if (key === 'controlProjectWatch') window.projectFixtureCalls.push(args);
                   if (key === 'getStats') {
                     if (scenario.state === 'loading') return new Promise(() => {});
                     if (scenario.state === 'error') throw Error('Synthetic fixture unavailable');
@@ -264,6 +274,10 @@ export async function checkCoverage(browser, url, out, only = []) {
         await page.evaluate((stats) => window.coverageFixtureUpdate(stats), data.stats);
         await panel
           .getByText('Retained coverage readings. Current observation is unavailable.')
+          .waitFor();
+        await panel
+          .getByRole('region', { name: 'Project changes' })
+          .getByText('Unknown', { exact: true })
           .waitFor();
       }
       if (scenario.state === 'error') await panel.getByRole('alert').waitFor();
@@ -326,7 +340,11 @@ export async function checkCoverage(browser, url, out, only = []) {
       );
       assert.equal(await panel.locator('img').count(), 0, 'agent display text interpreted as HTML');
       await page.screenshot({ path: resolve(out, `synthetic-${scenario.id}.png`) });
-      await panel.locator('section').nth(1).scrollIntoViewIfNeeded();
+      await panel
+        .getByRole('region', {
+          name: scenario.locale === 'pt' ? 'Sensor nativo da plataforma' : 'Native platform sensor',
+        })
+        .scrollIntoViewIfNeeded();
       if (scenario.state === 'factory-missing')
         await panel
           .getByText('O executável do sensor está ausente', { exact: true })
@@ -353,6 +371,53 @@ export async function checkCoverage(browser, url, out, only = []) {
       assert.deepEqual(errors, [], scenario.id + ' page errors');
       results.push({ ...scenario, layout, contrast, errors });
       if (scenario.id === 'linux-dark-desktop') {
+        const project = panel.getByRole('region', { name: 'Project changes' });
+        for (const [state, label] of [
+          ['not-observed', 'Not observed'],
+          ['starting', 'Starting'],
+          ['observed', 'Observed'],
+          ['unavailable', 'Unavailable'],
+          ['unknown', 'Unknown'],
+        ]) {
+          data.stats.appHealth.watchPlan.projectState = state;
+          await page.evaluate((stats) => window.coverageFixtureUpdate(stats), data.stats);
+          await project.getByText(label, { exact: true }).waitFor();
+        }
+        data.stats.appHealth.watchPlan.projectState = 'not-observed';
+        await page.evaluate((stats) => window.coverageFixtureUpdate(stats), data.stats);
+        await project
+          .getByText(
+            'Project changes are not observed. Choose a project folder in Monitoring settings.',
+            { exact: true },
+          )
+          .waitFor();
+        await project.getByRole('button', { name: 'Project folder settings' }).focus();
+        await page.keyboard.press('Enter');
+        await page.getByRole('heading', { name: 'Settings', level: 1, exact: true }).waitFor();
+        const monitoring = page
+          .getByRole('navigation', { name: 'Settings sections' })
+          .getByRole('button', { name: 'Monitoring', exact: true });
+        assert.equal(await monitoring.getAttribute('aria-current'), 'location');
+        await page.getByRole('heading', { name: 'Monitoring', level: 2, exact: true }).waitFor();
+        assert(
+          await page
+            .getByRole('heading', { name: 'Monitoring', level: 2, exact: true })
+            .evaluate((node) => node === document.activeElement),
+          'project settings focus',
+        );
+        assert(
+          (await page.evaluate(() => window.projectFixtureCalls)).every(
+            (args) => args[0] === 'status',
+          ),
+          'navigation unexpectedly chose a folder',
+        );
+        await page.getByRole('button', { name: 'View monitoring coverage' }).click();
+        await panel.waitFor({ state: 'visible' });
+        results.at(-1).projectCoverage = {
+          states: 5,
+          settingsMonitoring: true,
+          nativeConsent: false,
+        };
         await panel.getByRole('button', { name: 'Sensor statistics', exact: true }).focus();
         await page.keyboard.press('Enter');
         await page.getByRole('heading', { name: 'Statistics', level: 1, exact: true }).waitFor();

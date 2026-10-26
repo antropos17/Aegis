@@ -17,7 +17,7 @@ function engine() {
       const candidate = testDeps?.load
         ? testDeps.load()
         : require('@cedar-policy/cedar-wasm/nodejs');
-      if (candidate.getCedarVersion() !== '4.13.0') return undefined;
+      if (candidate.getCedarVersion() !== '4.14.0') return undefined;
       runtime = candidate;
     } catch (_) {
       runtime = undefined;

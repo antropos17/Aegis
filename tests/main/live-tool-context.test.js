@@ -1,15 +1,58 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { execFileSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const { createLiveToolContext } = require('../../src/main/live-tool-context');
+const {
+  createHeldOwner,
+  prepareActorSettings,
+  restoreReadOverlap,
+  peerComponentDiagnostic,
+  seedOwnedProjectSelection,
+} = require('../../scripts/qualification/live-tool-context-claude.cjs');
 let home, cwd, agents, service, registry, transcript;
 const start = 1792900000000;
 const sessionId = '12345678-1234-4234-9234-123456789abc';
 const eventId = '98765432-1234-4234-9234-123456789abc';
 const secret = 'PRIVATE_PROMPT_AND_ARGUMENT_123';
+
+it('imports qualification helpers in a child without loading Playwright or starting an app', () => {
+  const source = `
+    const Module = require('node:module');
+    const load = Module._load;
+    let playwrightRequested = false;
+    Module._load = function (name, ...args) {
+      if (name === 'playwright') {
+        playwrightRequested = true;
+        throw Error('browser-sdk-loaded-during-helper-import');
+      }
+      const value = load.call(this, name, ...args);
+      if (name === 'node:child_process') return {
+        ...value,
+        spawn() { throw Error('app-spawn-during-helper-import'); },
+        execFileSync() { throw Error('command-during-helper-import'); },
+      };
+      return value;
+    };
+    const helpers = require(process.argv[1]);
+    const expected = ['createHeldOwner', 'prepareActorSettings', 'restoreReadOverlap',
+      'peerComponentDiagnostic', 'seedOwnedProjectSelection'];
+    if (expected.some((name) => typeof helpers[name] !== 'function'))
+      throw Error('qualification-helper-missing');
+    process.stdout.write(JSON.stringify({ playwrightRequested, helperCount: expected.length }));
+  `;
+  const result = execFileSync(
+    process.execPath,
+    ['-e', source, require.resolve('../../scripts/qualification/live-tool-context-claude.cjs')],
+    { timeout: 5000, maxBuffer: 8192, windowsHide: true, encoding: 'utf8' },
+  );
+  expect(JSON.parse(result)).toEqual({ playwrightRequested: false, helperCount: 5 });
+});
 
 beforeEach(async () => {
   home = await fs.mkdtemp(path.join(os.tmpdir(), 'aegis-live-context-'));
@@ -81,7 +124,380 @@ beforeEach(async () => {
   });
 });
 afterEach(async () => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   if (home) await fs.rm(home, { recursive: true, force: true });
+});
+
+it('stops a held peer at sixty seconds exactly once and confirms termination before hook expiry', async () => {
+  vi.useFakeTimers();
+  const actor = Object.assign(new EventEmitter(), {
+    pid: 42,
+    exitCode: null,
+    signalCode: null,
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+  });
+  const killTree = vi.fn(() => actor.emit('close', 1, null));
+  const onFailure = vi.fn();
+  const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
+  await vi.advanceTimersByTimeAsync(59999);
+  expect(killTree).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  const first = owner.stop();
+  expect(owner.stop()).toBe(first);
+  expect(await first).toMatchObject({
+    deadlineExpired: true,
+    confirmed: true,
+    stoppedBeforeHookExpiry: true,
+    modelRequestReleased: false,
+    reportedTotalCostUsd: null,
+  });
+  expect(killTree).toHaveBeenCalledExactlyOnceWith(42);
+  expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-deadline');
+});
+
+it('does not convert an uncertain held replacement kill into confirmed cleanup or retry it', async () => {
+  vi.useFakeTimers();
+  const actor = Object.assign(new EventEmitter(), { pid: 43, exitCode: null, signalCode: null });
+  const killTree = vi.fn(() => {
+    throw Error('owned-termination-unavailable');
+  });
+  const onFailure = vi.fn();
+  const owner = createHeldOwner(actor, 'replacement', { killTree, onFailure });
+  const result = owner.stop();
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(await result).toMatchObject({
+    confirmed: false,
+    killSucceeded: false,
+    exit: null,
+    stoppedBeforeHookExpiry: false,
+    modelRequestReleased: false,
+  });
+  await owner.stop();
+  expect(killTree).toHaveBeenCalledTimes(1);
+  expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-termination-unconfirmed');
+});
+
+it('treats an unplanned held peer exit as cancellation and never kills the already closed child', async () => {
+  const actor = Object.assign(new EventEmitter(), { pid: 44, exitCode: null, signalCode: null });
+  const killTree = vi.fn(),
+    onFailure = vi.fn();
+  const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
+  actor.emit('close', 0, null);
+  expect(owner.held()).toBe(false);
+  expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-exited-before-release');
+  expect((await owner.stop()).confirmed).toBe(true);
+  expect(killTree).not.toHaveBeenCalled();
+});
+
+it.each([
+  { code: 0, signal: null, close: true },
+  { code: null, signal: 'SIGTERM', close: true },
+  { code: 0, signal: null, close: false },
+  { code: null, signal: 'SIGTERM', close: false },
+])(
+  'does not treat an exited side owner as alive or kill its PID while awaiting close: %j',
+  async ({ code, signal, close }) => {
+    vi.useFakeTimers();
+    const actor = Object.assign(new EventEmitter(), { pid: 45, exitCode: null, signalCode: null });
+    const killTree = vi.fn(),
+      onFailure = vi.fn();
+    const owner = createHeldOwner(actor, 'peer', { killTree, onFailure });
+    actor.exitCode = code;
+    actor.signalCode = signal;
+    actor.emit('exit', code, signal);
+    expect(owner.held()).toBe(false);
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith('held-actor-exited-before-release');
+    const stopping = owner.stop();
+    expect(killTree).not.toHaveBeenCalled();
+    if (close) actor.emit('close', code, signal);
+    else await vi.advanceTimersByTimeAsync(5000);
+    expect(await stopping).toMatchObject({
+      confirmed: close,
+      killSucceeded: null,
+      exit: { code, signal },
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
+
+it('bounds Read scheduling restoration when the owned dispatcher never acknowledges it', async () => {
+  vi.useFakeTimers();
+  const evaluate = vi.fn(() => new Promise(() => {}));
+  const result = restoreReadOverlap({ evaluate });
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(await result).toBe(false);
+  expect(evaluate).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each(['X:/owned/peer-project', 'x:\\OWNED\\peer-project\\'])(
+  'accepts the same peer CWD spelling %s without weakening birth or population proof',
+  (actualCwd) => {
+    const agents = [
+      { pid: 42, agent: 'Claude Code' },
+      {
+        pid: 43,
+        agent: 'Claude Code',
+        startTime: 1700000005000,
+        instanceIdSource: 'os',
+        instanceId: '43:1700000005000',
+        createTime100ns: '133444736050000007',
+        generationWitnessSource: 'createTime100ns',
+        generationWitness: '133444736050000007',
+        cwd: actualCwd,
+      },
+    ];
+    const diagnostic = peerComponentDiagnostic({
+      agents,
+      pid: 43,
+      primaryPid: 42,
+      cwd: 'X:/owned/peer-project',
+    });
+    expect(diagnostic).toEqual({
+      sameNameCount: 2,
+      primaryPresent: true,
+      ownedRowCount: 1,
+      rowUnique: true,
+      agentExpected: true,
+      sourceExpected: true,
+      keyCoherent: true,
+      rawBirthValid: true,
+      birthMatchesStart: true,
+      witnessSourceEnum: 'createTime100ns',
+      witnessMatchesRaw: true,
+      cwdPresent: true,
+      cwdMatchesExpected: true,
+    });
+    const serialized = JSON.stringify(diagnostic);
+    expect(serialized).not.toContain(actualCwd);
+    expect(serialized).not.toContain('133444736050000007');
+    expect(serialized).not.toContain('43:1700000005000');
+  },
+);
+
+it.each([
+  { cwd: 'X:/owned/other-project', failed: 'cwdMatchesExpected' },
+  { cwd: 'X:/owned/peer-project', ticks: null, failed: 'rawBirthValid' },
+  { cwd: 'X:/owned/peer-project', ticks: '133444736000000007', failed: 'birthMatchesStart' },
+])(
+  'retains a closed negative peer condition for true CWD/birth mismatch: %j',
+  ({ cwd, ticks, failed }) => {
+    const raw = ticks === undefined ? '133444736050000007' : ticks;
+    const diagnostic = peerComponentDiagnostic({
+      pid: 43,
+      primaryPid: 42,
+      cwd: 'X:/owned/peer-project',
+      agents: [
+        { pid: 42, agent: 'Claude Code' },
+        {
+          pid: 43,
+          agent: 'Claude Code',
+          startTime: 1700000005000,
+          instanceIdSource: 'os',
+          instanceId: '43:1700000005000',
+          createTime100ns: raw,
+          generationWitnessSource: 'createTime100ns',
+          generationWitness: raw,
+          cwd,
+        },
+      ],
+    });
+    expect(diagnostic[failed]).toBe(false);
+    expect(diagnostic.sameNameCount).toBe(2);
+    expect(diagnostic.keyCoherent).toBe(true);
+  },
+);
+
+it('keeps peer and resumed replacement barrier settings isolated from an already released primary', async () => {
+  const roots = ['primary', 'peer', 'replacement'].map((name) => path.join(home, name));
+  const commands = [];
+  for (const root of roots) {
+    await fs.mkdir(root);
+    const settings = await prepareActorSettings(root, 'Write', path.join(root, 'unused.txt'));
+    const parsed = JSON.parse(await fs.readFile(settings, 'utf8'));
+    commands.push(parsed.hooks.SessionStart[0].hooks[0].command);
+  }
+  await fs.writeFile(path.join(roots[0], 'release-SessionStart'), 'release');
+  expect(new Set(commands).size).toBe(3);
+  for (const root of roots.slice(1))
+    await expect(fs.stat(path.join(root, 'release-SessionStart'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  await expect(prepareActorSettings(roots[0], 'Write', 'unused')).rejects.toMatchObject({
+    code: 'EEXIST',
+  });
+});
+
+it('seeds and restores only an external owned profile through the production project selection owner', async () => {
+  const profile = path.join(home, 'owned-profile');
+  const selected = path.join(home, 'external-project');
+  await fs.mkdir(selected);
+  const seed = await seedOwnedProjectSelection(profile, selected, cwd);
+  expect(seed).toEqual({
+    authority: 'scripted-owned-profile-fixture',
+    nativeOwnerConsent: false,
+    fixturePersisted: true,
+    appUserDataMatched: false,
+    publicStatusSelected: false,
+    projectRootReady: false,
+  });
+  const { createProjectWatchSelection } = require('../../src/main/project-watch-selection');
+  const showOpenDialog = vi.fn();
+  const readbackWindow = { isDestroyed: () => false };
+  const owner = createProjectWatchSelection({
+    userData: profile,
+    getWindow: () => readbackWindow,
+    dialog: { showOpenDialog },
+    blockedTrees: [cwd],
+  });
+  try {
+    expect(await owner.handle('status', () => true)).toEqual({
+      success: true,
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+    });
+    const restored = await owner.resolveRoot();
+    expect(restored.state).toBe('selected');
+    expect(restored.path).toBe(await fs.realpath(selected));
+    expect(restored.isCurrent()).toBe(true);
+    expect(showOpenDialog).not.toHaveBeenCalled();
+  } finally {
+    owner.close();
+  }
+});
+
+function changeDuringRead(file, change, phase = 'read', afterVerification) {
+  const open = fs.open.bind(fs);
+  let changed = false,
+    reads = 0,
+    totalBytes = 0;
+  const buffers = new Set();
+  vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+    const handle = await open(...args);
+    if (args[0] !== file) return handle;
+    if (phase === 'open' && !changed) {
+      changed = true;
+      await change();
+    }
+    const read = handle.read.bind(handle);
+    handle.read = async (...parameters) => {
+      const result = await read(...parameters);
+      reads++;
+      totalBytes += result.bytesRead;
+      buffers.add(parameters[0]);
+      if (phase === 'read' && !changed) {
+        changed = true;
+        await change();
+      }
+      if (reads === 2 && afterVerification) await afterVerification();
+      return result;
+    };
+    return handle;
+  });
+  return () => ({ changed, reads, totalBytes, buffers });
+}
+
+it('explains the stable complete prefix while a Claude transcript appends during reading', async () => {
+  const initial = await fs.readFile(transcript);
+  const activity = changeDuringRead(transcript, () =>
+    fs.appendFile(transcript, '{"private":"' + secret),
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('partial');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  expect(result.toolContext.candidates[0]).toMatchObject({ toolName: 'Read', deltaMs: 500 });
+  expect(result.toolContext.strength).toBe('inferred');
+  expect(result.toolContext.reasons).toContain('partial-source');
+  for (const raw of [secret, cwd, sessionId, 'call-1', '.env'])
+    expect(JSON.stringify(result)).not.toContain(raw);
+  expect(activity()).toMatchObject({ changed: true, reads: 2, totalBytes: initial.length * 2 });
+  expect([...activity().buffers].every((buffer) => buffer.every((byte) => byte === 0))).toBe(true);
+});
+
+it('discards an incomplete UTF-8 suffix when the writer grows the file before the handle snapshot', async () => {
+  changeDuringRead(
+    transcript,
+    () =>
+      fs.appendFile(
+        transcript,
+        Buffer.concat([Buffer.from('{"private":"' + secret), Buffer.from([0xf0, 0x9f])]),
+      ),
+    'open',
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('partial');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  expect(result.toolContext.candidates[0]).toMatchObject({ toolName: 'Read', deltaMs: 500 });
+  expect(result.toolContext.reasons).toContain('partial-source');
+  expect(JSON.stringify(result)).not.toContain(secret);
+});
+
+it('reserves both transcript reads inside the existing total byte budget', async () => {
+  const records = await fs.readFile(transcript);
+  await fs.writeFile(
+    transcript,
+    Buffer.concat([Buffer.from(' '.repeat(512 * 1024) + '\n'), records]),
+  );
+  const activity = changeDuringRead(transcript, () =>
+    fs.appendFile(transcript, '{"private":"' + secret),
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('partial');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  expect(activity().totalBytes).toBe(512 * 1024);
+  expect([...activity().buffers].every((buffer) => buffer.every((byte) => byte === 0))).toBe(true);
+});
+
+it.each(['shrink', 'replace', 'rewrite-prefix'])(
+  'refuses %s rather than treating it as append growth',
+  async (mode) => {
+    const original = await fs.readFile(transcript);
+    changeDuringRead(transcript, async () => {
+      if (mode === 'shrink') await fs.truncate(transcript, 1);
+      else if (mode === 'replace') {
+        await fs.rename(transcript, transcript + '.previous');
+        await fs.writeFile(transcript, original);
+      } else
+        await fs.writeFile(
+          transcript,
+          Buffer.concat([
+            Buffer.from(original.toString('utf8').replaceAll('.env', '.other')),
+            Buffer.from('{"private":"' + secret),
+          ]),
+        );
+    });
+    const result = await service.explain(eventId);
+    expect(result.availability).toBe('unavailable');
+    expect(result.toolContext.candidates).toHaveLength(0);
+    expect(result.toolContext.reasons).toContain('source-unavailable');
+    expect(JSON.stringify(result)).not.toContain(secret);
+  },
+);
+
+it('keeps registry metadata strict when its file grows during reading', async () => {
+  changeDuringRead(registry, () => fs.appendFile(registry, ' '));
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.candidates).toHaveLength(0);
+  expect(result.toolContext.reasons).toContain('source-unavailable');
+});
+
+it('refuses metadata-changing in-place writes after verifying a growing window', async () => {
+  const original = await fs.readFile(transcript, 'utf8');
+  const suffix = '{"private":"' + secret;
+  changeDuringRead(
+    transcript,
+    () => fs.appendFile(transcript, suffix),
+    'read',
+    () => fs.writeFile(transcript, original.replaceAll('.env', '.xxx') + suffix),
+  );
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.candidates).toHaveLength(0);
+  expect(result.toolContext.reasons).toContain('source-unavailable');
 });
 
 it('explains a retained observation from a real local transcript without exposing raw content', async () => {

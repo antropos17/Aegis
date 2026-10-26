@@ -2,6 +2,7 @@
   import ActionObservation from './ActionObservation.svelte';
   import RouteEvidence from './RouteEvidence.svelte';
   import ActionSetupGuides from './ActionSetupGuides.svelte';
+  import ClaudeHookProfile from './ClaudeHookProfile.svelte';
   import Icon from './Icon.svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
@@ -382,6 +383,7 @@
     </div>
   </div>
   <ActionSetupGuides {host} {preview} />
+  <ClaudeHookProfile {host} {preview} />
 </div>
 
 <style>

@@ -33,6 +33,7 @@ const {
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { readInstanceId } = require('./process-identity');
+const { validCreateTime100ns } = require('./platform/windows-observer');
 const { skillFromPath } = require('../shared/skill-path');
 const sensorHealth = require('./sensor-health');
 // Watch-root registry (design §1) — the plan, its per-root state transitions, and the
@@ -436,25 +437,30 @@ function isSelfAccess(agentName, filePath) {
  * an UNATTRIBUTED event rather than blame a substitute (C-01).
  * @param {string} filePath - Resolved file path from the watcher event.
  * @param {Array<{agent:string,cwd?:string}>} aiAgents - Candidate AI agents.
- * @returns {{agent: Object, evidence: string[]}|null} Owner plus why, or null.
+ * @returns {{agent: Object|null, evidence: string[]}|null} Unique owner, explicit ambiguity, or no match.
  * @since v0.10.0
  */
 function findOwningAgent(filePath, aiAgents) {
+  let configOwner = null;
   for (const a of aiAgents) {
     if (isSelfAccess(a.agent, filePath)) {
-      return { agent: a, evidence: [EVIDENCE.SELF_CONFIG_PATH] };
+      if (configOwner) return { agent: null, evidence: [EVIDENCE.AMBIGUOUS_OWNER_MATCH] };
+      configOwner = a;
     }
   }
+  if (configOwner) return { agent: configOwner, evidence: [EVIDENCE.SELF_CONFIG_PATH] };
   const target = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+  let cwdOwner = null;
   for (const a of aiAgents) {
     if (!a.cwd) continue;
     let base = path.resolve(a.cwd);
     if (process.platform === 'win32') base = base.toLowerCase();
     if (target === base || target.startsWith(base + path.sep)) {
-      return { agent: a, evidence: [EVIDENCE.CWD_CONTAINMENT] };
+      if (cwdOwner) return { agent: null, evidence: [EVIDENCE.AMBIGUOUS_OWNER_MATCH] };
+      cwdOwner = a;
     }
   }
-  return null;
+  return cwdOwner ? { agent: cwdOwner, evidence: [EVIDENCE.CWD_CONTAINMENT] } : null;
 }
 
 /**
@@ -551,20 +557,23 @@ function applyWatchPlaneHealth(now) {
 function bindWatcherEvents(watcher, rootId, generation) {
   const current = () =>
     generation === _watchGeneration && _rootRecovery.get(rootId)?.watcher === watcher;
+  // A selected root gains delivery authority only after this proxy's identity-ready
+  // check. Workers can emit changes while traversing their initial directory tree.
+  let admitted = !_rootRecovery.get(rootId)?.isCurrent;
   // noteRootDelivery lives HERE, not in handleWatcherEvent: the handler is exported
   // and called directly with no root context by the attribution/ignore suites.
   watcher.on('add', (p) => {
-    if (!current()) return;
+    if (!current() || !admitted) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('created', p);
   });
   watcher.on('change', (p) => {
-    if (!current()) return;
+    if (!current() || !admitted) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('modified', p);
   });
   watcher.on('unlink', (p) => {
-    if (!current()) return;
+    if (!current() || !admitted) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('deleted', p);
   });
@@ -590,9 +599,18 @@ function bindWatcherEvents(watcher, rootId, generation) {
   watcher.on('ready', () => {
     if (!current()) return;
     const recovery = _rootRecovery.get(rootId);
+    if (recovery.isCurrent && !recovery.isCurrent()) {
+      markRootTerminated(rootId, 'selected-project-unavailable');
+      applyWatchPlaneHealth(Date.now());
+      retireRootWatcher(rootId, watcher, generation);
+      return;
+    }
     clearTimeout(recovery.readyTimer);
     recovery.readyTimer = null;
-    if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
+    if (markRootReady(rootId)) {
+      admitted = true;
+      applyWatchPlaneHealth(Date.now());
+    }
   });
   watcher.on('progress', () => {
     if (!current() || rootId !== 'project-dir' || !_rootRecovery.get(rootId).readyTimer) return;
@@ -709,6 +727,22 @@ function handleWatcherEvent(action, filePath) {
   }
   const attribution = makeAttribution(evidence);
   const agent = owner ? owner.agent : null;
+  // This is the inferred candidate's current snapshot witness, not a kernel
+  // assertion that the candidate issued the write. Never borrow from another row.
+  let createTime100ns = null;
+  if (
+    agent?.instanceIdSource === 'os' &&
+    Number.isSafeInteger(agent.pid) &&
+    agent.pid > 0 &&
+    Number.isSafeInteger(agent.startTime) &&
+    agent.startTime > 0 &&
+    readInstanceId(agent) === `${agent.pid}:${agent.startTime}` &&
+    validCreateTime100ns(agent.createTime100ns) &&
+    agent.generationWitnessSource === 'createTime100ns' &&
+    agent.generationWitness === agent.createTime100ns &&
+    Number((BigInt(agent.createTime100ns) - 116444736000000000n) / 10000n) === agent.startTime
+  )
+    createTime100ns = agent.createTime100ns;
   // D2: the self-access exemption belongs to the agent that OWNS the path, and is
   // implied by the evidence — findOwningAgent's first loop already ran
   // isSelfAccess over every AI agent, so reaching the cwd branch (or no branch at
@@ -727,6 +761,7 @@ function handleWatcherEvent(action, filePath) {
     // key. Only a null owner yields a null key — never aiAgents[0], never a
     // name match.
     instanceId: readInstanceId(agent),
+    ...(createTime100ns === null ? {} : { createTime100ns }),
     parentEditor: (agent && agent.parentEditor) || null,
     cwd: (agent && agent.cwd) || null,
     file: filePath,
@@ -745,6 +780,7 @@ function handleWatcherEvent(action, filePath) {
   const signature = JSON.stringify([
     action,
     event.instanceId,
+    createTime100ns,
     event.agent,
     attribution,
     event.sensitive,
@@ -800,7 +836,29 @@ async function setupFileWatchers() {
   await closing;
   if (generation !== _watchGeneration) return;
   const homeDir = os.homedir();
-  const projectDir = _appDir;
+  let projectSelection = { state: 'unselected' };
+  if (typeof _state.getProjectWatchRoot === 'function') {
+    try {
+      projectSelection = await _state.getProjectWatchRoot();
+    } catch {
+      projectSelection = { state: 'unavailable' };
+    }
+  }
+  const projectSelected =
+    projectSelection?.state === 'selected' &&
+    typeof projectSelection.path === 'string' &&
+    path.isAbsolute(projectSelection.path) &&
+    typeof projectSelection.isCurrent === 'function';
+  const projectUnavailable = !projectSelected && projectSelection?.state !== 'unselected';
+  const projectDir = projectSelected ? projectSelection.path : _appDir;
+  const projectCurrent = () => {
+    try {
+      return projectSelection.isCurrent() === true;
+    } catch {
+      return false;
+    }
+  };
+  if (generation !== _watchGeneration) return;
   // BOTH preflights complete before ANY registration (§1.2). The plan separates
   // intent from outcome: a group may leave it only because a completed probe proved
   // there is nothing to watch — never because a registration threw. Under the old
@@ -832,7 +890,10 @@ async function setupFileWatchers() {
     },
     // ASAR contents are a virtual, read-only tree. fs.watch cannot observe them;
     // registering them makes chokidar reject while its root may still report ready.
-    { id: WATCH_GROUP.PROJECT_DIR, applicable: path.extname(projectDir) !== '.asar' },
+    {
+      id: WATCH_GROUP.PROJECT_DIR,
+      applicable: projectSelected || projectUnavailable || path.extname(projectDir) !== '.asar',
+    },
     // Unconditional, so the plan is never empty even in an archived app.
     { id: WATCH_GROUP.ENV_FILES, applicable: true },
   ]);
@@ -873,8 +934,12 @@ async function setupFileWatchers() {
       ],
       [
         WATCH_GROUP.PROJECT_DIR,
-        () =>
-          watchWorker.watch(projectDir, {
+        () => {
+          if (projectSelected && !projectCurrent())
+            throw Object.assign(Error('project-unavailable'), {
+              code: 'AEGIS_PROJECT_UNAVAILABLE',
+            });
+          return watchWorker.watch(projectDir, {
             persistent: true,
             ignoreInitial: true,
             ignoredDirectories,
@@ -883,7 +948,9 @@ async function setupFileWatchers() {
             followSymlinks: false,
             depth: 5,
             startupProgress: true,
-          }),
+          });
+        },
+        projectUnavailable ? { unknown: true, paths: [] } : undefined,
       ],
       [
         WATCH_GROUP.ENV_FILES,
@@ -908,8 +975,21 @@ async function setupFileWatchers() {
         continue;
       }
       attempted = id;
-      const w = register();
-      _rootRecovery.set(id, { register, watcher: w, attempts: 0, unknown: !!probe?.unknown });
+      let w;
+      try {
+        w = register();
+      } catch (error) {
+        if (error.code !== 'AEGIS_PROJECT_UNAVAILABLE') throw error;
+        markRootRegistrationFailed(id, 'selected-project-unavailable');
+        continue;
+      }
+      _rootRecovery.set(id, {
+        register,
+        watcher: w,
+        attempts: 0,
+        unknown: !!probe?.unknown,
+        isCurrent: id === WATCH_GROUP.PROJECT_DIR && projectSelected ? projectCurrent : null,
+      });
       markRootRegistered(id, w);
       bindWatcherEvents(w, id, generation);
       armRootReadyTimeout(id, w, generation);

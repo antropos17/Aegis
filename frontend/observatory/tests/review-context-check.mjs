@@ -25,6 +25,13 @@ export async function checkReviewContext(browser, url, out) {
         {
           get: (_, method) => {
             if (typeof method !== 'string') return undefined;
+            if (method === 'onScanBatch')
+              return (callback) => {
+                window.reviewScan = callback;
+                return () => {
+                  window.reviewScan = null;
+                };
+              };
             if (method.startsWith('on')) return () => () => {};
             if (method === 'getSettings') return async () => ({ anthropicApiKeyConfigured: true });
             if (method === 'getAppVersion') return async () => 'Offline review fixture';
@@ -46,6 +53,13 @@ export async function checkReviewContext(browser, url, out) {
                     ],
                   },
                 };
+              };
+            if (method === 'analyzeAgent')
+              return (target) => {
+                window.reviewAgentCalls = [...(window.reviewAgentCalls || []), target];
+                return new Promise((resolve) => {
+                  window.reviewResolve = resolve;
+                });
               };
             return async () => [];
           },
@@ -144,9 +158,76 @@ export async function checkReviewContext(browser, url, out) {
       1,
       'navigation ran a second assessment',
     );
+    await navigate('AI analysis');
+    await page.evaluate(() =>
+      window.reviewScan({
+        agents: [1101, 1102].map((pid) => ({
+          agent: 'Claude Code',
+          process: 'claude.exe',
+          pid,
+          instanceId: `${pid}:1700000000000`,
+          instanceIdSource: 'os',
+          createTime100ns: `13344473600000${pid}0`,
+          generationWitness: `13344473600000${pid}0`,
+          generationWitnessSource: 'createTime100ns',
+        })),
+        stats: {
+          appHealth: { state: 'HEALTHY', populationReliable: true, identityDegraded: false },
+        },
+      }),
+    );
+    await page.getByRole('combobox', { name: /^Scope/ }).selectOption('agent');
+    await page.getByRole('combobox', { name: /^Process/ }).selectOption('1102:1700000000000');
+    await page.getByLabel('Report title', { exact: true }).fill('Instance-specific review');
+    await page.getByRole('button', { name: 'Run analysis', exact: true }).click();
+    await page.waitForFunction(() => window.reviewAgentCalls?.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.reviewAgentCalls), [
+      {
+        instanceId: '1102:1700000000000',
+        createTime100ns: '1334447360000011020',
+        generationWitness: '1334447360000011020',
+        generationWitnessSource: 'createTime100ns',
+      },
+    ]);
+    assert(
+      await page
+        .locator('.analysis-config')
+        .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+      'instance selector overflows',
+    );
+    await page.screenshot({ path: resolve(out, 'analysis-instance-selector.png') });
+    await page.evaluate(() => {
+      window.reviewScan({
+        agents: [],
+        stats: {
+          appHealth: { state: 'HEALTHY', populationReliable: true, identityDegraded: false },
+        },
+      });
+      window.reviewResolve({
+        success: true,
+        structured: { summary: 'Selected second process only.' },
+        counts: { totalFiles: 1, totalSensitive: 1, totalAgents: 1, totalNet: 1 },
+      });
+    });
+    await page.getByText('Selected second process only.', { exact: true }).waitFor();
+    assert(
+      (await page.locator('.analysis-document > small').innerText()).startsWith(
+        'Claude Code · PID 1102 · 1102:1700000000000',
+      ),
+    );
+    assert(
+      await page.getByRole('button', { name: 'Run analysis', exact: true }).isDisabled(),
+      'stale instance must not be resubmitted',
+    );
+    await page.getByRole('combobox', { name: /^Scope/ }).selectOption('session');
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'light';
+    });
+    await page.screenshot({ path: resolve(out, 'analysis-instance-retained.png') });
+    assert.equal(await page.evaluate(() => window.reviewAgentCalls.length), 1);
     assert.deepEqual(errors, []);
     console.log(
-      'Review context: captured counts, retained draft, keyboard jumps, four AI and four Audit layouts passed with an offline bridge.',
+      'Review context: captured counts, retained draft, keyboard jumps, four AI/four Audit layouts, exact instance selection and retained stale-instance report passed with an offline bridge.',
     );
   } finally {
     await page.close();

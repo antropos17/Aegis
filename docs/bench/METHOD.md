@@ -8,6 +8,14 @@ accuracy or overhead figures, W8 acceptance or T8 completion.
 
 ## Existing evidence and reusable tooling
 
+The [controlled native task workload](NATIVE-TASK-WORKLOAD.md) executes C# ordinary
+aggregation and an owned outside-project-write control through three alternating
+desktop-disabled/enabled pairs, then consumes the existing task evaluators.
+Its independent byte/inventory checks establish useful output; missing Sysmon,
+Procmon, complete alarm inventory and resource calibration remain unavailable.
+It is a controlled native-program diagnostic, not the real-agent qualification
+protocol or a calibrated overhead result described below.
+
 [Q9](../roadmap/completion-baseline.md#q9--benchmark-method-corpus-and-oracles)
 inventories the baseline boundary: two process-based synthetic scenarios,
 a renamed lifecycle process and a renamed Node process holding an inert file.

@@ -149,6 +149,51 @@ function register() {
     Boolean(event) && ownsTopLevelRenderer(event, window, deps.rendererUrl);
   const denied = () => ({ success: false, error: 'Renderer request denied' });
   const stillOwned = (event, window) => deps.getWindow?.() === window && isOwned(event, window);
+  ipcMain.handle('project-watch:control', async (event, action) => {
+    const window = deps.getWindow?.();
+    if (!isOwned(event, window)) return denied();
+    if (!['status', 'select', 'clear'].includes(action))
+      return { success: false, error: 'Invalid project-watch operation' };
+    try {
+      const result = await deps.projectWatchSelection?.handle(action, () =>
+        stillOwned(event, window),
+      );
+      if (!stillOwned(event, window)) return denied();
+      if (result?.success !== true)
+        return { success: false, error: 'Project selection is unavailable' };
+      return {
+        success: true,
+        code: [
+          'SELECTED',
+          'UNSELECTED',
+          'UNAVAILABLE',
+          'DIRECTORY_REFUSED',
+          'STORE_UNAVAILABLE',
+          'CANCELLED',
+          'BUSY',
+        ].includes(result.code)
+          ? result.code
+          : 'STORE_UNAVAILABLE',
+        selected: result.selected === true,
+        available: result.available === true,
+      };
+    } catch {
+      return { success: false, error: 'Project selection could not complete' };
+    }
+  });
+  ipcMain.handle('claude-hook:review', async (event, action) => {
+    const window = deps.getWindow?.();
+    if (!isOwned(event, window)) return denied();
+    if (!['status', 'install', 'remove', 'open-profile'].includes(action))
+      return { success: false, error: 'Invalid profile operation' };
+    try {
+      const result = await deps.claudeHookProfile?.handle(action, () => stillOwned(event, window));
+      if (!stillOwned(event, window)) return denied();
+      return result ?? { success: false, error: 'Claude profile review is unavailable' };
+    } catch {
+      return { success: false, error: 'Claude profile review could not complete' };
+    }
+  });
   ipcMain.handle('tool-context:explain', async (event, eventId) => {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();
@@ -285,11 +330,15 @@ function register() {
     return { success: true };
   });
 
-  ipcMain.handle('analyze-agent', async (event, name) => {
-    const refusal = await confirmAnalysisEgress(event);
-    if (refusal) return refusal;
+  ipcMain.handle('analyze-agent', async (event, selection) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
-      return await analysis.analyzeAgentActivity(name);
+      const target = analysis.captureAgentTarget(selection);
+      if (!target) return { success: false, error: 'Selected process instance is unavailable' };
+      const refusal = await confirmAnalysisEgress(event);
+      if (refusal) return refusal;
+      return await analysis.analyzeAgentActivity(target);
     } catch (_) {
       logger.error('IPC analyze-agent failed');
       return { success: false, error: 'Analysis failed' };
