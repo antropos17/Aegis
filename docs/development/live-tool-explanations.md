@@ -42,16 +42,24 @@ assumption path cannot produce a confirmed association. Missing tool end times
 use a five-second window. Time overlap without a matching object stays unattributed.
 
 Reads use bounded ordinary same-user filesystem observations. They reject linked
-paths/hard links, oversized registries, changing files and incomplete IO. This
+paths/hard links, oversized or changing registries and incomplete IO. A growing
+transcript can provide a partial snapshot only when its file identity is unchanged,
+its observed sizes do not shrink and a second read of the selected byte window is
+identical. Replacement, changed selected bytes or observed shrinking make the source
+unavailable. Incomplete trailing JSONL bytes are discarded before UTF-8 decoding;
+complete records retain their normal validation. This
 does not establish the separate native Windows reader's reparse/loader custody
 guarantee or protect against an adversary controlling the same account. That
-reader and its qualification remain unchanged. A concurrent transcript writer may
-make a request unavailable; there is no hidden retry or new guest provisioning.
+reader and its qualification remain unchanged. The verified prefix still carries
+partial-source uncertainty; it establishes no append-only or tamper-resistance
+guarantee. There is no hidden retry or new guest provisioning.
 
 The service retains at most 256 accepted event selections, expires them after 15
 minutes and removes expired entries on the next service activity. Each
 request selects at most 32 registry files of 64 KiB (the selected registry is
-checked twice) and one 512 KiB transcript tail;
+checked twice). The existing 512 KiB total transcript read budget reserves up to
+256 KiB for the selected tail and 256 KiB for its verification if growth is observed;
+an unchanged file requires only the first pass.
 there is one read operation in flight and at most one new operation per second.
 The UI receives an unavailable result after three seconds. Pending filesystem IO
 may outlive that response, but occupies the single slot until it finishes and
