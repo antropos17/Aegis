@@ -5,6 +5,7 @@ const { performance } = require('node:perf_hooks');
 const { createOwnedHookReview } = require('./claude-hook-review');
 const { createWindowsHookIO } = require('./claude-hook-windows-io');
 const { CONTRACT } = require('./claude-hook-plan');
+const { prepareObservedRemoval } = require('./claude-hook-app-removal');
 const {
   loadProfileAssets,
   prepareProfile,
@@ -12,6 +13,7 @@ const {
   checkProfilePolicy,
   profileReviewText,
   profileDraftEligibility,
+  profilePresence,
 } = require('./claude-hook-app-profile');
 const CODES = new Set([
   'IDLE',
@@ -21,11 +23,16 @@ const CODES = new Set([
   'CANCELLED',
   'INSTALLED',
   'REMOVED',
+  'OBSERVED_REMOVED',
+  'PROFILE_REVIEW_AVAILABLE',
+  'NO_MATCHING_HOOK',
+  'AMBIGUOUS_HOOK',
   'CONFIGURED_UNOWNED',
   'OWNED_INSTALL_EXISTS',
   'NO_OWNED_INSTALL',
   'EXPIRED',
   'SESSION_ENDED',
+  'SESSION_RELEASE_UNCONFIRMED',
   'INVALID_POLICY',
   'UNSUPPORTED_PATH',
   'RETENTION_LIMIT',
@@ -71,6 +78,10 @@ function createClaudeHookApp(options) {
     ownedInstall = false,
     retained = false;
   let applying = false;
+  let observedPlan = null;
+  let present = false,
+    reviewable = false,
+    profileMark = null;
   let last = 'IDLE',
     ready = false,
     active = null;
@@ -80,9 +91,22 @@ function createClaudeHookApp(options) {
       code: CODES.has(code) ? code : 'OPERATION_FAILED',
       presence: configured ? 'Configured' : 'Unknown',
       available: ready && !closed,
-      canInstall: ready && !closed && !configured && !retained && !session?.ended,
+      canInstall: ready && !closed && !configured && !retained,
       canRemove: ready && !closed && ownedInstall && !retained && !!session && !session.ended,
-      canOpen: !!session || configured || retained,
+      canReviewExisting:
+        ready &&
+        !closed &&
+        !retained &&
+        reviewable &&
+        (!ownedInstall || session?.ended) &&
+        ![
+          'OBSERVED_REMOVED',
+          'REMOVED',
+          'NO_MATCHING_HOOK',
+          'AMBIGUOUS_HOOK',
+          'PLAN_REFUSED',
+        ].includes(last),
+      canOpen: present || !!session || configured || retained,
     };
   }
   async function endSession() {
@@ -91,15 +115,26 @@ function createClaudeHookApp(options) {
     session.ended = true;
     clearTimeout(session.timer);
     session.review.release(owner);
+    if (!applying) observedPlan?.cancel();
     session.closing = (async () => {
       if (applying && active) await active.catch(() => {});
       await session.io.close();
     })();
     await session.closing;
   }
-  async function ensureSession(assets) {
+  async function ensureSession(assets, existingOnly = false) {
+    if (session?.ended) {
+      await endSession();
+      const released = session.io.status?.();
+      if (released?.admission !== 'closed' || released?.exit !== 'confirmed') {
+        retained = true;
+        throw Error('profile-session-release-unconfirmed');
+      }
+      session = null;
+      ownedInstall = false;
+    }
     if (session) return session;
-    const selected = await prepareProfile(directory);
+    const selected = await prepareProfile(directory, existingOnly);
     const io = await makeIO({
       ownedProfile: true,
       ...selected,
@@ -124,13 +159,14 @@ function createClaudeHookApp(options) {
     session.timer.unref?.();
     return session;
   }
-  function retainResult(result) {
+  async function retainResult(result) {
     last = CODES.has(result.code) ? result.code : 'OPERATION_FAILED';
     if (last === 'INSTALLED' || last === 'CONFIGURED_UNOWNED') configured = true;
     if (last === 'INSTALLED') ownedInstall = true;
-    if (last === 'REMOVED') {
+    if (last === 'REMOVED' || last === 'OBSERVED_REMOVED' || last === 'NO_MATCHING_HOOK') {
       configured = false;
       ownedInstall = false;
+      profileMark = (await profilePresence(target)).mark;
     }
     if (last === 'CONFIGURED_UNOWNED') ownedInstall = false;
     if (['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'].includes(last)) {
@@ -144,26 +180,58 @@ function createClaudeHookApp(options) {
     const assets = platform === 'win32' ? await getAssets() : null;
     ready = !!assets;
     if (!owned()) return { success: false, error: 'Renderer request denied' };
+    const file = await profilePresence(target);
+    present = file.present;
+    reviewable = file.reviewable;
+    if (
+      profileMark !== file.mark &&
+      !ownedInstall &&
+      !retained &&
+      [
+        'NO_MATCHING_HOOK',
+        'AMBIGUOUS_HOOK',
+        'PLAN_REFUSED',
+        'REMOVED',
+        'OBSERVED_REMOVED',
+      ].includes(last)
+    )
+      last = 'IDLE';
+    profileMark = file.mark;
+    if (!owned()) return { success: false, error: 'Renderer request denied' };
     if (action === 'status')
       return reply(
-        session?.ended
-          ? 'SESSION_ENDED'
-          : ready
-            ? last === 'IDLE'
-              ? 'READY'
-              : last
-            : 'UNAVAILABLE',
+        ready && retained
+          ? last
+          : ready &&
+              reviewable &&
+              !retained &&
+              (!ownedInstall || session?.ended) &&
+              ![
+                'NO_MATCHING_HOOK',
+                'AMBIGUOUS_HOOK',
+                'PLAN_REFUSED',
+                'REMOVED',
+                'OBSERVED_REMOVED',
+              ].includes(last)
+            ? 'PROFILE_REVIEW_AVAILABLE'
+            : session?.ended
+              ? 'SESSION_ENDED'
+              : ready
+                ? last === 'IDLE'
+                  ? 'READY'
+                  : last
+                : 'UNAVAILABLE',
       );
     if (action === 'open-profile') {
-      if (!configured && !session) return reply('NO_OWNED_INSTALL');
+      if (!present && !configured && !session) return reply('NO_OWNED_INSTALL');
       shell?.showItemInFolder(target);
       return reply();
     }
     if (!ready) return reply('UNAVAILABLE');
-    if (session?.ended) return reply('SESSION_ENDED');
     if (retained) return reply('RETAINED_UNKNOWN');
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
-    if (action === 'remove' && (!session || !ownedInstall)) return reply('NO_OWNED_INSTALL');
+    if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
+    const observedRemoval = action === 'remove' && (!ownedInstall || session?.ended);
     let command;
     if (action === 'install') {
       const chosen = await dialog.showOpenDialog(window, {
@@ -177,7 +245,7 @@ function createClaudeHookApp(options) {
       command = profileCommand(executable, appPath, chosen.filePaths[0]);
       if (!owned()) return { success: false, error: 'Renderer request denied' };
     }
-    const current = await ensureSession(assets);
+    const current = await ensureSession(assets, action === 'remove');
     if (!owned()) {
       current.review.cancel(owner);
       return { success: false, error: 'Renderer request denied' };
@@ -189,12 +257,19 @@ function createClaudeHookApp(options) {
             contract: CONTRACT,
             timeoutSeconds: 5,
           })
-        : await current.review.prepareRemoval(owner);
-    if (!owned()) {
+        : observedRemoval
+          ? await prepareObservedRemoval(current.io, { target, executable, appPath, now })
+          : await current.review.prepareRemoval(owner);
+    const cancel = () => {
+      prepared.cancel?.();
       current.review.cancel(owner);
+    };
+    if (!owned()) {
+      cancel();
       return { success: false, error: 'Renderer request denied' };
     }
-    if (!prepared.planId) return retainResult(prepared);
+    if (observedRemoval ? prepared.ok !== true : !prepared.planId) return retainResult(prepared);
+    if (observedRemoval) observedPlan = prepared;
     if (action === 'install') {
       const currentTarget = await current.io.readTarget();
       let eligibility;
@@ -204,24 +279,30 @@ function createClaudeHookApp(options) {
         currentTarget.bytes.fill(0);
       }
       if (eligibility !== 'empty') {
-        current.review.cancel(owner);
+        cancel();
         return retainResult({
           code: eligibility === 'configured' ? 'CONFIGURED_UNOWNED' : 'TARGET_CHANGED',
         });
       }
     }
     if (!owned()) {
-      current.review.cancel(owner);
+      cancel();
       return { success: false, error: 'Renderer request denied' };
     }
-    const detail = profileReviewText(prepared.review, target);
+    if (current.ended) {
+      cancel();
+      return reply('SESSION_ENDED');
+    }
+    const detail = profileReviewText(prepared.review, target, observedRemoval);
     const answer = await dialog.showMessageBox(window, {
       type: 'question',
       title: 'Review Claude hook profile',
       message:
         action === 'install'
           ? 'Install the reviewed Claude hook profile?'
-          : 'Remove the reviewed Claude hook?',
+          : observedRemoval
+            ? 'Remove only this recognized current AEGIS hook?'
+            : 'Remove the reviewed Claude hook?',
       detail,
       buttons: ['Cancel', action === 'install' ? 'Install profile' : 'Remove hook'],
       defaultId: 0,
@@ -229,16 +310,24 @@ function createClaudeHookApp(options) {
       noLink: true,
     });
     if (!owned()) {
-      current.review.cancel(owner);
+      cancel();
       return { success: false, error: 'Renderer request denied' };
     }
     if (answer.response !== 1) {
-      current.review.cancel(owner);
+      cancel();
       return reply('CANCELLED');
+    }
+    if (current.ended) {
+      cancel();
+      return reply('SESSION_ENDED');
     }
     applying = true;
     try {
-      return retainResult(await current.review.confirm(owner, prepared.planId, true));
+      return retainResult(
+        observedRemoval
+          ? await prepared.confirm(true)
+          : await current.review.confirm(owner, prepared.planId, true),
+      );
     } finally {
       applying = false;
     }
@@ -268,11 +357,14 @@ function createClaudeHookApp(options) {
         'unsupported-path': 'UNSUPPORTED_PATH',
         'backup-retention-limit': 'RETENTION_LIMIT',
         'preview-too-large': 'PREVIEW_TOO_LARGE',
+        'profile-session-release-unconfirmed': 'SESSION_RELEASE_UNCONFIRMED',
       }[error?.message];
       session?.review.cancel(owner);
       last = code || 'OPERATION_FAILED';
       return reply();
     } finally {
+      observedPlan?.cancel();
+      observedPlan = null;
       busy = false;
       active = null;
     }

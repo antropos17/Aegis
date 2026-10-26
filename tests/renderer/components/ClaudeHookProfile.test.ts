@@ -13,9 +13,32 @@ it('connects install and separate removal to fixed desktop operations and confir
   await screen.findByText('Prepared setup files are available for native review.');
   await fireEvent.click(screen.getByRole('button', { name: 'Choose policy and review install' }));
   await screen.findByText('Separate profile configured. Blocking is not verified.');
-  await fireEvent.click(screen.getByRole('button', { name: 'Review removal' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Review AEGIS hook removal' }));
   await screen.findByText('The reviewed owned hook was removed.');
   expect(review.mock.calls).toEqual([['status'], ['install'], ['remove']]);
+});
+
+it('offers a fresh removal review after restart without sending paths, history or ownership claims', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'PROFILE_REVIEW_AVAILABLE',
+      canRemove: false,
+      canReviewExisting: true,
+      canOpen: true,
+    })
+    .mockResolvedValueOnce({ success: true, code: 'OBSERVED_REMOVED', canInstall: true });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(
+    'An existing separate profile is available for a fresh targeted removal review.',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Review AEGIS hook removal' }));
+  await screen.findByText(
+    'The recognized AEGIS hook was removed after a fresh review. Unrelated settings were preserved.',
+  );
+  expect(review.mock.calls).toEqual([['status'], ['remove']]);
+  expect(screen.getByRole('button', { name: 'Choose policy and review install' })).toBeEnabled();
 });
 
 it('discards arbitrary reply text and presents an unrecognized outcome as a fixed failure', async () => {
