@@ -57,7 +57,8 @@ describe('platform/proc-snapshot-client', () => {
   let warnLog;
   let infoLog;
 
-  const logged = () => JSON.stringify([debugLog.mock.calls, warnLog.mock.calls, infoLog.mock.calls]);
+  const logged = () =>
+    JSON.stringify([debugLog.mock.calls, warnLog.mock.calls, infoLog.mock.calls]);
 
   /**
    * Drive one full request: send it, hand over the hello, let the request frame be
@@ -169,6 +170,11 @@ describe('platform/proc-snapshot-client', () => {
       expect(spawnCalls).toHaveLength(0);
       expect(client.getState().available).toBe(false);
       expect(client.getState().sticky).toMatch(/binary not found/);
+      expect(client.getState().firstFailure).toEqual({
+        kind: 'binary-missing',
+        exitCode: null,
+        stderrClass: 'none',
+      });
     });
 
     it('disables itself on a protocol version it does not know', async () => {
@@ -176,6 +182,7 @@ describe('platform/proc-snapshot-client', () => {
       children[0].stdout.emit('data', encodeFrame({ ...HELLO, proto: PROTOCOL_VERSION + 1 }));
       await expect(promise).rejects.toThrow(/protocol version mismatch/);
       expect(client.getState().sticky).toMatch(/protocol version mismatch/);
+      expect(client.getState().firstFailure?.kind).toBe('protocol-mismatch');
       await expect(client.requestSnapshot({ timeoutMs: 60 })).rejects.toThrow(/unavailable/);
       expect(spawnCalls).toHaveLength(1);
     });
@@ -185,6 +192,7 @@ describe('platform/proc-snapshot-client', () => {
       children[0].stdout.emit('data', encodeFrame({ t: 'hello', proto: PROTOCOL_VERSION }));
       await expect(promise).rejects.toThrow(/capability block/);
       expect(client.getState().available).toBe(false);
+      expect(client.getState().firstFailure?.kind).toBe('capabilities-invalid');
     });
 
     it('kills the child and backs off when a snapshot times out', async () => {
@@ -192,6 +200,11 @@ describe('platform/proc-snapshot-client', () => {
       await expect(promise).rejects.toThrow(/timed out/);
       expect(child.killed).toBe(true);
       expect(client.getState().failures).toBe(1);
+      expect(client.getState().firstFailure).toEqual({
+        kind: 'snapshot-timeout',
+        exitCode: null,
+        stderrClass: 'none',
+      });
       await expect(client.requestSnapshot({ timeoutMs: 20 })).rejects.toThrow(/backing off/);
       expect(spawnCalls).toHaveLength(1);
     });
@@ -268,9 +281,91 @@ describe('platform/proc-snapshot-client', () => {
     child.stderr.emit('data', Buffer.from('PRIVATE_SECOND_STDERR_CANARY\n'));
     child.stdout.emit('data', encodeFrame({ t: 'snap', id: 1, source: 'class5', procs: [] }));
     await expect(promise).resolves.toBeTruthy();
-    expect(debugLog.mock.calls.filter((call) => call[1] === 'Sidecar stderr observed')).toHaveLength(1);
+    expect(
+      debugLog.mock.calls.filter((call) => call[1] === 'Sidecar stderr observed'),
+    ).toHaveLength(1);
     expect(logged()).not.toContain('PRIVATE_STDERR_CANARY');
     expect(logged()).not.toContain('PRIVATE_SECOND_STDERR_CANARY');
+    expect(client.getState().firstFailure).toBeNull();
+  });
+
+  it.each([
+    ['SystemProcessInformation unavailable (0xC0000003)', 'probe-query-unavailable'],
+    ['NtQuerySystemInformation failed (0xC0000001)', 'probe-query-failed'],
+    ['process table exceeds 67108864 bytes', 'probe-query-limit'],
+    ['process table kept growing across 8 attempts', 'probe-query-growth'],
+    ['GetProcessTimes failed on our own handle', 'probe-self-times'],
+    ['entry at 96 runs past the returned 100 bytes', 'probe-entry-bounds'],
+    ['CreateTime disagrees with GetProcessTimes (123 vs 456)', 'probe-birth-mismatch'],
+    ['our own image name came back empty', 'probe-empty-name'],
+    ['process chain did not terminate', 'probe-chain-limit'],
+    ['negative NextEntryOffset', 'probe-negative-offset'],
+    ['our own pid 4242 is missing from the snapshot', 'probe-self-missing'],
+    ['only 1 process in the snapshot', 'probe-population-small'],
+    ['PRIVATE_UNRECOGNIZED', 'probe-other'],
+  ])(
+    'retains only the fixed classification of split probe stderr: %s',
+    async (detail, classification) => {
+      const promise = client.requestSnapshot({ timeoutMs: 60 });
+      const child = children[0];
+      const line = Buffer.from('probe failed: ' + detail + '\n');
+      child.stderr.emit('data', line.subarray(0, 7));
+      child.stderr.emit('data', line.subarray(7));
+      child.emit('exit', 2, null);
+      await expect(promise).rejects.toThrow(/child exited/);
+      expect(client.getState().firstFailure).toEqual({
+        kind: 'child-exit',
+        exitCode: 2,
+        stderrClass: classification,
+      });
+      expect(logged()).not.toContain(detail);
+      expect(JSON.stringify(client.getState())).not.toContain(detail);
+    },
+  );
+
+  it('preserves the historical first child failure through later attempts and clears bounded bytes on classification/reset', async () => {
+    const allocated = [];
+    const originalAlloc = Buffer.alloc;
+    vi.spyOn(Buffer, 'alloc').mockImplementation((size, ...args) => {
+      const buffer = originalAlloc(size, ...args);
+      if (size === 512) allocated.push(buffer);
+      return buffer;
+    });
+    const first = client.requestSnapshot({ timeoutMs: 60 });
+    children[0].stderr.emit('data', Buffer.alloc(65536, 65));
+    children[0].emit('exit', 2, null);
+    await expect(first).rejects.toThrow(/child exited/);
+    expect(allocated).toHaveLength(1);
+    expect(allocated[0].every((byte) => byte === 0)).toBe(true);
+    clock += 1001;
+    const later = client.requestSnapshot({ timeoutMs: 60 });
+    children[1].stderr.emit('data', Buffer.from('PRIVATE_LATER_STDERR'));
+    children[1].emit('exit', 17, null);
+    await expect(later).rejects.toThrow(/child exited/);
+    expect(allocated).toHaveLength(1);
+    const history = client.getState().firstFailure;
+    expect(history).toEqual({ kind: 'child-exit', exitCode: 2, stderrClass: 'other-stderr' });
+    history.kind = 'PRIVATE_FORGED';
+    expect(client.getState().firstFailure.kind).toBe('child-exit');
+    client._resetForTest();
+    expect(client.getState().firstFailure).toBeNull();
+    client._setInternalsForTest({
+      resolveExePath: () => 'C:\\fake\\aegis-procsnap.exe',
+      now: () => clock,
+      spawn: () => {
+        const child = makeFakeChild();
+        children.push(child);
+        return child;
+      },
+    });
+    const reset = client.requestSnapshot({ timeoutMs: 60 });
+    const rejection = expect(reset).rejects.toThrow(/reset/);
+    children[2].stderr.emit('data', Buffer.from('PRIVATE_PARTIAL'));
+    expect(allocated).toHaveLength(2);
+    client._resetForTest();
+    await rejection;
+    expect(allocated[1].every((byte) => byte === 0)).toBe(true);
+    expect(logged()).not.toContain('PRIVATE');
   });
 
   it('redacts spawn and child exception text from logs and caller errors', async () => {

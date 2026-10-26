@@ -70,6 +70,7 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
     capabilityClass: null,
     sequence: null,
     topology: null,
+    firstFailure: null,
   };
   if (!app) return result;
   const pick = (value, choices) => (choices.includes(value) ? value : null);
@@ -108,6 +109,48 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
       result.capabilityClass = pick(state?.caps?.class, ['basic', 'class5']);
       result.sequence = flag(state?.caps?.sequence);
       result.topology = flag(state?.caps?.topology);
+      const first = state?.firstFailure;
+      const kind = pick(first?.kind, [
+        'binary-missing',
+        'spawn-failed',
+        'child-error',
+        'child-exit',
+        'handshake-timeout',
+        'snapshot-timeout',
+        'stdin-failed',
+        'frame-invalid',
+        'protocol-mismatch',
+        'capabilities-invalid',
+        'sidecar-error',
+        'response-invalid',
+      ]);
+      if (kind !== null)
+        result.firstFailure = {
+          kind,
+          exitCode:
+            Number.isInteger(first.exitCode) &&
+            first.exitCode >= -2147483648 &&
+            first.exitCode <= 4294967295
+              ? first.exitCode
+              : null,
+          stderrClass: pick(first.stderrClass, [
+            'none',
+            'other-stderr',
+            'probe-other',
+            'probe-query-unavailable',
+            'probe-query-failed',
+            'probe-query-limit',
+            'probe-query-growth',
+            'probe-self-times',
+            'probe-entry-bounds',
+            'probe-birth-mismatch',
+            'probe-empty-name',
+            'probe-chain-limit',
+            'probe-negative-offset',
+            'probe-self-missing',
+            'probe-population-small',
+          ]),
+        };
       result.clientAvailable = true;
     } catch {
       /* Snapshot health remains useful when the client getter is absent. */

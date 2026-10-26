@@ -34,6 +34,12 @@ describe('native-read scanner readiness diagnostics', () => {
               sticky: 'PRIVATE_FAILURE',
               failures: 999,
               caps: { class: 'class5', sequence: false, topology: true },
+              firstFailure: {
+                kind: 'child-exit',
+                exitCode: 2,
+                stderrClass: 'probe-birth-mismatch',
+                private: 'PRIVATE_FIRST',
+              },
               private: 'PRIVATE_PATH',
             }),
           };
@@ -58,8 +64,9 @@ describe('native-read scanner readiness diagnostics', () => {
       capabilityClass: 'class5',
       sequence: false,
       topology: true,
+      firstFailure: { kind: 'child-exit', exitCode: 2, stderrClass: 'probe-birth-mismatch' },
     });
-    expect(JSON.stringify(diagnostic)).not.toMatch(/PRIVATE|"pid"|birth/);
+    expect(JSON.stringify(diagnostic)).not.toMatch(/PRIVATE|"pid"|"birth"/);
   });
 
   it('keeps unknown enum values and invalid counters null without exporting raw errors', () => {
@@ -80,6 +87,11 @@ describe('native-read scanner readiness diagnostics', () => {
               sticky: {},
               failures: Infinity,
               caps: { class: 'PRIVATE_CLASS' },
+              firstFailure: {
+                kind: 'PRIVATE_KIND',
+                exitCode: 'PRIVATE_CODE',
+                stderrClass: 'PRIVATE_CLASS',
+              },
             }),
           },
     );
@@ -94,6 +106,7 @@ describe('native-read scanner readiness diagnostics', () => {
       stickyPresent: null,
       failures: null,
       capabilityClass: null,
+      firstFailure: null,
     });
     expect(JSON.stringify(diagnostic)).not.toContain('PRIVATE');
     const unavailable = readScannerSnapshotDiagnostic({ app: {} }, () => {

@@ -91,6 +91,65 @@ let _nextAttemptAt = 0;
 /** @type {string|null} Non-null once the sidecar is given up on for this session. */
 let _sticky = null;
 let _exitHookInstalled = false;
+// Historical FIRST observed failure, not a diagnosis of the currently live child.
+let _firstFailure = null;
+let _stderrPrefix = null;
+let _stderrLength = 0;
+let _stderrClass = null;
+const FAILURE_KINDS = Object.freeze({
+  'sidecar binary not found': 'binary-missing',
+  'spawn-failed': 'spawn-failed',
+  'child error': 'child-error',
+  'child exited': 'child-exit',
+  'handshake timed out': 'handshake-timeout',
+  'snapshot timed out': 'snapshot-timeout',
+  'stdin write failed': 'stdin-failed',
+  'stream desynchronised': 'frame-invalid',
+  'protocol version mismatch': 'protocol-mismatch',
+  'hello carried no usable capability block': 'capabilities-invalid',
+  'sidecar error': 'sidecar-error',
+  'malformed snapshot response': 'response-invalid',
+});
+
+function _clearStderr() {
+  if (_stderrPrefix) _stderrPrefix.fill(0);
+  _stderrPrefix = null;
+  _stderrLength = 0;
+}
+function _classifyStderr() {
+  if (_stderrClass !== null) return _stderrClass;
+  const text = _stderrPrefix?.toString('utf8', 0, _stderrLength) || '';
+  const patterns = [
+    [/^probe failed: SystemProcessInformation unavailable /, 'probe-query-unavailable'],
+    [/^probe failed: NtQuerySystemInformation failed /, 'probe-query-failed'],
+    [/^probe failed: process table exceeds /, 'probe-query-limit'],
+    [/^probe failed: process table kept growing /, 'probe-query-growth'],
+    [/^probe failed: GetProcessTimes failed on our own handle/, 'probe-self-times'],
+    [/^probe failed: entry at \d+ runs past the returned /, 'probe-entry-bounds'],
+    [/^probe failed: CreateTime disagrees with GetProcessTimes /, 'probe-birth-mismatch'],
+    [/^probe failed: our own image name came back empty/, 'probe-empty-name'],
+    [/^probe failed: process chain did not terminate/, 'probe-chain-limit'],
+    [/^probe failed: negative NextEntryOffset/, 'probe-negative-offset'],
+    [/^probe failed: our own pid \d+ is missing from the snapshot/, 'probe-self-missing'],
+    [/^probe failed: only \d+ process in the snapshot/, 'probe-population-small'],
+  ];
+  _stderrClass =
+    patterns.find(([pattern]) => pattern.test(text))?.[1] ||
+    (text.startsWith('probe failed:') ? 'probe-other' : text ? 'other-stderr' : 'none');
+  _clearStderr();
+  return _stderrClass;
+}
+function _retainFirstFailure(reason, exitCode = _child?.exitCode) {
+  if (_firstFailure || !Object.hasOwn(FAILURE_KINDS, reason)) return;
+  _firstFailure = Object.freeze({
+    kind: FAILURE_KINDS[reason],
+    exitCode:
+      Number.isInteger(exitCode) && exitCode >= -2147483648 && exitCode <= 4294967295
+        ? exitCode
+        : null,
+    stderrClass: _classifyStderr(),
+  });
+}
 
 /**
  * Where the binary lives: packaged next to the app resources, or in the repo
@@ -120,6 +179,8 @@ function _defaultExePath() {
  * @returns {void}
  */
 function _teardown(reason) {
+  _clearStderr();
+  _stderrClass = null;
   const pending = _pending;
   _pending = null;
   if (pending) {
@@ -155,6 +216,7 @@ function _teardown(reason) {
  */
 function _disable(reason) {
   if (_sticky) return;
+  _retainFirstFailure(reason);
   _sticky = reason;
   logger.warn(
     'proc-snapshot',
@@ -168,7 +230,8 @@ function _disable(reason) {
  * @param {string} reason
  * @returns {void}
  */
-function _recordFailure(reason) {
+function _recordFailure(reason, exitCode) {
+  _retainFirstFailure(reason, exitCode);
   const now = _now();
   _failures = _failures.filter((t) => now - t < FAILURE_WINDOW_MS);
   _failures.push(now);
@@ -242,10 +305,12 @@ function _onMessage(msg) {
   if (msg.t === 'err') {
     // The child is alive and said no. That is a provider failure for this pass,
     // not a supervision failure, so the restart budget is not touched.
+    _retainFirstFailure('sidecar error');
     pending.reject(new Error('proc-snapshot: sidecar error'));
     return;
   }
   if (!Array.isArray(msg.procs) || !KNOWN_CLASSES.includes(msg.source)) {
+    _retainFirstFailure('malformed snapshot response');
     pending.reject(new Error('proc-snapshot: malformed snapshot response'));
     return;
   }
@@ -284,6 +349,9 @@ function _startChild(timeoutMs) {
     return Promise.reject(new Error('proc-snapshot: spawn failed'));
   }
   _child = child;
+  _stderrPrefix = _firstFailure ? null : Buffer.alloc(512);
+  _stderrLength = 0;
+  _stderrClass = null;
   const decoder = createFrameDecoder();
   let stderrObserved = false;
   _installExitHook();
@@ -303,6 +371,14 @@ function _startChild(timeoutMs) {
     for (const frame of frames) _onMessage(frame);
   });
   child.stderr.on('data', (chunk) => {
+    if (_child !== child) return;
+    if (!_firstFailure && _stderrPrefix && Buffer.isBuffer(chunk)) {
+      const length = Math.min(chunk.length, _stderrPrefix.length - _stderrLength);
+      chunk.copy(_stderrPrefix, _stderrLength, 0, length);
+      _stderrLength += length;
+      if (_stderrLength === 512 || _stderrPrefix.subarray(0, _stderrLength).includes(10))
+        _classifyStderr();
+    }
     if (!stderrObserved && chunk.length > 0) {
       stderrObserved = true;
       logger.debug('proc-snapshot', 'Sidecar stderr observed');
@@ -312,9 +388,9 @@ function _startChild(timeoutMs) {
     if (_child !== child) return;
     _recordFailure('child error');
   });
-  child.on('exit', () => {
+  child.on('exit', (exitCode) => {
     if (_child !== child) return;
-    _recordFailure('child exited');
+    _recordFailure('child exited', exitCode);
   });
 
   return new Promise((resolve, reject) => {
@@ -387,7 +463,8 @@ function requestSnapshot(opts = {}) {
 /**
  * Observable supervision state, for the provider chooser's health record.
  * @returns {{available: boolean, sticky: string|null, connected: boolean,
- *   caps: {class: string, sequence: boolean, topology: boolean}|null, failures: number}}
+ *   caps: {class: string, sequence: boolean, topology: boolean}|null, failures: number,
+ *   firstFailure: {kind:string,exitCode:number|null,stderrClass:string}|null}}
  */
 function getState() {
   return {
@@ -396,6 +473,7 @@ function getState() {
     connected: _child !== null && _caps !== null,
     caps: _caps ? { ..._caps } : null,
     failures: _failures.length,
+    firstFailure: _firstFailure ? { ..._firstFailure } : null,
   };
 }
 
@@ -427,6 +505,7 @@ function _resetForTest() {
   _failures = [];
   _nextAttemptAt = 0;
   _sticky = null;
+  _firstFailure = null;
 }
 
 module.exports = {
