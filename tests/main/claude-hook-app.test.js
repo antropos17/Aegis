@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -49,38 +49,51 @@ beforeEach(async () => {
         return { response: state.approve ? 1 : 0 };
       },
     },
-    makeIO: async () => ({
-      contract: IO_CONTRACT,
-      async readTarget() {
-        return { identity: 'owned-fixture', bytes: await fs.readFile(target) };
-      },
-      async retainPrivate(value) {
-        const ref = {};
-        state.backups.push({ ref, bytes: Buffer.from(value.bytes), manifest: value.manifest });
-        return ref;
-      },
-      async readPrivate(ref) {
-        const item = state.backups.find((value) => value.ref === ref);
-        return { bytes: Buffer.from(item.bytes), manifest: item.manifest };
-      },
-      async compareAndWrite(value) {
-        if (state.beforeWrite) await state.beforeWrite();
-        if (!(await fs.readFile(target)).equals(value.beforeBytes)) return 'stale';
-        state.writes++;
-        await fs.writeFile(target, state.readbackFailure ? '{}' : value.afterBytes);
-        return 'written';
-      },
-      async close() {
-        state.closes = (state.closes || 0) + 1;
-      },
-      status: () => ({ admission: 'open' }),
-    }),
+    makeIO: async () => {
+      state.ioCreates = (state.ioCreates || 0) + 1;
+      let ended = false;
+      return {
+        contract: IO_CONTRACT,
+        async readTarget() {
+          return { identity: 'owned-fixture', bytes: await fs.readFile(target) };
+        },
+        async retainPrivate(value) {
+          const ref = {};
+          state.backups.push({ ref, bytes: Buffer.from(value.bytes), manifest: value.manifest });
+          return ref;
+        },
+        async readPrivate(ref) {
+          const item = state.backups.find((value) => value.ref === ref);
+          return { bytes: Buffer.from(item.bytes), manifest: item.manifest };
+        },
+        async compareAndWrite(value) {
+          if (state.beforeWrite) await state.beforeWrite();
+          if (!(await fs.readFile(target)).equals(value.beforeBytes)) return 'stale';
+          state.writes++;
+          await fs.writeFile(target, state.readbackFailure ? '{}' : value.afterBytes);
+          return 'written';
+        },
+        async close() {
+          ended = true;
+          state.closes = (state.closes || 0) + 1;
+        },
+        status: () => ({
+          admission: ended ? 'closed' : 'open',
+          exit: ended && !state.releaseUnknown ? 'confirmed' : 'unknown',
+        }),
+      };
+    },
   };
   service = createClaudeHookApp(options);
 });
 afterEach(async () => {
   await service?.close();
-  if (root) await fs.rm(root, { recursive: true, force: true });
+  vi.useRealTimers();
+  if (root) {
+    expect(path.dirname(path.resolve(root))).toBe(path.resolve(os.tmpdir()));
+    expect(path.basename(root)).toMatch(/^aegis-hook-app-/);
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 it('installs and removes the app-owned profile through private native review with an exact rollback', async () => {
@@ -226,16 +239,29 @@ it('rejects a malformed selected policy before native review or writing', async 
   expect(state.writes).toBe(0);
 });
 
-it('does not claim ownership of an installation retained across an app restart', async () => {
+it('requires a fresh exact native review to remove a retained installation after restart', async () => {
   expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
   await service.close();
   service = createClaudeHookApp(options);
+  expect(await service.handle('status', () => true)).toMatchObject({
+    code: 'PROFILE_REVIEW_AVAILABLE',
+    presence: 'Unknown',
+    canRemove: false,
+    canReviewExisting: true,
+  });
+  expect(state.ioCreates).toBe(1);
   expect(await service.handle('install', () => true)).toMatchObject({
     code: 'CONFIGURED_UNOWNED',
     canRemove: false,
+    canReviewExisting: true,
   });
-  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'NO_OWNED_INSTALL' });
-  expect(state.writes).toBe(1);
+  expect(await service.handle('remove', () => true)).toMatchObject({
+    code: 'OBSERVED_REMOVED',
+    canRemove: false,
+  });
+  expect(await fs.readFile(target, 'utf8')).toBe(original);
+  expect(state.dialogs[1].detail).toContain('fresh authorization');
+  expect(state.writes).toBe(2);
 });
 
 it('waits for an admitted writer outcome before closing its native IO', async () => {
@@ -271,10 +297,92 @@ it('does not append a newly selected policy to an unowned retained profile', asy
   expect(await service.handle('install', () => true)).toMatchObject({
     code: 'CONFIGURED_UNOWNED',
     canRemove: false,
+    canReviewExisting: true,
   });
   expect(await fs.readFile(target)).toEqual(installed);
   expect(state.writes).toBe(1);
   expect(state.dialogs).toHaveLength(1);
+});
+
+it('closes expired IO before a new targeted removal session without restoring old approval', async () => {
+  vi.useFakeTimers();
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  await vi.advanceTimersByTimeAsync(180000);
+  expect(state.closes).toBe(1);
+  expect(await service.handle('status', () => true)).toMatchObject({
+    code: 'PROFILE_REVIEW_AVAILABLE',
+    canRemove: false,
+    canReviewExisting: true,
+  });
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'OBSERVED_REMOVED' });
+  expect(state.ioCreates).toBe(2);
+  expect(await fs.readFile(target, 'utf8')).toBe(original);
+});
+
+it('status and missing-target removal create no draft or backup directories', async () => {
+  expect(path.dirname(path.resolve(path.dirname(target)))).toBe(path.resolve(root));
+  await fs.rm(path.dirname(target), { recursive: true });
+  expect(await service.handle('status', () => true)).toMatchObject({
+    canOpen: false,
+    canRemove: false,
+  });
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'NO_MATCHING_HOOK' });
+  expect(await fs.stat(path.dirname(target)).catch(() => null)).toBeNull();
+  expect(state.ioCreates || 0).toBe(0);
+});
+
+it('refuses renewal when previous native session release is unconfirmed', async () => {
+  vi.useFakeTimers();
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  state.releaseUnknown = true;
+  await vi.advanceTimersByTimeAsync(180000);
+  expect(await service.handle('remove', () => true)).toMatchObject({
+    code: 'SESSION_RELEASE_UNCONFIRMED',
+    canInstall: false,
+    canReviewExisting: false,
+  });
+  expect(state.ioCreates).toBe(1);
+  expect(state.writes).toBe(1);
+});
+
+it.each(['cancel', 'navigation', 'expiry', 'changed'])(
+  'keeps fresh targeted removal fenced for %s',
+  async (mode) => {
+    expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+    const installed = await fs.readFile(target);
+    await service.close();
+    service = createClaudeHookApp(options);
+    if (mode === 'cancel') state.approve = false;
+    state.beforeConfirmation = async () => {
+      if (mode === 'navigation') state.owned = false;
+      if (mode === 'expiry') state.time += 90000;
+      if (mode === 'changed') await fs.appendFile(target, ' ');
+    };
+    const outcome = await service.handle('remove', () => state.owned);
+    const code = { cancel: 'CANCELLED', expiry: 'EXPIRED', changed: 'TARGET_CHANGED' };
+    if (mode === 'navigation')
+      expect(outcome).toEqual({ success: false, error: 'Renderer request denied' });
+    else expect(outcome.code).toBe(code[mode]);
+    expect(state.writes).toBe(1);
+    expect(await fs.readFile(target)).toEqual(
+      mode === 'changed' ? Buffer.concat([installed, Buffer.from(' ')]) : installed,
+    );
+    expect(state.backups).toHaveLength(mode === 'changed' ? 2 : 1);
+  },
+);
+
+it('retains fresh-removal readback uncertainty and refuses another write in that session', async () => {
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  await service.close();
+  service = createClaudeHookApp(options);
+  state.readbackFailure = true;
+  expect(await service.handle('remove', () => true)).toMatchObject({
+    code: 'READBACK_FAILED',
+    canInstall: false,
+    canRemove: false,
+  });
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'RETAINED_UNKNOWN' });
+  expect(state.writes).toBe(2);
 });
 
 it('reveals only the fixed retained profile when native assets disappear', async () => {

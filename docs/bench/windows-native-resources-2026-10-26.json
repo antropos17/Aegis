@@ -1,0 +1,580 @@
+{
+  "version": "native-worker-resources-summary/1",
+  "context": {
+    "sourceCommit": "2f2ad8f856505e19d2ac9d0d9703b94bf5498b51",
+    "source": {
+      "bench/native-resource-run.cjs": "8ac627365df3211d9ca433cea15d80b27e84759e9a45c352179494651ee0089a",
+      "bench/native-task/Worker.cs": "58042d273bc345f8041135c82a4e1af5fde709e7c967557c31d6834f8196f72e",
+      "bench/native-task/ResourceReader.cs": "b8634e0c5d8525655df10bdcdef1e01037b9ef4a57a15f440cc13f223983015d",
+      "bench/lib/native-resource-model.js": "daa4ec3b95a1ced44349481435dd616bb3344e3fe01eacb8d9008483d234176b",
+      "bench/lib/native-task-process.js": "09fe471338ef372ddbd24733eb87fd7f07a29b8507e597e13dc9f3a9bd594bcf",
+      "bench/lib/native-task-plan.js": "d854027ed9a8ca2fc8f070eab0eefd0451533969171a751a7ab3a6217ea5de7a",
+      "bench/lib/native-task-report.js": "8f54e4cac76c32bbf457617bcba9523cb8691735923beff87e556e033eb671aa",
+      "bench/lib/resource-intervals.js": "741eff1d1eb81d23f16d04b87382dad6d0df5b764eac347685ddb6d93d701ff5",
+      "bench/lib/resource-input.js": "f5a923c6bafb00b89057d82fddb6b292d0d1950414555eb4d46c0f053c62403b"
+    },
+    "sourceSha256": "50fd27a646caa951b28669b6c72755da91d8c740c1c173e2db3573f595fcde5f",
+    "recordedAt": "2026-10-26T15:35:27.650Z",
+    "machine": "067d49c561f56bc7",
+    "os": {
+      "platform": "win32",
+      "release": "10.0.26200",
+      "arch": "x64",
+      "logicalCpus": 22
+    },
+    "agent": {
+      "name": "controlled native CSV worker",
+      "version": "native-csv-worker/1"
+    },
+    "sensorMode": "not-started; workload resource observation only",
+    "method": "win32-native-worker-resource-brackets/1",
+    "nodeVersion": "v24.20.0",
+    "fixtureSha256": "56b28f843d51996a5a34db3da53a23a5d9b66621cfb371a5de674ff7fbe238d5",
+    "binaries": {
+      "worker": "60ac2954b5f8be1cbb04ef5ec35616430890edb7f128795e1e0609e184c89727",
+      "reader": "f89abe79d225d82231f306fd1605371e429eb3e16a992d5882424739a0806548"
+    }
+  },
+  "repetitions": [
+    {
+      "id": "rep1",
+      "usefulOutput": [
+        {
+          "task": "ordinary",
+          "exactBytes": true,
+          "inventoryMatches": true,
+          "inputUnchanged": true
+        },
+        {
+          "task": "outside-write",
+          "exactBytes": true,
+          "inventoryMatches": true,
+          "inputUnchanged": true
+        }
+      ],
+      "cleanup": {
+        "reader": {
+          "code": 0,
+          "signal": null,
+          "stdoutBytes": 1582,
+          "stderrBytes": 0
+        },
+        "worker": {
+          "code": 0,
+          "signal": null,
+          "stdoutBytes": 714,
+          "stderrBytes": 0
+        }
+      },
+      "corroboration": {
+        "state": "corroborated",
+        "checks": [
+          {
+            "sampleId": "s0",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 78125,
+            "selfCpuUs": 78125,
+            "afterCpuUs": 93750,
+            "workingSetDifferenceBytes": -290816,
+            "workingSetSanity": true,
+            "acquisitionUs": 22381
+          },
+          {
+            "sampleId": "s1",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 546875,
+            "selfCpuUs": 546875,
+            "afterCpuUs": 562500,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 11031
+          },
+          {
+            "sampleId": "s2",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 953125,
+            "selfCpuUs": 953125,
+            "afterCpuUs": 953125,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 10983
+          },
+          {
+            "sampleId": "s3",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 953125,
+            "selfCpuUs": 953125,
+            "afterCpuUs": 968750,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 9632
+          }
+        ],
+        "progress": true,
+        "expected": {
+          "cpuFloorAllowanceUs": 2,
+          "workingSetSanityMinBytes": 1048576,
+          "workingSetSanityMaxBytes": 1073741824
+        },
+        "sharedKernelAccounting": true,
+        "independentPhysicalCalibration": false,
+        "collectorOnOffCost": null,
+        "productOverhead": null,
+        "w8Accepted": false
+      },
+      "estimates": [
+        {
+          "runId": "rep1",
+          "phaseId": "controlled-work",
+          "cohort": "controlled-worker",
+          "metric": "cpu-one-core-pct",
+          "unit": "percent-one-core",
+          "valid": [
+            {
+              "sampleId": "s0..s1",
+              "value": 47.54177337153579,
+              "reason": null
+            },
+            {
+              "sampleId": "s1..s2",
+              "value": 38.83944506698033,
+              "reason": null
+            }
+          ],
+          "excluded": [],
+          "validCount": 2,
+          "excludedCount": 0,
+          "p50": 43.190609219258064,
+          "p95": 47.54177337153579,
+          "reason": null
+        },
+        {
+          "runId": "rep1",
+          "phaseId": "controlled-work",
+          "cohort": "controlled-worker",
+          "metric": "resident-bytes",
+          "unit": "bytes",
+          "valid": [
+            {
+              "sampleId": "s0",
+              "value": 26607616,
+              "reason": null
+            },
+            {
+              "sampleId": "s1",
+              "value": 32620544,
+              "reason": null
+            },
+            {
+              "sampleId": "s2",
+              "value": 32641024,
+              "reason": null
+            }
+          ],
+          "excluded": [],
+          "validCount": 3,
+          "excludedCount": 0,
+          "p50": 32620544,
+          "p95": 32641024,
+          "reason": null
+        }
+      ],
+      "excludedBoundaryIntervals": [
+        {
+          "fromSample": "s2",
+          "toSample": "s3",
+          "fromUs": 2018653,
+          "toUs": 3013640,
+          "phaseId": null,
+          "reason": "phase-boundary",
+          "members": [
+            {
+              "lifetime": "worker",
+              "cohort": "controlled-worker",
+              "value": null,
+              "reason": "phase-boundary",
+              "deltaCpuUs": null
+            }
+          ],
+          "cohorts": [
+            {
+              "cohort": "controlled-worker",
+              "value": null,
+              "reason": "phase-boundary",
+              "deltaCpuUs": null
+            }
+          ]
+        }
+      ],
+      "rawSampleCount": 4
+    },
+    {
+      "id": "rep2",
+      "usefulOutput": [
+        {
+          "task": "ordinary",
+          "exactBytes": true,
+          "inventoryMatches": true,
+          "inputUnchanged": true
+        },
+        {
+          "task": "outside-write",
+          "exactBytes": true,
+          "inventoryMatches": true,
+          "inputUnchanged": true
+        }
+      ],
+      "cleanup": {
+        "reader": {
+          "code": 0,
+          "signal": null,
+          "stdoutBytes": 1588,
+          "stderrBytes": 0
+        },
+        "worker": {
+          "code": 0,
+          "signal": null,
+          "stdoutBytes": 714,
+          "stderrBytes": 0
+        }
+      },
+      "corroboration": {
+        "state": "corroborated",
+        "checks": [
+          {
+            "sampleId": "s0",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 62500,
+            "selfCpuUs": 62500,
+            "afterCpuUs": 78125,
+            "workingSetDifferenceBytes": -290816,
+            "workingSetSanity": true,
+            "acquisitionUs": 13798
+          },
+          {
+            "sampleId": "s1",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 453125,
+            "selfCpuUs": 453125,
+            "afterCpuUs": 453125,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 9403
+          },
+          {
+            "sampleId": "s2",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 859375,
+            "selfCpuUs": 859375,
+            "afterCpuUs": 859375,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 10571
+          },
+          {
+            "sampleId": "s3",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 859375,
+            "selfCpuUs": 859375,
+            "afterCpuUs": 859375,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 9947
+          }
+        ],
+        "progress": true,
+        "expected": {
+          "cpuFloorAllowanceUs": 2,
+          "workingSetSanityMinBytes": 1048576,
+          "workingSetSanityMaxBytes": 1073741824
+        },
+        "sharedKernelAccounting": true,
+        "independentPhysicalCalibration": false,
+        "collectorOnOffCost": null,
+        "productOverhead": null,
+        "w8Accepted": false
+      },
+      "estimates": [
+        {
+          "runId": "rep2",
+          "phaseId": "controlled-work",
+          "cohort": "controlled-worker",
+          "metric": "cpu-one-core-pct",
+          "unit": "percent-one-core",
+          "valid": [
+            {
+              "sampleId": "s0..s1",
+              "value": 37.91632120685123,
+              "reason": null
+            },
+            {
+              "sampleId": "s1..s2",
+              "value": 40.56500435855369,
+              "reason": null
+            }
+          ],
+          "excluded": [],
+          "validCount": 2,
+          "excludedCount": 0,
+          "p50": 39.24066278270246,
+          "p95": 40.56500435855369,
+          "reason": null
+        },
+        {
+          "runId": "rep2",
+          "phaseId": "controlled-work",
+          "cohort": "controlled-worker",
+          "metric": "resident-bytes",
+          "unit": "bytes",
+          "valid": [
+            {
+              "sampleId": "s0",
+              "value": 26308608,
+              "reason": null
+            },
+            {
+              "sampleId": "s1",
+              "value": 32329728,
+              "reason": null
+            },
+            {
+              "sampleId": "s2",
+              "value": 32350208,
+              "reason": null
+            }
+          ],
+          "excluded": [],
+          "validCount": 3,
+          "excludedCount": 0,
+          "p50": 32329728,
+          "p95": 32350208,
+          "reason": null
+        }
+      ],
+      "excludedBoundaryIntervals": [
+        {
+          "fromSample": "s2",
+          "toSample": "s3",
+          "fromUs": 2011747,
+          "toUs": 3022771,
+          "phaseId": null,
+          "reason": "phase-boundary",
+          "members": [
+            {
+              "lifetime": "worker",
+              "cohort": "controlled-worker",
+              "value": null,
+              "reason": "phase-boundary",
+              "deltaCpuUs": null
+            }
+          ],
+          "cohorts": [
+            {
+              "cohort": "controlled-worker",
+              "value": null,
+              "reason": "phase-boundary",
+              "deltaCpuUs": null
+            }
+          ]
+        }
+      ],
+      "rawSampleCount": 4
+    },
+    {
+      "id": "rep3",
+      "usefulOutput": [
+        {
+          "task": "ordinary",
+          "exactBytes": true,
+          "inventoryMatches": true,
+          "inputUnchanged": true
+        },
+        {
+          "task": "outside-write",
+          "exactBytes": true,
+          "inventoryMatches": true,
+          "inputUnchanged": true
+        }
+      ],
+      "cleanup": {
+        "reader": {
+          "code": 0,
+          "signal": null,
+          "stdoutBytes": 1590,
+          "stderrBytes": 0
+        },
+        "worker": {
+          "code": 0,
+          "signal": null,
+          "stdoutBytes": 714,
+          "stderrBytes": 0
+        }
+      },
+      "corroboration": {
+        "state": "corroborated",
+        "checks": [
+          {
+            "sampleId": "s0",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 78125,
+            "selfCpuUs": 78125,
+            "afterCpuUs": 78125,
+            "workingSetDifferenceBytes": -290816,
+            "workingSetSanity": true,
+            "acquisitionUs": 13128
+          },
+          {
+            "sampleId": "s1",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 468750,
+            "selfCpuUs": 468750,
+            "afterCpuUs": 484375,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 9947
+          },
+          {
+            "sampleId": "s2",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 859375,
+            "selfCpuUs": 859375,
+            "afterCpuUs": 859375,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 9454
+          },
+          {
+            "sampleId": "s3",
+            "identityMatches": true,
+            "cpuEnclosed": true,
+            "beforeCpuUs": 859375,
+            "selfCpuUs": 859375,
+            "afterCpuUs": 875000,
+            "workingSetDifferenceBytes": 0,
+            "workingSetSanity": true,
+            "acquisitionUs": 10396
+          }
+        ],
+        "progress": true,
+        "expected": {
+          "cpuFloorAllowanceUs": 2,
+          "workingSetSanityMinBytes": 1048576,
+          "workingSetSanityMaxBytes": 1073741824
+        },
+        "sharedKernelAccounting": true,
+        "independentPhysicalCalibration": false,
+        "collectorOnOffCost": null,
+        "productOverhead": null,
+        "w8Accepted": false
+      },
+      "estimates": [
+        {
+          "runId": "rep3",
+          "phaseId": "controlled-work",
+          "cohort": "controlled-worker",
+          "metric": "cpu-one-core-pct",
+          "unit": "percent-one-core",
+          "valid": [
+            {
+              "sampleId": "s0..s1",
+              "value": 40.848646338704405,
+              "reason": null
+            },
+            {
+              "sampleId": "s1..s2",
+              "value": 37.4356481208802,
+              "reason": null
+            }
+          ],
+          "excluded": [],
+          "validCount": 2,
+          "excludedCount": 0,
+          "p50": 39.1421472297923,
+          "p95": 40.848646338704405,
+          "reason": null
+        },
+        {
+          "runId": "rep3",
+          "phaseId": "controlled-work",
+          "cohort": "controlled-worker",
+          "metric": "resident-bytes",
+          "unit": "bytes",
+          "valid": [
+            {
+              "sampleId": "s0",
+              "value": 26259456,
+              "reason": null
+            },
+            {
+              "sampleId": "s1",
+              "value": 32280576,
+              "reason": null
+            },
+            {
+              "sampleId": "s2",
+              "value": 32301056,
+              "reason": null
+            }
+          ],
+          "excluded": [],
+          "validCount": 3,
+          "excludedCount": 0,
+          "p50": 32280576,
+          "p95": 32301056,
+          "reason": null
+        }
+      ],
+      "excludedBoundaryIntervals": [
+        {
+          "fromSample": "s2",
+          "toSample": "s3",
+          "fromUs": 2012874,
+          "toUs": 3025156,
+          "phaseId": null,
+          "reason": "phase-boundary",
+          "members": [
+            {
+              "lifetime": "worker",
+              "cohort": "controlled-worker",
+              "value": null,
+              "reason": "phase-boundary",
+              "deltaCpuUs": null
+            }
+          ],
+          "cohorts": [
+            {
+              "cohort": "controlled-worker",
+              "value": null,
+              "reason": "phase-boundary",
+              "deltaCpuUs": null
+            }
+          ]
+        }
+      ],
+      "rawSampleCount": 4
+    }
+  ],
+  "productOverhead": {
+    "cpu": null,
+    "rss": null
+  },
+  "sensor": {
+    "hits": null,
+    "misses": null,
+    "recall": null,
+    "falseAlarms": null
+  },
+  "calibration": "Shared-kernel API/unit corroboration only; independent physical accuracy and collector-on/off cost unqualified.",
+  "acceptance": "Controlled native workload resources only; no AI-agent, complete product cohort, sensor or W8 acceptance."
+}
