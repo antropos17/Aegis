@@ -254,14 +254,32 @@ function projectClaudeEvidence(text, expectedCwd) {
     providerCompleted: final.length === 1 && final[0].is_error === false,
     costWithinLimit: Number.isFinite(cost) && cost >= 0 && cost <= 0.5,
     costUsd: Number.isFinite(cost) ? cost : null,
-    opusObserved: models.length > 0 && models.every((model) => /opus/i.test(model)),
+    opusObserved: models.length > 0 && models.every((model) => /^claude-opus(?:-|$)/i.test(model)),
   };
 }
 
-// Every child is ours; cap streams, terminate its tree on deadline, and wait for close.
-function boundedChild(executable, args, { cwd, env, input, deadlineMs }) {
+/** Bound one owned child and its pipe settlement; unknown cleanup never passes.
+ * @param {string} executable Owned executable. @param {string[]} args Explicit arguments.
+ * @param {object} options Bounded execution and controlled test dependencies.
+ * @returns {Promise<object>} Private stdout plus fixed transport evidence. @since v0.21.0 */
+function boundedChild(
+  executable,
+  args,
+  {
+    cwd,
+    env,
+    input,
+    deadlineMs,
+    spawnChild = spawn,
+    killTree = (pid) =>
+      execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        timeout: 5000,
+      }),
+  },
+) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const child = spawnChild(executable, args, {
       cwd,
       env,
       windowsHide: true,
@@ -270,15 +288,40 @@ function boundedChild(executable, args, { cwd, env, input, deadlineMs }) {
     const chunks = [];
     let bytes = 0,
       stderrBytes = 0,
-      terminated = false;
+      terminated = false,
+      settled = false,
+      cleanupTimer;
+    const finish = (code, signal, cleanupConfirmed) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(cleanupTimer);
+      const stdout = Buffer.concat(chunks);
+      for (const chunk of chunks) chunk.fill(0);
+      chunks.length = 0;
+      if (!cleanupConfirmed) {
+        child.stdin.destroy();
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }
+      resolve({
+        stdout,
+        code,
+        signal,
+        terminated,
+        cleanupConfirmed,
+        ownedPid: child.pid,
+        stdoutBytes: bytes,
+        stderrBytes,
+      });
+    };
     const terminate = () => {
-      if (child.exitCode === null && !terminated) {
-        terminated = true;
+      if (settled || terminated) return;
+      terminated = true;
+      cleanupTimer = setTimeout(() => finish(child.exitCode, null, false), 5000);
+      if (child.exitCode === null) {
         try {
-          execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-            stdio: 'ignore',
-            timeout: 5000,
-          });
+          killTree(child.pid);
         } catch {
           /* The owned process may already have exited. */
         }
@@ -297,16 +340,31 @@ function boundedChild(executable, args, { cwd, env, input, deadlineMs }) {
     child.stdin.on('error', () => {});
     child.once('error', (error) => {
       clearTimeout(timer);
+      clearTimeout(cleanupTimer);
+      for (const chunk of chunks) chunk.fill(0);
       reject(error);
     });
     child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      const stdout = Buffer.concat(chunks);
-      for (const chunk of chunks) chunk.fill(0);
-      resolve({ stdout, code, signal, terminated, stdoutBytes: bytes, stderrBytes });
+      finish(code, signal, true);
     });
     child.stdin.end(input || '');
   });
+}
+
+function transportEvidence(result) {
+  const value = {
+    exitCode: result.code,
+    terminated: result.terminated,
+    cleanupConfirmed: result.cleanupConfirmed,
+    ownedPid: result.ownedPid,
+    stdoutBytes: result.stdoutBytes,
+    stderrBytes: result.stderrBytes,
+  };
+  if (!result.cleanupConfirmed) {
+    receipt.failureCode = 'CHILD_CLEANUP_UNCONFIRMED';
+    receipt.ownedChildCleanupUnconfirmed = value;
+  }
+  return value;
 }
 
 async function qualifyClaude(target, policy) {
@@ -352,15 +410,16 @@ async function qualifyClaude(target, policy) {
       }),
     });
     try {
-      const decision = JSON.parse(result.stdout.toString('utf8')).hookSpecificOutput;
       const expected = index === 0 ? 'allow' : 'deny';
-      receipt.hookPreflight.push({
+      const evidence = {
+        ...transportEvidence(result),
         expected,
-        code: result.code,
-        decisionMatched: decision.permissionDecision === expected,
-        terminated: result.terminated,
-        stderrBytes: result.stderrBytes,
-      });
+        decisionMatched: false,
+      };
+      receipt.hookPreflight.push(evidence);
+      assert.equal(result.cleanupConfirmed, true);
+      const decision = JSON.parse(result.stdout.toString('utf8')).hookSpecificOutput;
+      evidence.decisionMatched = decision.permissionDecision === expected;
       assert.equal(result.code, 0);
       assert.equal(result.terminated, false);
       assert.equal(decision.hookEventName, 'PreToolUse');
@@ -408,13 +467,9 @@ async function qualifyClaude(target, policy) {
     { cwd: output, env, deadlineMs: 150000 },
   );
   receipt.installedClaude = true;
-  receipt.providerTransport = {
-    exitCode: result.code,
-    terminated: result.terminated,
-    stdoutBytes: result.stdoutBytes,
-    stderrBytes: result.stderrBytes,
-  };
+  receipt.providerTransport = transportEvidence(result);
   try {
+    assert.equal(result.cleanupConfirmed, true);
     receipt.claude = projectClaudeEvidence(result.stdout.toString('utf8'), output);
   } finally {
     result.stdout.fill(0);
@@ -450,7 +505,7 @@ async function qualifyClaude(target, policy) {
   assert.equal(receipt.deniedFileAbsent, true);
 }
 
-module.exports = { qualificationRequests, projectClaudeEvidence };
+module.exports = { qualificationRequests, projectClaudeEvidence, boundedChild };
 if (require.main === module)
   run().catch(async () => {
     receipt.complete = false;
@@ -468,4 +523,7 @@ if (require.main === module)
         '; private files retained.',
     );
     process.exitCode = 1;
+    // The retained receipt explicitly reports the unknown owned child; do not hang
+    // this runner on an unclosed process handle or claim that child was released.
+    if (receipt.failureCode === 'CHILD_CLEANUP_UNCONFIRMED') process.exit(1);
   });

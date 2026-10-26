@@ -3,10 +3,15 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 const require = createRequire(import.meta.url);
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
-const { projectClaudeEvidence } = require('../../scripts/qualification/claude-hook-app.cjs');
+const {
+  projectClaudeEvidence,
+  boundedChild,
+} = require('../../scripts/qualification/claude-hook-app.cjs');
 let root, target, policy, service, state, options;
 const original = '{ "private": "PROFILE_PRIVATE_CANARY", "hooks": {"PreToolUse":[]} }\n';
 beforeEach(async () => {
@@ -523,7 +528,80 @@ it('genuine qualification refuses retries, duplicate results, unpriced output an
   const replaced = genuineRecords();
   replaced[4].modelUsage = { 'claude-sonnet': {} };
   expect(projectRecords(replaced).opusObserved).toBe(false);
+  replaced[4].modelUsage = { 'not-opus': {} };
+  expect(projectRecords(replaced).opusObserved).toBe(false);
   const wrongCwd = genuineRecords();
   wrongCwd[5].cwd = 'X:\\other-fixture';
   expect(projectRecords(wrongCwd).cwdMatched).toBe(false);
+});
+
+function controlledChild() {
+  return Object.assign(new EventEmitter(), {
+    pid: 12345,
+    exitCode: null,
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+  });
+}
+it('genuine child bounds cleanup settlement when the owned tree never closes', async () => {
+  vi.useFakeTimers();
+  const child = controlledChild(),
+    killTree = vi.fn(() => {
+      throw Error('fixed controlled failure');
+    });
+  let settled = false;
+  const pending = boundedChild('owned.exe', [], {
+    cwd: root,
+    env: {},
+    deadlineMs: 150,
+    spawnChild: () => child,
+    killTree,
+  }).then((value) => {
+    settled = true;
+    return value;
+  });
+  await vi.advanceTimersByTimeAsync(150);
+  expect(killTree).toHaveBeenCalledExactlyOnceWith(12345);
+  await vi.advanceTimersByTimeAsync(4999);
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  const result = await pending;
+  expect(result).toMatchObject({
+    cleanupConfirmed: false,
+    ownedPid: 12345,
+    code: null,
+    terminated: true,
+  });
+  expect(child.stdin.destroyed && child.stdout.destroyed && child.stderr.destroyed).toBe(true);
+  expect(killTree).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
+});
+it('genuine child confirms ordinary close and clears both cleanup clocks', async () => {
+  vi.useFakeTimers();
+  const child = controlledChild(),
+    killTree = vi.fn();
+  const pending = boundedChild('owned.exe', [], {
+    cwd: root,
+    env: {},
+    deadlineMs: 150,
+    spawnChild: () => child,
+    killTree,
+  });
+  child.stdout.write(Buffer.from('bounded result'));
+  child.exitCode = 0;
+  child.emit('close', 0, null);
+  const result = await pending;
+  expect(result).toMatchObject({
+    cleanupConfirmed: true,
+    code: 0,
+    terminated: false,
+    stdoutBytes: 14,
+  });
+  expect(result.stdout.toString()).toBe('bounded result');
+  expect(killTree).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+  child.stdin.destroy();
+  child.stdout.destroy();
+  child.stderr.destroy();
 });

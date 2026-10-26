@@ -131,7 +131,10 @@ new permission.
 
 Only Bash is exposed; normal settings sources are omitted, managed controls still
 apply, MCP configuration is empty and strict, permission prompts have no responder,
-and the single Opus session has a $0.50 limit and a 150-second deadline. The runner
+and the single Opus session has a $0.50 limit and a 150-second deadline. Cleanup
+settlement has a five-second guard after termination starts. Unconfirmed cleanup
+retains the owned PID and fixed `CHILD_CLEANUP_UNCONFIRMED` failure before the
+runner exits unsuccessfully; it never claims the child was released. The runner
 does not retry or change the policy. Provider output stays bounded in memory;
 private receipts contain input/cwd equality booleans, fixed result flags, byte
 counts and cost rather than arguments or raw output. Passing also requires the
