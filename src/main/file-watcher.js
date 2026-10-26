@@ -33,6 +33,7 @@ const {
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { readInstanceId } = require('./process-identity');
+const { validCreateTime100ns } = require('./platform/windows-observer');
 const { skillFromPath } = require('../shared/skill-path');
 const sensorHealth = require('./sensor-health');
 // Watch-root registry (design §1) — the plan, its per-root state transitions, and the
@@ -436,25 +437,30 @@ function isSelfAccess(agentName, filePath) {
  * an UNATTRIBUTED event rather than blame a substitute (C-01).
  * @param {string} filePath - Resolved file path from the watcher event.
  * @param {Array<{agent:string,cwd?:string}>} aiAgents - Candidate AI agents.
- * @returns {{agent: Object, evidence: string[]}|null} Owner plus why, or null.
+ * @returns {{agent: Object|null, evidence: string[]}|null} Unique owner, explicit ambiguity, or no match.
  * @since v0.10.0
  */
 function findOwningAgent(filePath, aiAgents) {
+  let configOwner = null;
   for (const a of aiAgents) {
     if (isSelfAccess(a.agent, filePath)) {
-      return { agent: a, evidence: [EVIDENCE.SELF_CONFIG_PATH] };
+      if (configOwner) return { agent: null, evidence: [EVIDENCE.AMBIGUOUS_OWNER_MATCH] };
+      configOwner = a;
     }
   }
+  if (configOwner) return { agent: configOwner, evidence: [EVIDENCE.SELF_CONFIG_PATH] };
   const target = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+  let cwdOwner = null;
   for (const a of aiAgents) {
     if (!a.cwd) continue;
     let base = path.resolve(a.cwd);
     if (process.platform === 'win32') base = base.toLowerCase();
     if (target === base || target.startsWith(base + path.sep)) {
-      return { agent: a, evidence: [EVIDENCE.CWD_CONTAINMENT] };
+      if (cwdOwner) return { agent: null, evidence: [EVIDENCE.AMBIGUOUS_OWNER_MATCH] };
+      cwdOwner = a;
     }
   }
-  return null;
+  return cwdOwner ? { agent: cwdOwner, evidence: [EVIDENCE.CWD_CONTAINMENT] } : null;
 }
 
 /**
@@ -709,6 +715,22 @@ function handleWatcherEvent(action, filePath) {
   }
   const attribution = makeAttribution(evidence);
   const agent = owner ? owner.agent : null;
+  // This is the inferred candidate's current snapshot witness, not a kernel
+  // assertion that the candidate issued the write. Never borrow from another row.
+  let createTime100ns = null;
+  if (
+    agent?.instanceIdSource === 'os' &&
+    Number.isSafeInteger(agent.pid) &&
+    agent.pid > 0 &&
+    Number.isSafeInteger(agent.startTime) &&
+    agent.startTime > 0 &&
+    readInstanceId(agent) === `${agent.pid}:${agent.startTime}` &&
+    validCreateTime100ns(agent.createTime100ns) &&
+    agent.generationWitnessSource === 'createTime100ns' &&
+    agent.generationWitness === agent.createTime100ns &&
+    Number((BigInt(agent.createTime100ns) - 116444736000000000n) / 10000n) === agent.startTime
+  )
+    createTime100ns = agent.createTime100ns;
   // D2: the self-access exemption belongs to the agent that OWNS the path, and is
   // implied by the evidence — findOwningAgent's first loop already ran
   // isSelfAccess over every AI agent, so reaching the cwd branch (or no branch at
@@ -727,6 +749,7 @@ function handleWatcherEvent(action, filePath) {
     // key. Only a null owner yields a null key — never aiAgents[0], never a
     // name match.
     instanceId: readInstanceId(agent),
+    ...(createTime100ns === null ? {} : { createTime100ns }),
     parentEditor: (agent && agent.parentEditor) || null,
     cwd: (agent && agent.cwd) || null,
     file: filePath,
@@ -745,6 +768,7 @@ function handleWatcherEvent(action, filePath) {
   const signature = JSON.stringify([
     action,
     event.instanceId,
+    createTime100ns,
     event.agent,
     attribution,
     event.sensitive,

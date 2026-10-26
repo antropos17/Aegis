@@ -90,10 +90,37 @@ metadata-only result and original audit are checked for raw-content disclosure.
 
 `node scripts/qualification/live-tool-context-claude.cjs` runs one genuine installed
 Claude Code session on Windows with a disposable project and Electron profile.
-It preserves the configured model, allows only Read for the per-run task and caps
-the provider budget at USD 0.50. Hooks are supplied through task-local settings;
+By default it preserves the configured model, permits only Read for the per-run
+task and sets the CLI budget to USD 0.50. Hooks are supplied through task-local settings;
 personal settings and hooks are not edited. The production scanner discovers the
 real process. The case then checks the native binding, actual transcript and
 preload/UI explanation. Its selected OS observation is explicitly synthetic;
 this case does not qualify the native file-read sensor. Outputs are private
 diagnostics: review closed disposable logs after seven days and retain receipts.
+
+Setting `AEGIS_CLAUDE_QUALIFICATION_MODE=write` selects the existing runner's
+real-write journey. It creates a fresh owned project below the source checkout's
+ignored `out/development/` watch root and permits only one Claude Write there.
+The runner awaits the real watcher event, compares the actual output bytes,
+checks its retained audit entry, and selects the actual event UUID in Details.
+It never injects a file observation in this mode. A unique path-based candidate
+remains inferred; its coherent current process witness can support confirmation
+of that candidate's session binding, not confirmation of the OS write issuer.
+Multiple candidates at the selected path heuristic produce an unattributed
+observation with `ambiguous-owner-match`, without a selected process or history
+join. A missing or contradictory full witness preserves existing inferred
+attribution and cannot establish confirmed session binding. On Windows, the existing
+native CWD query returns the actual bounded x64 process directory and birth from
+one held process handle. Its version-2 response rejects the older command-line
+guess format; unsupported or inaccessible native observations remain unavailable.
+
+The local Windows qualification on 2026-10-26 at `2536bf8e` passed with installed
+Claude Code 2.1.292 and the configured Opus model. One genuine Write produced a
+real FileWatcher `created` event, a matching persisted audit record and an
+explanation selected by that event's UUID in Details. Independent output bytes
+and the genuine tool result matched; the original audit record retained its exact
+sequence, hash and full row after explanation. All six recorded stages passed,
+and both Claude and Electron exited with code 0. This confirms the selected
+process-to-session binding while path attribution and tool association remain
+inferred. It establishes neither the OS write issuer nor native read-sensor
+acceptance, measured clock alignment, other providers or general sensor completeness.

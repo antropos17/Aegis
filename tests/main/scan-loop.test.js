@@ -564,6 +564,26 @@ describe('scan-loop', () => {
       ).not.toBeNull();
     });
 
+    it.each([null, '133444736050000001'])(
+      'keeps a modified observation when candidate birth changes from %s within the window',
+      (firstBirth) => {
+        const base = {
+          agent: 'Claude Code',
+          pid: 42,
+          instanceId: '42:1700000005000',
+          file: '/owned/output.txt',
+          action: 'modified',
+          attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+        };
+        const first = { ...base, createTime100ns: firstBirth };
+        const second = { ...base, createTime100ns: '133444736050000007' };
+        expect(scanLoop.dedupFileEvent(first)).toBe(first);
+        expect(scanLoop.dedupFileEvent(second)).toBe(second);
+        expect(second.attribution.status).toBe('inferred');
+        expect(scanLoop.dedupFileEvent({ ...second })).toBeNull();
+      },
+    );
+
     it('D: unattributed events for the same path do not collapse into a null bucket', () => {
       // Historical bug: key was `''|path` for all unattributed → one observation
       // suppressed all later independent unattributed hits within 30s.

@@ -13,6 +13,47 @@ const event = (id: number): RecordData => ({
   action: 'modified',
 });
 
+it('selects the exact UUID occurrence from retained history and scopes its resource by full path', async () => {
+  const selected = {
+    ...event(1),
+    eventId: '12345678-1234-4234-9234-123456789abc',
+    file: 'X:\\owned project\\w4-real-write.txt',
+    action: 'created',
+  };
+  const newer = {
+    ...selected,
+    eventId: '98765432-1234-4234-9234-123456789abc',
+    timestamp: 2000,
+    action: 'modified',
+  };
+  const other = { ...event(3), file: 'X:\\different project\\w4-real-write.txt' };
+  const inspect = vi.fn();
+  const table = render(ObservationTable, {
+    rows: [selected, newer, other],
+    telemetry: state(),
+    inspect,
+    grouping: 'resource',
+  });
+  const resources = [
+    ...table.container.querySelectorAll<HTMLButtonElement>('.observation-open'),
+  ].filter(
+    (button) =>
+      button.querySelector('.observation-resource')?.getAttribute('title') === selected.file,
+  );
+  expect(resources).toHaveLength(1);
+  await fireEvent.click(resources[0]);
+  expect(inspect.mock.calls[0][1].observations).toEqual([selected, newer]);
+  const navigate = vi.fn(async () => {});
+  const history = render(ObservationHistory, { rows: [selected, newer], navigate });
+  const exact = history.container.querySelector<HTMLButtonElement>(
+    '[data-detail-focus="record-event:' + selected.eventId + ':0"]',
+  );
+  expect(exact).not.toBeNull();
+  expect(history.container.querySelector('.recent-event')).not.toBe(exact);
+  await fireEvent.click(exact!);
+  expect(navigate).toHaveBeenCalledExactlyOnceWith('Observation', selected);
+});
+
 it('keeps the expanded history control focused with a truthful final-boundary label', async () => {
   const mounted = render(ObservationHistory, {
     rows: Array.from({ length: 35 }, (_, i) => event(i)),

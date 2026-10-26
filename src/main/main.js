@@ -330,7 +330,8 @@ function loadDeferredModules() {
  *
  * Total by construction, which matters because `statsUpdateBatcher.pushLazy` resolves
  * `getStats` on the flush timer, where a throw would have nowhere to go. `bootPhase`
- * is false until `loadDeferredModules` has run, and on that branch `deriveAppHealth`
+ * is false until every health dependency in `loadDeferredModules` is bound. A
+ * reentrant stats read may observe that require pass partway through. `deriveAppHealth`
  * returns before it reads anything else — so the module reads below cannot happen
  * against an undefined module.
  *
@@ -340,7 +341,15 @@ function loadDeferredModules() {
  * @since v0.12.0
  */
 function getAppHealth() {
-  if (!scanner || !watcher) {
+  if (
+    !scanner ||
+    !watcher ||
+    !network ||
+    !platform ||
+    !ideDetector ||
+    !wslDetector ||
+    !llmDetector
+  ) {
     const derived = appHealth.deriveAppHealth({ bootPhase: false });
     return {
       state: derived.state,
