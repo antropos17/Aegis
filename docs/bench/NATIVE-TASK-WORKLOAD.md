@@ -86,6 +86,10 @@ outside effect is reported regardless of telemetry.
 
 CPU and RSS overhead stay null: complete product/helper lifetime accounting,
 instrumentation calibration and independent resource reference are not qualified.
+The separate [Windows worker-resource execution](WINDOWS-NATIVE-RESOURCES.md)
+consumes actual controlled-worker Win32 CPU/working-set observations through the
+existing evaluator. It retains same-kernel API corroboration and independent
+useful-output checks; it does not retroactively calibrate these paired task runs.
 The actor's own cumulative CPU ticks and working-set bytes are retained as raw
 diagnostics only. The three separate task-pair estimates and observed latency
 range expose variation; cache state, background host work and short samples limit
