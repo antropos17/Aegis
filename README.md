@@ -4,7 +4,7 @@
 
 Local AI-agent monitoring, security reviews and explicitly configured action controls.
 
-[Install](#install) · [Use AEGIS](#use-aegis) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
+[Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
 
 > **Windows beta:** see [published releases and installers](https://github.com/antropos17/Aegis/releases).
 > [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)

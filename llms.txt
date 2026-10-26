@@ -2,7 +2,7 @@
 
 > Aegis is a Windows-first open-source desktop app for local AI-agent oversight: process/file/TCP monitoring, local security review, resource/token accounting, audit reports and explicit action policies/MCP gateways. macOS/Linux support is experimental.
 
-Historical source checkpoint: 18 October 2026, merged master 96b63b165ac932e9615815f93c587765e6bde1b8 (PR #975). The published Windows 0.19.2-beta installer is dated 6 October; later source changes need a later installer release.
+Historical source checkpoint: 18 October 2026, merged master 96b63b165ac932e9615815f93c587765e6bde1b8 (PR #975). At that checkpoint, the published Windows installer was 0.19.2-beta, dated 6 October. See [GitHub Releases](https://github.com/antropos17/Aegis/releases) for current installers and release notes, and the [root README](https://github.com/antropos17/Aegis/blob/master/README.md#current-development) for source development. Dated readiness and qualification records apply only to their named artifacts and revisions; installed builds contain the features at their release tag.
 
 Current Windows x64 source packages include experimental Kernel-File reads in Events. Capture stays off on startup and requires an explicit local folder, Start and manual UAC consent; Stop, monitoring pause, suspend or quit request cleanup. Paths remain candidates, and potential path-rule risk does not inspect contents or update risk scoring, audit, baselines or sequences. Historical source-bound qualification includes the #975 warmup read, #976 diagnostic first/persistent reads and ordinary idle first reads after 65, 70 and 85 seconds on source 5249c10a. These receipts do not qualify changed protocol-10/package/harness inputs or a Windows restart; #974 reboot recovery remains pending. See [ordinary file reads](https://github.com/antropos17/Aegis/blob/master/docs/development/ordinary-file-reads.md) and [Windows recovery admission](https://github.com/antropos17/Aegis/blob/master/docs/roadmap/windows-recovery-admission.md).
 
@@ -14,6 +14,7 @@ Experimental administrative Hyper-V APIs can create a private VM, hydrate its or
 
 - [README](https://github.com/antropos17/Aegis/blob/master/README.md)
 - [Documentation index](https://github.com/antropos17/Aegis/blob/master/docs/README.md)
+- [FAQ](https://github.com/antropos17/Aegis/blob/master/docs/FAQ.md)
 - [Full capability guide](https://github.com/antropos17/Aegis/blob/master/docs/CAPABILITIES.md)
 - [Guided desktop workflows](https://github.com/antropos17/Aegis/blob/master/docs/OBSERVATORY-GUIDED-WORKFLOWS.md)
 - [Security Policy](https://github.com/antropos17/Aegis/blob/master/SECURITY.md)
