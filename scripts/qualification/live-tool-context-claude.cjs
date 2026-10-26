@@ -1010,6 +1010,7 @@ main()
       treeKillSucceeded: null,
       claudeExit: null,
       electronExitCode: null,
+      electronCleanupTimedOut: false,
       confirmed: true,
     };
     if (app && appChild?.exitCode === null && appChild?.signalCode === null)
@@ -1043,10 +1044,11 @@ main()
           cleanup.electronExitCode = own.exitCode;
           if (own.exitCode !== 0) cleanup.confirmed = false;
         } else {
-          const appExited =
-            own.exitCode !== null
-              ? Promise.resolve(own.exitCode)
-              : new Promise((resolve) => own.once('exit', (code) => resolve(code)));
+          let onExit, deadline;
+          const appExited = new Promise((resolve) => {
+            onExit = (code) => resolve(code);
+            own.once('exit', onExit);
+          });
           const kill = setTimeout(() => {
             if (own.exitCode === null) {
               try {
@@ -1060,14 +1062,28 @@ main()
             }
           }, 8000);
           try {
-            await app.close();
-            const code = await appExited;
-            cleanup.electronExitCode = code;
-            if (code !== 0) cleanup.confirmed = false;
+            const result = await Promise.race([
+              (async () => {
+                await app.close();
+                return { timedOut: false, code: await appExited };
+              })(),
+              new Promise((resolve) => {
+                deadline = setTimeout(() => resolve({ timedOut: true }), 14000);
+              }),
+            ]);
+            if (result.timedOut) {
+              cleanup.electronCleanupTimedOut = true;
+              cleanup.confirmed = false;
+            } else {
+              cleanup.electronExitCode = result.code;
+              if (result.code !== 0) cleanup.confirmed = false;
+            }
           } catch {
             cleanup.confirmed = false;
           } finally {
             clearTimeout(kill);
+            clearTimeout(deadline);
+            own.removeListener('exit', onExit);
           }
         }
       } catch {
