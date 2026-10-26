@@ -343,7 +343,10 @@ it.each([
     });
     expect(await screen.findByText(storageNotice)).toBeVisible();
     expect(screen.getByText(historyNotice)).toBeVisible();
-    expect(screen.getAllByText('building', { exact: true }).length).toBeGreaterThan(0);
+    const delivery = screen.getByRole('region', { name: 'Delivery' });
+    const indexSummary = within(delivery).getByText('Index').closest('summary')!;
+    await fireEvent.click(indexSummary);
+    expect(within(indexSummary.parentElement!).getByText('building', { exact: true })).toBeVisible();
     const queued = screen.getByText('queued').parentElement!;
     const lastQueued = storage === 'uninitialized' ? '—' : '7';
     expect(within(queued).getByText(lastQueued)).toBeVisible();
@@ -367,7 +370,9 @@ it.each([
       ),
     ).toBeVisible();
     expect(within(queued).getByText('—')).toBeVisible();
-    expect(screen.getByText('ready', { exact: true })).toBeVisible();
+    const recoveredIndex = within(delivery).getByText('Index').closest('summary')!;
+    await fireEvent.click(recoveredIndex);
+    expect(within(recoveredIndex.parentElement!).getByText('ready', { exact: true })).toBeVisible();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(host.getAuditEntriesBefore).toHaveBeenCalledOnce();
   },
