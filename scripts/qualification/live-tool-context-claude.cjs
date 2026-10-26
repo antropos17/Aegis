@@ -42,6 +42,7 @@ const writeStages = {
   originalAuditRowsPreserved: false,
 };
 let app,
+  appChild,
   page,
   child,
   timer,
@@ -233,6 +234,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     env,
     timeout: 45000,
   });
+  appChild = app.process();
   page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   await page
@@ -1027,33 +1029,43 @@ main()
     }
     if (!child || cleanup.claudeExit) clearTimeout(timer);
     // Cleanup never opens a held model/tool barrier, even if termination is uncertain.
-    if (app) {
-      const own = app.process();
-      const appExited =
-        own.exitCode !== null
-          ? Promise.resolve(own.exitCode)
-          : new Promise((resolve) => own.once('exit', (code) => resolve(code)));
-      const kill = setTimeout(() => {
-        if (own.exitCode === null) {
+    if (app && !appChild) cleanup.confirmed = false;
+    if (appChild) {
+      try {
+        const own = appChild;
+        if (own.exitCode !== null || own.signalCode !== null) {
+          cleanup.electronExitCode = own.exitCode;
+          if (own.exitCode !== 0) cleanup.confirmed = false;
+        } else {
+          const appExited =
+            own.exitCode !== null
+              ? Promise.resolve(own.exitCode)
+              : new Promise((resolve) => own.once('exit', (code) => resolve(code)));
+          const kill = setTimeout(() => {
+            if (own.exitCode === null) {
+              try {
+                execFileSync('taskkill.exe', ['/PID', String(own.pid), '/T', '/F'], {
+                  stdio: 'ignore',
+                  timeout: 5000,
+                });
+              } catch {
+                /* Already exited. */
+              }
+            }
+          }, 8000);
           try {
-            execFileSync('taskkill.exe', ['/PID', String(own.pid), '/T', '/F'], {
-              stdio: 'ignore',
-              timeout: 5000,
-            });
+            await app.close();
+            const code = await appExited;
+            cleanup.electronExitCode = code;
+            if (code !== 0) cleanup.confirmed = false;
           } catch {
-            /* Already exited. */
+            cleanup.confirmed = false;
+          } finally {
+            clearTimeout(kill);
           }
         }
-      }, 8000);
-      try {
-        await app.close();
-        const code = await appExited;
-        cleanup.electronExitCode = code;
-        if (code !== 0) cleanup.confirmed = false;
       } catch {
         cleanup.confirmed = false;
-      } finally {
-        clearTimeout(kill);
       }
     }
     if (pendingReceipt) {
