@@ -78,6 +78,13 @@ procedure. Reuse existing baseline evidence, keep the selected model and perform
 implementation directly when delegation was not requested. This is a workflow
 correction; it does not promote any product acceptance row.
 
+Revision 6 (2026-10-26) applies the owner's paper/video review to the existing
+workstreams. Section 2.1 distinguishes useful security controls from infrastructure
+outside AEGIS's scope. W4 incorporates the live Claude path merged in #1088;
+W6/W9 require a visible decision and response outcome; W8 adds ordinary-work and
+bounded decoy comparisons. This is a plan revision, with no new acceptance,
+production honeypot activation, profile change or native-run authorization.
+
 ## 1. Instruction priority
 
 When two sources disagree, the higher one wins:
@@ -109,13 +116,74 @@ The plan is complete when all of the following hold on merged master:
 | T1 | Windows file and process activity captured from ETW events in packaged builds, with polling kept as a declared fallback | Polling blind spot for short-lived processes |
 | T2 | Linux event sensor in Rust (eBPF, then fanotify, then procfs) behind the sidecar wire contract | Linux support is experimental |
 | T3 | macOS sensor in Rust with a process-generation witness, libproc/kqueue/FSEvents baseline and an Endpoint Security mode that activates when the entitlement exists | macOS has no birth-time witness |
-| T4 | Alert explanation: each file, network and process alert links to the agent tool call that preceded it, when local session data allows | No intent visibility |
+| T4 | Alert explanation: each file, network and process alert links to the agent tool call that preceded it, when local session data allows | Limited evidence about preceding actions |
 | T5 | Cedar as the action-policy language for allow/ask/deny, equivalent to policy schema 3 on every existing case | Separate JSON policy families |
 | T6 | Guard mode: one-step installation of native pre-execution hooks for supported agents, with "Blocking verified" shown only after qualification | No pre-execution blocking by default |
 | T7 | Protected Session reaches its acceptance review with every stage evidenced; enabling launch stays a human decision | Sandbox launch is disabled |
 | T8 | Published measurements: per-platform recall against an independent oracle, false-alarm rate on ordinary work, CPU/RAM overhead with a written method | Current per-platform acceptance measurements missing |
 | T9 | Observatory shows per-platform, per-sensor coverage: Observed, Blocking verified, Coverage lost, and the active sensor mode | Coverage state is partly hidden |
 | T10 | Installable artifacts for Windows, Linux and macOS with verification instructions; signing steps prepared for the owner | Install friction |
+
+### 2.1 Applying the honeypot paper and enterprise diagram
+
+Review baseline: merged master `cd71cb2971167909f6d84392d7f35d585af608cf`
+(#1088), including the current delivery policy. The research input is Wehner and
+Kraprayoon, [Honeypots for AI Agent Insider Threats, v1](https://arxiv.org/abs/2610.26664v1)
+(2026-10-19). The owner-supplied 7.87-second silent clip shows one animated diagram,
+"Components of a Secure AI System in an Enterprise", with an aidigital.co.uk
+watermark. It supplies an architecture checklist; it contains no demonstrated
+implementation or effectiveness measurements.
+
+The diagram's ten components map to AEGIS as follows. These are source-backed
+boundaries and planned applications, not claims that every component is delivered.
+
+| Diagram component | Existing boundary and application to this plan |
+| --- | --- |
+| 1. AI Gateway | [Explicit MCP gateways](../MCP-STDIO-GATEWAY.md) already mediate selected tool routes. The [bounded model broker](enforcement-e5/model-broker.md) remains a private developer factory. Qualify one real selected route under W6/W7; neither component mediates all agent traffic. |
+| 2. Model Registry | Record provider, agent/model version when available, route, policy version and qualification receipt for W6/W8/W9. Agent recognition is not approval or a security scan of a model. A hosted model registry is outside this plan. |
+| 3. Input/output guardrails | Reuse strict schemas and the optional [known-secret filter](../MCP-KNOWN-SECRETS.md). Test malicious tool metadata and results at an actual guarded boundary. Finite known-value checks do not establish general DLP or prompt-injection immunity; filtering a result cannot undo a tool's completed side effect. |
+| 4. AI application layer | External agents remain the callers. W4 explains observed actions using local evidence; AEGIS does not add an agent runtime, RAG service or copilot. |
+| 5. Identity and policy | Preserve OS instance/generation evidence and deterministic route-specific allow/ask/deny. W5/W6 must bind the selected operation and resource to the decision. Enterprise SSO/RBAC is outside the desktop scope. |
+| 6. Secure data layer | Enforce bounded reads, metadata-only explanations and explicit disclosure at AEGIS boundaries. W7 qualifies its owned workspace. Database row permissions and permission-aware RAG retrieval remain the connected service's responsibility. |
+| 7. Tool access and human approval | Reuse [exact one-attempt grants](../MCP-DURABLE-GRANTS.md), route binding and provider hooks. Complete one owner-visible preview/decision/result path; qualify replay, substitution, expiry and bypass behavior on that selected route. Existing grant profiles have different guarantees and must be named. |
+| 8. Private model serving and secrets vault | Keep local processing and explicit external-analysis consent. Existing encrypted settings and bounded brokers do not constitute an enterprise vault, private inference platform or a provider "no training" guarantee. No new hosting/vault service is required for this milestone. |
+| 9. Evals and monitoring | W8 measures independent ground truth, misses, ordinary-task false alarms, task completion and latency. W9 shows current losses and route coverage. More alerts or fewer alerts alone do not establish better protection. |
+| 10. Audit, security view and response | Reuse the durable event pipeline and Observatory. Connect evidence, the owner's scoped response and its observed result. Hash-chained local JSONL supplies an integrity check with limits; it does not establish immutable, complete or independently authenticated evidence. A SIEM integration is deferred until a concrete consumer requires it. |
+
+The paper's most useful immediate contribution is its distinction between
+detecting an action, establishing a policy violation and inferring malicious
+intent (PDF pp. 20–30, 34–40). A file read needed for an ordinary task is weak
+evidence; independently observed use of a decoy credential against a resource
+outside the authorized task is a stronger violation signal. Neither one proves
+an agent's internal motive. Report measured detection separately from
+incrimination and deterrence hypotheses; published results for other deployments
+are not AEGIS measurements.
+
+Source checks at the review baseline establish the remaining integration work:
+
+- [Live tool context](../../src/main/live-tool-context.js) now has an application
+  caller for native local Claude main sessions. Its registry hint and assumed
+  same-host clock permit inferred association only. The previous description of
+  all W4 readers as disconnected is obsolete. W4.3/W4.4 and other sources remain
+  open; the separate [AI analysis](../../src/main/ai-analysis.js) still groups by
+  agent display name and must not be presented as an instance-specific verdict.
+- [Windows ETW read views](../../src/main/platform/etw-file-attribution.js) remain
+  diagnostic observations outside FileEvent sinks. The [Linux/macOS runtime](../../src/main/platform/sensor-runtime.js)
+  refuses native event custody. Native read-to-audit/risk acceptance remains a
+  prerequisite for claims about those paths.
+- [Audit verification](../../src/main/audit-hashchain.js) cannot detect removal
+  of a valid trailing suffix. Without an independently protected anchor, a writer
+  able to replace the file can also recompute its public hash chain. Local checks
+  do not establish resistance to a compromised same-account monitor or host.
+- Existing ordinary process controls address one freshly verified process.
+  They do not establish automatic incident containment of every descendant,
+  shared service or remote task. W7's owned launch boundary remains separate.
+
+Apply the paper's supporting requirements now: trustworthy instance attribution,
+visible incompleteness, prompt response with a recorded outcome, and independent
+ordinary-work evaluation. Section 6's W8 decoy comparison is a later bounded lab
+experiment. Production honeypots require a separately scoped design and owner
+deployment decision; the Honey Workspace exclusion remains in force.
 
 ## 3. Fixed constraints
 
@@ -151,6 +219,8 @@ Permanent exclusions:
 - Kernel drivers and minifilters, TLS interception, reading other processes'
   memory, and Job-object auto-containment of ordinary (non-routed) agent launches.
 - Honey Workspace, Community Packs, Behavior DNA, Query Console, signed receipts.
+  Disposable decoys in W8 evaluation fixtures do not create a production Honey
+  Workspace or authorize planting traps in the owner's files or credentials.
 - Embedding Sysmon. Sysmon is an external benchmark oracle only.
 - Outreach to authors of other projects named Aegis.
 
@@ -600,6 +670,12 @@ Design:
   Prompt and response text never leave the session file.
 - Observatory alert detail gets a "Preceding tool call" section. When nothing
   matched, it says which session sources were available and why none matched.
+- Keep observation, association and policy judgment separate. Tool history is
+  untrusted evidence and cannot authorize an action. If the optional AI analysis
+  appears in an incident detail, scope it to that `instanceId` and observation
+  window first, or clearly retain it as an aggregate provider summary. A case with
+  two same-name agent instances must never borrow the other instance's events,
+  process identity or connections for an instance-specific explanation.
 
 Acceptance: fixture transcripts for each agent plus synthetic OS events cover
 match, no match, ambiguous match, clock skew and truncated session; a recorded
@@ -613,6 +689,9 @@ through owned IPC. Its registry hint and explicit same-host clock assumption
 permit inferred context only. This is a W4.2 application integration; independently
 confirmed session ownership, measured clock alignment and genuine-agent installed
 acceptance above remain open and must not be inferred from fixture evidence.
+The next W4 deliverable qualifies that existing caller, including a live writer,
+process restart, two same-name instances and an unavailable source. Add another
+provider only after its consumer and missing ownership evidence are named.
 
 ### W5 — Cedar action policies
 
@@ -683,6 +762,18 @@ exists) that routes decisions to the local policy (Cedar when present). Rules:
 - A hook that disappears, fails to answer, or is bypassed by an action the OS
   sensors see without a matching hook decision produces "Coverage lost" with the
   evidence.
+- For the selected covered route, connect the owner's exact operation preview to
+  the policy decision, dispatch and visible result. Bind authorization to the
+  actual instance/session, operation, target, route and lifetime using the route's
+  existing contract; ambiguous ownership cannot become an implicit allow. A
+  changed request requires a new decision. Exercise cancellation, timeout,
+  replay, changed arguments/route and policy unavailability. A post-execution
+  confirmation or filtered tool response is not evidence of prevention.
+- When a selected MCP route supplies the tool boundary, reuse its existing
+  gateway/grant profile rather than add a parallel proxy. Prove denial with an
+  independent receiver or filesystem outcome, and prove the allowed operation
+  still completes. Qualify one provider/version/surface first. Other launches,
+  direct network paths and shared services retain their stated coverage limits.
 
 Acceptance: qualification scripts and records per agent and version; tests for
 install, removal, tamper detection and the hook-versus-OS mismatch signal;
@@ -725,6 +816,48 @@ rows explicitly and retain the full per-platform acceptance target.
   p50 and p95 with the exact method in `docs/bench/METHOD.md`.
 - Coverage matrix: map scenarios to MITRE ATT&CK techniques with executable
   red/green tests, including the scenarios where AEGIS misses, listed as misses.
+- Complete one existing incident path as a measurement case: a real supported
+  agent performs an ordinary task and a separate controlled unauthorized action;
+  independent evidence establishes the attempted/effected action, AEGIS records
+  the observation and attribution, and the owner can inspect a decision or scoped
+  response outcome in the application. Record detection and response latency
+  separately, including whether the prohibited effect preceded the response.
+  Include missing telemetry, two same-name instances, process restart and failed
+  response cases. This adds evidence to existing W4/W6/W9 rows, not a new product
+  acceptance target or automatic containment claim.
+  Missing explanation or prevention stays explicitly unavailable and does not
+  block an observation-only baseline; qualify response cases separately when
+  their route is ready.
+
+After the first real workload has a qualified observation path and independent
+oracle, a bounded decoy comparison may answer whether decoys add detection value
+for that workload (paper PDF pp. 41–47, 52–56, 69–72):
+
+- Use an isolated disposable workspace and an inert test-only credential or file;
+  any credential-use receiver is owner-controlled and cannot reach real accounts
+  or production resources. The mapping from decoy tokens to runs/instances and
+  the ground-truth catalogue stay in the trusted harness. No real secret discovery, production
+  planting or automatic privilege change is part of the experiment.
+- Distinguish discovery/read, attempted credential use and the receiver's observed
+  test effect. Include legitimate broad searches and authorized file reads as
+  benign controls. Associate a trigger with an instance only when independently
+  supported; a shared helper without that evidence stays unattributed. Realistic
+  decoy metadata and discoverability are experimental variables, not proof that
+  an adaptive agent cannot identify the trap.
+- Compare matched tasks with existing monitoring alone, the decoy detector alone
+  and both together. Record agent/model versions and parameters when available,
+  task success, false alarms per ordinary task, relevant attempts/effects, misses,
+  loss/completeness and time to detection. Use prespecified denominators and
+  repetitions from the measurement method; count episodes, not repeated alerts.
+  Detection conditional on encountering a trap does not estimate overall recall.
+- Publish only this scenario's incremental value and limits. Do not claim
+  deterrence from reduced trigger counts. If deterrence is later the question,
+  it needs a separate comparison of actual trap presence and warning disclosure,
+  including attacks that avoid the decoy. A lab result does not establish
+  production effectiveness, complete coverage or malicious intent.
+
+Keep this experiment within W8.3/W8.4; it cannot block the first ordinary-work
+measurement or advance completion percentages by adding synthetic substeps.
 
 Acceptance: dated result files in `docs/bench/` generated by scripts in `bench/`;
 rerunning a script on the same commit reproduces its table within the stated
@@ -745,6 +878,18 @@ driven from real health data in tests; screenshots from the browser preview with
 simulated data; one recorded run through the real Electron preload bridge in a
 built app showing live sensor states; keyboard access and reduced motion as in
 existing panels.
+
+Within the existing incident detail, present a short evidence chain: observed
+event and instance, preceding tool context with its strength, applicable policy
+decision when one exists, owner response and observed outcome. Show unsupported,
+failed and unconfirmed response states explicitly. Reuse existing process
+controls with fresh generation verification; an ordinary-process action does not
+imply descendant or remote-task containment. W7 alone owns its qualified launch
+scope. Preserve bounded audit/loss evidence even when explanation is unavailable.
+Integrity status must distinguish a checked local chain from completeness and
+external authentication; no "immutable" or "tamper-proof" label follows from
+hash-chain verification. Test these states with behavioral fixtures, then record
+the selected real incident path through the application under W8.
 
 ### W10 — Packaging and distribution
 
@@ -829,8 +974,9 @@ independent integration proceeds while the Windows run is pending.
 | Priority | Existing substep | Next deliverable and closure evidence |
 | --- | --- | --- |
 | 1 | W11.2 / W11.4 | Consume the single authorized Windows diagnostic run. Diagnose its first failing stage from the saved artifact. Close read-to-audit/alert/risk and recovery only when the actual candidate proves them; otherwise implement the narrow demonstrated fix before considering another run. |
-| 2 | W4.2, then W4.3–W4.4 | Connect one supported local session source through trusted process/session binding to an explanation visible in the active application. Cover missing/truncated data, privacy and clock mismatch. Reuse bounded readers; a new reader utility alone does not close this path. |
-| 3 | W6.3, then W6.4 | Connect the existing review/backup/readback operations to an owner-visible preview, install and remove flow for one supported provider. Demonstrate rollback on a disposable profile, then qualify that provider's real pre-execution behavior before using Blocking verified. |
+| 2 | W4.3–W4.4, retaining partial W4.2 | Qualify the native local Claude explanation caller delivered in #1088: process/session ownership, active writer, clock alignment, two same-name instances, missing/truncated data and privacy. Record the genuine installed-agent observation-to-explanation path. Keep inferred association explicit; another reader utility is not this deliverable. |
+| 3 | W6.3, then W6.4; W9 | Connect existing review/backup/readback operations to owner-visible preview, install and remove for one provider. Demonstrate rollback on a disposable profile, then a real denied and allowed operation with a visible outcome. Verify the selected route before using Blocking verified; exercise expiry/replay/bypass within that route's contract. |
+| 4 | W8.3–W8.4; existing W4/W6/W9 consumers | Measure one real ordinary/unauthorized task pair with an independent oracle; record available explanation/decision/response outcomes and unavailable surfaces. Publish false alarms, misses, task completion, latency and coverage limits. Only then run the bounded decoy comparison if it answers a remaining detection question. |
 
 W8.1 and W8.2 already represent method and educational harness preparation in
 the tracker. Additional oracle adapters, replay validators or synthetic controls
@@ -838,6 +984,11 @@ are scheduled only for a named missing input to W8.3's first real workload.
 Next measurement names one agent/version, platform/mode, independent oracle,
 loss/completeness accounting and the method's planned repetitions. Publish its
 bounded results under W8.4. Keep cross-platform completion as the long-term goal.
+The enterprise diagram does not introduce a competing platform roadmap. Work on
+RAG infrastructure, a hosted registry, SSO, private model hosting, a secrets vault,
+SIEM ingestion or production honeypots is deferred unless a concrete authorized
+consumer makes it necessary. Existing Windows/W4/W6 closure work comes first;
+an unrelated blocked lane does not prevent a ready integration from finishing.
 
 Each new task names the existing substep, final consumer, acceptance observation,
 missing dependency and smallest relevant verification. If its deliverable is
