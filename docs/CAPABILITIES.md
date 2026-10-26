@@ -1,9 +1,12 @@
 # AEGIS capabilities
 
 Source review: 16 October 2026, [revision `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
-The published Windows installer is [0.19.2-beta](releases/0.19.2-beta.md), dated
-6 October. Later source work needs a later installer release. The package version
-alone does not identify which unreleased changes an installed build contains.
+At that 16 October checkpoint, the published Windows installer was
+[0.19.2-beta](releases/0.19.2-beta.md), dated 6 October. See
+[GitHub Releases](https://github.com/antropos17/Aegis/releases) for current
+installers and their release notes. Later source work needs a later installer
+release; the package version alone does not identify which unreleased changes an
+installed build contains. Dated qualification evidence applies to its named artifacts.
 
 ## Choose an entry point
 
