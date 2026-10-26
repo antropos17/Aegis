@@ -96,9 +96,7 @@ internal static class ClaudeSession {
         IntPtr handle = OpenProcess(0x00101410, false, pid);
         if (handle == IntPtr.Zero) return null;
         try {
-            bool wow64;
             long birth = 0, exit = 0, kernel = 0, user = 0;
-            Need(IntPtr.Size == 8 && IsWow64Process(handle, out wow64) && !wow64);
             Need(WaitForSingleObject(handle, 0) == 258 && GetProcessTimes(handle, out birth, out exit, out kernel, out user) && birth > 0);
             StringBuilder image = new StringBuilder(32768);
             int size = image.Capacity;
