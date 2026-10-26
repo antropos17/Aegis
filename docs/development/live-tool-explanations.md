@@ -124,3 +124,38 @@ and both Claude and Electron exited with code 0. This confirms the selected
 process-to-session binding while path attribution and tool association remain
 inferred. It establishes neither the OS write issuer nor native read-sensor
 acceptance, measured clock alignment, other providers or general sensor completeness.
+
+The optional `AEGIS_CLAUDE_QUALIFICATION_SCENARIO=instances-restart` with Write mode
+prepares a separate instance-isolation case in an external owned project. Before
+app startup the production selection owner seeds only the disposable profile
+using a scripted fixture dialog/guard; this does not establish native owner
+consent. Normal startup must restore that selection, report public `SELECTED`,
+and ready its project watcher under the exact owned user-data directory before
+any model release. A second Claude in a disjoint owned directory remains at
+SessionStart while only the primary performs one Write.
+After that proof the peer is terminated and the primary finishes normally. A
+replacement resumes the primary history under fresh, unreleased startup settings;
+the existing event UUID must then yield no borrowed candidate through both IPC
+and a new Details request, while original audit rows stay preserved. Peer history
+is never read. Each held side process has a 60-second owner deadline before the
+hook's 90-second automatic return; uncertainty cancels the owned scenario without
+releasing side barriers or retrying termination. This scenario has local lifecycle
+and rendered-state controls.
+
+The local Windows scenario on 2026-10-26 at `1a235a15` passed with installed
+Claude Code 2.1.292 and the configured Opus model. The actual app restored the
+scripted disposable-profile selection and reported its external project watcher
+ready. Two same-name processes had distinct observed generations and directories;
+only the primary was released to perform the genuine Write. Its real watcher
+event reached the retained audit and event-specific Details explanation with
+confirmed process-to-session binding and inferred attribution and association.
+After the peer was retired and the primary exited normally, a held replacement
+resumed the primary history under a new observed generation. Fresh IPC and Details
+requests for the original event UUID returned unavailable without borrowed tool
+candidates, while the original audit rows retained their exact sequence, hash and
+contents. All eight instance stages and six Write stages passed; both held side
+processes were terminated before their hook deadlines, and owned cleanup was
+confirmed. Peer history was not read. This qualifies the selected local external
+project and restart case; scripted selection does not establish native owner
+consent, and the result makes no native read-sensor, measured-clock or packaged
+installation claim.

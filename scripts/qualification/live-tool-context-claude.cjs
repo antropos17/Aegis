@@ -9,10 +9,10 @@ const os = require('node:os');
 const { randomUUID, createHash } = require('node:crypto');
 const { spawn, execFileSync } = require('node:child_process');
 const assert = require('node:assert/strict');
-const { _electron: electron } = require('playwright');
 
 const root = process.cwd();
 const mode = process.env.AEGIS_CLAUDE_QUALIFICATION_MODE || 'read';
+const scenario = process.env.AEGIS_CLAUDE_QUALIFICATION_SCENARIO || 'single';
 const selectedTool = mode === 'write' ? 'Write' : 'Read';
 const out = path.resolve(
   process.env.AEGIS_CLAUDE_QUALIFICATION_OUT || 'out/development/live-claude',
@@ -21,7 +21,7 @@ const cli = path.join(os.homedir(), '.local', 'bin', 'claude.exe');
 const id = randomUUID();
 let eventId = randomUUID();
 const project =
-    mode === 'write'
+    mode === 'write' && scenario === 'single'
       ? path.join(root, 'out', 'development', 'w4-write-' + id, 'project')
       : path.join(out, 'project'),
   file = path.join(project, mode === 'write' ? 'w4-real-write.txt' : 'w4-native-fixture.env'),
@@ -41,6 +41,270 @@ const writeStages = {
   DOMDetailsVerified: false,
   originalAuditRowsPreserved: false,
 };
+const heldActors = [];
+const instanceStages = {
+  peerHeldDuringPrimary: false,
+  primaryOnlyModelReleased: false,
+  primaryOnlyWriteVerified: false,
+  peerRetiredBeforeRestart: false,
+  replacementNewGeneration: false,
+  oldEventRejectedIPC: false,
+  oldEventRejectedDOM: false,
+  originalAuditRowsPreserved: false,
+};
+let scenarioFailure = null,
+  primaryCancelAttempted = false,
+  primaryCancelSucceeded = null,
+  primaryReportedCost = null,
+  peerPreflightDiagnostic = null,
+  projectSelectionDiagnostic = null;
+
+/** Seed only an owned disposable profile through the real selection owner before startup.
+ * Scripted fixture authorization is not native owner consent.
+ * @param {string} profile Fresh owned profile. @param {string} project Selected external owned directory.
+ * @param {string} sourceRoot Blocked application source. @returns {Promise<object>} Closed fixture evidence.
+ * @since v0.21.0 */
+async function seedOwnedProjectSelection(profile, project, sourceRoot) {
+  const { createProjectWatchSelection } = require('../../src/main/project-watch-selection');
+  await fs.mkdir(profile);
+  const fixtureWindow = { isDestroyed: () => false };
+  const owner = createProjectWatchSelection({
+    userData: profile,
+    getWindow: () => fixtureWindow,
+    dialog: { showOpenDialog: async () => ({ canceled: false, filePaths: [project] }) },
+    blockedTrees: [sourceRoot],
+  });
+  try {
+    assert.deepEqual(await owner.handle('select', () => true), {
+      success: true,
+      code: 'SELECTED',
+      selected: true,
+      available: true,
+    });
+    return {
+      authority: 'scripted-owned-profile-fixture',
+      nativeOwnerConsent: false,
+      fixturePersisted: true,
+      appUserDataMatched: false,
+      publicStatusSelected: false,
+      projectRootReady: false,
+    };
+  } finally {
+    owner.close();
+  }
+}
+
+/** Project peer ownership conditions from the actual renderer scan snapshot.
+ * @param {object} selection Selected owner identifiers/CWD; tests may supply the scan rows.
+ * @returns {object} Closed counts, enums and booleans only. @since v0.21.0 */
+function peerComponentDiagnostic({ agents = globalThis.window?.__w4Agents, pid, primaryPid, cwd }) {
+  const population = Array.isArray(agents) ? agents : [];
+  const peers = population.filter((row) => row.agent === 'Claude Code');
+  const rows = population.filter((row) => row.pid === pid);
+  const row = rows.length === 1 ? rows[0] : null;
+  const normalize = (value) =>
+    typeof value === 'string' && value.length > 0
+      ? value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+      : null;
+  const raw = row?.createTime100ns;
+  const rawBirthValid =
+    typeof raw === 'string' &&
+    /^[1-9][0-9]{0,19}$/.test(raw) &&
+    BigInt(raw) <= 18446744073709551615n;
+  const startValid = Number.isSafeInteger(row?.startTime) && row.startTime > 0;
+  return {
+    sameNameCount: Math.min(peers.length, 128),
+    primaryPresent: peers.some((peer) => peer.pid === primaryPid),
+    ownedRowCount: Math.min(rows.length, 128),
+    rowUnique: rows.length === 1,
+    agentExpected: row?.agent === 'Claude Code',
+    sourceExpected: row?.instanceIdSource === 'os',
+    keyCoherent: startValid && row.instanceId === `${pid}:${row.startTime}`,
+    rawBirthValid,
+    birthMatchesStart:
+      rawBirthValid &&
+      startValid &&
+      Number((BigInt(raw) - 116444736000000000n) / 10000n) === row.startTime,
+    witnessSourceEnum: ['createTime100ns', 'sequence', 'startTimeMs'].includes(
+      row?.generationWitnessSource,
+    )
+      ? row.generationWitnessSource
+      : 'unavailable',
+    witnessMatchesRaw: typeof row?.generationWitness === 'string' && row.generationWitness === raw,
+    cwdPresent: normalize(row?.cwd) !== null,
+    cwdMatchesExpected: normalize(cwd) !== null && normalize(row?.cwd) === normalize(cwd),
+  };
+}
+
+/** Own one held CLI's deadline and one confirmed stop before its 90s hook expiry.
+ * @param {object} processChild Owned child process. @param {'peer'|'replacement'} role Fixed owner role.
+ * @param {object} [options] Kill/deadline and cancellation dependencies.
+ * @returns {object} Held-state query and idempotent bounded cleanup. @since v0.21.0 */
+function createHeldOwner(processChild, role, options = {}) {
+  assert(['peer', 'replacement'].includes(role));
+  const deadlineMs = options.deadlineMs ?? 60000;
+  assert(Number.isSafeInteger(deadlineMs) && deadlineMs > 0 && deadlineMs <= 60000);
+  const killTree =
+    options.killTree ??
+    ((pid) =>
+      execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        timeout: 5000,
+      }));
+  const startedAt = performance.now();
+  let closed = false,
+    exited = false,
+    plannedStop = false,
+    stopTask,
+    exit = null,
+    deadlineExpired = false;
+  let timer,
+    stdoutBytes = 0,
+    stderrBytes = 0,
+    failure = null;
+  const fail = (reason) => {
+    if (failure) return;
+    failure = reason;
+    options.onFailure?.(reason);
+  };
+  const done = new Promise((resolve) => {
+    processChild.once('exit', (code, signal) => {
+      exited = true;
+      exit = { code, signal };
+      clearTimeout(timer);
+      if (!plannedStop) fail('held-actor-exited-before-release');
+    });
+    processChild.once('close', (code, signal) => {
+      closed = true;
+      exit = { code, signal };
+      clearTimeout(timer);
+      resolve(exit);
+      if (!plannedStop) fail('held-actor-exited-before-release');
+    });
+    processChild.once('error', () => fail('held-actor-start-failed'));
+  });
+  for (const [stream, kind] of [
+    [processChild.stdout, 'stdout'],
+    [processChild.stderr, 'stderr'],
+  ]) {
+    stream?.on('data', (bytes) => {
+      if (kind === 'stdout') stdoutBytes += bytes.length;
+      else stderrBytes += bytes.length;
+      if (stdoutBytes + stderrBytes > 65536) fail('held-actor-output-limit');
+    });
+  }
+  const stop = () => {
+    if (stopTask) return stopTask;
+    plannedStop = true;
+    clearTimeout(timer);
+    stopTask = (async () => {
+      let killSucceeded = null;
+      if (
+        !closed &&
+        !exited &&
+        processChild.exitCode === null &&
+        processChild.signalCode === null
+      ) {
+        try {
+          assert(Number.isSafeInteger(processChild.pid) && processChild.pid > 0);
+          killTree(processChild.pid);
+          killSucceeded = true;
+        } catch {
+          killSucceeded = false;
+        }
+      }
+      let waitTimer;
+      try {
+        await Promise.race([
+          done,
+          new Promise((resolve) => {
+            waitTimer = setTimeout(resolve, 5000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(waitTimer);
+      }
+      const confirmed = closed && killSucceeded !== false;
+      if (!confirmed) fail('held-actor-termination-unconfirmed');
+      return {
+        role,
+        deadlineMs,
+        modelRequestReleased: false,
+        reportedTotalCostUsd: null,
+        deadlineExpired,
+        exit,
+        killSucceeded,
+        confirmed,
+        stoppedBeforeHookExpiry: closed && performance.now() - startedAt < 90000,
+        stdoutBytes: Math.min(stdoutBytes, 65537),
+        stderrBytes: Math.min(stderrBytes, 65537),
+        failure,
+      };
+    })();
+    return stopTask;
+  };
+  timer = setTimeout(() => {
+    deadlineExpired = true;
+    fail('held-actor-deadline');
+    void stop();
+  }, deadlineMs);
+  return {
+    child: processChild,
+    role,
+    done,
+    stop,
+    held: () =>
+      !closed &&
+      !exited &&
+      !plannedStop &&
+      !failure &&
+      processChild.exitCode === null &&
+      processChild.signalCode === null,
+  };
+}
+
+/** Bound restoration of the Read-only scheduling wrapper without holding owned cleanup.
+ * @param {object} application Owned Playwright app. @returns {Promise<boolean>} Restoration acknowledged.
+ * @since v0.21.0 */
+async function restoreReadOverlap(application) {
+  let deadline;
+  try {
+    return await Promise.race([
+      Promise.resolve()
+        .then(() => application.evaluate(() => globalThis.__w4ReadOverlap?.restore()))
+        .then(
+          () => true,
+          () => false,
+        ),
+      new Promise((resolve) => {
+        deadline = setTimeout(() => resolve(false), 1000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+function cancelScenario(reason) {
+  scenarioFailure ??= reason;
+  for (const actor of heldActors) void actor.stop();
+  if (!primaryCancelAttempted && child?.exitCode === null && child?.signalCode === null) {
+    primaryCancelAttempted = true;
+    try {
+      execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        timeout: 5000,
+      });
+      primaryCancelSucceeded = true;
+    } catch {
+      primaryCancelSucceeded = false;
+      /* The final receipt requires confirmed owned cleanup. */
+    }
+  }
+}
+function requireScenarioHealthy() {
+  assert.equal(scenarioFailure, null, 'owned-instance-scenario-cancelled');
+}
 let app,
   appChild,
   page,
@@ -77,6 +341,7 @@ async function componentHashes() {
     'src/main/live-session-file.js',
     'src/main/file-watcher.js',
     'src/main/attribution.js',
+    'src/main/project-watch-selection.js',
     'src/main/process-utils.js',
     'src/main/live-session-process.js',
     'src/main/session-context.js',
@@ -102,15 +367,19 @@ async function componentHashes() {
   );
 }
 
-async function waitFile(name, timeout = 90000) {
+async function waitFile(name, timeout = 90000, stageRoot = out, stageChild = child) {
   const start = Date.now();
   for (;;) {
     try {
-      return JSON.parse(await fs.readFile(path.join(out, name), 'utf8'));
+      return JSON.parse(await fs.readFile(path.join(stageRoot, name), 'utf8'));
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    if (child?.exitCode !== null || Date.now() - start > timeout)
+    if (
+      stageChild?.exitCode !== null ||
+      stageChild?.signalCode !== null ||
+      Date.now() - start > timeout
+    )
       throw Error('claude-stage-unavailable:' + name);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -165,8 +434,42 @@ async function genuineReadRecord(requireResult = false) {
     bytes.fill(0);
   }
 }
+/** Write one child's fresh private hook/settings files without reusing release bits.
+ * @param {string} stageRoot Fresh owned barrier directory. @param {string} tool Selected tool.
+ * @param {string} target Owned tool target. @returns {Promise<string>} Settings filename. @since v0.21.0 */
+async function prepareActorSettings(stageRoot, tool, target) {
+  const hookFile = path.join(stageRoot, 'hook.cjs');
+  await fs.writeFile(
+    hookFile,
+    `const fs=require('node:fs');const path=require('node:path');const root=${JSON.stringify(stageRoot)};
+let bytes=0,text='';process.stdin.setEncoding('utf8');process.stdin.on('data',v=>{bytes+=Buffer.byteLength(v);if(bytes>65536)process.exit(2);text+=v});process.stdin.on('end',async()=>{
+try {const row=JSON.parse(text);const kind=row.hook_event_name;const data={kind,sessionId:row.session_id,at:Date.now(),tool:row.tool_name||null};
+const stage=kind==='PreToolUse'&&row.tool_name===${JSON.stringify(tool)}&&row.tool_input?.file_path===${JSON.stringify(target)}?${JSON.stringify(tool)}:kind==='SessionStart'||kind==='Stop'?kind:null;
+if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Write'?'write.json':stage+'.json'),JSON.stringify(data));const release=path.join(root,'release-'+stage);const start=Date.now();while(!fs.existsSync(release)&&Date.now()-start<90000)await new Promise(r=>setTimeout(r,100));}
+}catch{process.exitCode=2;}});`,
+    { flag: 'wx' },
+  );
+  const command = `"${process.execPath.replaceAll('\\', '/')}" "${hookFile.replaceAll('\\', '/')}"`;
+  const settings = path.join(stageRoot, 'settings.json');
+  await fs.writeFile(
+    settings,
+    JSON.stringify({
+      hooks: Object.fromEntries(
+        ['SessionStart', 'PreToolUse', 'Stop'].map((name) => [
+          name,
+          [{ hooks: [{ type: 'command', command, timeout: 100 }] }],
+        ]),
+      ),
+    }),
+    { flag: 'wx' },
+  );
+  return settings;
+}
 async function main() {
   assert(['read', 'write'].includes(mode), 'unknown-qualification-mode');
+  assert(['single', 'instances-restart'].includes(scenario), 'unknown-qualification-scenario');
+  assert(scenario === 'single' || mode === 'write', 'instance-scenario-requires-write');
+  let peerOwner, peerRoot, peerProject, primaryAuditRows;
   const outputParent = path.dirname(out);
   const outputParentStat = await fs.lstat(outputParent);
   assert(
@@ -176,7 +479,7 @@ async function main() {
   assert.equal((await fs.realpath(outputParent)).toLowerCase(), outputParent.toLowerCase());
   await fs.mkdir(out); // EEXIST refuses every prior attempt before writing anything.
   outputCreated = true;
-  if (mode === 'write') {
+  if (mode === 'write' && scenario === 'single') {
     for (const directory of [root, path.join(root, 'out'), path.join(root, 'out', 'development')]) {
       await fs.mkdir(directory, { recursive: true });
       const stat = await fs.lstat(directory);
@@ -193,41 +496,25 @@ async function main() {
   assert(sourceBefore.clean, 'Qualification source must be clean');
   hashesBefore = await componentHashes();
   if (mode === 'read') await fs.writeFile(file, marker + '\n');
-  const hookFile = path.join(out, 'hook.cjs');
-  await fs.writeFile(
-    hookFile,
-    `const fs=require('node:fs');const path=require('node:path');const root=${JSON.stringify(out)};
-let bytes=0,text='';process.stdin.setEncoding('utf8');process.stdin.on('data',v=>{bytes+=Buffer.byteLength(v);if(bytes>65536)process.exit(2);text+=v});process.stdin.on('end',async()=>{
-try {const row=JSON.parse(text);const kind=row.hook_event_name;const data={kind,sessionId:row.session_id,at:Date.now(),tool:row.tool_name||null};
-const stage=kind==='PreToolUse'&&row.tool_name===${JSON.stringify(selectedTool)}&&row.tool_input?.file_path===${JSON.stringify(file)}?${JSON.stringify(selectedTool)}:kind==='SessionStart'||kind==='Stop'?kind:null;
-if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Write'?'write.json':stage+'.json'),JSON.stringify(data));const release=path.join(root,'release-'+stage);const start=Date.now();while(!fs.existsSync(release)&&Date.now()-start<90000)await new Promise(r=>setTimeout(r,100));}
-}catch{process.exitCode=2;}});`,
-  );
-  const command = `"${process.execPath.replaceAll('\\', '/')}" "${hookFile.replaceAll('\\', '/')}"`;
-  const settings = path.join(out, 'settings.json');
-  await fs.writeFile(
-    settings,
-    JSON.stringify({
-      hooks: Object.fromEntries(
-        ['SessionStart', 'PreToolUse', 'Stop'].map((name) => [
-          name,
-          [{ hooks: [{ type: 'command', command, timeout: 100 }] }],
-        ]),
-      ),
-    }),
-  );
+  const settings = await prepareActorSettings(out, selectedTool, file);
+  const profile = path.join(out, 'profile');
+  if (scenario === 'instances-restart')
+    projectSelectionDiagnostic = await seedOwnedProjectSelection(profile, project, root);
   const config = JSON.parse(
     await fs
       .readFile(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')
       .catch(() => '{}'),
   );
+  if (scenario === 'instances-restart')
+    assert.equal(config.model, 'opus', 'configured-model-must-remain-opus');
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.CLAUDECODE;
+  const { _electron: electron } = require('playwright');
   app = await electron.launch({
     args: [
       root,
-      '--user-data-dir=' + path.join(out, 'profile'),
+      '--user-data-dir=' + profile,
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
     ],
@@ -235,6 +522,15 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     timeout: 45000,
   });
   appChild = app.process();
+  if (scenario === 'instances-restart') {
+    const actual = await app.evaluate(({ app }) => app.getPath('userData'));
+    assert.equal(
+      path.resolve(actual).toLowerCase(),
+      path.resolve(profile).toLowerCase(),
+      'owned-profile-not-active',
+    );
+    projectSelectionDiagnostic.appUserDataMatched = true;
+  }
   page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   await page
@@ -350,6 +646,17 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     'process-scan-cadence-unqualified',
   );
   const ownerWaitMs = processGap + 5000;
+  if (scenario === 'instances-restart') {
+    const status = await page.evaluate(() => window.aegis.controlProjectWatch('status'));
+    assert(
+      status?.success === true &&
+        status.code === 'SELECTED' &&
+        status.selected === true &&
+        status.available === true,
+      'persisted-external-project-not-selected',
+    );
+    projectSelectionDiagnostic.publicStatusSelected = true;
+  }
   if (mode === 'write') {
     const readyDeadline = Date.now() + 30000;
     for (;;) {
@@ -362,7 +669,10 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
           .groups.find((group) => group.id === 'project-dir');
         return root?.state === 'ready' && root.hasLiveWatcher === true;
       });
-      if (ready) break;
+      if (ready) {
+        if (projectSelectionDiagnostic) projectSelectionDiagnostic.projectRootReady = true;
+        break;
+      }
       assert(Date.now() < readyDeadline, 'real-project-watcher-not-ready');
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -414,6 +724,31 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       ? `Use the Write tool exactly once on ${file} with the exact content ${JSON.stringify(marker + '\n')}. Do not use another tool. Then reply exactly WRITE_OK without quoting the file.`
       : `Use the Read tool exactly once on ${file} with limit 5. Do not use another tool. Then reply exactly READ_OK without quoting the file.`,
   );
+  if (scenario === 'instances-restart') {
+    peerRoot = path.join(out, 'peer');
+    peerProject = path.join(path.dirname(project), 'peer-project');
+    await fs.mkdir(peerRoot);
+    await fs.mkdir(peerProject);
+    const peerId = randomUUID();
+    const peerSettings = await prepareActorSettings(
+      peerRoot,
+      selectedTool,
+      path.join(peerProject, 'peer-unwritten.txt'),
+    );
+    const peerArgs = args.slice(0, -1);
+    peerArgs[peerArgs.indexOf('--session-id') + 1] = peerId;
+    peerArgs[peerArgs.indexOf('--settings') + 1] = peerSettings;
+    peerArgs.push('Remain idle until the task owner releases the startup barrier.');
+    const peer = spawn(cli, peerArgs, {
+      cwd: peerProject,
+      env,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    peerOwner = createHeldOwner(peer, 'peer', { onFailure: cancelScenario });
+    peerOwner.sessionId = peerId;
+    heldActors.push(peerOwner);
+  }
   child = spawn(cli, args, {
     cwd: project,
     env,
@@ -434,13 +769,16 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     child.once('error', () => resolve({ code: -1 }));
   });
   timer = setTimeout(() => {
-    if (child.exitCode === null) {
+    if (child.exitCode === null && child.signalCode === null && !primaryCancelAttempted) {
+      primaryCancelAttempted = true;
       try {
         execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
           stdio: 'ignore',
           timeout: 5000,
         });
+        primaryCancelSucceeded = true;
       } catch {
+        primaryCancelSucceeded = false;
         /* Final cleanup records an unconfirmed exit and preserves failure. */
       }
     }
@@ -449,12 +787,21 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
   const start = await waitFile('SessionStart.json');
   ownerScanTiming.sessionStartAt = Date.now();
   assert.equal(start.sessionId, id);
+  if (peerOwner) {
+    const peerStage = await waitFile('SessionStart.json', 45000, peerRoot, peerOwner.child);
+    assert.equal(peerStage.sessionId, peerOwner.sessionId);
+    assert.notEqual(peerStage.sessionId, id);
+    requireScenarioHealthy();
+  }
   await page.waitForFunction(
-    (pid) =>
-      window.__w4Agents.some(
-        (row) => row.pid === pid && row.agent === 'Claude Code' && row.instanceIdSource === 'os',
+    ({ pid, peer }) =>
+      [pid, ...(peer === null ? [] : [peer])].every((wanted) =>
+        window.__w4Agents.some(
+          (row) =>
+            row.pid === wanted && row.agent === 'Claude Code' && row.instanceIdSource === 'os',
+        ),
       ),
-    child.pid,
+    { pid: child.pid, peer: peerOwner?.child.pid ?? null },
     { polling: 100, timeout: ownerWaitMs },
   );
   ownerScanTiming.ownerObservedAt = Date.now();
@@ -486,6 +833,30 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     'claude-process-birth-unqualified',
   );
   console.log('Production scanner observed real Claude generation');
+  if (peerOwner) {
+    assert(peerOwner.held(), 'peer-must-remain-at-session-start');
+    peerPreflightDiagnostic = await page.evaluate(peerComponentDiagnostic, {
+      pid: peerOwner.child.pid,
+      primaryPid: child.pid,
+      cwd: peerProject,
+    });
+    assert(
+      peerPreflightDiagnostic.sameNameCount === 2 &&
+        peerPreflightDiagnostic.primaryPresent &&
+        peerPreflightDiagnostic.rowUnique &&
+        peerPreflightDiagnostic.agentExpected &&
+        peerPreflightDiagnostic.sourceExpected &&
+        peerPreflightDiagnostic.keyCoherent &&
+        peerPreflightDiagnostic.rawBirthValid &&
+        peerPreflightDiagnostic.birthMatchesStart &&
+        peerPreflightDiagnostic.witnessSourceEnum === 'createTime100ns' &&
+        peerPreflightDiagnostic.witnessMatchesRaw &&
+        peerPreflightDiagnostic.cwdPresent &&
+        peerPreflightDiagnostic.cwdMatchesExpected,
+      'peer-generation-and-disjoint-cwd-unavailable',
+    );
+    instanceStages.peerHeldDuringPrimary = true;
+  }
   if (mode === 'write') {
     writePreflightDiagnostic = await page.evaluate(
       ({ pid, target, project }) => {
@@ -558,8 +929,10 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       });
     }, file.replaceAll('\\', '/').toLowerCase());
   }
+  requireScenarioHealthy();
   await fs.writeFile(path.join(out, 'release-SessionStart'), 'release');
   modelRequestReleased = true;
+  if (peerOwner) instanceStages.primaryOnlyModelReleased = true;
   let callId,
     writeObservation = null,
     activeReply,
@@ -579,6 +952,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       false,
       'write-target-must-not-preexist',
     );
+    requireScenarioHealthy();
     await fs.writeFile(path.join(out, 'release-Write'), 'release');
     await page.waitForFunction(
       () => window.__w4WriteEvents.some((row) => ['created', 'modified'].includes(row.action)),
@@ -772,7 +1146,7 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       assert(activeReply.toolContext.candidates.some((row) => row.toolName === 'Read'));
       assert(!JSON.stringify(activeReply).includes(marker));
     } finally {
-      await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
+      await restoreReadOverlap(app);
       await activeRequest;
     }
   }
@@ -786,6 +1160,19 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
       writeObservation.outputBytes = bytes.length;
       writeObservation.outputSha256 = createHash('sha256').update(bytes).digest('hex');
       writeStages.independentWriteVerified = true;
+      if (peerOwner) {
+        assert.equal(
+          await fs.stat(path.join(peerProject, 'peer-unwritten.txt')).then(
+            () => true,
+            (error) => {
+              if (error.code !== 'ENOENT') throw error;
+              return false;
+            },
+          ),
+          false,
+        );
+        instanceStages.primaryOnlyWriteVerified = true;
+      }
     } finally {
       bytes.fill(0);
     }
@@ -893,21 +1280,147 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
     writeObservation.originalAuditRecords = writeObservation.auditBefore.length;
     writeObservation.observedAuditRecordsAfter = auditAfter.length;
     writeObservation.auditSha256 = createHash('sha256').update(auditBytes).digest('hex');
+    if (peerOwner) primaryAuditRows = writeObservation.auditBefore;
     delete writeObservation.auditBefore;
   }
+  if (peerOwner) {
+    requireScenarioHealthy();
+    assert(peerOwner.held(), 'peer-was-not-held-through-primary-proof');
+    const stopped = await peerOwner.stop();
+    assert(stopped.confirmed && stopped.stoppedBeforeHookExpiry, 'held-peer-cleanup-unconfirmed');
+    requireScenarioHealthy();
+    instanceStages.peerRetiredBeforeRestart = true;
+  }
+  requireScenarioHealthy();
   await fs.writeFile(path.join(out, 'release-Stop'), 'release');
   const exit = await childDone;
   clearTimeout(timer);
   assert.equal(exit.code, 0, 'Genuine Claude did not complete');
   const result = JSON.parse(output);
+  primaryReportedCost =
+    Number.isFinite(result.total_cost_usd) && result.total_cost_usd >= 0
+      ? result.total_cost_usd
+      : null;
   assert(!result.is_error, 'Genuine Claude reported failure');
   assert(result.result.includes(mode === 'write' ? 'WRITE_OK' : 'READ_OK'));
+  if (scenario === 'instances-restart') {
+    const replacementRoot = path.join(out, 'replacement');
+    await fs.mkdir(replacementRoot); // Never reuse the primary's already released barriers.
+    const replacementSettings = await prepareActorSettings(replacementRoot, selectedTool, file);
+    const replacementArgs = args.slice(0, -1);
+    replacementArgs[replacementArgs.indexOf('--session-id')] = '--resume';
+    replacementArgs[replacementArgs.indexOf('--settings') + 1] = replacementSettings;
+    replacementArgs.push('Remain idle until the task owner releases the startup barrier.');
+    const replacement = spawn(cli, replacementArgs, {
+      cwd: project,
+      env,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const replacementOwner = createHeldOwner(replacement, 'replacement', {
+      onFailure: cancelScenario,
+    });
+    heldActors.push(replacementOwner);
+    const replacementStage = await waitFile(
+      'SessionStart.json',
+      45000,
+      replacementRoot,
+      replacement,
+    );
+    assert.equal(replacementStage.sessionId, id);
+    await page.waitForFunction(
+      ({ pid, oldInstance, oldBirth }) => {
+        const rows = window.__w4Agents;
+        return (
+          !rows.some((row) => row.instanceId === oldInstance) &&
+          rows.some(
+            (row) =>
+              row.pid === pid &&
+              row.agent === 'Claude Code' &&
+              row.instanceIdSource === 'os' &&
+              Number.isSafeInteger(row.startTime) &&
+              row.instanceId === `${pid}:${row.startTime}` &&
+              typeof row.createTime100ns === 'string' &&
+              /^[1-9][0-9]{0,19}$/.test(row.createTime100ns) &&
+              row.createTime100ns !== oldBirth &&
+              Number((BigInt(row.createTime100ns) - 116444736000000000n) / 10000n) ===
+                row.startTime,
+          )
+        );
+      },
+      {
+        pid: replacement.pid,
+        oldInstance: observed.instanceId,
+        oldBirth: observed.createTime100ns,
+      },
+      { polling: 100, timeout: ownerWaitMs },
+    );
+    requireScenarioHealthy();
+    assert(replacementOwner.held(), 'replacement-must-remain-at-session-start');
+    instanceStages.replacementNewGeneration = true;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const stale = await page.evaluate(
+      (selected) => window.aegis.explainToolContext(selected),
+      eventId,
+    );
+    assert.equal(stale.availability, 'unavailable');
+    assert.equal(stale.toolContext.sessionBinding, 'unavailable');
+    assert.equal(stale.toolContext.candidates.length, 0);
+    assert(stale.toolContext.reasons.includes('process-identity-unavailable'));
+    instanceStages.oldEventRejectedIPC = true;
+    // Force the real command again; the previous positive render cannot satisfy this reason.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await section
+      .getByRole('button', { name: 'Explain from local history' })
+      .evaluate((button) => button.click());
+    await section
+      .getByText('The process identity needed for binding is unavailable.', { exact: true })
+      .waitFor();
+    assert.equal(await section.getByText('Claude Code · Write', { exact: true }).count(), 0);
+    instanceStages.oldEventRejectedDOM = true;
+    const finalRows = await app.evaluate(async ({ app }, target) => {
+      const require = process.mainModule
+        .require('node:module')
+        .createRequire(app.getAppPath() + '/package.json');
+      return (
+        await require('./src/main/audit-logger').getEntriesBefore(
+          new Date(Date.now() + 1000).toISOString(),
+          500,
+          ['file-access'],
+        )
+      ).filter((row) => row.path === target);
+    }, file);
+    for (const original of primaryAuditRows) {
+      const retained = finalRows.filter(
+        (row) => row.seq === original.seq && row.hash === original.hash,
+      );
+      assert.equal(retained.length, 1);
+      assert.deepEqual(retained[0], original);
+    }
+    instanceStages.originalAuditRowsPreserved = true;
+    requireScenarioHealthy();
+    const stopped = await replacementOwner.stop();
+    assert(
+      stopped.confirmed && stopped.stoppedBeforeHookExpiry,
+      'held-replacement-cleanup-unconfirmed',
+    );
+    requireScenarioHealthy();
+  }
   const receipt = {
     passed: true,
     sessionBinding: 'confirmed',
     association: 'inferred',
     genuineClaude: true,
     mode,
+    scenario,
+    ...(scenario === 'instances-restart'
+      ? {
+          instanceStages: { ...instanceStages },
+          peerTranscriptRead: false,
+          peerPreflightDiagnostic,
+          projectSelectionDiagnostic,
+        }
+      : {}),
     ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
     processObservation:
       'production scanner plus held-handle full-resolution birth/cwd/session selector',
@@ -943,180 +1456,219 @@ if(stage){fs.writeFileSync(path.join(root,stage==='Read'?'read.json':stage==='Wr
   };
   pendingReceipt = receipt;
 }
-main()
-  .catch(async (error) => {
-    if (outputCreated)
-      await fs.writeFile(path.join(out, 'failure.txt'), String(error), { flag: 'wx' });
-    let ownedRowDiagnostic = { available: false };
-    if (
-      page &&
-      appChild?.exitCode === null &&
-      appChild?.signalCode === null &&
-      Number.isSafeInteger(child?.pid)
-    ) {
-      const observed = page
-        .evaluate((pid) => {
-          const agents = Array.isArray(window.__w4Agents) ? window.__w4Agents : [];
-          return {
-            available: true,
-            batchCount: window.__w4BatchCount ?? 0,
-            firstBatchAt: window.__w4FirstBatchAt ?? null,
-            lastBatchAt: window.__w4LastBatchAt ?? null,
-            agentCount: agents.length,
-            ownedRows: agents
-              .filter((row) => row.pid === pid)
-              .slice(0, 4)
-              .map((row) => ({
-                pidMatchesOwner: true,
-                agentLabel: row.agent === 'Claude Code' ? 'Claude Code' : 'other',
-                identitySource: ['os', 'unknown', 'synthetic'].includes(row.instanceIdSource)
-                  ? row.instanceIdSource
-                  : null,
-                hasStartTime: Number.isSafeInteger(row.startTime) && row.startTime > 0,
-                exactInstanceKey: row.instanceId === `${pid}:${row.startTime}`,
-                hasFullBirth:
-                  typeof row.createTime100ns === 'string' &&
-                  /^[1-9][0-9]{0,19}$/.test(row.createTime100ns),
-              })),
-          };
-        }, child.pid)
-        .catch(() => ({ available: false }));
-      ownedRowDiagnostic = await Promise.race([
-        observed,
-        new Promise((resolve) => setTimeout(() => resolve({ available: false }), 1000)),
-      ]);
-    }
-    failedReceipt = {
-      passed: false,
-      mode,
-      ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
-      claudeSpawned: Number.isSafeInteger(child?.pid),
-      modelRequestReleased,
-      processPreflight,
-      writePreflightDiagnostic,
-      ownerScanTiming,
-      source: sourceBefore,
-      componentHashes: hashesBefore,
-      ownedRowDiagnostic,
-      nativeReadSensorQualified: false,
-      osEventSynthetic: mode !== 'write',
-    };
-    console.error(String(error));
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    const cleanup = {
-      barrierReleases: 0,
-      treeKillSucceeded: null,
-      claudeExit: null,
-      electronExitCode: null,
-      electronCleanupTimedOut: false,
-      confirmed: true,
-    };
-    if (app && appChild?.exitCode === null && appChild?.signalCode === null)
-      await app.evaluate(() => globalThis.__w4ReadOverlap?.restore()).catch(() => {});
-    if (child?.exitCode === null) {
-      try {
-        execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-          stdio: 'ignore',
-          timeout: 5000,
-        });
-        cleanup.treeKillSucceeded = true;
-      } catch {
-        cleanup.treeKillSucceeded = false;
-        cleanup.confirmed = false;
+if (require.main === module) {
+  main()
+    .catch(async (error) => {
+      if (scenario === 'instances-restart') cancelScenario('instance-scenario-failed');
+      if (outputCreated)
+        await fs.writeFile(path.join(out, 'failure.txt'), String(error), { flag: 'wx' });
+      let ownedRowDiagnostic = { available: false };
+      if (
+        page &&
+        appChild?.exitCode === null &&
+        appChild?.signalCode === null &&
+        Number.isSafeInteger(child?.pid)
+      ) {
+        const observed = page
+          .evaluate((pid) => {
+            const agents = Array.isArray(window.__w4Agents) ? window.__w4Agents : [];
+            return {
+              available: true,
+              batchCount: window.__w4BatchCount ?? 0,
+              firstBatchAt: window.__w4FirstBatchAt ?? null,
+              lastBatchAt: window.__w4LastBatchAt ?? null,
+              agentCount: agents.length,
+              ownedRows: agents
+                .filter((row) => row.pid === pid)
+                .slice(0, 4)
+                .map((row) => ({
+                  pidMatchesOwner: true,
+                  agentLabel: row.agent === 'Claude Code' ? 'Claude Code' : 'other',
+                  identitySource: ['os', 'unknown', 'synthetic'].includes(row.instanceIdSource)
+                    ? row.instanceIdSource
+                    : null,
+                  hasStartTime: Number.isSafeInteger(row.startTime) && row.startTime > 0,
+                  exactInstanceKey: row.instanceId === `${pid}:${row.startTime}`,
+                  hasFullBirth:
+                    typeof row.createTime100ns === 'string' &&
+                    /^[1-9][0-9]{0,19}$/.test(row.createTime100ns),
+                })),
+            };
+          }, child.pid)
+          .catch(() => ({ available: false }));
+        ownedRowDiagnostic = await Promise.race([
+          observed,
+          new Promise((resolve) => setTimeout(() => resolve({ available: false }), 1000)),
+        ]);
       }
-    }
-    if (childDone) {
-      cleanup.claudeExit = await Promise.race([
-        childDone,
-        new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
-      ]);
-      if (!cleanup.claudeExit) cleanup.confirmed = false;
-    }
-    if (!child || cleanup.claudeExit) clearTimeout(timer);
-    // Cleanup never opens a held model/tool barrier, even if termination is uncertain.
-    if (app && !appChild) cleanup.confirmed = false;
-    if (appChild) {
-      try {
-        const own = appChild;
-        if (own.exitCode !== null || own.signalCode !== null) {
-          cleanup.electronExitCode = own.exitCode;
-          if (own.exitCode !== 0) cleanup.confirmed = false;
-        } else {
-          let onExit, deadline;
-          const appExited = new Promise((resolve) => {
-            onExit = (code) => resolve(code);
-            own.once('exit', onExit);
-          });
-          const kill = setTimeout(() => {
-            if (own.exitCode === null) {
-              try {
-                execFileSync('taskkill.exe', ['/PID', String(own.pid), '/T', '/F'], {
-                  stdio: 'ignore',
-                  timeout: 5000,
-                });
-              } catch {
-                /* Already exited. */
-              }
+      failedReceipt = {
+        passed: false,
+        mode,
+        scenario,
+        ...(scenario === 'instances-restart'
+          ? {
+              instanceStages: { ...instanceStages },
+              peerTranscriptRead: false,
+              peerPreflightDiagnostic,
+              projectSelectionDiagnostic,
             }
-          }, 8000);
-          try {
-            const result = await Promise.race([
-              (async () => {
-                await app.close();
-                return { timedOut: false, code: await appExited };
-              })(),
-              new Promise((resolve) => {
-                deadline = setTimeout(() => resolve({ timedOut: true }), 14000);
-              }),
-            ]);
-            if (result.timedOut) {
-              cleanup.electronCleanupTimedOut = true;
-              cleanup.confirmed = false;
-            } else {
-              cleanup.electronExitCode = result.code;
-              if (result.code !== 0) cleanup.confirmed = false;
-            }
-          } catch {
-            cleanup.confirmed = false;
-          } finally {
-            clearTimeout(kill);
-            clearTimeout(deadline);
-            own.removeListener('exit', onExit);
-          }
+          : {}),
+        reportedTotalCostUsd: primaryReportedCost,
+        ...(mode === 'write' ? { stages: { ...writeStages } } : {}),
+        claudeSpawned: Number.isSafeInteger(child?.pid),
+        modelRequestReleased,
+        processPreflight,
+        writePreflightDiagnostic,
+        ownerScanTiming,
+        source: sourceBefore,
+        componentHashes: hashesBefore,
+        ownedRowDiagnostic,
+        nativeReadSensorQualified: false,
+        osEventSynthetic: mode !== 'write',
+      };
+      console.error(String(error));
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      const cleanup = {
+        barrierReleases: 0,
+        treeKillSucceeded: primaryCancelSucceeded,
+        claudeExit: null,
+        electronExitCode: null,
+        electronCleanupTimedOut: false,
+        confirmed: true,
+      };
+      if (heldActors.length) {
+        cleanup.actors = [];
+        for (const actor of heldActors) {
+          const stopped = await actor.stop();
+          cleanup.actors.push(stopped);
+          if (!stopped.confirmed || !stopped.stoppedBeforeHookExpiry) cleanup.confirmed = false;
         }
-      } catch {
-        cleanup.confirmed = false;
       }
-    }
-    if (pendingReceipt) {
-      try {
-        assert(cleanup.confirmed, 'Owned cleanup unconfirmed');
-        assert.deepEqual(sourceIdentity(), sourceBefore, 'Qualification source changed');
-        assert.deepEqual(await componentHashes(), hashesBefore, 'Qualification components changed');
-      } catch {
-        failedReceipt = {
-          ...pendingReceipt,
-          passed: false,
-          failure: 'cleanup-or-source-unconfirmed',
-        };
-        pendingReceipt = null;
+      if (child?.exitCode === null && child?.signalCode === null && !primaryCancelAttempted) {
+        primaryCancelAttempted = true;
+        try {
+          execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+            stdio: 'ignore',
+            timeout: 5000,
+          });
+          cleanup.treeKillSucceeded = true;
+          primaryCancelSucceeded = true;
+        } catch {
+          cleanup.treeKillSucceeded = false;
+          primaryCancelSucceeded = false;
+          cleanup.confirmed = false;
+        }
       }
-    }
-    const finalReceipt = pendingReceipt ?? failedReceipt;
-    if (finalReceipt && outputCreated) {
-      finalReceipt.cleanup = cleanup;
-      await fs.writeFile(path.join(out, 'receipt.json'), JSON.stringify(finalReceipt, null, 2), {
-        flag: 'wx',
-      });
-    }
-    if (pendingReceipt) {
-      console.log(
-        mode === 'write'
-          ? 'PASS: genuine Write -> real FileWatcher -> audit/Details -> confirmed session binding; association inferred; owned cleanup confirmed'
-          : 'PASS: genuine writer overlap -> partial explanation -> stable binding and UI; owned cleanup confirmed',
-      );
-    }
-    if (!cleanup.confirmed) process.exitCode = 1;
-  });
+      if (primaryCancelAttempted && primaryCancelSucceeded === false) cleanup.confirmed = false;
+      if (childDone) {
+        cleanup.claudeExit = await Promise.race([
+          childDone,
+          new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (!cleanup.claudeExit) cleanup.confirmed = false;
+      }
+      cleanup.treeKillSucceeded = primaryCancelSucceeded;
+      if (!child || cleanup.claudeExit) clearTimeout(timer);
+      if (mode === 'read' && app && appChild?.exitCode === null && appChild?.signalCode === null) {
+        cleanup.readerSchedulingRestored = await restoreReadOverlap(app);
+        if (!cleanup.readerSchedulingRestored) cleanup.confirmed = false;
+      }
+      // Cleanup never opens a held model/tool barrier, even if termination is uncertain.
+      if (app && !appChild) cleanup.confirmed = false;
+      if (appChild) {
+        try {
+          const own = appChild;
+          if (own.exitCode !== null || own.signalCode !== null) {
+            cleanup.electronExitCode = own.exitCode;
+            if (own.exitCode !== 0) cleanup.confirmed = false;
+          } else {
+            let onExit, deadline;
+            const appExited = new Promise((resolve) => {
+              onExit = (code) => resolve(code);
+              own.once('exit', onExit);
+            });
+            const kill = setTimeout(() => {
+              if (own.exitCode === null) {
+                try {
+                  execFileSync('taskkill.exe', ['/PID', String(own.pid), '/T', '/F'], {
+                    stdio: 'ignore',
+                    timeout: 5000,
+                  });
+                } catch {
+                  /* Already exited. */
+                }
+              }
+            }, 8000);
+            try {
+              const result = await Promise.race([
+                (async () => {
+                  await app.close();
+                  return { timedOut: false, code: await appExited };
+                })(),
+                new Promise((resolve) => {
+                  deadline = setTimeout(() => resolve({ timedOut: true }), 14000);
+                }),
+              ]);
+              if (result.timedOut) {
+                cleanup.electronCleanupTimedOut = true;
+                cleanup.confirmed = false;
+              } else {
+                cleanup.electronExitCode = result.code;
+                if (result.code !== 0) cleanup.confirmed = false;
+              }
+            } catch {
+              cleanup.confirmed = false;
+            } finally {
+              clearTimeout(kill);
+              clearTimeout(deadline);
+              own.removeListener('exit', onExit);
+            }
+          }
+        } catch {
+          cleanup.confirmed = false;
+        }
+      }
+      if (pendingReceipt) {
+        try {
+          assert(cleanup.confirmed, 'Owned cleanup unconfirmed');
+          assert.deepEqual(sourceIdentity(), sourceBefore, 'Qualification source changed');
+          assert.deepEqual(
+            await componentHashes(),
+            hashesBefore,
+            'Qualification components changed',
+          );
+        } catch {
+          failedReceipt = {
+            ...pendingReceipt,
+            passed: false,
+            failure: 'cleanup-or-source-unconfirmed',
+          };
+          pendingReceipt = null;
+        }
+      }
+      const finalReceipt = pendingReceipt ?? failedReceipt;
+      if (finalReceipt && outputCreated) {
+        finalReceipt.cleanup = cleanup;
+        await fs.writeFile(path.join(out, 'receipt.json'), JSON.stringify(finalReceipt, null, 2), {
+          flag: 'wx',
+        });
+      }
+      if (pendingReceipt) {
+        console.log(
+          mode === 'write'
+            ? 'PASS: genuine Write -> real FileWatcher -> audit/Details -> confirmed session binding; association inferred; owned cleanup confirmed'
+            : 'PASS: genuine writer overlap -> partial explanation -> stable binding and UI; owned cleanup confirmed',
+        );
+      }
+      if (!cleanup.confirmed) process.exitCode = 1;
+    });
+}
+module.exports = {
+  createHeldOwner,
+  prepareActorSettings,
+  restoreReadOverlap,
+  peerComponentDiagnostic,
+  seedOwnedProjectSelection,
+};
