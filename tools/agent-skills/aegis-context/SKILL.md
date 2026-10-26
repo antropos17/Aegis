@@ -10,6 +10,9 @@ owns checkout selection, current entrypoints, evidence limits and history routin
 If working on an older revision without it, read that checkout's AGENTS.md,
 package.json, Vite and TypeScript configs and record HEAD and dirty state.
 Resolve source paths against that checkout, never the skill installation folder.
+For a preserved checkout, resolve current process-policy guidance before choosing
+checks or synchronizing skills; follow the policy-freshness section of current
+`docs/development/current-context.md`. Keep source and policy revisions distinct.
 
 For a source question, follow imports and actual callers from the configured
 entrypoint. In main, inspect platform/index.js for OS dispatch and preload.js

@@ -4131,3 +4131,19 @@ product/helper overhead and full W8/T8 acceptance remain open.
 ## Delivery process correction — 2026-10-26
 
 The owner requested no mutation campaigns or meaningless repeated checks. Routine CI now omits witness/sequence mutation execution, selects scoped structural verification for allowlisted Markdown-only changes and retains full verification for code or unknown inputs. Project skills and implementation-agent instructions use focused behavioral checks and existing evidence. The completion plan names Windows diagnostic closure, live W4 explanation and W6 owner-visible install/remove as the next deliverables; more dormant W8 adapters require a concrete measurement dependency. Required contexts and strict protection remain unchanged. See [the delivery review](../docs/development/delivery-process-review.md) for observations and scope. This process change supplies no native/product acceptance or release authorization.
+
+## Security architecture plan review — 2026-10-26
+
+The owner requested a recheck of the honeypot paper analysis and application of
+an enterprise security diagram to the completion plan. Source and process policy
+were reviewed at `cd71cb2971167909f6d84392d7f35d585af608cf`. Revision 6 maps the
+diagram to existing controls, corrects the former disconnected-W4 claim after
+#1088, and prioritizes one qualified observation/explanation/decision/response
+path. It adds same-name instance isolation, route-specific authorization outcomes
+and independent ordinary-work evidence to existing workstreams. A later W8 lab
+decoy comparison is conditional on the first qualified workload; production
+Honey Workspace and broad enterprise infrastructure remain excluded/deferred.
+Local hash-chain limits and inferred Claude association remain explicit. This
+documentation delivery changes no runtime, native acceptance, target completion,
+profile or launch permission. The next deliverables remain W11 admission/recovery,
+W4.3/W4.4 qualification and W6.3/W6.4 owner-visible Guard behavior.

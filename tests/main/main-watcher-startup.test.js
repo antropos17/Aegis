@@ -77,6 +77,26 @@ function flush() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+// Native require() can return chokidar's immutable ESM namespace. Substitute the
+// dependency at this CJS consumer boundary; never rewrite a package export.
+function loadRuleWatcher(watch) {
+  const filename = require_.resolve('../../src/main/file-watcher.js');
+  const cached = require_.cache[filename];
+  const previousLoad = Module._load;
+  try {
+    Module._load = function (request, parent) {
+      if (request === 'chokidar' && parent?.filename === filename) return { watch };
+      return previousLoad.apply(this, arguments);
+    };
+    delete require_.cache[filename];
+    return require_(filename);
+  } finally {
+    Module._load = previousLoad;
+    if (cached) require_.cache[filename] = cached;
+    else delete require_.cache[filename];
+  }
+}
+
 /**
  * Minimal webContents double: `isLoading()` is the branch main.js reads, `once`
  * records the listener so the test can fire `did-finish-load` on demand.
@@ -406,11 +426,9 @@ describe('main — watcher startup ordering', () => {
   it.each([false, true])(
     'fences rule mutations at quit start (pending drain: %s)',
     async (pending) => {
-      const realWatcher = require_('../../src/main/file-watcher.js');
-      const chokidar = require_('chokidar');
       const handles = [];
       const sends = vi.fn();
-      vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+      const realWatcher = loadRuleWatcher(() => {
         const handle = new EventEmitter();
         handle.close = vi.fn(() => new Promise(() => {}));
         handles.push(handle);

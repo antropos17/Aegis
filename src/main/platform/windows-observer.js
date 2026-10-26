@@ -23,7 +23,7 @@ function createWindowsObserver(deps) {
   const retryAt = new Map();
   return {
     async tryRequest(kind, input, parse) {
-      if (!['tcp', 'cwd', 'holders', 'rm-probe'].includes(kind))
+      if (!['tcp', 'cwd', 'holders', 'rm-probe', 'claude-session'].includes(kind))
         throw new Error('Invalid observation kind');
       if (mode === 'powershell' || now() < (retryAt.get(kind) || 0)) return null;
       const payload = JSON.stringify(input);

@@ -15,6 +15,15 @@ vi.mock controls transformed imports and does not intercept native CommonJS requ
 
 ## Running and scope
 
+Use the delivery loop in `docs/development/workflow.md` to connect each check to
+an observable requirement. Select the cheapest boundary that can detect the
+defect and retain integration/native checks for behavior that boundary cannot
+exercise. A regression expectation must be independent of the implementation;
+mock-only success and test counts do not establish production wiring. Preserve
+the first failure and explain the relevant change before retrying. Consolidating
+duplicate tests requires identifying equivalent retained coverage and unique
+boundary risk; speed alone is not a reason to delete coverage or weaken checks.
+
 If the checkout provides `dev:context`, use its module inventory to locate direct test imports and effective typecheck scope. Confirm test selection against the actual callers: no direct import match means unknown, not untested. `coverage.include` is instrumentation scope and does not establish execution or assertions. In JS, inspect `checkJs` and per-file `@ts-check`/`@ts-nocheck`; a successful solution-file `tsc` invocation may check nothing.
 
 During iteration, run affected behavioral tests first. Before merging, complete the current required gates once for the final inputs; repeat when changed inputs, failures or unresolved risks warrant it. Native Windows/Electron paths need matching runtime evidence. For Observatory use the active `frontend:test:electron` harness when the change warrants it; historical demo screenshot scripts do not exercise the production bridge.

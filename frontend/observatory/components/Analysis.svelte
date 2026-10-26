@@ -45,7 +45,20 @@
   let showProvider = $state(false);
   let providerSection = $state('connection');
   let reportTitle = $state('Activity assessment');
-  let names = $derived([...new Set(telemetry.agents.map((a) => a.agent))]);
+  let roster = $derived.by(() => {
+    if (telemetry.stale) return [];
+    const candidates = telemetry.agents.flatMap((row) => {
+      const id = row.instanceId;
+      return row.instanceIdSource === 'os' &&
+        typeof id === 'string' &&
+        /^[1-9]\d*:[1-9]\d*(?:\.\d+)?$/.test(id)
+        ? [{ ...row, instanceId: id }]
+        : [];
+    });
+    const counts: Record<string, number> = {};
+    for (const row of candidates) counts[row.instanceId] = (counts[row.instanceId] ?? 0) + 1;
+    return candidates.filter((row) => counts[row.instanceId] === 1);
+  });
   const contextId = $props.id();
   let reportHeading = $state<HTMLHeadingElement>();
   let evidenceHeading = $state<HTMLHeadingElement>();
@@ -103,27 +116,52 @@
   }
   async function analyze() {
     const ticket = ++generation;
-    const scope = mode === 'agent' ? agent : 'Session';
-    const selectedAgent = mode === 'agent' ? agent : null;
-    const events = telemetry.events.filter(
-      (event) => !selectedAgent || event.agent === selectedAgent,
-    );
-    const population = telemetry.agents.filter(
-      (item) => !selectedAgent || item.agent === selectedAgent,
-    );
+    const selectedRow = mode === 'agent' ? roster.find((row) => row.instanceId === agent) : null;
+    const selected = selectedRow ? { ...selectedRow } : null;
+    const selectedBirth = record(selected).createTime100ns;
+    const selectedWitness = record(selected).generationWitness;
+    const selectedWitnessSource = record(selected).generationWitnessSource;
+    if (mode === 'agent' && !selected) throw new Error('Selected process instance is unavailable');
+    const scope = selected
+      ? `${selected.agent} · PID ${selected.pid} · ${selected.instanceId}`
+      : 'Session';
+    const sameScope = (item: unknown) => {
+      const row = record(item);
+      return (
+        !selected ||
+        (row.instanceId === selected.instanceId &&
+          (!row.createTime100ns || !selectedBirth || row.createTime100ns === selectedBirth) &&
+          (!row.generationWitness ||
+            !selectedWitness ||
+            (row.generationWitness === selectedWitness &&
+              row.generationWitnessSource === selectedWitnessSource)))
+      );
+    };
+    const events = telemetry.events.filter(sameScope);
+    const population = telemetry.agents.filter(sameScope);
     const fallbackCounts = {
       totalFiles: events.length,
       totalSensitive: events.filter((event) => event.sensitive).length,
       totalAgents: new Set(population.map((item) => item.agent).filter(Boolean)).size,
-      totalNet: telemetry.network.filter((item) => !selectedAgent || item.agent === selectedAgent)
-        .length,
+      totalNet: telemetry.network.filter(sameScope).length,
     };
     const title = reportTitle.trim() || 'Activity assessment';
     const result = confirmed(
       await invoke(
         host,
         mode === 'agent' ? 'analyzeAgent' : 'analyzeSession',
-        ...(mode === 'agent' ? [agent] : []),
+        ...(selected
+          ? [
+              {
+                instanceId: selected.instanceId,
+                ...Object.fromEntries(
+                  ['createTime100ns', 'generationWitness', 'generationWitnessSource']
+                    .filter((key) => typeof record(selected)[key] === 'string')
+                    .map((key) => [key, record(selected)[key]]),
+                ),
+              },
+            ]
+          : []),
       ),
     );
     if (!alive || ticket !== generation) return;
@@ -152,6 +190,8 @@
       ...structured,
       title,
       scope,
+      instanceId: selected?.instanceId ?? null,
+      pid: selected?.pid ?? null,
       counts,
       countsSource: captured ? 'Captured analysis request' : 'Retained displayed observations',
       createdAt: new Date().toISOString(),
@@ -297,14 +337,15 @@
         <label class="analysis-field"
           >{$t('Scope')}<select bind:value={mode}
             ><option value="session">{$t('Entire session')}</option><option value="agent"
-              >{$t('Agent · all matching instances')}</option
+              >{$t('Process')}</option
             ></select
           ></label
         >
         {#if mode === 'agent'}<label class="analysis-field"
-            >{$t('Agent')}<select bind:value={agent}
-              ><option value="">{$t('Select an agent')}</option>{#each names as name (name)}<option
-                  >{name}</option
+            >{$t('Process')}<select bind:value={agent}
+              ><option value="">{$t('Select an agent')}</option
+              >{#each roster as instance (instance.instanceId)}<option value={instance.instanceId}
+                  >{instance.agent} · PID {instance.pid} · {instance.instanceId}</option
                 >{/each}</select
             ></label
           >{/if}
@@ -331,7 +372,7 @@
           disabled={preview ||
             keyPending ||
             !configured ||
-            (mode === 'agent' && !names.includes(agent))}
+            (mode === 'agent' && !roster.some((row) => row.instanceId === agent))}
           action={analyze}><Icon name="play" />{$t('Run analysis')}</Action
         >
       </div>

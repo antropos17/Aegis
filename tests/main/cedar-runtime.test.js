@@ -17,7 +17,7 @@ afterEach(() => runtime._resetForTest());
 
 describe('Cedar native decisions and provenance boundary', () => {
   it('uses official WASM, fixed schema, explicit IDs and forbid precedence', () => {
-    expect(official.getCedarVersion()).toBe('4.13.0');
+    expect(official.getCedarVersion()).toBe('4.14.0');
     const compiled = runtime.compileCedarPolicy(
       policy({ allow: permit, deny: 'forbid(principal, action, resource);' }),
     );
@@ -151,11 +151,32 @@ describe('Cedar runtime faults fail closed with redacted diagnostics', () => {
         reason: 'cedar-unavailable',
       });
     expect(calls).toBe(1);
-    runtime._setDepsForTest({ load: () => ({ getCedarVersion: () => '0.0.0' }) });
-    expect(runtime.compileCedarPolicy(policy({ allow: permit }))).toEqual({
-      ok: false,
-      reason: 'cedar-unavailable',
-    });
+    for (const version of [
+      '0.0.0',
+      '4.13.0',
+      '4.14.1',
+      '4.14.0-rc.1',
+      '4.14.0+unreviewed',
+      '5.0.0',
+      undefined,
+    ]) {
+      let parsed = false;
+      runtime._setDepsForTest({
+        load: () => ({
+          ...official,
+          getCedarVersion: () => version,
+          policyToJson() {
+            parsed = true;
+            throw Error('UNQUALIFIED_RUNTIME_USED');
+          },
+        }),
+      });
+      expect(runtime.compileCedarPolicy(policy({ allow: permit }))).toEqual({
+        ok: false,
+        reason: 'cedar-unavailable',
+      });
+      expect(parsed).toBe(false);
+    }
   });
 
   it('denies parser/validator and cache failures without exposing engine errors', () => {

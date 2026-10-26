@@ -29,6 +29,30 @@ junction does not authorize installation or cache writes in its owner's tree.
 Keep reports and temporary output in the task's own storage. Do not copy private
 handoffs, host paths or acceptance artifacts into public documentation.
 
+## Process policy freshness
+
+At task start or resume, distinguish the source revision from the process-policy
+revision. If the checkout predates a known merged workflow correction, read the
+current `AGENTS.md` and the relevant workflow/skill sections from the verified
+default-branch revision with `git show <revision>:<path>`. Fetch once when current
+remote state is needed; do not poll Git merely to refresh instructions. Record
+that policy revision in the existing task note or handoff, without creating a
+second tracker. If unavailable, preserve the user's latest instructions and
+state the limitation.
+
+This updates how the task is conducted, not its source or acceptance evidence.
+Resolve commands against the selected checkout's package/workflow files, retain
+its runtime contracts, and do not reset another chat's source to refresh rules.
+Current user instructions take precedence over historical mutation requirements,
+routine approval waits and model/delegation prescriptions.
+
+Before synchronizing installed skills, compare the catalog revision with the
+installation receipt and current policy. An older checkout must not downgrade
+newer installed instructions. Read the current catalog directly when a safe
+installation update is unavailable; preserve local customizations. At handoff,
+name any policy/install drift still present. Existing running chats require a
+message or explicit reread; editing a file does not prove they reloaded it.
+
 ## Read the authority for the decision
 
 | Decision | Source |

@@ -130,14 +130,17 @@ function createSessionContext(options) {
    * Intervals are inclusive; clockSkewMs means OS time minus provider time.
    * A missing end uses the caller's documented 0..5000ms tolerance. Missing
    * measured skew, time-only overlap and mismatched objects remain unattributed.
+   * An explicit same-host-assumed basis permits only inferred association and
+   * records that limitation; it never substitutes a measured zero offset.
    * Confirmed describes association evidence, and makes no causal claim.
    * @param {object} event Observed instanceId, atMs, objectKind path/endpoint and objectValue; path platform comes from the selected source.
    * @param {object[]} selected Exact binding results from this owner (max 256).
-   * @param {object} timing Explicit measured clockSkewMs (-60000..60000) and missingEndToleranceMs (0..5000).
+   * @param {object} timing Measured clockSkewMs (-60000..60000), or clockBasis same-host-assumed without clockSkewMs; missingEndToleranceMs (0..5000).
    * @returns {object} Frozen strength, fixed reasons and all privacy-projected candidates.
    * @since v0.19.0 */
   function correlate(event, selected, timing) {
     const candidates = new Map();
+    const verifiedCandidates = new Set();
     const reasons = new Set();
     const reply = (strength) =>
       Object.freeze({
@@ -161,14 +164,14 @@ function createSessionContext(options) {
       reasons.add('binding-limit');
       return reply('unattributed');
     }
-    if (
-      !object(timing) ||
-      !Number.isSafeInteger(timing.clockSkewMs) ||
-      Math.abs(timing.clockSkewMs) > LIMITS.skewMs
-    ) {
+    const assumedLocal =
+      timing?.clockBasis === 'same-host-assumed' && timing.clockSkewMs === undefined;
+    const skewMs = assumedLocal ? 0 : timing?.clockSkewMs;
+    if (!object(timing) || !Number.isSafeInteger(skewMs) || Math.abs(skewMs) > LIMITS.skewMs) {
       reasons.add('clock-skew-unavailable');
       return reply('unattributed');
     }
+    if (assumedLocal) reasons.add('clock-skew-assumed-local');
     if (
       !Number.isSafeInteger(timing.missingEndToleranceMs) ||
       timing.missingEndToleranceMs < 0 ||
@@ -197,9 +200,8 @@ function createSessionContext(options) {
           reasons.add('timestamp-unavailable');
           continue;
         }
-        const start = call.startMs + timing.clockSkewMs;
-        const end =
-          (call.endMs ?? call.startMs + timing.missingEndToleranceMs) + timing.clockSkewMs;
+        const start = call.startMs + skewMs;
+        const end = (call.endMs ?? call.startMs + timing.missingEndToleranceMs) + skewMs;
         if (
           !epoch(start) ||
           !epoch(end) ||
@@ -214,8 +216,10 @@ function createSessionContext(options) {
         }
         const oneToOne =
           bySession.get(call.sessionRef)?.size === 1 && byInstance.get(instanceRef)?.size === 1;
-        const strength = binding.strength === 'confirmed' && oneToOne ? 'confirmed' : 'inferred';
+        const strength =
+          binding.strength === 'confirmed' && oneToOne && !assumedLocal ? 'confirmed' : 'inferred';
         const candidateKey = `${call.callRef}:${call.argsDigest}:${call.startMs}:${call.endMs}`;
+        if (binding.strength === 'confirmed' && oneToOne) verifiedCandidates.add(candidateKey);
         if (!candidates.has(candidateKey) && candidates.size >= LIMITS.calls) {
           candidates.clear();
           reasons.add('candidate-limit');
@@ -247,8 +251,13 @@ function createSessionContext(options) {
       return reply('inferred');
     }
     const strength = [...candidates.values()][0].strength;
+    const confirmedBinding = [...candidates.keys()].every((key) => verifiedCandidates.has(key));
     reasons.add(
-      strength === 'confirmed' ? 'exact-binding-object-and-interval' : 'session-binding-inferred',
+      strength === 'confirmed'
+        ? 'exact-binding-object-and-interval'
+        : assumedLocal && confirmedBinding
+          ? 'exact-session-binding'
+          : 'session-binding-inferred',
     );
     return reply(strength);
   }

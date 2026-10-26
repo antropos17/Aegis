@@ -116,6 +116,7 @@ function main() {
         '/reference:System.Web.Extensions.dll',
         `/out:${observerExe}`,
         path.join(ROOT, 'sidecar', 'observer', 'Program.cs'),
+        path.join(ROOT, 'sidecar', 'observer', 'ClaudeSession.cs'),
         rmSource,
       ],
       { stdio: 'inherit' },

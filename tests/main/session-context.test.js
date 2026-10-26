@@ -48,6 +48,37 @@ const link = (engine, batch, ev = event, proof = evidence, window = timing, proc
   engine.correlate(ev, [engine.bind(batch, process, proof)], window);
 
 describe('source-backed bounded session context parsing', () => {
+  it('never confirms a matching verified session when local clock alignment is only assumed', () => {
+    const engine = make();
+    const batch = engine.parse('claude-code', fixture('claude'), selection);
+    const binding = engine.bind(batch, proc, evidence);
+    expect(binding.strength).toBe('confirmed');
+    const result = engine.correlate(event, [binding], {
+      clockBasis: 'same-host-assumed',
+      missingEndToleranceMs: 1500,
+    });
+    expect(result.strength).toBe('inferred');
+    expect(result.reasons).toContain('clock-skew-assumed-local');
+    expect(result.reasons).toContain('exact-session-binding');
+    expect(result.candidates[0].strength).toBe('inferred');
+  });
+  it('withdraws confirmed binding evidence when the instance acquires a competing session', () => {
+    const engine = make();
+    const binding = engine.bind(read(engine, [claude()]), proc, evidence);
+    const other = claude();
+    other.sessionId = 'other-session';
+    const otherBatch = engine.parse('claude-code', lines([other]), {
+      ...selection,
+      sessionId: 'other-session',
+    });
+    engine.bind(otherBatch, proc, { ...evidence, sessionId: 'other-session' });
+    const result = engine.correlate(event, [binding], {
+      clockBasis: 'same-host-assumed',
+      missingEndToleranceMs: 1500,
+    });
+    expect(result.reasons).not.toContain('exact-session-binding');
+    expect(result.reasons).toContain('session-binding-inferred');
+  });
   it.each([
     ['claude-code', 'claude', 'Read'],
     ['codex', 'codex', 'exec_command'],

@@ -142,9 +142,11 @@ const desktopShell = require('./platform/desktop-shell').createDesktopShell({
 });
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
+const { createLiveToolContext } = require('./live-tool-context');
 const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
+let claudeHookProfile;
 let etwFile;
 let nativeSensor = null;
 let nativeFileIngress = null;
@@ -645,12 +647,17 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   mode: 'latest',
 });
 let securityEvents = null;
+const liveToolContext = createLiveToolContext({
+  getAgents: () =>
+    scanner?.getProcessCapabilities?.().populationReliable === true ? latestAgents : [],
+});
 
 /** Preserve watcher UUIDs; stamp accepted legacy/test events before display or audit. */
 function recordAcceptedFileEvent(event) {
   if (typeof event.eventId !== 'string' || !FILE_EVENT_ID.test(event.eventId))
     event.eventId = randomUUID();
   if (event.sensitive === true) sensitiveAlertJournal?.record(event);
+  liveToolContext.record(event);
 }
 
 /**
@@ -1333,6 +1340,7 @@ function initDeferredSubsystems(userData) {
     getStats,
   });
   analysis.init({
+    getPopulationHealth: getAppHealth,
     getSettings: config.getSettings,
     activityLog: scanner.activityLog,
     getLatestAgents: () => latestAgents,
@@ -1486,8 +1494,23 @@ app.whenReady().then(() => {
       });
     },
   });
+  const applicationPath = path.resolve(__dirname, '../..');
+  claudeHookProfile = require('./claude-hook-app').createClaudeHookApp({
+    userData,
+    assetsRoot: path.join(
+      app.isPackaged ? process.resourcesPath : path.join(applicationPath, 'build'),
+      'hook-review',
+    ),
+    dialog: require('electron').dialog,
+    shell: require('electron').shell,
+    executable: process.execPath,
+    appPath: applicationPath,
+    getWindow: () => mainWindow,
+  });
   ipc.init({
+    claudeHookProfile,
     sensitiveAlertJournal,
+    explainToolContext: (eventId) => liveToolContext.explain(eventId),
     controlFileReads: (request) => etwFile.control(request),
     updates,
     getWindow: () => mainWindow,
@@ -1526,9 +1549,10 @@ app.on('before-quit', (event) => {
   }
   const etwActive = etwFile?.isActive?.() === true;
   const nativeActive = nativeSensor?.isActive() === true;
+  const hookReviewActive = claudeHookProfile?.hasPending() === true;
   if (
     !alertQuitDrainStarted &&
-    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive)
+    (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive || hookReviewActive)
   ) {
     event.preventDefault();
     alertQuitDrainStarted = true;
@@ -1550,11 +1574,19 @@ app.on('before-quit', (event) => {
       }
     };
     Promise.race([
-      Promise.all([drain(), etwFile?.dispose(), nativeSensor?.dispose()]),
+      Promise.all([
+        drain(),
+        etwFile?.dispose(),
+        nativeSensor?.dispose(),
+        claudeHookProfile?.close(),
+      ]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.
         // Pending UAC or an unresponsive collector still cannot hold quit forever.
-        timeout = setTimeout(resolve, etwActive ? 15000 : nativeActive ? 2500 : 2000);
+        timeout = setTimeout(
+          resolve,
+          etwActive ? 15000 : hookReviewActive ? 5000 : nativeActive ? 2500 : 2000,
+        );
       }),
     ])
       .catch(() => {})

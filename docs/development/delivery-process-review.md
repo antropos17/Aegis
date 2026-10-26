@@ -49,3 +49,61 @@ The ordinary all-users installer result from #1052 remains valid within its
 recorded Windows x64/100-percent-display scope. It does not establish completion
 of native read admission, recovery or every T10 platform. Preparation percentage,
 delivered components and accepted product behavior must remain separate.
+
+## Follow-up: shared rules and verification quality
+
+A second read of current development and UI-review handoffs confirmed that live
+session binding and the provider installation flow remain disconnected. The
+native-admission PR #1057 is still a draft at head `6d3f0947` in this observation.
+The modernization assessment proposed an optional pilot, including intentional
+breakage, but did not execute it. That suggestion does not override the owner's
+no-mutation instruction or authorize a new tool/agent campaign.
+
+The preserved primary checkout still had old tracked instructions after #1084
+and #1085 merged. Updated installed skills could also be overwritten from that
+older catalog. The context entry point now distinguishes source and policy
+revisions, prohibits instruction downgrades and describes how to read current
+policy without changing the preserved source. Active chats need a notification;
+file edits alone do not establish that an existing session reloaded instructions.
+
+The plan also prescribed a root model, restricted it to coordination and offered
+an external-CLI fallback. Revision 5 preserves the selected model, allows direct
+implementation without delegation, and reuses existing baseline rows. The common
+delivery loop replaces repeated discovery with a named consumer, acceptance
+observation and focused checks. No new automation, monitoring service or review
+layer is required by this correction.
+
+### External ideas and limits
+
+The owner requested Reddit research. These discussions are anecdotal suggestions,
+not measured evidence about AEGIS or proof of a universal prompting technique:
+
+- [Repeated workflow drift](https://www.reddit.com/r/codex/comments/1wbkgw5/how_do_you_stop_codex_from_overengineering_losing/)
+  describes testing unrelated components, replacing working pipelines and
+  confusing manual intervention with automation. We adopt concrete acceptance
+  observations and regressions from actual failures. We do not adopt new blanket
+  write restrictions or mandatory ledger commits for every edit.
+- [Overengineering and conflicting instructions](https://www.reddit.com/r/codex/comments/1ve9nxe/why_does_codex_constantly_overengineer_code_and/)
+  suggests clearer constraints and smaller scope. We apply this by consolidating
+  policy and finishing one coherent user-visible path. Claims that more files,
+  a different model or weaker quality requirements always solve the problem are
+  not supported by this review.
+
+The engineering basis is Ham Vocke's
+[Practical Test Pyramid](https://www.martinfowler.com/articles/practical-test-pyramid.html#AvoidTestDuplication):
+put logic checks at a fast boundary and retain higher-level tests for the unique
+integration behavior they establish. This supports focused local checks; it does
+not justify removing native admission, security invariants or required PR checks.
+[GitHub's concurrency documentation](https://docs.github.com/en/actions/concepts/workflows-and-actions/concurrency)
+supports canceling obsolete work; the existing PR concurrency change already
+implements that idea. No further workflow edit is needed for this follow-up.
+
+### Observed effect and remaining bottleneck
+
+Documentation-only run [40241856902](https://github.com/antropos17/Aegis/actions/runs/40241856902)
+completed successfully from 22:47:55Z to 22:48:15Z on 2026-10-25 (20 seconds),
+with explicit structural scope. Full runtime CI for #1084 remained successful;
+its coverage step took 3m55s. These are separate observed workloads, not a claim
+that all development became a fixed percentage faster. The remaining product
+bottleneck is completing and qualifying connected behavior. Additional process
+work is warranted only by a concrete recurring failure or measured delay.

@@ -34,6 +34,8 @@ const tools: Record<string, readonly string[]> = {
 const reasonLabels: Record<string, string> = {
   'ambiguous-tool-calls': 'Several tool calls qualify; a single call cannot be selected.',
   'clock-skew-unavailable': 'Clock alignment is unavailable.',
+  'clock-skew-assumed-local':
+    'Time comparison assumes the same computer clock; clock alignment was not measured.',
   'end-time-unavailable': 'A tool completion time was not recorded.',
   'exact-binding-object-and-interval': 'Session binding, object and time interval matched.',
   'exact-session-binding': 'The recorded session binding matched.',
