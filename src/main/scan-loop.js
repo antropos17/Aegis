@@ -178,7 +178,7 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
     : (attribution?.evidence ?? null);
   const key = JSON.stringify([
     instanceId,
-    ev.action === 'holding' && typeof ev.createTime100ns === 'string' ? ev.createTime100ns : null,
+    typeof ev.createTime100ns === 'string' ? ev.createTime100ns : null,
     ev.file,
     ev.action,
     ev.sensitive,

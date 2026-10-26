@@ -97,3 +97,17 @@ real process. The case then checks the native binding, actual transcript and
 preload/UI explanation. Its selected OS observation is explicitly synthetic;
 this case does not qualify the native file-read sensor. Outputs are private
 diagnostics: review closed disposable logs after seven days and retain receipts.
+
+Setting `AEGIS_CLAUDE_QUALIFICATION_MODE=write` selects the existing runner's
+real-write journey. It creates a fresh owned project below the source checkout's
+ignored `out/development/` watch root and permits only one Claude Write there.
+The runner awaits the real watcher event, compares the actual output bytes,
+checks its retained audit entry, and selects the actual event UUID in Details.
+It never injects a file observation in this mode. A unique path-based candidate
+remains inferred; its coherent current process witness can support confirmation
+of that candidate's session binding, not confirmation of the OS write issuer.
+Multiple candidates at the selected path heuristic produce an unattributed
+observation with `ambiguous-owner-match`, without a selected process or history
+join. A missing or contradictory full witness preserves existing inferred
+attribution and cannot establish confirmed session binding. Preparing this
+journey does not itself establish acceptance of a real write or native read.

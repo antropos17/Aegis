@@ -35,6 +35,8 @@ export type AttributionEvidence =
   | 'self-config-path'
   | 'cwd-containment'
   | 'no-owner-match'
+  /** Multiple agents matched the selected heuristic and no owner is chosen. */
+  | 'ambiguous-owner-match'
   | 'no-ai-agents-online'
   /**
    * The process sensor could not vouch for the agent population at this instant, so no
