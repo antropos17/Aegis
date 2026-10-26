@@ -189,6 +189,8 @@ it('combines files and connections in the simple layout without inventing connec
     ...state(),
     events: [event(1)] as unknown as ReturnType<typeof state>['events'],
     networkAt: Date.now(),
+    networkCurrent: true,
+    stats: { appHealth: { sensors: { byId: { network: { state: 'HEALTHY' } } } } },
     network: [
       { agent: 'Codex', instanceId: '42:100', remoteIp: '192.0.2.9', remotePort: 443 },
     ] as ReturnType<typeof state>['network'],
@@ -251,6 +253,8 @@ it('preserves a focused network reading snapshot through an empty unavailable de
   const telemetry = {
     ...state(),
     networkAt: Date.now(),
+    networkCurrent: true,
+    stats: { appHealth: { sensors: { byId: { network: { state: 'HEALTHY' } } } } },
     network: [connection] as ReturnType<typeof state>['network'],
   };
   const inspect = vi.fn();

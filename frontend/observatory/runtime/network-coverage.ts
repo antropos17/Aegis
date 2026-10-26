@@ -1,4 +1,4 @@
-import { record, type Telemetry } from './host';
+import { networkSensorHealthy, type Telemetry } from './host';
 
 export type NetworkSnapshotStatus = 'latest' | 'retained' | 'unavailable';
 
@@ -10,7 +10,6 @@ export function networkSnapshotStatus(
   telemetry: Telemetry,
   rowCount = telemetry.network.length,
 ): NetworkSnapshotStatus {
-  const sensor = record(record(record(record(telemetry.stats.appHealth).sensors).byId).network);
   const delivered =
     typeof telemetry.networkAt === 'number' &&
     Number.isFinite(telemetry.networkAt) &&
@@ -18,8 +17,9 @@ export function networkSnapshotStatus(
   if (
     telemetry.ready &&
     !telemetry.stale &&
+    telemetry.networkCurrent &&
     delivered &&
-    (!sensor.state || sensor.state === 'HEALTHY')
+    networkSensorHealthy(telemetry.stats)
   )
     return 'latest';
   return rowCount > 0 ? 'retained' : 'unavailable';

@@ -31,6 +31,7 @@ export interface Telemetry {
   tokensAt: number | null;
   ownAt: number | null;
   networkAt: number | null;
+  networkCurrent: boolean;
   statsAt: number | null;
   scanCounters: { files: number; sensitive: number; evicted: number } | null;
   own: RecordData;
@@ -51,6 +52,17 @@ export function record(value: unknown): RecordData {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as RecordData)
     : {};
+}
+/** Check the network sensor, including explicitly marked preview data.
+ * @param stats Host statistics @returns Whether network observation is healthy @since 0.16.0
+ */
+export function networkSensorHealthy(stats: RecordData): boolean {
+  const byId = record(record(record(stats.appHealth).sensors).byId);
+  const state = record(byId.network).state;
+  return (
+    state === 'HEALTHY' ||
+    ((state === undefined || state === 'SIMULATED') && record(byId.preview).state === 'SIMULATED')
+  );
 }
 /** Read a finite measurement; absent is never zero. @param value Wire value @returns Measurement @since 0.14.1 */
 export function measured(value: unknown): number | null {
@@ -93,6 +105,7 @@ export function emptyTelemetry(): Telemetry {
     tokensAt: null,
     ownAt: null,
     networkAt: null,
+    networkCurrent: false,
     statsAt: null,
     scanCounters: null,
     own: {},
@@ -189,7 +202,13 @@ export function connectHost(
   };
   const update = (patch: Partial<Telemetry>) => {
     if (alive) {
-      state = { ...state, ...patch };
+      const next = { ...state, ...patch };
+      if (
+        (!state.stale && next.stale) ||
+        (networkSensorHealthy(state.stats) && !networkSensorHealthy(next.stats))
+      )
+        next.networkCurrent = false;
+      state = next;
       publish(state);
     }
   };
@@ -299,12 +318,14 @@ export function connectHost(
       retainedEvicted: state.retainedEvicted + result.retainedEvicted,
     });
   });
-  subscribe('onNetworkUpdate', (value) =>
+  subscribe('onNetworkUpdate', (value) => {
+    if (!Array.isArray(value)) return;
     update({
-      network: Array.isArray(value) ? (value as NetworkConnection[]) : [],
+      network: value as NetworkConnection[],
       networkAt: Date.now(),
-    }),
-  );
+      networkCurrent: state.stats.monitoringPaused !== true,
+    });
+  });
   subscribe('onScanStatus', (value) => update({ scanning: record(value).scanning === true }));
   subscribe('onAgentResourceUsage', (value) =>
     update({

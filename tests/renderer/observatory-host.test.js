@@ -9,6 +9,7 @@ import {
   instances,
 } from '../../frontend/observatory/runtime/host';
 import { validateCatalog } from '../../frontend/observatory/runtime/catalog';
+import { networkSnapshotStatus } from '../../frontend/observatory/runtime/network-coverage';
 
 const healthy = {
   appHealth: { populationReliable: true, populationState: 'HEALTHY', identityDegraded: false },
@@ -34,6 +35,61 @@ const deferred = () => {
   });
   return { promise, resolve, reject };
 };
+
+it('tracks network delivery across failure and paused monitoring', async () => {
+  const run = setup();
+  const stats = (sensor, paused = false) => ({
+    ...healthy,
+    monitoringPaused: paused,
+    appHealth: { ...healthy.appHealth, sensors: { byId: { network: { state: sensor } } } },
+  });
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    run.listeners.onScanBatch({ stats: stats('HEALTHY'), agents: [] });
+    run.listeners.onNetworkUpdate([{ remoteIp: '192.0.2.1', remotePort: 443 }]);
+    expect(networkSnapshotStatus(run.current)).toBe('latest');
+    run.listeners.onStatsUpdate(stats('FAILED'));
+    expect(networkSnapshotStatus(run.current)).toBe('retained');
+    run.listeners.onStatsUpdate(stats('HEALTHY'));
+    expect(networkSnapshotStatus(run.current)).toBe('retained');
+    run.listeners.onNetworkUpdate([]);
+    expect(networkSnapshotStatus(run.current)).toBe('latest');
+    run.listeners.onStatsUpdate(stats('HEALTHY', true));
+    run.listeners.onNetworkUpdate([{ remoteIp: '192.0.2.1', remotePort: 443 }]);
+    run.listeners.onScanBatch({ stats: stats('HEALTHY'), agents: [] });
+    expect(networkSnapshotStatus(run.current)).toBe('retained');
+    run.listeners.onNetworkUpdate([]);
+    expect(networkSnapshotStatus(run.current)).toBe('latest');
+    run.listeners.onStatsUpdate(stats('FAILED'));
+    run.listeners.onNetworkUpdate([]);
+    expect(networkSnapshotStatus(run.current)).toBe('unavailable');
+    run.listeners.onStatsUpdate(stats('HEALTHY'));
+    expect(networkSnapshotStatus(run.current)).toBe('latest');
+  } finally {
+    run.dispose();
+  }
+});
+
+it('accepts a network delivery before the first reliable process scan', async () => {
+  const run = setup();
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    run.listeners.onNetworkUpdate([{ remoteIp: '192.0.2.1', remotePort: 443 }]);
+    expect(networkSnapshotStatus(run.current)).toBe('retained');
+    run.listeners.onScanBatch({
+      agents: [],
+      stats: {
+        ...healthy,
+        appHealth: { ...healthy.appHealth, sensors: { byId: { network: { state: 'HEALTHY' } } } },
+      },
+    });
+    expect(networkSnapshotStatus(run.current)).toBe('latest');
+  } finally {
+    run.dispose();
+  }
+});
 function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({}), settingsSeed) {
   const listeners = {};
   const unsubs = [];
