@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('aegis', {
   localSecurityReview: (request) => ipcRenderer.invoke('local-security:review', request),
   getStats: () => ipcRenderer.invoke('get-stats'),
   explainToolContext: (eventId) => ipcRenderer.invoke('tool-context:explain', eventId),
+  reviewClaudeHookProfile: (action) => ipcRenderer.invoke('claude-hook:review', action),
   controlFileReads: (request) => ipcRenderer.invoke('file-reads:control', request),
   quitApp: (confirmed) => ipcRenderer.invoke('app:quit', confirmed),
   listSensitiveAlerts: () => ipcRenderer.invoke('sensitive-alerts:list'),
