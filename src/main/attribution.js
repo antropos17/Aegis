@@ -38,6 +38,8 @@
  *
  * Negative (→ `unattributed`):
  * - `no-owner-match` — no self-config and no cwd containment matched any AI agent.
+ * - `ambiguous-owner-match` — multiple agents matched the selected path heuristic;
+ *   the observation is retained without choosing an owner.
  * - `no-ai-agents-online` — no AI-category agent was online to own the event.
  * - `population-unavailable` — the process sensor could not vouch for the agent
  *   population at this instant, so no owner was even looked for. Deliberately NOT
@@ -55,6 +57,7 @@ const EVIDENCE = Object.freeze({
   SELF_CONFIG_PATH: 'self-config-path',
   CWD_CONTAINMENT: 'cwd-containment',
   NO_OWNER_MATCH: 'no-owner-match',
+  AMBIGUOUS_OWNER_MATCH: 'ambiguous-owner-match',
   NO_AI_AGENTS_ONLINE: 'no-ai-agents-online',
   POPULATION_UNAVAILABLE: 'population-unavailable',
 });
@@ -62,7 +65,7 @@ const EVIDENCE = Object.freeze({
 /**
  * Every legal evidence code, in declaration order.
  *
- * The `AttributionEvidence` union in src/shared/types/events.ts mirrors all EIGHT
+ * The `AttributionEvidence` union in src/shared/types/events.ts mirrors all NINE
  * codes, `population-unavailable` included. `tsc` cannot see this runtime list, so the
  * two halves are held together by a test that reads events.ts and compares them
  * member-for-member in declaration order — never by the compiler. The write path is

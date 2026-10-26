@@ -48,7 +48,7 @@ function createWindowsObserver(deps) {
           child.stdin.end(payload, 'utf8');
         });
         const response = JSON.parse(stdout);
-        if (response?.version !== 1 || !Array.isArray(response.rows))
+        if (response?.version !== (kind === 'cwd' ? 2 : 1) || !Array.isArray(response.rows))
           throw new Error('Invalid observer response');
         return parse(response.rows);
       } catch {
@@ -59,7 +59,7 @@ function createWindowsObserver(deps) {
   };
 }
 
-/** Validate command-line rows against the requested observation, without caching.
+/** Validate actual native working directories and their paired process birth, without caching.
  * @param {Array} rows
  * @param {number[]} pids
  * @returns {Array} Validated rows.
@@ -71,11 +71,19 @@ function validateCwds(rows, pids) {
   for (const row of rows) {
     if (
       !row ||
+      Object.keys(row).length !== 3 ||
+      !['ProcessId', 'Cwd', 'CreateTime100ns'].every((key) => Object.hasOwn(row, key)) ||
       !wanted.has(row.ProcessId) ||
       seen.has(row.ProcessId) ||
-      (row.CommandLine !== null && typeof row.CommandLine !== 'string') ||
-      !Object.hasOwn(row, 'CreateTime100ns') ||
-      (row.CreateTime100ns !== null && !validCreateTime100ns(row.CreateTime100ns))
+      !(
+        (row.Cwd === null && row.CreateTime100ns === null) ||
+        (typeof row.Cwd === 'string' &&
+          row.Cwd.length > 0 &&
+          row.Cwd.length <= 4096 &&
+          path.win32.isAbsolute(row.Cwd) &&
+          !/[\p{Cc}\p{Cs}]/u.test(row.Cwd) &&
+          validCreateTime100ns(row.CreateTime100ns))
+      )
     )
       throw new Error('Invalid CWD observation');
     seen.add(row.ProcessId);

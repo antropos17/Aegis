@@ -277,7 +277,7 @@ describe('trace format — the chain seed belongs to the trace format', () => {
   it('pins the closed evidence list into the header, in declaration order', () => {
     const env = environment.observeEnvironment({ clockEpochMs: CLOCK_EPOCH_MS });
     expect(env.digests.evidenceCodes).toEqual([...attribution.EVIDENCE_CODES]);
-    expect(env.digests.evidenceCodes).toHaveLength(8);
+    expect(env.digests.evidenceCodes).toHaveLength(9);
   });
 });
 
