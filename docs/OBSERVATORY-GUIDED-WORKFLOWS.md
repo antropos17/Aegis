@@ -78,8 +78,19 @@ also observed an external file creation through production IPC and persisted aud
 then reported unavailable coverage after an owned directory rename within the
 existing health poll. Public clear restored the legacy watch root. That smoke
 seeded its disposable profile through a scripted fixture dialog; it does not
-establish native owner consent. Physical folder-picker input, a packaged
-application and wider network/reparse coverage remain separate acceptance steps.
+establish native owner consent. Physical folder-picker input, selected-project
+watching in an installed build and wider network/reparse coverage remain separate
+acceptance steps.
+
+A private normal unpacked-ASAR build from `7725f734` also verified the no-selection
+case with actual fresh host data and the production renderer: **Project changes →
+Not observed**, then the existing Monitoring-settings navigation and focus, with
+no automatic folder selection. Default updates stayed off. Source and package
+hashes were unchanged. Its Windows launcher exited 0 and closed; independent
+held-process evidence confirmed the Electron main generation was gone after quit,
+without claiming its exit code. The [scoped ASAR record](CLAUDE-HOOK-APP.md#private-unpacked-asar-qualification)
+retains the exact package pins, hook-input results and initial launcher-PID
+refusal. This adds no native owner-consent or genuine packaged-provider claim.
 
 ## Optional terminal setup
 
