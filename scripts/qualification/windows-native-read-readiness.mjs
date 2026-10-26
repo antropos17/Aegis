@@ -71,12 +71,19 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
     sequence: null,
     topology: null,
     firstFailure: null,
+    populationAsOf: null,
+    processLastSuccessAt: null,
+    snapshotLastAttemptAt: null,
+    snapshotLastSuccessAt: null,
+    scanCadence: { maxProcessGapMs: null, skippedProcessTicks: null, lastSkippedAt: null },
   };
   if (!app) return result;
   const pick = (value, choices) => (choices.includes(value) ? value : null);
   const flag = (value) => (typeof value === 'boolean' ? value : null);
   const count = (value, limit) =>
     Number.isSafeInteger(value) && value >= 0 ? Math.min(value, limit) : null;
+  const time = (value) =>
+    Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000000 ? value : null;
   try {
     const load =
       loadModule ||
@@ -90,6 +97,8 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
       result.source = pick(source?.lastSource, ['basic', 'class5', 'cim', 'none']);
       result.mode = pick(snapshot.getMode(), ['auto', 'strict', 'cim']);
       result.transitions = count(source?.transitions, 512);
+      result.snapshotLastAttemptAt = time(health?.lastAttemptAt);
+      result.snapshotLastSuccessAt = time(health?.lastSuccessAt);
       result.errorPresent =
         typeof health?.lastError === 'string'
           ? health.lastError.length > 0
@@ -160,6 +169,28 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
       result.clientAvailable = true;
     } catch {
       /* Snapshot health remains useful when the client getter is absent. */
+    }
+    try {
+      const scanner = load('./src/main/process-scanner.js');
+      result.populationAsOf = time(scanner.getProcessCapabilities()?.populationAsOf);
+      result.processLastSuccessAt = time(scanner.getProcessSensorHealth()?.lastSuccessAt);
+    } catch {
+      /* Missing current process health is explicit, not an inferred timestamp. */
+    }
+    try {
+      const cadence = load('./src/main/scan-loop.js').getScanCadence();
+      result.scanCadence = {
+        maxProcessGapMs:
+          Number.isSafeInteger(cadence?.maxProcessGapMs) &&
+          cadence.maxProcessGapMs > 0 &&
+          cadence.maxProcessGapMs <= 3600000
+            ? cadence.maxProcessGapMs
+            : null,
+        skippedProcessTicks: count(cadence?.skippedProcessTicks, 1000000),
+        lastSkippedAt: time(cadence?.lastSkippedAt),
+      };
+    } catch {
+      /* No scheduler action or new observation is requested. */
     }
   } catch {
     /* Missing main-module loader leaves a fixed unavailable projection. */

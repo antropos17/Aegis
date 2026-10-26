@@ -17,12 +17,28 @@ describe('native-read scanner readiness diagnostics', () => {
     const requested = [];
     const diagnostic = closed({ app: {} }, (name) => {
       requested.push(name);
+      if (name.endsWith('/process-scanner.js'))
+        return {
+          getProcessCapabilities: () => ({ populationAsOf: 1700000000100, private: 'PRIVATE' }),
+          getProcessSensorHealth: () => ({ lastSuccessAt: 1700000000100 }),
+        };
+      if (name.endsWith('/scan-loop.js'))
+        return {
+          getScanCadence: () => ({
+            maxProcessGapMs: 40000,
+            skippedProcessTicks: 1000001,
+            lastSkippedAt: 1700000000200,
+            private: 'PRIVATE_CADENCE',
+          }),
+        };
       return name.endsWith('/process-snapshot.js')
         ? {
             getSnapshotHealth: () => ({
               state: 'FAILED',
               detail: 'none',
               lastError: 'PRIVATE_C:/profile',
+              lastAttemptAt: 1700000000000,
+              lastSuccessAt: null,
               pid: 42,
             }),
             getSourceStats: () => ({ lastSource: 'none', transitions: 99999 }),
@@ -47,6 +63,8 @@ describe('native-read scanner readiness diagnostics', () => {
     expect(requested).toEqual([
       './src/main/platform/process-snapshot.js',
       './src/main/platform/proc-snapshot-client.js',
+      './src/main/process-scanner.js',
+      './src/main/scan-loop.js',
     ]);
     expect(diagnostic).toEqual({
       schema: 'aegis-native-read-snapshot-diagnostic/1',
@@ -70,8 +88,50 @@ describe('native-read scanner readiness diagnostics', () => {
         stderrClass: 'probe-birth-mismatch',
         nativeStatus: null,
       },
+      populationAsOf: 1700000000100,
+      processLastSuccessAt: 1700000000100,
+      snapshotLastAttemptAt: 1700000000000,
+      snapshotLastSuccessAt: null,
+      scanCadence: {
+        maxProcessGapMs: 40000,
+        skippedProcessTicks: 1000000,
+        lastSkippedAt: 1700000000200,
+      },
     });
     expect(JSON.stringify(diagnostic)).not.toMatch(/PRIVATE|"pid"|"birth"/);
+  });
+
+  it('projects existing cadence and observation times as null when invalid without exporting raw health', () => {
+    const diagnostic = readScannerSnapshotDiagnostic({ app: {} }, (name) => {
+      if (name.endsWith('/process-scanner.js'))
+        return {
+          getProcessCapabilities: () => ({ populationAsOf: 'PRIVATE_TIME', agents: ['PRIVATE'] }),
+          getProcessSensorHealth: () => ({ lastSuccessAt: 8640000000000001 }),
+        };
+      if (name.endsWith('/scan-loop.js'))
+        return {
+          getScanCadence: () => ({
+            maxProcessGapMs: 3600001,
+            skippedProcessTicks: -1,
+            lastSkippedAt: NaN,
+          }),
+        };
+      if (name.endsWith('/process-snapshot.js'))
+        return {
+          getSnapshotHealth: () => ({ lastAttemptAt: -1, lastSuccessAt: 1.5 }),
+          getSourceStats: () => ({}),
+          getMode: () => 'auto',
+        };
+      throw new Error('PRIVATE_GETTER');
+    });
+    expect(diagnostic).toMatchObject({
+      populationAsOf: null,
+      processLastSuccessAt: null,
+      snapshotLastAttemptAt: null,
+      snapshotLastSuccessAt: null,
+      scanCadence: { maxProcessGapMs: null, skippedProcessTicks: null, lastSkippedAt: null },
+    });
+    expect(JSON.stringify(diagnostic)).not.toContain('PRIVATE');
   });
 
   it('keeps unknown enum values and invalid counters null without exporting raw errors', () => {
