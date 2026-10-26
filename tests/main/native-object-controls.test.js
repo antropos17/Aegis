@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   NATIVE_OBJECT_SUITES,
@@ -11,6 +12,12 @@ import {
 } from '../../tools/development/native-object-controls.mjs';
 
 const root = path.resolve('control-fixture');
+// Recorded stdout from the failed controls-only run; no receipt status is rewritten.
+// The fixture retains assertion names/numeric metrics and excludes the artifact envelope.
+const recordedNativeOutput = readFileSync(
+  new URL('../fixtures/native-object-controls/run-40340604031-native-stdout.txt', import.meta.url),
+  'utf8',
+);
 function javascriptReport() {
   let index = 0;
   return {
@@ -131,6 +138,55 @@ describe('single-pass native object controls evidence', () => {
       expect(() => validateNativeControls(text, 0, 0)).toThrow();
     expect(() => validateNativeControls(nativeOutput(), 2, 0)).toThrow();
     expect(() => validateNativeControls(nativeOutput(), 0, 1)).toThrow();
+  });
+
+  it('recognizes the two recorded C# metric lines without counting them as assertions', () => {
+    expect(recordedNativeOutput.trimEnd().split('\n')).toHaveLength(149);
+    expect(validateNativeControls(recordedNativeOutput, 0, 0)).toEqual({
+      status: 'PASS',
+      assertions: 146,
+      buildExitCode: 0,
+      exitCode: 0,
+    });
+    expect(() => validateNativeControls(recordedNativeOutput, 1, 0)).toThrow();
+    expect(() => validateNativeControls(recordedNativeOutput, 0, 1)).toThrow();
+  });
+
+  it('refuses unknown, unbounded, duplicated or misplaced metric data and incomplete recorded assertions', () => {
+    const lines = recordedNativeOutput.trimEnd().split('\n');
+    const output = lines.find((line) => line.startsWith('OUTPUT_ALLOC '));
+    const forward = lines.find((line) => line.startsWith('BROKER_FORWARD '));
+    const first = lines[0];
+    const second = lines[1];
+    for (const text of [
+      recordedNativeOutput.replace(output, output + ' PRIVATE_EXTRA_FIELD'),
+      recordedNativeOutput.replace(forward, forward + ' PRIVATE_EXTRA_FIELD'),
+      recordedNativeOutput.replace(output, output.replace('batches=30', 'batches=31')),
+      recordedNativeOutput.replace(forward, forward.replace('frames=100', 'frames=101')),
+      recordedNativeOutput.replace(forward, forward.replace('records=6400', 'records=6401')),
+      recordedNativeOutput.replace(output, output.replace(/previous=\d+/, 'previous=-1')),
+      recordedNativeOutput.replace(output, output.replace(/current=\d+/, 'current=01')),
+      recordedNativeOutput.replace(output, output.replace(/previous=\d+/, 'previous=1e6')),
+      recordedNativeOutput.replace(
+        output,
+        output.replace(/previous=\d+/, 'previous=9223372036854775808'),
+      ),
+      recordedNativeOutput.replace(forward, forward.replace(/frequency=\d+/, 'frequency=0')),
+      recordedNativeOutput.replace(
+        forward,
+        forward.replace(/currentMedianTicks=\d+/, 'currentMedianTicks=9223372036854775808'),
+      ),
+      recordedNativeOutput.replace(output, output + '\n' + output),
+      output + '\n' + recordedNativeOutput.replace(output + '\n', ''),
+      recordedNativeOutput.replace(first + '\n', ''),
+      recordedNativeOutput.replace(first, second),
+      recordedNativeOutput.replace('146 self-tests passed', '148 self-tests passed'),
+      recordedNativeOutput.replace(
+        '146 self-tests passed',
+        'UNKNOWN METRIC\n146 self-tests passed',
+      ),
+    ])
+      expect(() => validateNativeControls(text, 0, 0)).toThrow();
   });
 
   it('refuses repeated or absent runs, changed source, old mutation assertions and missing disk guards', () => {

@@ -117,13 +117,44 @@ export function validateNativeControls(stdout, exitCode, buildExitCode) {
     `${NATIVE_ASSERTIONS} self-tests passed; no ETW session or UAC requested.`,
     'Missing native completion',
   );
-  assert.equal(lines.length, NATIVE_ASSERTIONS, 'Incomplete native inventory');
-  assert(
-    lines.every((line) => /^PASS .+/.test(line)),
-    'Nonpassing native assertion',
-  );
-  assert.equal(new Set(lines).size, lines.length, 'Duplicate native assertion');
-  return { status: 'PASS', assertions: lines.length, buildExitCode, exitCode };
+  const number = '(0|[1-9][0-9]{0,18})';
+  const metrics = [
+    {
+      pattern: new RegExp(
+        `^OUTPUT_ALLOC bytes: previous=${number}, current=${number}, batches=30$`,
+      ),
+      next: 'PASS single-pass output allocates less than the previous three-pass batch writer',
+    },
+    {
+      pattern: new RegExp(
+        `^BROKER_FORWARD frames=100 records=6400 previousBytes=${number} currentBytes=${number} previousMedianTicks=${number} currentMedianTicks=${number} frequency=([1-9][0-9]{0,18})$`,
+      ),
+      next: 'PASS broker forwarding allocates less than re-encoding validated observation frames',
+    },
+  ];
+  const assertions = [],
+    seenMetrics = new Set();
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    if (/^PASS .+/.test(line)) {
+      assertions.push(line);
+      continue;
+    }
+    const metric = metrics.find((value) => value.pattern.test(line));
+    assert(
+      metric && !seenMetrics.has(metric) && lines[index + 1] === metric.next,
+      'Unexpected native output',
+    );
+    const values = metric.pattern.exec(line).slice(1);
+    assert(
+      values.every((value) => BigInt(value) <= 9223372036854775807n),
+      'Native metric bounds',
+    );
+    seenMetrics.add(metric);
+  }
+  assert.equal(assertions.length, NATIVE_ASSERTIONS, 'Incomplete native inventory');
+  assert.equal(new Set(assertions).size, assertions.length, 'Duplicate native assertion');
+  return { status: 'PASS', assertions: assertions.length, buildExitCode, exitCode };
 }
 
 /** Refuse a final PASS unless one complete control pass left the source unchanged.
