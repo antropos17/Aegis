@@ -51,7 +51,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (64 channels: 53 invoke + 11 push)        │
+│              contextBridge API (65 channels: 54 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -187,7 +187,7 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 53 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
+The 54 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
@@ -210,6 +210,7 @@ The 53 invoke channels below are exposed through `src/main/preload.js`. Handlers
 | `analyze-session` | ai-analysis | Full session AI threat analysis |
 | `open-threat-report` | main | Write HTML to temp + open in browser |
 | `get-audit-stats` | audit-logger | Entry counts, durability counters, size, date range |
+| `audit:review-integrity` | audit-integrity-review | Bounded local consistency check for one selected daily file |
 | `open-audit-log-dir` | audit-logger | Open audit directory in the file manager |
 | `export-full-audit` | audit-logger | Export all audit logs to a single JSON |
 | `get-audit-entries-before` | audit-logger | Paginated audit log entries (cursor) |

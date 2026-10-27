@@ -14,6 +14,7 @@
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import AuditContext from './AuditContext.svelte';
+  import AuditIntegrity from './AuditIntegrity.svelte';
   import AgentLogo from './AgentLogo.svelte';
   import { instances, type Telemetry } from '../runtime/host';
   import Metadata from './Metadata.svelte';
@@ -405,6 +406,7 @@
           )}
         />
       </section>
+      <AuditIntegrity {host} />
     </section>
   </div>
 {:else}

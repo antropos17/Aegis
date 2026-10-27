@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('aegis', {
   exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
   importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
+  reviewAuditIntegrity: (date) => ipcRenderer.invoke('audit:review-integrity', date),
   getAuditEntriesBefore: (beforeTs, limit, types, boundaryOffset) =>
     ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit, types, boundaryOffset),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),

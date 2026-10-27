@@ -173,6 +173,11 @@ interface AegisIpcBridge {
   ): Promise<Record<string, unknown>>;
   controlProjectWatch(action: 'status' | 'select' | 'clear'): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
+  reviewAuditIntegrity(
+    date: string,
+  ): Promise<
+    { status: 'consistent' | 'inconsistent' | 'unavailable' } | { success: false; error: string }
+  >;
   /**
    * Paginated audit records strictly before `beforeTs` (ISO), oldest-first, exactly as
    * `audit-logger.getEntriesBefore` returns them — every row through `normalizeAuditEntry`,
