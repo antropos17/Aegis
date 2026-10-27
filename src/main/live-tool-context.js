@@ -162,14 +162,17 @@ function createLiveToolContext(options) {
       path.resolve(native.Cwd) === path.resolve(selected.cwd) &&
       snapshots.filter((row) => row?.agent === 'Claude Code').length === population.length;
     if (peers.length > 31) return unavailable('binding-limit');
+    const peerRegistries = [];
     for (const peer of peers) {
       let other;
       try {
         other = await registryAt(home, peer.pid);
       } catch {
+        peerRegistries.push(null);
         oneToOne = false;
         continue;
       }
+      peerRegistries.push(other);
       if (other.sessionId === selected.sessionId) return unavailable('session-binding-mismatch');
       const peerProof = processWitness(nativeBefore, peer);
       if (
@@ -214,6 +217,16 @@ function createLiveToolContext(options) {
       ).length !== 1
     )
       return unavailable('process-binding-mismatch');
+    for (let index = 0; index < peers.length; index++) {
+      let afterPeer = null;
+      try {
+        afterPeer = await registryAt(home, peers[index].pid);
+      } catch {
+        // A missing or unreadable registry cannot establish one-to-one ownership.
+      }
+      if (JSON.stringify(afterPeer) !== JSON.stringify(peerRegistries[index]))
+        return unavailable('session-binding-mismatch');
+    }
     if (native) {
       const nativeAfter = await observeProcesses(population);
       const finalPopulation = getAgents();
