@@ -242,7 +242,7 @@
       <pre><code>{claudeHookLaunchCommand}</code></pre>
       <p class="muted">
         {$t(
-          'This route requires Claude Code and applies the selected policy only to Bash requests in launches using this profile. Other tools and launches without the profile are outside its scope.',
+          'This route requires Claude Code. If Claude invokes the hook, it evaluates Bash requests against the selected policy. Other tools and launches without the profile are outside its scope.',
         )}
       </p>
       <p class="muted">{$t('This direct route does not send decision reports to AEGIS.')}</p>

@@ -102,6 +102,7 @@ it('explains the selected launch route and its unverified failure boundary', () 
     'has not been qualified',
   );
   expect(screen.getByText(/Other tools and launches without the profile/)).toBeVisible();
+  expect(screen.getByText(/If Claude invokes the hook/)).toBeVisible();
   expect(screen.getByText(/claude --settings \$settings/)).toBeVisible();
   expect(screen.getByText('This direct route does not send decision reports to AEGIS.')).toBeVisible();
 });

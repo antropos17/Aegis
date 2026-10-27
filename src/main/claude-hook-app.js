@@ -296,7 +296,15 @@ function createClaudeHookApp(options) {
       const code = await guardLauncher.start(owned);
       return owned() ? reply(code) : { success: false, error: 'Renderer request denied' };
     }
-    if (action === 'install' || action === 'remove') await guardLauncher?.stop(true);
+    if ((action === 'install' || action === 'remove') && guardLauncher) {
+      const released = await guardLauncher.stop(true);
+      if (!released) {
+        retained = true;
+        last = 'SESSION_RELEASE_UNCONFIRMED';
+        return owned() ? reply() : { success: false, error: 'Renderer request denied' };
+      }
+      if (!owned()) return { success: false, error: 'Renderer request denied' };
+    }
     if (action === 'install' && session?.ended && ownedInstall) return reply('SESSION_ENDED');
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
