@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { confirmed, invoke, record, type Host } from '../runtime/host';
   import { t } from '../runtime/i18n';
   import Icon from './Icon.svelte';
@@ -52,10 +52,28 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
   let failure = $state(false);
   let uncertainOperation = $state(false);
   let retainedUncertainty = $state(false);
+  let outstandingMutations = $state(0);
   const available = $derived(!preview && typeof host?.reviewGeminiHookProfile === 'function');
   const current = $derived(
     profileState !== null && stateHost === host && statePreview === preview && available,
   );
+  let contextGeneration = 0;
+  let mutationGeneration = 0;
+  const initialContext = untrack(() => ({ host, preview }));
+  let observedHost = initialContext.host;
+  let observedPreview = initialContext.preview;
+  // Invalidate the old host context while retaining in-flight mutation custody.
+  $effect(() => {
+    const nextHost = host;
+    const nextPreview = preview;
+    if (nextHost !== observedHost || nextPreview !== observedPreview) {
+      observedHost = nextHost;
+      observedPreview = nextPreview;
+      contextGeneration++;
+      profileState = null;
+      pending = null;
+    }
+  });
   let alive = true;
   onMount(() => {
     if (available) void perform('status');
@@ -64,18 +82,31 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     };
   });
   async function perform(action: Operation) {
-    if (!available || pending) return;
+    if (!available || pending || (action !== 'status' && outstandingMutations > 0)) return;
     const requestedHost = host;
     const requestedPreview = preview;
+    const requestedGeneration = contextGeneration;
+    const mutation = action === 'install' || action === 'remove';
     pending = action;
-    if (action === 'install' || action === 'remove') uncertainOperation = true;
+    if (mutation) {
+      uncertainOperation = true;
+      outstandingMutations++;
+      mutationGeneration++;
+    }
+    const requestedMutationGeneration = mutationGeneration;
     profileState = null;
     try {
       const result = record(
         confirmed(await invoke(requestedHost, 'reviewGeminiHookProfile', action)),
       );
-      if (!alive || host !== requestedHost || preview !== requestedPreview) return;
-      if (result.code === 'RETAINED_UNKNOWN') retainedUncertainty = true;
+      if (
+        !alive ||
+        host !== requestedHost ||
+        preview !== requestedPreview ||
+        contextGeneration !== requestedGeneration ||
+        (action === 'status' && mutationGeneration !== requestedMutationGeneration)
+      )
+        return;
       if (
         typeof result.code !== 'string' ||
         !Object.hasOwn(messages, result.code) ||
@@ -89,6 +120,7 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
       )
         throw new Error('invalid profile status');
       const code = result.code;
+      if (code === 'RETAINED_UNKNOWN') retainedUncertainty = true;
       const failed = !['IDLE', 'BUSY', 'CANCELLED', 'INSTALLED', 'REMOVED'].includes(code);
       profileState = {
         canInstall: result.canInstall && !failed && code !== 'BUSY' && !retainedUncertainty,
@@ -106,11 +138,19 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
         alive &&
         host === requestedHost &&
         preview === requestedPreview &&
+        contextGeneration === requestedGeneration &&
         (action === 'install' || action === 'remove')
       )
         uncertainOperation = true;
     } finally {
-      if (alive) pending = null;
+      if (alive) {
+        if (mutation) {
+          outstandingMutations--;
+          mutationGeneration++;
+          if (contextGeneration !== requestedGeneration) profileState = null;
+        }
+        if (contextGeneration === requestedGeneration) pending = null;
+      }
     }
   }
 </script>
@@ -148,7 +188,10 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     <div class="profile-actions">
       <button
         class="button"
-        disabled={!current || pending !== null || !profileState?.canInstall}
+        disabled={!current ||
+          pending !== null ||
+          outstandingMutations > 0 ||
+          !profileState?.canInstall}
         aria-busy={pending === 'install'}
         onclick={() => perform('install')}
       >
@@ -160,7 +203,10 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
       </button>
       <button
         class="button"
-        disabled={!current || pending !== null || !profileState?.canRemove}
+        disabled={!current ||
+          pending !== null ||
+          outstandingMutations > 0 ||
+          !profileState?.canRemove}
         aria-busy={pending === 'remove'}
         onclick={() => perform('remove')}
       >
@@ -168,7 +214,10 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
       </button>
       <button
         class="button"
-        disabled={!current || pending !== null || !profileState?.canOpen}
+        disabled={!current ||
+          pending !== null ||
+          outstandingMutations > 0 ||
+          !profileState?.canOpen}
         onclick={() => perform('open-profile')}>{$t('Open profile folder')}</button
       >
       <button
@@ -185,6 +234,13 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     {#if uncertainOperation}
       <p class="warning">
         {$t('The last operation may have taken effect. Review retained files.')}
+      </p>
+    {/if}
+    {#if outstandingMutations > 0 && pending === null}
+      <p class="warning">
+        {$t(
+          'A previous profile operation is still running. Wait for it to finish, then refresh setup status.',
+        )}
       </p>
     {/if}
     {#if retainedUncertainty}

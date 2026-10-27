@@ -249,6 +249,7 @@ it('retains mutation uncertainty when the host changes during an in-flight insta
   ).toBeInTheDocument();
   await view.rerender({ host: { reviewGeminiHookProfile: nextReview } as Host });
   finish({ ...ready, code: 'INSTALLED' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   await waitFor(() => expect(refresh()).toBeEnabled());
   expect(
     screen.getByText('The last operation may have taken effect. Review retained files.'),
@@ -260,6 +261,138 @@ it('retains mutation uncertainty when the host changes during an in-flight insta
     screen.getByText('The last operation may have taken effect. Review retained files.'),
   ).toBeInTheDocument();
   expect(nextReview.mock.calls).toEqual([['status']]);
+});
+
+it('allows status refresh but blocks actions while an old host mutation never settles', async () => {
+  const oldReview = vi
+    .fn()
+    .mockResolvedValueOnce(ready)
+    .mockImplementationOnce(() => new Promise(() => {}));
+  const nextReview = vi.fn().mockResolvedValue(ready);
+  const hostA = { reviewGeminiHookProfile: oldReview } as Host;
+  const hostB = { reviewGeminiHookProfile: nextReview } as Host;
+  const view = render(GeminiHookProfile, { host: hostA });
+  await screen.findByText(/Setup has not been reviewed\./);
+  await fireEvent.click(install());
+  await view.rerender({ host: hostB });
+  expect(refresh()).toBeEnabled();
+  await fireEvent.click(refresh());
+  await waitFor(() => expect(nextReview).toHaveBeenCalledOnce());
+  await waitFor(() => expect(refresh()).toBeEnabled());
+  expect(install()).toBeDisabled();
+  expect(remove()).toBeDisabled();
+  expect(open()).toBeDisabled();
+  expect(
+    screen.getByText('The last operation may have taken effect. Review retained files.'),
+  ).toBeInTheDocument();
+});
+
+it('discards a status started before an old host mutation settles', async () => {
+  let finishOld!: (value: unknown) => void;
+  let finishStatus!: (value: unknown) => void;
+  const oldReview = vi
+    .fn()
+    .mockResolvedValueOnce(ready)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+    );
+  const nextReview = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishStatus = resolve;
+        }),
+    )
+    .mockResolvedValueOnce(ready);
+  const view = render(GeminiHookProfile, { host: { reviewGeminiHookProfile: oldReview } as Host });
+  await screen.findByText(/Setup has not been reviewed\./);
+  await fireEvent.click(install());
+  await view.rerender({ host: { reviewGeminiHookProfile: nextReview } as Host });
+  await fireEvent.click(refresh());
+  expect(nextReview).toHaveBeenCalledOnce();
+  finishOld({ ...ready, code: 'INSTALLED' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(refresh()).toBeDisabled();
+  finishStatus(ready);
+  await waitFor(() => expect(refresh()).toBeEnabled());
+  expect(install()).toBeDisabled();
+  expect(remove()).toBeDisabled();
+  await fireEvent.click(refresh());
+  await waitFor(() => expect(install()).toBeEnabled());
+  expect(nextReview.mock.calls).toEqual([['status'], ['status']]);
+});
+
+it.each([
+  ['host', 'idle'],
+  ['host', 'pending'],
+  ['preview', 'idle'],
+  ['preview', 'pending'],
+])('invalidates readiness across observed %s A→B→A while %s', async (context, phase) => {
+  let finish!: (value: unknown) => void;
+  const reviewA = vi.fn();
+  if (phase === 'pending') {
+    reviewA.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+  } else reviewA.mockResolvedValueOnce(ready);
+  reviewA.mockResolvedValueOnce(ready);
+  const reviewB = vi.fn().mockResolvedValue(ready);
+  const hostA = { reviewGeminiHookProfile: reviewA } as Host;
+  const hostB = { reviewGeminiHookProfile: reviewB } as Host;
+  const view = render(GeminiHookProfile, { host: hostA, preview: false });
+  if (phase === 'idle') await waitFor(() => expect(install()).toBeEnabled());
+  else await waitFor(() => expect(reviewA).toHaveBeenCalledOnce());
+  if (context === 'host') {
+    await view.rerender({ host: hostB, preview: false });
+    await view.rerender({ host: hostA, preview: false });
+  } else {
+    await view.rerender({ host: hostA, preview: true });
+    await view.rerender({ host: hostA, preview: false });
+  }
+  if (phase === 'pending') {
+    finish(ready);
+    await waitFor(() => expect(refresh()).toBeEnabled());
+  }
+  expect(install()).toBeDisabled();
+  expect(remove()).toBeDisabled();
+  expect(open()).toBeDisabled();
+  await fireEvent.click(refresh());
+  await waitFor(() => expect(install()).toBeEnabled());
+  expect(reviewA.mock.calls).toEqual([['status'], ['status']]);
+  expect(reviewB).not.toHaveBeenCalled();
+});
+
+it('does not claim a retained result or latch writes for a malformed retained reply', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce(ready)
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'RETAINED_UNKNOWN',
+      available: true,
+      canOpen: true,
+    })
+    .mockResolvedValueOnce(ready);
+  render(GeminiHookProfile, { host: { reviewGeminiHookProfile: review } as Host });
+  await screen.findByText(/Setup has not been reviewed\./);
+  await fireEvent.click(refresh());
+  expect(await screen.findByRole('alert')).toHaveTextContent('Setup status is unavailable.');
+  expect(install()).toBeDisabled();
+  expect(remove()).toBeDisabled();
+  expect(
+    screen.queryByText('An uncertain result is retained. Another write is unavailable.'),
+  ).toBeNull();
+  expect(screen.queryByText(/The write or native helper shutdown is uncertain/)).toBeNull();
+  await fireEvent.click(refresh());
+  await waitFor(() => expect(install()).toBeEnabled());
+  expect(remove()).toBeEnabled();
 });
 
 it('blocks overlapping actions while pending and ignores a completion after unmount', async () => {
