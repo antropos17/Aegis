@@ -171,6 +171,16 @@ describe('closed runtime coverage projection', () => {
     expect(view.restarts).toBe(1);
     expect(view.lastRestartAt).toBeNull();
   });
+  it('shows that procfs mode cannot observe directory paths', () => {
+    const input = coverageFixture();
+    Object.assign(record(input.stats.nativeSensor), {
+      mode: 'procfs',
+      pathScope: 'paths-unsupported',
+    });
+    const view = sensorCoverage(input);
+    expect(view.paths).toBe('Directory observation is unavailable in procfs mode');
+    expect(view.surfaces.every((surface) => surface.state === 'Coverage lost')).toBe(true);
+  });
   it('preserves absent versus observed zero and missing versus unsupported native status', () => {
     const missing = sensorCoverage(emptyTelemetry());
     expect(missing.unsupported).toBe(false);
