@@ -36,13 +36,14 @@ function Test-NativeReadNonPresentedSearch($Value,$Visibility) {
 
 # Reuse the installer's verified Start/Search Escape precondition. Callback seams
 # permit normal local fixtures to exercise this decision loop without Win32/input.
-function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[scriptblock]$Dismiss,[scriptblock]$Elapsed=$null,[scriptblock]$Pause=$null) {
+function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[scriptblock]$Dismiss,[scriptblock]$Elapsed=$null,[scriptblock]$Pause=$null,[scriptblock]$ActivateDesktop=$null) {
   Assert-NativeReadDesktopScope $Scope
   $watch=[Diagnostics.Stopwatch]::StartNew()
   if($null -eq $Elapsed) { $Elapsed={ $watch.Elapsed.TotalMilliseconds } }
   if($null -eq $Pause) { $Pause={param($Milliseconds) Start-Sleep -Milliseconds $Milliseconds} }
   $Proof.status='RUNNING';$Proof.code=$null;$Proof.scopeVerified=$true;$Proof.overlayDismissals=@();$Proof.noForegroundPolls=0
   $Proof.windowVisibility=@{samples=0;first=$null;last=$null}
+  $Proof.desktopActivation=@{attempted=$false;accepted=$false;foregroundObserved=$false}
   $refuse={param($Code) $Proof.status='FAIL';$Proof.code=$Code;throw 'Native desktop precondition refused'}
   $sample={
     param([double]$SliceDeadline=10000)
@@ -65,16 +66,34 @@ function Invoke-NativeReadDesktopPreparation($Scope,$Proof,[scriptblock]$Read,[s
       $sampleTime=& $Elapsed
       if($sampleTime -ge 10000) { & $refuse 'deadline' }
       if($SliceDeadline -lt 10000 -and $sampleTime -ge $SliceDeadline) { return $null }
-      # A known DWM-cloaked Search witness is not a presented overlay. Wait for
-      # an independently validated foreground; cloaking is never closure/READY.
-      if(Test-NativeReadNonPresentedSearch $value $Proof.windowVisibility.last) { & $Pause 100;continue }
+      # A hidden Search window can retain foreground after the previous app
+      # closes. Request the separately verified shell once; never send it keys
+      # or treat that request as evidence of a visible desktop.
+      if(Test-NativeReadNonPresentedSearch $value $Proof.windowVisibility.last) {
+        if($null -ne $ActivateDesktop -and -not $Proof.desktopActivation.attempted) {
+          $Proof.desktopActivation.attempted=$true
+          $accepted=& $ActivateDesktop $value $Elapsed
+          if($accepted -isnot [bool] -or -not $accepted) { & $refuse 'desktop-activation-refused' }
+          $Proof.desktopActivation.accepted=$true
+          if((& $Elapsed) -ge 10000) { & $refuse 'deadline' }
+        }
+        & $Pause 100;continue
+      }
       return $value
     } while((& $Elapsed) -lt 10000)
     & $refuse 'deadline'
   }
   while((& $Elapsed) -lt 10000) {
     $before=& $sample
-    if($before.kind -ceq 'desktop') { $Proof.status='READY';$Proof.activeDefaultObserved=$true;$Proof.noConsentObserved=$true;return }
+    if($before.kind -ceq 'desktop') {
+      if($Proof.desktopActivation.attempted) {
+        $visible=$Proof.windowVisibility.last
+        if($visible.windowExists -ne $true -or $visible.visibleStyle -ne $true -or $visible.cloakKnown -ne $true -or $visible.cloaked -ne $false -or
+          $visible.boundsKnown -ne $true -or $visible.nonEmptyBounds -ne $true -or $visible.onMonitor -ne $true -or $visible.stillForeground -ne $true) { & $refuse 'desktop-activation-unobserved' }
+        $Proof.desktopActivation.foregroundObserved=$true
+      }
+      $Proof.status='READY';$Proof.activeDefaultObserved=$true;$Proof.noConsentObserved=$true;return
+    }
     if($Proof.overlayDismissals.Count -ge 3) { & $refuse 'overlay-budget' }
     $pending=@()
     do {
@@ -145,6 +164,8 @@ public static class NativeReadDesktop {
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern bool GetUserObjectInformation(IntPtr obj,int index,StringBuilder value,int length,out int needed);
   [DllImport("user32.dll",EntryPoint="GetUserObjectInformationW")] static extern bool GetInputFlag(IntPtr obj,int index,out int value,int length,out int needed);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern IntPtr GetShellWindow();
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint pid);
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder text,int count);
   [DllImport("user32.dll")] static extern bool IsWindow(IntPtr window);
@@ -191,6 +212,21 @@ public static class NativeReadDesktop {
     var keys=new KeyInput[2];keys[0].Type=keys[1].Type=1;keys[0].Data.Key.Vk=keys[1].Data.Key.Vk=27;keys[1].Data.Key.Flags=2;
     return SendKeyboardInput(2,keys,Marshal.SizeOf(typeof(KeyInput)));
   }
+  public static State ReadShell() {
+    var result=new State();var window=GetShellWindow();if(window==IntPtr.Zero) return result;
+    uint pid;GetWindowThreadProcessId(window,out pid);var name=new StringBuilder(256);GetClassName(window,name,256);
+    result.Window=window.ToInt64();result.Pid=pid;result.ClassName=name.ToString();return result;
+  }
+  public static bool ActivateDesktop(long searchWindow,uint searchPid,long shellWindow,uint shellPid,long remainingMilliseconds) {
+    var watch=System.Diagnostics.Stopwatch.StartNew();
+    var fresh=Probe();var shell=ReadShell();var hidden=ReadWindowVisibility(searchWindow);var visible=ReadWindowVisibility(shellWindow);
+    if(!fresh.ActiveDefault || fresh.Window!=searchWindow || fresh.Pid!=searchPid || shell.Window!=shellWindow || shell.Pid!=shellPid ||
+       shell.ClassName!="Progman" || hidden.WindowExists!=true || hidden.CloakKnown!=true || hidden.Cloaked!=true || hidden.StillForeground!=true ||
+       visible.WindowExists!=true || visible.VisibleStyle!=true || visible.CloakKnown!=true || visible.Cloaked!=false ||
+       visible.BoundsKnown!=true || visible.NonEmptyBounds!=true || visible.OnMonitor!=true || remainingMilliseconds<=0 ||
+       watch.ElapsedMilliseconds>=remainingMilliseconds) throw new InvalidOperationException("Native desktop changed");
+    return SetForegroundWindow(new IntPtr(shellWindow));
+  }
 }
 '@
   $read={
@@ -215,7 +251,25 @@ public static class NativeReadDesktop {
     if(Test-NativeReadNonPresentedSearch $fresh $Proof.windowVisibility.last) { throw 'Native desktop changed' }
     return [NativeReadDesktop]::Escape([long]$fresh.window,[uint32]$fresh.pid)
   }
-  try { Invoke-NativeReadDesktopPreparation $Scope $Proof $read $dismiss }
+  $activateDesktop={param($Expected,[scriptblock]$Elapsed)
+    Assert-NativeReadDesktopScope $Scope
+    $shell=[NativeReadDesktop]::ReadShell()
+    if($shell.Window -eq 0 -or $shell.ClassName -cne 'Progman') { throw 'Native desktop changed' }
+    $owner=Get-CimInstance Win32_Process -Filter ('ProcessId='+$shell.Pid)
+    if(-not $owner -or $owner.SessionId -ne $Scope.sessionId -or -not $owner.CreationDate -or $owner.Name -ine 'explorer.exe' -or $owner.ExecutablePath -ine 'C:\Windows\explorer.exe') { throw 'Native desktop changed' }
+    $signature=Get-AuthenticodeSignature -LiteralPath $owner.ExecutablePath
+    if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') { throw 'Native desktop changed' }
+    $revalidated=Get-CimInstance Win32_Process -Filter ('ProcessId='+$shell.Pid)
+    if(-not $revalidated -or $revalidated.CreationDate -ne $owner.CreationDate -or $revalidated.SessionId -ne $Scope.sessionId -or $revalidated.Name -ine 'explorer.exe' -or $revalidated.ExecutablePath -ine 'C:\Windows\explorer.exe') { throw 'Native desktop changed' }
+    $fresh=Read-NativeReadDesktopObservation $read $Proof
+    if($fresh.witness -cne $Expected.witness -or $fresh.noConsent -ne $true -or $fresh.activeDefault -ne $true -or $fresh.ownerVerified -ne $true -or $fresh.sameSession -ne $true -or
+      -not (Test-NativeReadNonPresentedSearch $fresh $Proof.windowVisibility.last)) { throw 'Native desktop changed' }
+    if($null -eq $Elapsed) { throw 'Native desktop changed' }
+    $remaining=10000-(& $Elapsed)
+    if($remaining -le 0) { throw 'Native desktop changed' }
+    return [NativeReadDesktop]::ActivateDesktop([long]$fresh.window,[uint32]$fresh.pid,[long]$shell.Window,[uint32]$shell.Pid,[long]$remaining)
+  }
+  try { Invoke-NativeReadDesktopPreparation $Scope $Proof $read $dismiss -ActivateDesktop $activateDesktop }
   catch { $Proof.status='FAIL';if(-not $Proof.code){$Proof.code='probe-or-input-refused'};throw 'Native desktop precondition refused' }
 }
 

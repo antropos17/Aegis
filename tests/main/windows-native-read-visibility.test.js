@@ -138,6 +138,56 @@ try {
     $raw=[pscustomobject]@{};$raw | Add-Member ScriptProperty windowExists {throw 'PRIVATE_VISIBILITY_CANARY'}
     $proof=@{windowVisibility=@{samples=0;first=$null;last=$null}};[void](Read-NativeReadDesktopObservation {@{windowVisibility=$raw}} $proof);Check-Proof $proof
     if($null -ne $proof.windowVisibility.first.windowExists -or $proof.windowVisibility.first.cloakKnown -ne $false -or $proof.windowVisibility.first.boundsKnown -ne $false){throw 'fixture-query-failure-unknown'};$cases++
+  } elseif($Scenario -ceq 'activation-policy'){
+    foreach($mode in @('visible','refused','unchanged','hidden','cloaked','unknown','consent','default','nonboolean','late-budget')){
+      $scope=Scope;$proof=@{};$clock=@{ms=0;activations=0;keys=0;reads=0};$refused=$false
+      $read={
+        $clock.reads++;$after=$clock.activations -gt 0
+        $kind=if($after -and $mode -cnotin @('unchanged','refused','nonboolean')){'desktop'}else{'search'}
+        $visibility=Visibility $(if(-not $after -or $mode -ceq 'unchanged'){'cloaked'}elseif($mode -cin @('hidden','cloaked','unknown')){$mode}else{'visible'})
+        return @{noConsent=(-not ($after -and $mode -ceq 'consent'));activeDefault=(-not ($after -and $mode -ceq 'default'));noForeground=$false;ownerVerified=$true;sameSession=$true;kind=$kind;witness=$(if($kind -ceq 'desktop'){'owned-desktop'}else{'owned-cloaked-search'});windowVisibility=$visibility}
+      }
+      $activate={param($Expected)
+        if($Expected.kind -cne 'search' -or $Expected.witness -cne 'owned-cloaked-search'){throw 'fixture-activation-target'}
+        $clock.activations++
+        if($mode -ceq 'nonboolean'){return 'true'};if($mode -ceq 'late-budget'){$clock.ms=10000};return ($mode -cne 'refused')
+      }
+      try {Invoke-NativeReadDesktopPreparation $scope $proof $read {$clock.keys++;throw 'fixture-hidden-input'} -Elapsed {$clock.ms} -Pause {param($Milliseconds) $clock.ms+=$Milliseconds} -ActivateDesktop $activate}
+      catch {if($_.Exception.Message -cne 'Native desktop precondition refused'){throw};$refused=$true}
+      Check-Proof $proof
+      if($clock.activations -ne 1 -or $clock.keys -ne 0 -or $clock.ms -gt 10000 -or $proof.desktopActivation.attempted -ne $true -or $proof.desktopActivation.Keys.Count -ne 3){throw 'fixture-activation-budget'}
+      if($mode -ceq 'visible'){
+        if($refused -or $proof.status -cne 'READY' -or -not $proof.desktopActivation.accepted -or -not $proof.desktopActivation.foregroundObserved -or $clock.reads -lt 2){throw 'fixture-activation-not-observed'}
+      }else{
+        if(-not $refused -or $proof.status -cne 'FAIL' -or $proof.desktopActivation.foregroundObserved -or $proof.activeDefaultObserved -eq $true -or $proof.noConsentObserved -eq $true){throw 'fixture-activation-false-ready'}
+        if($mode -cin @('refused','nonboolean')){if($proof.code -cne 'desktop-activation-refused' -or $proof.desktopActivation.accepted){throw 'fixture-activation-refusal'}}
+        elseif($mode -cin @('unchanged','late-budget')){if($proof.code -cne 'deadline' -or $clock.ms -ne 10000){throw 'fixture-activation-no-change'}}
+        elseif($mode -cin @('hidden','cloaked','unknown')){if($proof.code -cne 'desktop-activation-unobserved'){throw 'fixture-activation-visibility'}}
+      };$cases++
+    }
+  } elseif($Scenario -ceq 'activation-adapter'){
+    # Execute the maintained adapter with managed native stand-ins. No Win32
+    # method, focus request, keyboard input or host desktop probe is called.
+    Microsoft.PowerShell.Utility\Add-Type -TypeDefinition 'public static class NativeReadDesktop { public sealed class State { public long Window=10; public uint Pid=20; public string ClassName="Progman"; } public static int Calls; public static State Shell=new State(); public static State ReadShell(){return Shell;} public static bool ActivateDesktop(long search,uint searchPid,long shell,uint shellPid,long remaining){if(search!=1||searchPid!=2||shell!=10||shellPid!=20||remaining<=0||remaining>10000)throw new System.Exception("fixture-native-target");Calls++;return true;} }'
+    $initial=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Initialize-NativeReadDesktop'},$false))[0]
+    $assignment=@($initial.Body.FindAll({param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$activateDesktop'},$true))
+    if($assignment.Count -ne 1){throw 'fixture-activation-source-refused'}
+    $body=$assignment[0].Right.Find({param($node) $node -is [Management.Automation.Language.ScriptBlockExpressionAst]},$true)
+    $activate=$body.ScriptBlock.GetScriptBlock()
+    foreach($mode in @('valid','scope','shell-class','owner-session','owner-path','owner-name','signature','birth','changed-search','consent','default','owner','session','not-cloaked','late-budget')){
+      $Scope=Scope;$Proof=@{windowVisibility=@{samples=0;first=$null;last=$null}};$calls=@{cim=0};[NativeReadDesktop]::Calls=0;[NativeReadDesktop]::Shell.ClassName=if($mode -ceq 'shell-class'){'WorkerW'}else{'Progman'}
+      if($mode -ceq 'scope'){$Scope.runner='foreign'}
+      function Get-CimInstance($ClassName,$Filter){
+        if($ClassName -cne 'Win32_Process' -or $Filter -cne 'ProcessId=20'){throw 'fixture-owner-query'};$calls.cim++
+        return [pscustomobject]@{SessionId=$(if($mode -ceq 'owner-session'){3}else{2});CreationDate=([datetime]'2026-10-27T00:00:00Z').AddSeconds($(if($mode -ceq 'birth' -and $calls.cim -gt 1){1}else{0}));Name=$(if($mode -ceq 'owner-name'){'other.exe'}else{'explorer.exe'});ExecutablePath=$(if($mode -ceq 'owner-path'){'C:\foreign.exe'}else{'C:\Windows\explorer.exe'})}
+      }
+      function Get-AuthenticodeSignature($LiteralPath){if($LiteralPath -cne 'C:\Windows\explorer.exe'){throw 'fixture-signature-query'};return @{Status=$(if($mode -ceq 'signature'){'UnknownError'}else{'Valid'});SignerCertificate=@{Subject='Microsoft Windows'}}}
+      $read={return @{noConsent=($mode -cne 'consent');activeDefault=($mode -cne 'default');ownerVerified=($mode -cne 'owner');sameSession=($mode -cne 'session');kind='search';witness=$(if($mode -ceq 'changed-search'){'replaced-search'}else{'expected-search'});window=1;pid=2;windowVisibility=(Visibility $(if($mode -ceq 'not-cloaked'){'visible'}else{'cloaked'}))}}
+      $rejected=$false;$accepted=$false
+      try {$accepted=& $activate @{witness='expected-search'} {if($mode -ceq 'late-budget'){10000}else{0}}}catch{if($_.Exception.Message -cnotin @('Native desktop changed','Native desktop scope refused')){throw};$rejected=$true}
+      if($mode -ceq 'valid'){if($rejected -or $accepted -ne $true -or [NativeReadDesktop]::Calls -ne 1){throw 'fixture-activation-valid'}}
+      elseif(-not $rejected -or [NativeReadDesktop]::Calls -ne 0){throw 'fixture-activation-guard'};$cases++
+    }
   } elseif($Scenario -cin @('dismiss-valid','dismiss-refused')){
     # This managed fake has no DllImport or OS calls. Invoke the exact maintained
     # dismiss body against fake Read/Escape, never the actual native adapter.
@@ -206,6 +256,8 @@ describe.skipIf(process.platform !== 'win32')('native desktop visibility diagnos
     ['late-error', 1],
     ['late-deadline', 1],
     ['projection', 12],
+    ['activation-policy', 10],
+    ['activation-adapter', 15],
     ['dismiss-valid', 1],
     ['dismiss-refused', 1],
     ['compile-only', 1],
