@@ -60,6 +60,48 @@ it('hides an existing rate immediately when the accompanying delivery report is 
   expect(within(rate).queryByText('1.00')).toBeNull();
 });
 
+it('hides a retained rate immediately when a different producer sample is rendered', async () => {
+  const telemetry = fixture();
+  const id = '11111111-1111-4111-8111-111111111111';
+  Object.assign(telemetry.stats.ipc.securityEvents, {
+    sampleGeneration: id,
+    sampleMonotonicMs: 2000,
+  });
+  const values = { 'file-watch': 1, 'file-handle': 1, process: 1, network: 1, other: 1 };
+  const state = {
+    generation: id,
+    sampleMs: 2000,
+    receivedAt: telemetry.statsAt,
+    accepted: values,
+    rates: values,
+    intervalMs: 1000,
+    invalidated: false,
+    retiredGenerations: [],
+    exhausted: false,
+  };
+  const mounted = render(SecurityDelivery, { telemetry, now: Date.now(), rateState: state });
+  const rate = screen.getByRole('region', {
+    name: 'Accepted audit-lane records per second between samples',
+  });
+  expect(within(rate).getAllByText('1.00')).toHaveLength(5);
+  const changed = structuredClone(telemetry);
+  Object.assign(changed.stats.ipc.securityEvents, {
+    sampleGeneration: '22222222-2222-4222-8222-222222222222',
+  });
+  await mounted.rerender({ telemetry: changed });
+  expect(rate).toHaveTextContent('Admission rates unavailable');
+  Object.assign(changed.stats.ipc.securityEvents, {
+    sampleGeneration: id,
+    sampleMonotonicMs: 3000,
+  });
+  await mounted.rerender({ telemetry: structuredClone(changed) });
+  expect(rate).toHaveTextContent('Admission rates unavailable');
+  Object.assign(changed.stats.ipc.securityEvents, { sampleMonotonicMs: 2000 });
+  changed.stats.ipc.securityEvents.sensors.network.accepted = 2;
+  await mounted.rerender({ telemetry: structuredClone(changed) });
+  expect(rate).toHaveTextContent('Admission rates unavailable');
+});
+
 it('shows per-bucket admission rates only after a second sample and clears them on stale telemetry', async () => {
   const clock = vi.spyOn(Date, 'now').mockReturnValue(10_000);
   const first = fixture();

@@ -2,7 +2,11 @@
   import { t } from '../runtime/i18n';
   import type { Telemetry } from '../runtime/host';
   import { securityDelivery } from '../runtime/security-delivery';
-  import { RATE_BUCKETS, type DeliveryRateState } from '../runtime/security-delivery-rate';
+  import {
+    deliveryRateMatches,
+    RATE_BUCKETS,
+    type DeliveryRateState,
+  } from '../runtime/security-delivery-rate';
 
   let {
     telemetry,
@@ -10,6 +14,7 @@
     rateState = null,
   }: { telemetry: Telemetry; now: number; rateState?: DeliveryRateState | null } = $props();
   let delivery = $derived(securityDelivery(telemetry, Math.max(now, Date.now())));
+  let rateMatches = $derived(deliveryRateMatches(rateState, telemetry, Math.max(now, Date.now())));
   const rateLabels = {
     'file-watch': 'File watcher',
     'file-handle': 'File handle scan',
@@ -31,7 +36,7 @@
         'These rates are not total sensor activity or completeness. Zero does not mean no activity.',
       )}
     </p>
-    {#if delivery.available && rateState?.rates && rateState.intervalMs !== null}
+    {#if rateMatches && rateState?.rates && rateState.intervalMs !== null}
       <p>
         {$t('Sample interval: {seconds} seconds. Source freshness is unknown.', {
           seconds: (rateState.intervalMs / 1000).toFixed(2),

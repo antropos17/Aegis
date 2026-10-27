@@ -27,6 +27,42 @@ function validCount(value: unknown): value is number {
   );
 }
 
+/** Check that displayed rates belong to the exact report currently rendered.
+ * @param state Previously computed rate state
+ * @param telemetry Current renderer receipt
+ * @param now Current wall-clock time
+ * @returns Whether this report may display the computed rate
+ * @since 0.21.0-beta
+ */
+export function deliveryRateMatches(
+  state: DeliveryRateState | null,
+  telemetry: Telemetry,
+  now: number,
+): boolean {
+  if (
+    !state ||
+    !state.rates ||
+    state.invalidated ||
+    state.exhausted ||
+    !securityDelivery(telemetry, now).available ||
+    telemetry.statsAt === null ||
+    telemetry.statsAt < state.receivedAt ||
+    now < state.receivedAt ||
+    now - state.receivedAt >= DELIVERY_FRESHNESS_MS
+  )
+    return false;
+  const delivery = record(record(telemetry.stats.ipc).securityEvents);
+  if (
+    delivery.sampleGeneration !== state.generation ||
+    delivery.sampleMonotonicMs !== state.sampleMs
+  )
+    return false;
+  const sensors = record(delivery.sensors);
+  return RATE_BUCKETS.every(
+    (bucket) => record(sensors[bucket]).accepted === state.accepted[bucket],
+  );
+}
+
 /** Advance only across two valid, bounded, same-generation producer samples.
  * @param previous Previously accepted sample and result
  * @param telemetry Current renderer receipt
