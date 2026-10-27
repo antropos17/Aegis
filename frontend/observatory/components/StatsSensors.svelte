@@ -6,6 +6,7 @@
   import { statisticsValue } from '../runtime/statistics-metrics';
   import { fieldLabel } from '../runtime/detail-fields';
   import Icon from './Icon.svelte';
+  import SecurityDelivery from './SecurityDelivery.svelte';
   const sensorPresentation: Record<string, { title: string; description: string; icon: string }> = {
     process: {
       title: 'Agent processes',
@@ -233,6 +234,7 @@
       <p>{$t('Running WSL state is unknown.')}</p>
     {/if}
   </section>
+  <SecurityDelivery {telemetry} {now} />
   <div class="sensor-grid">
     {#each sensors as sensor (sensor.id)}
       {@const presentation = sensorPresentation[sensor.id] ?? {
