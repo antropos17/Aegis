@@ -203,10 +203,10 @@ async function createWindowsHookIO(options) {
 }
 
 /**
- * Open a fixed application-owned profile with native identity retention and no
- * backup store or mutation methods. Caller owns selection and must not treat a
+ * Open a fixed application-owned profile or explicitly selected policy with
+ * native identity retention and no backup store or mutation methods. Caller owns selection and must not treat a
  * read as consent, ownership proof, or an atomic execution guarantee.
- * @param {object} options Fixed owned profile target, qualified assets and bounded limits.
+ * @param {object} options Fixed owned profile or native-selected policy target, qualified assets and bounded limits.
  * @returns {Promise<object>} Bounded read, close and sanitized status.
  * @since v0.21.0
  */
@@ -214,16 +214,19 @@ async function createWindowsHookReadIO(options) {
   let pipe;
   try {
     privateMode();
+    const selectionFlag = Object.hasOwn(options, 'selectedPolicy')
+      ? 'selectedPolicy'
+      : 'ownedProfile';
     if (
       !exact(options, [
-        'ownedProfile',
+        selectionFlag,
         'targetPath',
         'assets',
         'requestMs',
         'sessionMs',
         'cleanupMs',
       ]) ||
-      options.ownedProfile !== true ||
+      options[selectionFlag] !== true ||
       typeof options.targetPath !== 'string' ||
       !/^[A-Za-z]:\\/.test(options.targetPath) ||
       options.targetPath.length > 240 ||
