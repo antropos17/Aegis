@@ -69,6 +69,11 @@ searches `PATH` and refuses an invalid selected root rather than falling back.
 `--output` selects another fresh directory. Packaging uses `--replace` to rebuild the
 fixed output; it removes only a previously qualified, structurally exact generated
 asset directory. Unexpected or altered contents stop replacement for inspection.
+An interrupted copy has no descriptor and cannot be loaded. If a later build
+reports an incomplete output, retain the failed staging and inspect the exact
+`build/hook-review` directory. Remove only confirmed disposable, closed build
+files after verifying that the directory contains no reparse points; preserve
+verification receipts and any unexpected or user-owned files. Then retry.
 
 The application derives the runtime path from its own `resources/hook-review`
 directory rather than from a build-machine path. It checks the exact bounded file
@@ -77,6 +82,10 @@ the copied executable with a restricted environment. These checks assume trusted
 stable installation files: the descriptor and assets share a trust boundary and
 are not an independent signature. Relocation or a passing asset check does not
 establish a native owner-dialog journey or full Guard acceptance.
+Windows packaging excludes the copied `dotnet.exe` and the supported runtimes'
+`createdump.exe` files from electron-builder's extra-file signing so their pinned
+bytes remain intact. The application and other helpers keep their signing path.
+The build refuses an unexpected runtime executable until its handling is reviewed.
 
 Native build intermediates stay in `out/development/hook-review-build-<pid>`.
 Review closed disposable diagnostics after seven days; preserve verification

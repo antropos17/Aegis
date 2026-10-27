@@ -7,6 +7,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { selectRuntimeRoot } = require('./hook-review-runtime-root.cjs');
+const { publishAssets } = require('./hook-review-publication.cjs');
 const root = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const replace = args.includes('--replace');
@@ -149,6 +150,8 @@ const portableFxr = path.join(portableRuntime, 'host', 'fxr', runtimeVersion);
 fs.mkdirSync(portableShared, { recursive: true });
 fs.mkdirSync(portableFxr, { recursive: true });
 for (const name of fs.readdirSync(runtime)) {
+  if (/\.exe$/i.test(name) && name !== 'createdump.exe')
+    throw Error('Unsupported runtime executable; update the signing exclusion before packaging');
   const source = path.join(runtime, name);
   if (!fs.lstatSync(source).isFile()) throw Error('Unexpected runtime asset');
   fs.copyFileSync(source, path.join(portableShared, name), fs.constants.COPYFILE_EXCL);
@@ -180,28 +183,14 @@ fs.writeFileSync(path.join(output, 'assets.json'), JSON.stringify(manifest, null
 });
 if (replace) {
   if (fs.existsSync(destination)) removePrevious(destination);
-  // Directory renames can fail on Windows; use the verified bytes in a fresh destination.
-  // Copy to a fresh destination, then qualify the bytes the packager will consume.
-  // On any error the build fails and retains the staging directory for inspection.
-  fs.mkdirSync(destination); // Reserve the exact output; never adopt an existing directory.
-  for (const folder of ['host', 'runtime'])
-    fs.cpSync(path.join(output, folder), path.join(destination, folder), {
-      recursive: true,
-      errorOnExist: true,
-      force: false,
+  publishAssets(output, destination, (published) => {
+    require('../src/main/claude-hook-windows-io-wire').qualifyAssets({
+      ...Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== 'schemaVersion')),
+      hostRoot: path.win32.normalize(path.join(published, 'host')),
+      runtimeRoot: path.win32.normalize(path.join(published, 'runtime')),
+      portable: true,
     });
-  require('../src/main/claude-hook-windows-io-wire').qualifyAssets({
-    ...Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== 'schemaVersion')),
-    hostRoot: path.win32.normalize(path.join(destination, 'host')),
-    runtimeRoot: path.win32.normalize(path.join(destination, 'runtime')),
-    portable: true,
   });
-  // The descriptor publishes a complete verified tree; a partial copy stays unavailable.
-  fs.copyFileSync(
-    path.join(output, 'assets.json'),
-    path.join(destination, 'assets.json'),
-    fs.constants.COPYFILE_EXCL,
-  );
   removePrevious(output);
 }
 console.log('Prepared hook-review assets: ' + destination);
@@ -212,6 +201,10 @@ console.log(
 // Remove only the exact previously qualified build product. Unexpected files, links,
 // or altered bytes fail packaging and remain for inspection.
 function removePrevious(dir) {
+  if (!fs.existsSync(path.join(dir, 'assets.json')))
+    throw Error(
+      'Incomplete previous hook-review output; retain it for inspection and remove only confirmed disposable files before retrying',
+    );
   const value = JSON.parse(fs.readFileSync(path.join(dir, 'assets.json'), 'utf8'));
   if (![1, 2].includes(value.schemaVersion)) throw Error('Unrecognized previous hook assets');
   const { schemaVersion, ...pins } = value;
