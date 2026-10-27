@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Scratch)
+param([Parameter(Mandatory)][string]$Scratch, [ValidateSet('pr1048','master813')][string]$Profile = 'pr1048')
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath($Scratch)
 if (Test-Path -LiteralPath $root) { throw 'Use a new disposable test directory' }
@@ -20,17 +20,24 @@ foreach ($part in @($inputDirectory, (Join-Path $qa 'candidate'), (Join-Path $qa
 }
 $currentVersion = '0.21.0-beta'
 $candidateSource = '5526376f39d01305f98e707e8e2ea9807f68a33b'
-$Pr1048Candidate = $true
+$expectedTree = '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a'
+$Pr1048Candidate = $Profile -eq 'pr1048'
+$Master813804e2Candidate = $Profile -eq 'master813'
+if ($Master813804e2Candidate) {
+  $candidateSource = '813804e2aae1c020f4b17cb7a30f053a210185ef'
+  $expectedTree = 'b1710a41cd7eba38ed60dffd6bd8bc3b4fa37d58'
+}
 $result = @{ artifacts=@(); limits=@() }
 $payload = Join-Path $inputDirectory 'fixture.exe'
 [IO.File]::WriteAllBytes($payload, [byte[]]@(1,2,3,4))
 $receipt = @{
   schema='aegis-ci-installer/1'; repository='antropos17/Aegis'
-  sourceSha=$candidateSource; sourceTree='0a704c1c2843c7d1ebde9c2eae073ec80d301b3a'
+  sourceSha=$candidateSource; sourceTree=$expectedTree
   runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT
   version='0.21.0-beta'; filename='fixture.exe'; bytes=4
   sha256=(Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
   releaseSigned=$false; published=$false
+  sdk='10.0.403'; runtime='10.0.14'; profile=$Profile
 }
 $receiptFile = Join-Path $inputDirectory 'candidate.json'
 function WriteReceipt { $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptFile -Encoding utf8 }
@@ -45,6 +52,9 @@ $cases = @(
   @{ field='published'; value=$true },
   @{ field='releaseSigned'; value=$true }
 )
+if ($Master813804e2Candidate) {
+  $cases += @{ field='sdk'; value='10.0.302' }, @{ field='runtime'; value='10.0.13' }, @{ field='profile'; value='pr1048' }
+}
 foreach ($case in $cases) {
   $saved = $receipt[$case.field]
   $receipt[$case.field] = $case.value
