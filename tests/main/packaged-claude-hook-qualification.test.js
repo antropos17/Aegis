@@ -3,7 +3,22 @@ import { createRequire } from 'node:module';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
-const { post } = require('../../scripts/qualification/packaged-claude-hook.cjs');
+const { post, failureSummary } = require('../../scripts/qualification/packaged-claude-hook.cjs');
+
+it('keeps malformed child output out of failure receipts', () => {
+  let receipt;
+  try {
+    JSON.parse('PRIVATE_CHILD_OUTPUT');
+  } catch {
+    receipt = failureSummary('PostToolUse-after');
+  }
+  expect(receipt).toEqual({
+    complete: false,
+    failureStage: 'PostToolUse-after',
+    failure: 'Qualification failed; see bounded stage and case evidence.',
+  });
+  expect(JSON.stringify(receipt)).not.toContain('PRIVATE_CHILD_OUTPUT');
+});
 
 it.each(['hang', 'oversize'])('bounds a %s local observer response', async (behavior) => {
   const server = http.createServer((_request, response) => {

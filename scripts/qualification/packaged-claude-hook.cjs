@@ -170,6 +170,14 @@ function post(receiver, route, body, token, timeoutMs = 2000) {
   });
 }
 
+function failureSummary(stage) {
+  return {
+    complete: false,
+    failureStage: stage,
+    failure: 'Qualification failed; see bounded stage and case evidence.',
+  };
+}
+
 async function run() {
   assert.equal(process.platform, 'win32');
   assert.equal(process.argv.length, 5);
@@ -466,12 +474,10 @@ async function run() {
   console.log('PASS: packaged hook and assets; source profile used scripted confirmation.');
 }
 
-module.exports = { assertArchivedProfileSourcesMatch, post };
+module.exports = { assertArchivedProfileSourcesMatch, post, failureSummary };
 if (require.main === module)
-  run().catch(async (error) => {
-    receipt.complete = false;
-    receipt.failureStage = stage;
-    receipt.failure = String(error.message).slice(0, 300);
+  run().catch(async () => {
+    Object.assign(receipt, failureSummary(stage));
     if (outputCreated)
       await fs
         .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {
