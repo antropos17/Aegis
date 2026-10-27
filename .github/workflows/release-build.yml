@@ -23,9 +23,6 @@ jobs:
   build-windows:
     runs-on: windows-latest
     env:
-      DOTNET_INSTALL_DIR: ${{ runner.temp }}/aegis-dotnet-10.0.403
-      DOTNET_CLI_HOME: ${{ runner.temp }}/aegis-dotnet-home
-      NUGET_PACKAGES: ${{ runner.temp }}/aegis-nuget
       RuntimeFrameworkVersion: '10.0.14'
       TargetLatestRuntimePatch: 'false'
     steps:
@@ -61,6 +58,15 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+
+      - name: Allocate .NET job paths
+        shell: pwsh
+        run: |
+          @(
+            ('DOTNET_INSTALL_DIR=' + (Join-Path $env:RUNNER_TEMP 'aegis-dotnet-10.0.403'))
+            ('DOTNET_CLI_HOME=' + (Join-Path $env:RUNNER_TEMP 'aegis-dotnet-home'))
+            ('NUGET_PACKAGES=' + (Join-Path $env:RUNNER_TEMP 'aegis-nuget'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
 
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
