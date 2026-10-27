@@ -1,7 +1,7 @@
 # Application review of a separate Claude hook profile
 
 Action control contains **Separate Claude hook profile**. On Windows with the
-prepared native assets and matching installed runtime, the application can
+prepared portable native assets, the application can
 review an existing schema-1 Bash policy, install its hook into an app-owned
 settings profile, and separately review removal. After restart or native session
 expiry, a fresh review can remove one exactly recognized current AEGIS Bash hook.
@@ -46,28 +46,35 @@ no draft, backup directory or native session.
 The folder action reveals only this fixed target and still requires the owned
 renderer. Missing helper assets do not block access to a retained draft folder.
 
-## Offline asset preparation
+## Portable asset preparation
 
-Use the already installed Windows .NET SDK 10.0.302 and runtime 10.0.10:
+Ordinary x64 Windows packaging runs `scripts/build-hook-review-assets.cjs` before
+assembling the application. It builds the five host files and copies the selected
+framework runtime into the package, with a descriptor containing hashes for the
+host, runtime, hostfxr and executable. The build requires an existing .NET 10 SDK
+version 10.0.302 or later and the supported Windows x64 runtime 10.0.14 or 10.0.10;
+the newest available supported runtime is selected. It restores framework-only
+projects from an empty local NuGet source and does not download a runtime. Missing
+or invalid assets stop packaging.
+
+Development can prepare a fresh `build/hook-review` with:
 
 ```powershell
 node scripts/build-hook-review-assets.cjs
 ```
 
-The script restores solely from an empty local NuGet source and builds the
-existing framework-only native projects. It requires a fresh output directory,
-prepares the exact five host files and pinned descriptor, and verifies them
-through the existing private asset qualifier. It does not install or download a
-runtime. A different existing runtime installation can be selected with
-`--runtime-root`; a fresh output can be selected with `--output`.
+The script accepts `--runtime-root` for another existing .NET installation and
+`--output` for another fresh directory. Packaging uses `--replace` to rebuild the
+fixed output; it removes only a previously qualified, structurally exact generated
+asset directory. Unexpected or altered contents stop replacement for inspection.
 
-Development consumes `build/hook-review/assets.json` and `build/hook-review/host`.
-The Windows packaging resources copy that directory to `resources/hook-review`.
-Both host files and the selected installed .NET files must match their pins;
-missing, altered or unsupported assets produce unavailable setup. The manifest
-binds the prepared machine's absolute runtime path. Portable runtime discovery,
-self-contained distribution and installed-package native review/transaction
-qualification remain open.
+The application derives the runtime path from its own `resources/hook-review`
+directory rather than from a build-machine path. It checks the exact bounded file
+set and hashes, rejects linked paths, disables framework roll-forward and starts
+the copied executable with a restricted environment. These checks assume trusted,
+stable installation files: the descriptor and assets share a trust boundary and
+are not an independent signature. Relocation or a passing asset check does not
+establish a native owner-dialog journey or full Guard acceptance.
 
 Native build intermediates stay in `out/development/hook-review-build-<pid>`.
 Review closed disposable diagnostics after seven days; preserve verification

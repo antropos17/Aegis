@@ -82,7 +82,8 @@
           "to": "hook-review",
           "filter": [
             "assets.json",
-            "host/*"
+            "host/*",
+            "runtime/**/*"
           ]
         }
       ]

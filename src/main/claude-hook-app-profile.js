@@ -13,12 +13,18 @@ const { readActionFile, parseActionJson, validActionPolicy } = require('./action
 async function loadProfileAssets(root) {
   try {
     const file = path.join(root, 'assets.json');
-    if ((await fs.stat(file)).size > 65536) return null;
+    const stat = await fs.lstat(file);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) return null;
     const value = JSON.parse(await fs.readFile(file, 'utf8'));
-    if (value.schemaVersion !== 1 || Object.keys(value).length !== 7) return null;
+    if (value.schemaVersion !== 2 || Object.keys(value).length !== 6) return null;
     const assets = { ...value };
     delete assets.schemaVersion;
-    const selected = { ...assets, hostRoot: path.win32.normalize(path.join(root, 'host')) };
+    const selected = {
+      ...assets,
+      hostRoot: path.win32.normalize(path.join(root, 'host')),
+      runtimeRoot: path.win32.normalize(path.join(root, 'runtime')),
+      portable: true,
+    };
     qualifyAssets(selected);
     return selected;
   } catch {

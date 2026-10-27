@@ -87,16 +87,29 @@ function bindFolder(root, pins, maxFiles, maxBytes) {
 function qualifyAssets(assets) {
   try {
     if (
-      !exact(assets, [
-        'hostRoot',
-        'hostFiles',
-        'runtimeRoot',
-        'runtimeVersion',
-        'runtimeFiles',
-        'hostFxrSha256',
-        'executableSha256',
-      ]) ||
-      assets.runtimeVersion !== '10.0.10'
+      !(
+        exact(assets, [
+          'hostRoot',
+          'hostFiles',
+          'runtimeRoot',
+          'runtimeVersion',
+          'runtimeFiles',
+          'hostFxrSha256',
+          'executableSha256',
+        ]) ||
+        (assets.portable === true &&
+          exact(assets, [
+            'hostRoot',
+            'hostFiles',
+            'runtimeRoot',
+            'runtimeVersion',
+            'runtimeFiles',
+            'hostFxrSha256',
+            'executableSha256',
+            'portable',
+          ]))
+      ) ||
+      !['10.0.10', '10.0.14'].includes(assets.runtimeVersion)
     )
       throw failure();
     const hostNames = bindFolder(assets.hostRoot, assets.hostFiles, 5, 4 * 1024 * 1024);
@@ -119,6 +132,21 @@ function qualifyAssets(assets) {
     );
     const executable = path.win32.join(runtimeRoot, 'dotnet.exe');
     const fxrRoot = path.win32.join(runtimeRoot, 'host', 'fxr');
+    if (assets.portable) {
+      const checkNames = (directory, expected) => {
+        ordinary(directory, true);
+        if (JSON.stringify(fs.readdirSync(directory).sort()) !== JSON.stringify(expected.sort()))
+          throw failure();
+      };
+      checkNames(runtimeRoot, ['dotnet.exe', 'host', 'shared']);
+      checkNames(path.win32.join(runtimeRoot, 'host'), ['fxr']);
+      checkNames(fxrRoot, [assets.runtimeVersion]);
+      checkNames(path.win32.join(fxrRoot, assets.runtimeVersion), ['hostfxr.dll']);
+      checkNames(path.win32.join(runtimeRoot, 'shared'), ['Microsoft.NETCore.App']);
+      checkNames(path.win32.join(runtimeRoot, 'shared', 'Microsoft.NETCore.App'), [
+        assets.runtimeVersion,
+      ]);
+    }
     ordinary(fxrRoot, true);
     const versions = fs.readdirSync(fxrRoot);
     if (
