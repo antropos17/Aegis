@@ -185,6 +185,28 @@ it('retains historical admission without claiming the stopped profile is current
   expect(review.mock.calls).toEqual([['status'], ['guard-stop']]);
 });
 
+it('keeps an unqualified legacy after group unverified even when a claim arrives', async () => {
+  const review = vi.fn().mockResolvedValue({
+    success: true,
+    code: 'READY',
+    guardSession: {
+      status: 'active',
+      afterHooks: false,
+      afterHooksAtAdmission: false,
+      entries: [{ decision: 'allow', reason: 'generic', outcome: 'reported-completed' }],
+    },
+  });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  expect(
+    await screen.findByText(
+      'After-result hooks are not currently verified; delivery remains unknown.',
+    ),
+  ).toBeVisible();
+  expect(screen.getByText(/Claimed provider result: tool completed/)).toHaveTextContent(
+    'Effect unknown',
+  );
+});
+
 it('explains the selected launch route and its unverified failure boundary', () => {
   render(ClaudeHookProfile, { host: null, preview: true });
   expect(screen.getByText(/copy the folder path from the Explorer address bar/)).toBeVisible();

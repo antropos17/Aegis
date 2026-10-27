@@ -291,7 +291,7 @@ it.each(['legacy', 'redirected', 'mixed', 'extra-shell'])(
     });
     const binding = await f.admission.capture(f.directory);
     expect(Boolean(binding)).toBe(mode === 'legacy' || mode === 'redirected');
-    if (binding) expect(f.admission.hasAfterHooks(binding)).toBe(true);
+    if (binding) expect(f.admission.hasAfterHooks(binding)).toBe(mode === 'redirected');
     f.admission.close();
   },
 );

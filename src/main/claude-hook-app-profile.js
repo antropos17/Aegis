@@ -162,7 +162,7 @@ function profileReviewText(review, target, observedRemoval = false) {
   const explanation = observedRemoval
     ? `This is a fresh authorization to remove only the recognized current AEGIS Bash ${multipleEvents ? 'hooks' : 'hook'}. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.`
     : multipleEvents
-      ? 'For the supported Git Bash route, after-hook stdout is discarded; stderr, exit status and the local receiver are unaffected. Blocking is not verified.'
+      ? 'For the supported Git Bash route, after-hook stdout is discarded. If redirection succeeds, stderr and exit status remain available; redirection or hook failure can leave delivery unknown. Blocking is not verified.'
       : 'This configures the Bash hook only; blocking is not verified.';
   const events = multipleEvents
     ? 'PreToolUse / PostToolUse / PostToolUseFailure · Bash'

@@ -37,7 +37,7 @@ function policyFromProfile(bytes, selection) {
     const match = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command);
     if (!match || profileCommand(selection.executable, selection.appPath, match[1]) !== command)
       throw Error('profile-refused');
-    return { policyPath: match[1], afterHooks: plan.mode === 'three-hook' };
+    return { policyPath: match[1], afterHooks: plan.afterHooksSuppressed === true };
   } finally {
     source.bytes.fill(0);
   }

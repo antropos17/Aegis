@@ -141,7 +141,13 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
       after.fill(0);
       return result('PLAN_REFUSED');
     }
-    return { ok: true, review, after, mode: review.eventNames ? 'three-hook' : 'legacy' };
+    return {
+      ok: true,
+      review,
+      after,
+      mode: review.eventNames ? 'three-hook' : 'legacy',
+      afterHooksSuppressed: !!review.eventNames && afterEntries[0].form === 0,
+    };
   } catch {
     return result('PLAN_REFUSED');
   } finally {

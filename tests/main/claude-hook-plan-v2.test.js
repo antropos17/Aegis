@@ -126,7 +126,7 @@ it('shows the exact redirected post commands and their effect in native review',
   const detail = profileReviewText(plan, configPath);
   expect(detail).toContain(' > /dev/null');
   expect(detail).toContain('after-hook stdout is discarded');
-  expect(detail).toContain('stderr, exit status and the local receiver are unaffected');
+  expect(detail).toContain('redirection or hook failure can leave delivery unknown');
   const installed = JSON.parse(edited(before, plan));
   expect(installed.hooks.PreToolUse[0].hooks[0].command).toBe(pre);
   expect(installed.hooks.PostToolUse[0].hooks[0].command).toBe(post);

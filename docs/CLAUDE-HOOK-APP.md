@@ -6,6 +6,9 @@ review an existing schema-1 Bash policy, install its hooks into an app-owned
 settings profile, and separately review removal. After restart or native session
 expiry, a fresh review can remove an exactly recognized current AEGIS Bash hook
 group or the earlier pre-only hook.
+An earlier unredirected three-hook profile remains removable and can still use
+the pre-hook launch, but after-hook configuration is shown as unverified; remove
+and reinstall it to review the redirected route.
 The profile is used only by a Claude launch explicitly selecting `--settings`.
 Configuration presence does not establish provider observation or blocking.
 
@@ -27,8 +30,9 @@ command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
 AEGIS pre- and after-hook commands quote their fixed absolute paths. The
 after-hook command ends with the exact Git Bash redirection `> /dev/null` to
-discard its stdout; its stderr, exit status and local observation channel remain
-available. The pre-hook retains stdout for the provider decision. Literal
+discard its stdout. A redirection or hook failure can leave delivery unknown.
+When Git Bash starts the hook, stderr and its exit status are preserved. The
+pre-hook retains stdout for the provider decision. Literal
 ampersands stay inside quoted paths; expansion, quote, control and arbitrary
 shell syntax remain refused. The redirected route requires Git Bash; behavior
 with other command shells has not been qualified.
