@@ -22,7 +22,7 @@
 
 // ═══ TYPES ═══
 
-/** Map of agent name → anomaly score, as emitted by the `anomalies` store. */
+/** Map of instance identity → anomaly score, as emitted by the `anomalies` store. */
 export type AnomalyScores = Record<string, unknown> | null | undefined;
 
 /** Stateful tracker returned by {@link createAnomalyToastTracker}. */
@@ -32,7 +32,7 @@ export interface AnomalyToastTracker {
    *
    * @param scores - Latest anomaly scores (tolerates null/undefined/non-object
    *   and empty `{}`, all treated as no-ops).
-   * @returns Agent names that are over threshold AND were not over threshold on
+   * @returns Instance identities that are over threshold AND were not over threshold on
    *   the previous non-empty call. Always `[]` for the first non-empty object
    *   (seed) and for empty/invalid emissions.
    */
@@ -47,7 +47,7 @@ export interface AnomalyToastTracker {
  * toast and the card cannot say two different things about the same number: the score
  * both read is `anomalyScoresByInstance` as scan-loop.js merges it (the baseline
  * deviation composite and the sequence-engine hold, max), keyed by instance and, for
- * the toast, max over a name's instances.
+ * the toast, independently for each instance.
  */
 export const ANOMALY_TOAST_THRESHOLD = 50;
 
@@ -71,13 +71,14 @@ export function isAnomalyAlert(score: unknown, threshold = ANOMALY_TOAST_THRESHO
  * @param threshold - Minimum score (inclusive) for an agent to count as an
  *   anomaly. Defaults to {@link ANOMALY_TOAST_THRESHOLD}, the gate App.svelte
  *   toasts on and AgentCard alerts on.
- * @returns A tracker whose `ingest` returns only freshly-anomalous agent names.
+ * @returns A tracker whose `ingest` returns only freshly-anomalous instance identities.
  */
 export function createAnomalyToastTracker(
   threshold = ANOMALY_TOAST_THRESHOLD,
 ): AnomalyToastTracker {
   let prevKeys = new Set<string>();
   let initialized = false;
+  let awaitingMeasurement = new Set<string>();
 
   return {
     ingest(scores: AnomalyScores): string[] {
@@ -86,22 +87,36 @@ export function createAnomalyToastTracker(
       const entries = Object.entries(scores);
       if (entries.length === 0) return [];
 
+      // An observed instance without a measurement must establish its own baseline.
+      const pending = new Set<string>();
+      for (const [id, score] of entries) {
+        if (typeof score !== 'number' || !Number.isFinite(score)) {
+          if (awaitingMeasurement.has(id) || !prevKeys.has(id)) pending.add(id);
+        }
+      }
+      if (!entries.some(([, score]) => typeof score === 'number' && Number.isFinite(score))) {
+        awaitingMeasurement = pending;
+        return [];
+      }
       const currentKeys = new Set<string>();
       const fresh: string[] = [];
 
       for (const [agent, score] of entries) {
-        if (isAnomalyAlert(score, threshold)) {
+        if (typeof score !== 'number' || !Number.isFinite(score)) {
+          if (prevKeys.has(agent)) currentKeys.add(agent);
+        } else if (isAnomalyAlert(score, threshold)) {
           currentKeys.add(agent);
           // On the seed (first non-empty) call, `initialized` is false → nothing
           // is reported, so anomalies present when scores first arrive do not
           // produce a toast storm.
-          if (initialized && !prevKeys.has(agent)) {
+          if (initialized && !prevKeys.has(agent) && !awaitingMeasurement.has(agent)) {
             fresh.push(agent);
           }
         }
       }
 
       prevKeys = currentKeys;
+      awaitingMeasurement = pending;
       initialized = true;
       return fresh;
     },

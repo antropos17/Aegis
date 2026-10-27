@@ -54,6 +54,8 @@ function telemetry(): Telemetry {
     events: agents.map(file),
     network: [connection(agents[0])],
     networkAt: Date.now(),
+    networkCurrent: true,
+    stats: { appHealth: { sensors: { byId: { network: { state: 'HEALTHY' } } } } },
     resources: [
       { instanceId: '101:first', cpu: 10, memMb: 100 },
       { instanceId: '102:first', cpu: 20, memMb: 200 },

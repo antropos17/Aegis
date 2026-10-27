@@ -20,6 +20,46 @@ import {
 import portuguese from '../../frontend/observatory/translations/pt-BR.json';
 
 describe('closed runtime coverage projection', () => {
+  it('explains unavailable file observation and recovery without exposing unknown diagnostics', () => {
+    const input = coverageFixture('windows');
+    const sensors = record(record(input.stats.appHealth).sensors);
+    sensors.byId = {
+      'fs-chokidar': { state: 'FAILED', detail: 'no-live-watcher' },
+      'fs-handle': { state: 'DEGRADED', detail: 'no-handle-binary-and-no-rm' },
+      'fs-rm': { state: 'DEGRADED', detail: 'read-detection-unavailable' },
+    };
+    expect(sensorCoverage(input).sensors.map(({ state, detail }) => [state, detail])).toEqual([
+      ['Failed', 'No configured file-change watcher is active.'],
+      ['Degraded', 'Neither the handle scanner nor Resource Manager is available.'],
+      ['Degraded', 'Open-file observation is unavailable.'],
+    ]);
+    sensors.byId = {
+      'fs-handle': { state: 'HEALTHY', detail: null },
+      'fs-rm': { state: 'UNSUPPORTED', detail: 'pool-owns-observation' },
+      'fs-chokidar': { state: 'DEGRADED', detail: 'PRIVATE_ROOT_ERROR' },
+    };
+    const recovered = sensorCoverage(input).sensors;
+    expect(recovered.map(({ state, detail }) => [state, detail])).toEqual([
+      ['Healthy', 'Not reported'],
+      ['Unsupported', 'The handle scanner is handling this observation.'],
+      ['Degraded', 'Not reported'],
+    ]);
+    expect(JSON.stringify(recovered)).not.toContain('PRIVATE_ROOT_ERROR');
+    expect(coverageLabel(coverageReasons, 'all-agents-failed')).toBe(
+      'File handle scans failed for all selected agents.',
+    );
+  });
+  it('shows the reported network provider failure without exposing unknown details', () => {
+    const input = coverageFixture('windows');
+    record(record(input.stats.appHealth).sensors).byId = {
+      network: { state: 'FAILED', detail: 'provider-failure' },
+    };
+    expect(sensorCoverage(input).sensors[0]).toMatchObject({
+      title: 'Network connections',
+      state: 'Failed',
+      detail: 'Provider failed',
+    });
+  });
   it.each(['stale', 'not-ready', 'error'])(
     'qualifies project readiness when telemetry is %s',
     (state) => {

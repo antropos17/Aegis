@@ -6,6 +6,37 @@ import { boundedCommand } from '../../tools/development/bounded-command.mjs';
 import { observePackageWindow } from '../../frontend/observatory/tests/package-window-observation.mjs';
 import { projectReadFixtureFailure } from '../../frontend/observatory/tests/etw-read-fixture-protocol.mjs';
 
+/** Create the native phase's fresh Windows home and private AppData tree.
+ * @param {string} output Owned phase directory; newRebootOutput already created temp.
+ * @param {object} baseEnv Inherited environment copied without credentials.
+ * @returns {object} Environment for the owned fixture and application.
+ * @since v0.20.1
+ */
+export function nativeReadEnvironment(output, baseEnv = process.env) {
+  const home = path.join(output, 'home');
+  const appData = path.join(home, 'AppData');
+  for (const directory of [
+    home,
+    appData,
+    path.join(appData, 'Roaming'),
+    path.join(appData, 'Local'),
+  ])
+    fs.mkdirSync(directory);
+  const env = {
+    ...baseEnv,
+    USERPROFILE: home,
+    HOME: home,
+    APPDATA: path.join(appData, 'Roaming'),
+    LOCALAPPDATA: path.join(appData, 'Local'),
+    TEMP: path.join(output, 'temp'),
+    TMP: path.join(output, 'temp'),
+  };
+  for (const key of Object.keys(env))
+    if (/TOKEN|PASSWORD|SECRET|CREDENTIAL|KEY|ELECTRON_RUN_AS_NODE|NODE_OPTIONS/i.test(key))
+      delete env[key];
+  return env;
+}
+
 /** Wait for actual bounded evidence. @param {Function} read @param {Function} accept @param {number} ms @param {string} message @returns {Promise<object>} @since v0.20.1 */
 export const until = async (read, accept, ms, message) => {
   const deadline = Date.now() + ms;

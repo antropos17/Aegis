@@ -119,6 +119,22 @@ deadline and strict acceptance conditions remain unchanged. A missing sample is
 unknown evidence; these diagnostics do not establish the cause of an older run
 whose rejected snapshots were not retained.
 
+Before the first identity evidence request, each admission phase creates a bounded
+`identity-diagnostic.json` checkpoint. It retains the initial, first failed and
+latest closed diagnostic observations without waiting on them in a successful
+readiness path. There is one in-flight getter, at most 32 attempts and a 16 KiB
+file limit. Failure finalization uses the existing one-second diagnostic budget;
+disconnects retain earlier observations. Both admission checkpoints are exported
+before guest removal. Snapshot diagnostic version 2 includes the first sanitized
+runtime response class as well as native status; late stderr can complete that
+first failure after process exit without delaying requests or retries. The
+recorded health attempt timestamp means result application, rather than query
+start. These checkpoints grant no event admission authority.
+
+The admission probe creates its own conventional Windows home/AppData tree,
+including Roaming and Local, just as the host window preflight does. Its inherited
+environment is copied without credential variables; no personal profile is reused.
+
 The issuer-preparation wait retains a capped sample count and fixed first/latest
 condition snapshots before cleanup. They distinguish capture phase, preparation
 availability and an exact actor match, with closed ended-session metadata and

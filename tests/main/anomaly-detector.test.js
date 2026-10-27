@@ -683,6 +683,25 @@ describe('anomaly-detector', () => {
       expect(timeWarn.message).toContain('03:00');
     });
 
+    it('reports a later unusual hour once after an earlier hour was reported', () => {
+      const hist = new Array(24).fill(1);
+      hist[3] = 0;
+      hist[4] = 0;
+      const hours = new Set([3]);
+      setupAgent('Test', { activeHours: hours }, { averages: { hourHistogram: hist } });
+
+      const timing = () => anomaly.checkDeviations().filter((warning) => warning.type === 'timing');
+      expect(timing().map((warning) => warning.message)).toEqual([
+        expect.stringContaining('03:00'),
+      ]);
+      expect(timing()).toEqual([]);
+      hours.add(4);
+      expect(timing().map((warning) => warning.message)).toEqual([
+        expect.stringContaining('04:00'),
+      ]);
+      expect(timing()).toEqual([]);
+    });
+
     it('deduplicates warnings (same warning not sent twice)', () => {
       setupAgent(
         'Test',

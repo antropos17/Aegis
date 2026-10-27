@@ -1,4 +1,5 @@
 import { runNativeReadScenario } from './windows-native-read-scenario.mjs';
+import { nativeReadEnvironment } from './windows-native-read-support.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,19 +39,11 @@ const binding = () =>
   rebootBinding(root, candidate, values['source-sha'], values['build-receipt'], values.config);
 const initial = binding();
 newRebootOutput(out, root);
-for (const dir of ['fixture', 'home']) fs.mkdirSync(path.join(out, dir));
+fs.mkdirSync(path.join(out, 'fixture'));
 const file = path.join(out, 'fixture/.env');
 const canary = 'AEGIS_OBJECT_CONTENT_' + crypto.randomBytes(20).toString('hex');
 fs.writeFileSync(file, canary.padEnd(4096, '.'));
-const env = {
-  ...process.env,
-  TEMP: path.join(out, 'temp'),
-  TMP: path.join(out, 'temp'),
-  USERPROFILE: path.join(out, 'home'),
-  HOME: path.join(out, 'home'),
-};
-for (const key of Object.keys(env))
-  if (/TOKEN|PASSWORD|SECRET|ELECTRON_RUN_AS_NODE|NODE_OPTIONS/.test(key)) delete env[key];
+const env = nativeReadEnvironment(out);
 const helper = path.join(candidate, 'resources/etw-file/EtwFile.exe');
 const r = {
   schema: 'aegis-cloud-object-read/1',

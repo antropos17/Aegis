@@ -7,12 +7,12 @@ check its [release tag](https://github.com/antropos17/Aegis/releases).
 Start with the [full capability guide](CAPABILITIES.md) for desktop monitoring,
 local reviews, token accounting, selected actions, MCP gateways and experimental
 Hyper-V execution. It maps entry points to their coverage limits. The
-[latest-source summary](../README.md#latest-source) is updated through PR #942 on
-16 October 2026; later source features require a later installer release.
+[root README](../README.md#current-development) summarizes source development;
+installed features depend on the release tag. For common questions, see the [FAQ](FAQ.md).
 
-The current Windows beta is [0.19.2-beta](releases/0.19.2-beta.md).
-Its [readiness record](BETA-READINESS.md) lists verified artifacts and remaining
-qualification limits.
+Find current Windows beta installers on [GitHub Releases](https://github.com/antropos17/Aegis/releases).
+The [readiness record](BETA-READINESS.md) contains dated, artifact-specific
+qualification evidence and limits; those records do not qualify later installers.
 
 ## Use the desktop
 

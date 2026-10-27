@@ -24,7 +24,9 @@ fields, mixed commands or duplicate matching entries are refused.
 from the current owned top-level renderer. The renderer supplies no path,
 command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
-AEGIS `--action-policy-hook` command refuses shell metacharacters in paths.
+AEGIS `--action-policy-hook` command quotes its fixed absolute paths. Literal
+ampersands stay inside those quotes; expansion, quote, control and other
+unsupported shell syntax remains refused.
 
 The real owner-review capability shows only the exact target and changed
 fragments with line/column positions in a native Cancel-default dialog. Native
@@ -64,7 +66,8 @@ The Windows packaging resources copy that directory to `resources/hook-review`.
 Both host files and the selected installed .NET files must match their pins;
 missing, altered or unsupported assets produce unavailable setup. The manifest
 binds the prepared machine's absolute runtime path. Portable runtime discovery,
-self-contained distribution and installed-package qualification remain open.
+self-contained distribution and installed-package native review/transaction
+qualification remain open.
 
 Native build intermediates stay in `out/development/hook-review-build-<pid>`.
 Review closed disposable diagnostics after seven days; preserve verification
@@ -101,7 +104,7 @@ closed. No alternate input was attempted. The actual native confirmation
 journey remains unqualified. Main-process inspector-based
 test launchers are intentionally refused by private IO. The installed-Claude
 source-run result below covers one version and command shell. Other versions,
-bypass behavior, historical backup restoration, installed-package qualification
+bypass behavior, historical backup restoration, the installed-package owner-review journey
 and full W6 acceptance remain open. `launchAllowed` remains false.
 
 ### Explicit installed-Claude qualification
@@ -155,7 +158,7 @@ preserves the qualified runtime and runner sources.
 
 Any future mismatch is retained as an inconclusive allow/deny result and never
 widens permission. This bounded source-run result leaves real native-dialog
-acceptance, installed-package behavior, other versions, missing hooks, launch
+acceptance, genuine-agent use of the packaged route, other versions, missing hooks, launch
 failures, alternate tools and bypass routes open.
 
 ### Windows inherited input
@@ -175,3 +178,68 @@ input and held-open deadline with actual process exit. No environment prefix,
 console switch or fuse change is needed. This table qualifies native transport;
 the separate provider result above covers the installed-Claude source run.
 Real-dialog acceptance remains open.
+
+### Private unpacked-ASAR qualification
+
+On 2026-10-26 UTC, a normal private Windows unpacked build from
+`7725f734942e36efc1189f187b1f8f3b8d83fb77` passed 16 of 16 scoped checks.
+The normal build and asset gates completed. The default executable name,
+`AEGIS - AI Monitoring & Threat Detection.exe`, retained its spaces and ampersand;
+the executable and archive were unchanged throughout qualification:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Default executable | `c3f4b6d964a3b58adb8570a3e150a742829e3e173a704927a936d1d0c892bd7f` |
+| `resources/app.asar` | `5e107600f64b448af5576a54b9f903da11a2328231bc49f279760ec4f040b8e5` |
+
+The real application reported `isPackaged: true`, the expected ASAR/EXE paths and
+the isolated disposable user-data directory. Automatic updates remained off and
+idle. The read-only Guard status reported `READY` and available assets, while
+creating no draft or native IO session. This advisory result does not establish
+native installation or owner consent. Fresh host data and the actual Coverage
+DOM reported project changes **Not observed** with no selected project. The
+existing settings action focused Monitoring without selecting a folder.
+
+An archive-matched production command generator wrote a separate producer fixture;
+the fixture was read back before verified Git Bash invoked that exact command.
+No profile installation or provider was involved. The four inherited-input cases
+returned complete fixed provider JSON and closed without forced termination:
+
+| Input | Decision / exit | Observed duration |
+| --- | --- | --- |
+| Exact allowed request, EOF | allow / 0 | 417 ms |
+| Exact denied request, EOF | deny / 0 | 261 ms |
+| Complete JSON with invalid request fields, EOF | deny / 0 | 265 ms |
+| Valid request with input held open | deny / 2 | 1,729 ms |
+
+The internal input deadline remained 1.5 seconds. Both tool-output markers stayed
+absent: these cases evaluated requests without executing their tool commands.
+Source, archive, executable, policy and fixture-setting hashes stayed unchanged.
+No environment prefix, executable rename, archive patch or fuse change was used.
+
+Windows Playwright owns a command-shell launcher rather than Electron's main PID.
+The retained initial attempt refused an invalid PID-equality assumption before
+the UI and hook cases. The corrected qualification independently checked exactly
+the launcher/main images, parent relation and coherent birth records, retaining
+the main process handle. Cleanup confirmed wrapper exit 0 and drained close,
+plus disappearance of that held main generation after application quit. The
+Electron main exit code was unavailable and is not inferred from the wrapper.
+Both attempt receipts remain retained.
+
+A genuine packaged-Claude caller was initially held because of host memory/commit
+pressure. After headroom recovered, one Claude CLI `2.1.292` qualification using
+the configured Opus model passed with the same packaged command, producer-fixture
+settings, policy and working directory. Exactly two Bash requests matched their
+full expected inputs and corresponding results. The allowed request wrote exactly
+17 bytes, `AEGIS_W6_ALLOWED` followed by LF; the denied request returned an explicit
+policy denial and created no denied output file. Reported cost was $0.0470262 and
+total elapsed time was 19.951 seconds. The CLI exited 0 with confirmed cleanup and
+no forced termination; captured raw buffers were wiped. Source/package `7725f734`
+and fixture hashes stayed unchanged. The earlier 16-check ASAR/input qualification
+remains a separate provider-free result. Native dialogs, installation, portable
+runtime discovery and wider bypass coverage remain open. These fixture-based
+results do not establish full Guard acceptance or authorize a Blocking verified
+label. The separate
+native-read candidate `e456` failed its visibility precondition (expected true,
+observed false); its heading stage was not reached. That failure establishes no
+renderer, VM boot or cadence diagnosis and no native-read acceptance.

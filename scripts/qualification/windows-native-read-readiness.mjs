@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 /** Project scanner conditions without retaining actor data or raw diagnostics.
  * @param {object|null} value Actual bounded main-process evidence.
  * @param {{pid:number,birth:string}} witness Independent fixture identity.
@@ -55,7 +58,7 @@ export function recordScannerReadiness(value, witness, observation) {
  */
 export function readScannerSnapshotDiagnostic({ app }, loadModule) {
   const result = {
-    schema: 'aegis-native-read-snapshot-diagnostic/1',
+    schema: 'aegis-native-read-snapshot-diagnostic/2',
     snapshotAvailable: false,
     clientAvailable: false,
     state: null,
@@ -165,6 +168,16 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
             first.nativeStatus <= 4294967295
               ? first.nativeStatus
               : null,
+          responseClass: pick(first.responseClass, [
+            'query-unavailable',
+            'query-failed',
+            'query-limit',
+            'query-growth',
+            'snapshot-entry-bounds',
+            'snapshot-chain-limit',
+            'snapshot-negative-offset',
+            'snapshot-overlapping-offset',
+          ]),
         };
       result.clientAvailable = true;
     } catch {
@@ -196,6 +209,251 @@ export function readScannerSnapshotDiagnostic({ app }, loadModule) {
     /* Missing main-module loader leaves a fixed unavailable projection. */
   }
   return result;
+}
+
+/** Validate the closed getter result before retaining it across a lost connection.
+ * @param {object} value Unknown transported result. @returns {object|null} Closed copy.
+ * @since v0.20.1
+ */
+function closedSnapshotDiagnostic(value) {
+  const empty = readScannerSnapshotDiagnostic({});
+  const keys = (object, expected) =>
+    object &&
+    typeof object === 'object' &&
+    !Array.isArray(object) &&
+    Object.keys(object).length === expected.length &&
+    expected.every((key) => Object.hasOwn(object, key));
+  const integer = (number, max, min = 0) =>
+    Number.isSafeInteger(number) && number >= min && number <= max;
+  const nullable = (value, accept) => value === null || accept(value);
+  const time = (value) => integer(value, 8640000000000000);
+  const choices = (value, allowed) => nullable(value, (item) => allowed.includes(item));
+  if (!keys(value, Object.keys(empty)) || value.schema !== empty.schema) return null;
+  if (!['snapshotAvailable', 'clientAvailable'].every((key) => typeof value[key] === 'boolean'))
+    return null;
+  if (
+    !['errorPresent', 'connected', 'stickyPresent', 'sequence', 'topology'].every((key) =>
+      nullable(value[key], (item) => typeof item === 'boolean'),
+    )
+  )
+    return null;
+  if (
+    !choices(value.state, ['STARTING', 'HEALTHY', 'DEGRADED', 'FAILED']) ||
+    !choices(value.detail, ['basic', 'class5', 'cim-fallback', 'cim', 'none']) ||
+    !choices(value.source, ['basic', 'class5', 'cim', 'none']) ||
+    !choices(value.mode, ['auto', 'strict', 'cim']) ||
+    !choices(value.capabilityClass, ['basic', 'class5']) ||
+    !nullable(value.transitions, (item) => integer(item, 512)) ||
+    !nullable(value.failures, (item) => integer(item, 3)) ||
+    ![
+      'populationAsOf',
+      'processLastSuccessAt',
+      'snapshotLastAttemptAt',
+      'snapshotLastSuccessAt',
+    ].every((key) => nullable(value[key], time))
+  )
+    return null;
+  const cadence = value.scanCadence;
+  if (
+    !keys(cadence, Object.keys(empty.scanCadence)) ||
+    !nullable(cadence.maxProcessGapMs, (item) => integer(item, 3600000, 1)) ||
+    !nullable(cadence.skippedProcessTicks, (item) => integer(item, 1000000)) ||
+    !nullable(cadence.lastSkippedAt, time)
+  )
+    return null;
+  const first = value.firstFailure;
+  if (
+    first !== null &&
+    (!keys(first, ['kind', 'exitCode', 'stderrClass', 'nativeStatus', 'responseClass']) ||
+      ![
+        'binary-missing',
+        'spawn-failed',
+        'child-error',
+        'child-exit',
+        'handshake-timeout',
+        'snapshot-timeout',
+        'stdin-failed',
+        'frame-invalid',
+        'protocol-mismatch',
+        'capabilities-invalid',
+        'sidecar-error',
+        'response-invalid',
+      ].includes(first.kind) ||
+      !nullable(first.exitCode, (item) => integer(item, 4294967295, -2147483648)) ||
+      !choices(first.stderrClass, [
+        'none',
+        'other-stderr',
+        'probe-other',
+        'probe-query-unavailable',
+        'probe-query-failed',
+        'probe-query-limit',
+        'probe-query-growth',
+        'probe-self-times',
+        'probe-entry-bounds',
+        'probe-birth-mismatch',
+        'probe-empty-name',
+        'probe-chain-limit',
+        'probe-negative-offset',
+        'probe-self-missing',
+        'probe-population-small',
+      ]) ||
+      !nullable(first.nativeStatus, (item) => integer(item, 4294967295)) ||
+      !choices(first.responseClass, [
+        'query-unavailable',
+        'query-failed',
+        'query-limit',
+        'query-growth',
+        'snapshot-entry-bounds',
+        'snapshot-chain-limit',
+        'snapshot-negative-offset',
+        'snapshot-overlapping-offset',
+      ]))
+  )
+    return null;
+  return JSON.parse(JSON.stringify(value));
+}
+
+/** Retain three fixed diagnostic snapshots and durably checkpoint before cleanup.
+ * @param {object} options Owned output, fixture witness, receipt and read-only getter.
+ * @returns {{begin:Function,observe:Function,finish:Function}} Bounded checkpoint collector.
+ * @since v0.20.1
+ */
+export function createScannerIdentityCheckpoint({ output, witness, observation, read }) {
+  const filename = path.join(output, 'identity-diagnostic.json');
+  const temporary = filename + '.tmp';
+  const state = {
+    schema: 'aegis-native-read-identity-checkpoint/1',
+    phase: 'observing',
+    readiness: null,
+    initial: null,
+    firstFailure: null,
+    last: null,
+    capture: { attempts: 0, timedOut: false, unavailable: false },
+  };
+  let lastCaptureAt = -Infinity;
+  let stopped = false;
+  let written = false;
+  let finished = false;
+  let inFlight = null;
+  const flush = () => {
+    const bytes = Buffer.from(JSON.stringify(state) + '\n');
+    if (bytes.length > 16384 || (!written && fs.existsSync(filename)))
+      throw new Error('Identity diagnostic checkpoint refused');
+    let descriptor;
+    let created = false;
+    try {
+      descriptor = fs.openSync(temporary, 'wx');
+      created = true;
+      fs.writeFileSync(descriptor, bytes);
+      fs.closeSync(descriptor);
+      descriptor = undefined;
+      fs.renameSync(temporary, filename);
+      written = true;
+    } catch {
+      try {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        if (created && fs.existsSync(temporary)) fs.unlinkSync(temporary);
+      } catch {
+        /* Preserve the fixed persistence failure without private I/O details. */
+      }
+      throw new Error('Identity diagnostic checkpoint persistence failed');
+    }
+    observation.snapshotDiagnostic = JSON.parse(
+      JSON.stringify(state.last?.diagnostic ?? readScannerSnapshotDiagnostic({})),
+    );
+    observation.diagnosticCheckpoint = {
+      schema: state.schema,
+      filename: 'identity-diagnostic.json',
+      persisted: true,
+      captures: state.capture.attempts,
+    };
+  };
+  const capture = async (force) => {
+    const now = Date.now();
+    if (stopped || state.capture.attempts >= 32 || (!force && now - lastCaptureAt < 1000)) return;
+    state.capture.attempts++;
+    lastCaptureAt = now;
+    const timeout = Symbol('diagnostic-timeout');
+    let timer;
+    try {
+      const value = await Promise.race([
+        Promise.resolve().then(read),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(timeout), 1000);
+        }),
+      ]);
+      if (finished) return;
+      if (value === timeout) {
+        state.capture.timedOut = true;
+        stopped = true;
+        return;
+      }
+      const diagnostic = closedSnapshotDiagnostic(value);
+      if (!diagnostic || (!diagnostic.snapshotAvailable && !diagnostic.clientAvailable)) {
+        state.capture.unavailable = true;
+        return;
+      }
+      const snapshot = { observedAt: Date.now(), diagnostic };
+      state.initial ??= snapshot;
+      if (
+        !state.firstFailure &&
+        (diagnostic.firstFailure || ['FAILED', 'DEGRADED'].includes(diagnostic.state))
+      )
+        state.firstFailure = snapshot;
+      state.last = snapshot;
+    } catch {
+      if (finished) return;
+      state.capture.unavailable = true;
+      stopped = true;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  return {
+    begin() {
+      flush();
+    },
+    observe(value) {
+      const previousReadiness = JSON.stringify(state.readiness);
+      const previousAttempts = state.capture.attempts;
+      state.readiness = projectScannerReadiness(value, witness);
+      if (
+        !inFlight &&
+        !stopped &&
+        state.capture.attempts < 32 &&
+        Date.now() - lastCaptureAt >= 1000
+      ) {
+        inFlight = capture(false).then(() => {
+          inFlight = null;
+          if (!finished) {
+            try {
+              flush();
+            } catch {
+              observation.diagnosticCheckpointPersisted = false;
+              stopped = true;
+            }
+          }
+        });
+      }
+      if (
+        !written ||
+        previousAttempts !== state.capture.attempts ||
+        previousReadiness !== JSON.stringify(state.readiness)
+      )
+        flush();
+    },
+    async finish(phase) {
+      if (phase === 'failed') {
+        if (inFlight) await inFlight;
+        else await capture(true);
+      } else if (inFlight) {
+        state.capture.unavailable = true;
+      }
+      finished = true;
+      state.phase = phase;
+      flush();
+    },
+  };
 }
 import protocol from '../../src/main/platform/etw-file-protocol.js';
 

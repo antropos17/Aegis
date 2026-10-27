@@ -405,7 +405,7 @@ function Invoke-NativeReadPhase($Session,[string]$Root,[string]$Phase,$Consent,[
 }
 
 function Copy-NativeReadEvidence($Session,[string]$Root) {
-  $relative=@('capability/stdout.log','capability/stderr.log','admission-preflight/receipt.json','admission-preflight/window-observation.json','admission-preflight/view.png','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/window-observation.json','admission/view.png')
+  $relative=@('capability/stdout.log','capability/stderr.log','admission-preflight/receipt.json','admission-preflight/identity-diagnostic.json','admission-preflight/window-observation.json','admission-preflight/view.png','prepare/receipt.json','prepare/scenario/receipt.json','prepare/scenario/lost/window-observation.json','prepare/scenario/lost/startup-failure.json','resume/receipt.json','resume/scenario/receipt.json','resume/scenario/recovery/window-observation.json','resume/scenario/recovery/startup-failure.json','resume/scenario/normal/window-observation.json','admission/receipt.json','admission/identity-diagnostic.json','admission/window-observation.json','admission/view.png')
   $gitProof=Invoke-Command -Session $Session -ScriptBlock {
     $file='C:\aegis-native-read\evidence\git-reconstruction.json'
     if(-not (Test-Path -LiteralPath $file)) { return $false }
@@ -417,7 +417,7 @@ function Copy-NativeReadEvidence($Session,[string]$Root) {
   foreach($phase in @('admission-preflight','prepare','resume','admission')) { $relative+=($phase+'-desktop.json');$relative+=($phase+'-done.json');$relative+=($phase+'.log') }
   foreach($file in $relative) {
     $source=if($file -like '*-done.json' -or $file -notmatch '/') { 'C:\aegis-native-read\'+$file } else { 'C:\aegis-native-read\evidence\'+$file.Replace('/','\') }
-    $leafBudget=if($file -like '*-desktop.json' -or $file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json'){16384}elseif($file -ceq 'admission-preflight-done.json'){65536}elseif($file -ceq 'admission-preflight/receipt.json'){262144}else{2MB}
+    $leafBudget=if($file -like '*-desktop.json' -or $file -like '*/window-observation.json'){4096}elseif($file -like '*/startup-failure.json' -or $file -like '*/identity-diagnostic.json'){16384}elseif($file -ceq 'admission-preflight-done.json'){65536}elseif($file -ceq 'admission-preflight/receipt.json'){262144}else{2MB}
     $present=Invoke-Command -Session $Session -ArgumentList $source,$leafBudget -ScriptBlock {
       param($File,$Budget)
       if(-not (Test-Path -LiteralPath $File)) { return $false }

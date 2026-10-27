@@ -15,6 +15,7 @@ import { matchingNativeAuditRows } from './windows-native-read-audit.mjs';
 import {
   recordScannerReadiness,
   readScannerSnapshotDiagnostic,
+  createScannerIdentityCheckpoint,
   recordIssuerPreparationReadiness,
   recordOperationalAdmission,
 } from './windows-native-read-readiness.mjs';
@@ -114,28 +115,31 @@ export async function runNativeReadScenario({
       });
     }, witness.pid);
     r.identityWait = { samples: 0, last: null };
+    const identityCheckpoint = createScannerIdentityCheckpoint({
+      output: out,
+      witness,
+      observation: r.identityWait,
+      read: () => app.evaluate(readScannerSnapshotDiagnostic),
+    });
     let ready;
     try {
+      identityCheckpoint.begin();
       ready = await until(
-        () => evidence(app),
+        async () => {
+          const value = await evidence(app);
+          identityCheckpoint.observe(value);
+          return value;
+        },
         (value) => recordScannerReadiness(value, witness, r.identityWait),
         30000,
         'Actual reliable scanner identity unavailable',
       );
+      await identityCheckpoint.finish('accepted');
     } catch (error) {
-      let diagnosticTimer;
-      const unavailable = () => readScannerSnapshotDiagnostic({});
       try {
-        r.identityWait.snapshotDiagnostic = await Promise.race([
-          app.evaluate(readScannerSnapshotDiagnostic),
-          new Promise((resolve) => {
-            diagnosticTimer = setTimeout(() => resolve(unavailable()), 1000);
-          }),
-        ]);
+        await identityCheckpoint.finish('failed');
       } catch {
-        r.identityWait.snapshotDiagnostic = unavailable();
-      } finally {
-        clearTimeout(diagnosticTimer);
+        r.identityWait.diagnosticCheckpointPersisted = false;
       }
       throw error;
     }

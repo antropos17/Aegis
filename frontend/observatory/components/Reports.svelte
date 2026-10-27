@@ -70,18 +70,25 @@
     !statsFresh
       ? Object.fromEntries(
           Object.entries(stats).filter(
-            ([key]) => !['totalSize', 'currentSize', 'storageReadState'].includes(key),
+            ([key]) =>
+              ![
+                'totalSize',
+                'currentSize',
+                'storageReadState',
+                'historyReadState',
+                'index',
+              ].includes(key),
           ),
         )
       : stats,
   );
   let details = $derived({
     ...displayStats,
-    ...(stats.index
+    ...(displayStats.index
       ? {
           index: {
-            ...record(stats.index),
-            ...(record(stats.index).lastError
+            ...record(displayStats.index),
+            ...(record(displayStats.index).lastError
               ? { lastError: $t('Audit index details unavailable.') }
               : {}),
           },
@@ -169,6 +176,7 @@
     const ticket = ++statsGeneration;
     statsLoading = true;
     statsRead = 'loading';
+    statsFresh = false;
     try {
       const reply = await invoke(host, 'getAuditStats');
       if (!alive || ticket !== statsGeneration) return;
@@ -332,16 +340,16 @@
       {:else if statsLoading}<p role="status" class="entity-note">
           {$t(statsLoaded ? 'Updating delivery counters…' : 'Loading delivery counters…')}
         </p>{/if}
-      {#if stats.storageReadState === 'unavailable'}<p class="notice">
+      {#if displayStats.storageReadState === 'unavailable'}<p class="notice">
           {$t('Storage measurements unavailable. Delivery counters are separate observations.')}
         </p>
-      {:else if stats.storageReadState === 'uninitialized'}<p class="notice">
+      {:else if displayStats.storageReadState === 'uninitialized'}<p class="notice">
           {$t('Audit journal has not been initialized.')}
         </p>{/if}
-      {#if stats.historyReadState === 'building'}<p role="status" class="entity-note">
+      {#if displayStats.historyReadState === 'building'}<p role="status" class="entity-note">
           {$t('Historical audit counters are still loading.')}
         </p>
-      {:else if stats.historyReadState === 'unavailable'}<p class="notice">
+      {:else if displayStats.historyReadState === 'unavailable'}<p class="notice">
           {$t(
             'Historical audit counters unavailable. Live queue and loss observations remain separate.',
           )}

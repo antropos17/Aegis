@@ -3,7 +3,12 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import App from '../../../frontend/observatory/App.svelte';
 
 const stats = {
-  appHealth: { state: 'HEALTHY', populationReliable: true, identityDegraded: false },
+  appHealth: {
+    state: 'HEALTHY',
+    populationReliable: true,
+    identityDegraded: false,
+    sensors: { byId: { network: { state: 'HEALTHY' } } },
+  },
 };
 const agent = (name, pid, instanceId) => ({
   agent: name,

@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const mocks = vi.hoisted(() => ({
   launch: vi.fn(),
@@ -79,9 +82,13 @@ describe('actual native-read scenario launch composition', () => {
   let fixture;
   let observer;
   let receipt;
+  let output;
+  let temporaryRoot;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    temporaryRoot = fs.realpathSync(os.tmpdir());
+    output = fs.mkdtempSync(path.join(temporaryRoot, 'native-identity-scenario-'));
     receipt = { reads: [] };
     fixture = {
       child: { pid: 42, exitCode: null },
@@ -114,7 +121,18 @@ describe('actual native-read scenario launch composition', () => {
     mocks.exitWithin.mockResolvedValue(0);
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    const resolved = fs.realpathSync(output);
+    if (
+      resolved !== output ||
+      path.dirname(resolved) !== temporaryRoot ||
+      !path.basename(resolved).startsWith('native-identity-scenario-') ||
+      fs.lstatSync(resolved).isSymbolicLink()
+    )
+      throw new Error('identity-fixture-cleanup-boundary');
+    fs.rmSync(resolved, { recursive: true, force: true });
+  });
 
   it('retains a closed reader failure before cleanup changes its observed exit state', async () => {
     const diagnostic = {
@@ -144,7 +162,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
       }),
@@ -167,7 +185,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
       }),
@@ -216,7 +234,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
       }),
@@ -256,7 +274,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
       }),
@@ -291,7 +309,7 @@ describe('actual native-read scenario launch composition', () => {
     const pending = runNativeReadScenario({
       fixtureExe: 'fixture.exe',
       file: 'X:/owned/.env',
-      out: 'X:/owned/evidence',
+      out: output,
       env: {},
       r: receipt,
       canary: 'canary',
@@ -325,7 +343,7 @@ describe('actual native-read scenario launch composition', () => {
     const pending = runNativeReadScenario({
       fixtureExe: 'fixture.exe',
       file: 'X:/owned/.env',
-      out: 'X:/owned/evidence',
+      out: output,
       env: {},
       r: receipt,
       canary: 'canary',
@@ -396,12 +414,19 @@ describe('actual native-read scenario launch composition', () => {
       ).toBe(false);
       throw new Error(message);
     });
+    app.close.mockImplementationOnce(async () => {
+      const checkpoint = JSON.parse(
+        fs.readFileSync(path.join(output, 'identity-diagnostic.json'), 'utf8'),
+      );
+      expect(checkpoint.phase).toBe('failed');
+      expect(checkpoint.firstFailure.diagnostic.state).toBe('FAILED');
+    });
 
     await expect(
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
         canary: 'canary',
@@ -462,7 +487,7 @@ describe('actual native-read scenario launch composition', () => {
       const pending = runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
         candidate: 'X:/owned/candidate',
@@ -540,7 +565,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
         candidate: 'X:/owned/candidate',
@@ -632,7 +657,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
         candidate: 'X:/owned/candidate',
@@ -703,7 +728,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
         candidate: 'X:/owned/candidate',
@@ -779,7 +804,7 @@ describe('actual native-read scenario launch composition', () => {
       runNativeReadScenario({
         fixtureExe: 'fixture.exe',
         file: 'X:/owned/.env',
-        out: 'X:/owned/evidence',
+        out: output,
         env: {},
         r: receipt,
         canary: 'canary',

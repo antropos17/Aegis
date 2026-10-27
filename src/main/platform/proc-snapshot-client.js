@@ -93,10 +93,7 @@ let _sticky = null;
 let _exitHookInstalled = false;
 // Historical FIRST observed failure, not a diagnosis of the currently live child.
 let _firstFailure = null;
-let _stderrPrefix = null;
-let _stderrLength = 0;
-let _stderrClass = null;
-let _stderrNativeStatus = null;
+let _stderrCapture = null;
 const FAILURE_KINDS = Object.freeze({
   'sidecar binary not found': 'binary-missing',
   'spawn-failed': 'spawn-failed',
@@ -111,21 +108,62 @@ const FAILURE_KINDS = Object.freeze({
   'sidecar error': 'sidecar-error',
   'malformed snapshot response': 'response-invalid',
 });
+const SNAPSHOT_RESPONSE_CLASSES = new Map([
+  ['process table exceeds 67108864 bytes', 'query-limit'],
+  ['process table kept growing across 8 attempts', 'query-growth'],
+  ['snapshot-entry-bounds', 'snapshot-entry-bounds'],
+  ['snapshot-chain-limit', 'snapshot-chain-limit'],
+  ['snapshot-negative-offset', 'snapshot-negative-offset'],
+  ['snapshot-overlapping-offset', 'snapshot-overlapping-offset'],
+]);
 
-function _clearStderr() {
-  if (_stderrPrefix) _stderrPrefix.fill(0);
-  _stderrPrefix = null;
-  _stderrLength = 0;
+function _classifySnapshotResponse(message) {
+  if (
+    message.code !== 'snapshot-failed' ||
+    typeof message.detail !== 'string' ||
+    message.detail.length > 128 ||
+    /[\r\n]/.test(message.detail)
+  )
+    return null;
+  const status =
+    /^(SystemProcessInformation unavailable|NtQuerySystemInformation failed) \(0x([0-9a-fA-F]{8})\)$/.exec(
+      message.detail,
+    );
+  if (status)
+    return {
+      responseClass:
+        status[1] === 'SystemProcessInformation unavailable' ? 'query-unavailable' : 'query-failed',
+      nativeStatus: Number.parseInt(status[2], 16),
+    };
+  return {
+    responseClass: SNAPSHOT_RESPONSE_CLASSES.get(message.detail) ?? null,
+    nativeStatus: null,
+  };
 }
-function _classifyStderr() {
-  if (_stderrClass !== null) return _stderrClass;
-  const text = _stderrPrefix?.toString('utf8', 0, _stderrLength) || '';
+
+function _releaseStderr(capture, forget = false) {
+  if (!capture) return;
+  clearTimeout(capture.timer);
+  capture.timer = null;
+  if (capture.prefix) capture.prefix.fill(0);
+  capture.prefix = null;
+  capture.length = 0;
+  capture.child.stderr.removeListener('data', capture.onData);
+  capture.child.removeListener('close', capture.onClose);
+  if (forget) {
+    capture.complete = true;
+    if (_stderrCapture === capture) _stderrCapture = null;
+  }
+}
+function _classifyStderr(capture) {
+  if (!capture || capture.complete) return;
+  const text = capture.prefix?.toString('utf8', 0, capture.length) || '';
   const firstLine = text.split('\n', 1)[0].replace(/\r$/, '');
   const status =
     /^probe failed: (?:SystemProcessInformation unavailable|NtQuerySystemInformation failed) \(0x([0-9a-fA-F]{8})\)$/.exec(
       firstLine,
     );
-  _stderrNativeStatus = status ? Number.parseInt(status[1], 16) : null;
+  capture.nativeStatus = status ? Number.parseInt(status[1], 16) : null;
   const patterns = [
     [/^probe failed: SystemProcessInformation unavailable /, 'probe-query-unavailable'],
     [/^probe failed: NtQuerySystemInformation failed /, 'probe-query-failed'],
@@ -140,23 +178,66 @@ function _classifyStderr() {
     [/^probe failed: our own pid \d+ is missing from the snapshot/, 'probe-self-missing'],
     [/^probe failed: only \d+ process in the snapshot/, 'probe-population-small'],
   ];
-  _stderrClass =
+  capture.classification =
     patterns.find(([pattern]) => pattern.test(text))?.[1] ||
     (text.startsWith('probe failed:') ? 'probe-other' : text ? 'other-stderr' : 'none');
-  _clearStderr();
-  return _stderrClass;
+  capture.complete = true;
+  _releaseStderr(capture);
+  if (capture.retained && _stderrCapture === capture && _firstFailure) {
+    // Enrich only this original child's first cause after its stdio has drained.
+    _firstFailure = Object.freeze({
+      ..._firstFailure,
+      stderrClass: capture.classification,
+      nativeStatus: _firstFailure.nativeStatus ?? capture.nativeStatus,
+    });
+    _stderrCapture = null;
+  }
 }
-function _retainFirstFailure(reason, exitCode = _child?.exitCode) {
+function _captureStderr(child) {
+  const capture = {
+    child,
+    prefix: Buffer.alloc(512),
+    length: 0,
+    classification: null,
+    nativeStatus: null,
+    complete: false,
+    retained: false,
+    timer: null,
+    onData: null,
+    onClose: null,
+  };
+  capture.onData = (chunk) => {
+    if (capture.complete || _stderrCapture !== capture || !Buffer.isBuffer(chunk)) return;
+    const length = Math.min(chunk.length, capture.prefix.length - capture.length);
+    chunk.copy(capture.prefix, capture.length, 0, length);
+    capture.length += length;
+    if (capture.length === 512 || capture.prefix.subarray(0, capture.length).includes(10))
+      _classifyStderr(capture);
+  };
+  capture.onClose = () => _classifyStderr(capture);
+  child.stderr.on('data', capture.onData);
+  child.once('close', capture.onClose);
+  return capture;
+}
+function _retainFirstFailure(reason, exitCode = _child?.exitCode, response = null) {
   if (_firstFailure || !Object.hasOwn(FAILURE_KINDS, reason)) return;
+  const capture = _stderrCapture?.child === _child ? _stderrCapture : null;
   _firstFailure = Object.freeze({
     kind: FAILURE_KINDS[reason],
     exitCode:
       Number.isInteger(exitCode) && exitCode >= -2147483648 && exitCode <= 4294967295
         ? exitCode
         : null,
-    stderrClass: _classifyStderr(),
-    nativeStatus: _stderrNativeStatus,
+    stderrClass: capture?.classification ?? 'none',
+    nativeStatus: response?.nativeStatus ?? capture?.nativeStatus ?? null,
+    responseClass: response?.responseClass ?? null,
   });
+  if (capture && !capture.complete) {
+    capture.retained = true;
+    // Diagnostic retention only: request rejection and restart timing never wait.
+    capture.timer = setTimeout(() => _classifyStderr(capture), DEFAULT_TIMEOUT_MS);
+    if (capture.timer.unref) capture.timer.unref();
+  }
 }
 
 /**
@@ -187,9 +268,10 @@ function _defaultExePath() {
  * @returns {void}
  */
 function _teardown(reason) {
-  _clearStderr();
-  _stderrClass = null;
-  _stderrNativeStatus = null;
+  const capture = _stderrCapture;
+  const retainDrain =
+    capture?.retained === true && !capture.complete && reason !== 'reset' && reason !== 'shutdown';
+  if (!retainDrain) _releaseStderr(capture, true);
   const pending = _pending;
   _pending = null;
   if (pending) {
@@ -210,6 +292,10 @@ function _teardown(reason) {
     if (child.stdout) child.stdout.removeAllListeners();
     if (child.stderr) child.stderr.removeAllListeners();
     if (child.removeAllListeners) child.removeAllListeners();
+    if (retainDrain && capture.child === child) {
+      child.stderr.on('data', capture.onData);
+      child.once('close', capture.onClose);
+    }
     if (child.stdin && child.stdin.end) child.stdin.end();
     if (child.kill) child.kill();
   } catch (_) {
@@ -314,7 +400,7 @@ function _onMessage(msg) {
   if (msg.t === 'err') {
     // The child is alive and said no. That is a provider failure for this pass,
     // not a supervision failure, so the restart budget is not touched.
-    _retainFirstFailure('sidecar error');
+    _retainFirstFailure('sidecar error', _child?.exitCode, _classifySnapshotResponse(msg));
     pending.reject(new Error('proc-snapshot: sidecar error'));
     return;
   }
@@ -358,10 +444,7 @@ function _startChild(timeoutMs) {
     return Promise.reject(new Error('proc-snapshot: spawn failed'));
   }
   _child = child;
-  _stderrPrefix = _firstFailure ? null : Buffer.alloc(512);
-  _stderrLength = 0;
-  _stderrClass = null;
-  _stderrNativeStatus = null;
+  if (!_firstFailure) _stderrCapture = _captureStderr(child);
   const decoder = createFrameDecoder();
   let stderrObserved = false;
   _installExitHook();
@@ -382,13 +465,6 @@ function _startChild(timeoutMs) {
   });
   child.stderr.on('data', (chunk) => {
     if (_child !== child) return;
-    if (!_firstFailure && _stderrPrefix && Buffer.isBuffer(chunk)) {
-      const length = Math.min(chunk.length, _stderrPrefix.length - _stderrLength);
-      chunk.copy(_stderrPrefix, _stderrLength, 0, length);
-      _stderrLength += length;
-      if (_stderrLength === 512 || _stderrPrefix.subarray(0, _stderrLength).includes(10))
-        _classifyStderr();
-    }
     if (!stderrObserved && chunk.length > 0) {
       stderrObserved = true;
       logger.debug('proc-snapshot', 'Sidecar stderr observed');
@@ -474,7 +550,7 @@ function requestSnapshot(opts = {}) {
  * Observable supervision state, for the provider chooser's health record.
  * @returns {{available: boolean, sticky: string|null, connected: boolean,
  *   caps: {class: string, sequence: boolean, topology: boolean}|null, failures: number,
- *   firstFailure: {kind:string,exitCode:number|null,stderrClass:string,nativeStatus:number|null}|null}}
+ *   firstFailure: {kind:string,exitCode:number|null,stderrClass:string,nativeStatus:number|null,responseClass:string|null}|null}}
  */
 function getState() {
   return {

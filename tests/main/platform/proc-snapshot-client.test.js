@@ -175,6 +175,8 @@ describe('platform/proc-snapshot-client', () => {
         exitCode: null,
         stderrClass: 'none',
         nativeStatus: null,
+
+        responseClass: null,
       });
     });
 
@@ -206,6 +208,8 @@ describe('platform/proc-snapshot-client', () => {
         exitCode: null,
         stderrClass: 'none',
         nativeStatus: null,
+
+        responseClass: null,
       });
       await expect(client.requestSnapshot({ timeoutMs: 20 })).rejects.toThrow(/backing off/);
       expect(spawnCalls).toHaveLength(1);
@@ -292,6 +296,217 @@ describe('platform/proc-snapshot-client', () => {
   });
 
   it.each([
+    ['SystemProcessInformation unavailable (0xC0000003)', 'query-unavailable', 3221225475],
+    ['NtQuerySystemInformation failed (0xC0000022)', 'query-failed', 3221225506],
+    ['process table exceeds 67108864 bytes', 'query-limit', null],
+    ['process table kept growing across 8 attempts', 'query-growth', null],
+    ['snapshot-entry-bounds', 'snapshot-entry-bounds', null],
+    ['snapshot-chain-limit', 'snapshot-chain-limit', null],
+    ['snapshot-negative-offset', 'snapshot-negative-offset', null],
+    ['snapshot-overlapping-offset', 'snapshot-overlapping-offset', null],
+  ])(
+    'retains the exact closed runtime response cause: %s',
+    async (detail, responseClass, nativeStatus) => {
+      const { promise, child } = await startRequest();
+      child.stdout.emit('data', encodeFrame({ t: 'err', id: 1, code: 'snapshot-failed', detail }));
+      await expect(promise).rejects.toThrow('proc-snapshot: sidecar error');
+      expect(client.getState().failures).toBe(0);
+      expect(child.killed).toBe(false);
+      const firstCause = {
+        kind: 'sidecar-error',
+        exitCode: null,
+        stderrClass: 'none',
+        nativeStatus,
+        responseClass,
+      };
+      expect(client.getState().firstFailure).toEqual(firstCause);
+      child.emit('exit', 17, null);
+      child.emit('close', 17, null);
+      expect(client.getState().firstFailure).toEqual(firstCause);
+      expect(logged()).not.toContain(detail);
+    },
+  );
+
+  it.each([
+    ['wrong-code', 'NtQuerySystemInformation failed (0xC0000022)'],
+    ['snapshot-failed', 'NtQuerySystemInformation failed (0xC000002)'],
+    ['snapshot-failed', 'NtQuerySystemInformation failed (0xC00000222)'],
+    ['snapshot-failed', 'NtQuerySystemInformation failed (0xC0000022) PRIVATE_PATH'],
+    ['snapshot-failed', 'NtQuerySystemInformation failed (0xC0000022)\n'],
+    ['snapshot-failed', 'NtQuerySystemInformation failed (0xC0000022)\r\n'],
+    ['snapshot-failed', 'PRIVATE_PATH NtQuerySystemInformation failed (0xC0000022)'],
+    ['snapshot-failed', 'snapshot-entry-bounds PRIVATE_PATH'],
+    ['snapshot-failed', 'process table exceeds 1 bytes'],
+    ['snapshot-failed', 'process table kept growing across 9 attempts'],
+    ['snapshot-failed', { message: 'snapshot-entry-bounds' }],
+    ['snapshot-failed', null],
+  ])('does not retain unknown or inexact runtime detail for %s: %j', async (code, detail) => {
+    const { promise, child } = await startRequest();
+    child.stdout.emit('data', encodeFrame({ t: 'err', id: 1, code, detail }));
+    await expect(promise).rejects.toThrow('proc-snapshot: sidecar error');
+    expect(client.getState().firstFailure).toEqual({
+      kind: 'sidecar-error',
+      exitCode: null,
+      stderrClass: 'none',
+      nativeStatus: null,
+      responseClass: null,
+    });
+    expect(JSON.stringify(client.getState())).not.toContain('PRIVATE_PATH');
+    expect(logged()).not.toContain('PRIVATE_PATH');
+  });
+
+  it('preserves the first runtime cause through another failed request and an empty drain', async () => {
+    const { promise, child } = await startRequest();
+    child.stdout.emit(
+      'data',
+      encodeFrame({
+        t: 'err',
+        id: 1,
+        code: 'snapshot-failed',
+        detail: 'NtQuerySystemInformation failed (0xC0000022)',
+      }),
+    );
+    await expect(promise).rejects.toThrow('proc-snapshot: sidecar error');
+    const later = client.requestSnapshot({ timeoutMs: 60 });
+    await flush();
+    child.stdout.emit(
+      'data',
+      encodeFrame({
+        t: 'err',
+        id: 2,
+        code: 'snapshot-failed',
+        detail: 'SystemProcessInformation unavailable (0xC0000003)',
+      }),
+    );
+    await expect(later).rejects.toThrow('proc-snapshot: sidecar error');
+    child.emit('exit', 2, null);
+    child.emit('close', 2, null);
+    expect(client.getState().firstFailure).toEqual({
+      kind: 'sidecar-error',
+      exitCode: null,
+      stderrClass: 'none',
+      nativeStatus: 3221225506,
+      responseClass: 'query-failed',
+    });
+  });
+
+  it('retains probe status arriving after exit without delaying the failed request', async () => {
+    const promise = client.requestSnapshot({ timeoutMs: 60 });
+    const child = children[0];
+    child.emit('exit', 2, null);
+    await expect(promise).rejects.toThrow(/child exited/);
+    expect(client.getState().firstFailure).toMatchObject({ kind: 'child-exit', exitCode: 2 });
+    child.stderr.emit('data', Buffer.from('probe failed: NtQuerySystemInformation failed '));
+    child.stderr.emit('data', Buffer.from('(0xC0000022)\r\n'));
+    child.emit('close', 2, null);
+    expect(client.getState().firstFailure).toEqual({
+      kind: 'child-exit',
+      exitCode: 2,
+      stderrClass: 'probe-query-failed',
+      nativeStatus: 3221225506,
+
+      responseClass: null,
+    });
+    expect(child.stderr.listenerCount('data')).toBe(0);
+    expect(child.listenerCount('close')).toBe(0);
+    expect(logged()).not.toContain('0xC0000022');
+  });
+
+  it('keeps the original child diagnostic while a replacement is already running', async () => {
+    const first = client.requestSnapshot({ timeoutMs: 60 });
+    const original = children[0];
+    original.emit('exit', 2, null);
+    await expect(first).rejects.toThrow(/child exited/);
+    clock += 1001;
+    const later = await startRequest();
+    later.child.stderr.emit(
+      'data',
+      Buffer.from('probe failed: SystemProcessInformation unavailable (0xC0000003)\n'),
+    );
+    original.stderr.emit(
+      'data',
+      Buffer.from('probe failed: NtQuerySystemInformation failed (0xC0000022)\n'),
+    );
+    original.emit('close', 2, null);
+    later.child.stdout.emit('data', encodeFrame({ t: 'snap', id: 1, source: 'class5', procs: [] }));
+    await expect(later.promise).resolves.toBeTruthy();
+    expect(client.getState().firstFailure).toEqual({
+      kind: 'child-exit',
+      exitCode: 2,
+      stderrClass: 'probe-query-failed',
+      nativeStatus: 3221225506,
+
+      responseClass: null,
+    });
+  });
+
+  it('finishes a partial first stderr line at close and discards post-close bytes', async () => {
+    const promise = client.requestSnapshot({ timeoutMs: 60 });
+    const child = children[0];
+    child.emit('exit', 2, null);
+    await expect(promise).rejects.toThrow(/child exited/);
+    child.stderr.emit(
+      'data',
+      Buffer.from('probe failed: NtQuerySystemInformation failed (0xC0000022)'),
+    );
+    child.emit('close', 2, null);
+    child.stderr.emit('data', Buffer.from('PRIVATE_POST_CLOSE\n'));
+    expect(client.getState().firstFailure.nativeStatus).toBe(3221225506);
+    expect(logged()).not.toContain('PRIVATE_POST_CLOSE');
+  });
+
+  it('drops a pending original stderr capture on reset before later bytes arrive', async () => {
+    const allocated = [];
+    const originalAlloc = Buffer.alloc;
+    vi.spyOn(Buffer, 'alloc').mockImplementation((size, ...args) => {
+      const buffer = originalAlloc(size, ...args);
+      if (size === 512) allocated.push(buffer);
+      return buffer;
+    });
+    const promise = client.requestSnapshot({ timeoutMs: 60 });
+    const child = children[0];
+    child.emit('exit', 2, null);
+    await expect(promise).rejects.toThrow(/child exited/);
+    child.stderr.emit('data', Buffer.from('PRIVATE_PARTIAL'));
+    client._resetForTest();
+    child.stderr.emit(
+      'data',
+      Buffer.from('probe failed: NtQuerySystemInformation failed (0xC0000022)\n'),
+    );
+    child.emit('close', 2, null);
+    expect(allocated).toHaveLength(1);
+    expect(allocated[0].every((byte) => byte === 0)).toBe(true);
+    expect(child.stderr.listenerCount('data')).toBe(0);
+    expect(child.listenerCount('close')).toBe(0);
+    expect(client.getState().firstFailure).toBeNull();
+  });
+
+  it('bounds a missing close event without extending request or restart deadlines', async () => {
+    vi.useFakeTimers();
+    try {
+      const promise = client.requestSnapshot({ timeoutMs: 60 });
+      const child = children[0];
+      child.emit('exit', 2, null);
+      await expect(promise).rejects.toThrow(/child exited/);
+      expect(client.getState().failures).toBe(1);
+      expect(client.DEFAULT_TIMEOUT_MS).toBe(1200);
+      await vi.advanceTimersByTimeAsync(1200);
+      expect(child.stderr.listenerCount('data')).toBe(0);
+      expect(child.listenerCount('close')).toBe(0);
+      expect(client.getState().firstFailure).toEqual({
+        kind: 'child-exit',
+        exitCode: 2,
+        stderrClass: 'none',
+        nativeStatus: null,
+
+        responseClass: null,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
     ['SystemProcessInformation unavailable (0xC0000003)', 'probe-query-unavailable', 3221225475],
     ['NtQuerySystemInformation failed (0xC0000001)', 'probe-query-failed', 3221225473],
     ['process table exceeds 67108864 bytes', 'probe-query-limit'],
@@ -320,6 +535,8 @@ describe('platform/proc-snapshot-client', () => {
         exitCode: 2,
         stderrClass: classification,
         nativeStatus,
+
+        responseClass: null,
       });
       expect(logged()).not.toContain(detail);
       expect(JSON.stringify(client.getState())).not.toContain(detail);
@@ -352,6 +569,8 @@ describe('platform/proc-snapshot-client', () => {
       exitCode: 2,
       stderrClass: 'other-stderr',
       nativeStatus: null,
+
+      responseClass: null,
     });
     history.kind = 'PRIVATE_FORGED';
     expect(client.getState().firstFailure.kind).toBe('child-exit');

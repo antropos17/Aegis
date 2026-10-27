@@ -67,7 +67,7 @@ describe('native-read scanner readiness diagnostics', () => {
       './src/main/scan-loop.js',
     ]);
     expect(diagnostic).toEqual({
-      schema: 'aegis-native-read-snapshot-diagnostic/1',
+      schema: 'aegis-native-read-snapshot-diagnostic/2',
       snapshotAvailable: true,
       clientAvailable: true,
       state: 'FAILED',
@@ -87,6 +87,7 @@ describe('native-read scanner readiness diagnostics', () => {
         exitCode: 2,
         stderrClass: 'probe-birth-mismatch',
         nativeStatus: null,
+        responseClass: null,
       },
       populationAsOf: 1700000000100,
       processLastSuccessAt: 1700000000100,
@@ -206,6 +207,37 @@ describe('native-read scanner readiness diagnostics', () => {
     expect(diagnostic.firstFailure.nativeStatus).toBe(expected);
     expect(JSON.stringify(diagnostic)).not.toContain('PRIVATE');
   });
+  it.each([
+    'query-unavailable',
+    'query-failed',
+    'query-limit',
+    'query-growth',
+    'snapshot-entry-bounds',
+    'snapshot-chain-limit',
+    'snapshot-negative-offset',
+    'snapshot-overlapping-offset',
+    'PRIVATE_UNKNOWN',
+  ])('projects only the closed runtime response class %s', (responseClass) => {
+    const diagnostic = readScannerSnapshotDiagnostic({ app: {} }, (name) => {
+      if (name.endsWith('/process-snapshot.js')) throw new Error('unavailable');
+      return {
+        getState: () => ({
+          firstFailure: {
+            kind: 'sidecar-error',
+            exitCode: null,
+            stderrClass: 'none',
+            nativeStatus: null,
+            responseClass,
+          },
+        }),
+      };
+    });
+    expect(diagnostic.firstFailure.responseClass).toBe(
+      responseClass === 'PRIVATE_UNKNOWN' ? null : responseClass,
+    );
+    expect(JSON.stringify(diagnostic)).not.toContain('PRIVATE');
+  });
+
   it('accepts only the exact actor with all three scanner conditions', () => {
     expect(projectScannerReadiness(ready(), witness)).toMatchObject({
       accepted: true,
