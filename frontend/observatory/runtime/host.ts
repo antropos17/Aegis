@@ -33,6 +33,10 @@ export interface Telemetry {
   networkAt: number | null;
   networkCurrent: boolean;
   statsAt: number | null;
+  monitoringPauseConfirmed: boolean;
+  projectCoverageCurrent: boolean;
+  projectCoverageGeneration: string | null;
+  projectCoverageState: string | null;
   scanCounters: { files: number; sensitive: number; evicted: number } | null;
   own: RecordData;
   anomalies: Record<string, number>;
@@ -107,6 +111,10 @@ export function emptyTelemetry(): Telemetry {
     networkAt: null,
     networkCurrent: false,
     statsAt: null,
+    monitoringPauseConfirmed: false,
+    projectCoverageCurrent: false,
+    projectCoverageGeneration: null,
+    projectCoverageState: null,
     scanCounters: null,
     own: {},
     anomalies: {},
@@ -239,15 +247,193 @@ export function connectHost(
       gap.state === 'RESUMED'
     );
   };
-  const applyStats = (value: unknown) => {
+  const projectHealthCurrent = (stats: RecordData): boolean => {
+    const health = record(stats.appHealth);
+    return (
+      stats.monitoringPaused === false &&
+      health.populationReliable === true &&
+      health.identityDegraded === false &&
+      record(stats.observationGap).state === 'NONE'
+    );
+  };
+  let pauseRevision = 0;
+  let pauseRequestPending = false;
+  let lastPauseRequestAt: number | null = null;
+  let pauseConfirmedUntil = 0;
+  let pauseConfirmedAt = 0;
+  let pauseConfirmedGeneration: string | null = null;
+  let pauseDeadline: ReturnType<typeof setTimeout> | null = null;
+  let pauseTrailing: ReturnType<typeof setTimeout> | null = null;
+  let pauseTrailingAt = 0;
+  const generation = (stats: RecordData): string | null =>
+    typeof stats.monitoringGeneration === 'string' &&
+    /^(0|[1-9][0-9]{0,39})$/.test(stats.monitoringGeneration)
+      ? stats.monitoringGeneration
+      : null;
+  let newestGeneration: string | null = null;
+  let newestPopulationRevision: string | null = null;
+  let projectConfirmedUntil = 0;
+  let projectConfirmedAt = 0;
+  let coverageCandidate: { generation: string; revision: string; received: number } | null = null;
+  const populationRevision = (stats: RecordData): string | null =>
+    typeof stats.monitoringPopulationRevision === 'string' &&
+    /^(0|[1-9][0-9]{0,39})$/.test(stats.monitoringPopulationRevision)
+      ? stats.monitoringPopulationRevision
+      : null;
+  const projectProofFresh = (): boolean => {
+    const now = performance.now();
+    return projectConfirmedUntil > 0 && now >= projectConfirmedAt && now < projectConfirmedUntil;
+  };
+  const projectState = (stats: RecordData): string | null => {
+    const value = record(record(stats.appHealth).watchPlan).projectState;
+    return typeof value === 'string' &&
+      ['observed', 'not-observed', 'starting', 'unavailable', 'unknown'].includes(value)
+      ? value
+      : null;
+  };
+  const generationIsOlder = (value: string): boolean =>
+    newestGeneration !== null &&
+    (value.length < newestGeneration.length ||
+      (value.length === newestGeneration.length && value < newestGeneration));
+  const observeGeneration = (value: string | null): boolean => {
+    if (value === null || generationIsOlder(value)) return false;
+    newestGeneration = value;
+    return true;
+  };
+  const applyStats = (value: unknown): boolean => {
     const stats = record(value);
+    pauseRevision++;
+    const statsGeneration = generation(stats);
+    if (statsGeneration !== null && generationIsOlder(statsGeneration)) return false;
+    observeGeneration(statsGeneration);
+    if (stats.monitoringPaused !== true || generation(stats) !== pauseConfirmedGeneration)
+      pauseConfirmedUntil = 0;
     update({
       stats,
+      monitoringPauseConfirmed:
+        stats.monitoringPaused === true &&
+        generation(stats) !== null &&
+        generation(stats) === pauseConfirmedGeneration &&
+        state.monitoringPauseConfirmed,
+      projectCoverageCurrent:
+        projectHealthCurrent(stats) &&
+        generation(stats) !== null &&
+        generation(stats) === state.projectCoverageGeneration &&
+        stats.monitoringPopulationReady === true &&
+        projectProofFresh() &&
+        projectState(stats) !== null &&
+        projectState(stats) === state.projectCoverageState &&
+        state.projectCoverageCurrent,
       statsAt: Date.now(),
       stale:
+        state.stale ||
         healthStale(stats) ||
         (state.lastScan !== null && Date.now() - state.lastScan > freshnessLimit()),
     });
+    return true;
+  };
+  // get-stats is evaluated by main for each request. Limit the request lifetime and
+  // retain at most one outstanding invocation even if the bridge stops responding.
+  const confirmPause = (urgent = false): void => {
+    if (!alive || pauseRequestPending) return;
+    const started = performance.now();
+    const minimum = urgent ? 2000 : 20000;
+    if (
+      lastPauseRequestAt !== null &&
+      started >= lastPauseRequestAt &&
+      started - lastPauseRequestAt < minimum
+    ) {
+      const deadline = lastPauseRequestAt + minimum;
+      if (pauseTrailing === null || deadline < pauseTrailingAt) {
+        if (pauseTrailing !== null) clearTimeout(pauseTrailing);
+        pauseTrailingAt = deadline;
+        pauseTrailing = setTimeout(() => {
+          pauseTrailing = null;
+          pauseTrailingAt = 0;
+          confirmPause(urgent);
+        }, deadline - started);
+      }
+      return;
+    }
+    if (lastPauseRequestAt !== null && started < lastPauseRequestAt) {
+      update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+      return;
+    }
+    lastPauseRequestAt = started;
+    pauseRequestPending = true;
+    const revision = pauseRevision;
+    let expired = false;
+    pauseDeadline = setTimeout(() => {
+      expired = true;
+      pauseConfirmedUntil = 0;
+      update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+    }, 5000);
+    invoke(host, 'getStats')
+      .then((value) => {
+        if (!alive || expired) return;
+        const elapsed = performance.now() - started;
+        if (elapsed < 0 || elapsed >= 5000) {
+          pauseConfirmedUntil = 0;
+          update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+          return;
+        }
+        if (revision !== pauseRevision) {
+          update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+          return;
+        }
+        const fresh = record(value);
+        const paused = fresh.monitoringPaused;
+        const liveHealth = record(fresh.appHealth);
+        const liveGap = record(fresh.observationGap).state;
+        if (
+          typeof paused !== 'boolean' ||
+          !observeGeneration(generation(fresh)) ||
+          typeof liveHealth.populationReliable !== 'boolean' ||
+          typeof liveHealth.identityDegraded !== 'boolean' ||
+          typeof liveGap !== 'string' ||
+          !['NONE', 'SUSPENDED', 'RESUMED'].includes(liveGap)
+        ) {
+          pauseConfirmedUntil = 0;
+          update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+          return;
+        }
+        const age = fresh.monitoringPopulationAgeMs;
+        const validAge = typeof age === 'number' && Number.isFinite(age) && age >= 0;
+        const budget = validAge ? freshnessLimit() - age - elapsed : 0;
+        const stateFromMain = projectState(fresh);
+        projectConfirmedAt = performance.now();
+        projectConfirmedUntil = budget > 0 ? projectConfirmedAt + Math.min(30000, budget) : 0;
+        pauseConfirmedAt = started;
+        pauseConfirmedUntil = paused ? started + 30000 : 0;
+        pauseConfirmedGeneration = paused ? generation(fresh) : null;
+        update({
+          monitoringPauseConfirmed: paused,
+          stale: paused || state.stale || state.stats.monitoringPaused === true,
+          projectCoverageCurrent:
+            !paused &&
+            projectHealthCurrent(fresh) &&
+            fresh.monitoringPopulationReady === true &&
+            coverageCandidate !== null &&
+            generation(fresh) === coverageCandidate.generation &&
+            populationRevision(fresh) === coverageCandidate.revision &&
+            stateFromMain !== null &&
+            projectProofFresh(),
+          projectCoverageState: stateFromMain,
+          stats: { ...state.stats, monitoringPaused: paused },
+        });
+      })
+      .catch(() => {
+        if (alive) {
+          pauseConfirmedUntil = 0;
+          update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+        }
+      })
+      .finally(() => {
+        if (pauseDeadline !== null) clearTimeout(pauseDeadline);
+        pauseDeadline = null;
+        pauseRequestPending = false;
+        if (alive && revision !== pauseRevision) confirmPause(true);
+      });
   };
   const refreshFalsePositives = async (): Promise<void> => {
     const ticket = (revisions.get('fp') ?? 0) + 1;
@@ -277,11 +463,34 @@ export function connectHost(
   }
   subscribe('onScanBatch', (value) => {
     const batch = record(value);
+    const previouslyCurrent = state.projectCoverageCurrent && projectProofFresh();
+    const previousGeneration = state.projectCoverageGeneration;
+    const incomingStats = record(batch.stats);
+    const incomingRevision = populationRevision(incomingStats);
+    if (
+      batch.populationCurrent === true &&
+      incomingRevision !== null &&
+      newestPopulationRevision !== null &&
+      (incomingRevision.length < newestPopulationRevision.length ||
+        (incomingRevision.length === newestPopulationRevision.length &&
+          incomingRevision <= newestPopulationRevision))
+    )
+      return;
     // A stats push and a scan batch supersede the same seed request.
     revisions.set('onStatsUpdate', (revisions.get('onStatsUpdate') ?? 0) + 1);
-    if (batch.stats) applyStats(batch.stats);
-    const reliable = !healthStale(state.stats);
+    if (batch.stats) {
+      if (!applyStats(batch.stats)) return;
+      if (record(batch.stats).monitoringPaused === true) confirmPause(true);
+    }
+    const batchStats = record(batch.stats);
+    const reliable = !healthStale(batchStats);
+    if (!batch.stats || !Object.keys(batchStats).length) {
+      pauseConfirmedUntil = 0;
+      pauseRevision++;
+      update({ stale: true, monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+    }
     const patch: Partial<Telemetry> = {};
+    if (!Array.isArray(batch.agents) || !reliable) coverageCandidate = null;
     if (Array.isArray(batch.agents) && reliable) {
       // Only a reliable population can bind a new schedule to its receipt time.
       // Warmup and the transition to steady polling have longer planned gaps.
@@ -290,6 +499,23 @@ export function connectHost(
       patch.agents = batch.agents as DetectedAgent[];
       patch.ready = true;
       patch.stale = false;
+      patch.projectCoverageGeneration = generation(batchStats);
+      const revision = populationRevision(batchStats);
+      coverageCandidate =
+        batch.populationCurrent === true &&
+        batchStats.monitoringPopulationReady === true &&
+        projectHealthCurrent(batchStats) &&
+        patch.projectCoverageGeneration !== null &&
+        revision !== null
+          ? { generation: patch.projectCoverageGeneration, revision, received: performance.now() }
+          : null;
+      if (coverageCandidate) newestPopulationRevision = coverageCandidate.revision;
+      patch.projectCoverageCurrent =
+        previouslyCurrent &&
+        coverageCandidate !== null &&
+        coverageCandidate.generation === previousGeneration &&
+        projectState(batchStats) !== null &&
+        projectState(batchStats) === state.projectCoverageState;
       patch.lastScan = Date.now();
       patch.scanCounters = {
         files: state.events.length + state.evicted,
@@ -307,8 +533,13 @@ export function connectHost(
     if (batch.anomalyScoresByInstance && reliable)
       patch.anomalies = record(batch.anomalyScoresByInstance) as Record<string, number>;
     update(patch);
+    if (coverageCandidate !== null && reliable && !patch.projectCoverageCurrent) confirmPause(true);
   });
-  subscribe('onStatsUpdate', applyStats);
+  subscribe('onStatsUpdate', (value) => {
+    const previousPause = state.stats.monitoringPaused;
+    applyStats(value);
+    if (record(value).monitoringPaused !== previousPause) confirmPause(true);
+  });
   subscribe('onFileAccess', (value) => {
     const incoming = (Array.isArray(value) ? value : [value]) as FileEvent[];
     const result = appendWithRetention(state.events, incoming, EVENTS_CAPACITY, fileEventRetain);
@@ -359,7 +590,10 @@ export function connectHost(
         }
       });
   };
-  seed('getStats', 'onStatsUpdate', applyStats);
+  seed('getStats', 'onStatsUpdate', (value) => {
+    applyStats(value);
+    if (record(value).monitoringPaused === true) confirmPause(true);
+  });
   seed('getResourceUsage', 'own', (value) => update({ own: record(value), ownAt: Date.now() }));
   seed(
     'getFalsePositives',
@@ -370,6 +604,15 @@ export function connectHost(
   );
   if (host.getSettings) seed('getSettings', 'settings', applySettings);
   const watchdog = setInterval(() => {
+    if (state.projectCoverageCurrent && !projectProofFresh())
+      update({ projectCoverageCurrent: false });
+    if (
+      state.monitoringPauseConfirmed &&
+      (performance.now() < pauseConfirmedAt || performance.now() >= pauseConfirmedUntil)
+    ) {
+      pauseConfirmedUntil = 0;
+      update({ monitoringPauseConfirmed: false, projectCoverageCurrent: false });
+    }
     if (state.lastScan !== null && !state.stale && Date.now() - state.lastScan > freshnessLimit()) {
       update({
         stale: true,
@@ -378,10 +621,14 @@ export function connectHost(
       });
     }
   }, 1000);
+  const pausePoll = setInterval(confirmPause, 20000);
   return Object.assign(
     () => {
       alive = false;
       clearInterval(watchdog);
+      clearInterval(pausePoll);
+      if (pauseDeadline !== null) clearTimeout(pauseDeadline);
+      if (pauseTrailing !== null) clearTimeout(pauseTrailing);
       for (const cleanup of cleanups) cleanup();
     },
     { refreshFalsePositives, applySettings },

@@ -8,6 +8,9 @@ export function coverageFixture(platform: 'linux' | 'darwin' | 'windows' = 'linu
     ...emptyTelemetry(),
     ready: true,
     stale: false,
+    projectCoverageCurrent: true,
+    projectCoverageGeneration: '0',
+    projectCoverageState: 'unknown',
     agents: [
       {
         agent: 'Synthetic Codex',
@@ -20,6 +23,12 @@ export function coverageFixture(platform: 'linux' | 'darwin' | 'windows' = 'linu
       },
     ],
     stats: {
+      monitoringPaused: false,
+      monitoringGeneration: '0',
+      monitoringPopulationRevision: '0',
+      monitoringPopulationReady: true,
+      monitoringPopulationAgeMs: 0,
+      observationGap: { state: 'NONE' },
       appHealth: {
         state: 'DEGRADED',
         populationReliable: true,

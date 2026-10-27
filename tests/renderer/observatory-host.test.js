@@ -12,6 +12,7 @@ import { validateCatalog } from '../../frontend/observatory/runtime/catalog';
 import { networkSnapshotStatus } from '../../frontend/observatory/runtime/network-coverage';
 
 const healthy = {
+  monitoringPaused: false,
   appHealth: { populationReliable: true, populationState: 'HEALTHY', identityDegraded: false },
   observationGap: { state: 'NONE' },
 };
