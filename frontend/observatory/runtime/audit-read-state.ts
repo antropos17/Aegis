@@ -20,6 +20,42 @@ const isRecord = (value: unknown): value is RecordData =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const measurement = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+// A non-enumerable symbol remains accessible through Svelte state proxies without
+// exposing the locator to metadata rendering or serialized audit rows.
+const AUDIT_LOOKUP = Symbol('audit-lookup');
+const lookupOf = (row: RecordData): string | undefined => Reflect.get(row, AUDIT_LOOKUP);
+const rememberLookup = (row: RecordData, id: string): void => {
+  Object.defineProperty(row, AUDIT_LOOKUP, { value: id, enumerable: false });
+};
+
+function fileAuditLookup(row: RecordData): RecordData {
+  const copy = { ...row };
+  // Only the current main-process custody projection supplies this locator.
+  delete copy.eventId;
+  if (typeof copy.auditLookupId === 'string' && UUID.test(copy.auditLookupId)) {
+    rememberLookup(copy, copy.auditLookupId);
+    copy.eventId = copy.auditLookupId;
+  }
+  delete copy.auditLookupId;
+  return copy;
+}
+
+function withoutAmbiguousLookups(rows: RecordData[]): RecordData[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const id = lookupOf(row);
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return rows.map((row) => {
+    const id = lookupOf(row);
+    if (!id || (counts.get(id) ?? 0) < 2) return row;
+    const copy = { ...row };
+    delete copy.eventId;
+    rememberLookup(copy, id);
+    return copy;
+  });
+}
 
 /** Create an unobserved history snapshot. @param before Initial cursor @returns Snapshot @since 0.17.0 */
 export function emptyAuditPage(before: string): AuditPage {
@@ -52,7 +88,9 @@ export function admitAuditPage(value: unknown): RecordData[] {
           ]),
           ...row,
         }
-      : row,
+      : ['file-access', 'config-access'].includes(String(row.type))
+        ? fileAuditLookup(row)
+        : row,
   );
 }
 
@@ -77,7 +115,7 @@ export function advanceAuditPage(
     : 0;
   return {
     loaded: true,
-    rows: request.reset ? incoming : [...incoming, ...previous.rows],
+    rows: withoutAmbiguousLookups(request.reset ? incoming : [...incoming, ...previous.rows]),
     cursor: oldest ?? (request.reset ? request.before : previous.cursor),
     boundaryOffset: oldest
       ? boundaryCount + (!request.reset && oldest === request.before ? request.boundaryOffset : 0)

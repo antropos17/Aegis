@@ -579,12 +579,35 @@ ${findingsHtml}${recsHtml}
   ipcMain.handle('get-audit-entries-before', (event, beforeTs, limit, types, boundaryOffset) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
       return { success: false, error: 'Renderer request denied' };
-    return audit.getEntriesBefore(
+    const rows = audit.getEntriesBefore(
       beforeTs,
       limit,
       types,
       ...(boundaryOffset === undefined ? [] : [boundaryOffset]),
     );
+    if (!Array.isArray(rows)) return rows;
+    return rows.map((row) => {
+      if (!row || !['file-access', 'config-access'].includes(row.type)) return row;
+      const projected = { ...row };
+      // Historical JSON is not authority to select a live event on its own.
+      delete projected.eventId;
+      delete projected.auditLookupId;
+      if (row.details && typeof row.details === 'object' && !Array.isArray(row.details)) {
+        projected.details = { ...row.details };
+        delete projected.details.auditIdentity;
+      }
+      try {
+        const token = deps.auditToolContextLookup?.(row);
+        if (
+          typeof token === 'string' &&
+          /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(token)
+        )
+          projected.auditLookupId = token;
+      } catch {
+        // Unavailable custody never prevents history from being read.
+      }
+      return projected;
+    });
   });
   ipcMain.handle('open-audit-log-dir', async (event) => {
     const window = deps.getWindow?.();

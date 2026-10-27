@@ -1122,6 +1122,57 @@ describe('ipc-handlers', () => {
     });
   });
 
+  it('projects audit lookups only from main-owned live custody and hides stored identity metadata', () => {
+    const token = 'aaaaaaaa-1234-4234-9234-123456789abc';
+    const storedId = 'bbbbbbbb-1234-4234-9234-123456789abc';
+    const first = {
+      type: 'file-access',
+      eventId: storedId,
+      auditLookupId: storedId,
+      details: {
+        auditIdentity: { eventId: storedId, epoch: storedId, token: storedId },
+        kept: 'value',
+      },
+    };
+    const legacy = {
+      type: 'config-access',
+      eventId: storedId,
+      auditLookupId: storedId,
+      details: null,
+    };
+    const network = { type: 'network-connection', action: 'observe' };
+    mockAudit.getEntriesBefore.mockReturnValueOnce([first, legacy, network]);
+    const lookup = vi.fn((row) => (row === first ? token : null));
+    const { event } = registerOwnedRenderer({ auditToolContextLookup: lookup });
+    const result = getHandler('get-audit-entries-before')(event, 'cursor', 3, []);
+    expect(result).toEqual([
+      { type: 'file-access', auditLookupId: token, details: { kept: 'value' } },
+      { type: 'config-access', details: null },
+      network,
+    ]);
+    expect(lookup).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(result)).not.toContain(storedId);
+    expect(first.details.auditIdentity.eventId).toBe(storedId);
+  });
+
+  it('keeps audit history readable when live custody is unavailable or throws', () => {
+    const file = {
+      type: 'file-access',
+      path: 'existing-path',
+      eventId: 'forged',
+      details: { auditIdentity: { eventId: 'invalid' }, retained: true },
+    };
+    mockAudit.getEntriesBefore.mockReturnValueOnce([file]);
+    const { event } = registerOwnedRenderer({
+      auditToolContextLookup: () => {
+        throw Error('offline');
+      },
+    });
+    expect(getHandler('get-audit-entries-before')(event, 'cursor', 1, [])).toEqual([
+      { type: 'file-access', path: 'existing-path', details: { retained: true } },
+    ]);
+  });
+
   it('withholds an integrity result if the renderer is replaced during the check', async () => {
     const { event, contents, frame } = registerOwnedRenderer();
     const pending = getHandler('audit:review-integrity')(event, '2026-10-27');

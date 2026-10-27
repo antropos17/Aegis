@@ -75,6 +75,21 @@ cleared after parsing; this is not secure erasure of JavaScript strings or OS ca
 An incomplete tail stays partial. Unknown, expired or restarted-process selections
 return an explicit unavailable result without modifying the observed event.
 
+File audit rows can offer the same on-demand explanation while their exact
+observation remains in live custody. Before sensitive admission and dedup, the
+main process associates each valid observation UUID with a random per-process
+UUID epoch and a separate UUID lookup token. The token uses the epoch's first
+four UUID groups and a strictly increasing 48-bit final group, starting at one;
+it stops issuing tokens at `ffffffffffff` rather than wrapping. These identifiers
+are locators, not authentication or proof against same-account tampering. Duplicate
+observation UUIDs revoke the retained lookup while known; bounded eviction can
+remove old sightings, but a reappearance receives a different token. The audit
+reader only exposes a lookup when UUID, epoch, token and the retained file metadata
+match. It suppresses duplicated lookups across currently loaded pages. Restarted,
+legacy, expired, evicted, malformed and unaccepted observations remain unavailable;
+an in-flight explanation is discarded if its custody changes before completion.
+The separately generated security-pipeline `deliveryId` remains unchanged.
+
 W4.2's application path is distinct from W4.3 association qualification and W4.4
 the installed genuine-agent end-to-end acceptance. Fixtures and an Electron
 integration journey must be reported as such; they do not qualify native reads,

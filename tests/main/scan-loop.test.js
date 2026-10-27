@@ -442,6 +442,76 @@ describe('scan-loop', () => {
   // ── dedupFileEvent (F-E03: instanceId-scoped, not display-name) ──
 
   describe('dedupFileEvent', () => {
+    it('admits sensitive identities before dedup and revokes a duplicated UUID', async () => {
+      const { createLiveToolContext } = require_('../../src/main/live-tool-context');
+      const live = createLiveToolContext({ getAgents: () => [], now: Date.now });
+      const push = vi.fn();
+      scanLoop.init(makeDeps({ securityEvents: { push }, prepareFileObservation: live.prepare }));
+      const first = {
+        eventId: 'aaaaaaaa-1111-4111-8111-111111111111',
+        agent: 'Claude Code',
+        instanceId: '42:1',
+        pid: 42,
+        timestamp: Date.now(),
+        file: path.resolve(os.tmpdir(), 'sensitive-fixture'),
+        action: 'read',
+        sensitive: true,
+      };
+      expect(scanLoop.dedupFileEvent(first)).toBe(first);
+      live.record(first);
+      const initial = push.mock.calls[0][0];
+      const row = {
+        type: initial.type,
+        pid: initial.details.pid,
+        instanceId: initial.details.instanceId,
+        action: initial.details.action,
+        path: initial.details.path,
+        details: { auditIdentity: initial.details.auditIdentity },
+      };
+      const token = live.auditLookup(row);
+      expect(token).toBeTypeOf('string');
+      const duplicate = { ...first, eventId: first.eventId.toUpperCase() };
+      expect(scanLoop.dedupFileEvent(duplicate)).toBeNull();
+      expect(push).toHaveBeenCalledTimes(2);
+      expect(push.mock.calls[1][0].details.auditIdentity.eventId).toBe(first.eventId);
+      expect(live.auditLookup(row)).toBeNull();
+      expect((await live.explain(token)).toolContext.reasons).toContain('context-unavailable');
+    });
+
+    it('gives identical sensitive observations distinct IDs before one is deduped', () => {
+      const { createLiveToolContext } = require_('../../src/main/live-tool-context');
+      const live = createLiveToolContext({ getAgents: () => [], now: Date.now });
+      const push = vi.fn();
+      scanLoop.init(makeDeps({ securityEvents: { push }, prepareFileObservation: live.prepare }));
+      const first = {
+        agent: 'Claude Code',
+        instanceId: '42:1',
+        pid: 42,
+        timestamp: Date.now(),
+        file: path.resolve(os.tmpdir(), 'sensitive-fixture'),
+        action: 'read',
+        sensitive: true,
+      };
+      const second = { ...first };
+      expect(scanLoop.dedupFileEvent(first)).toBe(first);
+      live.record(first);
+      expect(scanLoop.dedupFileEvent(second)).toBeNull();
+      expect(push).toHaveBeenCalledTimes(2);
+      const ids = push.mock.calls.map(([record]) => record.details.auditIdentity.eventId);
+      expect(ids[0]).not.toBe(ids[1]);
+      expect(ids).toEqual([first.eventId, second.eventId]);
+      const rows = push.mock.calls.map(([record]) => ({
+        type: record.type,
+        pid: record.details.pid,
+        instanceId: record.details.instanceId,
+        action: record.details.action,
+        path: record.details.path,
+        details: { auditIdentity: record.details.auditIdentity },
+      }));
+      expect(live.auditLookup(rows[0])).toBeTypeOf('string');
+      expect(live.auditLookup(rows[1])).toBeNull();
+    });
+
     it('passes through first event for a stamped instance', () => {
       const ev = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       const result = scanLoop.dedupFileEvent(ev);

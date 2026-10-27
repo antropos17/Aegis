@@ -7,7 +7,10 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { execFileSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
-const { createLiveToolContext } = require('../../src/main/live-tool-context');
+const {
+  createLiveToolContext,
+  createAuditTokenIssuer,
+} = require('../../src/main/live-tool-context');
 const {
   createHeldOwner,
   prepareActorSettings,
@@ -509,6 +512,170 @@ it('explains a retained observation from a real local transcript without exposin
   for (const raw of [secret, cwd, sessionId, 'call-1', '.env'])
     expect(JSON.stringify(result)).not.toContain(raw);
   expect(result.toolContext.reasons).toContain('clock-skew-assumed-local');
+});
+
+function auditRowFor(event) {
+  return {
+    type: 'file-access',
+    pid: event.pid,
+    instanceId: event.instanceId,
+    action: event.action,
+    path: event.file,
+    details: { auditIdentity: event.auditIdentity },
+  };
+}
+
+function auditEvent(id = 'aaaaaaaa-1234-4234-9234-123456789abc') {
+  return {
+    eventId: id,
+    pid: 42,
+    instanceId: `42:${start}`,
+    timestamp: start + 1500,
+    file: path.join(cwd, '.env'),
+    action: 'read',
+  };
+}
+
+it('joins only the exact live audit tuple and returns no private context fields', async () => {
+  const event = auditEvent();
+  service.prepare(event);
+  service.record(event);
+  const row = auditRowFor(event);
+  const token = service.auditLookup(row);
+  expect(token).toBe(event.auditIdentity.token);
+  expect(token).not.toBe(event.eventId);
+  expect(Object.keys(event)).not.toContain('auditIdentity');
+  expect(service.auditLookup({ ...row, path: path.join(cwd, 'other') })).toBeNull();
+  expect(service.auditLookup({ ...row, pid: 43 })).toBeNull();
+  expect(service.auditLookup({ ...row, type: 'network-connection' })).toBeNull();
+  const result = await service.explain(token);
+  expect(result.toolContext.strength).toBe('inferred');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  for (const raw of [secret, cwd, event.eventId, event.auditIdentity.epoch, token])
+    expect(JSON.stringify(result)).not.toContain(raw);
+});
+
+it('revokes both live and audit lookup when the same UUID is observed again before dedup', async () => {
+  const event = auditEvent();
+  service.prepare(event);
+  service.record(event);
+  const row = auditRowFor(event);
+  const token = service.auditLookup(row);
+  const duplicate = auditEvent(event.eventId.toUpperCase());
+  service.prepare(duplicate);
+  expect(service.auditLookup(row)).toBeNull();
+  expect(service.auditLookup(auditRowFor(duplicate))).toBeNull();
+  expect((await service.explain(token)).toolContext.reasons).toContain('context-unavailable');
+  expect((await service.explain(event.eventId)).toolContext.reasons).toContain(
+    'context-unavailable',
+  );
+});
+
+it('discards an in-flight explanation if duplicate ingress revokes its custody', async () => {
+  let finish;
+  const guarded = createLiveToolContext({
+    home,
+    getAgents: () => agents,
+    now: () => start + 3000,
+    observeProcesses: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  const event = auditEvent();
+  guarded.prepare(event);
+  guarded.record(event);
+  const token = guarded.auditLookup(auditRowFor(event));
+  const pending = guarded.explain(token);
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  guarded.prepare(auditEvent(event.eventId));
+  finish(null);
+  const result = await pending;
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.reasons).toContain('context-unavailable');
+});
+
+it('discards an in-flight explanation if its custody expires while the source is read', async () => {
+  let finish;
+  let instant = start + 3000;
+  const guarded = createLiveToolContext({
+    home,
+    getAgents: () => agents,
+    now: () => instant,
+    observeProcesses: () => new Promise((resolve) => { finish = resolve; }),
+  });
+  const event = auditEvent();
+  guarded.prepare(event);
+  guarded.record(event);
+  const token = guarded.auditLookup(auditRowFor(event));
+  const pending = guarded.explain(token);
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  instant += 15 * 60 * 1000 + 1;
+  finish(null);
+  const result = await pending;
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.reasons).toContain('context-unavailable');
+});
+
+it('expires and does not resurrect audit locators across eviction or process restart', async () => {
+  let instant = start + 3000;
+  const make = () =>
+    createLiveToolContext({
+      home,
+      getAgents: () => agents,
+      now: () => instant,
+      observeProcesses: async () => null,
+    });
+  const first = make();
+  const event = auditEvent();
+  first.prepare(event);
+  first.record(event);
+  const row = auditRowFor(event);
+  const oldToken = first.auditLookup(row);
+  expect(oldToken).toBeTypeOf('string');
+  const restarted = make();
+  const same = auditEvent(event.eventId);
+  restarted.prepare(same);
+  restarted.record(same);
+  expect(restarted.auditLookup(row)).toBeNull();
+  expect((await restarted.explain(oldToken)).availability).toBe('unavailable');
+  instant += 15 * 60 * 1000 + 1;
+  expect(first.auditLookup(row)).toBeNull();
+  expect((await first.explain(oldToken)).availability).toBe('unavailable');
+});
+
+it('never reuses a locator after bounded eviction even if the original UUID reappears', () => {
+  const limited = createLiveToolContext({
+    home,
+    getAgents: () => agents,
+    now: () => start + 3000,
+    observeProcesses: async () => null,
+  });
+  const first = auditEvent('00000000-0000-4000-8000-000000000001');
+  limited.prepare(first);
+  limited.record(first);
+  const oldRow = auditRowFor(first);
+  const oldToken = limited.auditLookup(oldRow);
+  for (let i = 2; i <= 257; i++) {
+    const item = auditEvent(`00000000-0000-4000-8000-${i.toString(16).padStart(12, '0')}`);
+    limited.prepare(item);
+    limited.record(item);
+  }
+  expect(limited.auditLookup(oldRow)).toBeNull();
+  const replacement = auditEvent(first.eventId);
+  limited.prepare(replacement);
+  limited.record(replacement);
+  expect(limited.auditLookup(auditRowFor(replacement))).not.toBe(oldToken);
+  expect(limited.auditLookup(oldRow)).toBeNull();
+});
+
+it('uses a UUID epoch prefix and stops the 48-bit counter instead of wrapping', () => {
+  const epoch = '12345678-1234-4234-9234-123456789abc';
+  const next = createAuditTokenIssuer(epoch, 0xfffffffffffe);
+  expect(next()).toBe('12345678-1234-4234-9234-ffffffffffff');
+  expect(next()).toBeNull();
+  expect(next()).toBeNull();
+  expect(() => createAuditTokenIssuer(epoch, 0x1000000000000)).toThrow('audit-token-unavailable');
 });
 
 it('confirms session ownership from matching live Windows birth, cwd and explicit launch selector without confirming the clock assumption', async () => {
