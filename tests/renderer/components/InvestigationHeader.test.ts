@@ -409,6 +409,59 @@ it('retains a stop reply when its selected process has departed during the reque
   expect(screen.getByRole('button', { name: 'Stop…' })).toBeDisabled();
 });
 
+it.each([
+  ['Pause process', 'suspendProcess', 'pause'],
+  ['Resume process', 'resumeProcess', 'resume'],
+] as const)(
+  'focuses the %s outcome when the selected process departs during the request',
+  async (label, method, outcome) => {
+    const props = input(worker.instanceId);
+    let complete!: (_value: { success: boolean }) => void;
+    props.calls[method].mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const mounted = render(DetailControls, {
+      row: worker,
+      host: props.host,
+      telemetry: props.telemetry,
+      simple: true,
+    });
+    const button = screen.getByRole('button', { name: label });
+    button.focus();
+    await fireEvent.click(button);
+    await mounted.rerender({ telemetry: { ...props.telemetry, agents: [] } });
+    await act(() => complete({ success: true }));
+    const result = await screen.findByText(
+      `The ${outcome} request reported success. Its lasting effect was not verified.`,
+    );
+    await waitFor(() => expect(result.parentElement).toHaveFocus());
+    expect(button).toBeDisabled();
+  },
+);
+
+it('does not reclaim focus when the user moves to another control during a request', async () => {
+  const props = input(worker.instanceId);
+  let complete!: (_value: { success: boolean }) => void;
+  props.calls.suspendProcess.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(InvestigationHeader, props);
+  const pause = screen.getByRole('button', { name: 'Pause process' });
+  pause.focus();
+  await fireEvent.click(pause);
+  const selector = screen.getByRole('combobox', { name: 'Worker process' });
+  selector.focus();
+  await act(() => complete({ success: true }));
+  await screen.findByText(/pause request reported success/);
+  expect(selector).toHaveFocus();
+});
+
 it('drops an in-flight result for a replaced generation with the same instance ID', async () => {
   const props = input(worker.instanceId);
   let complete!: (_value: { success: boolean }) => void;

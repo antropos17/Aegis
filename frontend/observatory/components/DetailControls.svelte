@@ -41,7 +41,9 @@
   let feedback = $state<Feedback | null>(null);
   let stopButton = $state<HTMLButtonElement>();
   let confirmation = $state<HTMLDivElement>();
-  let resultNode = $state<HTMLDivElement>();
+  let suspendResultNode = $state<HTMLDivElement>();
+  let resumeResultNode = $state<HTMLDivElement>();
+  let stopResultNode = $state<HTMLDivElement>();
   let selectionVersion = 0;
   let requestVersion = 0;
   let selectionKey = '';
@@ -188,11 +190,20 @@
         restoreFocus &&
         version === selectionVersion &&
         request === requestVersion &&
-        document.activeElement === document.body
+        (document.activeElement === document.body ||
+          (document.activeElement === button && button.disabled))
       ) {
         if (button.isConnected && !button.disabled) button.focus({ preventScroll: true });
         else if (stopButton && !stopButton.disabled) stopButton.focus({ preventScroll: true });
-        else resultNode?.focus({ preventScroll: true });
+        else {
+          const resultNode =
+            method === 'suspendProcess'
+              ? suspendResultNode
+              : method === 'resumeProcess'
+                ? resumeResultNode
+                : stopResultNode;
+          resultNode?.focus({ preventScroll: true });
+        }
       }
     }
   }
@@ -227,7 +238,12 @@
         onclick={(event) => processAction(event, 'suspendProcess')}
         ><Icon name="pause" />{$t(simple ? 'Pause process' : 'Suspend')}</button
       >
-      <div class="action-feedback" id={`${feedbackId}-suspend`}>
+      <div
+        class="action-feedback"
+        id={`${feedbackId}-suspend`}
+        tabindex="-1"
+        bind:this={suspendResultNode}
+      >
         {#if feedback?.method === 'suspendProcess'}<span
             role={feedback.state === 'error' ? 'alert' : 'status'}
             class:error={feedback.state === 'error'}>{feedbackText}</span
@@ -243,7 +259,12 @@
         onclick={(event) => processAction(event, 'resumeProcess')}
         ><Icon name="play" />{$t(simple ? 'Resume process' : 'Resume')}</button
       >
-      <div class="action-feedback" id={`${feedbackId}-resume`}>
+      <div
+        class="action-feedback"
+        id={`${feedbackId}-resume`}
+        tabindex="-1"
+        bind:this={resumeResultNode}
+      >
         {#if feedback?.method === 'resumeProcess'}<span
             role={feedback.state === 'error' ? 'alert' : 'status'}
             class:error={feedback.state === 'error'}>{feedbackText}</span
@@ -259,7 +280,12 @@
         onclick={() => prepareStop(String(row.instanceId))}
         ><Icon name="stop" />{$t('Stop…')}</button
       >
-      <div class="action-feedback" id={`${feedbackId}-stop`} tabindex="-1" bind:this={resultNode}>
+      <div
+        class="action-feedback"
+        id={`${feedbackId}-stop`}
+        tabindex="-1"
+        bind:this={stopResultNode}
+      >
         {#if feedback?.method === 'killProcess'}<span
             role={feedback.state === 'error' ? 'alert' : 'status'}
             class:error={feedback.state === 'error'}>{feedbackText}</span
