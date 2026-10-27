@@ -28,6 +28,9 @@ const keys = (value, expected) =>
 const validToolInput = (value) =>
   object(value) && typeof value.command === 'string' && value.command.length > 0;
 
+/** Validate the exact selected Gemini policy shape.
+ * @param {unknown} value Parsed policy candidate.
+ * @returns {boolean} Whether the adapter supports the policy. @since v0.21.0 */
 function validPolicy(value) {
   if (
     !keys(value, ['schemaVersion', 'provider', 'hook', 'cwd', 'tool', 'deny']) ||
@@ -144,6 +147,7 @@ function _resetForTest() {
 
 module.exports = {
   evaluateGeminiBeforeTool,
+  validGeminiPolicy: validPolicy,
   handleGeminiBeforeToolHook,
   LIMITS,
   _setDepsForTest,

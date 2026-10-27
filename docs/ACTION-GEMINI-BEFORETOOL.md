@@ -3,7 +3,7 @@
 This adapter evaluates one Gemini CLI `BeforeTool` request for the built-in
 `run_shell_command` tool. An exact policy match emits `{"decision":"deny","reason":"AEGIS policy does not allow this tool request."}`
 with exit code 0. A valid request without a matching rule emits `{}`: it grants
-no AEGIS permission. This is a manual, provider-scoped hook, not an AEGIS
+no AEGIS permission. This is a provider-scoped hook, not an AEGIS
 execution barrier.
 
 For general shell restrictions, start with Gemini CLI's
@@ -13,6 +13,19 @@ This hook adds a narrow exact match on the complete tool input and selected
 working directory within Gemini's hook boundary.
 
 ## Select a policy and connect the hook
+
+On an ordinary Windows package, **Separate Gemini hook profile** in Action
+coverage can review a selected existing policy and configure an AEGIS-owned
+Gemini home. The native review shows the complete supported settings change and
+selected policy; cancellation is the default. The launch guidance uses
+`GEMINI_CLI_HOME` explicitly and does not edit a personal Gemini settings file.
+This separate home may require authentication. Project/system settings and other
+provider controls still apply. The setup and fresh removal review accept only
+the exact unchanged AEGIS draft; if Gemini or another actor changes it, the app
+refuses to rewrite it and the owner must review the separate file manually.
+The selected policy is limited to 4096 bytes for the exact native preview.
+Some Windows paths are refused when they cannot be represented safely in the
+hook command. This setup does not prove that Gemini loads or honors the hook.
 
 Create a private regular JSON file outside an agent-editable project if possible.
 Schema 1 has exactly these top-level fields:
@@ -71,7 +84,7 @@ The matcher is anchored because Gemini matchers are regular expressions.
 
 Gemini supplies the JSON request on stdin and reads one JSON object on stdout.
 The AEGIS CLI flag starts before Electron and does not start monitoring or a
-server. No Gemini installation or configuration is changed by AEGIS. Remove
+server. These manual steps do not change other Gemini settings. Remove
 the hook entry to disconnect it. Confirm that `hooksConfig.enabled` remains
 enabled, that this hook is absent from `hooksConfig.disabled`, and that Gemini
 loads the settings file. Project hooks can be suppressed by folder trust.
@@ -107,7 +120,7 @@ boundary. `ask` is not used as a blocking result. User settings, workspace
 trust, other hooks and Gemini's own permissions remain provider-controlled;
 the [Gemini configuration reference](https://geminicli.com/docs/reference/configuration/)
 documents `hooksConfig.enabled` and `hooksConfig.disabled`. There is no
-automatic install, approval, signing, or independent execution mediation.
+automatic provider approval, signing, or independent execution mediation.
 
 ## Verification status
 

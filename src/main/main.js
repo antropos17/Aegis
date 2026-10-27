@@ -149,6 +149,7 @@ const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
 let claudeHookProfile;
+let geminiHookProfile;
 let projectWatchSelection;
 let etwFile;
 let nativeSensor = null;
@@ -1421,9 +1422,23 @@ app.whenReady().then(() => {
     appPath: applicationPath,
     getWindow: () => mainWindow,
   });
+  geminiHookProfile = require('./gemini-hook-app').createGeminiHookApp({
+    userData,
+    assetsRoot: path.join(
+      app.isPackaged ? process.resourcesPath : path.join(applicationPath, 'build'),
+      'hook-review',
+    ),
+    dialog: require('electron').dialog,
+    shell: require('electron').shell,
+    executable: process.execPath,
+    appPath: applicationPath,
+    packaged: app.isPackaged,
+    getWindow: () => mainWindow,
+  });
   ipc.init({
     projectWatchSelection,
     claudeHookProfile,
+    geminiHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
     controlFileReads: (request) => etwFile.control(request),
@@ -1465,7 +1480,8 @@ app.on('before-quit', (event) => {
   }
   const etwActive = etwFile?.isActive?.() === true;
   const nativeActive = nativeSensor?.isActive() === true;
-  const hookReviewActive = claudeHookProfile?.hasPending() === true;
+  const hookReviewActive =
+    claudeHookProfile?.hasPending() === true || geminiHookProfile?.hasPending() === true;
   if (
     !alertQuitDrainStarted &&
     (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive || hookReviewActive)
@@ -1495,6 +1511,7 @@ app.on('before-quit', (event) => {
         etwFile?.dispose(),
         nativeSensor?.dispose(),
         claudeHookProfile?.close(),
+        geminiHookProfile?.close(),
       ]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.

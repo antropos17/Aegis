@@ -77,6 +77,11 @@ afterEach(() => {
 });
 
 describe('Gemini BeforeTool exact denial', () => {
+  it('exports the same policy validation used for an exact denial', () => {
+    expect(hook.validGeminiPolicy(policy())).toBe(true);
+    expect(hook.validGeminiPolicy(policy({ deny: [] }))).toBe(false);
+    expect(hook.validGeminiPolicy(policy({ provider: 'other' }))).toBe(false);
+  });
   it('denies the complete PowerShell argument object, regardless of JSON key order', async () => {
     const reordered = {
       is_background: false,
