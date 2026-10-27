@@ -575,6 +575,12 @@ it.each([
         'A previous profile operation is still running or has just finished. Refresh setup status again.',
       ),
     ).toBeVisible();
+    expect(first.queryByText(message)).toBeNull();
+    expect(
+      second.getByText(
+        'A previous profile operation is still running or has just finished. Refresh setup status again.',
+      ),
+    ).toBeVisible();
     removal.resolve(reply('REMOVED', { canInstall: true }));
     await waitFor(() =>
       expect(

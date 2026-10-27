@@ -83,7 +83,9 @@
       };
   };
   const available = $derived(!preview && typeof host?.reviewCodexHookProfile === 'function');
-  const visibleFeedback = $derived(feedbackRevision === custodyView.revision ? feedback : '');
+  const visibleFeedback = $derived(
+    feedbackRevision === custodyView.revision && custodyView.outstanding === 0 ? feedback : '',
+  );
   let alive = true;
   let generation = 0;
   $effect(() => {
