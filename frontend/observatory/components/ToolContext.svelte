@@ -1,28 +1,96 @@
 <script lang="ts">
   import { confirmed, invoke, type Host, type RecordData } from '../runtime/host';
-  import { toolContextView } from '../runtime/tool-context-display';
+  import { toolContextView, type ToolContextView } from '../runtime/tool-context-display';
   import { t } from '../runtime/i18n';
 
   let { row, host = null }: { row: RecordData; host?: Host | null } = $props();
   const id = $props.id();
-  let loaded = $state<{ eventId: string; value: unknown } | null>(null);
+  type Availability = 'available' | 'partial' | 'unavailable' | 'invalid';
+  let loaded = $state<{
+    eventId: string;
+    version: number;
+    availability: Availability;
+    view: ToolContextView;
+  } | null>(null);
   let pending = $state<string | null>(null);
-  let failed = $state<string | null>(null);
+  let failed = $state<{ eventId: string; version: number } | null>(null);
+  // A private generation invalidates in-flight work when a selection changes
+  // away and back; rendering is driven by eventId and the loaded state.
+  const selection = { version: 0 };
   let eventId = $derived(typeof row.eventId === 'string' ? row.eventId : null);
   let canExplain = $derived(eventId !== null && typeof host?.explainToolContext === 'function');
-  let hasLive = $derived(loaded !== null && loaded.eventId === eventId);
-  let context = $derived(toolContextView(hasLive ? { toolContext: loaded?.value } : row));
+  let hasLive = $derived(
+    loaded !== null && loaded.eventId === eventId && loaded.version === selection.version,
+  );
+  let context = $derived(hasLive && loaded ? loaded.view : toolContextView(row));
+  $effect(() => {
+    eventId;
+    selection.version++;
+  });
+
+  function project(result: RecordData): { availability: Availability; view: ToolContextView } {
+    const availability = result.availability;
+    const invalidView = () => toolContextView({ toolContext: null });
+    if (
+      (availability !== 'available' &&
+        availability !== 'partial' &&
+        availability !== 'unavailable') ||
+      !result.toolContext ||
+      typeof result.toolContext !== 'object' ||
+      Array.isArray(result.toolContext)
+    )
+      return { availability: 'invalid', view: invalidView() };
+    const value = result.toolContext as RecordData;
+    // A partial source cannot establish a complete association, even if its
+    // envelope contains an otherwise positive capsule.
+    const capsule =
+      availability === 'partial' &&
+      Array.isArray(value.reasons) &&
+      !value.reasons.includes('partial-source')
+        ? { ...value, reasons: [...value.reasons, 'partial-source'] }
+        : value;
+    const view = toolContextView({ toolContext: capsule });
+    if (view.reasons.includes('Recorded tool context could not be validated.'))
+      return { availability: 'invalid', view: invalidView() };
+    if (availability !== 'unavailable') return { availability, view };
+    const reasons = view.reasons.filter(
+      (reason) =>
+        ![
+          'Session binding, object and time interval matched.',
+          'The recorded session binding matched.',
+          'A positive diagnostic was recorded; current evidence limits the association.',
+        ].includes(reason),
+    );
+    return {
+      availability,
+      view: {
+        ...view,
+        association: 'Unavailable',
+        binding: 'Unavailable',
+        object: 'Unavailable',
+        count: null,
+        truncated: false,
+        ambiguous: false,
+        candidates: [],
+        reasons: reasons.length ? reasons : ['Tool context is unavailable for this observation.'],
+      },
+    };
+  }
 
   async function explain() {
     if (!canExplain || !eventId || pending !== null) return;
     const selected = eventId;
+    const version = selection.version;
     pending = selected;
     failed = null;
+    loaded = null;
     try {
       const result = confirmed(await invoke(host, 'explainToolContext', selected));
-      loaded = { eventId: selected, value: result.toolContext };
+      if (eventId === selected && selection.version === version)
+        loaded = { eventId: selected, version, ...project(result) };
     } catch {
-      failed = selected;
+      if (eventId === selected && selection.version === version)
+        failed = { eventId: selected, version };
     } finally {
       pending = null;
     }
@@ -51,10 +119,21 @@
         'Reads local Claude Code history for this observation. Prompts and argument values stay private.',
       )}
     </p>
-    {#if hasLive}<p class="limit" role="status">
-        {$t('Local history checked. This explanation does not modify the recorded audit evidence.')}
+    {#if hasLive && loaded}<p class="limit" role="status">
+        {$t(
+          loaded.availability === 'available'
+            ? 'Local history checked. This explanation does not modify the recorded audit evidence.'
+            : loaded.availability === 'partial'
+              ? 'Local history is partially available. This explanation does not modify the recorded audit evidence.'
+              : loaded.availability === 'unavailable'
+                ? 'Local history is unavailable. The recorded observation is unchanged.'
+                : 'Local history response could not be validated. The recorded observation is unchanged.',
+        )}
       </p>{/if}
-    {#if failed === eventId}<p class="context-warning" role="status">
+    {#if failed?.eventId === eventId && failed?.version === selection.version}<p
+        class="context-warning"
+        role="status"
+      >
         {$t('Local history could not be read. The recorded observation is unchanged.')}
       </p>{/if}
   {:else}

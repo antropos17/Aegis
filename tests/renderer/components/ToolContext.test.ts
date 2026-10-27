@@ -55,6 +55,7 @@ it('refreshes the same retained UUID after restart instead of retaining its prio
     .fn()
     .mockResolvedValueOnce({
       success: true,
+      availability: 'available',
       toolContext: capsule({
         strength: 'inferred',
         reasons: ['clock-skew-assumed-local'],
@@ -69,6 +70,7 @@ it('refreshes the same retained UUID after restart instead of retaining its prio
     })
     .mockResolvedValueOnce({
       success: true,
+      availability: 'unavailable',
       toolContext: capsule({
         strength: 'unattributed',
         sessionBinding: 'unavailable',
@@ -96,6 +98,7 @@ it('loads local history through the host using only the retained event ID', asyn
   const eventId = '98765432-1234-4234-9234-123456789abc';
   const explainToolContext = vi.fn(async () => ({
     success: true,
+    availability: 'partial',
     toolContext: capsule({
       strength: 'inferred',
       sessionBinding: 'unavailable',
@@ -130,11 +133,224 @@ it('does not attach a delayed explanation to a newly selected observation', asyn
   const { rerender } = render(ToolContext, { row: observation({ eventId: 'old-event' }), host });
   await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
   await rerender({ row: observation({ eventId: 'new-event' }), host });
-  complete({ success: true, toolContext: capsule() });
+  complete({ success: true, availability: 'available', toolContext: capsule() });
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Explain from local history' })).toBeEnabled(),
   );
   expect(screen.queryByText('Claude Code · Read')).not.toBeInTheDocument();
+});
+
+it('labels a complete source as checked while keeping the association limits', async () => {
+  const host = {
+    explainToolContext: vi.fn(async () => ({
+      success: true,
+      availability: 'available',
+      toolContext: capsule({
+        prompt: 'PRIVATE_PROMPT',
+        candidates: [candidate({ arguments: { path: 'PRIVATE_PATH' } })],
+      }),
+    })),
+  };
+  const { container } = render(ToolContext, {
+    row: observation({ eventId: 'available-event' }),
+    host,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('Local history checked.');
+  expect(screen.getByText('Claude Code · Read')).toBeInTheDocument();
+  expect(container.textContent).not.toMatch(/PRIVATE_PROMPT|PRIVATE_PATH/);
+});
+
+it('marks a partial source and never upgrades a positive capsule to an exact association', async () => {
+  const host = {
+    explainToolContext: vi.fn(async () => ({
+      success: true,
+      availability: 'partial',
+      toolContext: capsule(),
+    })),
+  };
+  render(ToolContext, { row: observation({ eventId: 'partial-event' }), host });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Local history is partially available.',
+  );
+  const section = screen.getByRole('region', { name: 'Preceding tool call' });
+  expect(section).toHaveTextContent('Only part of the tool history was available.');
+  expect(section).toHaveTextContent('Claude Code · Read');
+  expect(section).not.toHaveTextContent('Matched preceding call');
+});
+
+it.each([
+  ['source-unavailable', 'The tool history source is unavailable.'],
+  ['process-binding-mismatch', 'The process binding did not match.'],
+])(
+  'shows unavailable history and a fixed %s reason without a positive candidate',
+  async (reason, label) => {
+    const host = {
+      explainToolContext: vi.fn(async () => ({
+        success: true,
+        availability: 'unavailable',
+        toolContext: capsule({
+          strength: 'unattributed',
+          candidateCount: 0,
+          candidates: [],
+          objectMatch: 'unavailable',
+          sessionBinding: 'unavailable',
+          reasons: [reason],
+        }),
+      })),
+    };
+    render(ToolContext, { row: observation({ eventId: 'unavailable-event' }), host });
+    await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Local history is unavailable.');
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText('Claude Code · Read')).toBeNull();
+    expect(screen.queryByText(/Local history checked/)).toBeNull();
+  },
+);
+
+it('suppresses a contradictory positive capsule when availability is unavailable', async () => {
+  const host = {
+    explainToolContext: vi.fn(async () => ({
+      success: true,
+      availability: 'unavailable',
+      toolContext: capsule(),
+    })),
+  };
+  render(ToolContext, { row: observation({ eventId: 'contradictory-event' }), host });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('Local history is unavailable.');
+  expect(screen.queryByText('Claude Code · Read')).toBeNull();
+  expect(screen.queryByText('Matched preceding call')).toBeNull();
+});
+
+it.each([undefined, null, 'bad', { prompt: 'PRIVATE_AVAILABILITY' }])(
+  'rejects malformed availability %# without reflecting private data',
+  async (availability) => {
+    const host = {
+      explainToolContext: vi.fn(async () => ({
+        success: true,
+        availability,
+        toolContext: capsule({
+          prompt: 'PRIVATE_PROMPT',
+          candidates: [candidate({ arguments: { path: 'PRIVATE_PATH' } })],
+        }),
+      })),
+    };
+    const { container } = render(ToolContext, {
+      row: observation({ eventId: 'invalid-event' }),
+      host,
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Local history response could not be validated.',
+    );
+    expect(screen.queryByText('Claude Code · Read')).toBeNull();
+    expect(container.textContent).not.toMatch(/PRIVATE_AVAILABILITY|PRIVATE_PROMPT|PRIVATE_PATH/);
+  },
+);
+
+it('clears an earlier live candidate after a failed refresh and keeps recorded metadata', async () => {
+  const host = {
+    explainToolContext: vi
+      .fn()
+      .mockResolvedValueOnce({ success: true, availability: 'available', toolContext: capsule() })
+      .mockRejectedValueOnce(Error('PRIVATE_ERROR')),
+  };
+  const recorded = capsule({ candidates: [candidate({ toolName: 'Edit' })] });
+  const { container } = render(ToolContext, {
+    row: observation({ eventId: 'failed-event', toolContext: recorded }),
+    host,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByText('Claude Code · Read')).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('Local history could not be read.');
+  expect(screen.queryByText('Claude Code · Read')).toBeNull();
+  expect(screen.getByText('Claude Code · Edit')).toBeInTheDocument();
+  expect(container.textContent).not.toContain('PRIVATE_ERROR');
+});
+
+it('clears an earlier live candidate when the refreshed capsule is malformed', async () => {
+  const host = {
+    explainToolContext: vi
+      .fn()
+      .mockResolvedValueOnce({ success: true, availability: 'available', toolContext: capsule() })
+      .mockResolvedValueOnce({
+        success: true,
+        availability: 'available',
+        toolContext: { prompt: 'PRIVATE_RAW' },
+      }),
+  };
+  const { container } = render(ToolContext, {
+    row: observation({ eventId: 'malformed-refresh' }),
+    host,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByText('Claude Code · Read')).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Local history response could not be validated.',
+  );
+  expect(screen.queryByText('Claude Code · Read')).toBeNull();
+  expect(container.textContent).not.toContain('PRIVATE_RAW');
+});
+
+it('translates partial and unavailable live status in Portuguese', async () => {
+  language.set('pt');
+  try {
+    const host = {
+      explainToolContext: vi
+        .fn()
+        .mockResolvedValueOnce({ success: true, availability: 'partial', toolContext: capsule() })
+        .mockResolvedValueOnce({
+          success: true,
+          availability: 'unavailable',
+          toolContext: capsule({
+            strength: 'unattributed',
+            candidateCount: 0,
+            candidates: [],
+            objectMatch: 'unavailable',
+            sessionBinding: 'unavailable',
+            reasons: ['source-unavailable'],
+          }),
+        }),
+    };
+    render(ToolContext, { row: observation({ eventId: 'portuguese-event' }), host });
+    const button = screen.getByRole('button', { name: 'Explicar a partir do histórico local' });
+    await fireEvent.click(button);
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'O histórico local está parcialmente disponível.',
+    );
+    await fireEvent.click(button);
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'O histórico local está indisponível.',
+    );
+  } finally {
+    language.set('en');
+  }
+});
+
+it('discards an in-flight result when the selection changes away and back', async () => {
+  let complete!: (_value: unknown) => void;
+  const host = {
+    explainToolContext: vi.fn(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+  };
+  const { rerender } = render(ToolContext, { row: observation({ eventId: 'first-event' }), host });
+  await fireEvent.click(screen.getByRole('button', { name: 'Explain from local history' }));
+  await rerender({ row: observation({ eventId: 'second-event' }), host });
+  await rerender({ row: observation({ eventId: 'first-event' }), host });
+  complete({ success: true, availability: 'available', toolContext: capsule() });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Explain from local history' })).toBeEnabled(),
+  );
+  expect(screen.queryByText('Claude Code · Read')).toBeNull();
+  expect(screen.queryByText(/Local history checked/)).toBeNull();
 });
 
 it('shows preceding metadata after Observation without converting tool strength into PID attribution', () => {
