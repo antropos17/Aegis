@@ -92,7 +92,8 @@ function createClaudeHookApp(options) {
       code: CODES.has(code) ? code : 'OPERATION_FAILED',
       presence: configured ? 'Configured' : 'Unknown',
       available: ready && !closed,
-      canInstall: ready && !closed && !configured && !retained && !session?.ended,
+      canInstall:
+        ready && !closed && !configured && !retained && (!session?.ended || !ownedInstall),
       canRemove: ready && !closed && ownedInstall && !retained && !!session && !session.ended,
       canReviewExisting:
         ready &&
@@ -243,7 +244,7 @@ function createClaudeHookApp(options) {
     }
     if (!ready) return reply('UNAVAILABLE');
     if (retained) return reply('RETAINED_UNKNOWN');
-    if (action === 'install' && session?.ended) return reply('SESSION_ENDED');
+    if (action === 'install' && session?.ended && ownedInstall) return reply('SESSION_ENDED');
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
     const observedRemoval = action === 'remove' && (!ownedInstall || session?.ended);
