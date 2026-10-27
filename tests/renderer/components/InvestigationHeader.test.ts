@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { expect, it, vi } from 'vitest';
 import InvestigationHeader from '../../../frontend/observatory/components/InvestigationHeader.svelte';
+import DetailControls from '../../../frontend/observatory/components/DetailControls.svelte';
 import {
   emptyTelemetry,
   type Host,
@@ -272,8 +273,222 @@ it('keeps action pending and failure feedback in the compact header without hidi
   expect(screen.getByText('Working…')).toBeVisible();
   await act(() => complete({ success: false, error: 'Fixture command refused' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Fixture command refused');
+  expect(screen.getByRole('alert')).toHaveTextContent('its effect is unknown');
   expect(pause).toBeEnabled();
   expect(screen.getByRole('combobox', { name: 'Worker process' })).toHaveValue(worker.instanceId);
+});
+
+it('retains a qualified stop result after confirmation closes and restores focus', async () => {
+  const props = input(worker.instanceId);
+  render(InvestigationHeader, props);
+  expect(screen.getByText(/Other processes and remote work can continue/)).toBeVisible();
+  const stop = screen.getByRole('button', { name: 'Stop…' });
+  await fireEvent.click(stop);
+  const confirm = screen.getByRole('button', { name: 'Confirm stop' });
+  confirm.focus();
+  await fireEvent.click(confirm);
+  expect(
+    await screen.findByText(
+      'The stop request reported success. Its lasting effect was not verified.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Confirm stop' })).toBeNull();
+  await waitFor(() => expect(stop).toHaveFocus());
+  expect(props.calls.killProcess).toHaveBeenCalledOnce();
+});
+
+it('does not dispatch on cancellation and returns focus to Stop', async () => {
+  const props = input(worker.instanceId);
+  render(InvestigationHeader, props);
+  const stop = screen.getByRole('button', { name: 'Stop…' });
+  await fireEvent.click(stop);
+  const cancel = screen.getByRole('button', { name: 'Cancel' });
+  cancel.focus();
+  await fireEvent.click(cancel);
+  expect(stop).toHaveFocus();
+  expect(props.calls.killProcess).not.toHaveBeenCalled();
+  expect(screen.queryByText(/stop request reported success/)).toBeNull();
+});
+
+it('keeps an outstanding stop request non-cancellable and reports an unconfirmed result', async () => {
+  const props = input(worker.instanceId);
+  let complete!: (_value: { success: boolean; error: string }) => void;
+  props.calls.killProcess.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(InvestigationHeader, props);
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop…' }));
+  const confirm = screen.getByRole('button', { name: 'Confirm stop' });
+  await fireEvent.click(confirm);
+  expect(confirm).toHaveAttribute('aria-busy', 'true');
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  expect(screen.getByText('Working…')).toBeVisible();
+  await act(() => complete({ success: false, error: 'Fixture stop timeout' }));
+  expect(await screen.findByText(/effect is unknown.*Fixture stop timeout/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Confirm stop' })).toBeEnabled();
+});
+
+it('clears old feedback when an instance or its witness changes', async () => {
+  const props = input(worker.instanceId);
+  const mounted = render(DetailControls, {
+    row: worker,
+    host: props.host,
+    telemetry: props.telemetry,
+    simple: true,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Pause process' }));
+  expect(await screen.findByText(/pause request reported success/)).toBeVisible();
+  await mounted.rerender({ row: second });
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
+  await mounted.rerender({ row: worker });
+  await fireEvent.click(screen.getByRole('button', { name: 'Resume process' }));
+  expect(await screen.findByText(/resume request reported success/)).toBeVisible();
+  await mounted.rerender({
+    telemetry: {
+      ...props.telemetry,
+      agents: [
+        { ...worker, generationWitness: 'new-generation' },
+      ] as unknown as Telemetry['agents'],
+    },
+  });
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
+});
+
+it('drops a late reply after switching away and back to the same process', async () => {
+  const props = input(worker.instanceId);
+  let complete!: (_value: { success: boolean }) => void;
+  props.calls.suspendProcess.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const mounted = render(DetailControls, {
+    row: worker,
+    host: props.host,
+    telemetry: props.telemetry,
+    simple: true,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Pause process' }));
+  await mounted.rerender({ row: second });
+  await mounted.rerender({ row: worker });
+  await act(() => complete({ success: true }));
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Pause process' })).toBeEnabled();
+});
+
+it('retains a stop reply when its selected process has departed during the request', async () => {
+  const props = input(worker.instanceId);
+  let complete!: (_value: { success: boolean }) => void;
+  props.calls.killProcess.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const mounted = render(DetailControls, {
+    row: worker,
+    host: props.host,
+    telemetry: props.telemetry,
+    simple: true,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop…' }));
+  const confirm = screen.getByRole('button', { name: 'Confirm stop' });
+  confirm.focus();
+  await fireEvent.click(confirm);
+  await mounted.rerender({ telemetry: { ...props.telemetry, agents: [] } });
+  await act(() => complete({ success: true }));
+  const result = await screen.findByText(
+    'The stop request reported success. Its lasting effect was not verified.',
+  );
+  expect(result).toBeVisible();
+  await waitFor(() => expect(result.parentElement).toHaveFocus());
+  expect(screen.getByRole('button', { name: 'Stop…' })).toBeDisabled();
+});
+
+it.each([
+  ['Pause process', 'suspendProcess', 'pause'],
+  ['Resume process', 'resumeProcess', 'resume'],
+] as const)(
+  'focuses the %s outcome when the selected process departs during the request',
+  async (label, method, outcome) => {
+    const props = input(worker.instanceId);
+    let complete!: (_value: { success: boolean }) => void;
+    props.calls[method].mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const mounted = render(DetailControls, {
+      row: worker,
+      host: props.host,
+      telemetry: props.telemetry,
+      simple: true,
+    });
+    const button = screen.getByRole('button', { name: label });
+    button.focus();
+    await fireEvent.click(button);
+    await mounted.rerender({ telemetry: { ...props.telemetry, agents: [] } });
+    await act(() => complete({ success: true }));
+    const result = await screen.findByText(
+      `The ${outcome} request reported success. Its lasting effect was not verified.`,
+    );
+    await waitFor(() => expect(result.parentElement).toHaveFocus());
+    expect(button).toBeDisabled();
+  },
+);
+
+it('does not reclaim focus when the user moves to another control during a request', async () => {
+  const props = input(worker.instanceId);
+  let complete!: (_value: { success: boolean }) => void;
+  props.calls.suspendProcess.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(InvestigationHeader, props);
+  const pause = screen.getByRole('button', { name: 'Pause process' });
+  pause.focus();
+  await fireEvent.click(pause);
+  const selector = screen.getByRole('combobox', { name: 'Worker process' });
+  selector.focus();
+  await act(() => complete({ success: true }));
+  await screen.findByText(/pause request reported success/);
+  expect(selector).toHaveFocus();
+});
+
+it('drops an in-flight result for a replaced generation with the same instance ID', async () => {
+  const props = input(worker.instanceId);
+  let complete!: (_value: { success: boolean }) => void;
+  props.calls.suspendProcess.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const mounted = render(DetailControls, {
+    row: worker,
+    host: props.host,
+    telemetry: props.telemetry,
+    simple: true,
+  });
+  await fireEvent.click(screen.getByRole('button', { name: 'Pause process' }));
+  await mounted.rerender({
+    telemetry: {
+      ...props.telemetry,
+      agents: [
+        { ...worker, generationWitness: 'new-generation' },
+      ] as unknown as Telemetry['agents'],
+    },
+  });
+  await act(() => complete({ success: true }));
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Pause process' })).toBeDisabled();
 });
 
 it('preserves genuine zero resources and renders unavailable measurements without inventing zero', async () => {
