@@ -72,11 +72,11 @@
   const reasons: Record<string, string> = {
     generic: 'Selected policy decision',
     'adapter-failure': 'Hook adapter failure',
-    'project-review-ordinary': 'Supported command requires provider confirmation',
+    'project-review-ordinary': 'Provider confirmation requested for supported command',
     'project-review-script':
-      'Project script can run unchecked actions; provider confirmation required',
+      'Project script can run unchecked actions; provider confirmation requested',
     'project-review-edit':
-      'Patch contents, written paths and executable are unverified; provider confirmation required',
+      'Patch contents, written paths and executable are unverified; provider confirmation requested',
     'project-deny-sensitive': 'Declared sensitive filename',
     'project-deny-destructive': 'Declared destructive command',
     'project-deny-unsupported': 'Unsupported command or input',
