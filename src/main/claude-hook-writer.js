@@ -1,7 +1,7 @@
 // @ts-check
 'use strict';
 
-const { createHash } = require('node:crypto');
+const { hash, snapshot, edited } = require('./claude-hook-json');
 const { planInstall, planRemoval } = require('./claude-hook-plan');
 
 /** @typedef {{ identity: string, bytes: Buffer }} Snapshot */
@@ -15,40 +15,12 @@ const { planInstall, planRemoval } = require('./claude-hook-plan');
 /** @typedef {{ identity: string, afterSha256: string, retained: Retained }} Ownership */
 const IO_CONTRACT = 'trusted-owned-target-compare-write-v1';
 const MAX_BACKUPS = 8;
-/** @param {string|Buffer} bytes */
-const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 /** @param {boolean} ok @param {string} code @param {string} [presence] */
 const status = (ok, code, presence = 'Unknown') => Object.freeze({ ok, code, presence });
-/** @param {Snapshot} value @returns {Snapshot} */
-function snapshot(value) {
-  if (
-    !value ||
-    typeof value.identity !== 'string' ||
-    !value.identity.length ||
-    value.identity.length > 256 ||
-    !Buffer.isBuffer(value.bytes) ||
-    value.bytes.length > 262144
-  )
-    throw Error();
-  return { identity: value.identity, bytes: Buffer.from(value.bytes) };
-}
 /** @param {object} value */
 function freeze(value) {
   for (const child of Object.values(value)) if (child && typeof child === 'object') freeze(child);
   return Object.freeze(value);
-}
-/** @param {Buffer} before @param {Plan} plan */
-function edited(before, plan) {
-  let after = Buffer.from(before);
-  for (const edit of [...plan.edits].reverse()) {
-    after = Buffer.concat([
-      after.subarray(0, edit.startByte),
-      Buffer.from(edit.replacementUtf8),
-      after.subarray(edit.endByte),
-    ]);
-  }
-  if (hash(before) !== plan.beforeSha256 || hash(after) !== plan.afterSha256) throw Error();
-  return after;
 }
 
 /**
