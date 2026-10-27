@@ -2178,5 +2178,11 @@
   "Project folder settings": "Configurações da pasta do projeto",
   "Project changes are unavailable. Review the folder in Monitoring settings.": "As mudanças no projeto estão indisponíveis. Revise a pasta nas configurações de Monitoramento.",
   "Project changes": "Mudanças no projeto",
-  "Current project change coverage is unknown.": "A cobertura atual de mudanças no projeto é desconhecida."
+  "Current project change coverage is unknown.": "A cobertura atual de mudanças no projeto é desconhecida.",
+  "Native setup files are unavailable or failed their integrity checks.": "Os arquivos de configuração nativos estão indisponíveis ou falharam nas verificações de integridade.",
+  "This creates a private draft and retained backups. Personal Claude settings are not edited.": "Isso cria um rascunho privado e mantém backups. As configurações pessoais do Claude não são alteradas.",
+  "Launch with this separate profile": "Iniciar com este perfil separado",
+  "After installing the profile, open its folder and copy the folder path from the Explorer address bar. In Windows PowerShell, run the command below, then paste the folder path without quotes when prompted. Press Enter on an empty prompt to cancel.": "Após instalar o perfil, abra sua pasta e copie o caminho da pasta na barra de endereços do Explorador. No Windows PowerShell, execute o comando abaixo e, quando solicitado, cole o caminho da pasta sem aspas. Pressione Enter sem inserir nada para cancelar.",
+  "This route requires Claude Code and applies the selected policy only to Bash requests in launches using this profile. Other tools and launches without the profile are outside its scope.": "Esta rota exige o Claude Code e aplica a política selecionada somente a solicitações Bash em execuções que usam este perfil. Outras ferramentas e execuções sem o perfil estão fora do seu escopo.",
+  "A configured profile does not verify blocking. Claude behavior when a hook is missing, cannot start, times out, or returns malformed output has not been qualified. The selected schema-1 policy matches the full Bash input and working directory exactly.": "Um perfil configurado não comprova o bloqueio. O comportamento do Claude quando um hook está ausente, não consegue iniciar, excede o tempo limite ou retorna uma saída malformada ainda não foi qualificado. A política selecionada de esquema 1 compara exatamente toda a entrada Bash e o diretório de trabalho."
 }

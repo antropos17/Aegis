@@ -61,6 +61,11 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico",
+      "signExts": [
+        "!\\hook-review\\runtime\\dotnet.exe",
+        "!\\hook-review\\runtime\\shared\\Microsoft.NETCore.App\\10.0.10\\createdump.exe",
+        "!\\hook-review\\runtime\\shared\\Microsoft.NETCore.App\\10.0.14\\createdump.exe"
+      ],
       "extraResources": [
         {
           "from": "build/sidecar",
@@ -82,7 +87,8 @@
           "to": "hook-review",
           "filter": [
             "assets.json",
-            "host/*"
+            "host/*",
+            "runtime/**/*"
           ]
         }
       ]

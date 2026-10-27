@@ -45,6 +45,14 @@ describe('Observatory localization', () => {
     }
   });
 
+  it('translates the dynamically selected native setup failure', () => {
+    expect(
+      translator('pt')('Native setup files are unavailable or failed their integrity checks.'),
+    ).toBe(
+      'Os arquivos de configuração nativos estão indisponíveis ou falharam nas verificações de integridade.',
+    );
+  });
+
   it('translates the closed tool-context display vocabulary and timing templates', () => {
     const candidate = {
       source: 'claude-code',

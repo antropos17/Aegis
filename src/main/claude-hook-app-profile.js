@@ -13,12 +13,18 @@ const { readActionFile, parseActionJson, validActionPolicy } = require('./action
 async function loadProfileAssets(root) {
   try {
     const file = path.join(root, 'assets.json');
-    if ((await fs.stat(file)).size > 65536) return null;
+    const stat = await fs.lstat(file);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) return null;
     const value = JSON.parse(await fs.readFile(file, 'utf8'));
-    if (value.schemaVersion !== 1 || Object.keys(value).length !== 7) return null;
+    if (value.schemaVersion !== 2 || Object.keys(value).length !== 6) return null;
     const assets = { ...value };
     delete assets.schemaVersion;
-    const selected = { ...assets, hostRoot: path.win32.normalize(path.join(root, 'host')) };
+    const selected = {
+      ...assets,
+      hostRoot: path.win32.normalize(path.join(root, 'host')),
+      runtimeRoot: path.win32.normalize(path.join(root, 'runtime')),
+      portable: true,
+    };
     qualifyAssets(selected);
     return selected;
   } catch {
@@ -69,9 +75,13 @@ async function prepareProfile(directory, existingOnly = false) {
   await fs.mkdir(backups, { recursive: true });
   await ordinary(backups);
   if ((await fs.readdir(backups)).length >= 4) throw Error('backup-retention-limit');
+  // Native transaction admission uses an uppercase drive prefix. Drive-letter
+  // casing does not change the selected Windows volume or its pinned identity.
+  const nativePath = (value) =>
+    path.win32.normalize(value).replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
   return {
-    targetPath: path.win32.normalize(targetPath),
-    backupRoot: path.win32.normalize(path.join(backups, randomUUID())),
+    targetPath: nativePath(targetPath),
+    backupRoot: nativePath(path.join(backups, randomUUID())),
   };
 }
 

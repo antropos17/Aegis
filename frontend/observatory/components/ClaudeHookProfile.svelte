@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { confirmed, invoke, record, type Host } from '../runtime/host';
   import { t } from '../runtime/i18n';
+  import { claudeHookLaunchCommand } from '../runtime/claude-hook-guide';
   import Icon from './Icon.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   type Operation = 'status' | 'install' | 'remove' | 'open-profile';
@@ -9,8 +10,7 @@
   const messages: Record<string, string> = {
     IDLE: 'Setup has not been reviewed.',
     READY: 'Prepared setup files are available for native review.',
-    UNAVAILABLE:
-      'Native setup files are unavailable. This requires the prepared Windows helper and .NET 10.0.10.',
+    UNAVAILABLE: 'Native setup files are unavailable or failed their integrity checks.',
     BUSY: 'Another profile review is still in progress.',
     CANCELLED: 'Review cancelled. The hook was not changed.',
     INSTALLED: 'Separate profile configured. Blocking is not verified.',
@@ -114,7 +114,7 @@
     </p>
     <p class="muted">
       {$t(
-        'This creates a private draft and retained backups. Use the profile only with --settings. Personal Claude settings are not edited; Bash blocking remains unverified.',
+        'This creates a private draft and retained backups. Personal Claude settings are not edited.',
       )}
     </p>
     <p class="muted">
@@ -154,7 +154,26 @@
         onclick={() => perform('status')}>{$t('Refresh setup status')}</button
       >
     </div>
-    {#if feedback}<p role={failed ? 'alert' : 'status'} class:failed class="profile-feedback">
+    <div class="launch-guide">
+      <h3>{$t('Launch with this separate profile')}</h3>
+      <p>
+        {$t(
+          'After installing the profile, open its folder and copy the folder path from the Explorer address bar. In Windows PowerShell, run the command below, then paste the folder path without quotes when prompted. Press Enter on an empty prompt to cancel.',
+        )}
+      </p>
+      <pre><code>{claudeHookLaunchCommand}</code></pre>
+      <p class="muted">
+        {$t(
+          'This route requires Claude Code and applies the selected policy only to Bash requests in launches using this profile. Other tools and launches without the profile are outside its scope.',
+        )}
+      </p>
+      <p class="muted">
+        {$t(
+          'A configured profile does not verify blocking. Claude behavior when a hook is missing, cannot start, times out, or returns malformed output has not been qualified. The selected schema-1 policy matches the full Bash input and working directory exactly.',
+        )}
+      </p>
+    </div>
+    {#if feedback}<p role={failed ? 'alert' : 'status'} class={['profile-feedback', { failed }]}>
         {$t(feedback)}
       </p>{/if}
     {#if preview}<p class="muted">
@@ -191,6 +210,21 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+  .launch-guide {
+    display: grid;
+    gap: var(--space-2);
+  }
+  h3 {
+    margin: 0;
+  }
+  pre {
+    margin: 0;
+    padding: var(--space-3);
+    overflow-x: auto;
+    background: var(--raised);
+    border: 1px solid var(--strong-border);
+    border-radius: var(--surface-radius);
   }
   .profile-feedback {
     padding: var(--space-3);
