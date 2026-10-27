@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import {
@@ -23,14 +23,22 @@ const {
   handleLaunchOverride,
 } = require('../../src/main/codex-profile-launch');
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const windowsIsAbsolute = path.win32.isAbsolute;
 
-function fixture() {
+afterEach(() => vi.restoreAllMocks());
+
+function fixture(hostIsAbsolute = path.isAbsolute) {
   const executable = 'C:/Program Files/AEGIS & Monitor/AEGIS.exe';
   const appPath = 'C:/Program Files/AEGIS & Monitor/resources/app.asar';
   const powershell = 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
   const policyPath = 'C:/Project/policy.json';
   const profilePath = 'C:/AEGIS/codex-hook-profile/hooks.json';
   const cwd = 'C:/Project';
+  // This fixture models a Windows-only launch on every CI host. Preserve the
+  // real schema validator, but give its one synthetic cwd Windows semantics.
+  vi.spyOn(path, 'isAbsolute').mockImplementation((value) =>
+    value === cwd ? windowsIsAbsolute(value) : hostIsAbsolute(value),
+  );
   const codexPath = 'C:/Tools/codex.exe';
   const codexIdentity = 'fixture-identity';
   const codexSha256 = 'c'.repeat(64);
@@ -104,6 +112,18 @@ function fixture() {
     },
   };
 }
+
+it('validates the Windows fixture when the host uses POSIX path semantics', async () => {
+  expect(path.posix.isAbsolute('C:/Project')).toBe(false);
+  const f = fixture(path.posix.isAbsolute);
+  expect((await validatedOverride(f.token, f.options)).codexPath).toBe('C:/Tools/codex.exe');
+  expect(path.isAbsolute('/unrelated')).toBe(true);
+  expect(path.isAbsolute('relative')).toBe(false);
+  const { validActionPolicy } = require('../../src/main/action-policy');
+  expect(
+    validActionPolicy({ schemaVersion: 1, cwd: 'relative', defaultDecision: 'deny', rules: [] }),
+  ).toBe(false);
+});
 
 it('revalidates both native identities and exact bytes before emitting one inline hook override', async () => {
   const f = fixture();
