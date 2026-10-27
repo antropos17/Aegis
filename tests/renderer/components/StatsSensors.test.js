@@ -90,6 +90,7 @@ it('identifies a failed credential watch group while other watch roots remain li
         unavailableGroups: [
           { id: 'credential-dirs', state: 'registration-failed', reason: secret },
           { id: 'C:/private/unknown', state: 'C:/private/state', reason: secret },
+          { id: 'project-dir', state: 'errored', reason: secret },
         ],
       },
     }),
@@ -98,7 +99,8 @@ it('identifies a failed credential watch group while other watch roots remain li
   const coverage = screen.getByRole('region', { name: 'Unavailable file watch groups' });
   expect(within(coverage).getByText('Credential directories')).toBeVisible();
   expect(within(coverage).getByText('Registration failed')).toBeVisible();
-  expect(within(coverage).getByText('Other file watch group')).toBeVisible();
+  expect(within(coverage).getAllByText('Other file watch group')).toHaveLength(2);
+  expect(coverage).not.toHaveTextContent('Application directory');
   expect(within(coverage).getByText('Unavailable')).toBeVisible();
   expect(coverage).toHaveTextContent('File activity may be missed in these groups.');
   expect(coverage).not.toHaveTextContent(secret);
