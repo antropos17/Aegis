@@ -213,6 +213,45 @@ describe('finite Claude Guard decision observer', () => {
     });
   });
 
+  it('requires the capability and an empty canonical finish request, then revokes reporting', async () => {
+    const receiver = await start();
+    const { token } = await claim(receiver);
+    const auth = { Authorization: `Bearer ${token}` };
+    const wrongAuth = { Authorization: `Bearer ${'0'.repeat(64)}` };
+    expect((await post(receiver, 'finish', {}, wrongAuth)).status).toBe(403);
+    expect((await post(receiver, 'finish', { extra: true }, auth)).status).toBe(422);
+    expect(receiver.snapshot().status).toBe('active');
+    expect(
+      (await post(receiver, 'decision', { decision: 'deny', reason: 'generic' }, auth)).status,
+    ).toBe(204);
+    expect((await post(receiver, 'finish', {}, auth)).status).toBe(204);
+    await vi.waitFor(() => expect(receiver.snapshot().status).toBe('ended'));
+    expect(receiver.snapshot().entries).toEqual([{ decision: 'deny', reason: 'generic' }]);
+    await expect(
+      post(receiver, 'decision', { decision: 'allow', reason: 'generic' }, auth),
+    ).rejects.toThrow();
+  });
+
+  it('does not accept a decision that remains incomplete when the session finishes', async () => {
+    const receiver = await start();
+    const { token } = await claim(receiver);
+    const auth = { Authorization: `Bearer ${token}` };
+    const pending = http.request({
+      hostname: '127.0.0.1',
+      port: receiver.port,
+      path: `/decision/${receiver.sessionId}`,
+      method: 'POST',
+      agent: false,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': '60', ...auth },
+    });
+    const closed = new Promise((resolve) => pending.on('error', resolve));
+    await new Promise((resolve) => pending.write('{"decision":"allow",', resolve));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect((await post(receiver, 'finish', {}, auth)).status).toBe(204);
+    await closed;
+    expect(receiver.snapshot()).toMatchObject({ status: 'ended', lossDetected: true, entries: [] });
+  });
+
   it('treats an interrupted partial claim as lost and consumes the only attempt', async () => {
     const approve = vi.fn(() => true);
     const receiver = await start({ approve });

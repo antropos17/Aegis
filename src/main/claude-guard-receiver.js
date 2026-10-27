@@ -112,6 +112,7 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
     if (closing) return closing;
     closed = true;
     if (status === 'awaiting-confirmation' || status === 'active') loss = true;
+    if (sockets.size > 1) loss = true;
     status = finalStatus;
     clearTimeout(timer);
     token.fill(0);
@@ -159,9 +160,10 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
     }
     const claim = req.url === `/claim/${sessionId}`;
     const decision = req.url === `/decision/${sessionId}`;
+    const ending = req.url === `/finish/${sessionId}`;
     if (
       req.method !== 'POST' ||
-      (!claim && !decision) ||
+      (!claim && !decision && !ending) ||
       req.headers.host !== `127.0.0.1:${port}` ||
       req.headers['content-type'] !== 'application/json' ||
       Object.hasOwn(req.headers, 'origin') ||
@@ -188,6 +190,7 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
       if (responseClosed && !closed) {
         loss = true;
         if (claim && status === 'awaiting-confirmation') void finish('refused');
+        if (ending && status === 'ended') void finish('ended');
       }
     });
     req.on('error', () => {
@@ -274,6 +277,19 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
           .digest('hex');
         res.end(JSON.stringify({ token: releasedToken, ...selected, proof }));
       } else {
+        // A finish request can revoke admission while a decision body is still arriving.
+        if (status !== 'active') return fail(res, 403);
+        if (ending) {
+          if (text !== '{}') return fail(res, 422);
+          status = 'ended';
+          token.fill(0);
+          launchKey.fill(0);
+          expected.fill(0);
+          res.once('finish', () => void finish('ended'));
+          res.writeHead(204, { Connection: 'close' });
+          res.end();
+          return;
+        }
         const match = DECISION.exec(text);
         if (!match || !REASONS[match[2]].includes(match[1])) return fail(res, 422);
         records.push({ decision: match[1], reason: match[2] });
