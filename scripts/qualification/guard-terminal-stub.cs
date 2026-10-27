@@ -14,12 +14,17 @@ internal static class GuardTerminalStub
     [DllImport("ntdll.dll")]
     private static extern int NtQueryInformationProcess(IntPtr process, int infoClass,
         out ProcessInformation info, int length, out int returnedLength);
+    [DllImport("kernel32.dll")] private static extern IntPtr GetStdHandle(int id);
+    [DllImport("kernel32.dll")] private static extern bool GetConsoleMode(IntPtr handle, out uint mode);
     private static int Main(string[] args)
     {
         string cwd = Directory.GetCurrentDirectory();
         string expectedSettings = Path.Combine(cwd, "settings.json");
+        uint inputMode, outputMode;
         if (args.Length != 2 || args[0] != "--settings" || args[1] != expectedSettings ||
             File.ReadAllText(expectedSettings) != "{}\n" ||
+            !GetConsoleMode(GetStdHandle(-10), out inputMode) ||
+            !GetConsoleMode(GetStdHandle(-11), out outputMode) ||
             Environment.GetEnvironmentVariable("AEGIS_CLAUDE_GUARD_SESSION") != new string('a', 32) ||
             Environment.GetEnvironmentVariable("AEGIS_CLAUDE_GUARD_CAPABILITY") != new string('b', 64) ||
             String.IsNullOrEmpty(Environment.GetEnvironmentVariable("AEGIS_CLAUDE_GUARD_PORT")))
