@@ -12,7 +12,7 @@ const {
   createWindowsPolicyIO,
 } = require('./claude-hook-windows-io');
 const { IO_CONTRACT } = require('./claude-hook-writer');
-const { hookCommand, settingsBytes, removable } = require('./gemini-profile-model');
+const { hookCommand, planProfileChange } = require('./gemini-profile-model');
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const empty = Buffer.from('{}\n');
@@ -234,17 +234,15 @@ function createGeminiHookApp(options) {
       if (typeof snap.identity !== 'string' || !Buffer.isBuffer(snap.bytes))
         return status('TARGET_READ_FAILED');
       before = snap.bytes;
-      if (action === 'install') {
-        if (!before.equals(empty)) return status('PROFILE_CHANGED');
-        after = settingsBytes(command);
-      } else {
-        if (!removable(before, executable, appPath)) return status('PROFILE_CHANGED');
-        after = Buffer.from(empty);
-      }
-      const beforeText = new TextDecoder('utf-8', { fatal: true }).decode(before);
-      const afterText = new TextDecoder('utf-8', { fatal: true }).decode(after);
+      const planned = planProfileChange(before, { action, target, executable, appPath, command });
+      if (!planned) return status('PROFILE_CHANGED');
+      after = planned.after;
+      const fragments = planned.fragments.map(
+        (item) =>
+          `Lines ${item.before.start.line}:${item.before.start.column}–${item.before.end.line}:${item.before.end.column}\nRemove: ${item.removed || '(empty)'}\nInsert: ${item.inserted || '(empty)'}`,
+      );
       const detail =
-        `AEGIS-owned Gemini settings:\n${target}\n\nCurrent:\n${beforeText}\nProposed:\n${afterText}` +
+        `AEGIS-owned Gemini settings:\n${target}\n\nComplete changes:\n${fragments.join('\n\n')}` +
         (command ? `\nExact hook command:\n${command}\n` : '') +
         (policy ? `\nSelected policy:\n${file}\n\nExact policy:\n${policy.content}` : '') +
         '\nA private backup is retained. Gemini may ignore or override hooks. Unmatched requests receive no AEGIS decision; this is not a general execution barrier.';
@@ -274,13 +272,6 @@ function createGeminiHookApp(options) {
         if (!owned() || closed) return denied();
         if (!again || again.digest !== policy.digest) return status('POLICY_CHANGED');
       }
-      if (!(await release(readIO))) {
-        readIO = null;
-        retained = true;
-        return status('RETAINED_UNKNOWN');
-      }
-      readIO = null;
-      if (!owned() || closed) return denied();
       io = await openFactory(makeIO, {
         ownedProfile: true,
         ...selected,
@@ -297,6 +288,15 @@ function createGeminiHookApp(options) {
         return status('TARGET_CHANGED');
       current.bytes.fill(0);
       current = null;
+      // Keep the reviewed original handle alive until the new writer has
+      // admitted the same file identity and exact bytes.
+      if (!(await release(readIO))) {
+        readIO = null;
+        retained = true;
+        return status('RETAINED_UNKNOWN');
+      }
+      readIO = null;
+      if (!owned() || closed) return denied();
       const manifest = JSON.stringify({
         type: 'gemini-profile',
         before: hash(before),

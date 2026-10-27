@@ -30,7 +30,8 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     INVALID_POLICY: 'Select a valid Gemini exact-deny policy of at most 4096 bytes.',
     POLICY_CHANGED: 'The selected policy changed during review. Review it again.',
     UNSUPPORTED_PATH: 'A selected path cannot be safely represented in the hook command.',
-    PROFILE_CHANGED: 'The profile differs from the supported exact draft. Review it manually.',
+    PROFILE_CHANGED:
+      'The profile is unsupported or the AEGIS hook is ambiguous. Review it manually.',
     DRAFT_REFUSED: 'The separate settings draft could not be created safely.',
     RETENTION_LIMIT:
       'The private backup limit was reached. Review retained files before another setup.',
@@ -91,7 +92,12 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     </p>
     <p class="muted">
       {$t(
-        'Only the AEGIS-owned draft is changed. If the settings differ from that exact draft, setup and removal are refused for manual review.',
+        'Only the AEGIS-owned home is changed. Other strict-JSON settings and hooks are preserved; commented or ambiguous settings are refused for manual review.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'If the AEGIS installation was moved or renamed, review the old hook manually before removing it.',
       )}
     </p>
     <p class="muted">

@@ -8,8 +8,8 @@ const require = createRequire(import.meta.url);
 const { createGeminiHookApp } = require('../../src/main/gemini-hook-app');
 const {
   hookCommand,
-  removable,
-  settingsBytes,
+  planProfileChange,
+  recognizedCommand,
   shellPath,
 } = require('../../src/main/gemini-profile-model');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
@@ -135,16 +135,18 @@ afterEach(async () => {
 });
 const call = (action) => service.handle(action, () => state.owned);
 
-it('reviews exact policy and settings, installs and removes only the unchanged owned draft', async () => {
+it('reviews exact policy and settings, installs and removes the owned entry', async () => {
   expect((await call('install')).code).toBe('INSTALLED');
   expect(state.dialog.defaultId).toBe(0);
   expect(state.dialog.cancelId).toBe(0);
   expect(state.dialog.detail).toContain(policyText);
   expect(state.dialog.detail).toContain(hookCommand(executable, appPath, policyPath));
   const actual = await fs.readFile(target);
-  expect(actual.equals(settingsBytes(hookCommand(executable, appPath, policyPath)))).toBe(true);
+  expect(JSON.parse(actual).hooks.BeforeTool[0].hooks[0].command).toBe(
+    hookCommand(executable, appPath, policyPath),
+  );
   expect((await call('remove')).code).toBe('REMOVED');
-  expect(await fs.readFile(target, 'utf8')).toBe('{}\n');
+  expect(JSON.parse(await fs.readFile(target, 'utf8')).hooks.BeforeTool).toEqual([]);
   expect(state.backups).toHaveLength(2);
 });
 
@@ -154,6 +156,83 @@ it('allows a fresh removal review after restart without reconstructing old appro
   service = createGeminiHookApp(opts);
   expect((await call('remove')).code).toBe('REMOVED');
   expect(state.dialog.message).toContain('Remove');
+});
+
+it('preserves a separate home authentication setting and unrelated hooks through removal and reinstall', async () => {
+  expect((await call('install')).code).toBe('INSTALLED');
+  const settings = JSON.parse(await fs.readFile(target, 'utf8'));
+  settings.security = { auth: { selectedType: 'oauth-personal', note: 'Privé' } };
+  settings.hooks.BeforeTool.push({
+    matcher: '^other$',
+    hooks: [{ type: 'command', command: 'other' }],
+  });
+  settings.hooks.AfterTool = [
+    { matcher: '^other$', hooks: [{ type: 'command', command: 'later' }] },
+  ];
+  await fs.writeFile(target, JSON.stringify(settings, null, 2) + '\n');
+  expect((await call('remove')).code).toBe('REMOVED');
+  let after = JSON.parse(await fs.readFile(target, 'utf8'));
+  expect(after.security).toEqual(settings.security);
+  expect(after.hooks.BeforeTool).toEqual([settings.hooks.BeforeTool[1]]);
+  expect(after.hooks.AfterTool).toEqual(settings.hooks.AfterTool);
+  expect(state.dialog.detail).not.toContain('oauth-personal');
+  expect((await call('install')).code).toBe('INSTALLED');
+  after = JSON.parse(await fs.readFile(target, 'utf8'));
+  expect(after.security).toEqual(settings.security);
+  expect(after.hooks.BeforeTool).toHaveLength(2);
+  expect(after.hooks.BeforeTool[0]).toEqual(settings.hooks.BeforeTool[1]);
+});
+
+it('preserves unrelated strict-JSON content for first, middle and last entry removal', () => {
+  const command = hookCommand(executable, appPath, policyPath);
+  const selection = { action: 'install', target: 'fixture', executable, appPath, command };
+  const installed = planProfileChange(Buffer.from('{}'), selection);
+  const owned = JSON.parse(installed.after).hooks.BeforeTool[0];
+  const other = (n) => ({
+    matcher: String(n),
+    hooks: [{ type: 'command', command: `other ${n}` }],
+  });
+  for (const index of [0, 1, 2]) {
+    const entries = [other(1), other(2)];
+    entries.splice(index, 0, owned);
+    const source =
+      JSON.stringify(
+        {
+          security: { auth: { selectedType: 'oauth', note: 'Привет' } },
+          hooks: { BeforeTool: entries, AfterTool: [other(3)] },
+        },
+        null,
+        2,
+      ) + '\n';
+    const result = planProfileChange(Buffer.from(source), { ...selection, action: 'remove' });
+    expect(result).not.toBeNull();
+    const parsed = JSON.parse(result.after);
+    expect(parsed.security.auth.note).toBe('Привет');
+    expect(parsed.hooks.BeforeTool).toEqual([other(1), other(2)]);
+    expect(parsed.hooks.AfterTool).toEqual([other(3)]);
+  }
+});
+
+it('refuses ambiguous, modified, duplicate-key and JSONC hook removal', () => {
+  const command = hookCommand(executable, appPath, policyPath);
+  const selection = { action: 'install', target: 'fixture', executable, appPath, command };
+  const installed = planProfileChange(Buffer.from('{}'), selection);
+  const value = JSON.parse(installed.after);
+  const duplicate = structuredClone(value);
+  duplicate.hooks.BeforeTool.push(structuredClone(duplicate.hooks.BeforeTool[0]));
+  const altered = structuredClone(value);
+  altered.hooks.BeforeTool[0].hooks[0].timeout = 999;
+  const extra = structuredClone(value);
+  extra.hooks.BeforeTool[0].hooks[0].extra = true;
+  for (const bytes of [
+    Buffer.from(JSON.stringify(duplicate)),
+    Buffer.from(JSON.stringify(altered)),
+    Buffer.from(JSON.stringify(extra)),
+    Buffer.from('{"hooks":{},"hooks":{}}'),
+    Buffer.from('{/*comment*/}'),
+  ]) {
+    expect(planProfileChange(bytes, { ...selection, action: 'remove' })).toBeNull();
+  }
 });
 
 it('cancels without writing the hook or retaining a backup', async () => {
@@ -230,7 +309,8 @@ it('does not commit if approval expires during pre-commit backup verification', 
 it('refuses mutation when the read-only helper shutdown is not confirmed', async () => {
   state.readReleaseUnknown = true;
   expect((await call('install')).code).toBe('RETAINED_UNKNOWN');
-  expect(state.mutatingOpens || 0).toBe(0);
+  expect(state.mutatingOpens).toBe(1);
+  expect(state.writes).toBe(0);
 });
 
 it.each(['makeDraftIO', 'makeReadIO', 'makeIO'])(
@@ -268,9 +348,9 @@ it('rejects unsafe PowerShell and Gemini expansion paths instead of interpolatin
     'C:\\safe\\a&b.exe',
   ])
     expect(() => shellPath(value)).toThrow();
-  expect(
-    removable(settingsBytes(hookCommand(executable, appPath, policyPath)), executable, appPath),
-  ).toBe(true);
+  expect(recognizedCommand(hookCommand(executable, appPath, policyPath), executable, appPath)).toBe(
+    true,
+  );
   for (const unsafe of [
     "C:\\bad'name\\thing",
     'C:\\$GEMINI_CWD\\thing',
@@ -296,5 +376,5 @@ it('rejects unsafe PowerShell and Gemini expansion paths instead of interpolatin
   expect(shipped).toContain(
     "-FilePath 'C:/Program Files/AEGIS - AI Monitoring & Threat Detection/AEGIS - AI Monitoring & Threat Detection.exe'",
   );
-  expect(removable(settingsBytes(shipped), shippedExe, shippedApp)).toBe(true);
+  expect(recognizedCommand(shipped, shippedExe, shippedApp)).toBe(true);
 });

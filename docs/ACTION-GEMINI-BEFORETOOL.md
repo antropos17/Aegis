@@ -20,9 +20,12 @@ Gemini home. The native review shows the complete supported settings change and
 selected policy; cancellation is the default. The launch guidance uses
 `GEMINI_CLI_HOME` explicitly and does not edit a personal Gemini settings file.
 This separate home may require authentication. Project/system settings and other
-provider controls still apply. The setup and fresh removal review accept only
-the exact unchanged AEGIS draft; if Gemini or another actor changes it, the app
-refuses to rewrite it and the owner must review the separate file manually.
+provider controls still apply. Setup and fresh removal preserve unrelated
+strict-JSON settings, including a separately selected authentication method,
+and target only one exactly recognized AEGIS entry. Commented JSON, ambiguous
+entries and unsupported structures are refused for manual review.
+Removal recognizes the current packaged application path. A hook referring to
+a moved or renamed AEGIS installation requires manual review.
 The selected policy is limited to 4096 bytes for the exact native preview.
 Some Windows paths are refused when they cannot be represented safely in the
 hook command. This setup does not prove that Gemini loads or honors the hook.
