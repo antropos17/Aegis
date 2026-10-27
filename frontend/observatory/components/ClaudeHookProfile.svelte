@@ -148,14 +148,18 @@
   let pending = $state<Operation | null>(null);
   let failed = $state(false);
   let feedback = $state('');
-  let guardSession = $state({
-    status: 'inactive',
-    available: false,
-    lossDetected: false,
-    afterHooks: false,
-    afterHooksAtAdmission: false,
-    entries: [] as { decision: string; reason: string; outcome: Outcome }[],
-  });
+  type GuardEntry = { decision: string; reason: string; outcome: Outcome };
+  type GuardSnapshot = {
+    status: string;
+    available: boolean;
+    lossDetected: boolean;
+    afterHooks: boolean;
+    afterHooksAtAdmission: boolean;
+    entries: GuardEntry[];
+  };
+  let guardSession = $state<GuardSnapshot | null>(null);
+  let guardStatusKnown = $state(false);
+  let retainedReports = $state(false);
   let alive = true;
   let available = $derived(!preview && typeof host?.reviewClaudeHookProfile === 'function');
   onDestroy(() => {
@@ -168,6 +172,7 @@
     if (!available || pending !== null) return;
     pending = action;
     failed = false;
+    guardStatusKnown = false;
     try {
       const value = record(confirmed(await invoke(host, 'reviewClaudeHookProfile', action)));
       if (!alive) return;
@@ -180,17 +185,17 @@
         canOpen: value.canOpen === true,
       };
       const session = record(value.guardSession);
-      const entries = Array.isArray(session.entries) ? session.entries.slice(-32) : [];
-      guardSession = {
-        status:
-          typeof session.status === 'string' && Object.hasOwn(sessionStatuses, session.status)
-            ? session.status
-            : 'inactive',
-        available: session.available === true,
-        lossDetected: session.lossDetected === true,
-        afterHooks: session.afterHooks === true,
-        afterHooksAtAdmission: session.afterHooksAtAdmission === true,
-        entries: entries.flatMap((item: unknown) => {
+      if (
+        typeof session.status === 'string' &&
+        Object.hasOwn(sessionStatuses, session.status) &&
+        typeof session.available === 'boolean' &&
+        session.available === (session.status === 'active') &&
+        typeof session.lossDetected === 'boolean' &&
+        typeof session.afterHooks === 'boolean' &&
+        typeof session.afterHooksAtAdmission === 'boolean' &&
+        Array.isArray(session.entries)
+      ) {
+        const entries = session.entries.slice(-32).flatMap<GuardEntry>((item: unknown) => {
           const entry = record(item);
           return typeof entry.decision === 'string' &&
             ['allow', 'ask', 'deny'].includes(entry.decision) &&
@@ -208,8 +213,23 @@
                 },
               ]
             : [];
-        }),
-      };
+        });
+        const previous = guardSession?.entries ?? [];
+        retainedReports = entries.length === 0 && previous.length > 0;
+        guardSession = {
+          status: session.status,
+          available: session.available,
+          lossDetected: session.lossDetected,
+          afterHooks: session.afterHooks,
+          afterHooksAtAdmission: session.afterHooksAtAdmission,
+          entries: retainedReports ? previous : entries,
+        };
+        guardStatusKnown = ![
+          'GUARD_RELEASE_UNCONFIRMED',
+          'SESSION_RELEASE_UNCONFIRMED',
+          'RETAINED_UNKNOWN',
+        ].includes(code);
+      }
       feedback =
         messages[code] || 'Profile review could not complete. Retained files are preserved.';
       failed = failedCodes.has(code) || !Object.hasOwn(messages, code);
@@ -333,6 +353,8 @@
         disabled={!available ||
           pending !== null ||
           !profileState.canOpen ||
+          !guardStatusKnown ||
+          !guardSession ||
           ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
         onclick={() => perform('guard-start')}>{$t('Prepare terminal session')}</button
       >
@@ -341,6 +363,8 @@
         disabled={!available ||
           pending !== null ||
           !profileState.canOpen ||
+          !guardStatusKnown ||
+          !guardSession ||
           ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
         onclick={() => perform('guard-start-snapshot')}
         >{$t('Prepare with accepted project snapshot')}</button
@@ -349,7 +373,8 @@
         class="button"
         disabled={!available ||
           pending !== null ||
-          !['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
+          (!['waiting', 'awaiting-confirmation', 'active'].includes(guardSession?.status ?? '') &&
+            profileState.code !== 'GUARD_RELEASE_UNCONFIRMED')}
         onclick={() => perform('guard-stop')}>{$t('Stop reporting')}</button
       >
     </div>
@@ -358,26 +383,37 @@
         'The ordinary terminal session does not check a project snapshot. The snapshot-checked option compares recognized project inventory only; acceptance is local, not authenticated, and the project can change after the check. Use Local security to review and explicitly accept a complete snapshot first.',
       )}
     </p>
-    <p class="muted">
-      {$t(sessionStatuses[guardSession.status])}. {$t(
-        'Refresh setup status to see recent reports.',
-      )}
-    </p>
-    {#if guardSession.status !== 'inactive'}
+    {#if !guardStatusKnown}<p class="muted" role="status">
+        {$t(
+          pending !== null
+            ? 'Checking reporting session status…'
+            : 'Reporting session status is unavailable. Refresh setup status to try again.',
+        )}
+      </p>{/if}
+    {#if guardSession}<p class="muted">
+        {$t('Last successful check; current session status may have changed:')}
+        {$t(sessionStatuses[guardSession.status])}. {$t(
+          'Refresh setup status to see recent reports.',
+        )}
+      </p>{/if}
+    {#if guardSession && guardSession.status !== 'inactive'}
       <p class="muted">
         {$t(
           guardSession.afterHooks
-            ? 'After-result hooks were verified in the selected profile; delivery remains unknown.'
+            ? 'At the last successful check, after-result hooks were verified in the selected profile; current status may have changed and delivery remains unknown.'
             : guardSession.afterHooksAtAdmission
-              ? 'After-result hooks were verified at admission; the profile is not currently verified.'
-              : 'After-result hooks are not currently verified; delivery remains unknown.',
+              ? 'After-result hooks were verified at admission; current profile verification is unknown.'
+              : 'After-result hooks were not verified at the last successful check; delivery remains unknown.',
         )}
       </p>
     {/if}
-    {#if guardSession.lossDetected}<p role="alert">
+    {#if guardSession?.lossDetected}<p role="alert">
         {$t('Some reporting may have been lost or discarded; delivery remains unknown.')}
       </p>{/if}
-    {#if guardSession.entries.length}
+    {#if guardSession?.entries.length}
+      {#if retainedReports || !guardStatusKnown}<p class="muted">
+          {$t('Retained reports are historical and may not describe the current session.')}
+        </p>{/if}
       <ul>
         {#each guardSession.entries as entry, index (index)}
           <li>
@@ -387,9 +423,11 @@
           </li>
         {/each}
       </ul>
-    {:else}
+    {:else if guardSession}
       <p class="muted">
-        {$t('No reports received; this does not establish that no actions occurred.')}
+        {$t(
+          'At the last successful check, no reports were received; this does not establish that no actions occurred.',
+        )}
       </p>
     {/if}
     {#if feedback}<p role={failed ? 'alert' : 'status'} class={['profile-feedback', { failed }]}>
