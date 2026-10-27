@@ -614,6 +614,96 @@ it('rejects a session shared by two monitored process instances', async () => {
   );
 });
 
+it.each([
+  'new-peer',
+  'new-peer-same-session',
+  'peer-exit',
+  'peer-replaced',
+  'invalid-peer',
+  'target-replaced',
+])(
+  'returns unavailable when the metadata-only Claude population changes during reading (%s)',
+  async (change) => {
+    const peerSession = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const peer = { ...agents[0], pid: 43, instanceId: `43:${start}` };
+    const peerRegistry = path.join(path.dirname(registry), '43.json');
+    if (!change.startsWith('new-peer')) {
+      agents.push(peer);
+      await fs.writeFile(
+        peerRegistry,
+        JSON.stringify({ sessionId: peerSession, cwd, startedAt: start + 100 }),
+      );
+    }
+    const activity = changeDuringRead(transcript, async () => {
+      if (change.startsWith('new-peer')) {
+        await fs.writeFile(
+          peerRegistry,
+          JSON.stringify({
+            sessionId: change === 'new-peer-same-session' ? sessionId : peerSession,
+            cwd,
+            startedAt: start + 100,
+          }),
+        );
+        agents.push(peer);
+      }
+      if (change === 'peer-exit') agents = [agents[0]];
+      if (change === 'peer-replaced')
+        agents[1] = { ...peer, startTime: start + 1, instanceId: `43:${start + 1}` };
+      if (change === 'invalid-peer') agents[1] = { ...peer, instanceIdSource: 'unknown' };
+      if (change === 'target-replaced')
+        agents[0] = { ...agents[0], startTime: start + 1, instanceId: `42:${start + 1}` };
+    });
+    const result = await service.explain(eventId);
+    expect(activity().changed).toBe(true);
+    expect(result.availability).toBe('unavailable');
+    expect(result.toolContext.strength).toBe('unattributed');
+    expect(result.toolContext.candidates).toEqual([]);
+    for (const raw of [secret, cwd, sessionId, peerSession, 'call-1', '.env'])
+      expect(JSON.stringify(result)).not.toContain(raw);
+  },
+);
+
+it('keeps stable distinct metadata-only Claude peers inferred when native inspection is unavailable', async () => {
+  const sessions = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'];
+  for (const [index, peerSession] of sessions.entries()) {
+    const pid = 43 + index;
+    agents.push({ ...agents[0], pid, instanceId: `${pid}:${start}` });
+    await fs.writeFile(
+      path.join(path.dirname(registry), `${pid}.json`),
+      JSON.stringify({ sessionId: peerSession, cwd, startedAt: start + 100 }),
+    );
+  }
+  const activity = changeDuringRead(transcript, () => {
+    agents = [...agents].reverse();
+  });
+  const result = await service.explain(eventId);
+  expect(activity().changed).toBe(true);
+  expect(result.availability).not.toBe('unavailable');
+  expect(result.toolContext.sessionBinding).toBe('unavailable');
+  expect(result.toolContext.strength).toBe('inferred');
+  expect(result.toolContext.candidates).toHaveLength(1);
+  for (const raw of [secret, cwd, sessionId, ...sessions, 'call-1', '.env'])
+    expect(JSON.stringify(result)).not.toContain(raw);
+});
+
+it('rejects distinct Claude instances sharing a PID when native inspection is unavailable', async () => {
+  agents.push({ ...agents[0], startTime: start + 1, instanceId: `42:${start + 1}` });
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.strength).toBe('unattributed');
+  expect(result.toolContext.candidates).toEqual([]);
+  for (const raw of [secret, cwd, sessionId, 'call-1', '.env'])
+    expect(JSON.stringify(result)).not.toContain(raw);
+});
+
+it('rejects an already malformed Claude peer when native inspection is unavailable', async () => {
+  agents.push({ agent: 'Claude Code', pid: 43 });
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.candidates).toEqual([]);
+  expect(JSON.stringify(result)).not.toContain(secret);
+});
+
 it.each(['stable', 'same-session', 'disappears'])(
   'checks peer registry stability across the selected transcript read (%s)',
   async (change) => {

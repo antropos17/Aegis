@@ -126,7 +126,18 @@ function createLiveToolContext(options) {
     if (event.createTime100ns !== null && event.createTime100ns !== agent.createTime100ns)
       return unavailable('process-binding-mismatch');
     const population = snapshots.filter(observed);
-    const populationStamp = population.map(witness).sort().join('|');
+    const claudeRows = snapshots.filter((row) => row?.agent === 'Claude Code');
+    // Every Claude row must be examined, even when native inspection is unavailable.
+    if (
+      claudeRows.length !== population.length ||
+      new Set(population.map((row) => row.pid)).size !== population.length
+    )
+      return unavailable('process-identity-unavailable');
+    const populationStamp = JSON.stringify(population.map(witness).sort());
+    const samePopulation = (rows) =>
+      Array.isArray(rows) &&
+      rows.filter((row) => row?.agent === 'Claude Code').length === claudeRows.length &&
+      JSON.stringify(rows.filter(observed).map(witness).sort()) === populationStamp;
     if (population.length > 32) return unavailable('binding-limit');
     const nativeBefore = await observeProcesses(population);
     const native = processWitness(nativeBefore, agent);
@@ -211,7 +222,7 @@ function createLiveToolContext(options) {
     const current = getAgents();
     if (
       JSON.stringify(after) !== JSON.stringify(selected) ||
-      !Array.isArray(current) ||
+      !samePopulation(current) ||
       current.filter(
         (a) => observed(a) && a.instanceId === agent.instanceId && witness(a) === stamp,
       ).length !== 1
@@ -229,16 +240,10 @@ function createLiveToolContext(options) {
     }
     if (native) {
       const nativeAfter = await observeProcesses(population);
-      const finalPopulation = getAgents();
-      if (
-        JSON.stringify(nativeAfter) !== JSON.stringify(nativeBefore) ||
-        !Array.isArray(finalPopulation) ||
-        finalPopulation.filter((row) => row?.agent === 'Claude Code').length !==
-          snapshots.filter((row) => row?.agent === 'Claude Code').length ||
-        finalPopulation.filter(observed).map(witness).sort().join('|') !== populationStamp
-      )
+      if (JSON.stringify(nativeAfter) !== JSON.stringify(nativeBefore))
         return unavailable('process-binding-mismatch');
     }
+    if (!samePopulation(getAgents())) return unavailable('process-binding-mismatch');
     if (batch.availability === 'unavailable')
       return {
         ...unavailable('source-unavailable'),
