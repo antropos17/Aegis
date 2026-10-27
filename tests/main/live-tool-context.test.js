@@ -984,6 +984,70 @@ it('rejects renderer-shaped objects and unknown event IDs instead of reading req
   expect((await service.explain(sessionId)).toolContext.reasons).toContain('context-unavailable');
 });
 
+it('does not start an audit proof or native observation without a fresh population', async () => {
+  const auditProof = vi.fn(async () => ({ unique: () => true }));
+  const observeProcesses = vi.fn(async () => null);
+  const guarded = createLiveToolContext({
+    home, getAgents: () => agents, now: () => start + 3000,
+    getPopulationGeneration: () => null, auditProof, observeProcesses,
+  });
+  const event = auditEvent();
+  prepareFor(guarded, event);
+  guarded.record(event);
+  const alias = guarded.auditLookup(auditRowFor(event), { unique: () => true });
+  const result = await guarded.explain(alias);
+  expect(result.toolContext.reasons).toContain('process-identity-unavailable');
+  expect(auditProof).not.toHaveBeenCalled();
+  expect(observeProcesses).not.toHaveBeenCalled();
+  expect(JSON.stringify(result)).not.toContain(secret);
+});
+
+it.each(['without native evidence', 'with native evidence'])(
+  'discards a read crossing a pause/resume generation %s',
+  async (mode) => {
+    let generation = 1, finish;
+    const ticks = '134373736000000000';
+    if (mode === 'with native evidence') agents[0].createTime100ns = ticks;
+    const witness = [{ ProcessId: 42, CreateTime100ns: ticks, Cwd: cwd, SessionId: sessionId }];
+    const observeProcesses = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const guarded = createLiveToolContext({
+      home, getAgents: () => agents, now: () => start + 3000,
+      getPopulationGeneration: () => generation, observeProcesses,
+    });
+    guarded.record({ eventId, pid: 42, instanceId: `42:${start}`, timestamp: start + 1500,
+      file: path.join(cwd, '.env'), createTime100ns: mode === 'with native evidence' ? ticks : undefined });
+    const pending = guarded.explain(eventId);
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    generation += 2; // Pause and resume return to the same population, but not its generation.
+    finish(mode === 'with native evidence' ? witness : null);
+    const result = await pending;
+    expect(result.toolContext.reasons).toContain('context-unavailable');
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(observeProcesses).toHaveBeenCalledTimes(1);
+  },
+);
+
+it('discards an audit result when population changes during the final custody proof', async () => {
+  let generation = 1, calls = 0, finish;
+  const guarded = createLiveToolContext({
+    home, getAgents: () => agents, now: () => start + 3000,
+    getPopulationGeneration: () => generation, observeProcesses: async () => null,
+    auditProof: () => ++calls === 1 ? Promise.resolve({ unique: () => true }) :
+      new Promise((resolve) => { finish = resolve; }),
+  });
+  const event = auditEvent();
+  prepareFor(guarded, event);
+  guarded.record(event);
+  const alias = guarded.auditLookup(auditRowFor(event), { unique: () => true });
+  const pending = guarded.explain(alias);
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  generation += 2;
+  finish({ unique: () => true });
+  const result = await pending;
+  expect(result.toolContext.reasons).toContain('context-unavailable');
+  expect(JSON.stringify(result)).not.toContain(secret);
+});
+
 it('rejects a reused PID and an unavailable process population', async () => {
   agents = [{ ...agents[0], startTime: start + 1200, instanceId: `42:${start + 1200}` }];
   expect((await service.explain(eventId)).toolContext.reasons).toContain(

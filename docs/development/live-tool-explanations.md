@@ -13,6 +13,13 @@ providers, alternate homes, WSL, subagents and remote histories remain outside
 this integration. A healthy current process snapshot, exact instance key,
 matching working directory and registry startup within that process's
 lifetime are prerequisites. A session shared by monitored instances is rejected.
+Context is unavailable while monitoring is paused, during a system-sleep gap,
+or until a fresh reliable process scan has completed identity enrichment and
+reconciliation. An in-flight explanation is discarded if a pause, resume,
+sleep, scan restart or new publication changes that observation generation.
+A scheduled process tick skipped behind a still-running scan also revokes the
+population until a later complete scan. This does not establish a wall-clock TTL
+or retract an explanation already displayed for a direct live event.
 The process snapshot and the selected and observed peer registries are checked
 again after reading. These are bounded observations, not an atomic snapshot;
 a change that is reversed between reads may go undetected.

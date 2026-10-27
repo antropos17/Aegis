@@ -301,6 +301,7 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  deps.onLivePopulationIntervalsStopped?.();
   maxProcessGapMs = null;
   if (wslInventoryInterval) {
     clearInterval(wslInventoryInterval);
@@ -689,6 +690,7 @@ async function doProcessScan() {
   // Early-return BEFORE updateScanStatus(true): a blocked re-entrant call must not
   // bump activeScanCount, whose only decrement lives in the finally below.
   if (processScanRunning) {
+    deps.onLivePopulationScanSkipped?.();
     skippedProcessTicks++;
     lastSkippedAt = Date.now();
     // The in-flight scan may remain pending, so publish the cadence change now.
@@ -699,6 +701,7 @@ async function doProcessScan() {
   networkScopePending = true;
   networkScopeRevision++;
   const resourceGeneration = resourceScanGeneration;
+  const lifecycleGeneration = deps.beginLivePopulationScan?.();
   let networkIdentityReady = false;
   updateScanStatus(true);
   const t0 = performance.now();
@@ -1009,6 +1012,8 @@ async function doProcessScan() {
       reliable: result.reliable === true,
       identityDegraded,
       gapStraddled,
+      observationComplete: observed,
+      lifecycleGeneration,
       snapshotCurrent:
         resourceGeneration === resourceScanGeneration &&
         snapshotCurrent &&
