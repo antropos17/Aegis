@@ -4,13 +4,21 @@
 const { createInventoryReader } = require('./inventory-reader');
 const { summarizeConfig, PARSE_DEPTH } = require('./inventory-config');
 const { getInventoryProfile, matchesInventoryConfig } = require('./inventory-profiles');
+const {
+  createGeminiInstructionSelection,
+  CANDIDATE_LIMIT,
+} = require('./inventory-gemini-instructions');
 const { createPackageInventory, PACKAGE_FILES, PACKAGE_LIMIT } = require('./inventory-packages');
 
 async function inventoryLayout(directory, profile, options) {
   const reader = await createInventoryReader(directory, options.limits);
   const packageInventory = createPackageInventory(reader);
   const components = [];
+  const seen = new Set();
+  const geminiInstructions = createGeminiInstructionSelection(profile, reader);
   function record(relativePath, file, entry, metadata = {}) {
+    if (seen.has(relativePath)) return;
+    seen.add(relativePath);
     packageInventory.observe(
       relativePath,
       file,
@@ -32,6 +40,7 @@ async function inventoryLayout(directory, profile, options) {
     });
   }
   function recordConfig(name, file, entry) {
+    geminiInstructions.observeConfig(name, file);
     const metadata = summarizeConfig(
       file.data,
       entry.format,
@@ -59,6 +68,7 @@ async function inventoryLayout(directory, profile, options) {
       record(name, file, { ...entry, kind: 'instruction' }),
     );
   }
+  await geminiInstructions.visit((name) => seen.has(name), record);
   if (profile.id === 'project') {
     for (const name of PACKAGE_FILES) {
       await reader.visit(name, (relativePath, file) =>
@@ -102,6 +112,9 @@ async function inventoryLayout(directory, profile, options) {
         match,
       })),
       instructions: profile.instructions.map((entry) => entry.path),
+      ...(profile.geminiInstructions
+        ? { configuredGeminiInstructions: 'selected-settings-bounded-basenames' }
+        : {}),
       skillRoots: profile.skillRoots.map((entry) => entry.path),
       skillExclusions: ['.git (case-insensitive)'],
       packageFiles: profile.id === 'project' ? [...PACKAGE_FILES] : [],
@@ -119,6 +132,7 @@ async function inventoryLayout(directory, profile, options) {
       ...reader.limits,
       parseDepth: PARSE_DEPTH,
       packages: PACKAGE_LIMIT,
+      ...(profile.geminiInstructions ? { geminiInstructionCandidates: CANDIDATE_LIMIT } : {}),
       gitInflatedBytes: reader.limits.totalBytes,
     },
     usage: { ...reader.usage(), gitInflatedBytes: packageEvidence.gitUsage.inflatedBytes },

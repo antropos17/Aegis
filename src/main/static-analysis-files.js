@@ -2,6 +2,7 @@
 
 const { createInventoryReader } = require('./inventory-reader');
 const { getInventoryProfile, matchesInventoryConfig } = require('./inventory-profiles');
+const { createGeminiInstructionSelection } = require('./inventory-gemini-instructions');
 
 /**
  * Visit explicit layouts or an entire selected package with the shared read bounds.
@@ -24,8 +25,12 @@ async function visitStaticFiles(adapter, root, onFile, limits) {
   };
   if (!profile) await reader.visit('', (name, file) => record(name, file), true, 0, ['.git']);
   else {
+    const geminiInstructions = createGeminiInstructionSelection(profile, reader);
     for (const entry of profile.configs)
-      await reader.visit(entry.path, (name, file) => record(name, file, entry));
+      await reader.visit(entry.path, (name, file) => {
+        geminiInstructions.observeConfig(name, file);
+        record(name, file, entry);
+      });
     for (const entry of profile.configPatterns)
       await reader.visitMatching(
         entry.directory,
@@ -33,7 +38,15 @@ async function visitStaticFiles(adapter, root, onFile, limits) {
         (name, file) => record(name, file, entry.template),
       );
     for (const entry of profile.instructions)
-      await reader.visit(entry.path, (name, file) => record(name, file, { kind: 'instruction' }));
+      await reader.visit(entry.path, (name, file) =>
+        record(name, file, {
+          kind: 'instruction',
+          configuredInstruction: Boolean(
+            profile.geminiInstructions && entry.agent === 'gemini-cli',
+          ),
+        }),
+      );
+    await geminiInstructions.visit((name) => seen.has(name), record);
     if (adapter === 'project')
       await reader.visit('package.json', (name, file) => record(name, file));
     for (const entry of profile.skillRoots)
@@ -48,6 +61,9 @@ async function visitStaticFiles(adapter, root, onFile, limits) {
       configPatterns:
         profile?.configPatterns.map(({ directory, match }) => ({ directory, match })) ?? [],
       instructions: profile?.instructions.map((entry) => entry.path) ?? [],
+      ...(profile?.geminiInstructions
+        ? { configuredGeminiInstructions: 'selected-settings-bounded-basenames' }
+        : {}),
       skillRoots: profile?.skillRoots.map((entry) => entry.path) ?? [],
       packageManifests: !profile
         ? 'within-selected-package'
