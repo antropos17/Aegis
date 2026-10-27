@@ -171,6 +171,9 @@ interface AegisIpcBridge {
   reviewClaudeHookProfile(
     action: 'status' | 'install' | 'install-project-policy' | 'remove' | 'open-profile',
   ): Promise<Record<string, unknown>>;
+  reviewGeminiHookProfile(
+    action: 'status' | 'install' | 'remove' | 'open-profile',
+  ): Promise<Record<string, unknown>>;
   controlProjectWatch(action: 'status' | 'select' | 'clear'): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
   reviewAuditIntegrity(

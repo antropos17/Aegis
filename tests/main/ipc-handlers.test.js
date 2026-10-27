@@ -330,6 +330,33 @@ describe('ipc-handlers', () => {
     expect(await handler(event, 'status')).toEqual({ success: true, code: 'READY' });
     expect(handle).toHaveBeenCalledOnce();
   });
+  it('accepts only path-free Gemini profile operations from the current owned frame', async () => {
+    const handle = vi.fn(async (_action, owned) => ({ success: owned(), code: 'IDLE' }));
+    const { event } = registerOwnedRenderer({ geminiHookProfile: { handle } });
+    const handler = getHandler('gemini-hook:review');
+    expect(await handler({ ...event, senderFrame: {} }, 'install')).toMatchObject({
+      success: false,
+    });
+    expect(await handler(event, { action: 'install', path: 'PRIVATE' })).toMatchObject({
+      success: false,
+    });
+    expect(handle).not.toHaveBeenCalled();
+    expect(await handler(event, 'install')).toEqual({ success: true, code: 'IDLE' });
+  });
+  it('rechecks Gemini profile ownership after asynchronous native work', async () => {
+    let finish;
+    const handle = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ geminiHookProfile: { handle } });
+    const pending = getHandler('gemini-hook:review')(event, 'install');
+    frame.url = 'https://untrusted.example/';
+    finish({ success: true, code: 'INSTALLED' });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
   it('project selection accepts only closed owned actions and projects out private backend fields', async () => {
     const handle = vi.fn(async (_action, owned) => ({
       success: owned(),
