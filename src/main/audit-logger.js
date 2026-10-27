@@ -21,6 +21,10 @@ const auditIndex = require('./audit-index');
 const indexRebuild = require('./audit-index-rebuild');
 const counterSeed = require('./audit-counter-seed');
 const { projectToolContext } = require('./tool-context-record');
+const { projectAuditIdentity, readAuditIdentity } = require('./audit-observation-identity');
+const { createProofRunner, createProofTargets } = require('./audit-observation-proof-runner');
+const { types } = require('node:util');
+const proofRunner = createProofRunner();
 let _counterTask = null;
 let _historyReadState = 'uninitialized';
 let _initGeneration = 0;
@@ -146,6 +150,7 @@ let _persistedEntries = 0;
  * @since v0.2.0
  */
 function init(opts) {
+  proofRunner.cancel();
   _counterTask?.cancel();
   const generation = ++_initGeneration;
   _onFlushError = opts.onFlushError || null;
@@ -283,6 +288,56 @@ function getTodayLogPath() {
   return path.join(_logDir, `aegis-audit-${_todayDateStr()}.json`);
 }
 
+function fileAuditDetails(type, extra, candidate) {
+  if (!['file-access', 'config-access'].includes(type)) return extra;
+  const identity = projectAuditIdentity(candidate);
+  if (extra == null) return identity ? { auditIdentity: identity } : null;
+  if (typeof extra !== 'object') return extra;
+  if (types.isProxy(extra)) return extra;
+  if (Array.isArray(extra)) return extra;
+  try {
+    const prototype = Object.getPrototypeOf(extra);
+    if (prototype !== Object.prototype && prototype !== null) return extra;
+    const descriptors = Object.getOwnPropertyDescriptors(extra);
+    if (!identity && !Object.hasOwn(descriptors, 'auditIdentity')) return extra;
+    delete descriptors.auditIdentity;
+    const output = Object.defineProperties({}, descriptors);
+    if (identity) output.auditIdentity = identity;
+    return output;
+  } catch {
+    return null;
+  }
+}
+
+function batchAuditDetails(record) {
+  const extra = record.details.extra;
+  let fields = extra;
+  if (
+    ['file-access', 'config-access'].includes(record.type) &&
+    extra &&
+    typeof extra === 'object'
+  ) {
+    // The optional field is never invoked, even if an unsupported caller put a
+    // getter on it. Other event extras keep their existing spread semantics.
+    if (types.isProxy(extra)) throw new Error('audit-extra-unavailable');
+    const descriptors = Object.getOwnPropertyDescriptors(extra);
+    delete descriptors.auditIdentity;
+    fields = Object.defineProperties({}, descriptors);
+  }
+  const output = {
+    ...fields,
+    deliveryId: record.deliveryId,
+    deliverySensor: record.sensor,
+    replayed: record.replayed === true,
+  };
+  if (['file-access', 'config-access'].includes(record.type)) {
+    delete output.auditIdentity;
+    const identity = readAuditIdentity(extra);
+    if (identity) output.auditIdentity = identity;
+  }
+  return output;
+}
+
 /**
  * Log an audit event. Buffered — writes are flushed every 5s or at 50 events.
  *
@@ -339,7 +394,7 @@ function log(type, details) {
     ...(details.toolContext === undefined
       ? {}
       : { toolContext: projectToolContext(details.toolContext) }),
-    details: details.extra || null,
+    details: fileAuditDetails(type, details.extra || null, readAuditIdentity(details)),
   };
   // Whether the buffer was ALREADY at the cap before this push. Once it is, the
   // FLUSH_THRESHOLD auto-flush is suppressed and only the 5s timer drives writes:
@@ -410,12 +465,7 @@ function persistBatch(records) {
       ...(record.details.toolContext === undefined
         ? {}
         : { toolContext: projectToolContext(record.details.toolContext) }),
-      details: {
-        ...record.details.extra,
-        deliveryId: record.deliveryId,
-        deliverySensor: record.sensor,
-        replayed: record.replayed === true,
-      },
+      details: batchAuditDetails(record),
     }));
     let { prevHash, seq } =
       _chainDate === todayDate ? { prevHash: _prevHash, seq: _seq } : hashchain.seedFromTail(fp);
@@ -600,6 +650,40 @@ function getDeliveryStatus() {
     bufferDepth: _buffer.length,
     writeFailed: _writeFailed,
   };
+}
+
+function observationCustodyClear() {
+  return (
+    !!_logDir &&
+    _buffer.length === 0 &&
+    dropTracker.pendingCount() === 0 &&
+    dropTracker.totalDropped() === 0 &&
+    !_writeFailed &&
+    auditIndex.isReady()
+  );
+}
+
+/** Capture a private whole-index proof in an isolated, single-flight worker.
+ * @returns {Promise<object|null>} Private proof or unavailable.
+ * @since 0.21.0-beta
+ */
+async function captureObservationProof(rows) {
+  if (!observationCustodyClear()) return null;
+  const targets = createProofTargets(rows);
+  if (!targets) return null;
+  if (targets.length === 0) return Object.freeze({ unique: () => false });
+  const lease = auditIndex.observationProofLease();
+  if (!lease) return null;
+  const directory = _logDir;
+  const generation = _initGeneration;
+  const proof = await proofRunner.capture({ databasePath: lease.databasePath, directory, targets });
+  return proof &&
+    lease.current() &&
+    generation === _initGeneration &&
+    directory === _logDir &&
+    observationCustodyClear()
+    ? proof
+    : null;
 }
 
 /**
@@ -794,6 +878,7 @@ function prepareExport() {
  * @since v0.2.0
  */
 function shutdown() {
+  proofRunner.cancel();
   _initGeneration++;
   _counterTask?.cancel();
   _indexArmed = false;
@@ -1007,6 +1092,8 @@ module.exports = {
   shutdown,
   getStats,
   getDeliveryStatus,
+  observationCustodyClear,
+  captureObservationProof,
   exportAll,
   prepareExport,
   getEntriesBefore,

@@ -177,6 +177,7 @@ it('retries the exact failed older boundary and returns every tied record once',
   const first = Array.from({ length: 100 }, (_, id) => ({
     ...row(id),
     file: 'X:/fixture/ties.md',
+    testOrdinal: id,
   }));
   const host = {
     getAuditStats: async () => ({}),
@@ -184,7 +185,7 @@ it('retries the exact failed older boundary and returns every tied record once',
       .fn()
       .mockResolvedValueOnce(first)
       .mockRejectedValueOnce(new Error('PRIVATE_PATH_SENTINEL'))
-      .mockResolvedValueOnce([{ ...row(100), file: 'X:/fixture/ties.md' }]),
+      .mockResolvedValueOnce([{ ...row(100), file: 'X:/fixture/ties.md', testOrdinal: 100 }]),
   };
   const inspect = vi.fn();
   render(Reports, { host, telemetry: telemetry(), audit: true, inspect, navigate: vi.fn() });
@@ -204,8 +205,8 @@ it('retries the exact failed older boundary and returns every tied record once',
     host.getAuditEntriesBefore.mock.calls[1],
   );
   await fireEvent.click(screen.getByRole('button', { name: /Open 101 observations/ }));
-  const observations = inspect.mock.calls[0][1].observations as { eventId: number }[];
-  expect(new Set(observations.map((entry) => entry.eventId)).size).toBe(101);
+  const observations = inspect.mock.calls[0][1].observations as { testOrdinal: number }[];
+  expect(new Set(observations.map((entry) => entry.testOrdinal)).size).toBe(101);
 });
 
 it('preserves the applied filter and local controls, then admits the captured failed Type retry', async () => {

@@ -8,6 +8,8 @@
     admitAuditStats,
     advanceAuditPage,
     emptyAuditPage,
+    custodyRevision,
+    type AuditCustodyRevision,
     type AuditReadState,
     type AuditRequest,
   } from '../runtime/audit-read-state';
@@ -27,11 +29,13 @@
     inspect,
     telemetry,
     sectionRequest,
+    onAuditCustodyInvalidated = () => {},
   }: {
     host: Host | null;
     telemetry: Telemetry;
     navigate: (_view: string) => void;
     audit?: boolean;
+    onAuditCustodyInvalidated?: () => void;
     sectionRequest?: { id: string; revision: number };
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
@@ -49,6 +53,100 @@
   let retryHistoryButton = $state<HTMLButtonElement>();
   let refreshButton = $state<HTMLButtonElement>();
   let alive = true;
+  let knownCustody: AuditCustodyRevision | null = null;
+  let custodyReady = false;
+  let custodyFailed = false;
+  let initialCustodySettled = Promise.resolve();
+  function invalidateCustody() {
+    for (const row of page.rows) {
+      if (typeof row.eventId === 'string' && row.eventId.startsWith('audit:')) delete row.eventId;
+    }
+    onAuditCustodyInvalidated();
+  }
+  function acceptCustody(value: unknown, catchup: boolean) {
+    if (custodyFailed || !alive) return;
+    const next = custodyRevision(value);
+    if (!next || (knownCustody && next.epoch !== knownCustody.epoch)) {
+      custodyFailed = true;
+      custodyReady = false;
+      invalidateCustody();
+      return;
+    }
+    if (!knownCustody || next.revision > knownCustody.revision) {
+      if (knownCustody) invalidateCustody();
+      knownCustody = next;
+    }
+    if (catchup) custodyReady = true;
+  }
+  function startCustody(): () => void {
+    if (
+      !host ||
+      typeof host.onAuditCustodyRevision !== 'function' ||
+      typeof host.getAuditCustodyRevision !== 'function'
+    ) {
+      custodyFailed = true;
+      return () => {};
+    }
+    let active = true;
+    let settleInitial!: () => void;
+    initialCustodySettled = new Promise<void>((resolve) => {
+      settleInitial = resolve;
+    });
+    let unsubscribe: unknown;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    let inFlight = false;
+    const catchup = () => {
+      if (!active || custodyFailed || inFlight) return;
+      inFlight = true;
+      deadline = setTimeout(() => {
+        if (!active) return;
+        inFlight = false;
+        acceptCustody(null, true);
+        settleInitial();
+      }, 2000);
+      void invoke(host, 'getAuditCustodyRevision')
+        .then(
+          (value) => {
+            if (active) acceptCustody(value, true);
+          },
+          () => {
+            if (active) acceptCustody(null, true);
+          },
+        )
+        .finally(() => {
+          if (deadline) clearTimeout(deadline);
+          deadline = undefined;
+          inFlight = false;
+          settleInitial();
+        });
+    };
+    try {
+      unsubscribe = Reflect.apply(host.onAuditCustodyRevision, host, [
+        (value: unknown) => {
+          if (active) acceptCustody(value, false);
+        },
+      ]);
+      if (typeof unsubscribe !== 'function') throw new Error('Invalid custody subscription');
+      catchup();
+      if (custodyFailed) settleInitial();
+      interval = setInterval(catchup, 1000);
+    } catch {
+      custodyFailed = true;
+      custodyReady = false;
+      invalidateCustody();
+      settleInitial();
+    }
+    return () => {
+      active = false;
+      settleInitial();
+      if (interval) clearInterval(interval);
+      if (deadline) clearTimeout(deadline);
+      custodyReady = false;
+      invalidateCustody();
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }
   let type = $state('');
   let generation = 0;
   let statsGeneration = 0;
@@ -158,8 +256,13 @@
         request.requestedType ? [request.requestedType] : undefined,
         request.boundaryOffset,
       );
+      await initialCustodySettled;
       if (!alive || ticket !== generation) return;
-      page = advanceAuditPage(page, admitAuditPage(reply), request);
+      page = advanceAuditPage(
+        page,
+        admitAuditPage(reply, custodyReady && !custodyFailed ? knownCustody : null),
+        request,
+      );
       admissionRevision += 1;
       type = request.requestedType;
       pageRead = 'ready';
@@ -195,8 +298,10 @@
     }
   }
   onMount(() => {
+    const stopCustody = audit ? startCustody() : () => {};
     if (audit) void refresh(true);
     return () => {
+      stopCustody();
       alive = false;
       generation++;
       statsGeneration++;

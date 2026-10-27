@@ -6,6 +6,7 @@
  */
 'use strict';
 
+const { randomUUID } = require('node:crypto');
 const sessionTracker = require('./session-tracker');
 const ideExtensionDetector = require('./ide-extension-detector');
 const resourceMonitor = require('./resource-monitor');
@@ -19,8 +20,10 @@ const { collectTokenCosts, getTokenCostDelivery } = require('./token-cost-collec
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { projectToolContext, toolContextKey } = require('./tool-context-record');
+const { projectAuditIdentity } = require('./audit-observation-identity');
 const { identify } = require('./process-identity');
 const { STARTUP_MS, WARMUP_MS, warmupProcessSchedule } = require('./scan-schedule');
+const FILE_EVENT_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -45,6 +48,7 @@ let latestLocalModels = {
 // Suppress equivalent observations of one stamped instance within 30s; track repeats.
 // F-E03: never key on display name / PID / empty agent (cross-instance + unattributed collapse).
 const eventDedupMap = new Map();
+const auditIdentities = new WeakMap();
 // Conservative lower bound: a sweep cannot remove anything before this time is 60s old.
 let oldestEventDedupSentAt = Infinity;
 /** Dedup window for equivalent observations of one instance and path (ms). */
@@ -155,6 +159,17 @@ function updateScanStatus(entering) {
  * @since v0.3.0
  */
 function dedupFileEvent(ev, sensor = 'file-watch') {
+  // The security pipeline receives sensitive observations before display dedup.
+  // Give every ingress observation an identity before that admission.
+  auditIdentities.delete(ev);
+  try {
+    if (typeof ev.eventId !== 'string' || !FILE_EVENT_ID.test(ev.eventId))
+      ev.eventId = randomUUID();
+    const identity = projectAuditIdentity(deps.prepareFileObservation?.(ev));
+    if (identity) auditIdentities.set(ev, identity);
+  } catch {
+    // Live-custody failure must not prevent an audit admission.
+  }
   if (ev.toolContext !== undefined) ev.toolContext = projectToolContext(ev.toolContext);
   // Audit admission precedes live display/sequence dedup. Historical delivery
   // must not alter which observations the live sequence state machine consumes.
@@ -218,6 +233,7 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
 function logAuditForFile(ev, securityAdmission = false, sensor = 'file-watch') {
   const type =
     ev.reason && ev.reason.startsWith('AI agent config') ? 'config-access' : 'file-access';
+  const identity = auditIdentities.get(ev);
   const details = {
     agent: ev.agent,
     pid: ev.pid ?? null,
@@ -233,6 +249,7 @@ function logAuditForFile(ev, securityAdmission = false, sensor = 'file-watch') {
     // would break the hash chain. It does not: verifyChain rebuilds each record's
     // preimage from that record's own fields, so v0 and v1 lines coexist in one file.
     attribution: ev.attribution ?? null,
+    ...(identity ? { auditIdentity: identity } : {}),
     ...(ev.toolContext === undefined ? {} : { toolContext: projectToolContext(ev.toolContext) }),
   };
   if (ev.sensitive === true && deps.securityEvents) {
