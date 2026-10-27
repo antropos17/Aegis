@@ -18,6 +18,9 @@ jobs:
   build:
     runs-on: windows-2025
     timeout-minutes: 20
+    env:
+      RuntimeFrameworkVersion: '10.0.14'
+      TargetLatestRuntimePatch: 'false'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -50,9 +53,18 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.21.0'
+      - name: Allocate .NET job paths
+        run: |
+          ('DOTNET_INSTALL_DIR=' + (Join-Path $env:RUNNER_TEMP 'aegis-dotnet-10.0.403')) | Add-Content -LiteralPath $env:GITHUB_ENV
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.403'
+      - name: Verify selected .NET SDK
+        run: |
+          $sdk = dotnet --version
+          if ($LASTEXITCODE -or $sdk.Trim() -ne '10.0.403') { throw 'Expected .NET SDK 10.0.403' }
+          $hostPath = (Get-Command dotnet).Source
+          if (-not $hostPath.StartsWith([IO.Path]::GetFullPath($env:DOTNET_INSTALL_DIR).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'dotnet escaped the job-local installation' }
       - name: Install locked build dependencies
         timeout-minutes: 5
         run: npm ci --no-audit --no-fund --loglevel=error
@@ -61,6 +73,14 @@ jobs:
           npx --no-install electron-builder --win --x64 --publish never
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           if (git status --porcelain) { throw 'Build changed tracked source inputs' }
+      - name: Verify published .NET runtime
+        run: |
+          $runtime = Get-Content -LiteralPath dist/win-unpacked/resources/etw-file/EtwFile.runtimeconfig.json -Raw | ConvertFrom-Json
+          $frameworks = @($runtime.runtimeOptions.includedFrameworks)
+          if ($frameworks.Count -ne 1 -or $frameworks[0].name -ne 'Microsoft.NETCore.App' -or $frameworks[0].version -ne '10.0.14') { throw 'Expected self-contained .NET runtime 10.0.14' }
+          $deps = Get-Content -LiteralPath dist/win-unpacked/resources/etw-file/EtwFile.deps.json -Raw | ConvertFrom-Json
+          $packs = @($deps.libraries.PSObject.Properties.Name | Where-Object { $_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.*' })
+          if ($packs.Count -ne 1 -or $packs[0] -ne 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.14') { throw 'Unexpected runtime pack in published dependencies' }
       - name: Record actual candidate bytes and provenance
         run: |
           $files = @(Get-ChildItem -LiteralPath dist -Filter '*.exe' -File)

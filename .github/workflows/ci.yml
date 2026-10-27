@@ -38,6 +38,16 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 2
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          toolRoot="$RUNNER_TEMP/aegis-actionlint"
+          mkdir -p "$toolRoot"
+          curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz --output "$toolRoot/actionlint.tar.gz"
+          printf '%s  %s\n' '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8' "$toolRoot/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$toolRoot/actionlint.tar.gz" -C "$toolRoot"
+          "$toolRoot/actionlint" -version
+          "$toolRoot/actionlint" -shellcheck= -pyflakes=
       - name: Select verification scope
         id: scope
         env:
