@@ -184,8 +184,8 @@ frame and 1 MiB total; stderr is discarded and capped at 32 KiB. Reads/RPCs have
 three-second deadlines (launch binding capture is stricter at 1.5 seconds).
 The ordinary gateway CLI connection lasts at most 30 seconds. The separate owner
 review relay lasts at most 15 minutes, with a 60-second terminal challenge and
-the same three-second bounds for non-review gateway operations. Direct-child cleanup waits at most
-one second; Windows protected cleanup waits at most two seconds;
+the same three-second bounds for non-review gateway operations. Direct-child
+cleanup waits at most one second; Windows protected cleanup waits at most two seconds;
 unconfirmed cleanup returns exit 2. Clean EOF after confirmed cleanup returns 0.
 Transport loss may close without a final JSON-RPC error response.
 
