@@ -2062,6 +2062,7 @@
   "Process watch update rejected": "Atualização da observação de processos rejeitada",
   "Waiting for sensor startup": "Aguardando a inicialização do sensor",
   "Explicit directory prefixes only": "Somente prefixos explícitos de diretórios",
+  "Directory observation is unavailable in procfs mode": "A observação de diretórios não está disponível no modo procfs",
   "Directory scope update rejected": "Atualização do escopo dos diretórios rejeitada",
   "Provider ready": "Provedor pronto",
   "Native event delivery is not qualified": "A entrega de eventos nativos não está qualificada",

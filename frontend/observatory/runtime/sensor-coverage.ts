@@ -87,6 +87,7 @@ export const coverageScopes: Labels = {
   paused: 'Paused',
   'awaiting-start': 'Waiting for sensor startup',
   'explicit-directories': 'Explicit directory prefixes only',
+  'paths-unsupported': 'Directory observation is unavailable in procfs mode',
   'paths-update-rejected': 'Directory scope update rejected',
 };
 export const coverageReasons: Labels = {

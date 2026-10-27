@@ -18,7 +18,9 @@ function createUpdates({ platform, current, desired, disposed, send, notify, fai
     const item = current();
     return {
       watchPending: item ? item.applied.watch !== watchRevision : true,
-      pathsPending: item ? item.applied.paths !== pathsRevision : true,
+      pathsPending: item
+        ? item.session.getMode() === 'procfs' || item.applied.paths !== pathsRevision
+        : true,
     };
   }
   function replacement(message) {
@@ -52,10 +54,15 @@ function createUpdates({ platform, current, desired, disposed, send, notify, fai
       ['watch', watchRevision, watch],
       ['paths', pathsRevision, paths],
     ]) {
+      // The procfs service explicitly rejects paths; keep the desired set
+      // pending so a later event-capable mode can receive it.
+      if (type === 'paths' && platform === 'linux' && item.session.getMode() === 'procfs') continue;
       if (item.applied[type] === revision) continue;
       const data = type === 'watch' ? { roots: value, descendants: true } : { prefixes: value };
+      const requestMode = item.modeToken;
       if (
         send(type, data, (reply) => {
+          if (type === 'paths' && item.modeToken !== requestMode) return;
           if (reply.t === 'err') return failed('update-rejected');
           item.applied[type] = revision;
           notify();
