@@ -18,7 +18,13 @@ async function createOwnerConsole({
   cleanupMs = CLEANUP_MS,
   heartbeatMs = 2500,
   healthMs = 3000,
+  now = () => performance.now(),
 }) {
+  const startupAt = now();
+  const within = (started, limit) => {
+    const elapsed = now() - started;
+    return Number.isFinite(elapsed) && elapsed >= 0 && elapsed < limit;
+  };
   const events = new EventEmitter();
   const input = child.stdout;
   const output = child.stdin;
@@ -32,11 +38,15 @@ async function createOwnerConsole({
   let exitCode;
   let exitSignal;
   let shutdownAcknowledged = false;
+  let shutdownAt;
+  let acknowledgedAt;
+  let exitedAt;
   let lastHeartbeat;
   let heartbeatTimer;
   let lastHeartbeatAt = 0;
   let health;
   let approved = false;
+  let guardAt;
   let resolveHello;
   let resolveClose;
   const hello = new Promise((resolve) => {
@@ -80,18 +90,19 @@ async function createOwnerConsole({
   };
   const onFrame = (message) => {
     if (message === 'H 1' && !available && !pending && !closing) {
+      if (!within(startupAt, startupMs)) return fail();
       available = true;
-      lastHeartbeatAt = performance.now();
+      lastHeartbeatAt = now();
       heartbeatTimer = setTimeout(fail, heartbeatMs);
       resolveHello(true);
       return;
     }
     if (available && /^P [a-f0-9]{32}$/.test(message)) {
       const nonce = message.slice(2);
-      if (nonce === lastHeartbeat || performance.now() - lastHeartbeatAt >= heartbeatMs)
+      if (nonce === lastHeartbeat || (!closing && !within(lastHeartbeatAt, heartbeatMs)))
         return fail();
       lastHeartbeat = nonce;
-      lastHeartbeatAt = performance.now();
+      lastHeartbeatAt = now();
       clearTimeout(heartbeatTimer);
       if (!closing) heartbeatTimer = setTimeout(fail, heartbeatMs);
       if (!send(`Q ${nonce}`)) fail();
@@ -102,11 +113,20 @@ async function createOwnerConsole({
       return;
     }
     if (closing && message === 'B') {
+      if (!within(shutdownAt, cleanupMs)) return fail();
       shutdownAcknowledged = true;
+      acknowledgedAt = now();
       closing();
       return;
     }
     if (health && message === `Y ${health.nonce}`) {
+      if (
+        !within(health.startedAt, healthMs) ||
+        !within(lastHeartbeatAt, heartbeatMs) ||
+        health.signal?.aborted
+      )
+        return fail();
+      guardAt = now();
       health.finish(true);
       return;
     }
@@ -120,6 +140,7 @@ async function createOwnerConsole({
       } else if (type !== 'A' && type !== 'D' && type !== 'U') fail();
       return;
     }
+    if (!within(pending.startedAt, reviewMs) || pending.signal?.aborted) return fail();
     if (type === 'A') {
       approved = true;
       pending.finish(true);
@@ -164,6 +185,7 @@ async function createOwnerConsole({
   });
   child.once('close', (code, signal) => {
     exited = true;
+    exitedAt = now();
     exitCode = code;
     exitSignal = signal;
     resolveClose();
@@ -191,9 +213,16 @@ async function createOwnerConsole({
     return () => events.removeListener('lost', abort);
   };
   const adapter = {
-    isTerminalAvailable: () => available && !closed,
+    isTerminalAvailable: () => {
+      if (available && !closing && !within(lastHeartbeatAt, heartbeatMs)) fail();
+      return available && !closed;
+    },
     watchTerminalLifetime: watch,
     monitorTerminalInput: watch,
+    isCommitGuardFresh: () => {
+      if (available && !within(lastHeartbeatAt, heartbeatMs)) fail();
+      return available && !closed && guardAt !== undefined && within(guardAt, 1500);
+    },
     async confirmInTerminal(operation, { signal, kind } = {}) {
       if (kind !== 'delete-file' || !available || closed || pending || reviewed || signal?.aborted)
         return false;
@@ -222,6 +251,8 @@ async function createOwnerConsole({
         let timer;
         const item = {
           challenge,
+          startedAt: now(),
+          signal,
           cancelled: false,
           finish(value) {
             if (pending !== item) return;
@@ -257,7 +288,7 @@ async function createOwnerConsole({
         pending ||
         health ||
         signal?.aborted ||
-        performance.now() - lastHeartbeatAt >= heartbeatMs
+        !within(lastHeartbeatAt, heartbeatMs)
       )
         return false;
       let nonce;
@@ -271,6 +302,8 @@ async function createOwnerConsole({
         let timer;
         const item = {
           nonce,
+          startedAt: now(),
+          signal,
           finish(value) {
             if (health !== item) return;
             clearTimeout(timer);
@@ -298,6 +331,7 @@ async function createOwnerConsole({
       let acknowledged = false;
       clearTimeout(heartbeatTimer);
       if (!closed) {
+        shutdownAt = now();
         const done = new Promise((resolve) => {
           closing = () => {
             acknowledged = true;
@@ -336,7 +370,14 @@ async function createOwnerConsole({
         ]);
         clearTimeout(timeout);
       }
-      return acknowledged && exited && exitCode === 0 && exitSignal === null;
+      return (
+        acknowledged &&
+        exited &&
+        exitedAt >= acknowledgedAt &&
+        exitedAt - acknowledgedAt < cleanupMs &&
+        exitCode === 0 &&
+        exitSignal === null
+      );
     },
   };
   return adapter;

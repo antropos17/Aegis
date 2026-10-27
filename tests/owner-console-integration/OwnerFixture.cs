@@ -21,6 +21,7 @@ internal static class OwnerFixture
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool TerminateProcess(IntPtr handle,uint code);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern uint WaitForSingleObject(IntPtr handle,uint ms);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool GetExitCodeProcess(IntPtr handle,out uint code);
+    [DllImport("kernel32.dll",SetLastError=true)] private static extern IntPtr OpenProcess(uint access,bool inherit,uint id);
     private static readonly string Root=AppDomain.CurrentDomain.BaseDirectory;
     private static void Need(bool value,string reason) { if(!value)throw new Exception(reason+" win32="+Marshal.GetLastWin32Error()); }
     private static string Q(string value) { return NativeLaunch.Quote(value); }
@@ -32,7 +33,7 @@ internal static class OwnerFixture
     }
     private static void Outer(string scenario)
     {
-        foreach(string suffix in new[]{".phase",".result",".failure",".inner-failure",".outer-failure"}) File.Delete(Path.Combine(Root,scenario+suffix));
+        foreach(string suffix in new[]{".phase",".result",".failure",".inner-failure",".outer-failure",".pid",".release"}) File.Delete(Path.Combine(Root,scenario+suffix));
         string exe=Process.GetCurrentProcess().MainModule.FileName; ProcessInfo p=Start(exe,Q(exe)+" fixture "+scenario,0x10,true);
         try { if(WaitForSingleObject(p.process,15000)!=0){TerminateProcess(p.process,2);throw new Exception("fixture timeout");} uint code; Need(GetExitCodeProcess(p.process,out code),"fixture exit"); Need(code==0,"fixture exit "+code); }
         finally {CloseHandle(p.process);}
@@ -52,7 +53,14 @@ internal static class OwnerFixture
         IntPtr input=GetStdHandle(-10), error=GetStdHandle(-12); BufferInfo before; Need(GetConsoleScreenBufferInfo(error,out before),"console");
         if(scenario=="early") Inject(input,"x");
         ProcessInfo p=Start(exe,command,0,false);
+        IntPtr descendant=IntPtr.Zero;
         try {
+            if(scenario=="stuck-descendant") {
+                string pidFile=Path.Combine(Root,scenario+".pid"); for(int i=0;i<300 && !File.Exists(pidFile);i++)Thread.Sleep(20);
+                uint pid=0; Need(File.Exists(pidFile) && UInt32.TryParse(File.ReadAllText(pidFile),out pid),"descendant pid");
+                descendant=OpenProcess(0x00101000,false,pid); Need(descendant!=IntPtr.Zero && WaitForSingleObject(descendant,0)==258,"live descendant");
+                File.WriteAllText(Path.Combine(Root,scenario+".release"),"continue");
+            }
             if(scenario=="approve" || scenario=="after" || scenario=="output-loss") {
                 bool shown=false;
                 for(int i=0;i<400;i++){ BufferInfo now; Need(GetConsoleScreenBufferInfo(error,out now),"console"); if(now.cursor.x!=before.cursor.x || now.cursor.y!=before.cursor.y){shown=true;break;} if(WaitForSingleObject(p.process,0)==0)break; Thread.Sleep(20); }
@@ -64,9 +72,10 @@ internal static class OwnerFixture
             if(WaitForSingleObject(p.process,12000)!=0){TerminateProcess(p.process,2);throw new Exception("owner timeout");}
             uint code; Need(GetExitCodeProcess(p.process,out code),"owner exit");
             string failure=Path.Combine(Root,scenario+".failure"); Need(code==((scenario=="early" || scenario=="wrong-secret")?2:0),File.Exists(failure)?File.ReadAllText(failure):"owner exit "+code);
+            if(scenario=="stuck-descendant") Need(WaitForSingleObject(descendant,0)==0,"descendant still alive at successful owner exit");
             if(scenario=="early") File.WriteAllText(Path.Combine(Root,scenario+".result"),"PASS early refused before synthetic Electron launch");
             if(scenario=="wrong-secret") { Need(!File.Exists(Path.Combine(Root,scenario+".phase")),"unauthenticated verifier reached ready"); File.WriteAllText(Path.Combine(Root,scenario+".result"),"PASS wrong secret refused before ready"); }
-        } finally {CloseHandle(p.process);}
+        } finally {if(descendant!=IntPtr.Zero)CloseHandle(descendant);CloseHandle(p.process);}
     }
     private static void WaitPhase(string scenario,string phase) {string path=Path.Combine(Root,scenario+".phase");for(int i=0;i<300;i++){if(File.Exists(path)&&File.ReadAllText(path)==phase)return;Thread.Sleep(20);}throw new Exception("phase timeout "+phase);}
     private static void Inject(IntPtr input,string value) { Input[] records=new Input[value.Length*2];for(int i=0;i<value.Length;i++){records[2*i].type=1;records[2*i].down=1;records[2*i].repeat=1;records[2*i].ch=value[i];records[2*i].vk=(ushort)(value[i]=='\r'?13:char.ToUpperInvariant(value[i]));records[2*i+1]=records[2*i];records[2*i+1].down=0;}uint written;Need(WriteConsoleInput(input,records,(uint)records.Length,out written)&&written==records.Length,"fixture input"); }

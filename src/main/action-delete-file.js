@@ -226,6 +226,12 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     });
     if (!confirmed || controller.signal.aborted) return result('deny', 'confirmation-denied');
     stopReading = ownerTerminal.monitorTerminalInput(abort);
+    if (
+      windows &&
+      ownerTerminal.checkBeforeCommit &&
+      !(await ownerTerminal.checkBeforeCommit({ signal: controller.signal }))
+    )
+      return result('deny', 'action-cancelled');
     const second = await bounded(
       () => prepare(policyPath, requestPath, binding),
       controller.signal,
@@ -242,10 +248,7 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     )
       return result('deny', 'target-changed');
     if (windows) {
-      if (
-        ownerTerminal.checkBeforeCommit &&
-        !(await ownerTerminal.checkBeforeCommit({ signal: controller.signal }))
-      )
+      if (ownerTerminal.isCommitGuardFresh && !ownerTerminal.isCommitGuardFresh())
         return result('deny', 'action-cancelled');
       if (controller.signal.aborted) return result('deny', 'action-cancelled');
       let outcome;

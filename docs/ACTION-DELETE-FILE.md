@@ -86,7 +86,10 @@ The request and policy are bounded JSON files selected by the operator:
 All fields are closed. The rule must name the identical path; no prefix, glob,
 command string or directory recursion is accepted. `allow` still requires the
 terminal challenge. `deny`, an absent rule, missing terminal, refusal, timeout,
-input failure and cancellation before mutation admission prevent the deletion. The
+and an input failure or cancellation observed before mutation admission prevent
+the deletion. A console or transport loss can still be in flight when the native
+commit begins. The pre-commit health check is a point-in-time observation, not
+an atomic barrier against a concurrent loss. The
 selected policy and request are captured as private byte bindings and checked
 again after confirmation. The target must be an ordinary file with directory
 parents that are not links or junctions. Its filesystem identity, size and

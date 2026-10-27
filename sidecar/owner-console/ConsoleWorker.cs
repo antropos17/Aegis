@@ -19,6 +19,7 @@ internal static class ConsoleWorker
 #if OWNER_CONSOLE_TEST
     internal static Action BeforeWriteForTest;
     internal static Action BeforeInputReadForTest;
+    internal static Action BeforeProbeCheckForTest;
 #endif
 
     [StructLayout(LayoutKind.Explicit, Size = 20)]
@@ -164,9 +165,22 @@ internal static class ConsoleWorker
                     if (state.Closed) throw new IOException();
                     if (state.Probe != null)
                     {
-                        if (!ConsoleHealthy(consoleIn, consoleErr) || HasUnexpectedInput(consoleIn)) throw new IOException();
-                        Send(controlOut, "Z " + state.Probe);
-                        state.Probe = null;
+#if OWNER_CONSOLE_TEST
+                        if (BeforeProbeCheckForTest != null) BeforeProbeCheckForTest();
+#endif
+                        if (!ConsoleHealthy(consoleIn, consoleErr)) throw new IOException();
+                        if (HasUnexpectedInput(consoleIn))
+                        {
+                            // A key may have arrived after the prompt scan. It is
+                            // ordinary prompt input until an answer is accepted;
+                            // process it before deciding whether the probe is healthy.
+                            if (challenge == null || approved) throw new IOException();
+                        }
+                        else
+                        {
+                            Send(controlOut, "Z " + state.Probe);
+                            state.Probe = null;
+                        }
                     }
                 }
                 Thread.Sleep(PollMilliseconds);

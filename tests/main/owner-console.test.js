@@ -183,6 +183,86 @@ it('rejects a heartbeat before readiness', async () => {
   expect(f.received).not.toContain(`Q ${HEARTBEAT}`);
 });
 
+it('rejects readiness received after the monotonic startup deadline even before its timer runs', async () => {
+  const f = verifier();
+  let tick = 0;
+  const waiting = createOwnerConsole({
+    child: f.child,
+    now: () => tick,
+    startupMs: 1000,
+    cleanupMs: 100,
+  });
+  tick = 1001;
+  f.send('H 1');
+  const adapter = await waiting;
+  if (adapter) adapters.push(adapter);
+  expect(adapter).toBeNull();
+});
+
+it('rejects approval after the monotonic review deadline even before its timer runs', async () => {
+  let tick = 0;
+  const { f, adapter } = await open(verifier(), {
+    now: () => tick,
+    reviewMs: 1000,
+    heartbeatMs: 100000,
+  });
+  const result = adapter.confirmInTerminal(
+    { kind: 'delete-file', path: 'X:\\PRIVATE\\selected.txt' },
+    { kind: 'delete-file' },
+  );
+  const { challenge } = await request(f);
+  tick = 1001;
+  f.send(`A ${challenge}`);
+  expect(await result).toBe(false);
+  expect(adapter.isTerminalAvailable()).toBe(false);
+});
+
+it('rejects health confirmation after its monotonic deadline even before its timer runs', async () => {
+  let tick = 0;
+  const { f, adapter } = await open(verifier(), {
+    now: () => tick,
+    healthMs: 1000,
+    heartbeatMs: 100000,
+  });
+  const result = adapter.confirmInTerminal(
+    { kind: 'delete-file', path: 'X:\\PRIVATE\\selected.txt' },
+    { kind: 'delete-file' },
+  );
+  const { challenge } = await request(f);
+  f.send(`A ${challenge}`);
+  expect(await result).toBe(true);
+  const check = adapter.checkBeforeCommit();
+  const nonce = await healthRequest(f);
+  tick = 1001;
+  f.send(`Y ${nonce}`);
+  expect(await check).toBe(false);
+  expect(adapter.isTerminalAvailable()).toBe(false);
+});
+
+it('expires the commit guard exactly at its monotonic freshness bound', async () => {
+  let tick = 0;
+  const { f, adapter } = await open(verifier(), {
+    now: () => tick,
+    heartbeatMs: 100000,
+  });
+  const review = adapter.confirmInTerminal(
+    { kind: 'delete-file', path: 'X:\\PRIVATE\\selected.txt' },
+    { kind: 'delete-file' },
+  );
+  const { challenge } = await request(f);
+  f.send(`A ${challenge}`);
+  expect(await review).toBe(true);
+  const check = adapter.checkBeforeCommit();
+  const nonce = await healthRequest(f);
+  f.send(`Y ${nonce}`);
+  expect(await check).toBe(true);
+  expect(adapter.isCommitGuardFresh()).toBe(true);
+  tick = 1499;
+  expect(adapter.isCommitGuardFresh()).toBe(true);
+  tick = 1500;
+  expect(adapter.isCommitGuardFresh()).toBe(false);
+});
+
 it.each(['duplicate', 'short', 'uppercase', 'extra'])('revokes on a %s heartbeat', async (kind) => {
   const { f, adapter } = await open();
   const revoked = vi.fn();
@@ -438,6 +518,9 @@ it.each([
   'peer-loss',
   'console-loss',
   'health-timeout',
+  'health-late',
+  'health-stale-guard',
+  'health-selection-mutation',
   'health-wrong',
   'health-loss',
   'health-cancel',
@@ -462,7 +545,12 @@ it.each([
         rules: [{ operation, decision: 'allow' }],
       }),
     );
-    const { f, adapter } = await open(verifier(), { healthMs: 100 });
+    let tick = 0;
+    const { f, adapter } = await open(verifier(), {
+      healthMs: mode === 'health-late' ? 1000 : 100,
+      heartbeatMs: 100000,
+      now: () => tick,
+    });
     const host = new EventEmitter();
     const output = [];
     let ready;
@@ -535,6 +623,18 @@ it.each([
         const nonce = await healthRequest(f);
         expect(commit).not.toHaveBeenCalled();
         if (mode === 'approve') f.send(`Y ${nonce}`);
+        else if (mode === 'health-stale-guard') {
+          f.send(`Y ${nonce}`);
+          tick = 1500;
+        }
+        else if (mode === 'health-selection-mutation') {
+          fs.appendFileSync(requestPath, ' ');
+          f.send(`Y ${nonce}`);
+        }
+        else if (mode === 'health-late') {
+          tick = 1001;
+          f.send(`Y ${nonce}`);
+        }
         else if (mode === 'health-wrong') f.send('Y ffffffffffffffffffffffffffffffff');
         else if (mode === 'health-loss') f.child.stdout.emit('close');
         else if (mode === 'health-cancel') {
@@ -542,7 +642,12 @@ it.each([
             '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":2}}\n',
           );
         }
-        if (mode !== 'approve') {
+        if (mode === 'health-selection-mutation' || mode === 'health-stale-guard') {
+          const reply = await pending;
+          expect(reply.result.isError).toBe(true);
+          expect(commit).not.toHaveBeenCalled();
+          expect(fs.readFileSync(target, 'utf8')).toBe('selected sentinel');
+        } else if (mode !== 'approve') {
           await done;
           f.child.stdout.emit('data', frame(`Y ${nonce}`));
           expect(commit).not.toHaveBeenCalled();

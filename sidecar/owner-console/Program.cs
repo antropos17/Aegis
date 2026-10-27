@@ -51,42 +51,54 @@ internal static class Program
         using(var nativeImage=PeerIdentity.PinnedImage.Open(native))
         using(var electronImage=PeerIdentity.PinnedImage.Open(electron))
         using(var applicationArchive=PeerIdentity.PinnedImage.Open(archive))
-        using(var job=NativeLaunch.NewJob())
-        using(var worker=WorkerHost.Start(native,job,input,error,nativeImage)) {
-            string name="aegis-owner-"+Guid.NewGuid().ToString("N"); byte[] secret=OwnerWire.Random(32);
-            using(var pipe=PrivatePipe.Create(name)) {
-                var env=NativeLaunch.MinimalEnvironment();
-                env["ELECTRON_RUN_AS_NODE"]="1";
-                env[PipeVariable]=name; env[SecretVariable]=Convert.ToBase64String(secret);
-                IntPtr inCopy=IntPtr.Zero,outCopy=IntPtr.Zero,errCopy=IntPtr.Zero;
-                PeerIdentity.ProcessIdentity electronIdentity=null; NativeLaunch.Child child=null;
-                try {
-                    inCopy=NativeLaunch.InheritableDuplicate(input); outCopy=NativeLaunch.InheritableDuplicate(output); errCopy=NativeLaunch.InheritableDuplicate(error);
-                    string[] appArguments=new string[args.Length+1]; appArguments[0]=main; Array.Copy(args,0,appArguments,1,args.Length);
-                    child=NativeLaunch.Start(electron,appArguments,env,job,new[]{inCopy,outCopy,errCopy},inCopy,outCopy,errCopy,
-                        delegate(IntPtr handle,uint pid){electronIdentity=PeerIdentity.ProcessIdentity.CaptureLaunched(handle,electronImage);});
-                    env.Remove(PipeVariable); env.Remove(SecretVariable);
+        using(var job=NativeLaunch.NewJob()) {
+            WorkerHost worker=null; NativeLaunch.Child child=null;
+            PeerIdentity.ProcessIdentity electronIdentity=null, verifier=null;
+            IntPtr inCopy=IntPtr.Zero,outCopy=IntPtr.Zero,errCopy=IntPtr.Zero;
+            byte[] secret=null; int result=2;
+            try {
+                worker=WorkerHost.Start(native,job,input,error,nativeImage);
+                string name="aegis-owner-"+Guid.NewGuid().ToString("N"); secret=OwnerWire.Random(32);
+                using(var pipe=PrivatePipe.Create(name)) {
+                    var env=NativeLaunch.MinimalEnvironment();
+                    env["ELECTRON_RUN_AS_NODE"]="1";
+                    env[PipeVariable]=name; env[SecretVariable]=Convert.ToBase64String(secret);
+                    try {
+                        inCopy=NativeLaunch.InheritableDuplicate(input); outCopy=NativeLaunch.InheritableDuplicate(output); errCopy=NativeLaunch.InheritableDuplicate(error);
+                        string[] appArguments=new string[args.Length+1]; appArguments[0]=main; Array.Copy(args,0,appArguments,1,args.Length);
+                        child=NativeLaunch.Start(electron,appArguments,env,job,new[]{inCopy,outCopy,errCopy},inCopy,outCopy,errCopy,
+                            delegate(IntPtr handle,uint pid){electronIdentity=PeerIdentity.ProcessIdentity.CaptureLaunched(handle,electronImage);});
+                    } finally { env.Remove(PipeVariable); env.Remove(SecretVariable); }
                     IAsyncResult pending=pipe.BeginWaitForConnection(null,null);
                     using(var wait=pending.AsyncWaitHandle) {
                         Stopwatch clock=Stopwatch.StartNew();
                         while(!wait.WaitOne(100)) if(clock.ElapsedMilliseconds>20000 || child.Exited || worker.Process.Exited) throw new TimeoutException();
                         pipe.EndWaitForConnection(pending);
                     }
-                    using(var verifier=PeerIdentity.VerifyPipePeer(pipe.SafePipeHandle.DangerousGetHandle(),false,electronIdentity,nativeImage,job.DangerousGetHandle())) {
-                        OwnerAuthentication.Server(pipe,secret); Array.Clear(secret,0,secret.Length);
-                        if(!verifier.IsLive() || !electronIdentity.IsLive() || worker.Process.Exited) return 2;
-                        OwnerSession.Run(pipe,worker,child,verifier);
-                        if(!worker.Stop()) return 2;
-                        child.Wait(5000);
-                        return child.Exited ? (int)child.ExitCode : 2;
-                    }
-                } finally {
-                    Array.Clear(secret,0,secret.Length); env.Remove(PipeVariable); env.Remove(SecretVariable);
-                    if(inCopy!=IntPtr.Zero)NativeLaunch.CloseHandle(inCopy); if(outCopy!=IntPtr.Zero)NativeLaunch.CloseHandle(outCopy); if(errCopy!=IntPtr.Zero)NativeLaunch.CloseHandle(errCopy);
-                    if(electronIdentity!=null)electronIdentity.Dispose();
-                    if(child!=null) { bool stopped=child.Stop(3000); child.Dispose(); if(!stopped)throw new InvalidOperationException("child termination unconfirmed"); }
+                    verifier=PeerIdentity.VerifyPipePeer(pipe.SafePipeHandle.DangerousGetHandle(),false,electronIdentity,nativeImage,job.DangerousGetHandle());
+                    OwnerAuthentication.Server(pipe,secret); Array.Clear(secret,0,secret.Length);
+                    if(!verifier.IsLive() || !electronIdentity.IsLive() || worker.Process.Exited) throw new InvalidOperationException("peer unavailable");
+                    OwnerSession.Run(pipe,worker,child,verifier);
+                    if(!worker.Stop()) throw new InvalidOperationException("worker termination unconfirmed");
+                    child.Wait(5000);
+                    result=child.Exited ? (int)child.ExitCode : 2;
                 }
+            } finally {
+                if(secret!=null)Array.Clear(secret,0,secret.Length);
+                if(inCopy!=IntPtr.Zero)NativeLaunch.CloseHandle(inCopy); if(outCopy!=IntPtr.Zero)NativeLaunch.CloseHandle(outCopy); if(errCopy!=IntPtr.Zero)NativeLaunch.CloseHandle(errCopy);
+                bool jobStopped=false, workerStopped=worker==null, childStopped=child==null, verifierStopped=verifier==null, jobEmpty=false;
+                try { jobStopped=NativeLaunch.TerminateJob(job); } catch { }
+                try { if(worker!=null)workerStopped=worker.Stop(); } catch { }
+                try { if(child!=null)childStopped=child.Stop(3000); } catch { }
+                try { if(verifier!=null)verifierStopped=verifier.Stop(3000); } catch { }
+                try { jobEmpty=NativeLaunch.WaitJobEmpty(job,3000); } catch { }
+                try { if(verifier!=null)verifier.Dispose(); } catch { verifierStopped=false; }
+                try { if(electronIdentity!=null)electronIdentity.Dispose(); } catch { childStopped=false; }
+                try { if(child!=null)child.Dispose(); } catch { childStopped=false; }
+                try { if(worker!=null)worker.Dispose(); } catch { workerStopped=false; }
+                if(!jobStopped || !workerStopped || !childStopped || !verifierStopped || !jobEmpty) throw new InvalidOperationException("cleanup unconfirmed");
             }
+            return result;
         }
     }
 

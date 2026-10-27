@@ -51,6 +51,13 @@ internal static class WorkerFixture
                 if (args[1] == "blocked-write") ConsoleWorker.BeforeWriteForTest = delegate { File.WriteAllText(Path.Combine(directory,"blocked-write.marker"),"ready"); Thread.Sleep(30000); };
                 if (args[1] == "blocked-read") ConsoleWorker.BeforeInputReadForTest = delegate { File.WriteAllText(Path.Combine(directory,"blocked-read.marker"),"ready"); Thread.Sleep(30000); };
                 if (args[1] == "probe-overlap") ConsoleWorker.BeforeWriteForTest = delegate { File.WriteAllText(Path.Combine(directory,"probe-overlap.marker"),"ready"); Thread.Sleep(500); };
+                if (args[1] == "probe-interleaved") ConsoleWorker.BeforeProbeCheckForTest = delegate {
+                    ConsoleWorker.BeforeProbeCheckForTest = null;
+                    File.WriteAllText(Path.Combine(directory,"probe-interleaved.marker"),"ready");
+                    string release=Path.Combine(directory,"probe-interleaved.release");
+                    for(int i=0;i<300;i++) { if(File.Exists(release))return; Thread.Sleep(10); }
+                    throw new Exception("fixture release timeout");
+                };
 #endif
                 return ConsoleWorker.Run(input,error,Console.OpenStandardInput(),Console.OpenStandardOutput());
             }
@@ -70,6 +77,7 @@ internal static class WorkerFixture
         string failure = Path.Combine(directory,scenario+".failure");
         File.Delete(failure);
         File.Delete(Path.Combine(directory,scenario+".marker"));
+        File.Delete(Path.Combine(directory,scenario+".release"));
         string exe = Process.GetCurrentProcess().MainModule.FileName;
         Startup start = new Startup(); start.cb=Marshal.SizeOf(typeof(Startup)); start.flags=1; start.show=0;
         ProcessInformation process;
@@ -129,6 +137,17 @@ internal static class WorkerFixture
                 }
                 Thread.Sleep(100);
                 if (scenario == "probe-during") Probe(write,read,Probe1);
+                if (scenario == "probe-interleaved")
+                {
+                    WriteFrame(write,"T "+Probe1);
+                    WaitMarker(scenario);
+                    Inject(input,"D");
+                    File.WriteAllText(Path.Combine(directory,scenario+".release"),"go");
+                    Need(ReadFrame(read)=="Z "+Probe1,"probe must wait for interleaved key");
+                    Inject(input,"ELETE "+Challenge+"\r");
+                    Need(ReadFrame(read)=="A "+Challenge,"interleaved prompt must approve exact answer");
+                    return;
+                }
                 if (scenario == "blocked-read") { Inject(input,"x"); WaitMarker(scenario); WriteFrame(write,"T "+Probe1); AssertNoFrame(read); return; }
                 if (scenario == "cancel-wait") return;
                 if (scenario == "trailing") { Inject(input,"DELETE "+Challenge+"\rx"); Need(ReadFrame(read)=="D "+Challenge,"trailing must fail"); return; }

@@ -41,6 +41,8 @@ internal static class PeerIdentity
     private static extern uint WaitForSingleObject(SafeProcessHandle process, uint timeout);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetProcessTimes(SafeProcessHandle process, out long created, out long exited, out long kernel, out long user);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateProcess(SafeProcessHandle process, uint code);
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool QueryFullProcessImageName(SafeProcessHandle process, uint flags, StringBuilder name, ref int length);
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -136,6 +138,19 @@ internal static class PeerIdentity
             if (disposed || WaitForSingleObject(handle, 0) != WaitTimeout) return false;
             long actual, exited, kernel, user;
             return GetProcessId(handle) == Id && GetProcessTimes(handle, out actual, out exited, out kernel, out user) && actual == created;
+        }
+
+        internal bool Stop(int timeoutMs)
+        {
+            if(disposed || timeoutMs<0) return false;
+            if(WaitForSingleObject(handle,0)==0) return true;
+            using(SafeProcessHandle target=OpenProcess(QueryAndSynchronize | 1,false,Id)) {
+                if(target.IsInvalid) return WaitForSingleObject(handle,0)==0;
+                long birth,exited,kernel,user;
+                if(GetProcessId(target)!=Id || !GetProcessTimes(target,out birth,out exited,out kernel,out user) || birth!=created) return false;
+                TerminateProcess(target,2);
+                return WaitForSingleObject(handle,(uint)timeoutMs)==0;
+            }
         }
 
         public void Dispose() { if (!disposed) { disposed = true; handle.Dispose(); } }

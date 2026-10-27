@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using Microsoft.Win32.SafeHandles;
 
 internal static class NativeLaunch
@@ -13,12 +15,15 @@ internal static class NativeLaunch
     [StructLayout(LayoutKind.Sequential)] private struct Basic { public long a,b; public uint flags; public UIntPtr min,max; public uint active; public UIntPtr affinity; public uint priority,scheduling; }
     [StructLayout(LayoutKind.Sequential)] private struct Counters { public ulong a,b,c,d,e,f; }
     [StructLayout(LayoutKind.Sequential)] private struct Extended { public Basic basic; public Counters io; public UIntPtr a,b,c,d; }
+    [StructLayout(LayoutKind.Sequential)] private struct Accounting { public long totalUser,totalKernel,periodUser,periodKernel; public uint pageFaults,totalProcesses,activeProcesses,terminatedProcesses; }
     [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] private struct Startup { public int size; public string reserved,desktop,title; public uint x,y,xsize,ysize,xchars,ychars,fill,flags; public short show,reserved2; public IntPtr ptr,input,output,error; }
     [StructLayout(LayoutKind.Sequential)] private struct StartupEx { public Startup startup; public IntPtr attributes; }
     [StructLayout(LayoutKind.Sequential)] private struct ProcessInfo { public IntPtr process,thread; public uint pid,tid; }
     [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] private static extern IntPtr CreateJobObject(IntPtr a,string n);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool SetInformationJobObject(IntPtr job,int cls,ref Extended info,uint size);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool IsProcessInJob(IntPtr process,IntPtr job,out bool result);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool TerminateJobObject(IntPtr job,uint code);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool QueryInformationJobObject(IntPtr job,int cls,out Accounting info,uint length,out uint returned);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern uint ResumeThread(IntPtr thread);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool TerminateProcess(IntPtr process,uint code);
     [DllImport("kernel32.dll", SetLastError=true)] internal static extern bool CloseHandle(IntPtr handle);
@@ -48,6 +53,24 @@ internal static class NativeLaunch
         var job=new SafeFileHandle(handle,true); Extended limits=new Extended(); limits.basic.flags=0x2000;
         if(!SetInformationJobObject(handle,9,ref limits,(uint)Marshal.SizeOf(typeof(Extended)))) { job.Dispose(); throw new InvalidOperationException("job limits"); }
         return job;
+    }
+
+    internal static bool TerminateJob(SafeFileHandle job)
+    {
+        return job!=null && !job.IsClosed && !job.IsInvalid && TerminateJobObject(job.DangerousGetHandle(),2);
+    }
+
+    internal static bool WaitJobEmpty(SafeFileHandle job,int timeoutMs)
+    {
+        if(job==null || job.IsClosed || job.IsInvalid || timeoutMs<0) return false;
+        Stopwatch elapsed=Stopwatch.StartNew();
+        do {
+            Accounting info; uint returned;
+            if(!QueryInformationJobObject(job.DangerousGetHandle(),1,out info,(uint)Marshal.SizeOf(typeof(Accounting)),out returned)) return false;
+            if(info.activeProcesses==0) return true;
+            if(elapsed.ElapsedMilliseconds>=timeoutMs) return false;
+            Thread.Sleep(10);
+        } while(true);
     }
 
     internal static IntPtr InheritableDuplicate(IntPtr original)

@@ -18,6 +18,7 @@ internal static class FakeElectron
     }
     private static int Main(string[] args)
     {
+        if(args.Length==1 && args[0]=="--fixture-stuck") { System.Threading.Thread.Sleep(30000); return 0; }
         string dir=Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)).FullName;
         string scenario=args.Length>2 && args[2].StartsWith("policy path ") && args[2].EndsWith("\\") ? args[2].Substring(12,args[2].Length-13) : "invalid";
         try {
@@ -35,6 +36,14 @@ internal static class FakeElectron
                 var read=verifier.StandardOutput.BaseStream; var write=verifier.StandardInput.BaseStream;
                 Need(ReadReply(read,write,10000)=="H 1","verifier ready");
                 File.WriteAllText(Path.Combine(dir,scenario+".phase"),"READY");
+                if(scenario=="stuck-descendant") {
+                    var extra=new ProcessStartInfo(Process.GetCurrentProcess().MainModule.FileName,"--fixture-stuck"); extra.UseShellExecute=false; extra.CreateNoWindow=true;
+                    using(var descendant=Process.Start(extra)) {
+                        File.WriteAllText(Path.Combine(dir,scenario+".pid"),descendant.Id.ToString());
+                        var deadline=Stopwatch.StartNew(); while(!File.Exists(Path.Combine(dir,scenario+".release")) && deadline.ElapsedMilliseconds<5000) System.Threading.Thread.Sleep(20);
+                        Need(File.Exists(Path.Combine(dir,scenario+".release")),"descendant release");
+                    }
+                }
                 if(scenario=="verifier-death") { verifier.Kill(); Need(verifier.WaitForExit(5000),"verifier death"); File.WriteAllText(Path.Combine(dir,scenario+".result"),"PASS verifier-death cleanup"); return 0; }
                 if(scenario=="wrong-ack" || scenario=="duplicate-ack" || scenario=="partial-input") {
                     if(scenario=="partial-input") {write.WriteByte(4);write.WriteByte(0);write.Flush();}
@@ -56,7 +65,7 @@ internal static class FakeElectron
                     }
                 }
                 if(scenario=="idle") Need(ReadReply(read,write,5000)=="L","idle revocation");
-                if(scenario=="approve" || scenario=="shutdown") { OwnerWire.Write(write,"S",5000); Need(ReadReply(read,write,5000)=="B","shutdown acknowledgment"); }
+                if(scenario=="approve" || scenario=="shutdown" || scenario=="stuck-descendant") { OwnerWire.Write(write,"S",5000); Need(ReadReply(read,write,5000)=="B","shutdown acknowledgment"); }
                 Need(verifier.WaitForExit(5000) && verifier.ExitCode==((scenario=="idle" || scenario=="after" || scenario=="output-loss")?2:0),"verifier exit");
             }
             File.WriteAllText(Path.Combine(dir,scenario+".result"),"PASS "+scenario+" full native launch/bootstrap/shutdown"); return 0;
