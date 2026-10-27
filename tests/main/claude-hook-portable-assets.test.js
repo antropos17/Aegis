@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { loadProfileAssets } = require('../../src/main/claude-hook-app-profile');
+const { loadProfileAssets, prepareProfile } = require('../../src/main/claude-hook-app-profile');
 const { qualifyAssets } = require('../../src/main/claude-hook-windows-io-wire');
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const hostNames = [
@@ -84,6 +84,15 @@ describe.skipIf(process.platform !== 'win32')('portable Claude hook review asset
     const root = path.join(fixture, 'first').replace(/^[A-Z]:/, (drive) => drive.toLowerCase());
     expect(root[0]).toMatch(/[a-z]/);
     expect(await loadProfileAssets(root)).not.toBeNull();
+  });
+
+  it('prepares the same owned profile for a lowercase Windows user-data drive', async () => {
+    const directory = path.join(fixture, 'profile').replace(/^[A-Z]:/, (drive) => drive.toLowerCase());
+    const selected = await prepareProfile(directory);
+    expect(selected.targetPath[0]).toMatch(/[A-Z]/);
+    expect(selected.backupRoot[0]).toBe(selected.targetPath[0]);
+    expect(fs.readFileSync(selected.targetPath, 'utf8')).toBe('{}\n');
+    expect(fs.existsSync(path.join(directory, 'settings.json'))).toBe(true);
   });
 
   it.each(['missing', 'extra', 'altered', 'runtime-config', 'extra-hostfxr'])(

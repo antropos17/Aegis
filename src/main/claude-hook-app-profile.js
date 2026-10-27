@@ -75,9 +75,13 @@ async function prepareProfile(directory, existingOnly = false) {
   await fs.mkdir(backups, { recursive: true });
   await ordinary(backups);
   if ((await fs.readdir(backups)).length >= 4) throw Error('backup-retention-limit');
+  // Native transaction admission uses an uppercase drive prefix. Drive-letter
+  // casing does not change the selected Windows volume or its pinned identity.
+  const nativePath = (value) =>
+    path.win32.normalize(value).replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
   return {
-    targetPath: path.win32.normalize(targetPath),
-    backupRoot: path.win32.normalize(path.join(backups, randomUUID())),
+    targetPath: nativePath(targetPath),
+    backupRoot: nativePath(path.join(backups, randomUUID())),
   };
 }
 
