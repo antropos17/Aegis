@@ -39,6 +39,19 @@ let testDeps = null;
  */
 function handleActionPolicyHook(args, write) {
   const runtime = testDeps?.runtime || process;
+  let reportable;
+  const finish = async (code) => {
+    if (reportable) {
+      try {
+        await (testDeps?.report || require('./claude-guard-report').reportClaudeGuardDecision)(
+          reportable,
+        );
+      } catch {
+        // Observation is best-effort and must never alter the provider decision.
+      }
+    }
+    return code;
+  };
   // Electron's Windows bootstrap replaces process.stdin with an EOF stream.
   // Match Node's inherited-pipe stdin wrapper so destroy cancels a pending read.
   let input;
@@ -54,7 +67,7 @@ function handleActionPolicyHook(args, write) {
         : runtime.stdin);
   } catch {
     try {
-      return Promise.resolve(respond());
+      return Promise.resolve(respond()).then(finish);
     } catch {
       return Promise.resolve(2);
     }
@@ -80,7 +93,7 @@ function handleActionPolicyHook(args, write) {
       };
     },
     respond,
-  });
+  }).then(finish);
   function respond({ decision = 'deny', code = 2, message } = {}) {
     write(
       JSON.stringify({
@@ -91,6 +104,10 @@ function handleActionPolicyHook(args, write) {
         },
       }),
     );
+    const reason = Object.entries(PROJECT_REASONS).find(
+      ([, value]) => value[0] === decision && value[1] === message,
+    )?.[0];
+    reportable = { decision, reason: code === 2 ? 'adapter-failure' : reason || 'generic' };
     return code;
   }
 }

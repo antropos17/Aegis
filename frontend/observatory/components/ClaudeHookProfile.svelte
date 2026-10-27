@@ -4,7 +4,7 @@
   import { t } from '../runtime/i18n';
   import Icon from './Icon.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
-  type Operation = 'status' | 'install' | 'remove' | 'open-profile';
+  type Operation = 'status' | 'install' | 'remove' | 'open-profile' | 'guard-start' | 'guard-stop';
   const id = $props.id();
   const messages: Record<string, string> = {
     IDLE: 'Setup has not been reviewed.',
@@ -40,6 +40,12 @@
     READBACK_FAILED:
       'The written profile could not be verified. Retained backups require recovery review.',
     RETAINED_UNKNOWN: 'An uncertain result is retained. Another write is unavailable.',
+    GUARD_READY: 'Broker command copied. Run it in PowerShell and compare the confirmation code.',
+    GUARD_ALREADY_ACTIVE: 'A reporting session is already active.',
+    GUARD_PROFILE_REQUIRED: 'Prepare the separate Claude profile before starting a session.',
+    GUARD_CANCELLED: 'Terminal session preparation cancelled.',
+    GUARD_STOPPED: 'Reporting stopped. A previously launched Claude process may still be running.',
+    GUARD_UNAVAILABLE: 'The terminal session could not be prepared.',
   };
   const failedCodes = new Set([
     'UNAVAILABLE',
@@ -54,7 +60,26 @@
     'RETAINED_UNKNOWN',
     'AMBIGUOUS_HOOK',
     'PLAN_REFUSED',
+    'GUARD_PROFILE_REQUIRED',
+    'GUARD_UNAVAILABLE',
   ]);
+  const reasons: Record<string, string> = {
+    generic: 'Selected policy decision',
+    'adapter-failure': 'Hook adapter failure',
+    'project-review-ordinary': 'Supported command requires provider confirmation',
+    'project-deny-sensitive': 'Declared sensitive filename',
+    'project-deny-destructive': 'Declared destructive command',
+    'project-deny-unsupported': 'Unsupported command or input',
+  };
+  const sessionStatuses: Record<string, string> = {
+    inactive: 'No reporting session',
+    waiting: 'Waiting for the terminal broker',
+    'awaiting-confirmation': 'Waiting for native code confirmation',
+    active: 'Session listening; delivery remains unknown',
+    refused: 'Session refused',
+    expired: 'Session expired',
+    ended: 'Reporting session ended',
+  };
   let profileState = $state({
     code: 'IDLE',
     canInstall: false,
@@ -65,6 +90,12 @@
   let pending = $state<Operation | null>(null);
   let failed = $state(false);
   let feedback = $state('');
+  let guardSession = $state({
+    status: 'inactive',
+    available: false,
+    lossDetected: false,
+    entries: [] as { decision: string; reason: string }[],
+  });
   let alive = true;
   let available = $derived(!preview && typeof host?.reviewClaudeHookProfile === 'function');
   onDestroy(() => {
@@ -87,6 +118,25 @@
         canRemove: value.canRemove === true,
         canReviewExisting: value.canReviewExisting === true,
         canOpen: value.canOpen === true,
+      };
+      const session = record(value.guardSession);
+      const entries = Array.isArray(session.entries) ? session.entries.slice(-32) : [];
+      guardSession = {
+        status:
+          typeof session.status === 'string' && Object.hasOwn(sessionStatuses, session.status)
+            ? session.status
+            : 'inactive',
+        available: session.available === true,
+        lossDetected: session.lossDetected === true,
+        entries: entries.flatMap((item: unknown) => {
+          const entry = record(item);
+          return typeof entry.decision === 'string' &&
+            ['allow', 'ask', 'deny'].includes(entry.decision) &&
+            typeof entry.reason === 'string' &&
+            Object.hasOwn(reasons, entry.reason)
+            ? [{ decision: entry.decision, reason: entry.reason }]
+            : [];
+        }),
       };
       feedback =
         messages[code] || 'Profile review could not complete. Retained files are preserved.';
@@ -154,6 +204,54 @@
         onclick={() => perform('status')}>{$t('Refresh setup status')}</button
       >
     </div>
+    <p>
+      {$t(
+        'Start a terminal session to receive reported policy decisions. Choose a Claude executable and the exact working folder in the selected policy, then run the copied broker command and match the confirmation code.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'Reports have an unverified sender. Delivery coverage and action effects are unknown; provider confirmation is not AEGIS approval. Stopping reporting does not stop Claude.',
+      )}
+    </p>
+    <div class="profile-actions">
+      <button
+        class="button"
+        disabled={!available ||
+          pending !== null ||
+          !profileState.canOpen ||
+          ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
+        onclick={() => perform('guard-start')}>{$t('Prepare terminal session')}</button
+      >
+      <button
+        class="button"
+        disabled={!available ||
+          pending !== null ||
+          !['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
+        onclick={() => perform('guard-stop')}>{$t('Stop reporting')}</button
+      >
+    </div>
+    <p class="muted">
+      {$t(sessionStatuses[guardSession.status])}. {$t(
+        'Refresh setup status to see recent reports.',
+      )}
+    </p>
+    {#if guardSession.lossDetected}<p role="alert">
+        {$t('Some reporting was lost or discarded; delivery remains unknown.')}
+      </p>{/if}
+    {#if guardSession.entries.length}
+      <ul>
+        {#each guardSession.entries as entry, index (index)}
+          <li>
+            {entry.decision.toUpperCase()}: {$t(reasons[entry.reason])} · {$t('Effect unknown')}
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="muted">
+        {$t('No reports received; this does not establish that no actions occurred.')}
+      </p>
+    {/if}
     {#if feedback}<p role={failed ? 'alert' : 'status'} class:failed class="profile-feedback">
         {$t(feedback)}
       </p>{/if}

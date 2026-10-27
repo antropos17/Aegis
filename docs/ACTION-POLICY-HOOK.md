@@ -6,6 +6,8 @@ a separate [in-process session](ACTION-POLICY-SESSION.md) now correlates decisio
 with after reports in the provider fixture. Production linkage, reusable permission
 protection, exact approval binding and failure-resistant execution mediation remain open.
 This adapter does not reuse the lifecycle collector or send arguments over HTTP.
+An explicitly started terminal session can send a bounded, fixed decision
+category to the desktop; reporting does not change the provider decision.
 
 ## Explicit configuration
 
@@ -103,7 +105,37 @@ The CLI reads one bounded JSON request from stdin and returns only the official
 `hookSpecificOutput` object with `PreToolUse`, `permissionDecision` and a fixed
 reason. It emits no command, path, session/tool-use ID, input hash, exception
 message or provider output. Neither source IDs nor producer-supplied verification
-fields can override policy. No payload or permission history is persisted.
+fields can override policy. No payload or permission history is persisted. An
+optional desktop reporting session retains at most 32 fixed decision categories
+in memory until it closes.
+
+### Explicit terminal session reporting
+
+The separate Claude profile panel can prepare a user-invoked PowerShell broker.
+The owner selects the executable and working directory, reviews the exact paths
+in a Cancel-default native dialog and enters a one-time verification code in the
+terminal. A second native dialog requires comparison of a terminal code before a
+per-session capability is delivered. The broker launches the selected executable
+with the app-owned `--settings` profile and passes the capability only in its
+child environment. The broker command contains no capability; the verification
+code is not copied or placed in command arguments. These checks bind a capability
+exchange to the selected paths, but same-user processes can observe the terminal
+or inherit the capability. Sender identity is therefore **unverified**.
+
+Each hook sends only a fixed decision and reason category to the local session.
+Reporting failure never changes the hook's response. The panel labels delivery
+coverage and action effects unknown: an empty list does not establish absence of
+activity, and a received denial does not establish a prevented effect. An `ask`
+delegates to the provider; it is not approval by AEGIS. The handshake sends the
+selected executable, settings and working-directory paths to the broker; no
+command, cwd, policy, provider identity or raw request is sent as a decision
+report. Stopping reporting
+revokes the session capability; it does not claim that Claude has stopped. The
+receiver also has bounded request, lifetime and retention limits. A broker that
+disappears before its finish message can leave the reporting session listening
+until expiry; coverage remains unknown throughout.
+
+### Hook response
 
 | Result | Meaning |
 | --- | --- |

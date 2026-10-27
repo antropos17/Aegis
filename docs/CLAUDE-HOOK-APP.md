@@ -20,8 +20,8 @@ timeout five, and an unambiguous supported structure. It removes that entry and
 its adjacent comma; all unrelated bytes remain exact. Changed routes, additional
 fields, mixed commands or duplicate matching entries are refused.
 
-`claude-hook:review` admits only `status`, `install`, `remove` and `open-profile`
-from the current owned top-level renderer. The renderer supplies no path,
+`claude-hook:review` admits only `status`, `install`, `remove`, `open-profile`,
+`guard-start` and `guard-stop` from the current owned top-level renderer. The renderer supplies no path,
 command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
 AEGIS `--action-policy-hook` command quotes its fixed absolute paths. Literal
@@ -38,7 +38,9 @@ path retains its original rollback contract. Cancellation or navigation cannot a
 already admitted write retains its actual result during shutdown; it is not
 relabelled cancelled. The existing guarded C# IO retains a private backup before
 writing and verifies exact postwrite bytes. Fixed public outcome codes and
-capability booleans are the only setup data returned over IPC. `canRemove` still
+capability booleans are the only setup data returned over IPC. Optional terminal
+session status also returns a bounded in-memory list of fixed decision categories;
+sender identity, delivery coverage and action effects remain unknown. `canRemove` still
 describes live session ownership; `canReviewExisting` offers a fresh review and
 does not assert ownership. Status reads only bounded file metadata and creates
 no draft, backup directory or native session.

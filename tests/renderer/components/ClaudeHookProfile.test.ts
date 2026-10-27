@@ -62,3 +62,33 @@ it('keeps the simulated preview inert even with a host capability', () => {
   expect(screen.getByRole('button', { name: 'Choose policy and review install' })).toBeDisabled();
   expect(review).not.toHaveBeenCalled();
 });
+
+it('shows only fixed reported decisions and keeps sender, delivery and effect unverified', async () => {
+  const review = vi.fn().mockResolvedValue({
+    success: true,
+    code: 'READY',
+    canOpen: true,
+    guardSession: {
+      status: 'active',
+      available: true,
+      lossDetected: true,
+      entries: [
+        { decision: 'deny', reason: 'project-deny-sensitive', command: 'PRIVATE_COMMAND' },
+        { decision: 'SECRET_DECISION', reason: 'generic' },
+      ],
+      token: 'PRIVATE_TOKEN',
+    },
+  });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(
+    'Session listening; delivery remains unknown. Refresh setup status to see recent reports.',
+  );
+  expect(screen.getByText('DENY: Declared sensitive filename · Effect unknown')).toBeVisible();
+  expect(
+    screen.getByText('Some reporting was lost or discarded; delivery remains unknown.'),
+  ).toBeVisible();
+  expect(screen.queryByText('PRIVATE_COMMAND')).toBeNull();
+  expect(screen.queryByText('PRIVATE_TOKEN')).toBeNull();
+  expect(screen.queryByText('SECRET_DECISION')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
+});

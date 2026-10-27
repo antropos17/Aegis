@@ -1414,6 +1414,7 @@ app.whenReady().then(() => {
     ),
     dialog: require('electron').dialog,
     shell: require('electron').shell,
+    clipboard: require('electron').clipboard,
     executable: process.execPath,
     appPath: applicationPath,
     getWindow: () => mainWindow,
