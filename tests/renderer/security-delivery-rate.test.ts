@@ -70,7 +70,7 @@ describe('security audit-lane admission rates', () => {
     expect(second?.rates?.network).toBe(0);
     const stale = sample(4000, 5, 13_000);
     stale.stale = true;
-    expect(advanceDeliveryRate(second, stale, 13_000)).toBeNull();
+    expect(advanceDeliveryRate(second, stale, 13_000)?.rates).toBeNull();
     expect(advanceDeliveryRate(null, sample(5000, 5, 14_000), 14_000)?.rates).toBeNull();
   });
   it.each(['stale', 'missing', 'invalid-id', 'invalid-clock', 'changed-same-time'])(
@@ -83,7 +83,7 @@ describe('security audit-lane admission rates', () => {
       if (kind === 'invalid-id') next.stats.ipc.securityEvents.sampleGeneration = 'not-a-uuid';
       if (kind === 'invalid-clock') next.stats.ipc.securityEvents.sampleMonotonicMs = NaN;
       if (kind === 'changed-same-time') next.stats.ipc.securityEvents.sensors.other.accepted++;
-      expect(advanceDeliveryRate(first, next, 11_000)).toBeNull();
+      expect(advanceDeliveryRate(first, next, 11_000)?.rates).toBeNull();
     },
   );
   it.each([
@@ -109,6 +109,39 @@ describe('security audit-lane admission rates', () => {
     next.stats.ipc.securityEvents.sensors.network.accepted = Number.MAX_SAFE_INTEGER;
     expect(advanceDeliveryRate(first, next, 11_000)?.rates).toBeNull();
     next.stats.ipc.securityEvents.sensors.network.accepted = Number.MAX_SAFE_INTEGER + 1;
-    expect(advanceDeliveryRate(first, next, 11_000)).toBeNull();
+    expect(advanceDeliveryRate(first, next, 11_000)?.rates).toBeNull();
+  });
+  it('does not reconstruct an old rate from alternating replayed samples after expiry or outage', () => {
+    const s1 = advanceDeliveryRate(null, sample(1000, 5, 10_000), 10_000);
+    const s2 = advanceDeliveryRate(s1, sample(2000, 6, 11_000), 11_000);
+    expect(s2?.rates?.network).toBe(1);
+    let state = advanceDeliveryRate(s2, sample(1000, 5, 101_000), 101_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(2000, 6, 102_000), 102_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(1000, 5, 103_000), 103_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(3000, 7, 104_000), 104_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(4000, 8, 105_000), 105_000);
+    expect(state?.rates?.network).toBe(1);
+  });
+  it('invalidates a computed rate when the receipt timestamp regresses, even for an identical producer sample', () => {
+    const first = advanceDeliveryRate(null, sample(1000, 5, 10_000), 10_000);
+    const second = advanceDeliveryRate(first, sample(2000, 6, 11_000), 11_000);
+    expect(second?.rates?.network).toBe(1);
+    expect(advanceDeliveryRate(second, sample(2000, 6, 10_500), 11_000)?.rates).toBeNull();
+  });
+  it('retains bucket high-water counts across a regression and requires a new baseline', () => {
+    const first = advanceDeliveryRate(null, sample(1000, 5, 10_000), 10_000);
+    const second = advanceDeliveryRate(first, sample(2000, 6, 11_000), 11_000);
+    let state = advanceDeliveryRate(second, sample(3000, 3, 12_000), 12_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(4000, 4, 13_000), 13_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(5000, 6, 14_000), 14_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(6000, 7, 15_000), 15_000);
+    expect(state?.rates?.network).toBe(1);
   });
 });

@@ -11,7 +11,12 @@ export type DeliveryRateState = {
   accepted: Values;
   rates: Values | null;
   intervalMs: number | null;
+  invalidated: boolean;
 };
+
+function invalidate(previous: DeliveryRateState | null): DeliveryRateState | null {
+  return previous ? { ...previous, rates: null, intervalMs: null, invalidated: true } : null;
+}
 
 function validCount(value: unknown): value is number {
   return (
@@ -31,7 +36,8 @@ export function advanceDeliveryRate(
   telemetry: Telemetry,
   now: number,
 ): DeliveryRateState | null {
-  if (!securityDelivery(telemetry, now).available || telemetry.statsAt === null) return null;
+  if (!securityDelivery(telemetry, now).available || telemetry.statsAt === null)
+    return invalidate(previous);
   const delivery = record(record(telemetry.stats.ipc).securityEvents);
   const generation = delivery.sampleGeneration;
   const sampleMs = delivery.sampleMonotonicMs;
@@ -40,12 +46,12 @@ export function advanceDeliveryRate(
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(generation) ||
     !validCount(sampleMs)
   )
-    return null;
+    return invalidate(previous);
   const sensors = record(delivery.sensors);
   const accepted = {} as Values;
   for (const bucket of RATE_BUCKETS) {
     const value = record(sensors[bucket]).accepted;
-    if (!validCount(value)) return null;
+    if (!validCount(value)) return invalidate(previous);
     accepted[bucket] = value;
   }
   const sample = {
@@ -55,20 +61,34 @@ export function advanceDeliveryRate(
     accepted,
     rates: null,
     intervalMs: null,
+    invalidated: false,
   };
   if (!previous || previous.generation !== generation) return sample;
-  if (now < previous.receivedAt || now - previous.receivedAt >= DELIVERY_FRESHNESS_MS)
-    return sample;
+  if (sampleMs < previous.sampleMs || telemetry.statsAt < previous.receivedAt)
+    return invalidate(previous);
   if (sampleMs === previous.sampleMs) {
-    if (RATE_BUCKETS.some((bucket) => accepted[bucket] !== previous.accepted[bucket])) return null;
+    if (
+      RATE_BUCKETS.some((bucket) => accepted[bucket] !== previous.accepted[bucket]) ||
+      now < previous.receivedAt ||
+      now - previous.receivedAt >= DELIVERY_FRESHNESS_MS
+    )
+      return invalidate(previous);
     return previous;
   }
   const elapsed = sampleMs - previous.sampleMs;
+  if (RATE_BUCKETS.some((bucket) => accepted[bucket] < previous.accepted[bucket])) {
+    const highWater = { ...previous.accepted };
+    for (const bucket of RATE_BUCKETS)
+      highWater[bucket] = Math.max(highWater[bucket], accepted[bucket]);
+    return invalidate({ ...previous, sampleMs, accepted: highWater });
+  }
+  if (telemetry.statsAt === previous.receivedAt)
+    return invalidate({ ...previous, sampleMs, accepted });
   if (
-    elapsed <= 0 ||
-    elapsed > DELIVERY_FRESHNESS_MS ||
-    telemetry.statsAt <= previous.receivedAt ||
-    RATE_BUCKETS.some((bucket) => accepted[bucket] < previous.accepted[bucket])
+    previous.invalidated ||
+    now < previous.receivedAt ||
+    now - previous.receivedAt >= DELIVERY_FRESHNESS_MS ||
+    elapsed > DELIVERY_FRESHNESS_MS
   )
     return sample;
   const rates = {} as Values;
