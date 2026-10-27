@@ -165,6 +165,7 @@ function createSensorHost(deps) {
       killed: false,
       stopAck: false,
       applied: { watch: -1, paths: -1 },
+      modeToken: null,
       startedAt: mono(),
       lastAt: mono(),
       healthy: false,
@@ -182,6 +183,10 @@ function createSensorHost(deps) {
       linuxContext: context,
       sink: deps.sink,
       onHello: () => {
+        // Every mode announcement starts a new configuration generation,
+        // including a recovery announcement for the same mode.
+        item.applied.paths = -1;
+        item.modeToken = {};
         notify();
         pump();
       },
@@ -270,7 +275,10 @@ function createSensorHost(deps) {
     item.transport.tick();
     // sensor/1 has no ping frame. A correlated snapshot proves liveness even
     // when a healthy sensor has no events or health transition to report.
-    if (item.healthy && mono() - item.lastAt >= 2000)
+    if (
+      (item.healthy || (platform === 'linux' && item.session.getMode() === 'procfs')) &&
+      mono() - item.lastAt >= 2000
+    )
       send('snap', {}, (message) => {
         if (message.t === 'err') failed('snapshot-rejected');
       });

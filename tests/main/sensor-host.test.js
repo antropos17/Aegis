@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import wire from '../../src/main/platform/sensor-protocol.js';
+import launcher from '../../src/main/platform/sensor-host-launch.js';
 import { fixture, ready, hello, identity, context, event, batch } from './sensor-host-fixtures.js';
 
 beforeEach(() => {
@@ -13,6 +14,38 @@ afterEach(() => {
 });
 
 describe('owned sensor host admission and status', () => {
+  it('launches the packaged Linux sensor only from the fixed resources directory', () => {
+    const resourcesPath = path.resolve('fixture', 'resources');
+    const spawn = vi.fn(() => ({ pid: 42 }));
+    const exists = vi.fn(() => true);
+    const launch = launcher.createLauncher({
+      platform: 'linux',
+      packaged: true,
+      getLinuxContext: () => structuredClone(context),
+      test: { resourcesPath, exists, spawn },
+    });
+    expect(launch().error).toBeNull();
+    const expected = path.join(resourcesPath, 'sensor', 'aegis-sensor-linux');
+    expect(exists).toHaveBeenCalledExactlyOnceWith(expected);
+    expect(spawn).toHaveBeenCalledExactlyOnceWith(expected, [], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true,
+    });
+  });
+
+  it('reports a missing packaged sensor without starting a child', () => {
+    const spawn = vi.fn();
+    const launch = launcher.createLauncher({
+      platform: 'linux',
+      packaged: true,
+      getLinuxContext: () => structuredClone(context),
+      test: { resourcesPath: path.resolve('fixture', 'resources'), exists: () => false, spawn },
+    });
+    expect(launch()).toEqual({ error: 'binary-missing' });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   const escapedPaths = (count = 4090) =>
     Array.from(
       { length: 1024 },
