@@ -100,6 +100,8 @@ function createClaudeGuardLauncher(options) {
     options.startReceiver || require('./claude-guard-receiver').startClaudeGuardReceiver;
   const createAdmission =
     options.createAdmission || require('./claude-guard-admission').createClaudeGuardAdmission;
+  const createSnapshotGate =
+    options.createSnapshotGate || require('./claude-guard-snapshot').createClaudeGuardSnapshot;
   let active = null;
   let closed = false;
   let reader = null,
@@ -111,6 +113,7 @@ function createClaudeGuardLauncher(options) {
     openingReceiver = null,
     generation = 0,
     selectedPaths = null,
+    snapshotGate = null,
     timer = null,
     retained = false,
     afterHooksAtAdmission = false,
@@ -143,6 +146,10 @@ function createClaudeGuardLauncher(options) {
   async function stopCurrent(stale) {
     clearInterval(timer);
     timer = null;
+    // An expired capture is not cancelled by a timeout. Keep its gate until the
+    // real filesystem operation settles so a new launch cannot accumulate work.
+    snapshotGate?.close();
+    if (snapshotGate && !snapshotGate.hasPending()) snapshotGate = null;
     const readPending = opening,
       receiverPending = openingReceiver;
     const [lateReader, lateReceiver] = await Promise.all([
@@ -247,6 +254,19 @@ function createClaudeGuardLauncher(options) {
     });
     return next;
   }
+  async function verifyLaunch(owned) {
+    const gate = snapshotGate;
+    if (!gate) return verifyCurrent(owned);
+    const [profile, project] = await Promise.all([
+      verifyCurrent(owned),
+      gate ? gate.verify() : Promise.resolve(true),
+    ]);
+    if (profile !== true || project !== true || gate !== snapshotGate || !owned() || closed)
+      return false;
+    // Bind the accepted project capture back to the exact BigInt cwd witness
+    // after it finishes, before the receiver can release the start request.
+    return (await verifyCurrent(owned)) && gate === snapshotGate && owned() && !closed;
+  }
   async function closeUnattached(next) {
     if (!next) return;
     try {
@@ -261,9 +281,10 @@ function createClaudeGuardLauncher(options) {
       retained = true;
     }
   }
-  async function start(isOwned) {
+  async function start(isOwned, snapshotChecked = false) {
     if (stopping) await stopping;
     if (checking) await checking;
+    if (snapshotGate?.hasPending()) return 'GUARD_SNAPSHOT_BUSY';
     if (retained) return 'GUARD_RELEASE_UNCONFIRMED';
     if (closed || !isOwned()) return 'GUARD_UNAVAILABLE';
     if (active) {
@@ -271,6 +292,7 @@ function createClaudeGuardLauncher(options) {
         return 'GUARD_ALREADY_ACTIVE';
       if (!(await stop()) || retained) return 'GUARD_RELEASE_UNCONFIRMED';
     }
+    snapshotGate = null;
     const currentGeneration = ++generation;
     const owned = () => currentGeneration === generation && !closed && isOwned();
     const window = getWindow();
@@ -337,6 +359,49 @@ function createClaudeGuardLauncher(options) {
         return 'GUARD_PROFILE_UNVERIFIED';
       }
       afterHooksAtAdmission = admission.hasAfterHooks?.(binding) === true;
+      if (snapshotChecked) {
+        const selection = await dialog.showOpenDialog(window, {
+          title: 'Select an accepted project inventory snapshot',
+          properties: ['openFile'],
+          filters: [{ name: 'JSON snapshot', extensions: ['json'] }],
+        });
+        if (!owned() || selection.canceled || selection.filePaths?.length !== 1) {
+          await stop();
+          return 'GUARD_CANCELLED';
+        }
+        const baselineFile = selection.filePaths[0];
+        snapshotGate = createSnapshotGate({ cwd, baselineFile });
+        let outcome = await snapshotGate.bind();
+        if (owned() && outcome === 'SNAPSHOT_CATALOG_REQUIRED') {
+          snapshotGate.close();
+          if (snapshotGate.hasPending()) {
+            await stop(true);
+            return 'GUARD_SNAPSHOT_UNAVAILABLE';
+          }
+          const catalog = await dialog.showOpenDialog(window, {
+            title: 'Select the same offline tool catalog used by the snapshot',
+            properties: ['openFile'],
+            filters: [{ name: 'JSON catalog', extensions: ['json'] }],
+          });
+          if (!owned() || catalog.canceled || catalog.filePaths?.length !== 1) {
+            await stop();
+            return 'GUARD_CANCELLED';
+          }
+          snapshotGate = createSnapshotGate({ cwd, baselineFile, toolsFile: catalog.filePaths[0] });
+          outcome = await snapshotGate.bind();
+        }
+        if (!owned() || outcome !== 'SNAPSHOT_OK') {
+          const code =
+            owned() &&
+            ['SNAPSHOT_REVIEW_REQUIRED', 'SNAPSHOT_INCOMPATIBLE', 'SNAPSHOT_INCOMPLETE'].includes(
+              outcome,
+            )
+              ? `GUARD_${outcome}`
+              : 'GUARD_SNAPSHOT_UNAVAILABLE';
+          await stop(true);
+          return code;
+        }
+      }
     } catch {
       await stop(true);
       opening = null;
@@ -350,6 +415,9 @@ function createClaudeGuardLauncher(options) {
         message: 'Prepare the selected Claude launch?',
         detail:
           `Executable: ${program}\nWorking folder: ${cwd}\nSettings: ${target}\n\n` +
+          (snapshotChecked
+            ? 'The selected accepted project inventory currently matches. It covers recognized project layouts only and is not authenticated. The project may change after this check.\n\n'
+            : 'This launch does not check an accepted project inventory snapshot.\n\n') +
           'AEGIS will copy a broker command for your terminal. It does not verify the executable or sender. Provider approval and action effects remain unknown.',
         buttons: ['Cancel', 'Prepare command'],
         defaultId: 0,
@@ -363,6 +431,10 @@ function createClaudeGuardLauncher(options) {
     if (!owned() || review.response !== 1) {
       await stop();
       return 'GUARD_CANCELLED';
+    }
+    if (snapshotChecked && !(await verifyLaunch(owned))) {
+      await stop(true);
+      return snapshotChecked ? 'GUARD_SNAPSHOT_UNAVAILABLE' : 'GUARD_PROFILE_UNVERIFIED';
     }
     let next;
     let readyForClaim = false;
@@ -387,10 +459,10 @@ function createClaudeGuardLauncher(options) {
               active === next &&
               owned() &&
               approval.response === 1 &&
-              (await verifyCurrent(owned))
+              (await verifyLaunch(owned))
             );
           },
-          verify: () => active === next && verifyCurrent(owned),
+          verify: () => active === next && verifyLaunch(owned),
         }),
       );
       openingReceiver = receiverAttempt;
@@ -426,10 +498,10 @@ function createClaudeGuardLauncher(options) {
         await stop();
         return 'GUARD_CANCELLED';
       }
-      if (next.snapshot().status !== 'waiting' || !(await verifyCurrent(owned))) {
+      if (next.snapshot().status !== 'waiting' || !(await verifyLaunch(owned))) {
         await closeUnattached(next);
         await stop(true);
-        return 'GUARD_PROFILE_UNVERIFIED';
+        return snapshotChecked ? 'GUARD_SNAPSHOT_UNAVAILABLE' : 'GUARD_PROFILE_UNVERIFIED';
       }
       readyForClaim = true;
       active = next;
@@ -462,7 +534,13 @@ function createClaudeGuardLauncher(options) {
     stop,
     close,
     snapshot,
-    hasPending: () => !!active || !!reader || !!opening || !!openingReceiver || !!stopping,
+    hasPending: () =>
+      !!active ||
+      !!reader ||
+      !!opening ||
+      !!openingReceiver ||
+      !!stopping ||
+      !!snapshotGate?.hasPending(),
   });
 }
 

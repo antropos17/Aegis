@@ -212,7 +212,8 @@ function fixture(overrides = {}) {
     startReceiver,
     openRead: overrides.openRead || (async () => reader),
     createAdmission: () => admission,
-    checkIntervalMs: 20,
+    createSnapshotGate: overrides.createSnapshotGate,
+    checkIntervalMs: overrides.checkIntervalMs || 20,
   });
 
   return {
@@ -228,6 +229,229 @@ function fixture(overrides = {}) {
     target,
   };
 }
+
+it.skipIf(process.platform !== 'win32')(
+  'keeps the ordinary launch to one profile check per existing admission point',
+  async () => {
+    const f = fixture({ checkIntervalMs: 60000 });
+    expect(await f.launcher.start(() => true)).toBe('GUARD_READY');
+    expect(f.admission.verify).toHaveBeenCalledTimes(1);
+    const receiver = f.startReceiver.mock.calls[0][0];
+    expect(await receiver.approve('123456')).toBe(true);
+    expect(f.admission.verify).toHaveBeenCalledTimes(2);
+    expect(await receiver.verify()).toBe(true);
+    expect(f.admission.verify).toHaveBeenCalledTimes(3);
+    await f.launcher.close();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'requires a matching accepted snapshot before preparing and starting the broker',
+  async () => {
+    const gate = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_OK'),
+      verify: vi.fn().mockResolvedValue(true),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const createSnapshotGate = vi.fn(() => gate);
+    const f = fixture({ createSnapshotGate });
+    f.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:\\accepted.json'],
+    });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_READY');
+    expect(createSnapshotGate).toHaveBeenCalledWith({
+      cwd: f.cwd,
+      baselineFile: 'C:\\accepted.json',
+    });
+    expect(f.dialog.showMessageBox.mock.calls[0][1].detail).toContain(
+      'recognized project layouts only',
+    );
+    const receiver = f.startReceiver.mock.calls[0][0];
+    expect(await receiver.approve('123456')).toBe(true);
+    gate.verify.mockResolvedValue(false);
+    expect(await receiver.verify()).toBe(false);
+    await f.launcher.close();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'checks snapshots at explicit admission points but never in the periodic profile polling',
+  async () => {
+    const gate = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_OK'),
+      verify: vi.fn().mockResolvedValue(true),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const f = fixture({ createSnapshotGate: () => gate });
+    f.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:\\accepted.json'],
+    });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_READY');
+    expect(gate.verify).toHaveBeenCalledTimes(2);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(gate.verify).toHaveBeenCalledTimes(2);
+    const receiver = f.startReceiver.mock.calls[0][0];
+    expect(await receiver.approve('123456')).toBe(true);
+    expect(gate.verify).toHaveBeenCalledTimes(3);
+    expect(await receiver.verify()).toBe(true);
+    expect(gate.verify).toHaveBeenCalledTimes(4);
+    await f.launcher.close();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'reports failed project recheck after the broker command was copied',
+  async () => {
+    const gate = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_OK'),
+      verify: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const f = fixture({ createSnapshotGate: () => gate });
+    f.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:\\accepted.json'],
+    });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_SNAPSHOT_UNAVAILABLE');
+    expect(f.clipboard.writeText).toHaveBeenCalledOnce();
+    expect(f.receiver.close).toHaveBeenCalledOnce();
+    expect(await f.startReceiver.mock.calls[0][0].approve('123456')).toBe(false);
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'does not start or copy a command when the snapshot requires review',
+  async () => {
+    const gate = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_REVIEW_REQUIRED'),
+      verify: vi.fn(),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const f = fixture({ createSnapshotGate: () => gate });
+    f.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:\\observed.json'],
+    });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_SNAPSHOT_REVIEW_REQUIRED');
+    expect(f.startReceiver).not.toHaveBeenCalled();
+    expect(f.clipboard.writeText).not.toHaveBeenCalled();
+    expect(gate.close).toHaveBeenCalled();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'keeps a timed-out snapshot capture single-flight until it really settles',
+  async () => {
+    let pending = true;
+    const gate = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_UNAVAILABLE'),
+      verify: vi.fn(),
+      close: vi.fn(),
+      hasPending: () => pending,
+    };
+    const f = fixture({ createSnapshotGate: () => gate });
+    f.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:\\accepted.json'],
+    });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_SNAPSHOT_UNAVAILABLE');
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_SNAPSHOT_BUSY');
+    expect(f.startReceiver).not.toHaveBeenCalled();
+    pending = false;
+    await f.launcher.close();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'never opens a broker when owner authority ends during snapshot capture',
+  async () => {
+    let finish,
+      owned = true;
+    const gate = {
+      bind: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      ),
+      verify: vi.fn(),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const f = fixture({ createSnapshotGate: () => gate });
+    f.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:\\accepted.json'],
+    });
+    const starting = f.launcher.start(() => owned, true);
+    await vi.waitFor(() => expect(gate.bind).toHaveBeenCalledOnce());
+    owned = false;
+    finish('SNAPSHOT_OK');
+    expect(await starting).toBe('GUARD_SNAPSHOT_UNAVAILABLE');
+    expect(f.startReceiver).not.toHaveBeenCalled();
+    expect(f.clipboard.writeText).not.toHaveBeenCalled();
+    expect(gate.close).toHaveBeenCalledOnce();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'requests the same catalog when the accepted snapshot requires it',
+  async () => {
+    const first = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_CATALOG_REQUIRED'),
+      verify: vi.fn(),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const second = {
+      bind: vi.fn().mockResolvedValue('SNAPSHOT_OK'),
+      verify: vi.fn().mockResolvedValue(true),
+      close: vi.fn(),
+      hasPending: () => false,
+    };
+    const factory = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const f = fixture({ createSnapshotGate: factory });
+    f.dialog.showOpenDialog
+      .mockResolvedValueOnce({ canceled: false, filePaths: ['C:\\accepted.json'] })
+      .mockResolvedValueOnce({ canceled: false, filePaths: ['C:\\catalog.json'] });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_READY');
+    expect(first.close).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenLastCalledWith({
+      cwd: f.cwd,
+      baselineFile: 'C:\\accepted.json',
+      toolsFile: 'C:\\catalog.json',
+    });
+    await f.launcher.close();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'checks a real accepted inventory and refuses broker start after the project changes',
+  async () => {
+    const { inventoryProject } = require('../../src/main/agent-inventory');
+    const { resolveSnapshotSubject } = require('../../src/main/inventory-snapshot-files');
+    const { createSnapshot, acceptSnapshot } = require('../../src/main/inventory-snapshot');
+    const f = fixture();
+    const instruction = path.join(f.cwd, 'CLAUDE.md');
+    writeFileSync(instruction, 'Initial instructions');
+    const subject = await resolveSnapshotSubject(f.cwd);
+    const observed = createSnapshot(await inventoryProject(subject.root), subject.rootSha256);
+    const accepted = acceptSnapshot(observed, observed.digest, observed);
+    const baseline = path.join(path.dirname(f.cwd), 'accepted.json');
+    writeFileSync(baseline, JSON.stringify(accepted));
+    f.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [baseline] });
+    expect(await f.launcher.start(() => true, true)).toBe('GUARD_READY');
+    writeFileSync(instruction, 'Changed instructions');
+    expect(await f.startReceiver.mock.calls[0][0].verify()).toBe(false);
+    await f.launcher.close();
+  },
+);
 
 it.skipIf(process.platform !== 'win32')(
   'waits for a pending native open and confirmed cleanup during shutdown',

@@ -4,6 +4,27 @@ import ClaudeHookProfile from '../../../frontend/observatory/components/ClaudeHo
 import type { Host } from '../../../frontend/observatory/runtime/host';
 import { language } from '../../../frontend/observatory/runtime/i18n';
 
+it('offers an explicit snapshot-gated launch and reports review-required without passing a path', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, code: 'READY', canOpen: true })
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_SNAPSHOT_REVIEW_REQUIRED',
+      canOpen: true,
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText('Prepared setup files are available for native review.');
+  expect(
+    screen.getByText(/The ordinary terminal session does not check a project snapshot/),
+  ).toBeVisible();
+  await fireEvent.click(
+    screen.getByRole('button', { name: 'Prepare with accepted project snapshot' }),
+  );
+  expect(await screen.findByRole('alert')).toHaveTextContent('fresh Local security review');
+  expect(review.mock.calls).toEqual([['status'], ['guard-start-snapshot']]);
+});
+
 it.each([
   [
     'POLICY_CREATE_REFUSED',
