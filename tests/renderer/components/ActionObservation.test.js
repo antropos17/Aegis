@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte';
 import ActionObservation from '../../../frontend/observatory/components/ActionObservation.svelte';
 import { parseRouteObservation } from '../../../frontend/observatory/runtime/action-observation';
+const lease = '12345678-1234-4234-8234-123456789012';
 const observed = {
   state: 'observed',
   reason: null,
@@ -29,7 +30,7 @@ afterEach(() => {
 });
 it('labels self-reported identity, preserves last counters on loss, and never claims verified blocking', async () => {
   let current = structuredClone(observed);
-  const localSecurityReview = vi.fn(async () => ({ success: true, observation: current }));
+  const localSecurityReview = vi.fn(async () => ({ success: true, observation: current, lease }));
   render(ActionObservation, { host: { localSecurityReview } });
   const choose = screen.getByRole('button', { name: 'Choose observation endpoint' });
   await fireEvent.click(choose);
@@ -59,13 +60,13 @@ it('labels self-reported identity, preserves last counters on loss, and never cl
   expect(choose).toBeEnabled();
   expect(localSecurityReview.mock.calls.map(([request]) => request)).toEqual([
     { action: 'observe-route' },
-    { action: 'route-observation' },
+    { action: 'route-observation', lease },
   ]);
 });
 it('marks host failure as lost evidence and stops polling', async () => {
   const localSecurityReview = vi
     .fn()
-    .mockResolvedValueOnce({ success: true, observation: observed })
+    .mockResolvedValueOnce({ success: true, observation: observed, lease })
     .mockRejectedValue(new Error('PRIVATE'));
   render(ActionObservation, { host: { localSecurityReview } });
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
@@ -94,7 +95,7 @@ it('labels selected-file deletion and retains observed attempts without claiming
     },
   };
   let current = deletion;
-  const localSecurityReview = vi.fn(async () => ({ success: true, observation: current }));
+  const localSecurityReview = vi.fn(async () => ({ success: true, observation: current, lease }));
   render(ActionObservation, { host: { localSecurityReview } });
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
   await waitFor(() =>
@@ -144,6 +145,7 @@ it('labels selected-file deletion and retains observed attempts without claiming
 it('stops observing without an execution request and excludes live attachment in preview', async () => {
   const localSecurityReview = vi.fn(async ({ action }) => ({
     success: true,
+    lease,
     observation:
       action === 'stop-observing-route'
         ? { ...observed, state: 'stopped', reason: 'observer-stopped' }
@@ -158,7 +160,7 @@ it('stops observing without an execution request and excludes live attachment in
       'Observation stopped',
     ),
   );
-  expect(localSecurityReview).toHaveBeenLastCalledWith({ action: 'stop-observing-route' });
+  expect(localSecurityReview).toHaveBeenLastCalledWith({ action: 'stop-observing-route', lease });
   component.unmount();
   render(ActionObservation, { host: { localSecurityReview }, preview: true });
   expect(screen.getByRole('button', { name: 'Choose observation endpoint' })).toBeDisabled();
@@ -177,10 +179,58 @@ it('closes a late attachment after the component was destroyed', async () => {
   const component = render(ActionObservation, { host: { localSecurityReview } });
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
   component.unmount();
-  finish({ success: true, observation: observed });
+  finish({ success: true, observation: observed, lease });
   await waitFor(() =>
-    expect(localSecurityReview).toHaveBeenLastCalledWith({ action: 'stop-observing-route' }),
+    expect(localSecurityReview).toHaveBeenLastCalledWith({ action: 'stop-observing-route', lease }),
   );
+});
+
+it('uses only its own lease to clean up a late attachment after another view connects', async () => {
+  let finishOld;
+  const newerLease = 'abcdef12-1234-4234-8234-123456789012';
+  let currentLease = null;
+  const localSecurityReview = vi.fn(({ action, lease: requested }) => {
+    if (action === 'observe-route' && !finishOld)
+      return new Promise((resolve) => {
+        finishOld = resolve;
+      });
+    if (action === 'observe-route') {
+      currentLease = newerLease;
+      return Promise.resolve({ success: true, observation: observed, lease: newerLease });
+    }
+    if (action === 'stop-observing-route' && requested === currentLease) currentLease = null;
+    return Promise.resolve({ success: requested === currentLease, observation: observed });
+  });
+  const old = render(ActionObservation, { host: { localSecurityReview } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
+  old.unmount();
+  const newer = render(ActionObservation, { host: { localSecurityReview } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Stop observing' })).toBeEnabled());
+  finishOld({ success: true, observation: observed, lease });
+  await waitFor(() =>
+    expect(localSecurityReview).toHaveBeenCalledWith({ action: 'stop-observing-route', lease }),
+  );
+  expect(currentLease).toBe(newerLease);
+  newer.unmount();
+  expect(currentLease).toBeNull();
+});
+
+it('does not stop a newer connection when an earlier attached view is destroyed', async () => {
+  const newerLease = 'abcdef12-1234-4234-8234-123456789012';
+  let currentLease = lease;
+  const localSecurityReview = vi.fn(async ({ action, lease: requested }) => {
+    if (action === 'observe-route') return { success: true, observation: observed, lease };
+    if (action === 'stop-observing-route' && requested === currentLease) currentLease = null;
+    return { success: true, observation: observed };
+  });
+  const old = render(ActionObservation, { host: { localSecurityReview } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Stop observing' })).toBeEnabled());
+  currentLease = newerLease;
+  old.unmount();
+  expect(localSecurityReview).toHaveBeenCalledWith({ action: 'stop-observing-route', lease });
+  expect(currentLease).toBe(newerLease);
 });
 
 it('keeps separately named live regions stable through a pending and cancelled endpoint request', async () => {

@@ -32,8 +32,15 @@ function valid(request) {
   const keys = Object.keys(request);
   if (['review-result', 'result-status', 'clear-result'].includes(request.action))
     return validResultReviewRequest(request);
-  if (['observe-route', 'route-observation', 'stop-observing-route'].includes(request.action))
-    return keys.length === 1;
+  if (request.action === 'observe-route') return keys.length === 1;
+  if (request.action === 'route-observation' && keys.length === 1) return true;
+  if (['route-observation', 'stop-observing-route'].includes(request.action))
+    return (
+      keys.length === 2 &&
+      keys.every((key) => ['action', 'lease'].includes(key)) &&
+      typeof request.lease === 'string' &&
+      /^[a-f0-9-]{36}$/.test(request.lease)
+    );
   if (['check-route', 'check-catalog'].includes(request.action))
     return (
       keys.length === 2 &&
@@ -127,6 +134,7 @@ async function handle(event, request) {
         session.resultRetained = null;
         session.observation?.close();
         session.observation = null;
+        session.observationLease = null;
       }
     });
     event.sender.on?.('destroyed', () => {
@@ -135,12 +143,19 @@ async function handle(event, request) {
       session.resultRetained = null;
       session.observation?.close();
       session.observation = null;
+      session.observationLease = null;
     });
   }
-  if (session.frame === event.senderFrame && request.action === 'route-observation')
+  if (session.frame === event.senderFrame && request.action === 'route-observation') {
+    if (request.lease && request.lease !== session.observationLease)
+      return { success: false, error: 'observation-expired' };
     return { success: true, observation: session.observation?.snapshot() ?? null };
+  }
   if (session.frame === event.senderFrame && request.action === 'stop-observing-route') {
+    if (request.lease !== session.observationLease)
+      return { success: false, error: 'observation-expired' };
     session.observation?.close();
+    session.observationLease = null;
     return { success: true, observation: session.observation?.snapshot() ?? null };
   }
   if (session.busy) {
@@ -150,6 +165,7 @@ async function handle(event, request) {
   if (session.frame !== event.senderFrame) {
     session.observation?.close();
     session.observation = null;
+    session.observationLease = null;
     session.frame = event.senderFrame;
     session.revision++;
     session.retained = null;
@@ -188,10 +204,17 @@ async function handle(event, request) {
       const file = await pick('Select the private AEGIS observation endpoint');
       assertOwned();
       session.observation?.close();
+      session.observation = null;
+      session.observationLease = null;
       session.observation = (
         deps.observeActionRoute || require('./action-observation-client').observeActionRoute
       )(file);
-      return { success: true, observation: session.observation.snapshot() };
+      session.observationLease = randomUUID();
+      return {
+        success: true,
+        observation: session.observation.snapshot(),
+        lease: session.observationLease,
+      };
     }
     if (request.action === 'check-route' || request.action === 'check-catalog') {
       const kind = request.action === 'check-route' ? 'single' : 'catalog';

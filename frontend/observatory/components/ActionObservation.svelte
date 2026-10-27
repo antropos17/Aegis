@@ -24,6 +24,7 @@
   let pendingCommand = $state('');
   let alive = true,
     generation = 0;
+  let lease: string | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let expiry: ReturnType<typeof setTimeout> | undefined;
   const available = $derived(!preview && typeof host?.localSecurityReview === 'function');
@@ -42,7 +43,17 @@
     };
     onObservation?.(observation);
   }
+  function validLease(value: unknown): value is string {
+    return typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value);
+  }
+  function stopLease(value: string) {
+    void invoke(host, 'localSecurityReview', {
+      action: 'stop-observing-route',
+      lease: value,
+    }).catch(() => {});
+  }
   async function request(action: string, epoch: number) {
+    const requestLease = lease;
     let expired = false;
     const timeout = setTimeout(
       () => {
@@ -56,12 +67,16 @@
     );
     expiry = timeout;
     try {
-      const response = record(await invoke(host, 'localSecurityReview', { action }));
+      const response = record(
+        await invoke(
+          host,
+          'localSecurityReview',
+          action === 'observe-route' ? { action } : { action, lease: requestLease },
+        ),
+      );
       if (!alive || epoch !== generation || expired) {
-        if (action === 'observe-route' && response.success === true)
-          void invoke(host, 'localSecurityReview', { action: 'stop-observing-route' }).catch(
-            () => {},
-          );
+        if (action === 'observe-route' && response.success === true && validLease(response.lease))
+          stopLease(response.lease);
         return;
       }
       if (response.success !== true) {
@@ -73,8 +88,19 @@
         }
         return;
       }
+      if (action === 'observe-route') {
+        if (!validLease(response.lease)) {
+          unavailable();
+          return;
+        }
+        lease = response.lease;
+      } else if (action === 'stop-observing-route') lease = null;
       const next = parseRouteObservation(response.observation);
       if (!next) {
+        if (action === 'observe-route' && lease) {
+          stopLease(lease);
+          lease = null;
+        }
         unavailable();
         return;
       }
@@ -110,8 +136,7 @@
     clearTimeout(timer);
     clearTimeout(expiry);
     onObservation?.(null);
-    if (observation)
-      void invoke(host, 'localSecurityReview', { action: 'stop-observing-route' }).catch(() => {});
+    if (lease) stopLease(lease);
   });
 </script>
 

@@ -59,7 +59,7 @@ it('cancels endpoint selection without replacing evidence; rejects foreign obser
     observeActionRoute,
     rendererUrl: 'file:///app/index.html',
   });
-  await ipc.handle(event, { action: 'observe-route' });
+  const selected = await ipc.handle(event, { action: 'observe-route' });
   dialog.showOpenDialog.mockResolvedValue({ canceled: true });
   expect(await ipc.handle(event, { action: 'observe-route' })).toMatchObject({ cancelled: true });
   expect(observation.close).not.toHaveBeenCalled();
@@ -67,8 +67,48 @@ it('cancels endpoint selection without replacing evidence; rejects foreign obser
     expect(await ipc.handle({ ...event, senderFrame: {} }, { action })).toMatchObject({
       error: 'request-denied',
     });
-  await ipc.handle(event, { action: 'stop-observing-route' });
+  await ipc.handle(event, { action: 'stop-observing-route', lease: selected.lease });
   expect(observation.close).toHaveBeenCalledOnce();
+});
+
+it('does not let an earlier lease stop or read a newer observation', async () => {
+  const first = { snapshot: () => ({ state: 'connecting' }), close: vi.fn() };
+  const second = { snapshot: () => ({ state: 'observed' }), close: vi.fn() };
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    observeActionRoute: vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second),
+    rendererUrl: 'file:///app/index.html',
+  });
+  const old = await ipc.handle(event, { action: 'observe-route' });
+  const current = await ipc.handle(event, { action: 'observe-route' });
+  expect(first.close).toHaveBeenCalledOnce();
+  expect(current.lease).not.toBe(old.lease);
+  expect(await ipc.handle(event, { action: 'stop-observing-route', lease: old.lease })).toEqual({
+    success: false,
+    error: 'observation-expired',
+  });
+  expect(await ipc.handle(event, { action: 'route-observation', lease: old.lease })).toEqual({
+    success: false,
+    error: 'observation-expired',
+  });
+  expect(await ipc.handle(event, { action: 'stop-observing-route' })).toMatchObject({
+    error: 'invalid-review-request',
+  });
+  expect(second.close).not.toHaveBeenCalled();
+  expect(
+    await ipc.handle(event, { action: 'route-observation', lease: current.lease }),
+  ).toMatchObject({
+    success: true,
+    observation: { state: 'observed' },
+  });
+  expect(
+    await ipc.handle(event, { action: 'stop-observing-route', lease: current.lease }),
+  ).toMatchObject({
+    success: true,
+  });
+  expect(second.close).toHaveBeenCalledOnce();
 });
 
 it('does not attach after navigation during endpoint selection, and destroys an attached observer with its window', async () => {
