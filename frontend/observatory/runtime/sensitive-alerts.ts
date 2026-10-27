@@ -1,9 +1,10 @@
-import type { DetectedAgent, FileEvent } from '../../../src/shared/types';
+import type { DetectedAgent, FileEvent, PathFileEvent } from '../../../src/shared/types';
 import { actionTarget, type Telemetry } from './host';
+import { objectReadMatchesProcess } from './object-read';
 
 export interface SensitiveAlert {
   readonly id: string;
-  readonly event: FileEvent;
+  readonly event: FileEvent | SavedObjectAlert;
   readonly reviewed: boolean;
   readonly savedReview: boolean;
   readonly live: boolean;
@@ -17,7 +18,18 @@ export interface JournalAlert {
   readonly agent: string;
   readonly attribution: 'confirmed' | 'inferred' | 'unattributed';
   readonly reviewed: boolean;
+  readonly observationKind?: 'bound-object-read';
+  readonly labelSemantics?: 'binding-label-access-path-unknown';
 }
+
+// A restored summary preserves label semantics but cannot recreate live object proof.
+type SavedObjectAlert = Omit<PathFileEvent, 'observationKind' | 'file' | 'object' | 'skill'> & {
+  observationKind: 'bound-object-read';
+  bindingLabel: string;
+  labelSemantics: 'binding-label-access-path-unknown';
+  object?: never;
+  file?: never;
+};
 
 export interface SensitiveAlertDelivery {
   readonly items: SensitiveAlert[];
@@ -39,23 +51,30 @@ function newestFirst(left: SensitiveAlert, right: SensitiveAlert): number {
   return observedAt(right) - observedAt(left) || right.id.localeCompare(left.id);
 }
 
-function summaryEvent(row: JournalAlert): FileEvent {
-  return {
+function summaryEvent(row: JournalAlert): SensitiveAlert['event'] {
+  const common = {
     eventId: row.eventId,
     agent: row.agent,
     pid: null,
     instanceId: null,
     parentEditor: null,
     cwd: null,
-    file: row.basename,
     sensitive: true,
     selfAccess: false,
     reason: '',
     action: row.action,
     timestamp: row.timestamp,
-    category: 'other',
+    category: 'other' as const,
     attribution: { status: row.attribution, evidence: [] },
   };
+  return row.observationKind === 'bound-object-read'
+    ? {
+        ...common,
+        observationKind: 'bound-object-read',
+        bindingLabel: row.basename,
+        labelSemantics: 'binding-label-access-path-unknown',
+      }
+    : { ...common, file: row.basename };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -87,7 +106,11 @@ export function parseJournalAlerts(value: unknown): JournalAlert[] {
       typeof row.agent !== 'string' ||
       row.agent.length > 100 ||
       !['confirmed', 'inferred', 'unattributed'].includes(String(row.attribution)) ||
-      typeof row.reviewed !== 'boolean'
+      typeof row.reviewed !== 'boolean' ||
+      (row.observationKind !== undefined && row.observationKind !== 'bound-object-read') ||
+      (row.observationKind === 'bound-object-read'
+        ? row.labelSemantics !== 'binding-label-access-path-unknown'
+        : row.labelSemantics !== undefined)
     )
       continue;
     ids.add(row.eventId);
@@ -195,7 +218,10 @@ export function alertBasename(path: string): string {
 /** Link a confirmed observation only to its uniquely matched, currently controllable process.
  * @param event Sensitive observation @param state Latest live telemetry @returns Current process or null @since 0.17.0
  */
-export function alertControlTarget(event: FileEvent, state: Telemetry): DetectedAgent | null {
+export function alertControlTarget(
+  event: SensitiveAlert['event'],
+  state: Telemetry,
+): DetectedAgent | null {
   if (
     event.attribution?.status !== 'confirmed' ||
     event.selfAccess === true ||
@@ -212,6 +238,7 @@ export function alertControlTarget(event: FileEvent, state: Telemetry): Detected
       agent.agent === event.agent,
   );
   if (matches.length !== 1) return null;
+  if (!objectReadMatchesProcess(event, matches[0])) return null;
   try {
     return actionTarget(state, event.instanceId) === matches[0] ? matches[0] : null;
   } catch {

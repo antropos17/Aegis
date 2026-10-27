@@ -16,6 +16,7 @@ import {
   remainingPids,
   reliableHealth,
 } from './etw-support.mjs';
+import { observePackageWindow } from './package-window-observation.mjs';
 
 /** Run the actual read loop, with an optional owner-harness preparation barrier.
  * Missing callback preserves the prior workload sequence. A rejected barrier
@@ -89,29 +90,16 @@ export async function runScenario({ executable, fixtureExe, out, fault, beforeRe
       timeout: 30000,
     });
     appProcess = app.process();
-    Object.assign(
-      r,
-      await app.evaluate(({ app, BrowserWindow }) => {
-        const require = process.mainModule
-          .require('node:module')
-          .createRequire(app.getAppPath() + '/package.json');
-        const w = BrowserWindow.getAllWindows()[0];
-        w.setIgnoreMouseEvents(true);
-        w.setFocusable(false);
-        w.blur();
-        return {
-          packaged: app.isPackaged && app.getAppPath().endsWith('app.asar'),
-          diagnosticBuild: require('./package.json').aegisEtwDiagnostic === true,
-          windowInputIsolated: !w.isFocusable() && !w.isFocused(),
-          bundleSelfContained: ['EtwFile.exe', 'coreclr.dll'].every((name) =>
-            require('node:fs').existsSync(
-              require('node:path').join(process.resourcesPath, 'etw-file', name),
-            ),
-          ),
-        };
-      }),
-    );
-    assert(r.packaged && r.diagnosticBuild && r.bundleSelfContained && r.windowInputIsolated);
+    Object.assign(r, await observePackageWindow(app, path.join(out, 'window-observation.json')));
+    r.bundleSelfContained = await app.evaluate(({ app }) => {
+      const load = process.mainModule
+        .require('node:module')
+        .createRequire(app.getAppPath() + '/package.json');
+      return ['EtwFile.exe', 'coreclr.dll'].every((name) =>
+        load('node:fs').existsSync(load('node:path').join(process.resourcesPath, 'etw-file', name)),
+      );
+    });
+    assert.equal(r.bundleSelfContained, true, 'Packaged ETW bundle is not self-contained');
     page = await app.firstWindow();
     await observeQuit(app, final);
     page.on('pageerror', (error) => {

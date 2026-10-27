@@ -4,6 +4,7 @@ import {
 } from '../../../src/shared/observation-display.js';
 import { record, type RecordData } from './host';
 import { effectivePolicy } from './policy-targets';
+import { isObjectRead, objectReadMatchesProcess, objectResourceKey } from './object-read';
 
 export interface ProtectionActivity {
   key: string;
@@ -64,7 +65,9 @@ export function describeProtectionObservation(
     actor: evidence.actor || 'Agent not identified',
     action: network
       ? 'Connection observed'
-      : (actions[String(row.action)] ?? 'File activity observed'),
+      : isObjectRead(row)
+        ? 'Read a verified file object'
+        : (actions[String(row.action)] ?? 'File activity observed'),
     target: evidence.path || evidence.resource,
     resource: evidence.resource,
     attribution: evidence.attribution,
@@ -93,15 +96,17 @@ export function createProtectionActivityReader() {
       [network, true],
     ] as const) {
       for (const row of rows) {
+        if (isObjectRead(row) && !objectResourceKey(row)) continue;
         const entry = describeProtectionObservation(row, isNetwork);
         const key = JSON.stringify([
           entry.kind,
           row.instanceId ?? null,
+          isObjectRead(row) ? (row.createTime100ns ?? null) : null,
           entry.actor,
           record(row.attribution),
           entry.attribution,
           entry.action,
-          canonicalObservationPath(entry.target),
+          objectResourceKey(row) || canonicalObservationPath(entry.target),
           entry.level,
           entry.reason,
           entry.source,
@@ -149,7 +154,10 @@ export function protectionPolicy<T extends PolicyInstance>(
     status !== 'unattributed' &&
     status !== 'ambiguous'
       ? agents.filter(
-          (agent) => agent.instanceId === row.instanceId && agent.name === activity.actor,
+          (agent) =>
+            agent.instanceId === row.instanceId &&
+            agent.name === activity.actor &&
+            objectReadMatchesProcess(row, agent),
         )
       : [];
   const agent = matches.length === 1 ? matches[0] : null;

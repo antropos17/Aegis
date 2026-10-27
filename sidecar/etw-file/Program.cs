@@ -15,6 +15,8 @@ internal static class Program
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
+        if (Environment.GetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable) != null)
+            info.Environment.Remove(FileQualificationDiagnostic.CollectorVariable);
         foreach (string arg in args) info.ArgumentList.Add(arg);
         return info;
     }
@@ -23,6 +25,12 @@ internal static class Program
         try
         {
             if (args is ["self-test"]) return FileTests.Run();
+            if (args is ["object-bridge-probe"])
+            {
+                bool qualified = FileObjectNative.Qualify(out var code) != null;
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { profile = FileObjectNative.Profile, qualified, code = code.ToString() }));
+                return qualified ? 0 : 2;
+            }
             if (args.Length == 2 && args[0] == "qualification-launcher") return await FileQualificationClient.Launcher(args[1]);
             if (args.Length == 5 && args[0] == "qualification-host") return await FileQualificationHost.Run(args);
             if (args is ["observe-custodian"]) return await FileOrphanObserver.Run();
@@ -61,6 +69,6 @@ internal static class Program
             if (args.Length == 8 && args[0] is "check-collector" or "check-loss-collector") return await FileCollector.Run(args);
             return 3;
         }
-        catch { return FileQualificationDiagnostic.Failure; } // Finite qualification checkpoint only; no raw exception/path/SID/nonce.
+        catch (Exception error) { FileQualificationDiagnostic.Report(error); return FileQualificationDiagnostic.Failure; } // Finite qualification checkpoint only; no raw exception/path/SID/nonce.
     }
 }

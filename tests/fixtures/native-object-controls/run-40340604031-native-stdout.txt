@@ -1,0 +1,149 @@
+PASS native layout
+PASS scope boundary and device spelling
+PASS reject broad or ambiguous roots
+PASS preopened remains unresolved; no backfill
+PASS earlier name yields candidate only
+PASS PID reuse never carries cached birth
+PASS same QPC is insufficient ordering
+PASS late event clears mapping epoch
+PASS close and cleanup retire related evidence
+PASS unrelated object cleanup preserves scoped object names and retires uncertain keys
+PASS closing a parallel handle preserves independently named live objects
+PASS conflicting object and key are unresolved
+PASS rebind outside root cannot keep old path
+PASS TTL expiry is unresolved
+PASS map cap invalidates whole epoch
+PASS map byte bound includes retained strings
+PASS loss boundary rejects buffered names
+PASS ingress overflow accounts retained evidence too
+PASS ingress byte cap and decoder loss
+PASS sustained ingress overload remains bounded
+PASS mapper drains independently of an unread output queue
+PASS wire round trip and replay rejection
+PASS oversize prefix and foreign session rejected
+PASS control objects reject unknown and duplicate fields
+PASS blocked process witness does not stall lifecycle ingress
+PASS process witnesses are fresh at delivery and keep the probe budget
+PASS unresolved paths do not consume the scoped process probe budget
+PASS native loss retires an in-flight witness
+PASS decoder gap retires an in-flight witness
+PASS large selected paths obey the retained-output byte bound
+PASS split counters cover raw overflow, buffered discard and outbound overflow
+PASS output invalidation counts every queued record independently of overflow
+PASS a detected full-witness owner can prepare its first scoped worker read
+PASS preparation cannot certify events preceding its held worker interval
+PASS preparation rejects denied handles, another owner and a different full birth
+PASS preparation refresh cannot borrow an exited process generation
+PASS preparation deduplicates inventory and respects capacity and expiry
+PASS queued first read keeps the continuously held interval across issuer renewal
+PASS an expired original handle cannot backfill its replacement interval
+PASS renewal still expires after a missing target refresh
+PASS new workers at capacity cannot starve renewal of an existing worker
+PASS repeated renewal bounds handles and never caches the process birth
+PASS preparation leaves native capacity for directly observed scoped issuers
+PASS late thread lookup cannot prove the preceding event
+PASS PID and TID reuse cannot borrow the old held object
+PASS existing worker threads are pinned for future scoped reads only
+PASS worker priming obeys pin capacity and requires a scoped path
+PASS creation time is queried on the stamping pass and never cached
+PASS future events and denied handles remain unresolved
+PASS pin capacity and expiry close handles without inventing proof
+PASS documented object comparison distinguishes duplicates from independent opens
+PASS actual object lease never backfills its discovering or queued earlier read
+PASS object lease rejects unrelated objects and same-millisecond process reuse
+PASS expired, exited and invalidated object leases never preserve authority
+PASS identity replacement, scope departure and label changes revoke retained objects
+PASS object handle inventory is bounded and denial creates no lease
+PASS idle sweep closes expired handles without another read
+PASS default production factory and denied qualification cannot create authority
+PASS reset cannot reuse an opaque binding ID for another object
+PASS policy ACK rejects a replacement or changed process generation
+PASS private kernel addresses never enter serialized observations
+PASS issuer requests reject duplicate or extra fields and ambiguous process targets
+PASS preparation request wakes the reader, stays bounded and survives map invalidation
+PASS correlated preparation frames use the same ordered writer as observations
+PASS recovery uses the original handle and preserves final native loss
+PASS foreign session GUID never grants stop authority
+PASS query and stop failures never become a cleanup receipt
+PASS already absent does not invent zero counters
+PASS successful stop still requires an independent absence query
+PASS private guard framing rejects oversize before reading the payload
+PASS pre-arm recovery stops only the reserved session by independently rechecked handle
+PASS pre-start reservation absence is distinct from a successful measured stop
+PASS foreign occupied name and failed reservation query never grant stop authority
+PASS a changed handle target is rechecked and never stopped
+PASS fallback recovers the original reservation after both retained peers exit
+PASS fallback never controls ETW while either original peer is alive
+PASS broker accepts matching fallback receipt after primary guard loss
+PASS broker rejects mismatched exits, incomplete cleanup and missing fallback
+PASS healthy primary counters survive the fallback's later absence-only receipt
+PASS normal broker recovers its private reservation after all three original peers exit
+PASS normal broker never controls ETW while any original helper is alive
+PASS normal broker requires canonical matching reservations from the authenticated setup
+PASS normal broker preserves denied, foreign and unknown recovery results
+PASS only actual access denial can request cleanup consent
+PASS main-held original reservation recovers after broker and all three original objects exit
+PASS group recovery never controls ETW while any original object remains alive
+PASS group recovery rejects missing original custody and noncanonical reservations
+PASS observer accepts the actual framed reserved notice and refuses malformed shapes
+PASS observer QA failure identifies actual notice rejection without publishing input
+PASS normal terminal observer waits for all original objects and preserves actual exit codes
+PASS normal terminal observer never invents missing or timed-out original closure
+PASS custodian recovers only after all five original objects including main exit
+PASS custodian rejects incomplete original groups and invalid reservations
+PASS custodian keeps denied control unverified without inventing recovery
+PASS custodian observer endpoint is a canonical read-only address
+PASS custodian rejects duplicate nested fields and repeated original object witnesses
+PASS qualification digest covers the complete validated canonical protected record
+PASS private qualification notice rejects unknown fields and inconsistent digest metadata
+PASS durable recovery covers all six original identities without a survivor
+PASS durable recovery refuses each live or unobservable original identity
+PASS durable recovery preserves actual denied control without retiring the reservation
+PASS durable journal rejects malformed, duplicate and incomplete authority
+PASS durable journal requires a protected administrator-owned exact DACL
+PASS stale foreign-scope metadata needs independent absence and six proved exits
+PASS durable PID reuse compares full births and never terminates the replacement
+PASS main-held limited process object survives exit and original handle disposal
+PASS private process handle and birth encodings are canonical positive integers
+PASS qualification launch authority rejects arbitrary commands, roots and identity substitution
+PASS qualification host permits only the existing bounded collector modes
+PASS qualification witness survives delayed reader until explicit acceptance before disconnect
+PASS accepted qualification startup preserves the existing generic capture failure exit
+PASS collector failure diagnostics require explicit collector initialization and never retain exception text
+PASS collector stderr drain rejects overflow, extra records, duplicate keys and nonfinite diagnostic shapes
+PASS maximum bounded qualification finish diagnostics fit the existing private wire
+PASS output frames preserve record order, fields and actual byte budgets
+PASS maximal escaped selected path fits one bounded output frame
+PASS oversize output is rejected before any bytes or sequence are written
+PASS empty polls do not allocate frames or consume sequence numbers
+PASS cancelled output does not consume records
+OUTPUT_ALLOC bytes: previous=4288320, current=1983120, batches=30
+PASS single-pass output allocates less than the previous three-pass batch writer
+PASS output readiness timing excludes quiet time and does not repeat for a backlog
+PASS duration totals include failures and preserve a detached snapshot
+PASS output timing covers header body flush but excludes record preparation and control
+PASS failed output writes are measured without retaining exception details
+PASS queue stage high water remains after drain
+PASS burst windows separate enqueue drain overflow and invalidation at boundaries
+PASS invalidated readiness is not reused or counted as a successful dequeue
+PASS profile ring remains bounded and skips arbitrarily long quiet gaps
+PASS broker reports completed forwards and accounts failed writes without error details
+PASS fragmented broker input forwards consecutive observation bytes without rewriting
+PASS maximum-size validated body stays bounded through forwarding
+PASS invalid broker input cannot reach the forwarding stream
+PASS replayed input is rejected before a second forward
+PASS every telemetry kind is annotated instead of forwarding the stale body
+PASS cancelled forwarding emits no body and does not poison a later forward
+BROKER_FORWARD frames=100 records=6400 previousBytes=18196784 currentBytes=15239496 previousMedianTicks=765131 currentMedianTicks=438581 frequency=10000000
+PASS broker forwarding allocates less than re-encoding validated observation frames
+PASS empty output wakes on enqueue without a polling deadline
+PASS enqueue between empty read and wait registration remains visible
+PASS repeated drain and invalidation rearm one notification
+PASS stop wakes empty capture and is excluded from drain waits
+PASS mapper cancellation wakes an empty pump
+PASS mapper failure wakes pump
+PASS capture failure wakes pump
+PASS cancelling one idle wait does not consume or poison the next output
+PASS heartbeat deadline wakes an empty pump without poisoning its signal
+PASS completed mapper still leaves buffered output drainable
+146 self-tests passed; no ETW session or UAC requested.

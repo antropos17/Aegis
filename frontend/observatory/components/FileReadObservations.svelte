@@ -29,10 +29,15 @@
   let losses = $derived(record(view.losses));
   const loss = (key: string) => (losses[key] == null ? $t('Unknown') : String(losses[key]));
   let folder = $state('');
+  let objectConsent = $state(false);
   let pending = $state(false);
   let error = $state('');
-  async function control(action: 'start' | 'stop'): Promise<void> {
+  let objectMode = $derived(view.captureMode === 'object-bound');
+  let objectAdmission = $derived(record(view.admission));
+  async function control(action: 'start' | 'start-object' | 'stop'): Promise<void> {
     if (pending) return;
+    if (action === 'start-object' && (!objectConsent || controls.canStartObject !== true)) return;
+    if (action !== 'stop' && (!folder || telemetry.stale)) return;
     pending = true;
     error = '';
     try {
@@ -40,9 +45,10 @@
         await invoke(
           host,
           'controlFileReads',
-          action === 'start' ? { action, root: folder } : { action },
+          action !== 'stop' ? { action, root: folder } : { action },
         ),
       );
+      if (action === 'stop') objectConsent = false;
     } catch (failure) {
       error = failure instanceof Error ? failure.message : 'File read monitoring could not start';
     } finally {
@@ -69,13 +75,19 @@
         'Experimental capture · candidate paths. Potential risks are based on path rules; file contents and malicious intent are not inspected.',
       )}
       {$t('These observations do not change risk scores or audit history.')}
+      {#if objectMode}
+        {$t('Verified object reads are shown separately in Events and may affect alerts and risk.')}
+        {#if objectAdmission.qualified !== true}
+          {$t('Object verification is unavailable; this capture is display only.')}
+        {/if}
+      {/if}
     </p>
     {#if view.mode === 'ordinary' && host}
       <form
         class="read-controls"
         onsubmit={(event) => {
           event.preventDefault();
-          void control('start');
+          void control(objectConsent ? 'start-object' : 'start');
         }}
       >
         <label>
@@ -101,15 +113,34 @@
           <button
             class="button"
             type="submit"
-            disabled={pending || !folder || telemetry.stale || controls.canStart !== true}
+            disabled={pending ||
+              !folder ||
+              telemetry.stale ||
+              (objectConsent ? controls.canStartObject !== true : controls.canStart !== true)}
           >
-            {$t('Start file read monitoring')}</button
+            {$t(
+              objectConsent ? 'Start verified object monitoring' : 'Start file read monitoring',
+            )}</button
           >
         {/if}
+        <label class="object-consent">
+          <input
+            type="checkbox"
+            bind:checked={objectConsent}
+            disabled={pending || controls.canStop === true || controls.canStartObject !== true}
+            aria-describedby="file-read-object-help"
+          />
+          <span>{$t('Include verified object reads in alerts and risk')}</span>
+        </label>
       </form>
       <p id="file-read-scope-help">
         {$t(
           'Choose a local folder. Start asks Windows for permission; monitoring continues until stopped, paused or suspended.',
+        )}
+      </p>
+      <p id="file-read-object-help">
+        {$t(
+          'Opt in to monitor objects identified in this folder for bindings valid up to 10 seconds. A rename or move can invalidate a binding. Names are binding labels; the actual access path is unknown. New, short-lived or unproven objects remain unverified. Retained file handles may temporarily delay renaming or deleting. Proof expires after 10 seconds; cleanup runs on stop or the next two-second sweep while the sensor is responsive.',
         )}
       </p>
       {#if telemetry.stats.monitoringPaused}<p>
@@ -214,6 +245,17 @@
     gap: var(--space-1);
     min-width: 0;
     color: var(--muted);
+  }
+  .read-controls .object-consent {
+    display: flex;
+    align-items: center;
+    flex-basis: 100%;
+    gap: var(--space-2);
+  }
+  .object-consent input {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
   }
   input {
     min-width: 0;

@@ -108,6 +108,9 @@ export interface DetectedAgent {
    * AEGIS-observed session `firstSeen`.
    */
   readonly startTime?: number | null;
+  /** Full Windows process-creation witness, copied from this observation only.
+   * Null/absent means unread; never reconstruct it from rounded epoch milliseconds. */
+  readonly createTime100ns?: string | null;
   /**
    * Process instance key, `pid` bound to `startTime` — the reuse-resistant
    * identity. Stamped by `process-utils.enrichWithParentChains`; absent on a raw

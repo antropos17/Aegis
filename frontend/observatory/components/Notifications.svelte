@@ -19,6 +19,7 @@
   import SensitiveAlertCenter from './SensitiveAlertCenter.svelte';
   import { matchesFalsePositive } from '../../../src/shared/false-positive-match.js';
   import { createSensitivePresentation } from '../runtime/sensitive-presentation';
+  import { isObjectRead, observationLabel } from '../runtime/object-read';
   import { isScopedProcess } from '../runtime/agent-scope';
 
   let {
@@ -118,7 +119,8 @@
   function removeMatchedBanner(): void {
     if (sensitiveFocused || sensitiveBanner?.contains(document.activeElement)) return;
     const remaining = recent.filter(
-      (item) => !matchesFalsePositive(item.event, telemetry.falsePositives),
+      (item) =>
+        isObjectRead(item.event) || !matchesFalsePositive(item.event, telemetry.falsePositives),
     );
     if (remaining.length !== recent.length) recent = remaining;
   }
@@ -239,7 +241,7 @@
   }
   async function openEvidence(item: SensitiveAlert) {
     await closeCenter();
-    onInspect?.(alertBasename(item.event.file), item.event as unknown as RecordData);
+    onInspect?.(alertBasename(observationLabel(item.event)), item.event as unknown as RecordData);
   }
   async function openProcessControls(item: SensitiveAlert) {
     const target = alertControlTarget(item.event, telemetry);
@@ -295,7 +297,7 @@
         <strong>
           {recent.length === 1
             ? $t('Sensitive file observed: {value0}', {
-                value0: alertBasename(recent[0].event.file),
+                value0: alertBasename(observationLabel(recent[0].event)),
               })
             : $t('{value0} sensitive file observations', { value0: recent.length })}
         </strong>
@@ -310,6 +312,9 @@
               ? $t('Possible source: {value0}', { value0: recent[0].event.agent })
               : $t('Source may be unverified; review the evidence.')}
         </p>
+        {#if recent.some((item) => isObjectRead(item.event))}<p>
+            {$t('Verified object read · binding label · access path unknown')}
+          </p>{/if}
         {#if telemetry.falsePositiveReadState === 'unavailable'}<p>
             {$t('Saved exceptions could not be checked. Review the evidence.')}
           </p>{/if}

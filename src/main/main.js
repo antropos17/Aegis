@@ -150,6 +150,8 @@ let claudeHookProfile;
 let projectWatchSelection;
 let etwFile;
 let nativeSensor = null;
+let nativeFileIngress = null;
+let objectPolicyGeneration = randomUUID().replace(/-/g, '');
 const { createBatcher } = require('./ipc-batcher');
 // Pure domain modules — no I/O, no Electron, no timers — so they cost nothing to load
 // on the fast path to a visible window. `file-access-batching` must be here rather than
@@ -417,6 +419,7 @@ function getAppHealth() {
   if (etwFile) records.push(etwFile.getHealth());
   if (nativeSensor) records.push(nativeSensor.getHealth());
   if (securityEvents) records.push(securityEvents.getStats().health);
+  if (nativeFileIngress?.getHealth) records.push(nativeFileIngress.getHealth());
   const derived = appHealth.deriveAppHealth({
     bootPhase: true,
     capabilities,
@@ -616,6 +619,7 @@ function getStats() {
       auditDelivery: getAuditDelivery(),
       fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
       nativeSensor: nativeSensor?.getStatus() ?? null,
+      nativeFileAdmission: nativeFileIngress?.getStats() ?? null,
     };
   }
   const log = scanner.activityLog;
@@ -649,6 +653,7 @@ function getStats() {
     auditDelivery: getAuditDelivery(),
     fileReadDiagnostics: etwFile?.getReadView?.() ?? null,
     nativeSensor: nativeSensor?.getStatus() ?? null,
+    nativeFileAdmission: nativeFileIngress?.getStats() ?? null,
   };
 }
 
@@ -701,6 +706,18 @@ function auditInitOptions(userDataPath) {
         statsUpdateBatcher.pushLazy(getStats);
     },
   };
+}
+
+/** Production audit-only consumer; historical delivery has no live event callback.
+ * @param {string} userData Private application profile root.
+ * @returns {Object} Bounded security audit pipeline.
+ * @since v0.20.1
+ */
+function createAuditDeliveryPipeline(userData) {
+  return require('./ipc-batcher').createSecurityBatcher({
+    directory: path.join(userData, 'event-spill'),
+    consume: (records) => audit.persistBatch(records),
+  });
 }
 
 // ═══ WINDOW ═══
@@ -815,6 +832,7 @@ function queueFileWatchRefresh() {
 /** Apply current preferences and recreate file roots only for changed watch filters. @returns {void} */
 function onSettingsApplied() {
   if (isQuitting) return;
+  objectPolicyGeneration = randomUUID().replace(/-/g, '');
   const settings = config.getSettings();
   scanLoop.stopScanIntervals();
   if (!monitoringPaused) scanLoop.startScanIntervals((settings.scanIntervalSec || 10) * 1000);
@@ -1014,6 +1032,16 @@ function startWatchersWhenLoaded(webContents) {
 function onFileEvent(ev) {
   const deduped = scanLoop.dedupFileEvent(ev);
   if (!deduped) return;
+  publishLiveFileEvent(deduped);
+}
+
+/** Publish one already-deduplicated observation; replay never calls this function.
+ * @param {Object} deduped Accepted live observation.
+ * @param {boolean} [auditAlreadyAdmitted] True only after native audit custody.
+ * @returns {void}
+ * @since v0.20.1
+ */
+function publishLiveFileEvent(deduped, auditAlreadyAdmitted = false) {
   recordAcceptedFileEvent(deduped);
   fileAccessBatcher.push(deduped);
   // An unattributed hit carries category 'other' (no agent to take it from),
@@ -1030,9 +1058,174 @@ function onFileEvent(ev) {
   // builds exactly one, at flush.
   statsUpdateBatcher.pushLazy(getStats);
   tray.updateTrayIcon();
-  scanLoop.logAuditForFile(deduped);
+  if (!auditAlreadyAdmitted) scanLoop.logAuditForFile(deduped);
   // Tap 1 (roadmap §5): after the audit record, the same deduped object.
   sequenceEngine.ingest(deduped);
+}
+
+/** Wire the private operational object-read consumer to the existing live sinks.
+ * @returns {Object} The sole ingress owner, shared with ETW's lifetime callbacks.
+ * @since v0.20.1
+ */
+function initializeNativeFileIngress() {
+  nativeFileIngress = require('./native-file-ingress').createNativeFileIngress({
+    takeAdmission: (observation) => etwFile?.takeAdmission?.(observation) ?? null,
+    isReady: (claim) =>
+      !isQuitting &&
+      !monitoringPaused &&
+      Boolean(
+        securityEvents &&
+        scanner &&
+        watcher &&
+        baselines &&
+        scanLoop &&
+        sequenceEngine &&
+        Array.isArray(scanner.activityLog) &&
+        (!claim?.actor ||
+          (sessionTracker.hasInstance(claim.actor.instanceId) &&
+            baselines.canRecordBoundObjectRead(
+              claim.actor.instanceId,
+              claim.actor.createTime100ns,
+            ))),
+      ),
+    getPolicyGeneration: () => objectPolicyGeneration,
+    classifySensitive: (label) => watcher.classifySensitive(label),
+    acceptAudit: (record) => securityEvents.push(record),
+    dedupLive: (event) => scanLoop.dedupFileEvent(event, 'other', { auditAlreadyAdmitted: true }),
+    recordActivity: (event) => {
+      scanner.activityLog.push(event);
+      onActivityPush(event);
+      if (scanner.activityLog.length > 10000)
+        for (const old of scanner.activityLog.splice(0, scanner.activityLog.length - 10000))
+          onActivityEvict(old);
+    },
+    recordBaseline: (event) => {
+      if (baselines.recordBoundObjectRead(event) !== true)
+        throw new Error('object-baseline-instance-unavailable');
+    },
+    publishLive: (event) => publishLiveFileEvent(event, true),
+    onLoss: () => {
+      if (!isQuitting) statsUpdateBatcher.pushLazy(getStats);
+    },
+  });
+  return nativeFileIngress;
+}
+
+/** Construct the production ETW owner with its sole operational callback.
+ * @returns {Object} ETW lifetime owner.
+ * @since v0.20.1
+ */
+function initializeEtwFileRuntime() {
+  etwFile = require('./platform/etw-file-runtime').createRuntime({
+    app,
+    powerMonitor: require('electron').powerMonitor,
+    getAgents: () => latestAgents,
+    getPopulationHealth: getAppHealth,
+    classifySensitive: (file) => watcher?.classifySensitive(file) ?? null,
+    onBindingCandidate: (candidate, context) =>
+      nativeFileIngress?.prepareBinding?.(candidate, context) ?? null,
+    isPolicyCurrent: (generation) => generation === objectPolicyGeneration,
+    onOperationalRead: (observation) => nativeFileIngress?.offer(observation) === true,
+    onHealthChange: () => {
+      if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
+        statsUpdateBatcher.pushLazy(getStats);
+    },
+  });
+  return etwFile;
+}
+
+/** Read actual operational state only in a marked, explicitly opted-in QA package.
+ * No admission, actor, event, policy or renderer store can be supplied here.
+ * @returns {Object|null} Bounded evidence for the external cloud driver.
+ * @since v0.20.1
+ */
+function getNativeFileAdmissionEvidence() {
+  const flags = process.argv.filter((value) => value.startsWith('--etw-file-object-policy'));
+  const metadata = /** @type {{aegisEtwDiagnostic?:boolean}} */ (require('../../package.json'));
+  if (
+    app.isPackaged !== true ||
+    metadata.aegisEtwDiagnostic !== true ||
+    flags.length !== 1 ||
+    flags[0] !== '--etw-file-object-policy'
+  )
+    return null;
+  const { projectBoundReadObject } = require('../shared/bound-read-object');
+  const log = scanner?.activityLog ?? [];
+  const actors = latestAgents
+    .filter((row) => row.category === 'ai' && row.instanceId)
+    .slice(0, 128);
+  const buckets = baselines?.getSessionData?.() ?? {};
+  const health = getAppHealth();
+  return {
+    schemaVersion: 1,
+    capturedAt: Date.now(),
+    readiness: {
+      populationReliable: health.populationReliable,
+      identityDegraded: health.identityDegraded,
+      monitoringPaused,
+    },
+    admission: nativeFileIngress?.getStats() ?? null,
+    agents: actors.map((row) => ({
+      agent: row.agent,
+      pid: row.pid,
+      instanceId: row.instanceId,
+      createTime100ns: row.createTime100ns ?? null,
+      instanceIdSource: row.instanceIdSource ?? null,
+    })),
+    observations: log
+      .filter((row) => row.observationKind === 'bound-object-read')
+      .slice(-16)
+      .map((row) => ({
+        observationKind: row.observationKind,
+        eventId: row.eventId,
+        agent: row.agent,
+        pid: row.pid,
+        instanceId: row.instanceId,
+        createTime100ns: row.createTime100ns,
+        timestamp: row.timestamp,
+        action: row.action,
+        sensitive: row.sensitive,
+        selfAccess: row.selfAccess,
+        reason: row.reason,
+        object: projectBoundReadObject(row.object),
+        attribution: row.attribution
+          ? {
+              status: row.attribution.status,
+              evidence: [...row.attribution.evidence],
+            }
+          : null,
+      })),
+    eventCountsByInstance: actors.map((actor) => ({
+      instanceId: actor.instanceId,
+      pathObservations: log.filter(
+        (row) => row.instanceId === actor.instanceId && row.observationKind !== 'bound-object-read',
+      ).length,
+      objectReads: log.filter(
+        (row) =>
+          row.instanceId === actor.instanceId &&
+          row.observationKind === 'bound-object-read' &&
+          row.createTime100ns === actor.createTime100ns,
+      ).length,
+    })),
+    // The ordinary journal query can run retention maintenance; this diagnostic
+    // projection grants no admission or control authority.
+    alerts: sensitiveAlertJournal?.list() ?? null,
+    baselines: actors.map((actor) => {
+      const bucket = buckets[actor.instanceId];
+      const generationCurrent =
+        bucket?.objectBirth100ns == null || bucket.objectBirth100ns === actor.createTime100ns;
+      return {
+        instanceId: actor.instanceId,
+        createTime100ns: actor.createTime100ns ?? null,
+        generationCurrent,
+        objectBindings: generationCurrent ? (bucket?.objects?.size ?? 0) : null,
+        sensitiveObjectReads: generationCurrent ? (bucket?.objectSensitiveCount ?? 0) : null,
+        legacyFiles: bucket?.files?.size ?? 0,
+        legacyDirectories: bucket?.directories?.size ?? 0,
+      };
+    }),
+    sequences: sequenceEngine?.getStats?.() ?? null,
+  };
 }
 
 /**
@@ -1158,10 +1351,7 @@ function initDeferredSubsystems(userData) {
 
   // Replay acknowledges historical audit only, never live detection or display.
   audit.init(auditInitOptions(userData));
-  securityEvents = require('./ipc-batcher').createSecurityBatcher({
-    directory: path.join(userData, 'event-spill'),
-    consume: (records) => audit.persistBatch(records),
-  });
+  securityEvents = createAuditDeliveryPipeline(userData);
   scanLoop.init({
     securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
@@ -1253,6 +1443,7 @@ function initDeferredSubsystems(userData) {
     },
   });
   baselines.loadBaselines();
+  initializeNativeFileIngress();
   startWatchersWhenLoaded(mainWindow.webContents);
   startNativeSensor();
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
@@ -1360,17 +1551,7 @@ app.whenReady().then(() => {
   });
   desktopShell.configureIdentity();
   createWindow();
-  etwFile = require('./platform/etw-file-runtime').createRuntime({
-    app,
-    powerMonitor: require('electron').powerMonitor,
-    getAgents: () => latestAgents,
-    getPopulationHealth: getAppHealth,
-    classifySensitive: (file) => watcher?.classifySensitive(file) ?? null,
-    onHealthChange: () => {
-      if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
-        statsUpdateBatcher.pushLazy(getStats);
-    },
-  });
+  initializeEtwFileRuntime();
   // Block B5 — the OS sleep gap. `powerMonitor` is usable only after `ready`, which is
   // where this runs; the module is injected the emitter and a clock and owns the rest.
   // On resume one `observation-gap` audit record explains the hole in the JSONL, ahead
@@ -1678,6 +1859,15 @@ module.exports = {
   // The watcher's per-event handler, exposed so the sequence-engine tap inside it can
   // be driven with a real dedup and a fake engine (tests/main/main-file-event-tap.test.js).
   onFileEvent,
+  _initializeNativeFileIngressForTest: initializeNativeFileIngress,
+  _initializeEtwFileRuntimeForTest: initializeEtwFileRuntime,
+  _createAuditDeliveryPipelineForTest: createAuditDeliveryPipeline,
+  _setSecurityEventsForTest: (value) => {
+    securityEvents = value;
+  },
+  _setBaselinesForTest: (value) => {
+    baselines = value;
+  },
   // The engine's detection consumer, exposed so the `sequence-detection` record it
   // writes can be pinned with a fake audit sink (tests/main/main-sequence-emission.test.js).
   onSequenceDetection,
@@ -1686,6 +1876,7 @@ module.exports = {
   // pre-`loadDeferredModules` branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
+  getNativeFileAdmissionEvidence,
   /** Read main-only diagnostic metadata; no preload exposure.
    * @returns {Object|undefined} Bounded diagnostic snapshot. @since v0.19.2 */
   getEtwFileDiagnostics: () =>

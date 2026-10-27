@@ -80,7 +80,10 @@ function notifySensitive(events) {
   const settings = _state.getSettings();
   if (!settings.notificationsEnabled) return;
   const se = events.filter(
-    (e) => e.sensitive && !matchesFalsePositive(e, settings.falsePositivePatterns),
+    (e) =>
+      e.sensitive &&
+      (e.observationKind === 'bound-object-read' ||
+        !matchesFalsePositive(e, settings.falsePositivePatterns)),
   );
   if (se.length === 0) return;
   const now = Date.now();
@@ -99,7 +102,10 @@ function notifySensitive(events) {
     if (!Notification.isSupported()) return;
     new Notification({
       title: 'AEGIS \u2014 Sensitive File Activity',
-      body: `${source} ${f.action || 'accessed'}: ${path.basename(f.file)}${more}\n${f.reason}`,
+      body:
+        f.observationKind === 'bound-object-read'
+          ? `${source} read a pre-bound sensitive object: ${path.basename(f.object.label)}${more}\nBinding label; access path unknown. ${f.reason}`
+          : `${source} ${f.action || 'accessed'}: ${path.basename(f.file)}${more}\n${f.reason}`,
       urgency: 'normal',
     }).show();
     // Notification delivery is optional. Its native API must not prevent the

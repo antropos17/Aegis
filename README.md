@@ -204,6 +204,13 @@ original handles; the [earlier attribution failure](docs/recon/evidence/ordinary
 is retained. Collector drops remain separate from kernel loss; these passes do
 not establish complete capture or attribution of every worker.
 
+An experimental object-policy opt-in is being qualified for Windows 11 x64
+26300.9457. Accepted reads can reach alerts and risk through a separate object
+event: its name is a binding label and the access pathname remains unknown.
+Retained handles can temporarily delay rename/delete. The
+[current-candidate qualification contract](docs/roadmap/native-read-cloud-qualification.md)
+separates source tests, clean-guest execution and remaining native limits.
+
 <a id="the-evidence-graph"></a>
 
 ## Known limits

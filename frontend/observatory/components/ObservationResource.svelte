@@ -5,18 +5,25 @@
   import type { RecordData } from '../runtime/host';
   import ResourceIcon from './ResourceIcon.svelte';
   import { resourceVisual } from '../runtime/resource-visual';
+  import { isObjectRead, observationLabel, OBJECT_READ_EXPLANATION } from '../runtime/object-read';
   let { row }: { row: RecordData } = $props();
   let info = $derived(describeObservation(row));
   let visual = $derived(resourceVisual(row));
 </script>
 
-<span class="observation-resource" title={info.path}>
+<span
+  class="observation-resource"
+  title={isObjectRead(row) ? $t(OBJECT_READ_EXPLANATION) : info.path}
+>
   <span class="observation-resource-title"
-    ><ResourceIcon {row} compact /><strong>{info.resource}</strong></span
+    ><ResourceIcon {row} compact /><strong
+      >{isObjectRead(row) ? observationLabel(row) : info.resource}</strong
+    ></span
   >
   <small
-    ><span class="resource-kind">{$t(visual.label)}</span
-    >{#if info.path && info.path !== info.resource}
+    ><span class="resource-kind">{$t(visual.label)}</span>{#if isObjectRead(row)}
+      · <span>{$t('Binding label · access path unknown')}</span>
+    {:else if info.path && info.path !== info.resource}
       · <span>{info.path}</span>{/if}</small
   >
 </span>

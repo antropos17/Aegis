@@ -26,6 +26,9 @@ function createSupervisor({
   onHealthChange = () => {},
   onObservations = () => {},
   onSessionStart = () => {},
+  onAdmissionState = () => {},
+  onObjectBound = () => {},
+  objectPolicy = () => false,
   getIssuerTargets = null,
 }) {
   if (maxCaptureMs !== null && (!Number.isSafeInteger(maxCaptureMs) || maxCaptureMs <= 0))
@@ -61,6 +64,7 @@ function createSupervisor({
     consentAckPending = false,
     cleanupAttemptObserved = false;
   let nativeProcessIds = [];
+  let bindings = [];
   let completion = Promise.resolve(false),
     resolveCompletion = null;
   let diagnostics = createDiagnostics(profileClock);
@@ -77,12 +81,18 @@ function createSupervisor({
   function refreshIssuers() {
     if (!child || closed || pendingWrite || stopAt !== null || current?.phase !== 'running') return;
     try {
+      if (bindings.length) {
+        const request = bindings.shift();
+        send('bind-object-policy', request);
+        return;
+      }
       issuerPreparation.flush();
     } catch {
       fail('consumer-failed');
     }
   }
   function notify() {
+    onAdmissionState(admissionContext());
     const value = current?.record || idle;
     const signature = JSON.stringify([value.state, value.detail, value.lastError, value.lossCount]);
     if (signature === lastHealth) return;
@@ -92,6 +102,42 @@ function createSupervisor({
     } catch {
       /* A UI listener cannot invalidate native ownership. */
     }
+  }
+  function admissionContext() {
+    const sample = current?.latest;
+    const zero =
+      sample?.operational === true &&
+      sample.counters.queryStatus === 0 &&
+      ['eventsLost', 'realTimeBuffersLost', 'logBuffersLost'].every(
+        (key) => sample.counters[key] === '0',
+      ) &&
+      ['dropped', 'decoderErrors', 'mapEpoch', 'mapResets', 'mapConflicts'].every(
+        (key) => sample.totals[key] === '0',
+      );
+    return {
+      sessionId: current?.sessionId ?? null,
+      active:
+        !disposed && !closed && stopAt === null && current?.phase === 'running' && objectPolicy(),
+      continuous: zero && current?.sticky.length === 0,
+      watermarkQpc: sample?.counters.asOfQpc ?? '0',
+      frequency: capture?.frequency,
+      clock: capture?.clock,
+      objectBridge: capture?.objectBridge ?? null,
+      continuity: {
+        telemetryAvailable: sample !== null && sample !== undefined,
+        operational: sample?.operational === true,
+        querySucceeded: sample?.counters.queryStatus === 0,
+        eventsLostZero: sample?.counters.eventsLost === '0',
+        realTimeBuffersLostZero: sample?.counters.realTimeBuffersLost === '0',
+        logBuffersLostZero: sample?.counters.logBuffersLost === '0',
+        droppedZero: sample?.totals.dropped === '0',
+        decoderErrorsZero: sample?.totals.decoderErrors === '0',
+        mapEpochZero: sample?.totals.mapEpoch === '0',
+        mapResetsZero: sample?.totals.mapResets === '0',
+        mapConflictsZero: sample?.totals.mapConflicts === '0',
+        stickyClear: current?.sticky.length === 0,
+      },
+    };
   }
 
   function clearRing() {
@@ -150,7 +196,14 @@ function createSupervisor({
   function flushStart() {
     if (startPending && !pendingWrite && stopAt === null && current?.phase === 'starting') {
       startPending = false;
-      if (!send('start', { requestId: startRequest, profile: wire.PROFILE, buffersMiB: 16 }))
+      if (
+        !send('start', {
+          requestId: startRequest,
+          profile: wire.PROFILE,
+          buffersMiB: 16,
+          ...(objectPolicy() ? { objectPolicy: true } : {}),
+        })
+      )
         fail('consumer-failed');
     }
   }
@@ -212,6 +265,7 @@ function createSupervisor({
         buffers: message.data.buffers,
         frequency: message.data.frequency,
         clock: message.data.clock,
+        objectBridge: message.data.objectBridge ?? null,
       });
     }
     if (current.phase === 'failed' && message.t !== 'recovering') {
@@ -232,8 +286,10 @@ function createSupervisor({
     }
     if (message.t === 'observations' && stopAt === null) {
       diagnostics.retain(message.data.records);
+      onAdmissionState(admissionContext());
       onObservations(message.data.records);
     }
+    if (message.t === 'object-policy-bound' && stopAt === null) onObjectBound(message.data);
     if (message.t === 'issuers-primed') issuerPreparation.accept(message.data);
     if (message.t === 'stopped') {
       clearRing();
@@ -314,6 +370,7 @@ function createSupervisor({
     }
     closed = true;
     issuerPreparation.reset();
+    bindings = [];
     clearInterval(timer);
     timer = null;
     if (current.phase === 'recovered' && code === 4) unsafe = false;
@@ -354,6 +411,7 @@ function createSupervisor({
     capture = null;
     readyAt = null;
     issuerPreparation.reset();
+    bindings = [];
     sent = 0n;
     pendingWrite = false;
     receivedReady = false;
@@ -418,6 +476,8 @@ function createSupervisor({
     clearRing();
     if (!child || stopAt !== null || current.phase === 'stopped') return;
     stopAt = mono();
+    bindings = [];
+    onAdmissionState(admissionContext());
     stopRequest = id();
     stopReason = reason;
     if (current.phase !== 'running') child.stdin.end();
@@ -428,6 +488,13 @@ function createSupervisor({
     stop,
     tick,
     refreshIssuers,
+    bindObjectPolicy(request) {
+      if (!admissionContext().active || !admissionContext().continuous || bindings.length >= 64)
+        return false;
+      bindings.push(request);
+      refreshIssuers();
+      return true;
+    },
     restart() {
       if (unsafe || (rescuing && child)) return false;
       stop('restart');

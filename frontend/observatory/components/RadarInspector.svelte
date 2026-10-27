@@ -16,6 +16,7 @@
   import Icon from './Icon.svelte';
   import ObservationResource from './ObservationResource.svelte';
   import { describeObservation } from '../../../src/shared/observation-display.js';
+  import { objectReadMatchesProcess } from '../runtime/object-read';
   let {
     chosen,
     group,
@@ -32,7 +33,14 @@
     inspect: (title: string, row: RecordData) => void;
   } = $props();
   let ids = $derived(new Set(group?.members.map((a) => a.instanceId).filter(Boolean)));
-  let events = $derived(telemetry.events.filter((e) => e.instanceId && ids.has(e.instanceId)));
+  let events = $derived(
+    telemetry.events.filter(
+      (e) =>
+        e.instanceId &&
+        ids.has(e.instanceId) &&
+        group?.members.some((member) => objectReadMatchesProcess(e, member)),
+    ),
+  );
   let latest = $derived([...events].sort((a, b) => b.timestamp - a.timestamp)[0]);
   function openGroup() {
     if (group) inspect(group.name, groupRecord(group));
