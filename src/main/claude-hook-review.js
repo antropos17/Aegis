@@ -4,6 +4,7 @@
 const { randomUUID } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { createOwnedHookWriter } = require('./claude-hook-writer');
+const { CONTRACT_V2 } = require('./claude-hook-plan');
 const {
   MAX_LIFETIME_MS,
   fields,
@@ -125,13 +126,21 @@ function createOwnedHookReview(options) {
     const currentGeneration = ++generation;
     pending = null;
     try {
+      const v2 =
+        !removal && Object.getOwnPropertyDescriptor(selection, 'contract')?.value === CONTRACT_V2;
       const selected = removal
         ? null
-        : fields(selection, ['command', 'contract', 'timeoutSeconds']);
+        : fields(
+            selection,
+            v2
+              ? ['command', 'afterCommand', 'contract', 'timeoutSeconds']
+              : ['command', 'contract', 'timeoutSeconds'],
+          );
       if (
         selected &&
         (typeof selected.command !== 'string' ||
           typeof selected.contract !== 'string' ||
+          (v2 && typeof selected.afterCommand !== 'string') ||
           typeof selected.timeoutSeconds !== 'number')
       )
         return finish(status(false, 'INVALID_SELECTION'));

@@ -9,11 +9,13 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
+const http = require('node:http');
 const { extractFile } = require('@electron/asar');
 const { boundedChild } = require('./claude-hook-app.cjs');
 const { profileCommand } = require('../../src/main/claude-hook-app-profile');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { createWindowsHookIO } = require('../../src/main/claude-hook-windows-io');
+const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
 
 const root = path.resolve(__dirname, '../..');
 const [exeArg, bashArg, outputArg] = process.argv.slice(2);
@@ -44,10 +46,21 @@ async function digest(file) {
 async function assertArchivedProfileSourcesMatch(archive, sourceRoot) {
   const sourceFiles = (await fs.readdir(path.join(sourceRoot, 'src/main')))
     .filter((name) => /^claude-hook.*\.js$/.test(name))
-    .concat('action-policy.js');
+    .concat(
+      'action-policy.js',
+      'action-policy-hook.js',
+      'command-hook-input.js',
+      'claude-guard-report.js',
+      'claude-guard-receiver.js',
+      'cli.js',
+      'main.js',
+    );
   for (const name of sourceFiles) {
     const source = path.join('src', 'main', name);
-    assert.deepEqual(extractFile(archive, source), await fs.readFile(path.join(sourceRoot, source)));
+    assert.deepEqual(
+      extractFile(archive, source),
+      await fs.readFile(path.join(sourceRoot, source)),
+    );
   }
 }
 
@@ -101,6 +114,36 @@ async function child(executable, args, options) {
     throw Error('Owned child cleanup unconfirmed');
   }
   return { result, evidence };
+}
+
+function post(receiver, route, body, token) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: receiver.port,
+        method: 'POST',
+        path: `/${route}/${receiver.sessionId}`,
+        agent: false,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(payload),
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () =>
+          resolve({ code: res.statusCode, body: Buffer.concat(chunks).toString() }),
+        );
+        res.on('error', reject);
+      },
+    );
+    req.on('error', reject);
+    req.end(payload);
+  });
 }
 
 async function run() {
@@ -221,8 +264,8 @@ async function run() {
     assert.equal((await app.handle('status', () => true)).available, true);
     assert.equal(sessions.length, 0);
     assert.equal((await app.handle('install', () => true)).code, 'INSTALLED');
-    const selected = JSON.parse(await fs.readFile(settings, 'utf8')).hooks.PreToolUse[0].hooks[0]
-      .command;
+    const hooks = JSON.parse(await fs.readFile(settings, 'utf8')).hooks;
+    const selected = hooks.PreToolUse[0].hooks[0].command;
     assert.equal(selected, command);
     receipt.scriptedSourceProfileInstall = true;
     const settingsHash = await digest(settings);
@@ -275,6 +318,77 @@ async function run() {
       } finally {
         value.result.stdout.fill(0);
       }
+    }
+    stage = 'packaged-after-observation';
+    const observer = await startClaudeGuardReceiver({
+      selection: { executable: exe, settings, cwd: output },
+      approve: async () => true,
+      verify: async () => true,
+    });
+    try {
+      const claim = await post(observer, 'claim', { code: '123456', nonce: 'c'.repeat(32) });
+      assert.equal(claim.code, 200);
+      const token = JSON.parse(claim.body).token;
+      assert.equal((await post(observer, 'start', {}, token)).code, 204);
+      const reportEnv = {
+        ...env,
+        AEGIS_CLAUDE_GUARD_PORT: String(observer.port),
+        AEGIS_CLAUDE_GUARD_SESSION: observer.sessionId,
+        AEGIS_CLAUDE_GUARD_CAPABILITY: token,
+      };
+      const before = JSON.parse(request(allowed));
+      for (const [event, outcome] of [
+        ['PostToolUse', 'reported-completed'],
+        ['PostToolUseFailure', 'reported-failed'],
+      ]) {
+        before.tool_use_id = `fixture-${event}`;
+        const pre = await child(bash, ['--noprofile', '--norc', '-c', selected], {
+          cwd: output,
+          env: reportEnv,
+          deadlineMs: 6000,
+          input: JSON.stringify(before),
+        });
+        try {
+          assert.equal(pre.result.code, 0);
+          assert.equal(
+            JSON.parse(pre.result.stdout.toString()).hookSpecificOutput.permissionDecision,
+            'allow',
+          );
+        } finally {
+          pre.result.stdout.fill(0);
+        }
+        const after = await child(
+          bash,
+          ['--noprofile', '--norc', '-c', hooks[event][0].hooks[0].command],
+          {
+            cwd: output,
+            env: reportEnv,
+            deadlineMs: 6000,
+            input: JSON.stringify({
+              ...before,
+              hook_event_name: event,
+              tool_response: 'PRIVATE_OUTPUT',
+              error: 'PRIVATE_ERROR',
+            }),
+          },
+        );
+        try {
+          assert.equal(after.result.code, 0);
+          assert.equal(after.result.stdoutBytes, 0);
+          assert.equal(after.result.stderrBytes, 0);
+        } finally {
+          after.result.stdout.fill(0);
+        }
+        assert.equal(observer.snapshot().entries.at(-1).outcome, outcome);
+      }
+      const state = observer.snapshot();
+      assert.equal(state.sender, 'unverified');
+      assert.equal(state.effect, 'unknown');
+      assert(!JSON.stringify(state).includes('PRIVATE'));
+      assert(!JSON.stringify(state).includes(token));
+      receipt.packagedAfterObservation = true;
+    } finally {
+      await observer.close();
     }
     stage = 'packaged-assets-source-profile-removal';
     approve = false;

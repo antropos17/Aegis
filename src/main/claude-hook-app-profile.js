@@ -123,6 +123,14 @@ function profileCommand(executable, appPath, policyPath) {
   return `${quote(executable)} ${quote(appPath)} --action-policy-hook ${quote(policyPath)}`;
 }
 
+/** Construct the fixed after-event hook using the same trusted selected paths.
+ * @param {string} executable Application executable. @param {string} appPath Application source/package.
+ * @param {string} policyPath Native-dialog selected policy.
+ * @returns {string} Private command shown only in native review. @since v0.21.0 */
+function profileAfterCommand(executable, appPath, policyPath) {
+  return `${quote(executable)} ${quote(appPath)} --action-policy-after-hook ${quote(policyPath)}`;
+}
+
 /** Validate the selected existing policy without retaining or publishing its contents.
  * @param {string} file Native-dialog selected policy.
  * @returns {Promise<boolean>} Valid existing schema-1 policy. @since v0.21.0 */
@@ -146,10 +154,14 @@ function profileReviewText(review, target, observedRemoval = false) {
     (item) =>
       `Lines ${item.before.start.line}:${item.before.start.column}–${item.before.end.line}:${item.before.end.column}\nRemove: ${item.removed || '(empty)'}\nInsert: ${item.inserted || '(empty)'}`,
   );
+  const multipleEvents = Array.isArray(review.eventNames) && review.eventNames.length === 3;
   const explanation = observedRemoval
-    ? 'This is a fresh authorization to remove only the recognized current AEGIS Bash hook. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.'
+    ? `This is a fresh authorization to remove only the recognized current AEGIS Bash ${multipleEvents ? 'hooks' : 'hook'}. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.`
     : 'This configures the Bash hook only; blocking is not verified.';
-  const detail = `AEGIS-owned separate Claude settings profile:\n${target}\nPreToolUse · Bash\n\n${fragments.join('\n\n')}\n\nA private backup is retained before writing. ${explanation} The profile is used only by launches explicitly selecting it with --settings.`;
+  const events = multipleEvents
+    ? 'PreToolUse / PostToolUse / PostToolUseFailure · Bash'
+    : 'PreToolUse · Bash';
+  const detail = `AEGIS-owned separate Claude settings profile:\n${target}\n${events}\n\n${fragments.join('\n\n')}\n\nA private backup is retained before writing. ${explanation} The profile is used only by launches explicitly selecting it with --settings.`;
   if (Buffer.byteLength(detail) > 8192) throw Error('preview-too-large');
   return detail;
 }
@@ -173,6 +185,7 @@ module.exports = {
   prepareProfile,
   profilePresence,
   profileCommand,
+  profileAfterCommand,
   checkProfilePolicy,
   profileReviewText,
   profileDraftEligibility,

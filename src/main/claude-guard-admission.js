@@ -25,12 +25,19 @@ function policyFromProfile(bytes, selection) {
     const entries = source.root.members.get('hooks')?.members.get('PreToolUse');
     // Additional pre-tool entries may also match Bash and alter the provider's input.
     if (entries?.kind !== 'array' || entries.items.length !== 1) throw Error('profile-refused');
+    if (plan.mode === 'three-hook') {
+      const hooks = source.root.members.get('hooks');
+      for (const event of ['PostToolUse', 'PostToolUseFailure']) {
+        const after = hooks?.members.get(event);
+        if (after?.kind !== 'array' || after.items.length !== 1) throw Error('profile-refused');
+      }
+    }
     const command = entries.items[0].members.get('hooks')?.items[0]?.members.get('command')?.value;
     if (typeof command !== 'string') throw Error('profile-refused');
     const match = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command);
     if (!match || profileCommand(selection.executable, selection.appPath, match[1]) !== command)
       throw Error('profile-refused');
-    return match[1];
+    return { policyPath: match[1], afterHooks: plan.mode === 'three-hook' };
   } finally {
     source.bytes.fill(0);
   }
@@ -124,13 +131,13 @@ function createClaudeGuardAdmission({ io, target, executable, appPath }) {
     let profile, after, policy;
     try {
       profile = await readTarget(io);
-      const policyPath = policyFromProfile(profile.bytes, selection);
+      const { policyPath, afterHooks } = policyFromProfile(profile.bytes, selection);
       policy = await readPolicyBinding(policyPath, cwd);
       after = await readTarget(io);
       if (closed || after.identity !== profile.identity || !after.bytes.equals(profile.bytes))
         return null;
       const binding = Object.freeze({});
-      state = { binding, profile, policy, policyPath, cwd };
+      state = { binding, profile, policy, policyPath, cwd, afterHooks };
       profile = null;
       policy = null;
       return binding;
@@ -183,7 +190,9 @@ function createClaudeGuardAdmission({ io, target, executable, appPath }) {
       busy = false;
     }
   }
-  return Object.freeze({ capture, verify, release, close });
+  const hasAfterHooks = (binding) =>
+    !closed && !!state && state.binding === binding && state.afterHooks;
+  return Object.freeze({ capture, verify, release, close, hasAfterHooks });
 }
 
 module.exports = { createClaudeGuardAdmission };

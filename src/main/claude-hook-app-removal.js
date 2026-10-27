@@ -2,7 +2,7 @@
 
 const { createHash } = require('node:crypto');
 const { scanJson, previewEdits } = require('./claude-hook-json');
-const { profileCommand } = require('./claude-hook-app-profile');
+const { profileCommand, profileAfterCommand } = require('./claude-hook-app-profile');
 const { IO_CONTRACT } = require('./claude-hook-writer');
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const result = (code) => Object.freeze({ code });
@@ -15,6 +15,39 @@ function recognized(command, executable, appPath) {
     return profileCommand(executable, appPath, match[1]) === command;
   } catch {
     return false;
+  }
+}
+
+function isHookCommand(command, after) {
+  if (typeof command !== 'string') return false;
+  return after
+    ? /^"[^"]+" "[^"]+" --action-policy-after-hook(?:\s|$)/u.test(command)
+    : /^"[^"]+" "[^"]+" --action-policy-hook(?:\s|$)/u.test(command);
+}
+
+function exactEntry(entry, expected) {
+  const children = entry?.members.get('hooks');
+  const hook = children?.items[0];
+  return (
+    entry?.kind === 'object' &&
+    entry.members.size === 2 &&
+    entry.members.get('matcher')?.value === 'Bash' &&
+    children?.kind === 'array' &&
+    children.items.length === 1 &&
+    hook?.kind === 'object' &&
+    hook.members.size === 3 &&
+    hook.members.get('type')?.value === 'command' &&
+    hook.members.get('timeout')?.value === 5 &&
+    hook.members.get('command')?.value === expected
+  );
+}
+
+function removeEntry(array, entry, edits) {
+  const index = array.items.indexOf(entry);
+  edits.push({ start: entry.start, end: entry.end, text: '' });
+  if (array.items.length > 1) {
+    const comma = array.commas[index ? index - 1 : 0];
+    edits.push({ start: comma, end: comma + 1, text: '' });
   }
 }
 
@@ -41,28 +74,53 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
     );
     if (!matches.length) return result('NO_MATCHING_HOOK');
     if (matches.length !== 1) return result('AMBIGUOUS_HOOK');
-    const entry = matches[0],
-      children = entry.members.get('hooks'),
-      hook = children.items[0];
     if (
-      entry.kind !== 'object' ||
-      entry.members.size !== 2 ||
-      entry.members.get('matcher')?.value !== 'Bash' ||
-      children.kind !== 'array' ||
-      children.items.length !== 1 ||
-      hook.kind !== 'object' ||
-      hook.members.size !== 3 ||
-      hook.members.get('type')?.value !== 'command' ||
-      hook.members.get('timeout')?.value !== 5
+      (array?.items || []).some((item) =>
+        item.members.get('hooks')?.items.some((hook) => {
+          const value = hook.members.get('command')?.value;
+          return isHookCommand(value, true);
+        }),
+      )
     )
       return result('PLAN_REFUSED');
-    const index = array.items.indexOf(entry);
-    const edits = [{ start: entry.start, end: entry.end, text: '' }];
-    if (array.items.length > 1) {
-      const comma = array.commas[index ? index - 1 : 0];
-      edits.push({ start: comma, end: comma + 1, text: '' });
+    const entry = matches[0];
+    const command = entry.members.get('hooks')?.items[0]?.members.get('command')?.value;
+    if (!exactEntry(entry, command)) return result('PLAN_REFUSED');
+    const policy = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command)?.[1];
+    if (!policy) return result('PLAN_REFUSED');
+    const afterCommand = profileAfterCommand(executable, appPath, policy);
+    const afterEntries = [];
+    for (const event of ['PostToolUse', 'PostToolUseFailure']) {
+      const selected = hooks?.members.get(event);
+      if (selected && selected.kind !== 'array') return result('PLAN_REFUSED');
+      if (
+        (selected?.items || []).some((item) =>
+          item.members.get('hooks')?.items.some((hook) => {
+            const value = hook.members.get('command')?.value;
+            return isHookCommand(value, false);
+          }),
+        )
+      )
+        return result('PLAN_REFUSED');
+      const candidates = (selected?.items || []).filter((item) =>
+        item.members.get('hooks')?.items.some((hook) => {
+          const value = hook.members.get('command')?.value;
+          return isHookCommand(value, true);
+        }),
+      );
+      if (candidates.length > 1) return result('AMBIGUOUS_HOOK');
+      if (candidates.length && !exactEntry(candidates[0], afterCommand))
+        return result('PLAN_REFUSED');
+      afterEntries.push({ array: selected, entry: candidates[0] });
     }
+    if (afterEntries.some((item) => item.entry) && !afterEntries.every((item) => item.entry))
+      return result('PLAN_REFUSED');
+    const edits = [];
+    removeEntry(array, entry, edits);
+    for (const item of afterEntries) if (item.entry) removeEntry(item.array, item.entry, edits);
     const review = previewEdits(source, target, edits);
+    if (afterEntries.every((item) => item.entry))
+      review.eventNames = ['PreToolUse', 'PostToolUse', 'PostToolUseFailure'];
     let text = source.text;
     for (const edit of [...edits].sort((a, b) => b.start - a.start))
       text = text.slice(0, edit.start) + text.slice(edit.end);
@@ -71,7 +129,7 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
       after.fill(0);
       return result('PLAN_REFUSED');
     }
-    return { ok: true, review, after };
+    return { ok: true, review, after, mode: review.eventNames ? 'three-hook' : 'legacy' };
   } catch {
     return result('PLAN_REFUSED');
   } finally {

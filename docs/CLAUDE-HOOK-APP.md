@@ -2,9 +2,10 @@
 
 Action control contains **Separate Claude hook profile**. On Windows with the
 prepared portable native assets, the application can
-review an existing schema-1 Bash policy, install its hook into an app-owned
+review an existing schema-1 Bash policy, install its hooks into an app-owned
 settings profile, and separately review removal. After restart or native session
-expiry, a fresh review can remove one exactly recognized current AEGIS Bash hook.
+expiry, a fresh review can remove an exactly recognized current AEGIS Bash hook
+group or the earlier pre-only hook.
 The profile is used only by a Claude launch explicitly selecting `--settings`.
 Configuration presence does not establish provider observation or blocking.
 
@@ -15,16 +16,16 @@ Preparing an installation creates an empty private draft when that file does not
 exist, plus a new bounded backup directory. The application never searches for
 or edits personal Claude settings. Selecting a different policy cannot append
 another hook to an old unowned profile. A fresh removal recognizes only the
-current fixed AEGIS executable/application route, one Bash command hook with
-timeout five, and an unambiguous supported structure. It removes that entry and
-its adjacent comma; all unrelated bytes remain exact. Changed routes, additional
+current fixed AEGIS executable/application route, the supported Bash command hooks
+with timeout five, and an unambiguous supported structure. It removes the recognized
+entries; all unrelated bytes remain exact. Changed routes, additional
 fields, mixed commands or duplicate matching entries are refused.
 
 `claude-hook:review` admits only `status`, `install`, `remove`, `open-profile`,
 `guard-start` and `guard-stop` from the current owned top-level renderer. The renderer supplies no path,
 command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
-AEGIS `--action-policy-hook` command quotes its fixed absolute paths. Literal
+AEGIS pre- and after-hook commands quote their fixed absolute paths. Literal
 ampersands stay inside those quotes; expansion, quote, control and other
 unsupported shell syntax remains refused.
 
@@ -39,14 +40,30 @@ already admitted write retains its actual result during shutdown; it is not
 relabelled cancelled. The existing guarded C# IO retains a private backup before
 writing and verifies exact postwrite bytes. Fixed public outcome codes and
 capability booleans are the only setup data returned over IPC. Optional terminal
-session status also returns a bounded in-memory list of fixed decision categories;
-sender identity, delivery coverage and action effects remain unknown. `canRemove` still
+session status also returns a bounded in-memory list of fixed decision categories and,
+when an exact correlated callback is received, a claimed provider result. Sender
+identity, delivery coverage and action effects remain unknown. `canRemove` still
 describes live session ownership; `canReviewExisting` offers a fresh review and
 does not assert ownership. Status reads only bounded file metadata and creates
 no draft, backup directory or native session.
 
 The folder action reveals only this fixed target and still requires the owned
 renderer. Missing helper assets do not block access to a retained draft folder.
+
+The new profile reviews `PreToolUse`, `PostToolUse`, and `PostToolUseFailure`
+as one transaction. An earlier pre-only profile remains usable and removable;
+remove and reinstall it to review the new hooks. The observer correlates bounded
+callbacks to the exact attempt using a private per-session keyed fingerprint; it
+retains neither provider identifiers nor raw command, input, response, or error.
+When the loss signal or an invalid report reaches the receiver, malformed,
+oversized, duplicate, unmatched or out-of-order callbacks mark loss and do not
+establish a result; loss of the signal itself can go undetected. A holder of the session capability can send a claim,
+so neither the sender nor filesystem/process effects are independently verified.
+Missing callbacks leave the result unknown, including when permission is denied
+or a provider session is cancelled. The event names and reported completion or
+failure semantics follow the [Claude Code hook reference](https://code.claude.com/docs/en/hooks#posttooluse).
+These after-hook changes have not been exercised in a Claude client version; the
+historical provider qualification below covers its stated version and pre-hook only.
 
 ## Portable asset preparation
 

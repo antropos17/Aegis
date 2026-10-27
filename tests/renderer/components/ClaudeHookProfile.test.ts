@@ -86,23 +86,65 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
   await screen.findByText(
     'Session listening; delivery remains unknown. Refresh setup status to see recent reports.',
   );
-  expect(screen.getByText('DENY: Declared sensitive filename · Effect unknown')).toBeVisible();
   expect(
-    screen.getByText('ASK: Provider confirmation requested for supported command · Effect unknown'),
+    screen.getByText(
+      'DENY: Declared sensitive filename · Provider result unknown · Effect unknown',
+    ),
   ).toBeVisible();
   expect(
     screen.getByText(
-      'ASK: Project script can run unchecked actions; provider confirmation requested · Effect unknown',
+      'ASK: Provider confirmation requested for supported command · Provider result unknown · Effect unknown',
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      'ASK: Project script can run unchecked actions; provider confirmation requested · Provider result unknown · Effect unknown',
     ),
   ).toBeVisible();
   expect(
     screen.getByText('Some reporting may have been lost or discarded; delivery remains unknown.'),
   ).toBeVisible();
+  expect(
+    screen.getByText('After-result hooks were not verified as configured for this session.'),
+  ).toBeVisible();
   expect(screen.queryByText('PRIVATE_COMMAND')).toBeNull();
   expect(screen.queryByText('PRIVATE_TOKEN')).toBeNull();
   expect(screen.queryByText('SECRET_DECISION')).toBeNull();
-  expect(screen.queryByText('ALLOW: Declared sensitive filename · Effect unknown')).toBeNull();
+  expect(screen.queryByText(/ALLOW: Declared sensitive filename/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
+});
+
+it('shows only bounded provider-reported results and keeps missing or malformed outcomes unknown', async () => {
+  const review = vi.fn().mockResolvedValue({
+    success: true,
+    code: 'READY',
+    guardSession: {
+      status: 'active',
+      afterHooks: true,
+      entries: [
+        { decision: 'ask', reason: 'project-review-ordinary', outcome: 'reported-completed' },
+        { decision: 'deny', reason: 'project-deny-sensitive', outcome: 'reported-failed' },
+        { decision: 'allow', reason: 'generic' },
+        { decision: 'ask', reason: 'project-review-script', outcome: 'PRIVATE_OUTCOME' },
+        { decision: 'ask', reason: 'project-review-edit', outcome: { text: 'PRIVATE_RESPONSE' } },
+      ],
+    },
+  });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  expect(await screen.findByText(/Claimed provider result: tool completed/)).toHaveTextContent(
+    'Effect unknown',
+  );
+  expect(
+    screen.getByText(
+      'After-result hooks were verified in the selected profile; delivery remains unknown.',
+    ),
+  ).toBeVisible();
+  expect(screen.getByText(/Claimed provider result: tool failed/)).toHaveTextContent(
+    'Effect unknown',
+  );
+  expect(screen.getAllByText(/Provider result unknown/)).toHaveLength(3);
+  expect(screen.queryByText('PRIVATE_OUTCOME')).toBeNull();
+  expect(screen.queryByText('PRIVATE_RESPONSE')).toBeNull();
 });
 
 it('explains the selected launch route and its unverified failure boundary', () => {

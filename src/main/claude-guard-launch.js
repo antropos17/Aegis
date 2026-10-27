@@ -11,6 +11,7 @@ const INACTIVE = Object.freeze({
   delivery: 'unknown',
   sender: 'unverified',
   effect: 'unknown',
+  afterHooks: false,
   entries: [],
 });
 
@@ -113,7 +114,16 @@ function createClaudeGuardLauncher(options) {
     retained = false,
     last = { ...INACTIVE, entries: [] };
 
-  const snapshot = () => (active ? active.snapshot() : last);
+  const snapshot = () => {
+    if (!active) return last;
+    let afterHooks = false;
+    try {
+      afterHooks = admission?.hasAfterHooks?.(binding) === true;
+    } catch {
+      // An unavailable or stale admission never establishes hook coverage.
+    }
+    return { ...active.snapshot(), afterHooks };
+  };
   async function stop(stale = false) {
     generation++;
     if (stopping) {
@@ -151,6 +161,7 @@ function createClaudeGuardLauncher(options) {
             ? 'refused'
             : 'ended',
         available: false,
+        afterHooks: false,
         lossDetected: stale || prior.lossDetected,
       };
       try {
