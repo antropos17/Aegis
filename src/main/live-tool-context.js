@@ -502,7 +502,9 @@ function createLiveToolContext(options) {
     let work = null;
     let workFinished = false;
     try {
-      if (!await validAudit() || selected(id) !== retained) {
+      const initialProofValid = await validAudit();
+      prune();
+      if (!initialProofValid || selected(id) !== retained) {
         if (auditRow) invalidateAudit();
         return unavailable('context-unavailable');
       }
@@ -514,7 +516,10 @@ function createLiveToolContext(options) {
         }),
       ]);
       prune();
-      if (selected(id) !== retained || !await validAudit() || selected(id) !== retained) {
+      if (selected(id) !== retained) return unavailable('context-unavailable');
+      const finalProofValid = await validAudit();
+      prune();
+      if (selected(id) !== retained || !finalProofValid) {
         if (auditRow) invalidateAudit();
         return unavailable('context-unavailable');
       }

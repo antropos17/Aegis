@@ -728,6 +728,26 @@ it('refuses a result when a fresh post-read proof no longer establishes uniquene
   expect(guarded.auditRevision().revision).toBe(before.revision + 1);
 });
 
+it('discards a result when custody expires during the final asynchronous proof', async () => {
+  let wall = start + 3000, monotonic = 0, calls = 0, finish;
+  const guarded = createLiveToolContext({
+    home, getAgents: () => agents, now: () => wall, monotonicNow: () => monotonic,
+    observeProcesses: async () => null,
+    auditProof: () => ++calls === 1 ? Promise.resolve({ unique: () => true }) :
+      new Promise((resolve) => { finish = resolve; }),
+  });
+  const event = auditEvent();
+  prepareFor(guarded, event);
+  guarded.record(event);
+  const alias = guarded.auditLookup(auditRowFor(event), { unique: () => true });
+  const pending = guarded.explain(alias);
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  wall += 15 * 60 * 1000 + 1;
+  monotonic += 15 * 60 * 1000 + 1;
+  finish({ unique: () => true });
+  expect((await pending).toolContext.reasons).toContain('context-unavailable');
+});
+
 it('expires custody by monotonic age even when the wall clock steps backward', async () => {
   let wall = start + 3000;
   let monotonic = 1000;
