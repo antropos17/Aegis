@@ -25,6 +25,8 @@ it('removes inherited Guard credentials from every fixture child base environmen
 
 it('classifies bounded stdout without retaining its content', () => {
   expect(classifyOutput(Buffer.alloc(0))).toBe('empty');
+  expect(classifyOutput(Buffer.from([10]))).toBe('lf');
+  expect(classifyOutput(Buffer.from([13, 10]))).toBe('crlf');
   expect(classifyOutput(Buffer.from([9, 10, 13, 32]))).toBe('ascii-whitespace');
   expect(classifyOutput(Buffer.from('PRIVATE_CHILD_OUTPUT'))).toBe('other');
 });

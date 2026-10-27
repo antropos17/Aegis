@@ -180,6 +180,8 @@ function failureSummary(stage) {
 
 function classifyOutput(bytes) {
   if (bytes.length === 0) return 'empty';
+  if (bytes.length === 1 && bytes[0] === 10) return 'lf';
+  if (bytes.length === 2 && bytes[0] === 13 && bytes[1] === 10) return 'crlf';
   return bytes.every((value) => value === 32 || (value >= 9 && value <= 13))
     ? 'ascii-whitespace'
     : 'other';
@@ -393,6 +395,24 @@ async function run() {
       ]) {
         before.tool_use_id = `fixture-${event}`;
         if (event === 'PostToolUse') {
+          stage = 'PostToolUse-node-control';
+          const nodeControl = await child(
+            process.execPath,
+            [path.join(root, 'src/main/main.js'), '--action-policy-after-hook', policy],
+            {
+              cwd: output,
+              env,
+              deadlineMs: 6000,
+              input: JSON.stringify({ ...before, hook_event_name: event }),
+            },
+          );
+          receipt.cases.push({
+            name: stage,
+            ...nodeControl.evidence,
+            stdoutClass: classifyOutput(nodeControl.result.stdout),
+          });
+          nodeControl.result.stdout.fill(0);
+          assert.equal(nodeControl.result.code, 0);
           stage = 'PostToolUse-direct-control';
           const control = await child(exe, [asar, '--action-policy-after-hook', policy], {
             cwd: output,
