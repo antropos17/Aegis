@@ -28,6 +28,24 @@ This repairs failure masking and the exit wait cycle. The original guest's
 underlying guard failure remains unclassified, and these source changes do not
 supply a successful native read-to-audit/alert/risk receipt.
 
+Run [40453709408](https://github.com/antropos17/Aegis/actions/runs/40453709408)
+reached exact actor identity but stopped at `guard-reserve` with cancellation
+`0x8013153B`, before issuing reads. The guard owner serialized two independent
+exchanges within its single eight-second deadline: broker confirmation followed
+by the unarmed reservation reply on another pipe. A local replay using the actual
+owner, guard, broker startup and private wire reproduced that phase and code with
+six seconds of broker service and three seconds of reservation reply service.
+Those are controlled replay timings; the guest artifact has no timing split.
+
+The primary owner now queues its reservation while awaiting broker confirmation.
+Both validated replies, the original child's liveness and the unchanged shared
+eight-second deadline remain required. Each concurrent task's failure is observed
+and startup disposal cancels remaining I/O. The same replay completed in 6.36
+seconds instead of expiring after 8.12 seconds. Fallback reservation still follows
+the second broker acknowledgment and original-process handle deposit. These
+normal-token controls substitute authentication and native trace operations; they
+do not qualify elevated capture, recovery or the complete live event chain.
+
 Broker startup also keeps the existing 120-second total cap through preparation
 and both peer hellos. Each authenticated peer connection then receives its own
 linked eight-second budget. The former shared eight-second timer included

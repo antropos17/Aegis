@@ -42,17 +42,31 @@ internal sealed class FileGuardOwner : IAsyncDisposable
             Security.Verify(pipe, child, identity.Birth, true, true);
             owner.Identity = new FileGuardHello(child.Id, identity.Birth.ToString(), reservation);
             FileQualificationDiagnostic.Stage(phase + "-broker");
-            await startup.Wait(token => FileGuardWire.Write(data, owner.Identity, token));
-            var ack = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(data, token));
-            if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
-            FileQualificationDiagnostic.Stage(phase + "-reserve");
             if (primary == null)
-                await startup.Wait(token => FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), token));
+            {
+                // The unarmed GUID reservation uses a different pipe. Queue it
+                // before broker authentication completes so its reply can progress
+                // within the same eight-second startup deadline, not after it.
+                var reserve = ReservePrimary(startup, pipe, reservation);
+                ObserveFailure(reserve);
+                var connected = ConnectBroker(startup, data, owner.Identity);
+                ObserveFailure(connected);
+                var first = await Task.WhenAny(reserve, connected);
+                FileQualificationDiagnostic.Stage(phase + (first == reserve ? "-reserve" : "-broker"));
+                await first;
+                FileQualificationDiagnostic.Stage(phase + (first == reserve ? "-broker" : "-reserve"));
+                await (first == reserve ? connected : reserve);
+            }
             else
+            {
+                // Fallback reservation can deliberately exit the peer. Keep it
+                // after ACK2 and the broker's original-process handle deposit.
+                await ConnectBroker(startup, data, owner.Identity);
+                FileQualificationDiagnostic.Stage(phase + "-reserve");
                 await startup.Wait(token => FileGuardWire.Write(pipe, new FileFallbackReservation(reservation, primary.pid, primary.birth), token));
-            var reserved = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(pipe, token));
-            if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null)
-                throw new InvalidDataException();
+                await ReadReserved(startup, pipe);
+            }
+            limit.Token.ThrowIfCancellationRequested();
             if (!owner.Alive) throw new FileGuardPeerExitedException(child.ExitCode);
             return owner;
         }
@@ -65,6 +79,30 @@ internal sealed class FileGuardOwner : IAsyncDisposable
             throw;
         }
         finally { watch.Cancel(); }
+    }
+    private static async Task ConnectBroker(FileGuardStartup startup, Stream data, FileGuardHello identity)
+    {
+        await startup.Wait(token => FileGuardWire.Write(data, identity, token));
+        var ack = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(data, token));
+        if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
+    }
+    private static async Task ReservePrimary(FileGuardStartup startup, Stream pipe, string reservation)
+    {
+        await startup.Wait(token => FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), token));
+        await ReadReserved(startup, pipe);
+    }
+    private static async Task ReadReserved(FileGuardStartup startup, Stream pipe)
+    {
+        var reserved = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(pipe, token));
+        if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null)
+            throw new InvalidDataException();
+    }
+    private static void ObserveFailure(Task task)
+    {
+        // If the other exchange fails first, startup disposal cancels this one.
+        // Observe its wrapper task too, without waiting beyond the shared limit.
+        _ = task.ContinueWith(static failed => { _ = failed.Exception; }, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
     internal async Task Arm(FileTraceToken token)
     {
