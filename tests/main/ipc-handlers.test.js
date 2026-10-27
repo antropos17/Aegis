@@ -1095,6 +1095,13 @@ describe('ipc-handlers', () => {
     });
   });
 
+  it('withholds an integrity result if the renderer is replaced during the check', async () => {
+    const { event, contents, frame } = registerOwnedRenderer();
+    const pending = getHandler('audit:review-integrity')(event, '2026-10-27');
+    contents.mainFrame = { ...frame };
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
+
   it.each(['export-full-audit', 'export-zip'])(
     '%s denies a stale frame after the save dialog without reading the journal',
     async (channel) => {
