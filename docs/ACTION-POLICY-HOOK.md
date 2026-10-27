@@ -37,6 +37,41 @@ exact rules, unknown policy fields and unknown decisions invalidate the policy.
 Defaults may be `deny` or `ask`; a default `allow` is rejected. Unrecognized tools,
 phases, missing identifiers and cwd mismatches always deny, even with default ask.
 
+### Bounded project-review profile
+
+For the separate Windows Claude hook profile, a different selected policy may use
+schema 2 and the fixed profile name below. Select the file in the existing native
+policy picker. The exact `cwd` must be the absolute working-directory string sent
+by the provider. This does not change schema-1 matching.
+
+```json
+{
+  "schemaVersion": 2,
+  "cwd": "C:\\work\\selected-project",
+  "profile": "aegis-windows-project-review-v1"
+}
+```
+
+The profile is intentionally narrow: `pwd`, `ls`, `git status`, `git status
+--short`, `git diff --stat`, and `cat` followed by one plain relative basename
+delegate to the provider's confirmation (`ask`). The explicit filenames `.env`,
+`.env.<suffix>`, `id_rsa`, `id_ed25519`, `credentials` and `credentials.json`
+are denied case-insensitively. Recognized `rm`, `git reset --hard`, and `git
+clean -fd` forms are denied. Other commands, arguments, syntax, paths and unknown
+tool-input fields deny. Only string `description` and a positive integer `timeout`
+of at most 600000 ms are accepted alongside `command`; the command spelling is
+exact, with a single space where shown. Fixed provider output explains the rule
+category without exposing arguments or paths.
+
+`ask` is a provider prompt, not an AEGIS approval or an automatic allow. A plain
+basename can refer to a symlink or other sensitive file, and PATH, aliases, shell
+functions, environment, Git configuration, and executable bytes are not bound.
+An operator must inspect what the provider proposes before approving it. The
+filename list is finite, not general secret discovery. A missing, unstartable or
+timed-out hook may bypass the decision; selecting this profile is not evidence of
+blocking or of an observed action outcome. This initial profile does not support
+editing, tests, pipelines, quoting or other general project workflows.
+
 Add a command hook to the selected Claude configuration only when choosing to
 enable it. Preserve existing settings and use actual absolute paths:
 
@@ -65,7 +100,7 @@ disable it. The evaluator never executes commands or opens command target files.
 
 The CLI reads one bounded JSON request from stdin and returns only the official
 `hookSpecificOutput` object with `PreToolUse`, `permissionDecision` and a fixed
-generic reason. It emits no command, path, session/tool-use ID, input hash, exception
+reason. It emits no command, path, session/tool-use ID, input hash, exception
 message or provider output. Neither source IDs nor producer-supplied verification
 fields can override policy. No payload or permission history is persisted.
 
