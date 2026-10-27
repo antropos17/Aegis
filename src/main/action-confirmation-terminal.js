@@ -119,6 +119,9 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
         'Known secrets are rejected, but unknown secrets may be displayed.\n' +
         'A terminal response does not authenticate a human.\n' +
         'Target identity and argument provenance are unavailable.\n' +
+        'A previous attempt may already have caused an effect.\n' +
+        'Fresh approval can cause a duplicate effect.\n' +
+        'Idempotency and reconciliation are unsupported.\n' +
         'Current call and changes (JSON escapes are literal):\n' +
         rendered +
         '\nType APPROVE ' +
