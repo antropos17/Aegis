@@ -2,6 +2,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { connectHost } from '../../frontend/observatory/runtime/host';
 
 const healthy = {
+  monitoringPaused: false,
+  monitoringGeneration: '0',
   appHealth: { populationReliable: true, identityDegraded: false },
   observationGap: { state: 'NONE' },
 };
@@ -95,3 +97,95 @@ it.each([null, undefined, '40000', NaN, Infinity, 0, -1])(
     expect(run.current.stale).toBe(true);
   },
 );
+
+it('revokes a confirmed pause on a stalled or rejected live read and ignores late replies', async () => {
+  const listeners = {};
+  let current;
+  let getStats = () => Promise.resolve({ ...healthy, monitoringPaused: true });
+  const host = {
+    getStats: () => getStats(),
+    getResourceUsage: async () => ({}),
+    getFalsePositives: async () => [],
+  };
+  for (const name of [
+    'onScanBatch',
+    'onStatsUpdate',
+    'onFileAccess',
+    'onNetworkUpdate',
+    'onScanStatus',
+    'onAgentResourceUsage',
+    'onTokenCosts',
+  ])
+    host[name] = (callback) => {
+      listeners[name] = callback;
+      return () => {};
+    };
+  dispose = connectHost(host, (value) => {
+    current = value;
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(current.monitoringPauseConfirmed).toBe(true);
+  let resolve;
+  getStats = () =>
+    new Promise((done) => {
+      resolve = done;
+    });
+  await vi.advanceTimersByTimeAsync(25000);
+  expect(current.monitoringPauseConfirmed).toBe(false);
+  resolve({ ...healthy, monitoringPaused: true });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(current.monitoringPauseConfirmed).toBe(false);
+  getStats = () => Promise.resolve({ ...healthy, monitoringPaused: true });
+  await vi.advanceTimersByTimeAsync(15000);
+  expect(current.monitoringPauseConfirmed).toBe(true);
+  let reject;
+  getStats = () =>
+    new Promise((_, fail) => {
+      reject = fail;
+    });
+  await vi.advanceTimersByTimeAsync(20000);
+  listeners.onStatsUpdate({ ...healthy, monitoringPaused: true });
+  reject(new Error('PRIVATE_FAILURE'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(current.monitoringPauseConfirmed).toBe(false);
+});
+
+it('moves a pending ordinary refresh forward when monitoring changes', async () => {
+  const listeners = {};
+  let producer = { ...healthy, monitoringPaused: false };
+  const calls = [];
+  const host = {
+    getStats: async () => {
+      calls.push(performance.now());
+      return producer;
+    },
+    getResourceUsage: async () => ({}),
+    getFalsePositives: async () => [],
+  };
+  for (const name of [
+    'onScanBatch',
+    'onStatsUpdate',
+    'onFileAccess',
+    'onNetworkUpdate',
+    'onScanStatus',
+    'onAgentResourceUsage',
+    'onTokenCosts',
+  ])
+    host[name] = (callback) => {
+      listeners[name] = callback;
+      return () => {};
+    };
+  dispose = connectHost(host, () => {});
+  await vi.advanceTimersByTimeAsync(19000);
+  producer = { ...healthy, monitoringPaused: true, monitoringGeneration: '1' };
+  listeners.onStatsUpdate(producer);
+  await vi.advanceTimersByTimeAsync(1500);
+  expect(calls).toHaveLength(2); // seed and immediate transition confirmation
+  producer = { ...healthy, monitoringPaused: false, monitoringGeneration: '2' };
+  listeners.onStatsUpdate(producer);
+  producer = { ...healthy, monitoringPaused: true, monitoringGeneration: '3' };
+  listeners.onStatsUpdate(producer);
+  await vi.advanceTimersByTimeAsync(500);
+  expect(calls).toHaveLength(3);
+  expect(calls[2] - calls[1]).toBe(2000);
+});

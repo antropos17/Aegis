@@ -211,9 +211,12 @@ let latestAgents = [],
 let liveLifecycleGeneration = 0n;
 let livePopulationGeneration = 0n;
 let livePopulationReady = false;
+let livePopulationScanStartedAt = null;
+let livePopulationObservedAt = null;
 
 function invalidateLivePopulation() {
   livePopulationReady = false;
+  livePopulationObservedAt = null;
   livePopulationGeneration++;
 }
 function noteLiveLifecycleChange() {
@@ -222,6 +225,7 @@ function noteLiveLifecycleChange() {
 }
 function beginLivePopulationScan() {
   invalidateLivePopulation();
+  livePopulationScanStartedAt = performance.now();
   return liveLifecycleGeneration;
 }
 function commitLivePopulationScan(pass) {
@@ -238,6 +242,9 @@ function commitLivePopulationScan(pass) {
       scanner?.getProcessCapabilities?.().populationReliable !== true
     )
       return;
+    if (livePopulationScanStartedAt === null || !Number.isFinite(livePopulationScanStartedAt))
+      return;
+    livePopulationObservedAt = livePopulationScanStartedAt;
     livePopulationReady = true;
   } catch {
     livePopulationReady = false;
@@ -257,9 +264,15 @@ function livePopulationWitness() {
     return null;
   }
 }
+function livePopulationAgeMs() {
+  if (livePopulationWitness() === null || livePopulationObservedAt === null) return null;
+  const age = performance.now() - livePopulationObservedAt;
+  return Number.isFinite(age) && age >= 0 ? age : null;
+}
 function onLiveProcessScanCommitted(pass) {
   commitLivePopulationScan(pass);
   nativeSensor?.onProcessScanCommitted(pass);
+  return livePopulationWitness() !== null;
 }
 function onLiveProcessObservationUnavailable() {
   invalidateLivePopulation();
@@ -667,6 +680,7 @@ function getWslInventoryStats() {
  * @returns {Object} Monitoring statistics @since v0.1.0
  */
 function getStats() {
+  const populationAge = livePopulationAgeMs();
   if (!scanner) {
     return {
       totalFiles: 0,
@@ -691,6 +705,10 @@ function getStats() {
       ipc: getIpcStats(),
       sequences: getSequenceStats(),
       monitoringPaused,
+      monitoringGeneration: String(liveLifecycleGeneration),
+      monitoringPopulationRevision: String(livePopulationGeneration),
+      monitoringPopulationReady: populationAge !== null,
+      monitoringPopulationAgeMs: populationAge,
       observationGap: observationGap.snapshot(),
       scanCadence: getScanCadenceStats(),
       auditDelivery: getAuditDelivery(),
@@ -724,6 +742,10 @@ function getStats() {
     ipc: getIpcStats(),
     sequences: getSequenceStats(),
     monitoringPaused,
+    monitoringGeneration: String(liveLifecycleGeneration),
+    monitoringPopulationRevision: String(livePopulationGeneration),
+    monitoringPopulationReady: populationAge !== null,
+    monitoringPopulationAgeMs: populationAge,
     observationGap: observationGap.snapshot(),
     scanCadence: getScanCadenceStats(),
     auditDelivery: getAuditDelivery(),

@@ -59,7 +59,13 @@ export function createPreviewHost(): Host {
   let previewRuleEnabled = true;
   let custom: RecordData[] = [];
   let timer: ReturnType<typeof setInterval> | undefined;
+  let populationRevision = 0;
   const stats = () => ({
+    monitoringPaused: false,
+    monitoringGeneration: '0',
+    monitoringPopulationRevision: String(populationRevision),
+    monitoringPopulationReady: true,
+    monitoringPopulationAgeMs: 0,
     totalFiles: events.length,
     aiSensitive: events.filter((e) => e.sensitive).length,
     currentAgents: agents.length,
@@ -73,7 +79,9 @@ export function createPreviewHost(): Host {
     observationGap: { state: 'NONE' },
   });
   const emit = () => {
+    populationRevision++;
     listeners.get('onScanBatch')?.({
+      populationCurrent: true,
       agents,
       stats: stats(),
       resourceUsage: { memMB: 142, heapMB: 68, cpuUser: 10000, cpuSystem: 5000 },
