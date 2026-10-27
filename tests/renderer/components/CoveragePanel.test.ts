@@ -176,6 +176,12 @@ it('renders factory missing-binary and restart status labels in Portuguese', asy
   });
   await view.rerender({ telemetry: structuredClone(telemetry) });
   expect(native).toHaveTextContent('Limite de reinicializações atingido');
+  Object.assign(record(telemetry.stats.nativeSensor), {
+    mode: 'procfs',
+    pathScope: 'paths-unsupported',
+  });
+  await view.rerender({ telemetry: structuredClone(telemetry) });
+  expect(native).toHaveTextContent('A observação de diretórios não está disponível no modo procfs');
 });
 
 it('renders delivered counters and coverage loss while healthy provider never verifies blocking', async () => {

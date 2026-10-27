@@ -15,9 +15,14 @@ function createLauncher({ platform, packaged, getLinuxContext, test }) {
   const launch = test.spawn ?? spawn;
   const exists = test.exists ?? fs.existsSync;
   const name = platform === 'darwin' ? 'aegis-sensor-macos' : 'aegis-sensor-linux';
-  const binary = packaged
-    ? path.join(path.dirname(process.execPath), name)
-    : path.resolve(__dirname, '../../..', 'sensors/target/release', name);
+  const resources = test.resourcesPath ?? process.resourcesPath;
+  const binary = !packaged
+    ? path.resolve(__dirname, '../../..', 'sensors/target/release', name)
+    : platform === 'linux'
+      ? typeof resources === 'string' && path.isAbsolute(resources)
+        ? path.join(resources, 'sensor', name)
+        : null
+      : path.join(path.dirname(process.execPath), name);
   let pinned = null;
   return () => {
     if (!['linux', 'darwin'].includes(platform)) return { error: 'unsupported' };
@@ -37,7 +42,7 @@ function createLauncher({ platform, packaged, getLinuxContext, test }) {
         return { error: 'identity-context-unavailable' };
       }
     }
-    if (!exists(binary)) return { error: 'binary-missing' };
+    if (!binary || !exists(binary)) return { error: 'binary-missing' };
     try {
       const child = launch(binary, [], {
         stdio: ['pipe', 'pipe', 'pipe'],

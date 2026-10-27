@@ -52,6 +52,24 @@ independent of D1 birth conversion and never supplies boot epoch or CLK_TCK.
 
 ## Verification and remaining acceptance
 
+Ordinary Linux AppImage and deb packaging builds this sensor before copying it
+to `resources/sensor/aegis-sensor-linux`. Packaging requires a matching native
+GNU/Linux x64 or arm64 host, the Rust toolchain pinned in
+`sensors/rust-toolchain.toml`, rustup and the host target toolchain. The build
+uses the committed Cargo lock and checks the generated ELF header and executable
+mode; missing tools, a mismatched host or invalid output stop packaging. A
+cross-platform Windows build is not a Linux sensor build. Set `CARGO_HOME` and
+temporary/cache paths as appropriate for the build environment.
+The normal `beforePack` and `afterPack` hooks build and verify the copied sensor
+even when dependency rebuilding is disabled. Electron-builder's `--prepackaged`
+path skips both hooks and is outside this source-build verification.
+
+This package contains only the procfs snapshot provider. It does not install
+file capabilities or provide fanotify/eBPF event collection. Native event
+admission remains unsupported, and the existing polling path remains active.
+Packaging and protocol fixtures do not establish a working installed Linux
+application, kernel compatibility, first-run sensor status or event capture.
+
 From `sensors/`, with the pinned toolchain and committed dependency lock:
 
 ```sh

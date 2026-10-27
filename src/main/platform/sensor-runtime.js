@@ -193,7 +193,8 @@ function createSensorRuntime(deps) {
         admission: { state: ADMISSION, accepted: 0, rejected },
         providerState: host.getHealth().state,
         watchScope: scope,
-        pathScope,
+        pathScope:
+          platform === 'linux' && status.mode === 'procfs' ? 'paths-unsupported' : pathScope,
         paused,
       };
     },
