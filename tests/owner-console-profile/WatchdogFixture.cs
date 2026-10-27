@@ -21,8 +21,107 @@ internal static class WatchdogFixture
         try {
             if(args.Length==2 && args[0]=="descendant") {File.WriteAllText(args[1]+".pending",Process.GetCurrentProcess().Id.ToString());File.Move(args[1]+".pending",args[1]);Thread.Sleep(30000);return 0;}
             if(args.Length==5 && args[0]=="owner") {Owner(args[1],args[2],args[3],args[4]);return 3;}
-            Driver();return 0;
+            DeadlineCases();Driver();return 0;
         } catch(Exception error){File.WriteAllText(Path.Combine(Base,args.Length>0?"watchdog-owner.failure":"watchdog.failure"),error.ToString());Console.Error.WriteLine(error.Message);return 1;}
+    }
+    private static void DeadlineCases()
+    {
+        // The test clock and a gated watchdog make scheduling deterministic. A
+        // failed termination is simulated so a late validation must throw.
+        DeadlineCompletion(Stopwatch.Frequency*3-1,false);
+        DeadlineCompletion(Stopwatch.Frequency*3,true);
+        DeadlineCompletion(-1,true);
+        DeadlineAfterCompletionSample();
+        var entered=new ManualResetEvent(false);var gate=new ManualResetEvent(false);var terminated=new ManualResetEvent(false);
+        long clock=Stopwatch.Frequency*100;int terminations=0;
+        try {
+            ProfileIsolation.DeadlineClockForTest=delegate{return Interlocked.Read(ref clock);};
+            ProfileIsolation.BeforeDeadlineWatchdogForTest=delegate{entered.Set();gate.WaitOne();};
+            ProfileIsolation.DeadlineTerminateForTest=delegate{Interlocked.Increment(ref terminations);terminated.Set();return false;};
+            IDisposable deadline=ProfileIsolation.NewDeadlineForTest();
+            Need(entered.WaitOne(2000),"watchdog was not gated");
+            Interlocked.Exchange(ref clock,Stopwatch.Frequency*103);gate.Set();
+            Need(terminated.WaitOne(2000),"watchdog did not mark timeout");
+            bool refused=false;try { deadline.Dispose(); } catch(InvalidOperationException) { refused=true; }
+            Need(refused && terminations>=1,"marked timeout escaped after failed termination");
+        } finally {
+            gate.Set();ProfileIsolation.DeadlineClockForTest=null;ProfileIsolation.BeforeDeadlineWatchdogForTest=null;ProfileIsolation.DeadlineTerminateForTest=null;
+            entered.Dispose();gate.Dispose();terminated.Dispose();
+        }
+        Console.WriteLine("PASS monotonic deadline, delayed watchdog and failed termination");
+    }
+    private static void DeadlineAfterCompletionSample()
+    {
+        var entered=new ManualResetEvent(false);var gate=new ManualResetEvent(false);
+        int owner=Thread.CurrentThread.ManagedThreadId,ownerReads=0,terminations=0;
+        long clock=Stopwatch.Frequency*100;
+        try {
+            ProfileIsolation.DeadlineClockForTest=delegate {
+                if(Thread.CurrentThread.ManagedThreadId==owner) {
+                    int read=Interlocked.Increment(ref ownerReads);
+                    if(read==2) gate.Set();
+                    if(read==3) Interlocked.Exchange(ref clock,Stopwatch.Frequency*103);
+                }
+                return Interlocked.Read(ref clock);
+            };
+            ProfileIsolation.BeforeDeadlineWatchdogForTest=delegate{entered.Set();gate.WaitOne();};
+            ProfileIsolation.DeadlineTerminateForTest=delegate{Interlocked.Increment(ref terminations);return false;};
+            IDisposable deadline=ProfileIsolation.NewDeadlineForTest();
+            Need(entered.WaitOne(2000),"watchdog was not gated");
+            Interlocked.Exchange(ref clock,Stopwatch.Frequency*103-1);
+            bool refused=false;try { deadline.Dispose(); } catch(InvalidOperationException) { refused=true; }
+            Need(refused && terminations>0,"deadline passed after initial completion sample");
+        } finally {
+            gate.Set();ProfileIsolation.DeadlineClockForTest=null;ProfileIsolation.BeforeDeadlineWatchdogForTest=null;ProfileIsolation.DeadlineTerminateForTest=null;
+            entered.Dispose();gate.Dispose();
+        }
+    }
+    private static void DeadlineCompletion(long offset,bool expectedRefusal)
+    {
+        var entered=new ManualResetEvent(false);var gate=new ManualResetEvent(false);
+        int owner=Thread.CurrentThread.ManagedThreadId,ownerReads=0,terminations=0;
+        long clock=Stopwatch.Frequency*100;
+        try {
+            ProfileIsolation.DeadlineClockForTest=delegate {
+                if(Thread.CurrentThread.ManagedThreadId==owner && Interlocked.Increment(ref ownerReads)==2) gate.Set();
+                return Interlocked.Read(ref clock);
+            };
+            ProfileIsolation.BeforeDeadlineWatchdogForTest=delegate{entered.Set();gate.WaitOne();};
+            ProfileIsolation.DeadlineTerminateForTest=delegate{Interlocked.Increment(ref terminations);return false;};
+            IDisposable deadline=ProfileIsolation.NewDeadlineForTest();
+            Need(entered.WaitOne(2000),"watchdog was not gated");
+            Interlocked.Exchange(ref clock,Stopwatch.Frequency*100+offset);
+            bool refused=false;try { deadline.Dispose(); } catch(InvalidOperationException) { refused=true; }
+            Need(refused==expectedRefusal,"deadline boundary mismatch");
+            Need(!expectedRefusal || terminations>0,"late completion did not request termination");
+        } finally {
+            gate.Set();ProfileIsolation.DeadlineClockForTest=null;ProfileIsolation.BeforeDeadlineWatchdogForTest=null;ProfileIsolation.DeadlineTerminateForTest=null;
+            entered.Dispose();gate.Dispose();
+        }
+    }
+    private static void DeadlineOpenCustody(string root,string protect)
+    {
+        var entered=new ManualResetEvent(false);var gate=new ManualResetEvent(false);
+        int owner=Thread.CurrentThread.ManagedThreadId,ownerReads=0;
+        long clock=Stopwatch.Frequency*100;
+        try {
+            ProfileIsolation.ProtectedPathsForTest=delegate{return new[]{protect};};
+            ProfileIsolation.DeadlineClockForTest=delegate {
+                if(Thread.CurrentThread.ManagedThreadId==owner && Interlocked.Increment(ref ownerReads)==2) {
+                    Interlocked.Exchange(ref clock,Stopwatch.Frequency*103);gate.Set();
+                }
+                return Interlocked.Read(ref clock);
+            };
+            ProfileIsolation.BeforeDeadlineWatchdogForTest=delegate{entered.Set();gate.WaitOne();};
+            ProfileIsolation.DeadlineTerminateForTest=delegate{return false;};
+            bool refused=false;try { using(ProfileIsolation.Open(root)) {} } catch(InvalidOperationException) { refused=true; }
+            Need(refused,"late profile open returned its handles");
+            string moved=root+"-moved";Directory.Move(root,moved);Directory.Move(moved,root);
+        } finally {
+            gate.Set();ProfileIsolation.ProtectedPathsForTest=null;ProfileIsolation.DeadlineClockForTest=null;
+            ProfileIsolation.BeforeDeadlineWatchdogForTest=null;ProfileIsolation.DeadlineTerminateForTest=null;
+            entered.Dispose();gate.Dispose();
+        }
     }
     private static void Owner(string root,string protectedPath,string pidMarker,string hookMarker)
     {
@@ -42,6 +141,7 @@ internal static class WatchdogFixture
         string scratch=Path.Combine(taskRoot,"owner-console-profile-data","watchdog-"+Guid.NewGuid().ToString("N"));
         string root=Path.Combine(scratch,"selected"),protect=Path.Combine(scratch,"protected");
         Directory.CreateDirectory(protect);foreach(string name in new[]{"appdata","localappdata","userprofile","home","temp"}){string child=Path.Combine(root,name);Directory.CreateDirectory(child);File.WriteAllText(Path.Combine(child,".aegis-owner-profile-anchor"),"owned fixture anchor "+name);}
+        DeadlineOpenCustody(root,protect);
         string marker=Path.Combine(Base,"watchdog-descendant.pid"),hook=Path.Combine(Base,"watchdog-hook.ready");
         File.Delete(marker);File.Delete(marker+".pending");File.Delete(hook);
         string executable=Process.GetCurrentProcess().MainModule.FileName;

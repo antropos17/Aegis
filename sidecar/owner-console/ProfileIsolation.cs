@@ -25,6 +25,10 @@ internal sealed class ProfileIsolation : IDisposable
 #if OWNER_PROFILE_TEST
     internal static Func<string[]> ProtectedPathsForTest;
     internal static Action BeforeValidationForTest;
+    internal static Func<long> DeadlineClockForTest=null;
+    internal static Action BeforeDeadlineWatchdogForTest=null;
+    internal static Func<bool> DeadlineTerminateForTest=null;
+    internal static IDisposable NewDeadlineForTest() { return new Deadline(); }
 #endif
     internal string Root { get; private set; }
     internal string AppData { get { return Path.Combine(Root,"appdata"); } }
@@ -62,23 +66,56 @@ internal sealed class ProfileIsolation : IDisposable
     {
         private readonly ManualResetEvent completed=new ManualResetEvent(false);
         private readonly Thread watchdog;
+        private readonly long started;
         private int state;
         internal Deadline() {
+            started=Timestamp();
             watchdog=new Thread(delegate() {
-                if(!completed.WaitOne(3000) && Interlocked.CompareExchange(ref state,1,0)==0) TerminateProcess(GetCurrentProcess(),2);
+#if OWNER_PROFILE_TEST
+                if(BeforeDeadlineWatchdogForTest!=null) BeforeDeadlineWatchdogForTest();
+#endif
+                while(true) {
+                    long elapsed=Timestamp()-started;
+                    if(elapsed<0 || elapsed>=Stopwatch.Frequency*3) {
+                        if(Interlocked.CompareExchange(ref state,1,0)==0) Terminate();
+                        return;
+                    }
+                    long remaining=Stopwatch.Frequency*3-elapsed;
+                    int wait=(int)Math.Max(1,Math.Ceiling((double)remaining*1000/Stopwatch.Frequency));
+                    if(completed.WaitOne(wait)) return;
+                }
             });
             watchdog.IsBackground=true; watchdog.Start();
         }
         public void Dispose() {
-            Interlocked.CompareExchange(ref state,2,0); completed.Set();
-            if(!watchdog.Join(1000)) { TerminateProcess(GetCurrentProcess(),2); return; }
+            long elapsed=Timestamp()-started;
+            bool expired=elapsed<0 || elapsed>=Stopwatch.Frequency*3;
+            int prior=Interlocked.CompareExchange(ref state,expired?1:2,0);
+            completed.Set();
+            if(!watchdog.Join(1000)) { Terminate(); throw Failure(); }
             completed.Dispose();
+            long finished=Timestamp()-started;
+            if(expired || prior!=0 || finished<0 || finished>=Stopwatch.Frequency*3) { Terminate(); throw Failure(); }
+        }
+        private static long Timestamp() {
+#if OWNER_PROFILE_TEST
+            if(DeadlineClockForTest!=null) return DeadlineClockForTest();
+#endif
+            return Stopwatch.GetTimestamp();
+        }
+        private static void Terminate() {
+#if OWNER_PROFILE_TEST
+            if(DeadlineTerminateForTest!=null) { DeadlineTerminateForTest(); return; }
+#endif
+            TerminateProcess(GetCurrentProcess(),2);
         }
     }
 
     internal static ProfileIsolation Open(string root)
     {
-        using(new Deadline()) return OpenCore(root);
+        ProfileIsolation result=null;
+        try { using(new Deadline()) result=OpenCore(root); return result; }
+        catch { if(result!=null) result.Dispose(); throw; }
     }
     private static ProfileIsolation OpenCore(string root)
     {
