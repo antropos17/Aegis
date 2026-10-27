@@ -55,7 +55,8 @@ by the provider. This does not change schema-1 matching.
 The profile is intentionally narrow: `pwd`, `ls`, `git status`, `git status
 --short`, `git diff --stat`, and `cat` followed by one plain relative basename
 delegate to the provider's confirmation (`ask`). The explicit filenames `.env`,
-`.env.<suffix>`, `id_rsa`, `id_ed25519`, `credentials` and `credentials.json`
+`.env` with any dot-prefixed basename suffix, `id_rsa`, `id_ed25519`,
+`credentials` and `credentials.json`
 are denied case-insensitively. Recognized `rm`, `git reset --hard`, and `git
 clean -fd` forms are denied. Other commands, arguments, syntax, paths and unknown
 tool-input fields deny. Only string `description` and a positive integer `timeout`

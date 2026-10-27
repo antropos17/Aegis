@@ -12,7 +12,7 @@ const ordinaryCommands = new Set([
   'git status --short',
   'git diff --stat',
 ]);
-const sensitiveName = /^(?:\.env(?:\.[a-z0-9_-]+)?|id_(?:rsa|ed25519)|credentials(?:\.json)?)$/i;
+const sensitiveName = /^(?:\.env(?:\.[a-z0-9_.-]*)?|id_(?:rsa|ed25519)|credentials(?:\.json)?)$/i;
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const deny = (reason) => ({ decision: 'deny', reason });
 const validString = (v) => typeof v === 'string' && !/[\ud800-\udfff]/u.test(v);

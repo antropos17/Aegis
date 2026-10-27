@@ -53,6 +53,14 @@ describe('bounded project review policy', () => {
       expect(await run(command)).toEqual({ decision: 'deny', reason: 'project-deny-sensitive' });
     },
   );
+  it.each([
+    'cat .env.production.local',
+    'cat .env.backup.json',
+    'cat .ENV.local.backup',
+    'cat .env.',
+  ])('denies multi-suffix or trailing-dot dotenv basename %s', async (command) => {
+    expect(await run(command)).toEqual({ decision: 'deny', reason: 'project-deny-sensitive' });
+  });
   it.each(['rm -rf project', 'git reset --hard', 'git clean -fd'])(
     'denies destructive command %s',
     async (command) => {
