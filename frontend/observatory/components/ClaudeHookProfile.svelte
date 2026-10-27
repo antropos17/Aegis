@@ -5,7 +5,7 @@
   import { claudeHookLaunchCommand } from '../runtime/claude-hook-guide';
   import Icon from './Icon.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
-  type Operation = 'status' | 'install' | 'remove' | 'open-profile';
+  type Operation = 'status' | 'install' | 'remove' | 'open-profile' | 'guard-start' | 'guard-stop';
   const id = $props.id();
   const messages: Record<string, string> = {
     IDLE: 'Setup has not been reviewed.',
@@ -40,6 +40,16 @@
     READBACK_FAILED:
       'The written profile could not be verified. Retained backups require recovery review.',
     RETAINED_UNKNOWN: 'An uncertain result is retained. Another write is unavailable.',
+    GUARD_READY: 'Broker command copied. Run it in PowerShell and compare the confirmation code.',
+    GUARD_ALREADY_ACTIVE: 'A reporting session is already active.',
+    GUARD_PROFILE_REQUIRED: 'Prepare the separate Claude profile before starting a session.',
+    GUARD_PROFILE_UNVERIFIED:
+      'The current hook or policy could not be verified for the selected working folder. Review the profile and policy.',
+    GUARD_RELEASE_UNCONFIRMED:
+      'The previous native reader did not confirm shutdown. Another reporting session is unavailable.',
+    GUARD_CANCELLED: 'Terminal session preparation cancelled.',
+    GUARD_STOPPED: 'Reporting stopped. A previously launched Claude process may still be running.',
+    GUARD_UNAVAILABLE: 'The terminal session could not be prepared.',
   };
   const failedCodes = new Set([
     'UNAVAILABLE',
@@ -54,7 +64,42 @@
     'RETAINED_UNKNOWN',
     'AMBIGUOUS_HOOK',
     'PLAN_REFUSED',
+    'GUARD_PROFILE_REQUIRED',
+    'GUARD_PROFILE_UNVERIFIED',
+    'GUARD_RELEASE_UNCONFIRMED',
+    'GUARD_UNAVAILABLE',
   ]);
+  const reasons: Record<string, string> = {
+    generic: 'Selected policy decision',
+    'adapter-failure': 'Hook adapter failure',
+    'project-review-ordinary': 'Provider confirmation requested for supported command',
+    'project-review-script':
+      'Project script can run unchecked actions; provider confirmation requested',
+    'project-review-edit':
+      'Patch contents, written paths and executable are unverified; provider confirmation requested',
+    'project-deny-sensitive': 'Declared sensitive filename',
+    'project-deny-destructive': 'Declared destructive command',
+    'project-deny-unsupported': 'Unsupported command or input',
+  };
+  const sessionStatuses: Record<string, string> = {
+    inactive: 'No reporting session',
+    waiting: 'Waiting for the terminal broker',
+    'awaiting-confirmation': 'Waiting for native code confirmation',
+    active: 'Session listening; delivery remains unknown',
+    refused: 'Session refused',
+    expired: 'Session expired',
+    ended: 'Reporting session ended',
+  };
+  const reasonDecisions: Record<string, string[]> = {
+    generic: ['allow', 'ask', 'deny'],
+    'adapter-failure': ['deny'],
+    'project-review-ordinary': ['ask'],
+    'project-review-script': ['ask'],
+    'project-review-edit': ['ask'],
+    'project-deny-sensitive': ['deny'],
+    'project-deny-destructive': ['deny'],
+    'project-deny-unsupported': ['deny'],
+  };
   let profileState = $state({
     code: 'IDLE',
     canInstall: false,
@@ -65,6 +110,12 @@
   let pending = $state<Operation | null>(null);
   let failed = $state(false);
   let feedback = $state('');
+  let guardSession = $state({
+    status: 'inactive',
+    available: false,
+    lossDetected: false,
+    entries: [] as { decision: string; reason: string }[],
+  });
   let alive = true;
   let available = $derived(!preview && typeof host?.reviewClaudeHookProfile === 'function');
   onDestroy(() => {
@@ -87,6 +138,26 @@
         canRemove: value.canRemove === true,
         canReviewExisting: value.canReviewExisting === true,
         canOpen: value.canOpen === true,
+      };
+      const session = record(value.guardSession);
+      const entries = Array.isArray(session.entries) ? session.entries.slice(-32) : [];
+      guardSession = {
+        status:
+          typeof session.status === 'string' && Object.hasOwn(sessionStatuses, session.status)
+            ? session.status
+            : 'inactive',
+        available: session.available === true,
+        lossDetected: session.lossDetected === true,
+        entries: entries.flatMap((item: unknown) => {
+          const entry = record(item);
+          return typeof entry.decision === 'string' &&
+            ['allow', 'ask', 'deny'].includes(entry.decision) &&
+            typeof entry.reason === 'string' &&
+            Object.hasOwn(reasonDecisions, entry.reason) &&
+            reasonDecisions[entry.reason].includes(entry.decision)
+            ? [{ decision: entry.decision, reason: entry.reason }]
+            : [];
+        }),
       };
       feedback =
         messages[code] || 'Profile review could not complete. Retained files are preserved.';
@@ -115,6 +186,16 @@
     <p class="muted">
       {$t(
         'This creates a private draft and retained backups. Personal Claude settings are not edited.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'Reporting expires after at most two and a half minutes. Profile checks are periodic and cannot prevent changes between a check and an action.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'Other Claude settings and managed controls may disable or override the selected hook; effective configuration is unknown.',
       )}
     </p>
     <p class="muted">
@@ -164,15 +245,64 @@
       <pre><code>{claudeHookLaunchCommand}</code></pre>
       <p class="muted">
         {$t(
-          'This route requires Claude Code and applies the selected policy only to Bash requests in launches using this profile. Other tools and launches without the profile are outside its scope.',
+          'This route requires Claude Code. If Claude invokes the hook, it evaluates Bash requests against the selected policy. Other tools and launches without the profile are outside its scope.',
         )}
       </p>
+      <p class="muted">{$t('This direct route does not send decision reports to AEGIS.')}</p>
       <p class="muted">
         {$t(
-          'A configured profile does not verify blocking. Claude behavior when a hook is missing, cannot start, times out, or returns malformed output has not been qualified. The selected schema-1 policy matches the full Bash input and working directory exactly.',
+          'A configured profile does not verify blocking. Claude behavior when a hook is missing, cannot start, times out, or returns malformed output has not been qualified. Schema-1 policies match the full Bash input and working directory exactly.',
         )}
       </p>
     </div>
+    <p>
+      {$t(
+        'Start a terminal session to receive reported policy decisions. Choose a Claude executable and the exact working folder in the selected policy, then run the copied broker command and match the confirmation code.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'Reports have an unverified sender. Delivery coverage and action effects are unknown; provider confirmation is not AEGIS approval. Stopping reporting does not stop Claude.',
+      )}
+    </p>
+    <div class="profile-actions">
+      <button
+        class="button"
+        disabled={!available ||
+          pending !== null ||
+          !profileState.canOpen ||
+          ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
+        onclick={() => perform('guard-start')}>{$t('Prepare terminal session')}</button
+      >
+      <button
+        class="button"
+        disabled={!available ||
+          pending !== null ||
+          !['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
+        onclick={() => perform('guard-stop')}>{$t('Stop reporting')}</button
+      >
+    </div>
+    <p class="muted">
+      {$t(sessionStatuses[guardSession.status])}. {$t(
+        'Refresh setup status to see recent reports.',
+      )}
+    </p>
+    {#if guardSession.lossDetected}<p role="alert">
+        {$t('Some reporting may have been lost or discarded; delivery remains unknown.')}
+      </p>{/if}
+    {#if guardSession.entries.length}
+      <ul>
+        {#each guardSession.entries as entry, index (index)}
+          <li>
+            {entry.decision.toUpperCase()}: {$t(reasons[entry.reason])} · {$t('Effect unknown')}
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="muted">
+        {$t('No reports received; this does not establish that no actions occurred.')}
+      </p>
+    {/if}
     {#if feedback}<p role={failed ? 'alert' : 'status'} class={['profile-feedback', { failed }]}>
         {$t(feedback)}
       </p>{/if}

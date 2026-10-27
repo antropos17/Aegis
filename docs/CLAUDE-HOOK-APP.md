@@ -20,8 +20,8 @@ timeout five, and an unambiguous supported structure. It removes that entry and
 its adjacent comma; all unrelated bytes remain exact. Changed routes, additional
 fields, mixed commands or duplicate matching entries are refused.
 
-`claude-hook:review` admits only `status`, `install`, `remove` and `open-profile`
-from the current owned top-level renderer. The renderer supplies no path,
+`claude-hook:review` admits only `status`, `install`, `remove`, `open-profile`,
+`guard-start` and `guard-stop` from the current owned top-level renderer. The renderer supplies no path,
 command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
 AEGIS `--action-policy-hook` command quotes its fixed absolute paths. Literal
@@ -38,7 +38,9 @@ path retains its original rollback contract. Cancellation or navigation cannot a
 already admitted write retains its actual result during shutdown; it is not
 relabelled cancelled. The existing guarded C# IO retains a private backup before
 writing and verifies exact postwrite bytes. Fixed public outcome codes and
-capability booleans are the only setup data returned over IPC. `canRemove` still
+capability booleans are the only setup data returned over IPC. Optional terminal
+session status also returns a bounded in-memory list of fixed decision categories;
+sender identity, delivery coverage and action effects remain unknown. `canRemove` still
 describes live session ownership; `canReviewExisting` offers a fresh review and
 does not assert ownership. Status reads only bounded file metadata and creates
 no draft, backup directory or native session.
@@ -198,6 +200,21 @@ the separate provider result above covers the installed-Claude source run.
 Real-dialog acceptance remains open.
 
 ### Private unpacked-ASAR qualification
+
+On 2026-10-27, a provider-free Windows x64 unpacked build from source
+`ceb28b7f0857002017df540a9d1c8f687a51e082` exercised the generated PowerShell
+terminal broker command. The executable SHA-256 was
+`28057cb48a52e5509c5dcf9c0e15ce675a90220804a5e5ee334eee2137f05cbf`; the
+`app.asar` SHA-256 was
+`5499ad85497aa002e7e706c21554c8aac7ca39a2e60f63c8cc8c79088b97d7a4`.
+An owned terminal fixture used a fake HMAC receiver with scripted admission and
+an inert native console child. It observed claim, start and finish, console
+handles for the child and an unforced broker exit of zero. The PTY operator
+observed no synthetic-key echo; the automated receipt did not inspect the
+terminal transcript. The shell, child and independently witnessed broker
+generation settled. This result does
+not qualify a real owner dialog, Claude provider session, clean-machine
+installation or actual action effects.
 
 On 2026-10-27, a provider-free Windows x64 unpacked candidate built from source
 `9e907be27bf41bdf68148576c2bab514bb8569cb` exercised the packaged executable

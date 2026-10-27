@@ -3,9 +3,12 @@
 Status: a connected **before-only** Claude command-hook adapter. It returns
 `allow`, `ask` or `deny` for `PreToolUse` Bash requests. B1 remains partial:
 a separate [in-process session](ACTION-POLICY-SESSION.md) now correlates decisions
-with after reports in the provider fixture. Production linkage, reusable permission
-protection, exact approval binding and failure-resistant execution mediation remain open.
+with after reports in the provider fixture. Production before/after correlation,
+reusable permission protection, exact approval binding and failure-resistant
+execution mediation remain open.
 This adapter does not reuse the lifecycle collector or send arguments over HTTP.
+An explicitly started terminal session can send a bounded, fixed decision
+category to the desktop; reporting does not change the provider decision.
 
 ## Explicit configuration
 
@@ -54,7 +57,20 @@ by the provider. This does not change schema-1 matching.
 
 The profile is intentionally narrow: `pwd`, `ls`, `git status`, `git status
 --short`, `git diff --stat`, and `cat` followed by one plain relative basename
-delegate to the provider's confirmation (`ask`). The explicit filenames `.env`,
+delegate to the provider (`ask`). The exact commands `npm test` and `npm run lint`
+also delegate to the provider; no flags or other npm scripts are supported. The
+fixed provider-facing reason warns that project scripts may execute arbitrary
+actions not separately checked by this Bash hook. Configuration and PATH-selected
+programs are unbound, so the operator must inspect them before deciding.
+The exact form `git apply -- <name>.patch` or `git apply -- <name>.diff` also
+requests provider confirmation. The name starts with an ASCII letter or digit,
+contains at most 64 ASCII letters, digits, underscores or hyphens before its
+lowercase extension, and cannot be a Windows device name. Flags, directories,
+quoting, redirection, chaining and other patch forms remain unsupported. The
+hook does not read the patch, inspect its contents or bind the paths it writes.
+The provider-facing reason states these limits and the unverified executable;
+edits and external programs can cause actions not separately checked by this hook.
+The explicit filenames `.env`,
 `.env` with any dot-prefixed basename suffix, `id_rsa`, `id_ed25519`,
 `credentials` and `credentials.json`
 are denied case-insensitively. Recognized `rm`, `git reset --hard`, and `git
@@ -64,14 +80,16 @@ of at most 600000 ms are accepted alongside `command`; the command spelling is
 exact, with a single space where shown. Fixed provider output explains the rule
 category without exposing arguments or paths.
 
-`ask` is a provider prompt, not an AEGIS approval or an automatic allow. A plain
+`ask` delegates to the provider; it is not an AEGIS approval or an automatic allow.
+Whether the provider presents a prompt depends on its configuration. A plain
 basename can refer to a symlink or other sensitive file, and PATH, aliases, shell
 functions, environment, Git configuration, and executable bytes are not bound.
 An operator must inspect what the provider proposes before approving it. The
 filename list is finite, not general secret discovery. A missing, unstartable or
 timed-out hook may bypass the decision; selecting this profile is not evidence of
-blocking or of an observed action outcome. This initial profile does not support
-editing, tests, pipelines, quoting or other general project workflows.
+blocking or of an observed action outcome. The patch form does not provide general
+editing support. Additional test commands, pipelines, quoting and other general
+project workflows remain unsupported.
 
 Add a command hook to the selected Claude configuration only when choosing to
 enable it. Preserve existing settings and use actual absolute paths:
@@ -103,7 +121,54 @@ The CLI reads one bounded JSON request from stdin and returns only the official
 `hookSpecificOutput` object with `PreToolUse`, `permissionDecision` and a fixed
 reason. It emits no command, path, session/tool-use ID, input hash, exception
 message or provider output. Neither source IDs nor producer-supplied verification
-fields can override policy. No payload or permission history is persisted.
+fields can override policy. No payload or permission history is persisted. An
+optional desktop reporting session retains at most 32 fixed decision categories
+in memory until it closes.
+
+### Explicit terminal session reporting
+
+The separate Claude profile panel can prepare a user-invoked PowerShell broker.
+The owner selects the executable and working directory, reviews the exact paths
+in a Cancel-default native dialog and enters a one-time verification code in the
+terminal. A second native dialog requires comparison of a terminal code before a
+per-session capability is delivered. The broker launches the selected executable
+with the app-owned `--settings` profile and passes the capability only in its
+child environment. The broker command contains no capability; the verification
+code is not copied or placed in command arguments. These checks bind a capability
+exchange to the selected paths, but same-user processes can observe the terminal
+or inherit the capability. Sender identity is therefore **unverified**.
+
+Each hook sends only a fixed decision and reason category to the local session.
+Reporting failure never changes the hook's response. The panel labels delivery
+coverage and action effects unknown: an empty list does not establish absence of
+activity, and a received denial does not establish a prevented effect. An `ask`
+delegates to the provider; it is not approval by AEGIS. The handshake sends the
+selected executable, settings and working-directory paths to the broker; no
+command, cwd, policy, provider identity or raw request is sent as a decision
+report. Stopping reporting
+revokes the session capability; it does not claim that Claude has stopped. The
+receiver also has bounded request, lifetime and retention limits. A broker that
+disappears before its finish message can leave the reporting session listening
+until expiry; coverage remains unknown throughout.
+
+Before launch, a read-only native witness checks the current recognized hook and
+the selected policy, including the policy's exact working directory. Profile and
+policy identity and bytes are rechecked after confirmation, immediately before
+launch and periodically while reporting. Observed changes revoke the reporting
+session. The selected executable is checked for observed file-identity and
+metadata changes; its signature and exact bytes are not verified. These checks
+do not hold an exclusive lock across process creation or
+an action: a change after a check, a failed hook, or an unobserved action remains
+unknown. Reporting expires after at most 150 seconds; a running Claude process can
+continue after reporting ends. No backup directory is created by this read-only
+launch admission.
+
+Admission refuses a selected profile that enables `disableAllHooks` or
+`allowManagedHooksOnly`, or gives either key an ambiguous value. Other Claude
+settings sources and managed policy precedence are not read; the effective
+configuration and whether Claude invokes the hook remain unknown.
+
+### Hook response
 
 | Result | Meaning |
 | --- | --- |

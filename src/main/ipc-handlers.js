@@ -184,7 +184,9 @@ function register() {
   ipcMain.handle('claude-hook:review', async (event, action) => {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();
-    if (!['status', 'install', 'remove', 'open-profile'].includes(action))
+    if (
+      !['status', 'install', 'remove', 'open-profile', 'guard-start', 'guard-stop'].includes(action)
+    )
       return { success: false, error: 'Invalid profile operation' };
     try {
       const result = await deps.claudeHookProfile?.handle(action, () => stillOwned(event, window));

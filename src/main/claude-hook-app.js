@@ -48,6 +48,14 @@ const CODES = new Set([
   'READBACK_FAILED',
   'RETAINED_UNKNOWN',
   'OPERATION_FAILED',
+  'GUARD_READY',
+  'GUARD_ALREADY_ACTIVE',
+  'GUARD_PROFILE_REQUIRED',
+  'GUARD_PROFILE_UNVERIFIED',
+  'GUARD_RELEASE_UNCONFIRMED',
+  'GUARD_CANCELLED',
+  'GUARD_STOPPED',
+  'GUARD_UNAVAILABLE',
 ]);
 
 /** Create the application-owned separate Claude profile review boundary.
@@ -63,9 +71,11 @@ function createClaudeHookApp(options) {
     executable,
     appPath,
     shell,
+    clipboard,
     platform = process.platform,
     getAssets = () => loadProfileAssets(assetsRoot),
     makeIO = createWindowsHookIO,
+    makeReadIO = require('./claude-hook-windows-io').createWindowsHookReadIO,
     now = () => performance.now(),
   } = options;
   const directory = path.join(userData, 'claude-hook-profile');
@@ -86,6 +96,8 @@ function createClaudeHookApp(options) {
     ready = false,
     active = null,
     pendingSession = null;
+  let guardLauncher = null;
+  let guardAssets = null;
   function reply(code = last) {
     return {
       success: true,
@@ -109,6 +121,15 @@ function createClaudeHookApp(options) {
           'PLAN_REFUSED',
         ].includes(last),
       canOpen: present || !!session || configured || retained,
+      guardSession: guardLauncher?.snapshot() || {
+        status: 'inactive',
+        available: false,
+        lossDetected: false,
+        delivery: 'unknown',
+        sender: 'unverified',
+        effect: 'unknown',
+        entries: [],
+      },
     };
   }
   async function endSession() {
@@ -242,8 +263,48 @@ function createClaudeHookApp(options) {
       shell?.showItemInFolder(target);
       return reply();
     }
+    if (action === 'guard-stop') {
+      const stopped = guardLauncher ? await guardLauncher.stop() : true;
+      return owned()
+        ? reply(stopped ? 'GUARD_STOPPED' : 'GUARD_RELEASE_UNCONFIRMED')
+        : { success: false, error: 'Renderer request denied' };
+    }
     if (!ready) return reply('UNAVAILABLE');
     if (retained) return reply('RETAINED_UNKNOWN');
+    if (action === 'guard-start') {
+      if (!clipboard?.writeText) return reply('GUARD_UNAVAILABLE');
+      guardAssets = assets;
+      guardLauncher ||= require('./claude-guard-launch').createClaudeGuardLauncher({
+        target,
+        executable,
+        appPath,
+        dialog,
+        getWindow,
+        clipboard,
+        openRead: () =>
+          makeReadIO({
+            ownedProfile: true,
+            targetPath: path.win32
+              .normalize(target)
+              .replace(/^[a-z]:/, (drive) => drive.toUpperCase()),
+            assets: guardAssets,
+            requestMs: 1500,
+            sessionMs: 180000,
+            cleanupMs: 1000,
+          }),
+      });
+      const code = await guardLauncher.start(owned);
+      return owned() ? reply(code) : { success: false, error: 'Renderer request denied' };
+    }
+    if ((action === 'install' || action === 'remove') && guardLauncher) {
+      const released = await guardLauncher.stop(true);
+      if (!released) {
+        retained = true;
+        last = 'SESSION_RELEASE_UNCONFIRMED';
+        return owned() ? reply() : { success: false, error: 'Renderer request denied' };
+      }
+      if (!owned()) return { success: false, error: 'Renderer request denied' };
+    }
     if (action === 'install' && session?.ended && ownedInstall) return reply('SESSION_ENDED');
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
@@ -358,7 +419,9 @@ function createClaudeHookApp(options) {
    * @param {string} action Fixed operation. @param {Function} guard Current renderer ownership.
    * @returns {Promise<object>} Fixed public outcome, never private review data. @since v0.21.0 */
   async function handle(action, guard) {
-    if (!['status', 'install', 'remove', 'open-profile'].includes(action))
+    if (
+      !['status', 'install', 'remove', 'open-profile', 'guard-start', 'guard-stop'].includes(action)
+    )
       return { success: false, error: 'Invalid profile operation' };
     const window = getWindow?.();
     const owned = () =>
@@ -398,8 +461,13 @@ function createClaudeHookApp(options) {
     session?.review.release(owner);
     if (applying && active) await active.catch(() => {});
     if (pendingSession) await pendingSession.catch(() => {});
+    await guardLauncher?.close();
     await endSession();
   }
-  return Object.freeze({ handle, close, hasPending: () => !!session || busy });
+  return Object.freeze({
+    handle,
+    close,
+    hasPending: () => !!session || busy || !!guardLauncher?.hasPending(),
+  });
 }
 module.exports = { createClaudeHookApp };

@@ -202,4 +202,78 @@ async function createWindowsHookIO(options) {
   }
 }
 
-module.exports = { createWindowsHookIO };
+/**
+ * Open a fixed application-owned profile with native identity retention and no
+ * backup store or mutation methods. Caller owns selection and must not treat a
+ * read as consent, ownership proof, or an atomic execution guarantee.
+ * @param {object} options Fixed owned profile target, qualified assets and bounded limits.
+ * @returns {Promise<object>} Bounded read, close and sanitized status.
+ * @since v0.21.0
+ */
+async function createWindowsHookReadIO(options) {
+  let pipe;
+  try {
+    privateMode();
+    if (
+      !exact(options, [
+        'ownedProfile',
+        'targetPath',
+        'assets',
+        'requestMs',
+        'sessionMs',
+        'cleanupMs',
+      ]) ||
+      options.ownedProfile !== true ||
+      typeof options.targetPath !== 'string' ||
+      !/^[A-Za-z]:\\/.test(options.targetPath) ||
+      options.targetPath.length > 240 ||
+      !bounded(options.requestMs, 100, 10000) ||
+      !bounded(options.sessionMs, options.requestMs, 180000) ||
+      !bounded(options.cleanupMs, 100, 5000)
+    )
+      throw failure();
+    const target = options.targetPath[0].toUpperCase() + options.targetPath.slice(1);
+    const assets = qualifyAssets(options.assets);
+    privateMode();
+    const child = spawn(assets.executable, assets.args, {
+      cwd: assets.cwd,
+      env: assets.env,
+      windowsHide: true,
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    pipe = createPipe(child, options);
+    const opened = await pipe.request({ op: 'open-read', target });
+    if (!exact(opened, ['id', 'ok', 'protocol']) || opened.protocol !== 1) throw failure();
+    let busy = false;
+    return Object.freeze({
+      async readTarget() {
+        if (busy) throw failure();
+        busy = true;
+        try {
+          privateMode();
+          const value = await pipe.request({ op: 'read' });
+          if (
+            !exact(value, ['id', 'ok', 'identity', 'bytes']) ||
+            typeof value.identity !== 'string' ||
+            !/^[a-f0-9]{16}:[a-f0-9]{32}$/.test(value.identity)
+          )
+            throw failure();
+          return { identity: value.identity, bytes: decoded(value.bytes, 262144) };
+        } catch {
+          await pipe.close();
+          throw failure();
+        } finally {
+          busy = false;
+        }
+      },
+      close: () => pipe.close(),
+      status: () => pipe.status(),
+    });
+  } catch {
+    if (pipe) await pipe.close();
+    throw failure();
+  }
+}
+
+module.exports = { createWindowsHookIO, createWindowsHookReadIO };

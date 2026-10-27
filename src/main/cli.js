@@ -41,6 +41,7 @@ Options:
   --action-exec-appcontainer-import-confirm <policy.json> <request.json> <input-file>  Import one 64 KiB snapshot as input.bin before a confirmed isolated launch
   --action-appcontainer-workspaces  Privately list AEGIS-tracked AppContainer workspaces and current identity status
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
+  --claude-guard-session <port> <session-id>  Start one explicitly reviewed Claude session
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
   --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
@@ -116,6 +117,8 @@ async function handleCLI(argv) {
     return require('./action-policy-hook').handleActionPolicyHook(args, write);
   if (args.includes('--gemini-beforetool-hook'))
     return require('./gemini-beforetool-hook').handleGeminiBeforeToolHook(args, write);
+  if (flag === '--claude-guard-session')
+    return require('./claude-guard-broker').handleClaudeGuardSession(args, write);
   if (['--mcp-gateway-stdio', '--mcp-gateway-http'].includes(flag))
     return require('./mcp-gateway-cli').handleMcpGatewayCLI(args);
   if (flag === '--mcp-gateway-credential-tag')
