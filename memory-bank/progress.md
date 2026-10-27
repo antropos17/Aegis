@@ -4172,3 +4172,16 @@ unavailable/ask outcomes, including a typed-output classifier-only case when
 applicable. Source and process policy were reviewed at
 `813804e2aae1c020f4b17cb7a30f053a210185ef`. These are pending implementation and
 qualification requirements; this documentation change promotes no acceptance.
+
+## W6.2 retry retention and state-check outage — 2026-10-27
+
+The owner requested deduplication retention through the enforced retry horizon
+plus bounded clock skew, independent of approval expiry. W6.2 now requires trusted
+operation-age enforcement, rejection of post-horizon retries and preservation of
+live deduplication protection under restart/storage pressure. During mandatory
+state-check outages, affected mutations are refused while bounded secret-free
+diagnostics remain available. Recovery grants no automatic replay or approval
+renewal; previously dispatched unknown outcomes require reconciliation. Acceptance
+adds retention-boundary and outage/recovery target-outcome cases. Source/process
+policy baseline: `a83ad2208665c209d3be0ff6638fd27b2657da6d`. Implementation and
+provider qualification remain open.
