@@ -327,6 +327,62 @@ it('allows Stop retry when release is unconfirmed despite an inactive snapshot',
   expect(review.mock.calls).toEqual([['status'], ['guard-stop']]);
 });
 
+it('keeps admission blocked after an uncertain write, failed refresh and successful stop', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'READBACK_FAILED',
+      available: true,
+      canOpen: true,
+      guardSession: snapshot(),
+    })
+    .mockRejectedValueOnce(Error('private'))
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_STOPPED',
+      available: true,
+      canOpen: true,
+      guardSession: snapshot('ended'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(
+    'The written profile could not be verified. Retained backups require recovery review.',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh setup status' }));
+  await screen.findByText(
+    'Reporting session status is unavailable. Refresh setup status to try again.',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop reporting' }));
+  await screen.findByText(
+    'Reporting stopped. A previously launched Claude process may still be running.',
+  );
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  expect(
+    screen.getByRole('button', { name: 'Prepare with accepted project snapshot' }),
+  ).toBeDisabled();
+  expect(
+    screen.getByText('Session preparation is unavailable while a previous result requires review.'),
+  ).toBeVisible();
+  expect(review.mock.calls).toEqual([['status'], ['status'], ['guard-stop']]);
+});
+
+it('does not infer recovery from a refused status after remount', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValue({
+      success: true,
+      code: 'READY',
+      available: true,
+      canOpen: true,
+      guardSession: snapshot('refused'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(/Session refused/);
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
+});
+
 it('allows a safe stop after an initially malformed status', async () => {
   const review = vi
     .fn()

@@ -2215,6 +2215,7 @@
   "Session listening; delivery remains unknown": "Sessão aguardando relatórios; a entrega permanece desconhecida",
   "Reporting session status is unavailable. Refresh setup status to try again.": "O estado da sessão de relatórios está indisponível. Atualize o estado da configuração para tentar novamente.",
   "Session preparation is unavailable until setup status is ready. Refresh to retry.": "A preparação da sessão está indisponível até que o estado da configuração esteja pronto. Atualize para tentar novamente.",
+  "Session preparation is unavailable while a previous result requires review.": "A preparação da sessão está indisponível enquanto um resultado anterior precisa de revisão.",
   "Checking reporting session status…": "Verificando o estado da sessão de relatórios…",
   "Last successful check; current session status may have changed:": "Última verificação bem-sucedida; o estado atual da sessão pode ter mudado:",
   "Retained reports are historical and may not describe the current session.": "Os relatórios retidos são históricos e podem não descrever a sessão atual.",

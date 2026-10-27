@@ -160,21 +160,23 @@
   };
   let guardSession = $state<GuardSnapshot | null>(null);
   let guardStatusKnown = $state(false);
+  let guardRecoveryRequired = $state(false);
   let retainedReports = $state(false);
   let retainedReportLoss = $state(false);
   let alive = true;
   let available = $derived(!preview && typeof host?.reviewClaudeHookProfile === 'function');
-  let guardAdmissionBlocked = $derived(
-    [
-      'WRITE_UNCERTAIN',
-      'READBACK_FAILED',
-      'POLICY_CREATE_UNCERTAIN',
-      'POLICY_UNADOPTED',
-      'SESSION_RELEASE_UNCONFIRMED',
-      'GUARD_RELEASE_UNCONFIRMED',
-      'RETAINED_UNKNOWN',
-    ].includes(profileState.code),
-  );
+  const recoveryCodes = new Set([
+    'WRITE_UNCERTAIN',
+    'READBACK_FAILED',
+    'POLICY_CREATE_UNCERTAIN',
+    'POLICY_UNADOPTED',
+    'SESSION_RELEASE_UNCONFIRMED',
+    'GUARD_RELEASE_UNCONFIRMED',
+    'RETAINED_UNKNOWN',
+  ]);
+  // The current response has no capability proving that both retained native
+  // resources recovered, so later unrelated replies cannot clear this block.
+  let guardAdmissionBlocked = $derived(guardRecoveryRequired || guardSession?.status === 'refused');
   onDestroy(() => {
     alive = false;
   });
@@ -190,6 +192,7 @@
       const value = record(confirmed(await invoke(host, 'reviewClaudeHookProfile', action)));
       if (!alive) return;
       const code = typeof value.code === 'string' ? value.code : 'OPERATION_FAILED';
+      if (recoveryCodes.has(code)) guardRecoveryRequired = true;
       profileState = {
         code,
         canInstall: value.canInstall === true,
@@ -399,12 +402,17 @@
         disabled={!available ||
           pending !== null ||
           (guardStatusKnown &&
-            !['waiting', 'awaiting-confirmation', 'active'].includes(guardSession?.status ?? ''))}
+            !['waiting', 'awaiting-confirmation', 'active', 'refused'].includes(
+              guardSession?.status ?? '',
+            ))}
         onclick={() => perform('guard-stop')}>{$t('Stop reporting')}</button
       >
     </div>
     {#if available && pending === null && !profileState.serviceReady}<p class="muted">
         {$t('Session preparation is unavailable until setup status is ready. Refresh to retry.')}
+      </p>{/if}
+    {#if available && pending === null && guardAdmissionBlocked}<p class="muted">
+        {$t('Session preparation is unavailable while a previous result requires review.')}
       </p>{/if}
     <p class="muted">
       {$t(
