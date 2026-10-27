@@ -128,7 +128,11 @@ function createLiveToolContext(options) {
     const population = snapshots.filter(observed);
     const claudeRows = snapshots.filter((row) => row?.agent === 'Claude Code');
     // Every Claude row must be examined, even when native inspection is unavailable.
-    if (claudeRows.length !== population.length) return unavailable('process-identity-unavailable');
+    if (
+      claudeRows.length !== population.length ||
+      new Set(population.map((row) => row.pid)).size !== population.length
+    )
+      return unavailable('process-identity-unavailable');
     const populationStamp = JSON.stringify(population.map(witness).sort());
     const samePopulation = (rows) =>
       Array.isArray(rows) &&

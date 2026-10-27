@@ -686,6 +686,16 @@ it('keeps stable distinct metadata-only Claude peers inferred when native inspec
     expect(JSON.stringify(result)).not.toContain(raw);
 });
 
+it('rejects distinct Claude instances sharing a PID when native inspection is unavailable', async () => {
+  agents.push({ ...agents[0], startTime: start + 1, instanceId: `42:${start + 1}` });
+  const result = await service.explain(eventId);
+  expect(result.availability).toBe('unavailable');
+  expect(result.toolContext.strength).toBe('unattributed');
+  expect(result.toolContext.candidates).toEqual([]);
+  for (const raw of [secret, cwd, sessionId, 'call-1', '.env'])
+    expect(JSON.stringify(result)).not.toContain(raw);
+});
+
 it('rejects an already malformed Claude peer when native inspection is unavailable', async () => {
   agents.push({ agent: 'Claude Code', pid: 43 });
   const result = await service.explain(eventId);
