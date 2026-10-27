@@ -124,10 +124,10 @@ it('advances and freezes timeline lanes independently of pushes while keeping fu
   };
   const mounted = render(Timeline, { telemetry, paused: true, inspect: vi.fn() });
   await fireEvent.change(screen.getByLabelText('Range'), { target: { value: '5' } });
-  expect(screen.getByRole('button', { name: 'Codex: 1 events' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Codex: 1 events, / })).toBeInTheDocument();
   await vi.advanceTimersByTimeAsync(20000);
   await tick();
-  expect(screen.getByRole('button', { name: 'Codex: 1 events' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Codex: 1 events, / })).toBeInTheDocument();
   await mounted.rerender({ paused: false });
   await tick();
   expect(screen.queryByRole('button', { name: /Codex: .* events/ })).toBeNull();

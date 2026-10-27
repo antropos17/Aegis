@@ -245,6 +245,7 @@
     <EditorDialog
       title={$t('Anthropic connection')}
       caption={$t('AI analysis')}
+      sectionLabel="AI analysis sections"
       tabs={[
         { id: 'connection', label: 'Connection', icon: 'network' },
         { id: 'usage', label: 'Usage', icon: 'chart' },

@@ -92,7 +92,7 @@
   {#if reviewable}
     <div class="review-control">
       <button class="button" aria-pressed={reviewed} onclick={toggleReview}
-        >{$t('Mark reviewed')}</button
+        >{reviewed ? $t('Return to review') : $t('Mark reviewed')}</button
       >
       {#if reviewed}<span>{$t('Reviewed this session')}</span>{/if}
     </div>

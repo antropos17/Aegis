@@ -50,6 +50,7 @@
   let category = $state('all');
   let selected = $state.raw<RadarResource | null>(null);
   let heading = $state<HTMLHeadingElement>();
+  let search = $state<HTMLInputElement>();
   let origin: HTMLButtonElement;
   const filtered = $derived(
     resources.filter(
@@ -88,6 +89,7 @@
   function clear() {
     selected = null;
     if (origin?.isConnected) origin.focus();
+    else search?.focus();
   }
 </script>
 
@@ -154,6 +156,7 @@
     <label class="resource-search"
       >{$t('Search')}<input
         type="search"
+        bind:this={search}
         aria-label={layer === 'files' ? $t('Search radar files') : $t('Search radar destinations')}
         placeholder={layer === 'files'
           ? $t('File, path, agent or action…')

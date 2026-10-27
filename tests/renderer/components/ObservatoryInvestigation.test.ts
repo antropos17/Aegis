@@ -56,6 +56,38 @@ afterEach(() => {
   localStorage.clear();
 });
 
+it('offers explicit file-read controls in the investigation workspace', async () => {
+  const transport = bridge();
+  const controlFileReads = vi.fn(async () => ({ success: true }));
+  transport.host.controlFileReads = controlFileReads;
+  render(App, { host: transport.host });
+  await transport.push('onScanBatch', {
+    stats: {
+      ...stats,
+      fileReadDiagnostics: {
+        mode: 'ordinary',
+        phase: 'disabled',
+        controls: { canStart: true, canStop: false },
+        reads: [],
+      },
+    },
+    agents: [],
+  });
+  const workspace = screen.getByRole('region', { name: 'Investigation workspace' });
+  const folder = within(workspace).getByRole('textbox', { name: 'Folder to monitor' });
+  const start = within(workspace).getByRole('button', { name: 'Start file read monitoring' });
+  expect(start).toBeDisabled();
+  expect(controlFileReads).not.toHaveBeenCalled();
+  await fireEvent.input(folder, { target: { value: 'C:\\fixture' } });
+  await fireEvent.click(start);
+  await waitFor(() =>
+    expect(controlFileReads).toHaveBeenCalledExactlyOnceWith({
+      action: 'start',
+      root: 'C:\\fixture',
+    }),
+  );
+}, 15_000);
+
 it('keeps agent selection and activity in one destination and retains its filters through settings', async () => {
   const transport = bridge();
   render(App, { host: transport.host });

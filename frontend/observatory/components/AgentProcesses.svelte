@@ -73,7 +73,9 @@
     </table>
   </div>
   {#if members.length > 5}<button class="more button" onclick={() => (expanded = !expanded)}
-      >{expanded ? $t('Show fewer processes') : 'Show all ' + members.length + ' processes'}</button
+      >{expanded
+        ? $t('Show fewer processes')
+        : $t('Show all {count} processes', { count: members.length })}</button
     >{/if}
 </section>
 

@@ -10,6 +10,10 @@
     items,
     evicted,
     journalStatus = 'ready',
+    journalLoadError = false,
+    journalLoading = false,
+    reviewSaveError = false,
+    onRetryJournal,
     reviewPending = false,
     onReview,
     onInspect,
@@ -20,6 +24,10 @@
     items: SensitiveAlert[];
     evicted: number;
     journalStatus?: string;
+    journalLoadError?: boolean;
+    journalLoading?: boolean;
+    reviewSaveError?: boolean;
+    onRetryJournal?: () => Promise<void>;
     reviewPending?: boolean;
     onReview: (_id: string, _reviewed: boolean) => Promise<boolean>;
     onInspect?: (_item: SensitiveAlert) => void;
@@ -30,6 +38,7 @@
   let filter = $state<'open' | 'all'>('open');
   let heading: HTMLHeadingElement;
   let openFilterButton: HTMLButtonElement;
+  let retryButton = $state<HTMLButtonElement>();
   let list: HTMLUListElement;
   const openCount = $derived(items.filter((item) => !item.reviewed).length);
   const visible = $derived(filter === 'open' ? items.filter((item) => !item.reviewed) : items);
@@ -51,6 +60,15 @@
     await tick();
     const buttons = list.querySelectorAll<HTMLButtonElement>('button[data-review-action]');
     (buttons[Math.min(index, buttons.length - 1)] ?? openFilterButton)?.focus();
+  }
+
+  async function retryJournal(): Promise<void> {
+    if (journalLoading) return;
+    const hadFocus = document.activeElement === retryButton;
+    await onRetryJournal?.();
+    await tick();
+    if (hadFocus && !retryButton?.isConnected && document.activeElement === document.body)
+      openFilterButton?.focus();
   }
 </script>
 
@@ -81,11 +99,23 @@
     <strong>{$t('{value0} need review', { value0: openCount })}</strong>
     <span>{$t('{value0} retained alerts', { value0: items.length })}</span>
   </div>
+  {#if journalLoadError}
+    <div class="retention" role="status">
+      <p>{$t('Saved alert history could not be loaded. Live alerts remain available.')}</p>
+      {#if onRetryJournal}<button
+          class="review"
+          bind:this={retryButton}
+          aria-disabled={journalLoading}
+          onclick={retryJournal}>{$t('Retry loading')}</button
+        >{/if}
+    </div>
+  {/if}
   {#if journalStatus === 'corrupt'}
     <p class="retention">
       {$t('Saved alert history was unreadable; review states started fresh.')}
     </p>
-  {:else if journalStatus === 'write-error'}
+  {/if}
+  {#if reviewSaveError || journalStatus === 'write-error'}
     <p class="retention">{$t('Alert review could not be saved. Try again.')}</p>
   {/if}
   {#if evicted > 0}

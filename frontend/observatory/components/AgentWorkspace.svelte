@@ -221,7 +221,7 @@
                   ? $t('Current assessment unavailable')
                   : !risk.subject.instanceId
                     ? $t('Process identity not recorded')
-                    : (risk.contributions[0]?.label ?? $t('No scored activity'))}<small
+                    : $t(risk.contributions[0]?.label ?? 'No scored activity')}<small
                   >{scope.instanceId ? $t('This process') : $t('Highest process score')}</small
                 ></span
               >

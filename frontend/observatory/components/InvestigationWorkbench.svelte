@@ -50,6 +50,7 @@
       <h2 id="investigation-activity" tabindex="-1">{$t('Activity')}</h2>
       <Events
         {telemetry}
+        {host}
         {scope}
         inspect={capture}
         advanced={false}
