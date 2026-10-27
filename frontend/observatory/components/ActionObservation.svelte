@@ -24,7 +24,7 @@
   let pendingCommand = $state('');
   let alive = true,
     generation = 0;
-  let lease: string | null = null;
+  let lease = $state<string | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let expiry: ReturnType<typeof setTimeout> | undefined;
   const available = $derived(!preview && typeof host?.localSecurityReview === 'function');
@@ -43,6 +43,11 @@
     };
     onObservation?.(observation);
   }
+  function stopUnknown() {
+    unavailable();
+    feedback =
+      'Observation stop status is unknown. You can retry stopping this observation connection.';
+  }
   function validLease(value: unknown): value is string {
     return typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value);
   }
@@ -59,7 +64,8 @@
       () => {
         expired = true;
         if (alive && epoch === generation) {
-          unavailable();
+          if (action === 'stop-observing-route') stopUnknown();
+          else unavailable();
           busy = false;
         }
       },
@@ -79,10 +85,14 @@
           stopLease(response.lease);
         return;
       }
+      if (action !== 'observe-route' && requestLease !== lease) return;
       if (response.success !== true) {
-        if (response.cancelled === true && action === 'observe-route')
+        if (action === 'stop-observing-route') {
+          stopUnknown();
+          error = 'Observation request could not be completed.';
+        } else if (response.cancelled === true && action === 'observe-route')
           feedback = 'Cancelled. Previous observation details are retained.';
-        if (response.cancelled !== true) {
+        else if (response.cancelled !== true) {
           if (action === 'route-observation') unavailable();
           error = 'Observation request could not be completed.';
         }
@@ -94,20 +104,41 @@
           return;
         }
         lease = response.lease;
-      } else if (action === 'stop-observing-route') lease = null;
+      }
       const next = parseRouteObservation(response.observation);
       if (!next) {
-        if (action === 'observe-route' && lease) {
-          stopLease(lease);
-          lease = null;
+        if (action === 'stop-observing-route') stopUnknown();
+        else unavailable();
+        return;
+      }
+      if (action === 'stop-observing-route') {
+        if (!['stopped', 'coverage-lost', 'unavailable'].includes(next.state)) {
+          stopUnknown();
+          return;
         }
-        unavailable();
+        lease = null;
+        observation = {
+          ...next,
+          state: 'stopped',
+          reason: 'observer-stopped',
+          lastObservedAt: next.lastObservedAt ?? observation?.lastObservedAt ?? null,
+          snapshot: next.snapshot ?? observation?.snapshot ?? null,
+        };
+        onObservation?.(observation);
         return;
       }
       observation = next;
       onObservation?.(next);
     } catch {
-      if (alive && epoch === generation) unavailable();
+      if (
+        alive &&
+        epoch === generation &&
+        !expired &&
+        (action === 'observe-route' || requestLease === lease)
+      ) {
+        if (action === 'stop-observing-route') stopUnknown();
+        else unavailable();
+      }
     } finally {
       clearTimeout(timeout);
       if (alive && epoch === generation && !expired) {
@@ -161,9 +192,9 @@
         aria-busy={busy}
         onclick={() => command('observe-route')}>{$t('Choose observation endpoint')}</button
       >
-      {#if active}<button
+      {#if lease}<button
           class="button"
-          disabled={busy}
+          disabled={busy || !available}
           onclick={() => command('stop-observing-route')}>{$t('Stop observing')}</button
         >{/if}
     </div>
@@ -190,6 +221,11 @@
       )}
     </p>
     <p role="alert">{$t(error)}</p>
+    {#if lease && (observation?.state === 'coverage-lost' || observation?.state === 'unavailable')}
+      <p class="muted">
+        {$t('The agent or action may still be running. Stopping observation does not stop it.')}
+      </p>
+    {/if}
     {#if observation?.state === 'coverage-lost'}
       <p>
         {$t(
