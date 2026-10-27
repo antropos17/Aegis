@@ -3,8 +3,9 @@
 Status: a connected **before-only** Claude command-hook adapter. It returns
 `allow`, `ask` or `deny` for `PreToolUse` Bash requests. B1 remains partial:
 a separate [in-process session](ACTION-POLICY-SESSION.md) now correlates decisions
-with after reports in the provider fixture. Production linkage, reusable permission
-protection, exact approval binding and failure-resistant execution mediation remain open.
+with after reports in the provider fixture. Production before/after correlation,
+reusable permission protection, exact approval binding and failure-resistant
+execution mediation remain open.
 This adapter does not reuse the lifecycle collector or send arguments over HTTP.
 An explicitly started terminal session can send a bounded, fixed decision
 category to the desktop; reporting does not change the provider decision.
