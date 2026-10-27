@@ -195,7 +195,7 @@ The README loaded all 20 images at a 390×844 dark browser viewport without page
 overflow; the active GitHub social GIF still needs an authenticated Settings change
 ([#626](https://github.com/antropos17/Aegis/issues/626)).
 
-Current source pins Electron 43.7.7. Its Windows binary reports Node 24.21.0,
+At that checkpoint, source pinned Electron 43.7.7. Its Windows binary reports Node 24.21.0,
 Chromium 150.0.7871.250 and Undici 7.29.1. The first beta's Electron 43.5.0
 embeds 7.29.0, which falls within the affected ranges of the upstream
 [BalancedPool](https://github.com/nodejs/undici/security/advisories/GHSA-w293-vg96-wgc3)
@@ -308,7 +308,7 @@ received a follow-up in [PR #729](https://github.com/antropos17/Aegis/pull/729) 
 a later combined-source run reproduced EPERM. Earlier successful checks remain
 evidence for their recorded revisions, rather than a guarantee for later runs.
 The published 0.18.1-beta retains Claude transcript dedup state in memory for the
-application lifetime. Current source moves session cursors and hashed message/path
+application lifetime. The later source described here moves session cursors and hashed message/path
 keys to a run-scoped SQLite index with a 128 MiB file limit and a 2 MiB cache target.
 Commit failures roll back the whole usage batch; session resume and transcript
 rewrite keep their exact dedup history. The published 0.19.0-beta installer includes

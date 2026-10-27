@@ -1,11 +1,13 @@
 # AEGIS Roadmap
 
-## Current source checkpoint — 16 October 2026
+## Source checkpoint — 16 October 2026
 
-Current source is [master `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a),
+At this checkpoint, source was [`6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a),
 package version `0.19.2-beta`. The published installer with that version is dated
 6 October; later source changes require a later installer release. The
-[capability guide](docs/CAPABILITIES.md) describes implemented entry points.
+[capability guide](docs/CAPABILITIES.md) describes reviewed entry points. For
+current priorities and acceptance, use the [completion plan](docs/roadmap/completion-plan.md)
+and verify the selected revision against its own source and evidence.
 
 PRs [#941](https://github.com/antropos17/Aegis/pull/941) and
 [#942](https://github.com/antropos17/Aegis/pull/942) add administrative fresh-VM
@@ -53,7 +55,7 @@ Do not schedule these capabilities as new work:
   [audit-index.md](docs/roadmap/audit-index.md).
 - Sensor Health B1–B8, including suspend/resume gaps and the cross-sensor umbrella
   suite (PR #329). See [sensor-health-degraded.md](docs/roadmap/sensor-health-degraded.md).
-- Sequence loader, engine, scan taps, hot reload and mutation gate. See
+- Sequence loader, engine, scan taps and hot reload. See
   [sequence-rules.md](docs/roadmap/sequence-rules.md).
 - Startup work: deferred initialization, evidence watchers in workers and deferred
   log cleanup. Further performance changes need a measured bottleneck.
@@ -83,10 +85,14 @@ Retained observations keep their original time and an explicit stale flag. A WSL
 namespace PID must never become a Windows PID for file/network attribution.
 Discovery alone does not close every requirement of issue #8.
 
-## B — Windows ETW attribution
+## B — Windows ETW attribution (historical queue)
 
-[Issue #12](https://github.com/antropos17/Aegis/issues/12) needs measurements before
-production implementation. [kernel-file-etw.md](docs/recon/kernel-file-etw.md) lists
+This queue describes the original research and staged implementation. Current
+Windows packages also provide explicitly started experimental read capture; see
+[ordinary file reads](docs/development/ordinary-file-reads.md) and W11 in the
+[completion plan](docs/roadmap/completion-plan.md) for current scope and open gates.
+[Issue #12](https://github.com/antropos17/Aegis/issues/12) retains broader open
+coverage questions. [kernel-file-etw.md](docs/recon/kernel-file-etw.md) lists
 **13** hardware-gated questions, including Fast I/O, mapped files, Windows editions
 and Hyper-V as well as filtering, event identity, mapping lifecycle and loss.
 The dependency is those observations, not the absence of a Windows host.
@@ -130,8 +136,8 @@ The dependency is those observations, not the absence of a Windows host.
 5. **B5 (diagnostic backend implemented; narrow live smoke passed):**
    [connected file backend](docs/roadmap/etw-file-backend.md) adds the fixed provider,
    bounded queues and naming maps, candidate process witnesses, lifecycle supervisor,
-   explicit verified restart and optional Electron health wiring. Enabled only by a
-   explicit root flag; ordinary packaged capture stays gated. The separately
+   explicit verified restart and optional Electron health wiring. Enabled only by
+   an explicit root flag at that stage; ordinary packaged capture was gated. The separately
    marked local diagnostic package supports bounded qualification. Historical live evidence confirms
    a scoped Read/header PID candidate and owned stop, with zero native losses but
    substantial counted ingress drops. The initial smoke left E4/E5 attribution,
