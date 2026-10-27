@@ -852,6 +852,60 @@ deterministic under section 3's invariant. A model may explain evidence but must
 not silently override policy or turn an unknown enforcement result into a pass.
 None of these plan additions authorizes a native VM run or changes acceptance.
 
+#### Phased provider coverage for shared Guard policies (2026-10-27)
+
+Extend the existing W6/W9 path in the sequence below after its first Claude
+closure, without changing the section 7 order. A single AEGIS policy contract
+and evaluator should serve each supported adapter; provider-specific adapters
+translate only documented hook inputs and decisions. Reuse an existing evaluator
+where its policy and action contracts apply. Cedar remains contingent on W5
+equivalence and route-specific runtime evidence. This is a phased implementation
+plan, not a claim of universal interception or current provider acceptance.
+
+1. **Claude Code on Windows:** finish the first named version and Bash route as
+   described above, including owner-visible setup, independent allow/deny effect
+   checks and clear coverage limits. Use this route to establish the shared
+   policy contract and end-to-end evidence needed by later adapters.
+2. **Codex:** connect one supported pre-execution tool surface to that contract
+   after checking the installed version's actual hook schema, decision semantics,
+   setup and failure behavior. The existing
+   [finite Codex adapter replay](enforcement-e8/provider-replay.md) is
+   developer-only and does not establish native enforcement or interactive
+   approval. Qualify a real allowed action and a denied action with independent
+   effect evidence. If the hook cannot honor `ask`, explicitly refuse or use a
+   separately qualified owner-approval route; never translate it into an allow.
+3. **Gemini CLI:** connect and qualify a named version's supported shell surface
+   against the same applicable policy contract. Reuse the existing
+   [exact-deny BeforeTool adapter](../ACTION-GEMINI-BEFORETOOL.md) as a starting
+   point; its manual, exact-match behavior and unmatched response do not prove
+   general shell enforcement. Verify permitted and denied effects and the host's
+   actual handling of errors and timeouts before claiming protection.
+4. **Other agents and surfaces:** add Cursor and other requested agents one at a
+   time when their supported pre-execution boundary and a concrete user-visible
+   route are available. Record unsupported or unavailable hooks explicitly;
+   selected MCP routes may use their existing gateway and grants when the client
+   actually traverses them. A proxy, installed hook or agent signature alone
+   does not cover direct calls, other tools or unobserved launches.
+
+For every stage, record agent and version, platform, tool/action scope, selected
+policy and settings, adapter mapping and installation/removal evidence. Show the
+operation, rule reason, decision and observed or unknown outcome in the existing
+Guard/coverage UI. Policy changes or input/target changes require a fresh
+decision under the applicable grant contract. Preserve unrelated provider
+settings and require the existing owner confirmation for profile changes.
+
+Each adapter must preserve the policy's deny and supported approval semantics;
+unknown, malformed or unsupported input and unavailable decisions cannot become
+an implicit AEGIS allow. This local rule is not a claim that a host fails closed:
+test missing, unstartable, timed-out and tampered hooks, malformed responses and
+bypasses on the actual provider, and report when the host can still execute.
+An installed-agent receipt must independently prove both denied-no-effect and
+allowed-effect cases, and include ordinary tasks and false blocks. Fixture replay
+is preliminary evidence only. Mark `Blocking verified` solely for the qualified
+version, platform, route and action surface; otherwise show the actual observed,
+unknown or lost state. W8 records false allows, false blocks and task impact
+against an independent oracle for each qualified surface.
+
 #### W6.1 — MCP approval target identity and argument changes
 
 Pending follow-up added on 2026-10-27 from QuanTradin's r/mcp feedback on
