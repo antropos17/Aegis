@@ -97,6 +97,7 @@ function createLiveToolContext(options) {
     now = Date.now,
     monotonicNow = () => performance.now(),
     observeProcesses = readClaudeProcesses,
+    getPopulationGeneration = () => 0,
     onAuditRevision = () => {},
     auditProof = () => null,
   } = options;
@@ -342,7 +343,8 @@ function createLiveToolContext(options) {
     return events.get(aliasId);
   }
 
-  async function resolve(event) {
+  async function resolve(event, populationCurrent) {
+    if (!populationCurrent()) return unavailable('process-identity-unavailable');
     const snapshots = getAgents();
     if (!Array.isArray(snapshots)) return unavailable('process-identity-unavailable');
     const matches = snapshots.filter(
@@ -368,6 +370,7 @@ function createLiveToolContext(options) {
       JSON.stringify(rows.filter(observed).map(witness).sort()) === populationStamp;
     if (population.length > 32) return unavailable('binding-limit');
     const nativeBefore = await observeProcesses(population);
+    if (!populationCurrent()) return unavailable('process-identity-unavailable');
     const native = processWitness(nativeBefore, agent);
     if (nativeBefore?.some((row) => row.ProcessId === agent.pid) && !native)
       return unavailable('process-binding-mismatch');
@@ -382,6 +385,7 @@ function createLiveToolContext(options) {
     )
       return unavailable('binding-unavailable-or-outside-lifetime');
     const selected = await registryAt(home, agent.pid);
+    if (!populationCurrent()) return unavailable('process-identity-unavailable');
     // Registry start is agent-reported startup, NOT an independent OS birth witness.
     // Confirmation additionally requires the independently observed native launch
     // selector, full-resolution birth and cwd before/after the source read.
@@ -407,10 +411,12 @@ function createLiveToolContext(options) {
       try {
         other = await registryAt(home, peer.pid);
       } catch {
+        if (!populationCurrent()) return unavailable('process-identity-unavailable');
         peerRegistries.push(null);
         oneToOne = false;
         continue;
       }
+      if (!populationCurrent()) return unavailable('process-identity-unavailable');
       peerRegistries.push(other);
       if (other.sessionId === selected.sessionId) return unavailable('session-binding-mismatch');
       const peerProof = processWitness(nativeBefore, peer);
@@ -433,6 +439,10 @@ function createLiveToolContext(options) {
       512 * 1024,
       true,
     );
+    if (!populationCurrent()) {
+      bytes.fill(0);
+      return unavailable('process-identity-unavailable');
+    }
     const adapter = createSessionContext({ digestKey });
     let batch;
     try {
@@ -447,6 +457,7 @@ function createLiveToolContext(options) {
       bytes.fill(0);
     }
     const after = await registryAt(home, agent.pid);
+    if (!populationCurrent()) return unavailable('process-identity-unavailable');
     const current = getAgents();
     if (
       JSON.stringify(after) !== JSON.stringify(selected) ||
@@ -463,11 +474,13 @@ function createLiveToolContext(options) {
       } catch {
         // A missing or unreadable registry cannot establish one-to-one ownership.
       }
+      if (!populationCurrent()) return unavailable('process-identity-unavailable');
       if (JSON.stringify(afterPeer) !== JSON.stringify(peerRegistries[index]))
         return unavailable('session-binding-mismatch');
     }
     if (native) {
       const nativeAfter = await observeProcesses(population);
+      if (!populationCurrent()) return unavailable('process-identity-unavailable');
       if (JSON.stringify(nativeAfter) !== JSON.stringify(nativeBefore))
         return unavailable('process-binding-mismatch');
     }
@@ -527,6 +540,21 @@ function createLiveToolContext(options) {
       return unavailable('context-unavailable');
     const retained = selected(id);
     if (!retained) return unavailable('context-unavailable');
+    let populationGeneration;
+    try {
+      populationGeneration = getPopulationGeneration();
+    } catch {
+      return unavailable('process-identity-unavailable');
+    }
+    if (populationGeneration === null || populationGeneration === undefined)
+      return unavailable('process-identity-unavailable');
+    const populationCurrent = () => {
+      try {
+        return getPopulationGeneration() === populationGeneration;
+      } catch {
+        return false;
+      }
+    };
     const auditRow = id.startsWith('audit:') ? auditRows.get(id.slice(6).toLowerCase()) : null;
     const validAudit = async () => {
       if (!auditRow) return !id.startsWith('audit:');
@@ -546,11 +574,11 @@ function createLiveToolContext(options) {
     try {
       const initialProofValid = await validAudit();
       prune();
-      if (!initialProofValid || selected(id) !== retained) {
+      if (!initialProofValid || selected(id) !== retained || !populationCurrent()) {
         if (auditRow) invalidateAudit();
         return unavailable('context-unavailable');
       }
-      work = resolve(retained)
+      work = resolve(retained, populationCurrent)
         .catch(() => unavailable('source-unavailable'))
         .finally(() => {
           workFinished = true;
@@ -562,10 +590,11 @@ function createLiveToolContext(options) {
         }),
       ]);
       prune();
-      if (selected(id) !== retained) return unavailable('context-unavailable');
+      if (selected(id) !== retained || !populationCurrent())
+        return unavailable('context-unavailable');
       const finalProofValid = await validAudit();
       prune();
-      if (selected(id) !== retained || !finalProofValid) {
+      if (selected(id) !== retained || !finalProofValid || !populationCurrent()) {
         if (auditRow) invalidateAudit();
         return unavailable('context-unavailable');
       }

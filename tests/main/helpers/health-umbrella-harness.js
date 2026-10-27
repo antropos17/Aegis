@@ -588,6 +588,7 @@ export function createHarness(shims, opts = {}) {
     watcher,
     sessionTracker,
     gap,
+    powerMonitor,
     scanLoop,
     deps,
     fsState,
