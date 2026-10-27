@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { selectRuntimeRoot } = require('./hook-review-runtime-root.cjs');
 const root = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const replace = args.includes('--replace');
@@ -22,9 +23,7 @@ const destination = path.resolve(options['--output'] || path.join(root, 'build',
 if (replace && options['--output'])
   throw Error('--replace only applies to the default build output');
 const output = replace ? destination + '-next-' + process.pid : destination;
-const runtimeRoot = path.resolve(
-  options['--runtime-root'] || path.join(process.env.ProgramFiles || 'C:/Program Files', 'dotnet'),
-);
+const runtimeRoot = selectRuntimeRoot(options['--runtime-root'], process.env);
 const runtimeVersion = ['10.0.14', '10.0.10'].find((version) =>
   fs.existsSync(path.join(runtimeRoot, 'shared', 'Microsoft.NETCore.App', version)),
 );
@@ -49,6 +48,9 @@ const artifacts = [
 ];
 const env = {
   ...process.env,
+  DOTNET_ROOT: runtimeRoot,
+  DOTNET_ROOT_X64: runtimeRoot,
+  DOTNET_INSTALL_DIR: runtimeRoot,
   DOTNET_NOLOGO: '1',
   DOTNET_CLI_TELEMETRY_OPTOUT: '1',
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1',
@@ -178,7 +180,29 @@ fs.writeFileSync(path.join(output, 'assets.json'), JSON.stringify(manifest, null
 });
 if (replace) {
   if (fs.existsSync(destination)) removePrevious(destination);
-  fs.renameSync(output, destination);
+  // Directory renames can fail on Windows; use the verified bytes in a fresh destination.
+  // Copy to a fresh destination, then qualify the bytes the packager will consume.
+  // On any error the build fails and retains the staging directory for inspection.
+  fs.mkdirSync(destination); // Reserve the exact output; never adopt an existing directory.
+  for (const folder of ['host', 'runtime'])
+    fs.cpSync(path.join(output, folder), path.join(destination, folder), {
+      recursive: true,
+      errorOnExist: true,
+      force: false,
+    });
+  require('../src/main/claude-hook-windows-io-wire').qualifyAssets({
+    ...Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== 'schemaVersion')),
+    hostRoot: path.win32.normalize(path.join(destination, 'host')),
+    runtimeRoot: path.win32.normalize(path.join(destination, 'runtime')),
+    portable: true,
+  });
+  // The descriptor publishes a complete verified tree; a partial copy stays unavailable.
+  fs.copyFileSync(
+    path.join(output, 'assets.json'),
+    path.join(destination, 'assets.json'),
+    fs.constants.COPYFILE_EXCL,
+  );
+  removePrevious(output);
 }
 console.log('Prepared hook-review assets: ' + destination);
 console.log(

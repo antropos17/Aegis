@@ -63,8 +63,10 @@ Development can prepare a fresh `build/hook-review` with:
 node scripts/build-hook-review-assets.cjs
 ```
 
-The script accepts `--runtime-root` for another existing .NET installation and
-`--output` for another fresh directory. Packaging uses `--replace` to rebuild the
+The script selects an explicit `--runtime-root`, then `DOTNET_INSTALL_DIR`, then
+`DOTNET_ROOT`, and finally the standard Program Files installation. It never
+searches `PATH` and refuses an invalid selected root rather than falling back.
+`--output` selects another fresh directory. Packaging uses `--replace` to rebuild the
 fixed output; it removes only a previously qualified, structurally exact generated
 asset directory. Unexpected or altered contents stop replacement for inspection.
 
