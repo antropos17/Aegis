@@ -21,6 +21,7 @@ const REASONS = Object.freeze({
   generic: ['allow', 'ask', 'deny'],
   'project-review-ordinary': ['ask'],
   'project-review-script': ['ask'],
+  'project-review-edit': ['ask'],
   'project-deny-sensitive': ['deny'],
   'project-deny-destructive': ['deny'],
   'project-deny-unsupported': ['deny'],
@@ -28,7 +29,7 @@ const REASONS = Object.freeze({
 });
 const CLAIM = /^\{"code":"([0-9]{6})","nonce":"([a-f0-9]{32})"\}$/;
 const DECISION =
-  /^\{"decision":"(allow|ask|deny)","reason":"(generic|project-review-ordinary|project-review-script|project-deny-sensitive|project-deny-destructive|project-deny-unsupported|adapter-failure)"\}$/;
+  /^\{"decision":"(allow|ask|deny)","reason":"(generic|project-review-ordinary|project-review-script|project-review-edit|project-deny-sensitive|project-deny-destructive|project-deny-unsupported|adapter-failure)"\}$/;
 
 function validSelection(value) {
   if (!value || typeof value !== 'object') return false;

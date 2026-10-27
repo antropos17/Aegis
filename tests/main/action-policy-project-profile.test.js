@@ -56,6 +56,49 @@ describe('bounded project review policy', () => {
       });
     },
   );
+  it.each(['git apply -- change.patch', 'git apply -- CHANGE_123.diff'])(
+    'delegates the bounded patch command %s to the provider',
+    async (command) => {
+      expect(await run(command, { description: 'Review patch', timeout: 5000 })).toEqual({
+        decision: 'ask',
+        reason: 'project-review-edit',
+      });
+    },
+  );
+  it.each([
+    'git apply -- ../change.patch',
+    'git apply -- patches/change.patch',
+    'git apply -- patches\\change.patch',
+    'git apply -- -change.patch',
+    'git apply -- CON.patch',
+    'git apply -- nul.diff',
+    'git apply -- COM1.patch',
+    'git apply -- LPT9.diff',
+    'git apply -- change..patch',
+    'git apply -- .env.patch',
+    'git apply -- change.patch.',
+    'git apply -- change.patch --unsafe-paths',
+    'git apply --unsafe-paths -- change.patch',
+    'git apply -- change.patch; rm -rf project',
+    'git apply -- change.patch && npm test',
+    'git apply -- change.patch >out',
+    'git apply -- $(touch x).patch',
+    'git apply -- `touch x`.patch',
+    'git apply -- "change.patch"',
+    'git apply -- change.patch\n',
+    'git apply -- ' + 'a'.repeat(65) + '.patch',
+  ])('denies unsupported or ambiguous patch command %s', async (command) => {
+    expect(await run(command)).toEqual({ decision: 'deny', reason: 'project-deny-unsupported' });
+  });
+  it.each([{ timeout: 0 }, { description: 1 }, { run_in_background: true }])(
+    'denies a patch request with invalid or unknown input metadata %#',
+    async (extra) => {
+      expect(await run('git apply -- change.patch', extra)).toEqual({
+        decision: 'deny',
+        reason: 'project-deny-unsupported',
+      });
+    },
+  );
   it.each(['cat .env', 'cat .env.local', 'cat id_rsa', 'cat credentials.json'])(
     'denies declared sensitive filename %s',
     async (command) => {
@@ -146,6 +189,11 @@ describe('bounded project review policy', () => {
       'npm run lint',
       'ask',
       'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
+    ],
+    [
+      'git apply -- change.patch',
+      'ask',
+      'AEGIS requests provider confirmation. Patch contents, paths written, and the executable are unverified; edits and external programs may cause actions not separately checked by this Bash hook.',
     ],
     [
       'npm run lint -- --fix',

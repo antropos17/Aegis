@@ -15,6 +15,7 @@ function reportClaudeGuardDecision(event, env = process.env) {
     'adapter-failure': ['deny'],
     'project-review-ordinary': ['ask'],
     'project-review-script': ['ask'],
+    'project-review-edit': ['ask'],
     'project-deny-sensitive': ['deny'],
     'project-deny-destructive': ['deny'],
     'project-deny-unsupported': ['deny'],
