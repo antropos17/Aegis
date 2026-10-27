@@ -70,24 +70,30 @@ internal static class FileBroker
             var identity = Security.Observe(child.SafeHandle, child.Id);
             await pipe.WaitForConnectionAsync(startup.Token);
             Security.Verify(pipe, child.SafeHandle, child.Id, identity.Birth, true, live);
-            startup.CancelAfter(Timeout.InfiniteTimeSpan);
             if (recoveryPipe != null)
             {
-                using var connect = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-                var hello = await FileGuardWire.Read<FileGuardHello>(pipe, connect.Token);
+                // Pipeline preparation and sequential peer launches share the total
+                // bootstrap cap. Each peer gets its connection budget after hello.
+                var hello = await FileGuardWire.Read<FileGuardHello>(pipe, startup.Token);
                 if (hello.pid <= 0 || !ulong.TryParse(hello.birth, out ulong birth) || birth == 0 || birth.ToString() != hello.birth)
                     throw new InvalidDataException();
                 guard = new FileGuardPeer(hello.pid);
+                using var connect = CancellationTokenSource.CreateLinkedTokenSource(startup.Token);
+                connect.CancelAfter(TimeSpan.FromSeconds(8));
                 await recoveryPipe.WaitForConnectionAsync(connect.Token);
                 guard.Verify(recoveryPipe, birth);
                 recovery = FileGuardWire.Read<FileGuardResult>(recoveryPipe, recoveryLifetime.Token);
                 await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
-                var second = await FileGuardWire.Read<FileGuardHello>(pipe, connect.Token);
+                connect.Token.ThrowIfCancellationRequested();
+                connect.CancelAfter(Timeout.InfiniteTimeSpan);
+                var second = await FileGuardWire.Read<FileGuardHello>(pipe, startup.Token);
                 if (second.pid <= 0 || second.pid == hello.pid || second.pid == child.Id || second.pid == self.Pid ||
                     !ulong.TryParse(second.birth, out ulong secondBirth) || secondBirth == 0 || secondBirth.ToString() != second.birth)
                     throw new InvalidDataException();
                 fallback = new FileGuardPeer(second.pid);
-                await fallbackPipe!.WaitForConnectionAsync(connect.Token);
+                using var fallbackConnect = CancellationTokenSource.CreateLinkedTokenSource(startup.Token);
+                fallbackConnect.CancelAfter(TimeSpan.FromSeconds(8));
+                await fallbackPipe!.WaitForConnectionAsync(fallbackConnect.Token);
                 fallback.Verify(fallbackPipe, secondBirth);
                 reservation = FileBrokerRecovery.Reservation(hello.guid, second.guid);
                 fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
@@ -98,14 +104,18 @@ internal static class FileBroker
                         [(self.Pid, originalBroker.SafeHandle), (child.Id, child.SafeHandle),
                          (guard.Id, guard.Handle), (fallback.Id, fallback.Handle)]);
                     // Collector cannot start until this independent authority and main both acknowledge custody.
-                    await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
-                    connect.CancelAfter(Timeout.InfiniteTimeSpan);
+                    await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), fallbackConnect.Token);
+                    fallbackConnect.Token.ThrowIfCancellationRequested();
+                    fallbackConnect.CancelAfter(Timeout.InfiniteTimeSpan);
                     custodian = await FileOrphanBroker.Reserve(pipe, mainCustody, args.Length == 6 ? args[5] : null);
-                    await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody.Reservation, connect.Token);
+                    await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody.Reservation, startup.Token);
                     custodianWatch = FileOrphanBroker.Watch(custodian, pipe, lifetime.Token);
                 }
-                else await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
+                else await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), fallbackConnect.Token);
+                fallbackConnect.Token.ThrowIfCancellationRequested();
             }
+            startup.Token.ThrowIfCancellationRequested();
+            startup.CancelAfter(Timeout.InfiniteTimeSpan);
             var read = new FileWire(args[1], args[2]);
             var controls = new FileWire(args[1], args[2]);
             int terminalObserved = 0;

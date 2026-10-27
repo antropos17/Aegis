@@ -28,6 +28,16 @@ This repairs failure masking and the exit wait cycle. The original guest's
 underlying guard failure remains unclassified, and these source changes do not
 supply a successful native read-to-audit/alert/risk receipt.
 
+Broker startup also keeps the existing 120-second total cap through preparation
+and both peer hellos. Each authenticated peer connection then receives its own
+linked eight-second budget. The former shared eight-second timer included
+pipeline preparation and both sequential launches, so individually bounded peers
+could still be rejected before the second hello. Custodian and main-deposit
+deadlines remain independent and linked to the total startup cap where applicable.
+The changed sidecar compiles and the cancellation/ownership flow was reviewed;
+the timed native bootstrap branch has not been executed for this correction.
+Existing owner and consumer fixtures do not replace that missing observation.
+
 The subsequent client repair separates a finite 10000 ms cold-start allowance
 from the existing 1200 ms snapshot response deadline. Explicit finite caller
 overrides retain their previous per-stage bounds. Protocol, identity, restart
