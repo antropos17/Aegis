@@ -201,6 +201,19 @@ Real-dialog acceptance remains open.
 
 ### Private unpacked-ASAR qualification
 
+On 2026-10-27, a provider-free Windows x64 unpacked build from source
+`ceb28b7f0857002017df540a9d1c8f687a51e082` exercised the generated PowerShell
+terminal broker command. The executable SHA-256 was
+`28057cb48a52e5509c5dcf9c0e15ce675a90220804a5e5ee334eee2137f05cbf`; the
+`app.asar` SHA-256 was
+`5499ad85497aa002e7e706c21554c8aac7ca39a2e60f63c8cc8c79088b97d7a4`.
+An owned terminal fixture used a fake HMAC receiver with scripted admission and
+an inert native console child. It observed claim, start and finish, hidden input,
+console handles for the child and an unforced broker exit of zero. The shell,
+child and independently witnessed broker generation settled. This result does
+not qualify a real owner dialog, Claude provider session, clean-machine
+installation or actual action effects.
+
 On 2026-10-27, a provider-free Windows x64 unpacked candidate built from source
 `9e907be27bf41bdf68148576c2bab514bb8569cb` exercised the packaged executable
 and its portable hook-review resources. The executable SHA-256 was
