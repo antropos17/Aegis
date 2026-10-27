@@ -1,5 +1,38 @@
 # AEGIS completion plan — October 2026
 
+## Current delivery contract — Revision 8, 27 October 2026
+
+Start new work at [section 7](#7-execution-order), beginning with G1-A. The
+immediate product is an installable Windows Claude Guard: ordinary work succeeds,
+declared dangerous attempts are blocked before their effect, and the user can
+understand the decision, protection limits and removal path. A supported route
+must expose protection failures; an unobserved effect stays unknown.
+
+Finish G1 before broadening the agent/platform catalog. G2 extends the accepted
+contract to Codex and Gemini; G3 connects it to instance-specific system evidence.
+The [HOL comparison](guard-delivery-review-20261027.md) supplies dated evidence
+and gaps, not a claim of parity or a requirement to copy its check count.
+T1–T10 remain long-term acceptance targets, not prerequisites for every G1 slice.
+
+Use English for all technical work, prompts, agent communication and handoffs,
+as required by [AGENTS.md](../../AGENTS.md#writing). Follow the existing
+[delivery loop](../development/workflow.md#delivery-loop): one observable
+increment, focused local checks, current required hosted CI, then integration.
+Preserve independent security review where the affected contract requires it.
+Contributor entry points are in [CONTRIBUTING.md](../../CONTRIBUTING.md#current-product-priority).
+No new tracker, generic audit or full local verification cycle is needed to start.
+
+Revision 8 aligns project instructions, skills and delegated roles with this
+contract. It adds a user-trial decision before broad expansion and bounded
+contributor work. It changes no runtime behavior or acceptance result. Existing
+workflow, release, paid-provider and VM authorization boundaries remain in force.
+
+## Historical revisions and evidence
+
+The following checkpoints preserve earlier scope, models, permissions and
+verification history. They do not renew expired authorizations, require
+delegation, restore mutation campaigns or override the current delivery order.
+
 Scope approved by the repository owner on 2026-10-19 for execution by a Codex
 orchestrator running GPT-6.1 Sol with subagents. Historical baseline: master `bf65076`
 (2026-10-19, after #976 and #985), package `0.19.2-beta`. PR #974 was later
@@ -300,7 +333,7 @@ not an instruction to create agents or wait for another worker.
 | `bench-engineer` | new | gpt-6.1-sol / medium | yes | `bench/`, `docs/bench/`, measurement scripts |
 | `security-reviewer` | existing | inherits | no | Review of every PR touching IPC, policy, secrets, privileges, sidecars |
 | `test-auditor` | existing | inherits | no | Read-only judgment of regression assertions, independent expected results and recorded checks |
-| `consistency-reviewer` | existing | inherits | no | Docs-versus-code check before any user-facing text merges |
+| `consistency-reviewer` | existing | inherits | no | Scoped docs-versus-code review when delegated; verify changed claims and their actual source |
 | `auditor` | existing | inherits | no | Check matching CI evidence at wave transitions; execute only missing or invalidated checks |
 | `shipper` | existing | inherits | yes | Release preparation once the owner approves a release |
 
@@ -323,15 +356,17 @@ wire contract and W5 Cedar equivalence retain their independent-review requireme
 - Wait for every child of a wave step before starting a step that depends on it.
   Independent steps proceed while others run.
 - Messages between agents are read by humans: complete sentences, normal spacing
-  between words and numbers, file paths written in full.
+  between words and numbers, file paths written in full. Write every brief,
+  analysis note, coordination message, review and return in English. Direct
+  conversation with the owner follows the owner's language.
 - If a delegated role cannot use the authorized model or effort, report that
   limitation and continue independent work. Starting an external AI CLI requires
   the owner's request; tool availability alone does not authorize that fallback.
 
 ### 5.3 Worktrees and path ownership
 
-Each writer works in its own worktree under `X:/tmp/aegis-wt/<workstream>` with
-its own branch from `origin/master`, following the worktree rules in
+Each writer works in its own worktree on a spacious owned volume, with its
+own branch from `origin/master`, following the worktree rules in
 `docs/development/workflow.md` and `memory-bank/ai-mistakes.md`. A path has one
 owner at a time:
 
@@ -1301,7 +1336,7 @@ mode, polling mode or a mix; the documented coverage limits in README and
 
 ## 7. Execution order
 
-Revision 7's order is authoritative for new work. The original waves retained
+Revision 8's order is authoritative for new work. The original waves retained
 below describe dependencies and history; they do not put every sensor, Cedar or
 Protected Session ahead of a usable Guard route. The
 [27 October review](guard-delivery-review-20261027.md) records the source and CI
@@ -1355,6 +1390,33 @@ fixture, a green installer build or a policy file alone does not close G1.
 The existing [source and packaged-Claude receipts](../CLAUDE-HOOK-APP.md) prove
 their recorded marker outcomes and transport behavior. They reduce repeated
 work, while portability, everyday policy and broader failure coverage remain open.
+
+### Product trial and contributor work
+
+After G1's technical acceptance, offer the qualified candidate for a small,
+explicitly authorized external trial before broad G2 expansion. Record whether
+users can install and complete the declared ordinary task without developer
+assistance, understand a blocked action, and choose to keep using the product.
+Use voluntary, redacted feedback; no automatic telemetry or unsolicited outreach.
+Ask what existing workflow AEGIS improves and what makes people stop using it.
+Stars, commits, scenario counts and completed PRs do not answer that question.
+
+Keep each implementation cycle bounded by its named G1 acceptance result.
+If it keeps producing prerequisites without that result, inspect the specific
+blocker and reduce scope before adding more infrastructure. If the accepted
+route provides little practical value, reconsider the product direction before
+expanding integrations. Set an effort budget with the owner when selecting a
+trial; this plan makes no calendar or contributor-growth promise.
+
+Contributors can improve setup instructions, reproduce redacted installation
+failures, add independent benign/forbidden regression pairs, and improve the
+existing decision UI. Each task names paths, prerequisites and acceptance;
+maintainers coordinate shared paths and review security-sensitive changes.
+Recognition signatures are separate from protected integrations. Use the
+contribution guide and existing issues/PRs; additional sensors, new dashboards
+and speculative adapters do not become first tasks merely because they are
+easy to parallelize. Creating issues, recruitment messages or a release requires
+the corresponding authorization.
 
 ### Start the next implementation task
 
@@ -1425,8 +1487,9 @@ Wave 5  W10 distribution prepared; integration artifacts accompany earlier slice
 The three-writer cap applies across all lines of a wave; the orchestrator picks
 which ready block runs next by dependency and by which target it advances.
 
-At wave transitions, `auditor` reads the existing required CI results for the
-matching merged head and inputs. Do not repeat a passing full gate merely for a
+At integration checkpoints, the coordinator or an explicitly delegated `auditor`
+reads the existing required CI results for the matching head and inputs.
+Do not repeat a passing full gate merely for a
 checkpoint. Changed heads need fresh mandatory contexts; changed relevant inputs,
 failures or a concrete unresolved risk justify additional verification. Preserve
 unaffected local evidence within its recorded scope. Exact source matching does
@@ -1449,13 +1512,16 @@ A workstream block is done when:
   repeating it. Reversible low-impact maintenance needs relevant structural
   checks and does not require an artificial test group;
 - `npm run counts:check` passes and documentation numbers match source;
-- the tracker and `memory-bank/progress.md` are updated.
+- the existing acceptance record and `memory-bank/progress.md` reflect the
+  outcome; no duplicate tracker is created for the same work.
 
 Each target T1–T10 is tracked in three separate states: implemented (code
 merged), verified (acceptance evidence recorded on merged master, including live
 runs) and owner-pending (prepared work waiting on an owner action). A target
-counts as reached only when verified. The plan is done when T1–T10 are verified,
-or when every remaining target is owner-pending with prepared next steps.
+counts as reached only when verified. The full plan is done when T1–T10 are
+verified. Owner-pending work remains incomplete with a prepared next action;
+it does not qualify a target. G1 can be accepted independently under section 7
+without claiming completion of the full long-term plan.
 
 ## 9. Reporting
 
@@ -1561,17 +1627,21 @@ The host computes `startTime(ms)` by integer division by 1000. The witness is
 
 ## Appendix B — Brief and return format
 
-Brief (orchestrator to worker), plain text:
+Brief (orchestrator to worker), English plain text. Adapt the fields to the
+selected deliverable; this example describes the next Guard slice:
 
 ```
-WORKSTREAM: W1a shared wire contract: Cargo workspace and aegis-wire crate
+WORKSTREAM: G1-A Windows Claude Guard installation
+LANGUAGE: English for analysis, plans, messages, comments, documentation and return
 GOAL: <one sentence: the outcome when this block is done>
-BASELINE: <rows from docs/roadmap/completion-baseline.md that apply>
+BASELINE: <current source SHA and relevant existing package/hook receipts>
 OWNED PATHS: <paths this worker may change>
+COORDINATION: Other contributors are working in this repository. Preserve their
+changes; coordinate shared paths and do not revert unrelated work.
 READ-ONLY CONTEXT: <files and docs to read for the task>
 CONTRACT: <section of the plan or doc the work must satisfy>
 ACCEPTANCE: <the criteria from the plan that this block must meet>
-WORKTREE: X:/tmp/aegis-wt/<name>, branch <name> from origin/master
+WORKTREE: <absolute owned path>, branch <name> from origin/master
 GIT: full cycle authorized per AGENTS.md; open the PR; do not merge, the
 orchestrator serializes merges
 RETURN: use the return format

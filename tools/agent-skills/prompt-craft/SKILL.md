@@ -7,6 +7,14 @@ description: Write or revise an AEGIS task prompt when the user asks for a promp
 
 State the requested result, relevant observed files and behavior, and validation needed to assess completion. Make the prompt self-contained, while leaving routine implementation decisions flexible. A prompt-writing request asks for a prompt; do not execute it, create a separate task or invoke another agent unless requested.
 
+Write technical prompts and agent briefs in English even when the owner's chat
+request is in Russian. For authorized delegation, require English analysis,
+working notes, messages and returned evidence; preserve literal source strings.
+Name owned paths and tell workers to preserve concurrent contributors' changes.
+For ongoing product work, select the next unfinished consumer in completion-plan
+section 7. Reuse its evidence and state the changed-input check; do not insert
+another general audit, roadmap rewrite or optional approval before implementation.
+
 Read AGENTS.md and verify the actual checkout before naming paths. Vite determines the renderer root; frontend/observatory/ is not present in every checkout. Existing implementation is evidence to inspect, not a reason to claim a reported bug is already fixed without verifying the behavior.
 
 For UI integration, use the applicable approved design and design-system guidance. For a new visual exploration, preserve the user's freedom to explore alternatives and distinguish concept delivery from integration.

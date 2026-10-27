@@ -6,6 +6,16 @@ Desktop and preview mount the same App.svelte. entry.ts uses the build-time prev
 
 Use stamped instanceId for observations and process actions. Durable project permission keys have different semantics. Retain last reliable populations during outages; never turn absent measurements into zero. Show attribution and source evidence as returned. Paths are metadata, not permission to read file contents.
 
-Tests live under tests/renderer and frontend/observatory/tests. Run the repository checks plus both builds and frontend:test for visual changes. Electron smoke uses a disposable profile. Never run process interventions against user processes, or paid provider tests without explicit authorization.
+Tests live under tests/renderer and frontend/observatory/tests. Follow
+../../docs/development/workflow.md#selecting-verification: run focused behavior
+checks and inspect the affected rendered states. Build the production renderer
+for host integration; also build preview when its entrypoint or shared build
+behavior changes. Run broader frontend coverage only for a shared layout,
+navigation, theme or other change with wider effects. Use Electron smoke for
+host/preload/native interactions that browser checks cannot establish, with a
+disposable profile. Hosted required CI owns final repository verification;
+do not duplicate its full suite locally without a specific reason. Never run
+process interventions against user processes, or paid provider tests without
+explicit authorization.
 
 The integration record and its remaining verification are in ../../OBSERVATORY-INTEGRATION.md. No release version or publication is implied by local packaging.

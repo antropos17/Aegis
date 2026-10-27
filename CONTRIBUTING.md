@@ -2,6 +2,37 @@
 
 AEGIS monitors local AI agents, reviews selected project files and checks explicitly configured actions. Contributions help make the observations, controls and their limits easier to understand. Start with the [documentation index](docs/README.md) for user guides and technical contracts.
 
+## Current product priority
+
+The [completion plan, section 7](docs/roadmap/completion-plan.md#7-execution-order)
+prioritizes a usable Windows Claude Guard: installation, a supported launch,
+practical policy decisions, visible results and safe removal. Full acceptance
+remains open; the [current evidence and gaps](docs/roadmap/guard-delivery-review-20261027.md)
+separate working slices from planned behavior. Codex and Gemini expansion follows
+that usable contract. A recognition signature does not add an enforced route.
+
+Choose one useful contribution without learning every subsystem:
+
+| Contribution | Start here | A reviewable result |
+| --- | --- | --- |
+| Setup instructions and reproducible failures | This guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
+| Guard regression cases | `src/main/action-policy.js`, `tests/main/action-policy.test.js`, existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
+| Decision and failure feedback | `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
+
+Look at [open issues](https://github.com/antropos17/Aegis/issues) and active PRs
+before starting to avoid overlapping ownership. A small documentation correction
+can go directly to a PR. For policy semantics, packaging, native boundaries or
+larger changes, first describe the concrete behavior and acceptance in an issue
+or draft PR so maintainers can coordinate the scope. Do not publish sensitive
+reproductions; use [SECURITY.md](SECURITY.md#reporting-a-vulnerability).
+
+Write contributions, technical discussions and AI-agent briefs in English.
+AI-assisted changes follow the same review and evidence requirements. Start
+with focused checks from the workflow; the full local suite and a private VM
+are not prerequisites for a small contribution. Required CI and actual platform
+acceptance still apply. Report unavailable environments honestly; maintainers
+can coordinate remaining checks without requiring contributor credentials.
+
 ## Development Setup
 
 ```bash

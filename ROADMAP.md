@@ -1,5 +1,14 @@
 # AEGIS Roadmap
 
+## Current delivery order
+
+Use [completion plan section 7](docs/roadmap/completion-plan.md#7-execution-order):
+G1 completes the Windows Claude Guard journey; G2 extends its accepted contract
+to Codex and Gemini; G3 connects decisions to instance-specific observed effects.
+The [contribution guide](CONTRIBUTING.md#current-product-priority) names focused
+entry points. Full G1 acceptance is still open. The queues and checkpoints below
+are historical context, not an alternative order or recurring verification policy.
+
 ## Source checkpoint — 16 October 2026
 
 At this checkpoint, source was [`6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a),

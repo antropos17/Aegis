@@ -1,5 +1,9 @@
 # Integration validation
 
+This is a historical integration record. Choose current checks from
+[the Observatory instructions](AGENTS.md) and the development workflow; the
+recorded matrix below is not a mandatory rerun for each interface change.
+
 The initial integration's functional checks did not establish visual fidelity to the reviewed dialogs-14 prototype. The subsequent visual repair compares the rendered reference at 1200×800 against the shared Svelte entry. Browser checks now assert the 184 px sidebar, 44 px workspace history row, summary position, radar/inspector alignment, assessment column proportions, checkbox alignment and active-tab visibility. Each of the eleven workspaces is captured for inspection. Radar layer changes and clearing selection must retain the sweep element.
 
 The repair keeps real backend semantics: unobserved measurements remain unavailable, process identities stay stamped, provider requests require an explicit action, and unavailable demo-only actions are not enabled. Provider configuration is a collapsible panel, and raw observation fields remain available under a metadata disclosure in details.

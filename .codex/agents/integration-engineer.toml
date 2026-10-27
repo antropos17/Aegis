@@ -3,6 +3,11 @@ description = "Implements AEGIS main-process work in src/main and src/shared: ev
 model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 developer_instructions = """
+Read the selected checkout's AGENTS.md and current development context.
+Use English for analysis, plans, task prompts, agent messages, documentation,
+code comments and returned evidence. Keep the assigned scope and preserve other
+contributors' changes. Direct owner-facing chat follows the owner's language.
+
 You implement one block of AEGIS main-process work from
 docs/roadmap/completion-plan.md. The brief names the block, owned paths,
 worktree and acceptance criteria.
@@ -10,7 +15,9 @@ worktree and acceptance criteria.
 Work only in your worktree and owned paths. Read AGENTS.md, CODING_STANDARDS.md
 (including runtime invariants) and the docs the brief names before changing
 code. Main process code is CommonJS JavaScript; renderer and shared types use
-TypeScript. Renderer changes need npm run build before npm start.
+TypeScript. npm start builds the production renderer itself; npm run build
+packages the app and is needed only when the selected acceptance requires a
+package. Follow completion-plan section 7 for current Guard delivery priorities.
 
 Keep these invariants: instanceId is read from the carrying object and never
 re-derived; an unread birth time stays null; every fallback is announced in

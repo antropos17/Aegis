@@ -86,6 +86,11 @@ owning those outputs. A read-only review can inspect source directly.
 
 ## Interpret completion
 
+For new product work, use [completion plan section 7](../roadmap/completion-plan.md#7-execution-order).
+The older `memory-bank/AEGIS-MASTER-PLAN.md` and dated execution waves are history.
+Apply the current English working-language rule to briefs and delegated work;
+read only task-relevant evidence instead of restarting the broad audit.
+
 Tie check results to the tested revision and inputs. Historical PASS records,
 merged component PRs and a green hosted suite do not establish native runtime,
 provider, installation or product acceptance. Consult the task's actual evidence

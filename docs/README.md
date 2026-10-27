@@ -93,6 +93,11 @@ and independent enforcement acceptance remains open. `launchAllowed=false`.
 
 ## Contribute
 
+Start with the [current Guard contribution priorities](../CONTRIBUTING.md#current-product-priority)
+and [completion plan section 7](roadmap/completion-plan.md#7-execution-order).
+Project instructions and technical contributions are in English. Historical
+plans and audits provide dated evidence; they do not add new implementation gates.
+
 The [GitHub presentation audit](GITHUB-PRESENTATION-AUDIT.md) records the dated
 documentation/link review and its remaining verification limits.
 
