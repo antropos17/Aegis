@@ -190,6 +190,21 @@ Real-dialog acceptance remains open.
 
 ### Private unpacked-ASAR qualification
 
+On 2026-10-27, a provider-free Windows x64 unpacked candidate built from source
+`9e907be27bf41bdf68148576c2bab514bb8569cb` exercised the packaged executable
+and its portable hook-review resources. The executable SHA-256 was
+`be255f4cdd6a9797faac56e72b1253f22714fbe257c1e0c9d8b4cf0a71a036c8`; the
+`app.asar` SHA-256 was
+`27326ffc14718e3c4ec4a421eddddfc5f1d3dc0e19e489e0c9e434b4cc1a4d77`.
+The archive-matched source service installed and removed a disposable profile
+using the packaged native resources and scripted confirmation, including a
+lowercase drive-letter path. The generated command delivered the expected
+allow, deny, malformed-request and held-open-input results through the actual
+packaged executable. The native session and owned children closed; no tool
+command was executed. This is not a clean-machine installation, a real owner
+dialog, or a provider acceptance result. The earlier ASAR path lookup failure
+and the first packaging rename failure were retained separately.
+
 On 2026-10-26 UTC, a normal private Windows unpacked build from
 `7725f734942e36efc1189f187b1f8f3b8d83fb77` passed 16 of 16 scoped checks.
 The normal build and asset gates completed. The default executable name,
