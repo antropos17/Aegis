@@ -63,7 +63,7 @@
   }
   function time(at: number | undefined): string {
     return at === undefined
-      ? 'Waiting for this source'
+      ? $t('Waiting for this source')
       : new Date(at).toLocaleTimeString(undefined, {
           hour: '2-digit',
           minute: '2-digit',
@@ -369,8 +369,13 @@
     }
   }
   @media (max-width: 720px) {
+    .monitor-summary {
+      flex-wrap: wrap;
+    }
     .monitor-summary p {
-      display: none;
+      flex-basis: 100%;
+      max-width: none;
+      margin-left: 0;
     }
     h2 {
       font-size: var(--text-section);

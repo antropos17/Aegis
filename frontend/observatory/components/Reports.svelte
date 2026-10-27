@@ -34,7 +34,7 @@
     sectionRequest?: { id: string; revision: number };
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
-  let groups = $derived(radarGroups(instances(telemetry)));
+  let groups = $derived(telemetry.ready ? radarGroups(instances(telemetry)) : []);
   let grouping = $state<'resource' | 'agent' | 'none'>('resource');
   let stats = $state<RecordData>({});
   let page = $state(emptyAuditPage(new Date().toISOString()));
@@ -436,6 +436,9 @@
           <strong>{telemetry.ready ? groups.length : '—'}</strong><span>{$t('agents')}</span>
         </div>
       </div>
+      {#if telemetry.ready && telemetry.stale}
+        <p class="entity-note" role="status">{$t('Last reliable agent population is retained.')}</p>
+      {/if}
       <div class="table-wrap">
         <table>
           <thead
@@ -456,7 +459,17 @@
                 ><td>{group.members.length}</td><td>{group.risk}/100</td><td
                   >{groupEvidence(group, telemetry).files}</td
                 ></tr
-              >{:else}<tr><td colspan="4">{$t('No observed agents.')}</td></tr>{/each}</tbody
+              >{:else}<tr
+                ><td colspan="4"
+                  >{$t(
+                    !telemetry.ready
+                      ? 'Waiting for reliable agent observations.'
+                      : telemetry.stale
+                        ? 'No agents in retained population.'
+                        : 'No observed agents.',
+                  )}</td
+                ></tr
+              >{/each}</tbody
           >
         </table>
       </div>

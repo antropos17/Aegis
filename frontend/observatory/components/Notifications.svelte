@@ -40,6 +40,10 @@
   let sensitiveBanner = $state<HTMLDivElement>();
   let centerOpen = $state(false);
   let journalStatus = $state('ready');
+  let journalLoadError = $state(false);
+  let journalLoading = $state(false);
+  let journalMounted = false;
+  let reviewSaveError = $state(false);
   let reviewRevision = 0;
   let reviewPending = $state(false);
   let centerTrigger: HTMLButtonElement;
@@ -166,23 +170,28 @@
         else style.removeProperty(property);
     };
   });
-  onMount(() => {
-    if (!host?.listSensitiveAlerts) return;
-    let alive = true;
+  async function loadJournal(): Promise<void> {
+    if (!host?.listSensitiveAlerts || journalLoading) return;
+    journalLoading = true;
     const seedReviewRevision = reviewRevision;
-    invoke(host, 'listSensitiveAlerts')
-      .then((value) => {
-        if (!alive) return;
-        const reply = confirmed(value);
-        if (reviewRevision === seedReviewRevision)
-          journalStatus = typeof reply.status === 'string' ? reply.status : 'ready';
-        alerts = sensitiveTracker.mergeJournal(parseJournalAlerts(reply.items));
-      })
-      .catch(() => {
-        if (alive) journalStatus = 'write-error';
-      });
+    try {
+      const reply = confirmed(await invoke(host, 'listSensitiveAlerts'));
+      if (!journalMounted) return;
+      if (reviewRevision === seedReviewRevision)
+        journalStatus = typeof reply.status === 'string' ? reply.status : 'ready';
+      alerts = sensitiveTracker.mergeJournal(parseJournalAlerts(reply.items));
+      journalLoadError = false;
+    } catch {
+      if (journalMounted) journalLoadError = true;
+    } finally {
+      if (journalMounted) journalLoading = false;
+    }
+  }
+  onMount(() => {
+    journalMounted = true;
+    void loadJournal();
     return () => {
-      alive = false;
+      journalMounted = false;
     };
   });
 
@@ -197,10 +206,11 @@
       }
       const reply = confirmed(await invoke(host, 'setSensitiveAlertReviewed', id, reviewed));
       journalStatus = typeof reply.status === 'string' ? reply.status : 'ready';
+      reviewSaveError = false;
       alerts = sensitiveTracker.setReviewed(id, reviewed, true);
       return true;
     } catch {
-      journalStatus = 'write-error';
+      reviewSaveError = true;
       return false;
     } finally {
       reviewPending = false;
@@ -254,6 +264,10 @@
     items={alerts}
     {evicted}
     {journalStatus}
+    {journalLoadError}
+    {journalLoading}
+    {reviewSaveError}
+    onRetryJournal={loadJournal}
     {reviewPending}
     onReview={reviewAlert}
     onInspect={onInspect ? openEvidence : undefined}

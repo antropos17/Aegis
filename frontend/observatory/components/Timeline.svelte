@@ -29,6 +29,7 @@
   let end = $derived(now + 1 - offset * 1000);
   let groups = $derived(radarGroups(instances(telemetry)));
   function keys(e: KeyboardEvent) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
     const b = e.currentTarget as HTMLElement;
     const buttons = [...b.parentElement!.querySelectorAll<HTMLButtonElement>('button')];
@@ -72,9 +73,11 @@
                 class="event-tick"
                 class:medium={b.events.some((e) => e.sensitive)}
                 style={`left:${((i + 0.5) / 12) * 100}%`}
-                aria-label={$t('{value0}: {value1} events', {
-                  value0: g.name,
-                  value1: b.events.length,
+                aria-label={$t('{agent}: {count} events, {start}–{end}', {
+                  agent: g.name,
+                  count: b.events.length,
+                  start: activityTimeLabel(b.start, true),
+                  end: activityTimeLabel(b.end, true),
                 })}
                 onkeydown={keys}
                 onclick={() =>

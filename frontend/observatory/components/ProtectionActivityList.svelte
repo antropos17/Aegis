@@ -124,11 +124,15 @@
         <p>
           {!ready
             ? $t('AEGIS has not received a reliable snapshot yet.')
-            : filter === 'review'
-              ? $t(
-                  'No retained activity has these review flags. This is not a guarantee that the computer is safe.',
-                )
-              : $t('Try another filter or wait for activity. AEGIS may not observe every action.')}
+            : query.trim()
+              ? $t('No records match this search.')
+              : filter === 'review'
+                ? $t(
+                    'No retained activity has these review flags. This is not a guarantee that the computer is safe.',
+                  )
+                : $t(
+                    'Try another filter or wait for activity. AEGIS may not observe every action.',
+                  )}
         </p>
       </div>{/each}
   </div>

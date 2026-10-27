@@ -36,11 +36,15 @@ function getTranslations(_lang) {
 /** Writable store for the active language code (e.g. 'en', 'es'). */
 export const language = writable(getStoredLang());
 
+/** Whether the selected language was persisted on this device. */
+export const languagePersisted = writable(true);
+
 language.subscribe((lang) => {
   try {
     localStorage.setItem(STORAGE_KEY, lang);
+    languagePersisted.set(true);
   } catch {
-    /* ignore SSR / sandboxed contexts */
+    languagePersisted.set(false);
   }
 });
 

@@ -141,6 +141,25 @@
     index = next;
     await restore(true);
   }
+  function historyKeydown(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      !event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      !['ArrowLeft', 'ArrowRight'].includes(event.key) ||
+      !(event.target instanceof Element) ||
+      event.target.closest('dialog') !== dialog ||
+      event.target.closest(
+        'input, textarea, select, [contenteditable]:not([contenteditable="false"])',
+      )
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    void move(event.key === 'ArrowLeft' ? -1 : 1);
+  }
   function finish() {
     close();
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
@@ -153,6 +172,7 @@
   bind:this={dialog}
   onclose={finish}
   oncancel={close}
+  onkeydown={historyKeydown}
   aria-labelledby="modal-title"
 >
   <div class="modal-head">

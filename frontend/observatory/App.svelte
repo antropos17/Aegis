@@ -339,7 +339,11 @@
   $effect(() => {
     const theme = (dark ? 'dark' : 'light') + (contrast ? '-hc' : '');
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('aegis-theme', theme);
+    try {
+      localStorage.setItem('aegis-theme', theme);
+    } catch {
+      // The current theme still applies for this session when storage is unavailable.
+    }
     document.documentElement.style.setProperty('--ui-scale', '1');
   });
   async function navigate(next: string, remember = true) {
