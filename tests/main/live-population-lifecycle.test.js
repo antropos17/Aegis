@@ -6,6 +6,12 @@ const shims = installShims();
 const require_ = createRequire(import.meta.url);
 let h, hooks, detachPower;
 
+function lastBatch() {
+  return h.deps.sendToRenderer.mock.calls
+    .filter(([channel]) => channel === 'scan-batch')
+    .at(-1)?.[1];
+}
+
 beforeEach(() => {
   h = createHarness(shims);
   h.main._setMonitoringPausedForTest(false);
@@ -31,16 +37,38 @@ afterEach(async () => {
 afterAll(() => shims.restore());
 
 describe('live population custody through real process scans', () => {
+  it.each([undefined, null, 1, 'true'])(
+    'does not report a current population for a non-boolean commit result %s',
+    async (result) => {
+      h.scanLoop.init({
+        ...h.deps,
+        beginLivePopulationScan: hooks.begin,
+        onProcessScanCommitted: (pass) => {
+          hooks.committed(pass);
+          return result;
+        },
+      });
+      await h.tickProcess();
+      expect(hooks.witness()).toBeTypeOf('string');
+      expect(lastBatch().populationCurrent).toBe(false);
+    },
+  );
+
   it('admits only a newly completed reliable population after pause, resume and timer stop', async () => {
     expect(hooks.witness()).toBeNull();
     await h.tickProcess();
     const first = hooks.witness();
     expect(first).toBeTypeOf('string');
+    expect(lastBatch().populationCurrent).toBe(true);
+    expect(lastBatch().stats.monitoringPopulationReady).toBe(true);
+    expect(lastBatch().stats.monitoringPopulationAgeMs).toBeGreaterThanOrEqual(0);
+    expect(lastBatch().stats.monitoringPopulationRevision).toMatch(/^[0-9]+$/);
     expect(h.scanner.getProcessCapabilities().populationReliable).toBe(true);
     expect(h.sessionTracker.activeCount()).toBe(1);
 
     h.main._setMonitoringPausedForTest(true);
     expect(hooks.witness()).toBeNull();
+    expect(h.main.getStats().monitoringPopulationAgeMs).toBeNull();
     h.main._setMonitoringPausedForTest(false);
     expect(hooks.witness()).toBeNull();
     expect(h.sessionTracker.activeCount()).toBe(1);
@@ -78,23 +106,33 @@ describe('live population custody through real process scans', () => {
   it('keeps a healthy enumeration unavailable until working-directory enrichment commits', async () => {
     let finish;
     h.deps.procUtil.annotateWorkingDirs.mockImplementationOnce(
-      () => new Promise((resolve) => { finish = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
     );
     h.startup();
     await h.advance(3000);
     expect(finish).toBeTypeOf('function');
     expect(h.scanner.getProcessCapabilities().populationReliable).toBe(true);
     expect(hooks.witness()).toBeNull();
+    await h.advance(1000);
     finish();
     await h.flush();
     expect(hooks.witness()).toBeTypeOf('string');
+    expect(h.main.getStats().monitoringPopulationAgeMs).toBeGreaterThanOrEqual(1000);
   });
 
   it('rejects a scan spanning pause and resume even when the same process returns', async () => {
     await h.tickProcess();
     const previous = hooks.witness();
     let finish;
-    h.listProcesses.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    h.listProcesses.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
     h.startup();
     await h.advance(3000);
     expect(finish).toBeTypeOf('function');
@@ -103,19 +141,30 @@ describe('live population custody through real process scans', () => {
     finish([CLAUDE]);
     await h.flush();
     expect(hooks.witness()).toBeNull();
+    // The stats can be healthy after resume even though this pass began before it.
+    expect(lastBatch().stats.monitoringPaused).toBe(false);
+    expect(lastBatch().stats.appHealth.populationReliable).toBe(true);
+    expect(lastBatch().populationCurrent).toBe(false);
     expect(h.sessionTracker.activeCount()).toBe(1);
     expect(h.auditTypes()).not.toContain('agent-exit');
     await h.tickProcess();
     expect(hooks.witness()).toBeTypeOf('string');
     expect(hooks.witness()).not.toBe(previous);
+    expect(lastBatch().populationCurrent).toBe(true);
   });
 
   it('revokes a committed population when a stalled token read causes a scheduled scan to be skipped', async () => {
     h.installSnapshotLeaf('HEALTHY', 'sidecar');
     let finish;
     const tokenFeed = require_('../../src/main/token-feed.js');
-    const feed = vi.spyOn(tokenFeed, 'readUsageByPid')
-      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+    const feed = vi
+      .spyOn(tokenFeed, 'readUsageByPid')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      )
       .mockResolvedValue([]);
     try {
       h.scanLoop.startScanIntervals(5000);
@@ -151,7 +200,12 @@ describe('live population custody through real process scans', () => {
     async (transition) => {
       await h.tickProcess();
       let finish;
-      h.listProcesses.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+      h.listProcesses.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
       h.startup();
       await h.advance(3000);
       expect(finish).toBeTypeOf('function');
@@ -161,10 +215,12 @@ describe('live population custody through real process scans', () => {
       finish([CLAUDE]);
       await h.flush();
       expect(hooks.witness()).toBeNull();
+      expect(lastBatch().populationCurrent).toBe(false);
       expect(h.sessionTracker.activeCount()).toBe(1);
       expect(h.auditTypes()).not.toContain('agent-exit');
       await h.tickProcess();
       expect(hooks.witness()).toBeTypeOf('string');
+      expect(lastBatch().populationCurrent).toBe(true);
     },
   );
 
@@ -184,21 +240,26 @@ describe('live population custody through real process scans', () => {
     expect(h.auditTypes()).not.toContain('agent-exit');
   });
 
-  it.each(['EPERM', 'EIO'])('withholds the prior population on provider %s and restores only on a healthy scan', async (code) => {
-    await h.tickProcess();
-    const first = hooks.witness();
-    expect(first).toBeTypeOf('string');
-    h.listProcesses.mockRejectedValueOnce(Object.assign(new Error('fixture provider failure'), { code }));
-    await h.tickProcess();
-    expect(h.scanner.getProcessCapabilities().populationReliable).toBe(false);
-    expect(hooks.witness()).toBeNull();
-    expect(h.sessionTracker.activeCount()).toBe(1);
-    expect(h.auditTypes()).not.toContain('agent-exit');
-    await h.tickProcess();
-    expect(h.scanner.getProcessCapabilities().populationReliable).toBe(true);
-    expect(hooks.witness()).toBeTypeOf('string');
-    expect(hooks.witness()).not.toBe(first);
-    expect(h.sessionTracker.activeCount()).toBe(1);
-    expect(h.auditTypes()).not.toContain('agent-exit');
-  });
+  it.each(['EPERM', 'EIO'])(
+    'withholds the prior population on provider %s and restores only on a healthy scan',
+    async (code) => {
+      await h.tickProcess();
+      const first = hooks.witness();
+      expect(first).toBeTypeOf('string');
+      h.listProcesses.mockRejectedValueOnce(
+        Object.assign(new Error('fixture provider failure'), { code }),
+      );
+      await h.tickProcess();
+      expect(h.scanner.getProcessCapabilities().populationReliable).toBe(false);
+      expect(hooks.witness()).toBeNull();
+      expect(h.sessionTracker.activeCount()).toBe(1);
+      expect(h.auditTypes()).not.toContain('agent-exit');
+      await h.tickProcess();
+      expect(h.scanner.getProcessCapabilities().populationReliable).toBe(true);
+      expect(hooks.witness()).toBeTypeOf('string');
+      expect(hooks.witness()).not.toBe(first);
+      expect(h.sessionTracker.activeCount()).toBe(1);
+      expect(h.auditTypes()).not.toContain('agent-exit');
+    },
+  );
 });

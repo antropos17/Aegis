@@ -83,6 +83,7 @@ describe('closed runtime coverage projection', () => {
       const input = coverageFixture('windows');
       const health = record(input.stats.appHealth);
       health.watchPlan = { state: 'HEALTHY', projectState, path: 'PRIVATE_ROOT' };
+      input.projectCoverageState = projectState;
       record(health.sensors).byId = { 'fs-chokidar': { state: 'HEALTHY' } };
       const model = sensorCoverage(input);
       expect(model.project).toEqual({
@@ -99,6 +100,7 @@ describe('closed runtime coverage projection', () => {
     expect(sensorCoverage(input).project.state).toBe('Unknown');
     record(input.stats.appHealth).watchPlan = { projectState: '__proto__' };
     input.stats.monitoringPaused = true;
+    input.monitoringPauseConfirmed = true;
     expect(sensorCoverage(input).project).toEqual({
       state: 'Unknown',
       detail: projectCoverageDetails.unknown,

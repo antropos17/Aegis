@@ -148,4 +148,43 @@ describe('ordinary packaged ETW file reads', () => {
       expect(h.spawnProcess).toHaveBeenCalledOnce();
     }
   });
+  it('accepts path-free stop idempotently while degraded and reports completion only after child exit', () => {
+    const h = make();
+    const child = h.running();
+    expect(h.sensor.getHealth().state).toBe('DEGRADED');
+    expect(h.sensor.getReadView()).toMatchObject({
+      phase: 'running',
+      controls: { canStop: true },
+    });
+
+    expect(h.sensor.control({ action: 'stop' })).toEqual({ success: true });
+    child.flush();
+    expect(child.writes.filter((entry) => entry.t === 'stop')).toHaveLength(1);
+    // Acceptance precedes both the collector's stop frame and child cleanup.
+    expect(h.sensor.getReadView()).toMatchObject({
+      phase: 'running',
+      controls: { canStop: true },
+    });
+    expect(h.sensor.control({ action: 'stop' })).toEqual({ success: true });
+    child.flush();
+    expect(child.writes.filter((entry) => entry.t === 'stop')).toHaveLength(1);
+
+    const stopped = message('stopped').data;
+    stopped.requestId = child.writes.at(-1).data.requestId;
+    stopped.finalEventSeq = '999999';
+    child.message('stopped', 3, stopped);
+    expect(h.sensor.getReadView()).toMatchObject({
+      phase: 'stopped',
+      controls: { canStop: true },
+    });
+    child.stdout.emit('end');
+    child.emit('close', 0);
+    expect(h.sensor.getReadView()).toMatchObject({
+      phase: 'stopped',
+      controls: { canStop: false },
+    });
+    expect(h.sensor.control({ action: 'stop' })).toEqual({ success: true });
+    vi.advanceTimersByTime(10000);
+    expect(h.spawnProcess).toHaveBeenCalledOnce();
+  });
 });
