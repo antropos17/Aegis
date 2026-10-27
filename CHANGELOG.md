@@ -20,6 +20,97 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.21.0-beta (2026-10-27)
+
+## What's Changed
+* test(installer): qualify published 0.20.1 upgrade lifecycle by @antropos17 in https://github.com/antropos17/Aegis/pull/1047
+* test(installer): qualify published release in native Windows 11 x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1049
+* test(updater): qualify automatic update on native Windows 11 x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1050
+* test(updater): qualify native Windows beta auto-update by @antropos17 in https://github.com/antropos17/Aegis/pull/1051
+* test(installer): qualify all-users elevation and Finish launch by @antropos17 in https://github.com/antropos17/Aegis/pull/1052
+* test(installer): qualify all-users automatic updates on Windows 11 x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1055
+* build(deps): integrate Electron and fast-uri security updates by @antropos17 in https://github.com/antropos17/Aegis/pull/1056
+* build(deps-dev): bump fast-uri from 3.1.8 to 3.1.9 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1053
+* build(deps-dev): bump electron from 44.8.0 to 44.9.1 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1054
+* feat(bench): add bounded Procmon CSV staging by @antropos17 in https://github.com/antropos17/Aegis/pull/1059
+* feat(bench): evaluate declared three-run reproducibility by @antropos17 in https://github.com/antropos17/Aegis/pull/1060
+* feat(bench): execute owned loopback transfer scenarios by @antropos17 in https://github.com/antropos17/Aegis/pull/1061
+* feat(bench): execute bounded owned file-read scenarios by @antropos17 in https://github.com/antropos17/Aegis/pull/1062
+* feat(bench): report recorded synthetic corpus results by @antropos17 in https://github.com/antropos17/Aegis/pull/1063
+* fix(macos): preserve snapshots with truncated display names by @antropos17 in https://github.com/antropos17/Aegis/pull/1064
+* feat(context): prepare bounded explicit JSONL tail reads by @antropos17 in https://github.com/antropos17/Aegis/pull/1068
+* feat(bench): bind corpus runs to loaded scenario bytes by @antropos17 in https://github.com/antropos17/Aegis/pull/1065
+* fix(build): require x64 for Windows packaging by @antropos17 in https://github.com/antropos17/Aegis/pull/1066
+* fix(linux): preserve process identity with empty comm by @antropos17 in https://github.com/antropos17/Aegis/pull/1069
+* fix(policy): encode Cedar path control characters by @antropos17 in https://github.com/antropos17/Aegis/pull/1067
+* fix(pipeline): persist rejection loss across interruption by @antropos17 in https://github.com/antropos17/Aegis/pull/1070
+* feat(bench): persist own-process resource sessions by @antropos17 in https://github.com/antropos17/Aegis/pull/1071
+* feat(bench): supervise fixed own-resource collector by @antropos17 in https://github.com/antropos17/Aegis/pull/1073
+* feat(policy): translate explicit schema-2 execution policies by @antropos17 in https://github.com/antropos17/Aegis/pull/1072
+* feat(session-context): support bounded Windows JSONL tails by @antropos17 in https://github.com/antropos17/Aegis/pull/1074
+* feat(bench): inspect supervised resource bundles offline by @antropos17 in https://github.com/antropos17/Aegis/pull/1075
+* feat(policy): export explicitly selected policies to fresh Cedar files by @antropos17 in https://github.com/antropos17/Aegis/pull/1076
+* feat(bench): corroborate Linux own CPU counters by @antropos17 in https://github.com/antropos17/Aegis/pull/1078
+* feat(hooks): bind private reviews to expiring owner authority by @antropos17 in https://github.com/antropos17/Aegis/pull/1077
+* feat(bench): validate retained Linux CPU bundles by @antropos17 in https://github.com/antropos17/Aegis/pull/1079
+* docs: streamline completion plan execution by @antropos17 in https://github.com/antropos17/Aegis/pull/1080
+* build(deps-dev): bump undici from 6.29.0 to 6.29.1 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1058
+* fix(guard): retain uncertain hook mutation outcomes by @antropos17 in https://github.com/antropos17/Aegis/pull/1081
+* fix(context): snapshot session selection before asynchronous reads by @antropos17 in https://github.com/antropos17/Aegis/pull/1082
+* feat(bench): stage bounded raw auditd compound events by @antropos17 in https://github.com/antropos17/Aegis/pull/1083
+* chore(dev): remove mutation campaigns and prioritize completed user flows by @antropos17 in https://github.com/antropos17/Aegis/pull/1084
+* docs(plan): batch milestones and avoid duplicate merge approvals by @antropos17 in https://github.com/antropos17/Aegis/pull/1085
+* docs: keep published download guidance current by @antropos17 in https://github.com/antropos17/Aegis/pull/1086
+* docs: share delivery rules and prioritize completed behavior by @antropos17 in https://github.com/antropos17/Aegis/pull/1087
+* feat(context): explain observations from local Claude history by @antropos17 in https://github.com/antropos17/Aegis/pull/1088
+* docs(plan): apply honeypot and enterprise security review by @antropos17 in https://github.com/antropos17/Aegis/pull/1089
+* feat(context): verify native Claude session ownership by @antropos17 in https://github.com/antropos17/Aegis/pull/1090
+* feat(bench): measure controlled native task pairs by @antropos17 in https://github.com/antropos17/Aegis/pull/1093
+* feat: review a separate Claude hook profile in Action control by @antropos17 in https://github.com/antropos17/Aegis/pull/1094
+* fix: bind AI assessments to one process instance by @antropos17 in https://github.com/antropos17/Aegis/pull/1095
+* fix(deps): qualify Cedar 4.14, Chokidar 6 and Electron 45 together by @antropos17 in https://github.com/antropos17/Aegis/pull/1100
+* build(deps): bump the npm-minor-patch group with 5 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1096
+* build(deps-dev): bump electron from 44.9.1 to 45.0.0 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1097
+* build(deps): bump chokidar from 4.0.3 to 6.0.0 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1098
+* build(deps): bump dependency-cruiser from 18.6.0 to 18.7.0 in /tools/development in the development-minor-patch group by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/1099
+* Measure controlled Windows worker CPU and working set by @antropos17 in https://github.com/antropos17/Aegis/pull/1101
+* feat: review targeted Claude hook removal after session expiry by @antropos17 in https://github.com/antropos17/Aegis/pull/1102
+* fix: explain live Claude transcripts during append by @antropos17 in https://github.com/antropos17/Aegis/pull/1103
+* fix: read genuine Claude hook requests in Windows Electron by @antropos17 in https://github.com/antropos17/Aegis/pull/1104
+* fix: apply saved file-watch exclusions without redundant restarts by @antropos17 in https://github.com/antropos17/Aegis/pull/1105
+* fix: explain genuine Claude writes through real filesystem observations by @antropos17 in https://github.com/antropos17/Aegis/pull/1106
+* feat: monitor one owner-selected project folder by @antropos17 in https://github.com/antropos17/Aegis/pull/1107
+* test: qualify external Claude instance isolation and restart by @antropos17 in https://github.com/antropos17/Aegis/pull/1108
+* fix: accept quoted ampersands in packaged hook paths by @antropos17 in https://github.com/antropos17/Aegis/pull/1109
+* fix: disclose project watch coverage and setup by @antropos17 in https://github.com/antropos17/Aegis/pull/1110
+* fix: avoid killing exited qualification child PIDs by @antropos17 in https://github.com/antropos17/Aegis/pull/1111
+* docs: clarify release evidence and add a concise FAQ by @antropos17 in https://github.com/antropos17/Aegis/pull/1092
+* docs: record private ASAR coverage and hook qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/1113
+* fix: retain network snapshots across sensor interruptions by @antropos17 in https://github.com/antropos17/Aegis/pull/1112
+* docs: record genuine packaged Claude hook result by @antropos17 in https://github.com/antropos17/Aegis/pull/1115
+* fix: report newly observed unusual hours by @antropos17 in https://github.com/antropos17/Aegis/pull/1114
+* fix: explain network provider failures by @antropos17 in https://github.com/antropos17/Aegis/pull/1116
+* fix: separate empty radar guidance from risk scale by @antropos17 in https://github.com/antropos17/Aegis/pull/1117
+* fix: track anomaly notifications by instance by @antropos17 in https://github.com/antropos17/Aegis/pull/1118
+* fix: explain unavailable file observation by @antropos17 in https://github.com/antropos17/Aegis/pull/1119
+* fix: avoid stale audit delivery status by @antropos17 in https://github.com/antropos17/Aegis/pull/1120
+* fix: preserve pushed update status after read failure by @antropos17 in https://github.com/antropos17/Aegis/pull/1121
+* fix: close pending Claude profile helper on shutdown by @antropos17 in https://github.com/antropos17/Aegis/pull/1122
+* fix: recheck peer session registries by @antropos17 in https://github.com/antropos17/Aegis/pull/1123
+* fix: stop late action route metadata checks by @antropos17 in https://github.com/antropos17/Aegis/pull/1124
+* fix: show unavailable file watch groups in coverage by @antropos17 in https://github.com/antropos17/Aegis/pull/1125
+* fix: verify owned Claude profile state before use by @antropos17 in https://github.com/antropos17/Aegis/pull/1126
+* fix: clarify Observatory interactions and observation states by @antropos17 in https://github.com/antropos17/Aegis/pull/1127
+* fix: keep estimated usage label on one line by @antropos17 in https://github.com/antropos17/Aegis/pull/1128
+* docs: plan MCP approval target verification and argument diff by @antropos17 in https://github.com/antropos17/Aegis/pull/1129
+* docs: refresh GitHub project status by @antropos17 in https://github.com/antropos17/Aegis/pull/1130
+* test: compare session tail bytes efficiently by @antropos17 in https://github.com/antropos17/Aegis/pull/1131
+* docs: plan executor evidence and state-bound approvals by @antropos17 in https://github.com/antropos17/Aegis/pull/1132
+* test(installer): qualify frozen 0.21 beta candidate without publication by @antropos17 in https://github.com/antropos17/Aegis/pull/1133
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.20.1-beta...aegis-v0.21.0-beta
+
 ## 0.20.1-beta (2026-10-22)
 
 ## What's Changed
