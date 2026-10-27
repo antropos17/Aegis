@@ -341,6 +341,85 @@ it('waits for an admitted writer outcome before closing its native IO', async ()
   expect(state.closes).toBe(1);
 });
 
+it('waits for a pending native IO creation and closes it after denying the operation', async () => {
+  let release, entered, releaseClose, closeEntered;
+  const creating = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const closingIO = new Promise((resolve) => {
+    closeEntered = resolve;
+  });
+  const makeIO = options.makeIO;
+  options.makeIO = async (...args) => {
+    entered();
+    await new Promise((resolve) => {
+      release = resolve;
+    });
+    const io = await makeIO(...args);
+    const close = io.close;
+    io.close = async () => {
+      closeEntered();
+      await new Promise((resolve) => {
+        releaseClose = resolve;
+      });
+      await close();
+    };
+    return io;
+  };
+  service = createClaudeHookApp(options);
+  const install = service.handle('install', () => true);
+  await creating;
+  let closed = false;
+  const closing = service.close().then(() => {
+    closed = true;
+  });
+  const secondClose = service.close();
+  await Promise.resolve();
+  expect(closed).toBe(false);
+  release();
+  expect(await install).toEqual({ success: false, error: 'Renderer request denied' });
+  await closingIO;
+  expect(closed).toBe(false);
+  expect(state.dialogs).toHaveLength(0);
+  expect(state.writes).toBe(0);
+  releaseClose();
+  await Promise.all([closing, secondClose]);
+  expect(state.closes).toBe(1);
+  expect(await fs.readFile(target, 'utf8')).toBe(original);
+});
+
+it.each(['selection', 'confirmation'])(
+  'closes without waiting for a pending %s dialog',
+  async (phase) => {
+    let entered, release;
+    const dialogEntered = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const waitForDialog = () =>
+      new Promise((resolve) => {
+        release = resolve;
+        entered();
+      });
+    if (phase === 'selection') {
+      options.dialog.showOpenDialog = async () => {
+        await waitForDialog();
+        return { canceled: false, filePaths: [policy] };
+      };
+    } else {
+      state.beforeConfirmation = waitForDialog;
+    }
+    service = createClaudeHookApp(options);
+    const install = service.handle('install', () => true);
+    await dialogEntered;
+    await service.close();
+    expect(state.closes || 0).toBe(phase === 'confirmation' ? 1 : 0);
+    release();
+    expect(await install).toEqual({ success: false, error: 'Renderer request denied' });
+    expect(state.writes).toBe(0);
+    expect(await fs.readFile(target, 'utf8')).toBe(original);
+  },
+);
+
 it('does not append a newly selected policy to an unowned retained profile', async () => {
   expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
   const installed = await fs.readFile(target);
@@ -661,33 +740,36 @@ it.each([
   { code: null, signal: 'SIGTERM', close: true },
   { code: 0, signal: null, close: false },
   { code: null, signal: 'SIGTERM', close: false },
-])('genuine child never targets an exited PID while awaiting close: %j', async ({ code, signal, close }) => {
-  vi.useFakeTimers();
-  const child = controlledChild();
-  const killTree = vi.fn();
-  let settled = false;
-  const pending = boundedChild('owned.exe', [], {
-    cwd: root,
-    env: {},
-    deadlineMs: 150,
-    spawnChild: () => child,
-    killTree,
-  }).then((result) => {
-    settled = true;
-    return result;
-  });
-  child.exitCode = code;
-  child.signalCode = signal;
-  child.emit('exit', code, signal);
-  await vi.advanceTimersByTimeAsync(5149);
-  expect(settled).toBe(false);
-  if (close) child.emit('close', code, signal);
-  else await vi.advanceTimersByTimeAsync(1);
-  const result = await pending;
-  expect(killTree).not.toHaveBeenCalled();
-  expect(result).toMatchObject({ cleanupConfirmed: close, code, signal });
-  expect(vi.getTimerCount()).toBe(0);
-  child.stdin.destroy();
-  child.stdout.destroy();
-  child.stderr.destroy();
-});
+])(
+  'genuine child never targets an exited PID while awaiting close: %j',
+  async ({ code, signal, close }) => {
+    vi.useFakeTimers();
+    const child = controlledChild();
+    const killTree = vi.fn();
+    let settled = false;
+    const pending = boundedChild('owned.exe', [], {
+      cwd: root,
+      env: {},
+      deadlineMs: 150,
+      spawnChild: () => child,
+      killTree,
+    }).then((result) => {
+      settled = true;
+      return result;
+    });
+    child.exitCode = code;
+    child.signalCode = signal;
+    child.emit('exit', code, signal);
+    await vi.advanceTimersByTimeAsync(5149);
+    expect(settled).toBe(false);
+    if (close) child.emit('close', code, signal);
+    else await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    expect(killTree).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ cleanupConfirmed: close, code, signal });
+    expect(vi.getTimerCount()).toBe(0);
+    child.stdin.destroy();
+    child.stdout.destroy();
+    child.stderr.destroy();
+  },
+);

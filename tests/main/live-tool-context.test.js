@@ -614,6 +614,59 @@ it('rejects a session shared by two monitored process instances', async () => {
   );
 });
 
+it.each(['stable', 'same-session', 'disappears'])(
+  'checks peer registry stability across the selected transcript read (%s)',
+  async (change) => {
+    const ticks = '134373736000000000';
+    const peerSession = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const peerRegistry = path.join(path.dirname(registry), '43.json');
+    agents[0].createTime100ns = ticks;
+    agents.push({ ...agents[0], pid: 43, instanceId: `43:${start}` });
+    await fs.writeFile(
+      peerRegistry,
+      JSON.stringify({ sessionId: peerSession, cwd, startedAt: start + 100 }),
+    );
+    const observeProcesses = async () => [
+      { ProcessId: 42, CreateTime100ns: ticks, Cwd: cwd, SessionId: sessionId },
+      { ProcessId: 43, CreateTime100ns: ticks, Cwd: cwd, SessionId: peerSession },
+    ];
+    service = createLiveToolContext({
+      home,
+      getAgents: () => agents,
+      now: () => start + 3000,
+      observeProcesses,
+    });
+    service.record({
+      eventId,
+      pid: 42,
+      instanceId: `42:${start}`,
+      timestamp: start + 1500,
+      file: path.join(cwd, '.env'),
+      createTime100ns: ticks,
+    });
+    const activity = changeDuringRead(transcript, async () => {
+      if (change === 'same-session')
+        await fs.writeFile(
+          peerRegistry,
+          JSON.stringify({ sessionId, cwd, startedAt: start + 100 }),
+        );
+      if (change === 'disappears') await fs.unlink(peerRegistry);
+    });
+    const result = await service.explain(eventId);
+    expect(activity().changed).toBe(true);
+    expect(
+      vi
+        .mocked(fs.open)
+        .mock.calls.filter(([file]) => String(file).endsWith('.jsonl'))
+        .map(([file]) => file),
+    ).toEqual([transcript]);
+    expect(result.toolContext.sessionBinding).toBe(
+      change === 'stable' ? 'confirmed' : 'unavailable',
+    );
+    if (change !== 'stable') expect(result.toolContext.candidates).toHaveLength(0);
+  },
+);
+
 it('requires a safe session filename', async () => {
   await fs.writeFile(
     registry,
