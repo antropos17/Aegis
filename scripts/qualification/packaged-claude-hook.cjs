@@ -366,12 +366,14 @@ async function run() {
         ['PostToolUseFailure', 'reported-failed'],
       ]) {
         before.tool_use_id = `fixture-${event}`;
+        stage = `${event}-pre`;
         const pre = await child(bash, ['--noprofile', '--norc', '-c', selected], {
           cwd: output,
           env: reportEnv,
           deadlineMs: 6000,
           input: JSON.stringify(before),
         });
+        receipt.cases.push({ name: stage, ...pre.evidence });
         try {
           assert.equal(pre.result.code, 0);
           assert.equal(
@@ -381,6 +383,7 @@ async function run() {
         } finally {
           pre.result.stdout.fill(0);
         }
+        stage = `${event}-after`;
         const after = await child(
           bash,
           ['--noprofile', '--norc', '-c', hooks[event][0].hooks[0].command],
@@ -396,6 +399,7 @@ async function run() {
             }),
           },
         );
+        receipt.cases.push({ name: stage, ...after.evidence });
         try {
           assert.equal(after.result.code, 0);
           assert.equal(after.result.stdoutBytes, 0);
@@ -403,6 +407,7 @@ async function run() {
         } finally {
           after.result.stdout.fill(0);
         }
+        stage = `${event}-correlation`;
         assert.equal(observer.snapshot().entries.at(-1).outcome, outcome);
       }
       const state = observer.snapshot();
