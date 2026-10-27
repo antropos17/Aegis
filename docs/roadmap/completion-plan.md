@@ -989,6 +989,16 @@ rechecks do not establish freshness of the target's business state.
   missing deduplication record alone cannot establish that a previous attempt
   never executed. An identifier or gateway-only log does not by itself establish
   exactly-once execution; unsupported tools retain an explicit limitation.
+- Retain deduplication protection for the entire enforced retry horizon plus
+  the route's clock-skew bound, independently of the shorter approval lifetime.
+  Define that horizon from a trusted operation time through the latest permitted
+  retry arrival, including bounded queuing/delivery delays; fresh approvals do
+  not reset the operation's age. The executor rejects requests beyond that
+  horizon even after their deduplication entries expire. Missing or expired
+  entries cannot silently turn a late retry into a new operation. Preserve the
+  required protection across restart and retain explicit unknown outcomes for
+  reconciliation. Bound storage; exhausted capacity refuses new mutating
+  admission rather than evicting still-required deduplication protection.
 - Define a short, route-appropriate approval validity window and recheck expiry
   at the executor before applying the action. Bind approval to the reviewed
   target's version, ETag or equivalent state precondition. Check that precondition
@@ -1004,6 +1014,19 @@ rechecks do not establish freshness of the target's business state.
   mutation boundary. A route without that capability can operate only under a
   separately explicit policy that permits its stated limitations. Compensation
   is tool-specific and does not satisfy a mandatory pre-execution state check.
+- During a mandatory state-check outage, keep bounded diagnostics available while
+  refusing new mutating dispatch on the affected route. Clearly expose the
+  unavailable check, blocked mutations and recovery state; avoid an ambiguous
+  "observe-only" label suggesting that execution continues. Record only fixed
+  reason/status codes, safe correlation metadata and bounded loss counters under
+  the existing privacy contract; no raw arguments, prompts, documents, secret
+  values or credential-bearing source references enter diagnostics. Already
+  dispatched operations retain their actual or unknown outcomes; refusal of new
+  work does not establish rollback of earlier effects.
+- Recovery does not automatically replay refused, queued or outcome-unknown
+  operations, renew approvals or restore consumed grants. An explicit new attempt
+  follows the existing fresh-approval, stable-operation deduplication and atomic
+  state-precondition checks. Restoring the check alone cannot authorize an effect.
 
 Acceptance: use independent fixture outcomes to cover successful execution with
 matching records, differing executed parameters, missing executor evidence,
@@ -1019,6 +1042,14 @@ deduplication evidence. Use independent target outcomes to prove that required
 state-check failure or unavailability prevents the effect, and that unsupported
 conditional execution is refused under a policy requiring it. A completed retry
 must return the recorded outcome without creating a second effect.
+Add independent target-outcome cases with approval expiry before the retry
+horizon, skew-boundary and delayed retries, restart during the retention window,
+post-horizon requests after deduplication cleanup, and full storage while live
+entries remain protected. Simulate a state-check outage and recovery: mutations
+remain unexecuted, diagnostics remain bounded and secret-free, and recovery
+alone causes no dispatch, approval renewal or replay. Include an already
+dispatched call whose response is lost during the outage; its outcome must remain
+unknown until reconciled, without a second effect from automatic recovery.
 Preserve existing grant-profile distinctions and W6.1 target binding. Keep
 fixture evidence separate from qualification of a real provider/server/version;
 this planning change grants no native run or product acceptance.
