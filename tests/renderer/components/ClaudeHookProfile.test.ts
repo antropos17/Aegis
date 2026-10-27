@@ -300,6 +300,33 @@ it('does not offer new admission when native release is unconfirmed', async () =
   expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
 });
 
+it('allows Stop retry when release is unconfirmed despite an inactive snapshot', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_RELEASE_UNCONFIRMED',
+      available: true,
+      canOpen: true,
+      guardSession: snapshot(),
+    })
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_STOPPED',
+      available: true,
+      canOpen: true,
+      guardSession: snapshot('ended'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(
+    'The previous native reader did not confirm shutdown. Another reporting session is unavailable.',
+  );
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop reporting' }));
+  expect(await screen.findByText(/Reporting session ended/)).toBeVisible();
+  expect(review.mock.calls).toEqual([['status'], ['guard-stop']]);
+});
+
 it('allows a safe stop after an initially malformed status', async () => {
   const review = vi
     .fn()
@@ -365,15 +392,13 @@ it.each([
   'SESSION_RELEASE_UNCONFIRMED',
   'GUARD_RELEASE_UNCONFIRMED',
 ])('does not offer a new admission for retained outcome %s', async (code) => {
-  const review = vi
-    .fn()
-    .mockResolvedValue({
-      success: true,
-      code,
-      canOpen: true,
-      available: true,
-      guardSession: snapshot(),
-    });
+  const review = vi.fn().mockResolvedValue({
+    success: true,
+    code,
+    canOpen: true,
+    available: true,
+    guardSession: snapshot(),
+  });
   render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
   await screen.findByText(/No reporting session/);
   expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
@@ -427,15 +452,13 @@ it.each([
 );
 
 it('keeps Stop available for an active snapshot even when the service is not ready', async () => {
-  const review = vi
-    .fn()
-    .mockResolvedValue({
-      success: true,
-      code: 'UNAVAILABLE',
-      available: false,
-      canOpen: true,
-      guardSession: snapshot('active'),
-    });
+  const review = vi.fn().mockResolvedValue({
+    success: true,
+    code: 'UNAVAILABLE',
+    available: false,
+    canOpen: true,
+    guardSession: snapshot('active'),
+  });
   render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
   await screen.findByText(
     'Session preparation is unavailable until setup status is ready. Refresh to retry.',
