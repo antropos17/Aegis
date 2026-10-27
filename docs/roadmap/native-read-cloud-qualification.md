@@ -6,6 +6,24 @@ Windows 11 Enterprise Evaluation x64 guest, build 26300.9457. It accepts only
 Electron display scale factor must equal one. It does not use the owner's
 installed application, personal profile, credentials or host Windows session.
 
+The executed run [40433207644](https://github.com/antropos17/Aegis/actions/runs/40433207644)
+at source `fcd0634904ca2c682e3a541f0b29848d5c581b97` failed on exact scanner
+identity. Its retained checkpoint records `handshake-timeout`: no validated helper
+hello arrived within the shared 1200 ms startup/response budget. CIM fallback
+also failed; the receipt contains `reads: []`. Thus read, audit, alert and risk
+acceptance remain unexecuted. VM shutdown and removal were observed. This does
+not establish the helper's actual startup duration or a native query error.
+A separate collector guard-setup cancellation (`0x8013153B`) remains unresolved;
+the artifact has no substage/timing evidence linking it to the snapshot failure.
+
+The subsequent client repair separates a finite 10000 ms cold-start allowance
+from the existing 1200 ms snapshot response deadline. Explicit finite caller
+overrides retain their previous per-stage bounds. Protocol, identity, restart
+and admission checks stay unchanged. Five timing regressions and the existing
+client/provider cases passed (86 total); these fixture results do not establish
+native acceptance for the repaired source. The failed runtime receipt remains
+bound to its original source, and no repeat VM was executed.
+
 The `windows11-x64-native-reads` target of the installer lifecycle workflow
 requires `candidate=build`. Its separate job creates a real isolated Git worktree
 at the workflow SHA, installs locked dependencies, runs the single-pass

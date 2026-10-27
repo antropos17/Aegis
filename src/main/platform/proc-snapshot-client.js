@@ -38,12 +38,19 @@ const { PROTOCOL_VERSION, encodeFrame, createFrameDecoder } = require('./proc-sn
 const EXE_NAME = 'aegis-procsnap.exe';
 
 /**
- * Default deadline for a handshake or a snapshot. Below the measured CIM p50
+ * Default deadline for a snapshot from a ready child. Below the measured CIM p50
  * (1284 ms, N=32, 486 processes): a sidecar that cannot beat the fallback's median
  * is not worth waiting for.
  * @type {number}
  */
 const DEFAULT_TIMEOUT_MS = 1200;
+
+/**
+ * A cold hello includes runtime initialization and the native capability probe.
+ * Give startup its own finite allowance; warm snapshot responses stay at 1200 ms.
+ * @type {number}
+ */
+const DEFAULT_STARTUP_TIMEOUT_MS = 10000;
 
 /** @type {number} Sliding window the restart budget is counted over. */
 const FAILURE_WINDOW_MS = 600000;
@@ -510,13 +517,17 @@ function _ensureChild(timeoutMs) {
 /**
  * Ask the sidecar for one full process snapshot.
  * @param {Object} [opts]
- * @param {number} [opts.timeoutMs=1200]
+ * @param {number} [opts.timeoutMs] Snapshot response deadline (default 1200 ms).
+ *   An explicit finite value also bounds startup, preserving caller overrides.
+ *   Otherwise startup has a separate 10000 ms cap. These are per-stage budgets.
  * @returns {Promise<{source: string, procs: Array<Object>}>} rejects on every
  *   failure mode — the caller decides what to fall back to.
  * @since v0.12.0
  */
 function requestSnapshot(opts = {}) {
-  const timeoutMs = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
+  const explicitTimeout = Number.isFinite(opts.timeoutMs);
+  const timeoutMs = explicitTimeout ? opts.timeoutMs : DEFAULT_TIMEOUT_MS;
+  const startupTimeoutMs = explicitTimeout ? opts.timeoutMs : DEFAULT_STARTUP_TIMEOUT_MS;
   if (_sticky) return Promise.reject(new Error(`proc-snapshot: unavailable — ${_sticky}`));
   if (_inFlight) return Promise.reject(new Error('proc-snapshot: a snapshot is already in flight'));
 
@@ -525,7 +536,7 @@ function requestSnapshot(opts = {}) {
     _inFlight = false;
     return value;
   };
-  return _ensureChild(timeoutMs)
+  return _ensureChild(startupTimeoutMs)
     .then(
       (child) =>
         new Promise((resolve, reject) => {
@@ -597,6 +608,7 @@ function _resetForTest() {
 module.exports = {
   EXE_NAME,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_STARTUP_TIMEOUT_MS,
   MAX_FAILURES_IN_WINDOW,
   BACKOFF_MS,
   requestSnapshot,

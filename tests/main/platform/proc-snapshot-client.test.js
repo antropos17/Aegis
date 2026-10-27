@@ -136,6 +136,97 @@ describe('platform/proc-snapshot-client', () => {
     expect(client.getState().caps).toEqual({ class: 'class5', sequence: false, topology: true });
   });
 
+  describe('cold startup and snapshot deadlines', () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+    afterEach(() => vi.useRealTimers());
+
+    it('accepts a cold hello after the warm-response deadline and requests a fresh snapshot', async () => {
+      const observed = client.requestSnapshot().then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+      );
+      const child = children[0];
+      await vi.advanceTimersByTimeAsync(1500);
+      expect(child.killed).toBe(false);
+      expect(child.written).toHaveLength(0);
+      child.stdout.emit('data', encodeFrame(HELLO));
+      await flush();
+      expect(child.written).toEqual([encodeFrame({ t: 'snap', id: 1 })]);
+      const procs = [{ pid: 7, birth: '133000000000000000' }];
+      child.stdout.emit('data', encodeFrame({ t: 'snap', id: 1, source: 'class5', procs }));
+      await expect(observed).resolves.toEqual({ value: { source: 'class5', procs } });
+      expect(client.getState().failures).toBe(0);
+      expect(client.getState().firstFailure).toBeNull();
+    });
+
+    it('still rejects a warm snapshot at 1200 ms', async () => {
+      const first = await startRequest();
+      first.child.stdout.emit(
+        'data',
+        encodeFrame({ t: 'snap', id: 1, source: 'basic', procs: [] }),
+      );
+      await first.promise;
+      let settled = false;
+      const rejected = expect(
+        client.requestSnapshot().finally(() => {
+          settled = true;
+        }),
+      ).rejects.toThrow(/snapshot timed out/);
+      await flush();
+      await vi.advanceTimersByTimeAsync(1199);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(spawnCalls).toHaveLength(1);
+      expect(first.child.killed).toBe(true);
+      expect(client.getState().firstFailure?.kind).toBe('snapshot-timeout');
+    });
+
+    it('bounds a missing cold hello at 10 seconds and cannot revive a timed-out child', async () => {
+      let settled = false;
+      const rejected = expect(
+        client.requestSnapshot().finally(() => {
+          settled = true;
+        }),
+      ).rejects.toThrow(/handshake timed out/);
+      const child = children[0];
+      await vi.advanceTimersByTimeAsync(9999);
+      expect(settled).toBe(false);
+      expect(child.killed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(child.killed).toBe(true);
+      expect(child.stdinEnded).toBe(true);
+      expect(client.getState().failures).toBe(1);
+      expect(client.getState().firstFailure?.kind).toBe('handshake-timeout');
+      child.stdout.emit('data', encodeFrame(HELLO));
+      expect(client.getState().connected).toBe(false);
+      expect(child.written).toHaveLength(0);
+      await expect(client.requestSnapshot()).rejects.toThrow(/backing off/);
+      expect(spawnCalls).toHaveLength(1);
+    });
+
+    it.each(['handshake', 'snapshot'])('preserves an explicit short %s deadline', async (stage) => {
+      let settled = false;
+      const rejected = expect(
+        client.requestSnapshot({ timeoutMs: 20 }).finally(() => {
+          settled = true;
+        }),
+      ).rejects.toThrow(stage === 'handshake' ? /handshake timed out/ : /snapshot timed out/);
+      const child = children[0];
+      if (stage === 'snapshot') {
+        child.stdout.emit('data', encodeFrame(HELLO));
+        await flush();
+      }
+      await vi.advanceTimersByTimeAsync(19);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(child.killed).toBe(true);
+      expect(client.getState().firstFailure?.kind).toBe(`${stage}-timeout`);
+    });
+  });
+
   it('ignores a response whose id matches no request, then answers the real one', async () => {
     const { promise, child } = await startRequest();
     child.stdout.emit(
