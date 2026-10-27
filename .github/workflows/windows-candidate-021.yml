@@ -1,7 +1,16 @@
 name: Qualify Windows 0.21 candidate without publication
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        type: choice
+        default: pr1048
+        options: [pr1048, master813]
   workflow_call:
+    inputs:
+      profile:
+        type: string
+        default: pr1048
 permissions:
   contents: read
   pull-requests: read
@@ -21,12 +30,19 @@ jobs:
     env:
       RuntimeFrameworkVersion: '10.0.14'
       TargetLatestRuntimePatch: 'false'
+      CANDIDATE_PROFILE: ${{ inputs.profile }}
+      CANDIDATE_SHA: ${{ inputs.profile == 'master813' && '813804e2aae1c020f4b17cb7a30f053a210185ef' || '5526376f39d01305f98e707e8e2ea9807f68a33b' }}
+      CANDIDATE_TREE: ${{ inputs.profile == 'master813' && 'b1710a41cd7eba38ed60dffd6bd8bc3b4fa37d58' || '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: 5526376f39d01305f98e707e8e2ea9807f68a33b
+          ref: ${{ env.CANDIDATE_SHA }}
           persist-credentials: false
+      - name: Require an explicitly supported frozen profile
+        run: |
+          if ($env:CANDIDATE_PROFILE -notin @('pr1048','master813')) { throw 'Unknown candidate profile' }
       - name: Require the reviewed PR head
+        if: inputs.profile == 'pr1048'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -46,7 +62,7 @@ jobs:
             ('DOTNET_CLI_HOME=' + (Join-Path $root 'dotnet'))
             ('NODE_COMPILE_CACHE=' + (Join-Path $root 'node-cache'))
           ) | Add-Content -LiteralPath $env:GITHUB_ENV
-          if ((git rev-parse HEAD) -ne '5526376f39d01305f98e707e8e2ea9807f68a33b' -or (git rev-parse 'HEAD^{tree}') -ne '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a' -or (git status --porcelain)) { throw 'Candidate source mismatch' }
+          if ((git rev-parse HEAD) -ne $env:CANDIDATE_SHA -or (git rev-parse 'HEAD^{tree}') -ne $env:CANDIDATE_TREE -or (git status --porcelain)) { throw 'Candidate source mismatch' }
           if ((Get-Content package.json -Raw | ConvertFrom-Json).version -ne '0.21.0-beta') { throw 'Candidate version mismatch' }
           Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
           if ((Get-PSDrive -Name ((Split-Path -Qualifier $root).TrimEnd(':'))).Free -lt 8GB) { throw 'Insufficient build storage' }
@@ -93,6 +109,8 @@ jobs:
             sourceSha=(git rev-parse HEAD); sourceTree=(git rev-parse 'HEAD^{tree}')
             runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT
             version='0.21.0-beta'; filename=$files[0].Name; bytes=$files[0].Length
+            profile=$env:CANDIDATE_PROFILE; sdk=(dotnet --version).Trim()
+            runtime=((Get-Content dist/win-unpacked/resources/etw-file/EtwFile.runtimeconfig.json -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks | Where-Object name -eq 'Microsoft.NETCore.App').version
             sha256=(Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             releaseSigned=$false; published=$false
           } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'candidate.json') -Encoding utf8
@@ -140,7 +158,7 @@ jobs:
         timeout-minutes: 5
         run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
       - name: Check candidate import contract without executing fixture bytes
-        run: ./scripts/qualification/test-windows-candidate-021.ps1 -Scratch (Join-Path $env:RUNNER_TEMP 'aegis-021-import-check')
+        run: ./scripts/qualification/test-windows-candidate-021.ps1 -Scratch (Join-Path $env:RUNNER_TEMP 'aegis-021-import-check') -Profile '${{ inputs.profile }}'
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: candidate-021-${{ github.run_id }}-${{ github.run_attempt }}
@@ -149,7 +167,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA -CandidateDirectory (Join-Path $env:RUNNER_TEMP 'aegis-021-candidate-input') -ExpectedArchitecture X64 -Mode silent -Pr1048Candidate
+          $options = if ('${{ inputs.profile }}' -eq 'master813') { @{Master813804e2Candidate=$true} } else { @{Pr1048Candidate=$true} }
+          ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA -CandidateDirectory (Join-Path $env:RUNNER_TEMP 'aegis-021-candidate-input') -ExpectedArchitecture X64 -Mode silent @options
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always() && env.AEGIS_INSTALLER_QA != ''
         with:

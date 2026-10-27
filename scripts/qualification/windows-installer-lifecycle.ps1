@@ -5,9 +5,11 @@ param(
   [string]$CandidateDirectory,
   [string]$ReleaseDirectory,
   [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64',
-  [switch]$Pr1048Candidate
+  [switch]$Pr1048Candidate,
+  [switch]$Master813804e2Candidate
 )
 $ErrorActionPreference = 'Stop'
+if ($Pr1048Candidate -and $Master813804e2Candidate) { throw 'Select exactly one frozen candidate profile' }
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-hosted','github-hosted-hyperv-guest') -or $env:RUNNER_OS -ne 'Windows') {
   throw 'Installer lifecycle requires a disposable GitHub-hosted Windows runner.'
 }
@@ -30,13 +32,19 @@ $checker = Join-Path $supportRoot 'windows-installer-profile.cjs'
 $currentVersion = '0.20.1-beta'
 $previousVersion = '0.20.0-beta'
 $candidateSource = $env:GITHUB_SHA
+$expectedTree = $null
 $previousCommit = 'd3d277d789da4ca3e38cac54176b6a983a14a3b5'
 $previousHash = '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3'
-if ($Pr1048Candidate) {
-  if (-not $CandidateDirectory -or $ReleaseDirectory -or $Scenario -notin @('fresh','upgrade') -or $Mode -ne 'silent' -or $ExpectedArchitecture -ne 'X64') { throw 'PR 1048 candidate requires fresh/upgrade, silent native x64 and an unpublished build artifact' }
+if ($Pr1048Candidate -or $Master813804e2Candidate) {
+  if (-not $CandidateDirectory -or $ReleaseDirectory -or $Scenario -notin @('fresh','upgrade') -or $Mode -ne 'silent' -or $ExpectedArchitecture -ne 'X64') { throw 'Frozen candidate requires fresh/upgrade, silent native x64 and an unpublished build artifact' }
   $currentVersion = '0.21.0-beta'
   $previousVersion = '0.20.1-beta'
   $candidateSource = '5526376f39d01305f98e707e8e2ea9807f68a33b'
+  $expectedTree = '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a'
+  if ($Master813804e2Candidate) {
+    $candidateSource = '813804e2aae1c020f4b17cb7a30f053a210185ef'
+    $expectedTree = 'b1710a41cd7eba38ed60dffd6bd8bc3b4fa37d58'
+  }
   $previousCommit = '274d65711ac858c9d309c73f1f7c9c4e52872ed1'
   $previousHash = '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339'
 }
@@ -172,7 +180,7 @@ function ImportCandidate([string]$Directory) {
   if (-not $directoryPath.StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase)) { throw 'Candidate artifact is outside guest scratch' }
   $receiptPath = Join-Path $directoryPath 'candidate.json'
   $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $candidateSource -or ($Pr1048Candidate -and $receipt.sourceTree -ne '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a') -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
+  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $candidateSource -or ($expectedTree -and $receipt.sourceTree -ne $expectedTree) -or ($Master813804e2Candidate -and ($receipt.sdk -ne '10.0.403' -or $receipt.runtime -ne '10.0.14' -or $receipt.profile -ne 'master813')) -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
   $files = @(Get-ChildItem -LiteralPath $directoryPath -Filter '*.exe' -File)
   if ($files.Count -ne 1 -or $files[0].Name -ne $receipt.filename -or $files[0].Length -ne $receipt.bytes -or $files[0].Length -gt 250MB -or (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash -ne $receipt.sha256) { throw 'Candidate bytes do not match build receipt' }
   $destination = Join-Path $qa ('candidate/'+$files[0].Name)
@@ -190,7 +198,7 @@ try {
   $result.host.sessionId = (Get-Process -Id $PID).SessionId
   $result.host.nativeArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
   $result.host.processArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
-  if ($Pr1048Candidate -and ($result.host.nativeArchitecture -ine 'X64' -or $result.host.processArchitecture -ine 'X64')) { throw 'PR 1048 qualification requires native x64 OS and driver' }
+  if (($Pr1048Candidate -or $Master813804e2Candidate) -and ($result.host.nativeArchitecture -ine 'X64' -or $result.host.processArchitecture -ine 'X64')) { throw 'Frozen candidate qualification requires native x64 OS and driver' }
   if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne $ExpectedArchitecture -or $result.host.nativeArchitecture -ine $ExpectedArchitecture)) { throw 'Wizard mode requires the declared Windows 11 architecture' }
   if ($ExpectedArchitecture -eq 'X64' -and $Mode -eq 'wizard' -and $result.host.processArchitecture -ine 'X64') { throw 'Native x64 driver required' }
   SaveResult; Sample 'preflight'
