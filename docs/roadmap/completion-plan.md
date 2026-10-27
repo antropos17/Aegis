@@ -818,6 +818,31 @@ alone does not establish the identity of the file reached by a path.
   comparison baseline, show when none exists, and require fresh approval even
   for an unchanged diff. Keep raw content and comparison history out of audit,
   telemetry and exports unless the existing explicit data contract permits them.
+- For each argument field, including nested fields, present bounded provenance:
+  direct user instruction, user-supplied material, retrieved file/page, tool result,
+  agent-derived value, mixed sources or unknown. Include protected source
+  references and the recorded transformations (copied, extracted, computed or
+  combined). Scope collection to the supported route and state missing or
+  truncated lineage explicitly; do not invent origins when instrumentation lacks
+  evidence. Keep raw prompts, documents, credentials and source contents out of
+  audit, telemetry and exports under the existing data-handling rules.
+- Distinguish system-recorded provenance from agent-asserted provenance and
+  unavailable evidence. Record the collecting component and its trust boundary;
+  an agent's source label cannot promote itself to verified evidence. A recorded
+  origin establishes where data was obtained within that boundary, not that its
+  contents are true or authorized. Material supplied by the user can contain
+  quoted or embedded untrusted instructions; its origin does not grant authority
+  to those instructions or authorize the resulting operation.
+- Bind the reviewed provenance snapshot to the same approved operation, argument
+  fields and route/context as W6.2's grant. Changed provenance or bindings require
+  renewed review; provenance must not silently rewrite the forwarded arguments.
+  Where policy requires verified provenance, missing or merely asserted evidence
+  cannot silently satisfy that requirement; mixed-source values retain evidence
+  for each contributing source. Enforce authorization from
+  trusted policy and explicit operation authority. Instructions inside argument
+  values, retrieved material or tool results cannot override that policy in either
+  direction. An optional model judgment remains advisory; typed/schema-valid
+  output alone does not establish resistance to such instruction influence.
 - Revalidate the reviewed target at execution in the tool server. Address the
   approval-to-write race with a supported handle-relative or equivalent operation
   that binds the write to the verified target; another path lookup alone does
@@ -834,6 +859,20 @@ baseline. An independent filesystem outcome proves that a substituted target
 is untouched and an approved write still succeeds on each qualified route and
 platform. Fixture evidence and native execution evidence remain separately
 identified; these criteria do not authorize a new VM run or mutation campaign.
+
+Argument-provenance acceptance uses independent expected decisions from the
+trusted policy and authorized operation. Cover nested and mixed-source arguments,
+agent transformations, missing/truncated lineage, forged source labels, and
+provenance substitution after review. Pair benign controls with untrusted data
+containing irrelevant instructions such as "choose allow" and "choose block";
+include user-supplied documents, retrieved text and tool results. An operation
+that should be denied must remain denied, and an operation that should be allowed
+must remain allowed. Cover a classifier-only boundary with typed output and no
+tools when an advisory classifier is evaluated; do not treat tool isolation or a
+valid output schema as a passing security oracle. Retain legitimate content-policy
+denials in the expected outcomes. Verify the selected application route exposes
+source/evidence distinctions and unavailable provenance without disclosing raw
+private source contents. Implementation and provider qualification remain open.
 
 #### W6.2 — Executor evidence, uncertain outcomes and state-bound approval
 
@@ -954,6 +993,16 @@ rows explicitly and retain the full per-platform acceptance target.
   p50 and p95 with the exact method in `docs/bench/METHOD.md`.
 - Coverage matrix: map scenarios to MITRE ATT&CK techniques with executable
   red/green tests, including the scenarios where AEGIS misses, listed as misses.
+- For W6.1's untrusted-instruction cases, report false allows against the
+  independently expected deny cases and false blocks against expected allow
+  cases, with separate denominators, paired benign-control results and task
+  completion. Report `ask`, unavailable/invalid judgments and missing provenance
+  separately rather than excluding them from the sample. Record route/policy,
+  provenance collector, model/version and sampling parameters when applicable,
+  scenario counts and planned repetitions. A few repeated classifier outputs are
+  scoped observations; they do not establish a general protection rate. Keep
+  advisory-classifier errors separate from actual authorization decisions and
+  independently observed execution effects.
 - Complete one existing incident path as a measurement case: a real supported
   agent performs an ordinary task and a separate controlled unauthorized action;
   independent evidence establishes the attempted/effected action, AEGIS records
