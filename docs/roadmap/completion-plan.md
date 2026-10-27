@@ -831,6 +831,38 @@ Acceptance: qualification scripts and records per agent and version; tests for
 install, removal, tamper detection and the hook-versus-OS mismatch signal;
 `consistency-reviewer` pass on all UI text.
 
+#### Retry and approval requirements (planned, 2026-10-27)
+
+Within G1-B, define retry behavior for the selected route and show its decision
+and known/unknown outcome in the existing W9 view. A single-use approval remains
+consumed after its authorized attempt; identical arguments alone cannot authorize
+another execution, because the target state or first attempt's outcome may differ.
+
+- Distinguish reconnecting or retrieving an existing result from dispatching a
+  new execution. Where the upstream supports verified idempotency, bind an
+  operation key to the approved request, instance/session, route, recipient and
+  relevant context. Return the recorded result or query its status without
+  repeating the side effect. A key by itself does not prove deduplication.
+- An uncertain result must stay unknown until reconciled. Without verified
+  deduplication or evidence that dispatch never occurred, do not automatically
+  execute again. Explain the duplicate-effect risk before fresh owner approval;
+  approval itself does not establish that the first attempt had no effect.
+- A changed operation, arguments, target, route, identity, policy or relevant
+  context requires a fresh decision and, when approval is required, fresh
+  approval. A transport retry must not reset a consumed or expired grant.
+- If retries without another prompt are offered, require an explicitly selected,
+  visible policy with named operations, relevant context, expiry and attempt
+  limits. Qualify its safety on that route and preserve the one-attempt grant
+  contract. Never infer broader permissions from prior approvals or retry history.
+
+G1-C must qualify lost responses after a completed effect, concurrent duplicates,
+restart recovery, consumed/expired grants, changed context and an upstream without
+idempotency support. Use independent filesystem/receiver evidence to establish
+effect counts, and record approval prompts, task completion and latency under
+W8. Automatic retries of an uncertain write must not produce a second effect. These are
+planned acceptance requirements; this amendment adds no runtime capability or
+qualification result and does not change the G1-A delivery priority.
+
 #### Guard priorities informed by rv (2026-10-27)
 
 The [rv README](https://github.com/christopherkarani/rv) describes a pre-tool
@@ -1378,8 +1410,8 @@ do not create a separate delivery milestone for every helper or report.
 | Priority | Existing substep | Next deliverable and closure evidence |
 | --- | --- | --- |
 | G1-A — start next | W6.3, W9, W10 | Make ordinary Windows packaging prepare and validate portable hook-review assets. Finish the existing owned-profile setup/removal and supported launch guidance in Observatory. Produce one candidate whose installed path, native assets and packaged hook IO work on a clean supported Windows environment. Preserve exact preview, backups, readback, consent and integrity checks. Scripted confirmation remains distinct from a real owner-dialog journey. |
-| G1-B | W6.4, W9, W8 | Add the bounded practical rule set and policy selection needed for ordinary project work, selected secret reads and destructive Git/file actions. Reuse applicable parser/policy components only after checking their runtime limits. Unsupported syntax/programs cannot silently allow. Show policy/rule reason and known/unknown outcome through the existing UI; keep provider ask distinct from AEGIS approval. Preserve schema-1 exact policies and qualify any new semantics. |
-| G1-C | W6.4, W8.3–W8.4, W9 | On the resulting installed candidate, exercise the declared ordinary/forbidden cases, missing/unstartable/timed-out hooks, malformed responses, restart/removal and outside-route behavior. Prove denied-no-effect and allowed-effect with independent filesystem/receiver evidence. Record false blocks, misses, approvals, task completion and latency. Label Blocking verified only for the accepted agent/version/platform/surface. Full G1 waits for this record and the real owner journey. |
+| G1-B | W6.4, W9, W8 | Add the bounded practical rule set and policy selection needed for ordinary project work, selected secret reads and destructive Git/file actions. Reuse applicable parser/policy components only after checking their runtime limits. Unsupported syntax/programs cannot silently allow. Show policy/rule reason and known/unknown outcome through the existing UI; keep provider ask distinct from AEGIS approval. Apply W6's retry and approval requirements without reusing consumed grants or guessing an uncertain outcome. Preserve schema-1 exact policies and qualify any new semantics. |
+| G1-C | W6.4, W8.3–W8.4, W9 | On the resulting installed candidate, exercise the declared ordinary/forbidden cases, missing/unstartable/timed-out hooks, malformed responses, restart/removal and outside-route behavior. Qualify W6's retry cases with independent effect counts and approval-prompt measurements. Prove denied-no-effect and allowed-effect with independent filesystem/receiver evidence. Record false blocks, misses, approvals, task completion and latency. Label Blocking verified only for the accepted agent/version/platform/surface. Full G1 waits for this record and the real owner journey. |
 | CI companion to G1 | Existing required checks and packaging | Implement the review's required Windows package/Guard lane and cheap early validation when workflow edits are authorized. Keep all five context names and strict protection; relevant native failures must reach a required result. Reuse one candidate and keep provider-free checks separate from paid/installed-provider acceptance. |
 | Continuing independent lane | W11.2/W11.4 and W4.3–W4.4 | Consume existing Windows diagnostics and #1106/#1108/#1115 receipts within their source and environment scope. Fix demonstrated gaps; retain inferred association, native-read and packaged/native-consent limits. Do not reopen accepted renewal/ownership work without changed inputs or a specific residual defect. |
 
