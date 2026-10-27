@@ -177,7 +177,20 @@ describe('security audit-lane admission rates', () => {
     }
     expect(state?.retiredGenerations).toHaveLength(32);
     const next = sample(1, 1, 20_000, '44444444-4444-4444-8444-444444444444');
-    expect(advanceDeliveryRate(state, next, 20_000)?.rates).toBeNull();
-    expect(advanceDeliveryRate(state, next, 20_000)?.generation).toBe(state?.generation);
+    const exhausted = advanceDeliveryRate(state, next, 20_000);
+    expect(exhausted?.rates).toBeNull();
+    expect(exhausted?.generation).toBe(state?.generation);
+    expect(exhausted?.exhausted).toBe(true);
+    const previousGeneration = state?.generation ?? '';
+    const after = advanceDeliveryRate(
+      exhausted,
+      sample(1000, 2, 21_000, previousGeneration),
+      21_000,
+    );
+    expect(after?.rates).toBeNull();
+    expect(after?.exhausted).toBe(true);
+    expect(
+      advanceDeliveryRate(after, sample(2000, 3, 22_000, previousGeneration), 22_000)?.rates,
+    ).toBeNull();
   });
 });

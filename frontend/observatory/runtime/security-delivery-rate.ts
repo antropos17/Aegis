@@ -14,6 +14,7 @@ export type DeliveryRateState = {
   intervalMs: number | null;
   invalidated: boolean;
   retiredGenerations: string[];
+  exhausted: boolean;
 };
 
 function invalidate(previous: DeliveryRateState | null): DeliveryRateState | null {
@@ -38,6 +39,7 @@ export function advanceDeliveryRate(
   telemetry: Telemetry,
   now: number,
 ): DeliveryRateState | null {
+  if (previous?.exhausted) return invalidate(previous);
   if (!securityDelivery(telemetry, now).available || telemetry.statsAt === null)
     return invalidate(previous);
   const delivery = record(record(telemetry.stats.ipc).securityEvents);
@@ -65,14 +67,13 @@ export function advanceDeliveryRate(
     intervalMs: null,
     invalidated: false,
     retiredGenerations: previous?.retiredGenerations ?? [],
+    exhausted: false,
   };
   if (!previous) return sample;
   if (previous.generation !== generation) {
-    if (
-      previous.retiredGenerations.includes(generation) ||
-      previous.retiredGenerations.length >= MAX_RETIRED_GENERATIONS
-    )
-      return invalidate(previous);
+    if (previous.retiredGenerations.includes(generation)) return invalidate(previous);
+    if (previous.retiredGenerations.length >= MAX_RETIRED_GENERATIONS)
+      return invalidate({ ...previous, exhausted: true });
     return { ...sample, retiredGenerations: [...previous.retiredGenerations, previous.generation] };
   }
   if (sampleMs < previous.sampleMs || telemetry.statsAt < previous.receivedAt)
