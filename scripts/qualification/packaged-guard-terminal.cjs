@@ -357,6 +357,7 @@ async function run() {
     const stubPid = Number(match[1]);
     const brokerPid = Number(match[2]);
     assert(stubPid > 0 && brokerPid > 0 && stubPid !== brokerPid);
+    assert.equal(brokerPid, receipt.process.pid, 'Stub parent differs from the held broker');
     receipt.stubExited = await processGone(stubPid);
     receipt.brokerExited = await processGone(brokerPid);
     assert(receipt.stubExited && receipt.brokerExited, 'Owned child cleanup unconfirmed');
