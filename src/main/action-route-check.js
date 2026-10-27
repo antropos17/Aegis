@@ -142,6 +142,7 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
   let abort;
   let outcome;
   let preparedPublic = null;
+  let finished = false;
   try {
     outcome = await Promise.race([
       Promise.resolve().then(async () => {
@@ -152,6 +153,7 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
             route === 'appcontainer'
               ? await prepare(policyPath, requestPath, { review: true })
               : await prepare(policyPath, requestPath);
+          if (finished || signal?.aborted) return { kind: 'cancelled' };
           const publicResult = projectPrepared(value);
           preparedPublic = publicResult;
           let executableObservation = 'not-checked';
@@ -160,6 +162,7 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
             publicResult.configuration === 'valid' &&
             ['allow', 'ask'].includes(publicResult.policyDecision)
           ) {
+            if (now() - started >= LIMITS.checkMs) return { kind: 'timeout' };
             let executable;
             try {
               executable = value.launch?.executable;
@@ -167,6 +170,8 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
               executable = undefined;
             }
             value = null;
+            if (finished || signal?.aborted) return { kind: 'cancelled' };
+            if (now() - started >= LIMITS.checkMs) return { kind: 'timeout' };
             executableObservation = await observeExecutable(
               executable,
               deps.statExecutable || statFile,
@@ -178,13 +183,20 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
         }
       }),
       new Promise((resolve) => {
-        timer = setTimeout(() => resolve({ kind: 'timeout' }), LIMITS.checkMs);
-        abort = () => resolve({ kind: 'cancelled' });
+        timer = setTimeout(() => {
+          finished = true;
+          resolve({ kind: 'timeout' });
+        }, LIMITS.checkMs);
+        abort = () => {
+          finished = true;
+          resolve({ kind: 'cancelled' });
+        };
         signal?.addEventListener('abort', abort, { once: true });
         if (signal?.aborted) abort();
       }),
     ]);
   } finally {
+    finished = true;
     clearTimeout(timer);
     signal?.removeEventListener('abort', abort);
   }

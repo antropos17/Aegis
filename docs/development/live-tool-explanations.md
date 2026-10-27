@@ -13,7 +13,9 @@ providers, alternate homes, WSL, subagents and remote histories remain outside
 this integration. A healthy current process snapshot, exact instance key,
 matching working directory and registry startup within that process's
 lifetime are prerequisites. A session shared by monitored instances is rejected.
-The process snapshot and selected registry are checked again after reading.
+The process snapshot and the selected and observed peer registries are checked
+again after reading. These are bounded observations, not an atomic snapshot;
+a change that is reversed between reads may go undetected.
 
 The registry alone is agent-reported metadata. On Windows x64, the ordinary
 observer helper can independently inspect a live native `claude.exe` through a
@@ -56,8 +58,9 @@ guarantee. There is no hidden retry or new guest provisioning.
 
 The service retains at most 256 accepted event selections, expires them after 15
 minutes and removes expired entries on the next service activity. Each
-request selects at most 32 registry files of 64 KiB (the selected registry is
-checked twice). The existing 512 KiB total transcript read budget reserves up to
+request selects at most 32 registry files of 64 KiB and reads each at most twice,
+for at most 64 metadata reads. The request has a three-second deadline. The existing
+512 KiB total transcript read budget reserves up to
 256 KiB for the selected tail and 256 KiB for its verification if growth is observed;
 an unchanged file requires only the first pass.
 there is one read operation in flight and at most one new operation per second.
