@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t, language } from '../runtime/i18n';
-  import type { Telemetry } from '../runtime/host';
+  import { record, records, type Telemetry } from '../runtime/host';
   import { sensorCoverage, coverageTime } from '../runtime/sensor-coverage';
   let {
     telemetry,
@@ -17,6 +17,37 @@
   } = $props();
   const id = $props.id();
   let model = $derived(sensorCoverage(telemetry));
+  let unavailableGroups = $derived(
+    telemetry.ready && !telemetry.stale && !telemetry.error && !telemetry.stats.monitoringPaused
+      ? records(record(record(telemetry.stats.appHealth).watchPlan).unavailableGroups)
+      : [],
+  );
+  function watchGroupLabel(id: unknown): string {
+    switch (id) {
+      case 'credential-dirs':
+        return 'Credential directories';
+      case 'agent-config-dirs':
+        return 'Agent configuration directories';
+      case 'project-dir':
+        return 'Other file watch group';
+      case 'env-files':
+        return 'Home environment files';
+      default:
+        return 'Other file watch group';
+    }
+  }
+  function watchStateLabel(state: unknown): string {
+    switch (state) {
+      case 'registration-failed':
+        return 'Registration failed';
+      case 'not-attempted':
+        return 'Not attempted';
+      case 'errored':
+        return 'Watcher error';
+      default:
+        return 'Unavailable';
+    }
+  }
   let metrics = $derived([
     ['Mode', model.mode],
     ['Provider health', model.provider],
@@ -151,6 +182,17 @@
     <p>
       {$t('Polling, file watchers and optional capture keep their own health and loss readings.')}
     </p>
+    {#if unavailableGroups.length > 0}
+      <section aria-labelledby={id + '-watch-groups'}>
+        <h4 id={id + '-watch-groups'}>{$t('Unavailable file watch groups')}</h4>
+        <p>{$t('File activity may be missed in these groups.')}</p>
+        <ul>
+          {#each unavailableGroups as group, index (index)}
+            <li>{$t(watchGroupLabel(group.id))} · {$t(watchStateLabel(group.state))}</li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
     <div class="sensor-list">
       {#each model.sensors as sensor (sensor.id)}
         <article>

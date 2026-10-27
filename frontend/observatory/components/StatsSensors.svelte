@@ -116,7 +116,7 @@
       case 'agent-config-dirs':
         return 'Agent configuration directories';
       case 'project-dir':
-        return 'Application directory';
+        return 'Other file watch group';
       case 'env-files':
         return 'Home environment files';
       default:

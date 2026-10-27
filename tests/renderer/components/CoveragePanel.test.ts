@@ -17,6 +17,42 @@ const props = () => ({
   openSensorDetails: vi.fn(),
 });
 
+it('shows current unavailable watch groups safely without changing project coverage', async () => {
+  const input = props();
+  record(input.telemetry.stats.appHealth).watchPlan = {
+    projectState: 'observed',
+    unavailableGroups: [
+      { id: 'credential-dirs', state: 'registration-failed', reason: 'PRIVATE_REASON' },
+      { id: 'PRIVATE_PATH', state: 'PRIVATE_STATE', reason: 'PRIVATE_REASON' },
+      { id: 'project-dir', state: 'errored' },
+    ],
+  };
+  const view = render(CoveragePanel, input);
+  const groups = screen.getByRole('region', { name: 'Unavailable file watch groups' });
+  expect(groups).toHaveTextContent('Credential directories');
+  expect(groups).toHaveTextContent('Registration failed');
+  expect(groups).toHaveTextContent('Other file watch group');
+  expect(groups).toHaveTextContent('Unavailable');
+  expect(groups).not.toHaveTextContent('Application directory');
+  expect(within(groups).getAllByText(/Other file watch group/)).toHaveLength(2);
+  expect(groups).not.toHaveTextContent('PRIVATE_');
+  expect(screen.getByRole('region', { name: 'Project changes' })).toHaveTextContent('Observed');
+  for (const flags of [{ stale: true }, { ready: false }, { error: 'offline' }]) {
+    await view.rerender({ telemetry: { ...input.telemetry, ...flags } });
+    expect(screen.queryByRole('region', { name: 'Unavailable file watch groups' })).toBeNull();
+  }
+  await view.rerender({
+    telemetry: { ...input.telemetry, stats: { ...input.telemetry.stats, monitoringPaused: true } },
+  });
+  expect(screen.queryByRole('region', { name: 'Unavailable file watch groups' })).toBeNull();
+  record(input.telemetry.stats.appHealth).watchPlan = {
+    projectState: 'observed',
+    unavailableGroups: [],
+  };
+  await view.rerender({ telemetry: structuredClone(input.telemetry) });
+  expect(screen.queryByRole('region', { name: 'Unavailable file watch groups' })).toBeNull();
+});
+
 it('never shows retained project readiness as current for stale, not-ready or offline telemetry', async () => {
   const input = props();
   record(input.telemetry.stats.appHealth).watchPlan = { projectState: 'observed' };
