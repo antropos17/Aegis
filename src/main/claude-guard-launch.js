@@ -227,7 +227,7 @@ function createClaudeGuardLauncher(options) {
     if (active) {
       if (['waiting', 'awaiting-confirmation', 'active'].includes(active.snapshot().status))
         return 'GUARD_ALREADY_ACTIVE';
-      await stop();
+      if (!(await stop()) || retained) return 'GUARD_RELEASE_UNCONFIRMED';
     }
     const currentGeneration = ++generation;
     const owned = () => currentGeneration === generation && !closed && isOwned();

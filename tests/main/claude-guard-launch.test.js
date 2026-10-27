@@ -134,6 +134,20 @@ it.skipIf(process.platform !== 'win32')(
 );
 
 it.skipIf(process.platform !== 'win32')(
+  'refuses restart when expired-session cleanup is unconfirmed',
+  async () => {
+    const f = fixture();
+    expect(await f.launcher.start(() => true)).toBe('GUARD_READY');
+    f.receiver.snapshot = () => ({ status: 'expired', available: false, entries: [] });
+    f.reader.status = () => ({ admission: 'closed', exit: 'unknown' });
+    expect(await f.launcher.start(() => true)).toBe('GUARD_RELEASE_UNCONFIRMED');
+    expect(f.reader.close).toHaveBeenCalledOnce();
+    expect(f.startReceiver).toHaveBeenCalledOnce();
+    expect(f.launcher.snapshot()).toMatchObject({ status: 'refused', lossDetected: true });
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
   'requires exact selection and native confirmation without copying the launch secret',
   async () => {
     const f = fixture();
