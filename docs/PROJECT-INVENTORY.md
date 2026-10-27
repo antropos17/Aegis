@@ -37,6 +37,7 @@ The project command never expands its scope to the user's home directory.
 | `.vscode/mcp.json` | SHA-256, JSONC parsing (comments/trailing commas), number of keys in `servers` |
 | `.codex/config.toml` | SHA-256, TOML parsing, separate counts for `mcp_servers` and `hooks` |
 | Root `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules` | Fingerprint only |
+| Root Gemini `context.fileName` candidates declared in selected `.gemini/settings.json` | Up to eight supported Markdown/text basenames, fingerprint and bounded static review; unsupported or unavailable declarations are coverage gaps |
 | Root `package.json`, `npm-shrinkwrap.json`, `package-lock.json` | Fingerprint and local package evidence |
 | `.agents/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills` | Bounded recursive fingerprints, including scripts and package metadata; `.git` entries excluded case-insensitively |
 | Enclosing `.git` directories inside the selected scope | Only HEAD, required refs and loose objects for package-manifest evidence; no Git command or config execution |
