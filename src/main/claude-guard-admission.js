@@ -16,6 +16,12 @@ function policyFromProfile(bytes, selection) {
   }
   const source = scanJson(bytes);
   try {
+    // A recognized command is insufficient when this profile disables hooks.
+    // Other settings sources and managed policy precedence remain unobserved.
+    for (const key of ['disableAllHooks', 'allowManagedHooksOnly']) {
+      const value = source.root.members.get(key);
+      if (value && value.value !== false) throw Error('profile-refused');
+    }
     const entries = source.root.members.get('hooks')?.members.get('PreToolUse');
     // Additional pre-tool entries may also match Bash and alter the provider's input.
     if (entries?.kind !== 'array' || entries.items.length !== 1) throw Error('profile-refused');

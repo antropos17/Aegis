@@ -52,6 +52,7 @@ const CODES = new Set([
   'GUARD_ALREADY_ACTIVE',
   'GUARD_PROFILE_REQUIRED',
   'GUARD_PROFILE_UNVERIFIED',
+  'GUARD_RELEASE_UNCONFIRMED',
   'GUARD_CANCELLED',
   'GUARD_STOPPED',
   'GUARD_UNAVAILABLE',
@@ -262,9 +263,9 @@ function createClaudeHookApp(options) {
       return reply();
     }
     if (action === 'guard-stop') {
-      await guardLauncher?.stop();
+      const stopped = guardLauncher ? await guardLauncher.stop() : true;
       return owned()
-        ? reply('GUARD_STOPPED')
+        ? reply(stopped ? 'GUARD_STOPPED' : 'GUARD_RELEASE_UNCONFIRMED')
         : { success: false, error: 'Renderer request denied' };
     }
     if (!ready) return reply('UNAVAILABLE');

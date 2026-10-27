@@ -168,6 +168,7 @@ describe('Observatory localization', () => {
       'A reporting session is already active.',
       'Prepare the separate Claude profile before starting a session.',
       'The current hook or policy could not be verified for the selected working folder. Review the profile and policy.',
+      'The previous native reader did not confirm shutdown. Another reporting session is unavailable.',
       'Terminal session preparation cancelled.',
       'Reporting stopped. A previously launched Claude process may still be running.',
       'The terminal session could not be prepared.',

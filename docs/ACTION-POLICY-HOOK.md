@@ -148,6 +148,11 @@ unknown. Reporting expires after at most 150 seconds; a running Claude process c
 continue after reporting ends. No backup directory is created by this read-only
 launch admission.
 
+Admission refuses a selected profile that enables `disableAllHooks` or
+`allowManagedHooksOnly`, or gives either key an ambiguous value. Other Claude
+settings sources and managed policy precedence are not read; the effective
+configuration and whether Claude invokes the hook remain unknown.
+
 ### Hook response
 
 | Result | Meaning |

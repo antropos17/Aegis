@@ -77,6 +77,9 @@ function createClaudeGuardLauncher(options) {
     binding = null,
     checking = null,
     stopping = null,
+    opening = null,
+    openingReceiver = null,
+    generation = 0,
     selectedPaths = null,
     timer = null,
     retained = false,
@@ -84,10 +87,15 @@ function createClaudeGuardLauncher(options) {
 
   const snapshot = () => (active ? active.snapshot() : last);
   async function stop(stale = false) {
-    if (stopping) return stopping;
+    generation++;
+    if (stopping) {
+      await stopping;
+      return !retained;
+    }
     stopping = stopCurrent(stale);
     try {
       await stopping;
+      return !retained;
     } finally {
       stopping = null;
     }
@@ -95,7 +103,15 @@ function createClaudeGuardLauncher(options) {
   async function stopCurrent(stale) {
     clearInterval(timer);
     timer = null;
-    const previous = active;
+    const readPending = opening,
+      receiverPending = openingReceiver;
+    const [lateReader, lateReceiver] = await Promise.all([
+      readPending ? bounded(readPending, 2500) : null,
+      receiverPending ? bounded(receiverPending, 2500) : null,
+    ]);
+    if ((readPending && !lateReader) || (receiverPending && !lateReceiver)) retained = true;
+    if (!reader && lateReader) reader = lateReader;
+    const previous = active || lateReceiver;
     active = null;
     if (previous) {
       const prior = previous.snapshot();
@@ -110,7 +126,13 @@ function createClaudeGuardLauncher(options) {
         lossDetected: stale || prior.lossDetected,
       };
       try {
-        await previous.close();
+        if (
+          !(await bounded(
+            Promise.resolve(previous.close()).then(() => true),
+            1000,
+          ))
+        )
+          retained = true;
       } catch {
         retained = true;
       }
@@ -123,13 +145,20 @@ function createClaudeGuardLauncher(options) {
     reader = null;
     if (previousReader) {
       try {
-        await previousReader.close();
-        const state = previousReader.status();
-        if (state.admission !== 'closed' || state.exit !== 'confirmed') retained = true;
+        const finished = await bounded(
+          Promise.resolve(previousReader.close()).then(() => true),
+          1500,
+        );
+        if (!finished) retained = true;
+        else {
+          const state = previousReader.status();
+          if (state.admission !== 'closed' || state.exit !== 'confirmed') retained = true;
+        }
       } catch {
         retained = true;
       }
     }
+    if (retained) last = { ...last, status: 'refused', available: false, lossDetected: true };
   }
   function verifyCurrent(owned) {
     if (!owned() || closed || !admission || !binding || !reader) return Promise.resolve(false);
@@ -176,15 +205,32 @@ function createClaudeGuardLauncher(options) {
     });
     return next;
   }
-  async function start(owned) {
+  async function closeUnattached(next) {
+    if (!next) return;
+    try {
+      if (
+        !(await bounded(
+          Promise.resolve(next.close()).then(() => true),
+          1000,
+        ))
+      )
+        retained = true;
+    } catch {
+      retained = true;
+    }
+  }
+  async function start(isOwned) {
     if (stopping) await stopping;
     if (checking) await checking;
-    if (closed || retained || !owned()) return 'GUARD_UNAVAILABLE';
+    if (retained) return 'GUARD_RELEASE_UNCONFIRMED';
+    if (closed || !isOwned()) return 'GUARD_UNAVAILABLE';
     if (active) {
       if (['waiting', 'awaiting-confirmation', 'active'].includes(active.snapshot().status))
         return 'GUARD_ALREADY_ACTIVE';
       await stop();
     }
+    const currentGeneration = ++generation;
+    const owned = () => currentGeneration === generation && !closed && isOwned();
     const window = getWindow();
     if (!(await profilePresence(target)).reviewable || !owned()) return 'GUARD_PROFILE_REQUIRED';
     const choice = await dialog.showOpenDialog(window, {
@@ -234,7 +280,10 @@ function createClaudeGuardLauncher(options) {
       return 'GUARD_UNAVAILABLE';
     try {
       selectedPaths = { program, cwd, programStat, cwdStat, realProgram, realCwd };
-      reader = await options.openRead();
+      const attempt = Promise.resolve().then(() => (owned() ? options.openRead() : null));
+      opening = attempt;
+      reader = await attempt;
+      if (opening === attempt) opening = null;
       if (!owned() || closed) {
         await stop();
         return 'GUARD_UNAVAILABLE';
@@ -247,6 +296,7 @@ function createClaudeGuardLauncher(options) {
       }
     } catch {
       await stop(true);
+      opening = null;
       return 'GUARD_PROFILE_UNVERIFIED';
     }
     let review;
@@ -274,32 +324,37 @@ function createClaudeGuardLauncher(options) {
     let next;
     let readyForClaim = false;
     try {
-      next = await startReceiver({
-        selection: { executable: program, settings: target, cwd },
-        approve: async (code) => {
-          if (closed || !readyForClaim || active !== next || !owned()) return false;
-          const approval = await dialog.showMessageBox(window, {
-            type: 'question',
-            title: 'Confirm the terminal session',
-            message: 'Does this code match your terminal?',
-            detail: `Code: ${code}\nExecutable: ${program}\nWorking folder: ${cwd}\nSettings: ${target}\n\nOnly confirm if you started the broker in your terminal. Sender identity remains unverified.`,
-            buttons: ['Cancel', 'Confirm matching code'],
-            defaultId: 0,
-            cancelId: 0,
-            noLink: true,
-          });
-          return (
-            !closed &&
-            active === next &&
-            owned() &&
-            approval.response === 1 &&
-            (await verifyCurrent(owned))
-          );
-        },
-        verify: () => active === next && verifyCurrent(owned),
-      });
+      const receiverAttempt = Promise.resolve().then(() =>
+        startReceiver({
+          selection: { executable: program, settings: target, cwd },
+          approve: async (code) => {
+            if (closed || !readyForClaim || active !== next || !owned()) return false;
+            const approval = await dialog.showMessageBox(window, {
+              type: 'question',
+              title: 'Confirm the terminal session',
+              message: 'Does this code match your terminal?',
+              detail: `Code: ${code}\nExecutable: ${program}\nWorking folder: ${cwd}\nSettings: ${target}\n\nOnly confirm if you started the broker in your terminal. Sender identity remains unverified.`,
+              buttons: ['Cancel', 'Confirm matching code'],
+              defaultId: 0,
+              cancelId: 0,
+              noLink: true,
+            });
+            return (
+              !closed &&
+              active === next &&
+              owned() &&
+              approval.response === 1 &&
+              (await verifyCurrent(owned))
+            );
+          },
+          verify: () => active === next && verifyCurrent(owned),
+        }),
+      );
+      openingReceiver = receiverAttempt;
+      next = await receiverAttempt;
+      if (openingReceiver === receiverAttempt) openingReceiver = null;
       if (!owned() || closed) {
-        await next.close();
+        await closeUnattached(next);
         await stop();
         return 'GUARD_UNAVAILABLE';
       }
@@ -324,12 +379,12 @@ function createClaudeGuardLauncher(options) {
         noLink: true,
       });
       if (!owned() || closed || keyReview.response !== 1) {
-        await next.close();
+        await closeUnattached(next);
         await stop();
         return 'GUARD_CANCELLED';
       }
       if (next.snapshot().status !== 'waiting' || !(await verifyCurrent(owned))) {
-        await next.close();
+        await closeUnattached(next);
         await stop(true);
         return 'GUARD_PROFILE_UNVERIFIED';
       }
@@ -349,8 +404,9 @@ function createClaudeGuardLauncher(options) {
       timer.unref?.();
       return 'GUARD_READY';
     } catch {
-      await next?.close();
+      await closeUnattached(next);
       await stop(true);
+      openingReceiver = null;
       return 'GUARD_UNAVAILABLE';
     }
   }
@@ -358,7 +414,13 @@ function createClaudeGuardLauncher(options) {
     closed = true;
     await stop();
   }
-  return Object.freeze({ start, stop, close, snapshot, hasPending: () => !!active || !!reader });
+  return Object.freeze({
+    start,
+    stop,
+    close,
+    snapshot,
+    hasPending: () => !!active || !!reader || !!opening || !!openingReceiver || !!stopping,
+  });
 }
 
 module.exports = { createClaudeGuardLauncher };

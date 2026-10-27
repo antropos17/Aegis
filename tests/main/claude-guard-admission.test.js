@@ -62,6 +62,8 @@ function fixture() {
     io,
     issued,
     setEntries: (entries) => (contents = makeProfile(entries)),
+    setProfile: (value) => (contents = Buffer.from(JSON.stringify(value))),
+    setRaw: (value) => (contents = Buffer.from(value)),
     changeIdentity: () => (identity = 'target-replacement'),
   };
 }
@@ -79,6 +81,29 @@ it('admits one exact hook and policy for the selected cwd, retaining no public d
   expect(await f.admission.capture(path.join(f.directory, 'different'))).toBeNull();
   f.admission.close();
   expect(await f.admission.capture(f.directory)).toBeNull();
+});
+
+it.each(['disableAllHooks', 'allowManagedHooksOnly'])(
+  'refuses enabled or ambiguous %s values in the selected profile',
+  async (name) => {
+    const f = fixture();
+    for (const value of [true, null, 0, 'false', {}, []]) {
+      f.setProfile({ [name]: value, hooks: { PreToolUse: [f.entry] } });
+      expect(await f.admission.capture(f.directory)).toBeNull();
+    }
+    f.setProfile({ [name]: false, hooks: { PreToolUse: [f.entry] } });
+    expect(await f.admission.capture(f.directory)).not.toBeNull();
+    f.admission.close();
+  },
+);
+
+it('refuses duplicate hook-disable settings without changing the target', async () => {
+  const f = fixture();
+  const initial = JSON.stringify({ hooks: { PreToolUse: [f.entry] } });
+  f.setRaw(initial.replace('{', '{"disableAllHooks":false,"disableAllHooks":true,'));
+  expect(await f.admission.capture(f.directory)).toBeNull();
+  expect(f.issued.every((bytes) => bytes.every((value) => value === 0))).toBe(true);
+  f.admission.close();
 });
 
 it.each(['empty', 'removed', 'changed', 'duplicate', 'mixed', 'additional'])(

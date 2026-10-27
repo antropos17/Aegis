@@ -45,6 +45,8 @@
     GUARD_PROFILE_REQUIRED: 'Prepare the separate Claude profile before starting a session.',
     GUARD_PROFILE_UNVERIFIED:
       'The current hook or policy could not be verified for the selected working folder. Review the profile and policy.',
+    GUARD_RELEASE_UNCONFIRMED:
+      'The previous native reader did not confirm shutdown. Another reporting session is unavailable.',
     GUARD_CANCELLED: 'Terminal session preparation cancelled.',
     GUARD_STOPPED: 'Reporting stopped. A previously launched Claude process may still be running.',
     GUARD_UNAVAILABLE: 'The terminal session could not be prepared.',
@@ -64,6 +66,7 @@
     'PLAN_REFUSED',
     'GUARD_PROFILE_REQUIRED',
     'GUARD_PROFILE_UNVERIFIED',
+    'GUARD_RELEASE_UNCONFIRMED',
     'GUARD_UNAVAILABLE',
   ]);
   const reasons: Record<string, string> = {
@@ -185,6 +188,11 @@
     <p class="muted">
       {$t(
         'Reporting expires after at most two and a half minutes. Profile checks are periodic and cannot prevent changes between a check and an action.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'Other Claude settings and managed controls may disable or override the selected hook; effective configuration is unknown.',
       )}
     </p>
     <p class="muted">

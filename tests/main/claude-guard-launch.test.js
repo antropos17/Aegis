@@ -13,7 +13,7 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
-function fixture() {
+function fixture(overrides = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-launch-'));
   directories.push(directory);
   const target = path.join(directory, 'settings.json');
@@ -37,7 +37,7 @@ function fixture() {
     snapshot: () => ({ status: 'waiting', available: true, entries: [] }),
     close: vi.fn().mockResolvedValue(),
   };
-  const startReceiver = vi.fn().mockResolvedValue(receiver);
+  const startReceiver = overrides.startReceiver || vi.fn().mockResolvedValue(receiver);
   const reader = {
     close: vi.fn().mockResolvedValue(),
     status: () => ({ admission: 'closed', exit: 'confirmed' }),
@@ -56,10 +56,11 @@ function fixture() {
     getWindow: () => ({}),
     clipboard,
     startReceiver,
-    openRead: async () => reader,
+    openRead: overrides.openRead || (async () => reader),
     createAdmission: () => admission,
     checkIntervalMs: 20,
   });
+
   return {
     launcher,
     dialog,
@@ -73,6 +74,64 @@ function fixture() {
     target,
   };
 }
+
+it.skipIf(process.platform !== 'win32')(
+  'waits for a pending native open and confirmed cleanup during shutdown',
+  async () => {
+    let resolveOpen;
+    const openRead = vi.fn(() => new Promise((resolve) => (resolveOpen = resolve)));
+    const f = fixture({ openRead });
+    const starting = f.launcher.start(() => true);
+    await vi.waitFor(() => expect(openRead).toHaveBeenCalledOnce());
+    let stopped = false;
+    const closing = f.launcher.close().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(stopped).toBe(false);
+    resolveOpen(f.reader);
+    expect(await starting).toBe('GUARD_UNAVAILABLE');
+    await closing;
+    expect(f.reader.close).toHaveBeenCalledOnce();
+    expect(f.startReceiver).not.toHaveBeenCalled();
+    expect(f.launcher.hasPending()).toBe(false);
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'waits for a pending listener startup during shutdown',
+  async () => {
+    let resolveReceiver;
+    const startReceiver = vi.fn(() => new Promise((resolve) => (resolveReceiver = resolve)));
+    const f = fixture({ startReceiver });
+    const starting = f.launcher.start(() => true);
+    await vi.waitFor(() => expect(startReceiver).toHaveBeenCalledOnce());
+    let stopped = false;
+    const closing = f.launcher.close().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(stopped).toBe(false);
+    resolveReceiver(f.receiver);
+    expect(await starting).toBe('GUARD_UNAVAILABLE');
+    await closing;
+    expect(f.receiver.close).toHaveBeenCalled();
+    expect(f.reader.close).toHaveBeenCalledOnce();
+    expect(f.launcher.hasPending()).toBe(false);
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'refuses another session when native cleanup cannot be confirmed',
+  async () => {
+    const f = fixture();
+    f.reader.status = () => ({ admission: 'closed', exit: 'unknown' });
+    expect(await f.launcher.start(() => true)).toBe('GUARD_READY');
+    expect(await f.launcher.stop()).toBe(false);
+    expect(await f.launcher.start(() => true)).toBe('GUARD_RELEASE_UNCONFIRMED');
+    expect(f.launcher.snapshot()).toMatchObject({ status: 'refused', lossDetected: true });
+  },
+);
 
 it.skipIf(process.platform !== 'win32')(
   'requires exact selection and native confirmation without copying the launch secret',
