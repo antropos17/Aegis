@@ -18,6 +18,7 @@ const receipt = {
   checks: [],
 };
 let stage = 'admission';
+let outputOwned = false;
 
 async function run() {
   if (
@@ -29,6 +30,7 @@ async function run() {
   )
     throw Error('requires Windows and absolute fixture paths');
   await fs.mkdir(output); // Never adopt an existing fixture.
+  outputOwned = true;
   const userData = path.join(output, 'app-data');
   const scope = path.join(output, 'project');
   await fs.mkdir(userData);
@@ -74,7 +76,7 @@ async function run() {
     assert.equal((await app.handle('install-project-policy', () => true)).code, 'CANCELLED');
     assert(!(await fs.readdir(destination)).some((name) => name.startsWith('project-policy-')));
     assert.deepEqual(await fs.readFile(target), Buffer.from('{}\n'));
-    receipt.checks.push('native-lease-cancel-no-policy-or-profile-write');
+    receipt.checks.push('cancel-keeps-empty-app-owned-draft-without-policy-or-hook');
     stage = 'confirmed-create-and-profile';
     approve = true;
     assert.equal((await app.handle('install-project-policy', () => true)).code, 'INSTALLED');
@@ -136,7 +138,7 @@ async function run() {
 run().catch(async () => {
   receipt.complete = false;
   receipt.failureStage = stage;
-  if (output && path.isAbsolute(output))
+  if (outputOwned)
     await fs
       .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {
         flag: 'wx',

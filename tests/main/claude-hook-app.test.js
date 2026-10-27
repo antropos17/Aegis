@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { spawnSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { profileCommand } = require('../../src/main/claude-hook-app-profile');
@@ -411,6 +412,22 @@ it.skipIf(process.platform !== 'win32').each([
   expect(state.writes).toBe(0);
   expect(await fs.readFile(target, 'utf8')).toBe(original);
 });
+
+it.skipIf(process.platform !== 'win32')(
+  'does not write a failure receipt into an existing fixture directory',
+  async () => {
+    const existing = path.join(root, 'existing-output');
+    await fs.mkdir(existing);
+    await fs.writeFile(path.join(existing, 'sentinel'), 'unchanged');
+    const runner = path.resolve('scripts/qualification/claude-project-policy.cjs');
+    const result = spawnSync(process.execPath, [runner, existing, path.join(root, 'assets')], {
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(1);
+    expect(await fs.readdir(existing)).toEqual(['sentinel']);
+    expect(await fs.readFile(path.join(existing, 'sentinel'), 'utf8')).toBe('unchanged');
+  },
+);
 
 it.each(['deleted', 'changed bytes', 'changed identity', 'read failure'])(
   'fails closed when an installed profile has %s',
