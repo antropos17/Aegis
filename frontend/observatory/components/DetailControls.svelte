@@ -41,7 +41,7 @@
   let feedback = $state<Feedback | null>(null);
   let stopButton = $state<HTMLButtonElement>();
   let confirmation = $state<HTMLDivElement>();
-  let resultNode = $state<HTMLParagraphElement>();
+  let resultNode = $state<HTMLDivElement>();
   let selectionVersion = 0;
   let requestVersion = 0;
   let selectionKey = '';
@@ -61,6 +61,18 @@
     feedback = null;
   });
   let pending = $derived(feedback?.state === 'pending');
+  let feedbackText = $derived.by(() => {
+    if (!feedback) return '';
+    if (feedback.state === 'pending') return $t('Working…');
+    if (feedback.state === 'error') return feedback.text ?? '';
+    return $t(
+      feedback.method === 'killProcess'
+        ? 'The stop request reported success. Its lasting effect was not verified.'
+        : feedback.method === 'suspendProcess'
+          ? 'The pause request reported success. Its lasting effect was not verified.'
+          : 'The resume request reported success. Its lasting effect was not verified.',
+    );
+  });
   function matchesSelection(target: StopTarget) {
     if (row.instanceId !== target.id) return false;
     if (
@@ -204,29 +216,56 @@
       : $t('Controls are unavailable until this identity is observed again.')}
   </p>
   <div class="control-grid">
-    <button
-      class="button"
-      disabled={!canControl || pending}
-      aria-busy={pending && feedback?.method === 'suspendProcess'}
-      aria-describedby={feedback?.method === 'suspendProcess' ? feedbackId : undefined}
-      onclick={(event) => processAction(event, 'suspendProcess')}
-      ><Icon name="pause" />{$t(simple ? 'Pause process' : 'Suspend')}</button
-    >
-    <button
-      class="button"
-      disabled={!canControl || pending}
-      aria-busy={pending && feedback?.method === 'resumeProcess'}
-      aria-describedby={feedback?.method === 'resumeProcess' ? feedbackId : undefined}
-      onclick={(event) => processAction(event, 'resumeProcess')}
-      ><Icon name="play" />{$t(simple ? 'Resume process' : 'Resume')}</button
-    >
-    <button
-      bind:this={stopButton}
-      class="button danger"
-      disabled={!canControl || pending}
-      aria-describedby={feedback?.method === 'killProcess' ? feedbackId : undefined}
-      onclick={() => prepareStop(String(row.instanceId))}><Icon name="stop" />{$t('Stop…')}</button
-    >
+    <div class="action-control">
+      <button
+        class="button"
+        disabled={!canControl || pending}
+        aria-busy={pending && feedback?.method === 'suspendProcess'}
+        aria-describedby={feedback?.method === 'suspendProcess'
+          ? `${feedbackId}-suspend`
+          : undefined}
+        onclick={(event) => processAction(event, 'suspendProcess')}
+        ><Icon name="pause" />{$t(simple ? 'Pause process' : 'Suspend')}</button
+      >
+      <div class="action-feedback" id={`${feedbackId}-suspend`}>
+        {#if feedback?.method === 'suspendProcess'}<span
+            role={feedback.state === 'error' ? 'alert' : 'status'}
+            class:error={feedback.state === 'error'}>{feedbackText}</span
+          >{/if}
+      </div>
+    </div>
+    <div class="action-control">
+      <button
+        class="button"
+        disabled={!canControl || pending}
+        aria-busy={pending && feedback?.method === 'resumeProcess'}
+        aria-describedby={feedback?.method === 'resumeProcess' ? `${feedbackId}-resume` : undefined}
+        onclick={(event) => processAction(event, 'resumeProcess')}
+        ><Icon name="play" />{$t(simple ? 'Resume process' : 'Resume')}</button
+      >
+      <div class="action-feedback" id={`${feedbackId}-resume`}>
+        {#if feedback?.method === 'resumeProcess'}<span
+            role={feedback.state === 'error' ? 'alert' : 'status'}
+            class:error={feedback.state === 'error'}>{feedbackText}</span
+          >{/if}
+      </div>
+    </div>
+    <div class="action-control">
+      <button
+        bind:this={stopButton}
+        class="button danger"
+        disabled={!canControl || pending}
+        aria-describedby={feedback?.method === 'killProcess' ? `${feedbackId}-stop` : undefined}
+        onclick={() => prepareStop(String(row.instanceId))}
+        ><Icon name="stop" />{$t('Stop…')}</button
+      >
+      <div class="action-feedback" id={`${feedbackId}-stop`} tabindex="-1" bind:this={resultNode}>
+        {#if feedback?.method === 'killProcess'}<span
+            role={feedback.state === 'error' ? 'alert' : 'status'}
+            class:error={feedback.state === 'error'}>{feedbackText}</span
+          >{/if}
+      </div>
+    </div>
   </div>
   {#if stopTarget}<div class="confirm-stop" role="alert" bind:this={confirmation}>
       <h3>{$t('Stop this process?')}</h3>
@@ -238,32 +277,13 @@
           class="button"
           disabled={pending}
           aria-busy={pending && feedback?.method === 'killProcess'}
-          aria-describedby={feedback?.method === 'killProcess' ? feedbackId : undefined}
+          aria-describedby={feedback?.method === 'killProcess' ? `${feedbackId}-stop` : undefined}
           onclick={(event) => processAction(event, 'killProcess', stopTarget!)}
           ><Icon name="stop" />{$t('Confirm stop')}</button
         >
         <button class="button" disabled={pending} onclick={cancelStop}>{$t('Cancel')}</button>
       </div>
     </div>{/if}
-  {#if feedback}<p
-      class="entity-note"
-      role={feedback.state === 'error' ? 'alert' : 'status'}
-      id={feedbackId}
-      tabindex="-1"
-      bind:this={resultNode}
-    >
-      {feedback.state === 'pending'
-        ? $t('Working…')
-        : feedback.state === 'error'
-          ? feedback.text
-          : $t(
-              feedback.method === 'killProcess'
-                ? 'The stop request reported success. Its lasting effect was not verified.'
-                : feedback.method === 'suspendProcess'
-                  ? 'The pause request reported success. Its lasting effect was not verified.'
-                  : 'The resume request reported success. Its lasting effect was not verified.',
-            )}
-    </p>{/if}
 </section>
 {#if !simple}{#key row.agent ?? row.name}<Watchlist
       {host}
@@ -271,6 +291,26 @@
     />{/key}{/if}
 
 <style>
+  .action-control {
+    display: inline-grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(1.5em, auto);
+    align-items: start;
+    row-gap: 3px;
+    vertical-align: top;
+    max-width: 100%;
+  }
+  .action-feedback {
+    min-width: 0;
+    font-size: calc(10px * var(--ui-scale));
+    line-height: 1.5;
+    min-height: 1.5em;
+    contain: inline-size;
+    overflow-wrap: anywhere;
+  }
+  .error {
+    color: var(--red);
+  }
   .control-grid {
     align-items: start;
   }

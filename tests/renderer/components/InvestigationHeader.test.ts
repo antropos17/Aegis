@@ -405,7 +405,7 @@ it('retains a stop reply when its selected process has departed during the reque
     'The stop request reported success. Its lasting effect was not verified.',
   );
   expect(result).toBeVisible();
-  await waitFor(() => expect(result).toHaveFocus());
+  await waitFor(() => expect(result.parentElement).toHaveFocus());
   expect(screen.getByRole('button', { name: 'Stop…' })).toBeDisabled();
 });
 

@@ -100,9 +100,11 @@ it('keeps an action label and its feedback slot through pending and success, rej
   expect(suspendProcess).toHaveBeenCalledOnce();
   complete({ success: true });
   await waitFor(() => expect(button).toBeEnabled());
-  expect(button).toHaveAccessibleDescription('Completed');
+  expect(button).toHaveAccessibleDescription(
+    'The pause request reported success. Its lasting effect was not verified.',
+  );
   expect(button.parentElement.querySelector('.action-feedback')).toBe(feedback);
-  expect(mounted.container.textContent).toContain('Completed');
+  expect(mounted.container.textContent).toContain('The pause request reported success.');
 });
 
 it('retains the action label and announces the complete failure reason', async () => {
@@ -120,7 +122,9 @@ it('retains the action label and announces the complete failure reason', async (
   await fireEvent.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent(reason);
   expect(button).toHaveAccessibleName('Suspend');
-  expect(button).toHaveAccessibleDescription(reason);
+  expect(button).toHaveAccessibleDescription(
+    `The request was not confirmed; its effect is unknown. ${reason}`,
+  );
   expect(button).toBeEnabled();
 });
 
