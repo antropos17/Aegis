@@ -1,4 +1,9 @@
 {
+  "Actions target only this process. Other processes and remote work can continue.": "As ações se aplicam apenas a este processo. Outros processos e trabalhos remotos podem continuar.",
+  "The process control request reported success. Its lasting effect was not verified.": "A solicitação de controle do processo informou sucesso. Seu efeito duradouro não foi verificado.",
+  "The request was not confirmed; its effect is unknown.": "A solicitação não foi confirmada; seu efeito é desconhecido.",
+  "The request was not sent.": "A solicitação não foi enviada.",
+  "The stop request reported success. Its lasting effect was not verified.": "A solicitação de parada informou sucesso. Seu efeito duradouro não foi verificado.",
   "Saving catalog changes…": "Salvando alterações do catálogo…",
   "Language is available for this session only. Could not save on this device.": "O idioma está disponível apenas nesta sessão. Não foi possível salvá-lo neste dispositivo.",
   "Settings imported. Theme could not be saved on this device.": "Configurações importadas. Não foi possível salvar o tema neste dispositivo.",

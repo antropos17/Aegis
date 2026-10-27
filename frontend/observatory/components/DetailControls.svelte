@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
+  import { tick } from 'svelte';
 
   import {
     actionTarget,
@@ -9,7 +10,6 @@
     type RecordData,
     type Telemetry,
   } from '../runtime/host';
-  import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import Watchlist from './Watchlist.svelte';
   let {
@@ -31,6 +31,57 @@
     generationWitnessSource: string;
   };
   let stopTarget = $state<StopTarget | null>(null);
+  type ControlMethod = 'suspendProcess' | 'resumeProcess' | 'killProcess';
+  type Feedback = {
+    method: ControlMethod;
+    state: 'pending' | 'success' | 'error';
+    target?: StopTarget;
+    text?: string;
+  };
+  let feedback = $state<Feedback | null>(null);
+  let stopButton = $state<HTMLButtonElement>();
+  let confirmation = $state<HTMLDivElement>();
+  let resultNode = $state<HTMLParagraphElement>();
+  let selectionVersion = 0;
+  let requestVersion = 0;
+  let selectionKey = '';
+  const feedbackId = $props.id();
+  $effect(() => {
+    // A reply from a previous selection must not reappear after switching back.
+    const nextKey = JSON.stringify([
+      row.instanceId,
+      row.generationWitness,
+      row.generationWitnessSource,
+    ]);
+    if (nextKey === selectionKey) return;
+    selectionKey = nextKey;
+    selectionVersion += 1;
+    requestVersion += 1;
+    stopTarget = null;
+    feedback = null;
+  });
+  let pending = $derived(feedback?.state === 'pending');
+  function matchesSelection(target: StopTarget) {
+    if (row.instanceId !== target.id) return false;
+    if (
+      ('generationWitness' in row || 'generationWitnessSource' in row) &&
+      (row.generationWitness !== target.generationWitness ||
+        row.generationWitnessSource !== target.generationWitnessSource)
+    )
+      return false;
+    const observed = telemetry.agents.find((agent) => agent.instanceId === target.id);
+    return (
+      !observed ||
+      (observed.generationWitness === target.generationWitness &&
+        observed.generationWitnessSource === target.generationWitnessSource)
+    );
+  }
+  $effect(() => {
+    if (feedback?.target && !matchesSelection(feedback.target)) {
+      requestVersion += 1;
+      feedback = null;
+    }
+  });
   function selectedTarget(id: string) {
     const live = actionTarget(telemetry, id);
     // Older detail requests may contain only an identity. Captured witness metadata,
@@ -58,6 +109,7 @@
   function prepareStop(id: string) {
     try {
       const live = selectedTarget(id);
+      feedback = null;
       stopTarget = {
         id,
         generationWitness: live.generationWitness,
@@ -67,26 +119,77 @@
       stopTarget = null;
     }
   }
-  async function processAction(method: string, id: string, selected?: StopTarget) {
-    const live = selectedTarget(id);
-    if (
-      selected &&
-      (live.generationWitness !== selected.generationWitness ||
-        live.generationWitnessSource !== selected.generationWitnessSource)
-    ) {
-      throw new Error(
-        'This process instance is no longer reliably observed. Wait for a fresh scan.',
-      );
-    }
-    confirmed(
-      await invoke(host, method, {
-        pid: live.pid,
-        instanceId: live.instanceId,
+  async function processAction(event: MouseEvent, method: ControlMethod, selected?: StopTarget) {
+    if (pending) return;
+    const button = event.currentTarget as HTMLButtonElement;
+    const restoreFocus = document.activeElement === button;
+    const version = selectionVersion;
+    const request = ++requestVersion;
+    const id = selected?.id ?? String(row.instanceId);
+    let target = selected;
+    let sent = false;
+    feedback = { method, state: 'pending' };
+    try {
+      const live = selectedTarget(id);
+      if (
+        selected &&
+        (live.generationWitness !== selected.generationWitness ||
+          live.generationWitnessSource !== selected.generationWitnessSource)
+      ) {
+        throw new Error(
+          'This process instance is no longer reliably observed. Wait for a fresh scan.',
+        );
+      }
+      target = {
+        id,
         generationWitness: live.generationWitness,
         generationWitnessSource: live.generationWitnessSource,
-      }),
-    );
+      };
+      feedback = { method, state: 'pending', target };
+      sent = true;
+      confirmed(
+        await invoke(host, method, {
+          pid: live.pid,
+          instanceId: live.instanceId,
+          generationWitness: live.generationWitness,
+          generationWitnessSource: live.generationWitnessSource,
+        }),
+      );
+      if (version !== selectionVersion || request !== requestVersion) return;
+      if (!matchesSelection(target)) {
+        feedback = null;
+        return;
+      }
+      feedback = { method, state: 'success', target };
+      if (selected) stopTarget = null;
+    } catch (error) {
+      if (version !== selectionVersion || request !== requestVersion) return;
+      feedback = {
+        method,
+        state: 'error',
+        target: sent ? target : undefined,
+        text: `${sent ? $t('The request was not confirmed; its effect is unknown.') : $t('The request was not sent.')} ${error instanceof Error ? error.message : String(error)}`,
+      };
+    } finally {
+      await tick();
+      if (
+        restoreFocus &&
+        version === selectionVersion &&
+        request === requestVersion &&
+        document.activeElement === document.body
+      ) {
+        if (button.isConnected && !button.disabled) button.focus({ preventScroll: true });
+        else if (stopButton && !stopButton.disabled) stopButton.focus({ preventScroll: true });
+        else resultNode?.focus({ preventScroll: true });
+      }
+    }
+  }
+  async function cancelStop() {
+    const restoreFocus = confirmation?.contains(document.activeElement);
     stopTarget = null;
+    await tick();
+    if (restoreFocus && document.activeElement === document.body && !stopButton?.disabled)
+      stopButton?.focus({ preventScroll: true });
   }
 </script>
 
@@ -95,40 +198,70 @@
       <h3 class="controls-heading"><Icon name="cpu" />{$t('Process controls')}</h3>
       <span class="badge">{$t('PID')} {String(row.pid ?? 'Unavailable')}</span>
     </div>{/if}
-  {#if !compact || !canControl}<p class="entity-note">
-      {canControl
-        ? $t('Actions apply to this process identity.')
-        : $t('Controls are unavailable until this identity is observed again.')}
-    </p>{/if}
+  <p class="entity-note">
+    {canControl
+      ? $t('Actions target only this process. Other processes and remote work can continue.')
+      : $t('Controls are unavailable until this identity is observed again.')}
+  </p>
   <div class="control-grid">
-    <Action
-      disabled={!canControl}
-      action={() => processAction('suspendProcess', String(row.instanceId))}
-      ><Icon name="pause" />{$t(simple ? 'Pause process' : 'Suspend')}</Action
-    >
-    <Action
-      disabled={!canControl}
-      action={() => processAction('resumeProcess', String(row.instanceId))}
-      ><Icon name="play" />{$t(simple ? 'Resume process' : 'Resume')}</Action
+    <button
+      class="button"
+      disabled={!canControl || pending}
+      aria-busy={pending && feedback?.method === 'suspendProcess'}
+      aria-describedby={feedback?.method === 'suspendProcess' ? feedbackId : undefined}
+      onclick={(event) => processAction(event, 'suspendProcess')}
+      ><Icon name="pause" />{$t(simple ? 'Pause process' : 'Suspend')}</button
     >
     <button
+      class="button"
+      disabled={!canControl || pending}
+      aria-busy={pending && feedback?.method === 'resumeProcess'}
+      aria-describedby={feedback?.method === 'resumeProcess' ? feedbackId : undefined}
+      onclick={(event) => processAction(event, 'resumeProcess')}
+      ><Icon name="play" />{$t(simple ? 'Resume process' : 'Resume')}</button
+    >
+    <button
+      bind:this={stopButton}
       class="button danger"
-      disabled={!canControl}
+      disabled={!canControl || pending}
+      aria-describedby={feedback?.method === 'killProcess' ? feedbackId : undefined}
       onclick={() => prepareStop(String(row.instanceId))}><Icon name="stop" />{$t('Stop…')}</button
     >
   </div>
-  {#if stopTarget}<div class="confirm-stop" role="alert">
+  {#if stopTarget}<div class="confirm-stop" role="alert" bind:this={confirmation}>
       <h3>{$t('Stop this process?')}</h3>
       <p>
         {$t('Unsaved work may be lost. The process identity is checked again before stopping.')}
       </p>
       <div class="toolbar">
-        <Action action={() => processAction('killProcess', stopTarget!.id, stopTarget!)}
-          ><Icon name="stop" />{$t('Confirm stop')}</Action
+        <button
+          class="button"
+          disabled={pending}
+          aria-busy={pending && feedback?.method === 'killProcess'}
+          aria-describedby={feedback?.method === 'killProcess' ? feedbackId : undefined}
+          onclick={(event) => processAction(event, 'killProcess', stopTarget!)}
+          ><Icon name="stop" />{$t('Confirm stop')}</button
         >
-        <button class="button" onclick={() => (stopTarget = null)}>{$t('Cancel')}</button>
+        <button class="button" disabled={pending} onclick={cancelStop}>{$t('Cancel')}</button>
       </div>
     </div>{/if}
+  {#if feedback}<p
+      class="entity-note"
+      role={feedback.state === 'error' ? 'alert' : 'status'}
+      id={feedbackId}
+      tabindex="-1"
+      bind:this={resultNode}
+    >
+      {feedback.state === 'pending'
+        ? $t('Working…')
+        : feedback.state === 'error'
+          ? feedback.text
+          : $t(
+              feedback.method === 'killProcess'
+                ? 'The stop request reported success. Its lasting effect was not verified.'
+                : 'The process control request reported success. Its lasting effect was not verified.',
+            )}
+    </p>{/if}
 </section>
 {#if !simple}{#key row.agent ?? row.name}<Watchlist
       {host}
