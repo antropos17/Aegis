@@ -1033,6 +1033,7 @@ describe('ipc-handlers', () => {
     const event = alter(renderer);
     const denied = { success: false, error: 'Renderer request denied' };
     expect(await getHandler('get-audit-stats')(event)).toEqual(denied);
+    expect(await getHandler('audit:review-integrity')(event, '2026-10-27')).toEqual(denied);
     expect(await getHandler('get-audit-entries-before')(event, '2026-09-01', 25, [])).toEqual(
       denied,
     );
@@ -1092,6 +1093,13 @@ describe('ipc-handlers', () => {
       files: [],
       zip: true,
     });
+  });
+
+  it('withholds an integrity result if the renderer is replaced during the check', async () => {
+    const { event, contents, frame } = registerOwnedRenderer();
+    const pending = getHandler('audit:review-integrity')(event, '2026-10-27');
+    contents.mainFrame = { ...frame };
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
   });
 
   it.each(['export-full-audit', 'export-zip'])(
@@ -1470,6 +1478,7 @@ describe('ipc-handlers', () => {
     expect(registeredChannels).toContain('export-agent-database');
     expect(registeredChannels).toContain('import-agent-database');
     expect(registeredChannels).toContain('get-audit-stats');
+    expect(registeredChannels).toContain('audit:review-integrity');
     expect(registeredChannels).toContain('get-audit-entries-before');
     expect(registeredChannels).toContain('open-audit-log-dir');
     expect(registeredChannels).toContain('export-full-audit');

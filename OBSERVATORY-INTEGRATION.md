@@ -106,6 +106,7 @@ All 59 preload methods; the original transfer matrix is extended with Local secu
 | exportAgentDatabase | App.svelte, lib/components/AgentDatabaseCrud.svelte | `Catalog.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | importAgentDatabase | lib/components/AgentDatabaseCrud.svelte | `Catalog.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | getAuditStats | lib/components/AuditLog.svelte, lib/stores/ipc.ts | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| reviewAuditIntegrity | New | `AuditIntegrity.svelte` | Bounded selected-day consistency check; component tests; packaged Electron journey unverified |
 | getAuditEntriesBefore | lib/components/Timeline.svelte, lib/stores/ipc.ts | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | openAuditLogDir | lib/components/AuditLog.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | exportFullAudit | App.svelte, lib/components/AuditLog.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
