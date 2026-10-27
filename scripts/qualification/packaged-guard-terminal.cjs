@@ -132,10 +132,10 @@ async function run() {
   const systemRoot = process.env.SystemRoot;
   assert(systemRoot && path.isAbsolute(systemRoot));
   const compiler = path.join(systemRoot, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
-  const wrapper = path.join(output, 'guard-terminal-job.exe');
+  const witness = path.join(output, 'guard-terminal-witness.exe');
   for (const [target, source] of [
     [stub, 'guard-terminal-stub.cs'],
-    [wrapper, 'guard-terminal-job.cs'],
+    [witness, 'guard-terminal-witness.cs'],
   ])
     execFileSync(compiler, ['/nologo', '/out:' + target, path.join(__dirname, source)], {
       cwd: output,
@@ -144,7 +144,7 @@ async function run() {
       stdio: 'pipe',
     });
   receipt.stubSha256 = await digest(stub);
-  receipt.jobWrapperSha256 = await digest(wrapper);
+  receipt.witnessSha256 = await digest(witness);
   const settingsHash = await digest(settings);
   const selection = { token: TOKEN, executable: stub, settings, cwd: output };
 
@@ -277,10 +277,17 @@ async function run() {
       USERPROFILE: output,
       APPDATA: output,
       LOCALAPPDATA: output,
+      PATHEXT: process.env.PATHEXT,
     };
+    assert(env.PATHEXT, 'Windows executable extensions are unavailable');
     assert(!Object.hasOwn(env, 'ELECTRON_RUN_AS_NODE'));
+    const gate = path.join(output, 'terminal-gate');
+    const ready = path.join(output, 'observer-ready');
+    const witnessFile = path.join(output, 'process-witness.json');
+    const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
+    const gatedCommand = `$deadline=[DateTime]::UtcNow.AddSeconds(15); while (-not (Test-Path -LiteralPath ${quote(gate)})) { if ([DateTime]::UtcNow -gt $deadline) { exit 2 }; Start-Sleep -Milliseconds 20 }; ${clipboard}; $deadline=[DateTime]::UtcNow.AddSeconds(70); while (-not (Test-Path -LiteralPath ${quote(witnessFile)}) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 20 }`;
     const shellResult = new Promise((resolve, reject) => {
-      shell = spawn(wrapper, [powershell, clipboard, path.join(output, 'job-result.txt')], {
+      shell = spawn(powershell, ['-NoProfile', '-Command', gatedCommand], {
         cwd: output,
         env,
         stdio: 'inherit',
@@ -292,36 +299,57 @@ async function run() {
         resolve({ code, signal });
       });
     });
-    const timer = setTimeout(() => {
-      if (!shellClosed && shell?.pid) {
-        try {
-          execFileSync('taskkill.exe', ['/PID', String(shell.pid), '/T', '/F'], {
-            env,
-            stdio: 'ignore',
-            timeout: 5000,
-            windowsHide: true,
-          });
-        } catch {
-          /* Preserve unknown. */
-        }
+    const observer = spawn(
+      witness,
+      [String(shell.pid), powershell, executable, ready, witnessFile],
+      {
+        cwd: output,
+        env,
+        stdio: 'ignore',
+        windowsHide: true,
+      },
+    );
+    const witnessResult = new Promise((resolve, reject) => {
+      observer.once('error', reject);
+      observer.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    let readySeen = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      try {
+        await fs.access(ready);
+        readySeen = true;
+        break;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
-    }, 65000);
+    }
+    if (!readySeen) {
+      shell.kill();
+      throw Error('Process witness did not become ready');
+    }
+    await fs.writeFile(gate, '', { flag: 'wx' });
     let outerTimer;
     const outcome = await Promise.race([
-      shellResult,
+      Promise.all([shellResult, witnessResult]),
       new Promise((resolve) => {
-        outerTimer = setTimeout(() => resolve(null), 71000);
+        outerTimer = setTimeout(() => resolve(null), 75000);
       }),
     ]);
     clearTimeout(outerTimer);
-    clearTimeout(timer);
-    receipt.jobWrapperClosed = shellClosed;
-    receipt.jobWrapperExit = outcome?.code ?? null;
-    assert(outcome && shellClosed, 'Owned job wrapper cleanup unconfirmed');
-    const job = await fs.readFile(path.join(output, 'job-result.txt'), 'utf8');
-    receipt.jobResult = job.trim();
-    assert.equal(job, 'NORMAL DRAINED\n', 'PowerShell job did not settle normally');
-    assert.equal(outcome.code, 0);
+    if (!outcome) {
+      if (!shellClosed) shell.kill();
+      observer.kill();
+      throw Error('Owned process cleanup unconfirmed');
+    }
+    receipt.shell = outcome[0];
+    receipt.witness = outcome[1];
+    receipt.process = JSON.parse(await fs.readFile(witnessFile, 'utf8'));
+    assert.equal(receipt.witness.code, 0);
+    assert.equal(receipt.shell.code, 0);
+    assert.equal(receipt.process.identified, true);
+    assert.equal(receipt.process.gone, true);
+    assert.equal(receipt.process.forced, false);
+    assert.equal(receipt.process.exitCode, 0);
     assert.deepEqual(receipt.events, ['claim', 'start', 'finish']);
     const marker = await fs.readFile(path.join(output, 'stub-result.txt'), 'utf8');
     const match = /^PASS ([0-9]+) ([0-9]+)\n$/.exec(marker);
@@ -333,7 +361,7 @@ async function run() {
     receipt.brokerExited = await processGone(brokerPid);
     assert(receipt.stubExited && receipt.brokerExited, 'Owned child cleanup unconfirmed');
     assert.equal(await digest(stub), receipt.stubSha256);
-    assert.equal(await digest(wrapper), receipt.jobWrapperSha256);
+    assert.equal(await digest(witness), receipt.witnessSha256);
     assert.equal(await digest(settings), settingsHash);
     assert.deepEqual({ executable: await digest(executable), asar: await digest(asar) }, before);
     receipt.complete = true;
