@@ -785,6 +785,73 @@ Acceptance: qualification scripts and records per agent and version; tests for
 install, removal, tamper detection and the hook-versus-OS mismatch signal;
 `consistency-reviewer` pass on all UI text.
 
+#### Guard priorities informed by rv (2026-10-27)
+
+The [rv README](https://github.com/christopherkarani/rv) describes a pre-tool
+policy gate, categorized rules, decision explanations, one-time overrides and
+an observation mode. These are ideas for the existing W6/W8/W9 work, not
+evidence that either product covers every agent action. rv's dated
+[runtime acceptance audit](https://github.com/christopherkarani/rv/blob/main/docs/security/runtime-acceptance.md)
+also records unresolved isolation and integration gaps for its tested revision.
+No rv code, policy packs or runtime is adopted by this plan.
+
+Apply the following priorities within the existing section 7 queue; they do not
+move Guard ahead of the Windows and W4 closure work:
+
+1. **Finish one usable Guard route (W6.3/W6.4 and W9).** Reuse the
+   [separate Claude hook profile](../CLAUDE-HOOK-APP.md): the app can review,
+   install and remove its own profile with prepared Windows assets, but only an
+   explicitly selected `--settings` launch uses it. Configuration presence is
+   not proof that the provider invoked the hook or enforced a decision. Complete
+   the owner-visible install, launch guidance, decision and outcome path for one
+   named Claude version and Bash surface. Retain exact preview, backup, readback
+   and removal behavior; exercise an allowed action, a denied action with an
+   independent effect oracle, cancellation, unavailable hooks and bypasses.
+   Show the tested version, route and evidence; never infer blocking for other
+   tools, providers or launches.
+2. **Explain decisions and bind owner approval (W6 and W6.1/W6.2).** On the
+   selected route show the action and target, policy/rule identifier and reason,
+   decision and observed outcome, with unknown and unobserved outcomes explicit.
+   Keep secrets and raw payloads out of persistent audit/export unless their
+   existing contracts permit them. Reuse the applicable one-attempt MCP grant
+   profile and its actual route, argument and expiry bindings; complete the
+   owner-facing preview and changed-argument/target checks already specified in
+   W6.1. Provider-delegated `ask` is not an AEGIS approval. A new approval must
+   not authorize a changed request; qualify expiry, replay and substitution.
+3. **Make coverage and loss actionable (W9).** Extend the existing
+   [configuration and selected-owner observation](../ACTION-COVERAGE-UI.md)
+   with installed provider/version and tool-surface evidence as it becomes
+   available. Distinguish configured, observed, blocking verified, coverage
+   lost and unknown; identify the route and reason. Hook disappearance, failed
+   decisions and evidence of an outside-route action must not imply that all
+   bypasses are detectable. Verify transitions without converting configuration
+   checks or self-reported client metadata into proof of enforcement.
+4. **Add a small, measured rule set after the first route works (W6/W8).**
+   Scope initial Windows developer cases to destructive Git operations, file
+   deletion and selected secret paths. The current Claude Bash hook matches
+   complete exact input; it is not a general shell parser. Design any broader
+   evaluator and route-specific defaults explicitly, with safe examples and
+   bypass/unsupported syntax cases. Compare blocked and ordinary work against an
+   independent oracle, including false allows, false blocks, task completion and
+   latency, before expanding categories. Static npm lifecycle-script analysis
+   already exists; evaluating scripts before execution is a separate later
+   capability, with explicit bounds and unknown results, not a current claim.
+5. **Evaluate a nonblocking policy trial after that route is qualified (W6/W8).**
+   Show would-allow/would-deny results for supported actions with a prominent
+   nonblocking label and no claim of protection. Keep data bounded and private;
+   distinguish missed inputs and unknown decisions. Compare the trial against
+   an independently labelled workload before using its results to tune rules.
+   Historical-session replay is optional and requires a named consumer and a
+   trustworthy, privacy-preserving input contract.
+
+Secret brokers, network egress enforcement and an on-device model judge are
+deferred until a selected route and concrete user need justify their additional
+trust boundaries. Existing known-secret checks apply only to configured MCP
+routes and supplied values; they are not general DLP. Policy decisions remain
+deterministic under section 3's invariant. A model may explain evidence but must
+not silently override policy or turn an unknown enforcement result into a pass.
+None of these plan additions authorizes a native VM run or changes acceptance.
+
 #### W6.1 — MCP approval target identity and argument changes
 
 Pending follow-up added on 2026-10-27 from QuanTradin's r/mcp feedback on
