@@ -208,9 +208,11 @@ terminal broker command. The executable SHA-256 was
 `app.asar` SHA-256 was
 `5499ad85497aa002e7e706c21554c8aac7ca39a2e60f63c8cc8c79088b97d7a4`.
 An owned terminal fixture used a fake HMAC receiver with scripted admission and
-an inert native console child. It observed claim, start and finish, hidden input,
-console handles for the child and an unforced broker exit of zero. The shell,
-child and independently witnessed broker generation settled. This result does
+an inert native console child. It observed claim, start and finish, console
+handles for the child and an unforced broker exit of zero. The PTY operator
+observed no synthetic-key echo; the automated receipt did not inspect the
+terminal transcript. The shell, child and independently witnessed broker
+generation settled. This result does
 not qualify a real owner dialog, Claude provider session, clean-machine
 installation or actual action effects.
 
