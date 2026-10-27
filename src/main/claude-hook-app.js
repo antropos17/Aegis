@@ -84,7 +84,8 @@ function createClaudeHookApp(options) {
     profileMark = null;
   let last = 'IDLE',
     ready = false,
-    active = null;
+    active = null,
+    pendingSession = null;
   function reply(code = last) {
     return {
       success: true,
@@ -245,7 +246,13 @@ function createClaudeHookApp(options) {
       command = profileCommand(executable, appPath, chosen.filePaths[0]);
       if (!owned()) return { success: false, error: 'Renderer request denied' };
     }
-    const current = await ensureSession(assets, action === 'remove');
+    pendingSession = ensureSession(assets, action === 'remove');
+    let current;
+    try {
+      current = await pendingSession;
+    } finally {
+      pendingSession = null;
+    }
     if (!owned()) {
       current.review.cancel(owner);
       return { success: false, error: 'Renderer request denied' };
@@ -375,6 +382,7 @@ function createClaudeHookApp(options) {
     closed = true;
     session?.review.release(owner);
     if (applying && active) await active.catch(() => {});
+    if (pendingSession) await pendingSession.catch(() => {});
     await endSession();
   }
   return Object.freeze({ handle, close, hasPending: () => !!session || busy });
