@@ -45,7 +45,7 @@ Options:
   --action-policy-after-hook <policy.json>  Observe a reported Claude Bash result without changing it
   --claude-guard-session <port> <session-id>  Start one explicitly reviewed Claude session
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
-  --codex-pretool-hook <policy.json>  Experimental Codex PreToolUse Bash decision hook
+  --codex-pretool-hook <policy.json> <sha256>  Experimental Codex PreToolUse Bash decision hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
   --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
   --handoff-import-json claude-code <events.jsonl>  Import unverified subagent lifecycle metadata

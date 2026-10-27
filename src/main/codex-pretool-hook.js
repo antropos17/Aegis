@@ -84,14 +84,20 @@ function validCodexPreToolInput(raw) {
 
 /** Evaluate a supported Codex hook through the shared exact-input policy.
  * @param {string} policyPath Native-selected policy. @param {Buffer} raw Private request.
+ * @param {string} expectedSha256 Reviewed policy digest.
  * @returns {Promise<object>} Shared fixed decision; malformed input denies. @since v0.21.0 */
-async function evaluateCodexPreTool(policyPath, raw) {
-  if (!validCodexPreToolInput(raw)) return { decision: 'deny' };
-  return (testDeps?.evaluate || evaluateActionPolicy)(policyPath, raw);
+async function evaluateCodexPreTool(policyPath, raw, expectedSha256) {
+  if (
+    typeof expectedSha256 !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(expectedSha256) ||
+    !validCodexPreToolInput(raw)
+  )
+    return { decision: 'deny' };
+  return (testDeps?.evaluate || evaluateActionPolicy)(policyPath, raw, expectedSha256);
 }
 
 /** Run a single bounded Codex Bash hook. Codex host failure behavior is unverified.
- * @param {string[]} args Fixed flag and selected policy path. @param {(text:string)=>void} write Output sink.
+ * @param {string[]} args Fixed flag, selected policy path and reviewed SHA-256. @param {(text:string)=>void} write Output sink.
  * @returns {Promise<number>} Zero after a response; 2 only if output fails. @since v0.21.0 */
 function handleCodexPreToolHook(args, write) {
   const runtime = testDeps?.runtime || process;
@@ -117,12 +123,17 @@ function handleCodexPreToolHook(args, write) {
       return Promise.resolve(2);
     }
   }
+  const validArgs =
+    Array.isArray(args) &&
+    args.length === 3 &&
+    typeof args[2] === 'string' &&
+    /^[a-f0-9]{64}$/.test(args[2]);
   return runCommandHookInput({
     input,
-    args,
+    args: validArgs ? args.slice(0, 2) : [],
     flag: '--codex-pretool-hook',
     limits: LIMITS,
-    evaluate: evaluateCodexPreTool,
+    evaluate: (policyPath, raw) => evaluateCodexPreTool(policyPath, raw, args[2]),
     normalize: (value) =>
       value && ['allow', 'ask', 'deny'].includes(value.decision) ? value.decision : 'deny',
     respond,

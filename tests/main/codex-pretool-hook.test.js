@@ -1,7 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { PassThrough } from 'node:stream';
-import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, unlinkSync, rmdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -56,8 +57,19 @@ function boundary() {
   return {
     input,
     output,
-    run: (file) =>
-      hook.handleCodexPreToolHook(['--codex-pretool-hook', file], (text) => output.push(text)),
+    run: (file, expected) => {
+      let digest = expected;
+      if (digest === undefined) {
+        try {
+          digest = createHash('sha256').update(readFileSync(file)).digest('hex');
+        } catch {
+          digest = '0'.repeat(64);
+        }
+      }
+      return hook.handleCodexPreToolHook(['--codex-pretool-hook', file, digest], (text) =>
+        output.push(text),
+      );
+    },
   };
 }
 afterEach(() => {
@@ -119,6 +131,47 @@ it('retains the complete input when an otherwise allowed command has changed met
   const t = boundary();
   const result = t.run(file);
   t.input.end(JSON.stringify(payload(directory, { ...input, timeout: 2001 })));
+  expect(await result).toBe(0);
+  expect(t.output.map(JSON.parse)).toEqual([deny]);
+});
+
+it('denies when a reviewed deny policy changes to an allow before the hook reads it', async () => {
+  const input = { command: 'echo private', description: 'PRIVATE_DESCRIPTION', timeout: 2000 };
+  const { directory, file } = policy([{ tool: 'Bash', input, decision: 'deny' }]);
+  const reviewed = createHash('sha256').update(readFileSync(file)).digest('hex');
+  writeFileSync(
+    file,
+    JSON.stringify({
+      schemaVersion: 1,
+      cwd: directory,
+      defaultDecision: 'deny',
+      rules: [{ tool: 'Bash', input, decision: 'allow' }],
+    }),
+  );
+  const t = boundary();
+  const result = t.run(file, reviewed);
+  t.input.end(JSON.stringify(payload(directory, input)));
+  expect(await result).toBe(0);
+  expect(t.output.map(JSON.parse)).toEqual([deny]);
+  expect(t.output.join()).not.toMatch(/PRIVATE|private|session|transcript|echo/);
+});
+
+it.each([undefined, '', 'A'.repeat(64), 'z'.repeat(64), '0'.repeat(63), null])(
+  'fails closed when the hook digest is missing or malformed %#',
+  async (digest) => {
+    const t = boundary();
+    const args = ['--codex-pretool-hook', 'PRIVATE_POLICY'];
+    if (digest !== undefined) args.push(digest);
+    expect(await hook.handleCodexPreToolHook(args, (text) => t.output.push(text))).toBe(0);
+    expect(t.output.map(JSON.parse)).toEqual([deny]);
+  },
+);
+
+it('denies an unavailable policy even when a digest is supplied', async () => {
+  const { directory, file } = policy();
+  const t = boundary();
+  const result = t.run(file + '.missing', '0'.repeat(64));
+  t.input.end(JSON.stringify(payload(directory, { command: 'pwd' })));
   expect(await result).toBe(0);
   expect(t.output.map(JSON.parse)).toEqual([deny]);
 });
@@ -196,8 +249,9 @@ it('denies a stalled evaluator by the same deadline and emits no late response',
         release = resolve;
       }),
   });
-  const result = hook.handleCodexPreToolHook(['--codex-pretool-hook', 'PRIVATE_POLICY'], (text) =>
-    output.push(text),
+  const result = hook.handleCodexPreToolHook(
+    ['--codex-pretool-hook', 'PRIVATE_POLICY', '0'.repeat(64)],
+    (text) => output.push(text),
   );
   input.end(JSON.stringify(payload(path.resolve(tmpdir()), { command: 'pwd' })));
   await vi.advanceTimersByTimeAsync(hook.LIMITS.deadlineMs);
@@ -233,8 +287,9 @@ it('uses the inherited Windows Electron pipe and fails closed if the pipe cannot
     runtime: { platform: 'win32', versions: { electron: '45.0.0' }, stdin: fallback },
     createSocket,
   });
-  const result = hook.handleCodexPreToolHook(['--codex-pretool-hook', 'PRIVATE_POLICY'], (text) =>
-    output.push(text),
+  const result = hook.handleCodexPreToolHook(
+    ['--codex-pretool-hook', 'PRIVATE_POLICY', '0'.repeat(64)],
+    (text) => output.push(text),
   );
   input.end('{}');
   expect(await result).toBe(0);
@@ -248,8 +303,9 @@ it('uses the inherited Windows Electron pipe and fails closed if the pipe cannot
     },
   });
   expect(
-    await hook.handleCodexPreToolHook(['--codex-pretool-hook', 'PRIVATE_POLICY'], (text) =>
-      failed.push(text),
+    await hook.handleCodexPreToolHook(
+      ['--codex-pretool-hook', 'PRIVATE_POLICY', '0'.repeat(64)],
+      (text) => failed.push(text),
     ),
   ).toBe(0);
   expect(failed.map(JSON.parse)).toEqual([deny]);
@@ -270,8 +326,9 @@ it('passes the inherited Windows pipe bytes unchanged to the shared evaluator', 
       return { decision: 'allow' };
     },
   });
-  const result = hook.handleCodexPreToolHook(['--codex-pretool-hook', 'PRIVATE_POLICY'], (text) =>
-    output.push(text),
+  const result = hook.handleCodexPreToolHook(
+    ['--codex-pretool-hook', 'PRIVATE_POLICY', '0'.repeat(64)],
+    (text) => output.push(text),
   );
   input.end(expected);
   expect(await result).toBe(0);
@@ -283,9 +340,12 @@ it('passes the inherited Windows pipe bytes unchanged to the shared evaluator', 
 
 it('returns output failure when the response cannot be written', async () => {
   const t = boundary();
-  const result = hook.handleCodexPreToolHook(['--codex-pretool-hook', 'PRIVATE_POLICY'], () => {
-    throw Error('PRIVATE');
-  });
+  const result = hook.handleCodexPreToolHook(
+    ['--codex-pretool-hook', 'PRIVATE_POLICY', '0'.repeat(64)],
+    () => {
+      throw Error('PRIVATE');
+    },
+  );
   t.input.end('{}');
   expect(await result).toBe(2);
 });

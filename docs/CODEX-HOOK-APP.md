@@ -29,8 +29,10 @@ fixed entry and derives a one-session `--config hooks.PreToolUse=...` override.
    bytes, the selected executable identity and digest, the current working
    directory, and native reader shutdown. A failed check does not start Codex.
    These are point-in-time checks: files or executable can change after their
-   checks and before use. The command does not supply a model, sandbox or
-   approval override.
+   checks and before use. The derived session hook includes the reviewed policy
+   digest; each hook event reads the policy once and denies if those bytes differ
+   or cannot be evaluated. A hook failure may still allow the tool to continue.
+   The command does not supply a model, sandbox or approval override.
 4. In Codex, inspect the session hook with `/hooks` and review and trust it
    manually if the installed Codex version supports that workflow. AEGIS does not
    alter trust. If the hook is untrusted, disabled, missing or overridden by
@@ -42,7 +44,8 @@ fixed entry and derives a one-session `--config hooks.PreToolUse=...` override.
 Only the fixed single-entry profile is recognized. Existing arbitrary or modified
 entries are not silently adopted. The renderer sends fixed operations, not policy
 bytes or paths; paths and policy details appear only in the native reviews and the
-owner-invoked terminal handoff.
+owner-invoked terminal handoff. The stored profile is a template; its unbound hook
+denies, and the reviewed session override carries the policy digest.
 
 ## Decision and coverage boundary
 

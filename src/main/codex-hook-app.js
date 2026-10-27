@@ -560,7 +560,14 @@ function createCodexHookApp(options) {
         throw Error('CANCELLED');
       const codex = await verifyExecutable(executableChoice.filePaths[0]);
       if (!owned() || closed) throw Error('CANCELLED');
-      const detail = `Selected Codex executable:\n${codex.codexPath}\nFile identity: ${codex.codexIdentity}\nSHA-256: ${codex.codexSha256}\n\nAEGIS-owned Codex hook profile:\n${target}\n\nExact hook command:\n${selected.command}\n\nDecoded command script:\n${hookScript(executable, appPath, selected.policy)}\n\nSelected policy:\n${selected.policy}\n\nExact policy:\n${parsed.content}\n\nThe launch derives a session-only hook override. Existing user, project and managed layers remain active. Codex does not support PreToolUse ask; AEGIS emits deny for ask. Review and trust the hook manually in Codex. The installed version is unverified; hook failures, timeouts or malformed responses may continue the tool. This does not cover write_stdin or establish blocking. Executable identity checks are point-in-time and replacement can occur before launch.`;
+      const sessionCommand = hookCommand(
+        executable,
+        appPath,
+        selected.policy,
+        powershell,
+        parsed.digest,
+      );
+      const detail = `Selected Codex executable:\n${codex.codexPath}\nFile identity: ${codex.codexIdentity}\nSHA-256: ${codex.codexSha256}\n\nAEGIS-owned Codex hook profile:\n${target}\n\nExact session hook command:\n${sessionCommand}\n\nDecoded command script:\n${hookScript(executable, appPath, selected.policy, parsed.digest)}\n\nSelected policy:\n${selected.policy}\nSHA-256: ${parsed.digest}\n\nExact policy:\n${parsed.content}\n\nThe session hook denies if its policy bytes change. The launch derives a session-only hook override. Existing user, project and managed layers remain active. Codex does not support PreToolUse ask; AEGIS emits deny for ask. Review and trust the hook manually in Codex. The installed version is unverified; hook failures, timeouts or malformed responses may continue the tool. This does not cover write_stdin or establish blocking. Executable identity checks are point-in-time and replacement can occur before launch.`;
       if (Buffer.byteLength(detail) > 8192) throw Error('PREVIEW_TOO_LARGE');
       const started = now();
       if (!Number.isFinite(started) || started < 0) throw Error('EXPIRED');

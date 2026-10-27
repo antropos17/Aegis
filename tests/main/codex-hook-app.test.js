@@ -225,6 +225,8 @@ it('returns an exact private launch binding after rechecking both native identit
   expect(state.dialog.detail).toContain('write_stdin');
   expect(state.dialog.detail).toContain('C:\\Tools\\codex.exe');
   expect(state.dialog.detail).toContain('a'.repeat(64));
+  expect(state.dialog.detail).toContain(`'${digest(policyBytes)}'`);
+  expect(state.dialog.detail).toContain('session hook denies if its policy bytes change');
 });
 
 it('refuses executable selection cancellation or replacement after review', async () => {

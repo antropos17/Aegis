@@ -28,11 +28,14 @@ function safePath(value, kind = 'ordinary') {
 
 /** Fixed absolute Windows PowerShell and strictly literal application inputs.
  * @param {string} executable AEGIS executable. @param {string} appPath AEGIS app archive.
- * @param {string} policy Selected policy. @returns {string} Native review script. @since v0.21.0 */
-function hookScript(executable, appPath, policy) {
+ * @param {string} policy Selected policy. @param {string} [policyDigest] Reviewed session digest.
+ * @returns {string} Native review script. @since v0.21.0 */
+function hookScript(executable, appPath, policy, policyDigest) {
   const exe = safePath(executable, 'application');
   const app = safePath(appPath, 'application');
   const file = safePath(policy);
+  if (policyDigest !== undefined && !/^[a-f0-9]{64}$/.test(policyDigest))
+    throw Error('unsupported-policy-digest');
   const denial = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
@@ -40,18 +43,20 @@ function hookScript(executable, appPath, policy) {
       permissionDecisionReason: 'AEGIS could not evaluate this request.',
     },
   });
-  return `$ErrorActionPreference='Stop'\ntry { & '${exe}' '${app}' '--codex-pretool-hook' '${file}'; exit $LASTEXITCODE } catch { [Console]::Out.WriteLine('${denial}'); exit 0 }`;
+  const binding = policyDigest === undefined ? '' : ` '${policyDigest}'`;
+  return `$ErrorActionPreference='Stop'\ntry { & '${exe}' '${app}' '--codex-pretool-hook' '${file}'${binding}; exit $LASTEXITCODE } catch { [Console]::Out.WriteLine('${denial}'); exit 0 }`;
 }
 
 /** Build a shell-independent command containing no renderer-selected bytes.
  * @param {string} executable AEGIS executable. @param {string} appPath AEGIS archive.
  * @param {string} policy Selected policy. @param {string} powershell Fixed system PowerShell.
+ * @param {string} [policyDigest] Reviewed session digest.
  * @returns {string} Encoded fixed command. @since v0.21.0 */
-function hookCommand(executable, appPath, policy, powershell) {
+function hookCommand(executable, appPath, policy, powershell, policyDigest) {
   const shell = safePath(powershell, 'system');
   if (!/\/System32\/WindowsPowerShell\/v1\.0\/powershell\.exe$/i.test(shell))
     throw Error('unsupported-path');
-  const script = hookScript(executable, appPath, policy);
+  const script = hookScript(executable, appPath, policy, policyDigest);
   return `${shell} -NoLogo -NoProfile -NonInteractive -EncodedCommand ${Buffer.from(script, 'utf16le').toString('base64')}`;
 }
 

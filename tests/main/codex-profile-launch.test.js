@@ -35,11 +35,13 @@ function fixture() {
   const codexIdentity = 'fixture-identity';
   const codexSha256 = 'c'.repeat(64);
   const verifyCodexExecutable = vi.fn(async () => ({ codexPath, codexIdentity, codexSha256 }));
-  const command = hookCommand(executable, appPath, policyPath, powershell);
+  const templateCommand = hookCommand(executable, appPath, policyPath, powershell);
   const profile = Buffer.from(
     JSON.stringify({
       hooks: {
-        PreToolUse: [{ matcher: '^Bash$', hooks: [{ type: 'command', command, timeout: 5 }] }],
+        PreToolUse: [
+          { matcher: '^Bash$', hooks: [{ type: 'command', command: templateCommand, timeout: 5 }] },
+        ],
       },
     }),
   );
@@ -50,6 +52,7 @@ function fixture() {
     '1234567890abcdef:1234567890abcdef1234567890abcdef',
     'fedcba0987654321:fedcba0987654321fedcba0987654321',
   ];
+  const command = hookCommand(executable, appPath, policyPath, powershell, hash(policy));
   const token = encodeLaunch({
     profilePath,
     profileIdentity: ids[0],

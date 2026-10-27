@@ -4,7 +4,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { parse } = require('smol-toml');
 const { parseActionJson, validActionPolicy } = require('./action-policy');
-const { readProfile } = require('./codex-profile-model');
+const { readProfile, hookCommand } = require('./codex-profile-model');
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fields = [
@@ -156,7 +156,9 @@ async function validatedOverride(token, options) {
         again.bytes.fill(0);
       }
     }
-    const result = overrideFor(installed.command);
+    const result = overrideFor(
+      hookCommand(executable, appPath, installed.policy, powershell, value.policySha256),
+    );
     for (const io of readers) {
       await io.close();
       if (io.status()?.admission !== 'closed' || io.status()?.exit !== 'confirmed')
