@@ -38,6 +38,19 @@ async function digest(file) {
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest('hex');
 }
+
+/** Accept only an exact whole-file Git LF to checkout CRLF conversion.
+ * @param {Buffer} blob Canonical LF Git blob. @param {Buffer} checkout Local source bytes.
+ * @returns {boolean} Whether every newline alone was converted. @since v0.21.0 */
+function uniformCRLFCheckout(blob, checkout) {
+  if (!Buffer.isBuffer(blob) || !Buffer.isBuffer(checkout) || blob.includes(13)) return false;
+  const bytes = [];
+  for (const byte of blob) {
+    if (byte === 10) bytes.push(13);
+    bytes.push(byte);
+  }
+  return Buffer.from(bytes).equals(checkout);
+}
 async function processGone(pid) {
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
@@ -82,9 +95,33 @@ async function run() {
   const before = { executable: await digest(executable), asar: await digest(asar) };
   receipt.artifacts = before;
   stage = 'archive-source-match';
+  receipt.checkedSourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+  }).trim();
+  receipt.archiveSourceFiles = {};
   for (const name of ['claude-guard-launch.js', 'claude-guard-broker.js', 'cli.js', 'main.js']) {
     const relative = path.join('src', 'main', name);
-    assert.deepEqual(extractFile(asar, relative), await fs.readFile(path.join(root, relative)));
+    const archived = extractFile(asar, relative);
+    const checkout = await fs.readFile(path.join(root, relative));
+    const record = {
+      archiveSha256: createHash('sha256').update(archived).digest('hex'),
+      checkoutSha256: createHash('sha256').update(checkout).digest('hex'),
+      checkoutNormalization: 'none',
+    };
+    receipt.archiveSourceFiles[name] = record;
+    if (!archived.equals(checkout)) {
+      const blob = execFileSync('git', ['show', 'HEAD:src/main/' + name], {
+        cwd: root,
+        windowsHide: true,
+        maxBuffer: 2 * 1024 * 1024,
+      });
+      record.gitBlobSha256 = createHash('sha256').update(blob).digest('hex');
+      assert(archived.equals(blob), 'Archive differs from canonical Git blob');
+      assert(uniformCRLFCheckout(blob, checkout), 'Checkout differs beyond uniform LF-to-CRLF');
+      record.checkoutNormalization = 'uniform-lf-to-crlf';
+    }
   }
   receipt.archiveSourcesMatch = true;
 
@@ -311,19 +348,21 @@ async function run() {
   }
 }
 
-run().catch(async (error) => {
-  receipt.complete = false;
-  receipt.failureStage = stage;
-  receipt.failure = String(error.message).slice(0, 300);
-  receipt.shellClosed = shellClosed;
-  if (madeOutput)
-    await fs
-      .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {
-        flag: 'wx',
-      })
-      .catch(() => {});
-  console.error(
-    'Packaged terminal qualification failed at ' + stage + '; private output retained.',
-  );
-  process.exitCode = 1;
-});
+module.exports = { uniformCRLFCheckout };
+if (require.main === module)
+  run().catch(async (error) => {
+    receipt.complete = false;
+    receipt.failureStage = stage;
+    receipt.failure = String(error.message).slice(0, 300);
+    receipt.shellClosed = shellClosed;
+    if (madeOutput)
+      await fs
+        .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {
+          flag: 'wx',
+        })
+        .catch(() => {});
+    console.error(
+      'Packaged terminal qualification failed at ' + stage + '; private output retained.',
+    );
+    process.exitCode = 1;
+  });
