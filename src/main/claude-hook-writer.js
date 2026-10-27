@@ -12,7 +12,7 @@ const { planInstall, planRemoval } = require('./claude-hook-plan');
 /** @typedef {{ startByte: number, endByte: number, replacementUtf8: string }} Edit */
 /** @typedef {{ beforeSha256: string, afterSha256: string, edits: Edit[], manifest?: string, manifestSha256?: string }} Plan */
 /** @typedef {{ kind: 'install'|'removal', snapshot: Snapshot, after: Buffer, plan: Plan, manifest: string }} Transaction */
-/** @typedef {{ identity: string, retained: Retained }} Ownership */
+/** @typedef {{ identity: string, afterSha256: string, retained: Retained }} Ownership */
 const IO_CONTRACT = 'trusted-owned-target-compare-write-v1';
 const MAX_BACKUPS = 8;
 /** @param {string|Buffer} bytes */
@@ -275,12 +275,37 @@ function createOwnedHookWriter(options) {
         uncertain = true;
         return finish(false, 'READBACK_FAILED');
       }
-      owned = tx.kind === 'install' ? { identity: current.identity, retained: record } : null;
+      owned =
+        tx.kind === 'install'
+          ? { identity: current.identity, afterSha256: hash(tx.after), retained: record }
+          : null;
       return finish(
         true,
         tx.kind === 'install' ? 'INSTALLED' : 'REMOVED',
         tx.kind === 'install' ? 'Configured' : 'Unknown',
       );
+    });
+  }
+  /** Compare the current guarded target with this session's verified installation.
+   * @returns {Promise<ReturnType<typeof status>>} Sanitized match, change or read failure. @since v0.21.0 */
+  async function reconcile() {
+    return exclusive(async () => {
+      if (!owned) return status(false, 'NO_OWNED_INSTALL');
+      try {
+        const raw = await io.readTarget();
+        let current;
+        try {
+          current = snapshot(raw);
+          return current.identity === owned.identity && hash(current.bytes) === owned.afterSha256
+            ? status(true, 'OWNED_MATCH')
+            : status(false, 'TARGET_CHANGED');
+        } finally {
+          current?.bytes.fill(0);
+          if (Buffer.isBuffer(raw?.bytes)) raw.bytes.fill(0);
+        }
+      } catch {
+        return status(false, 'TARGET_READ_FAILED');
+      }
     });
   }
   /**
@@ -291,7 +316,7 @@ function createOwnedHookWriter(options) {
   function readStatus() {
     return { ...last };
   }
-  return { ok: true, prepareInstall, prepareRemoval, apply, status: readStatus };
+  return { ok: true, prepareInstall, prepareRemoval, apply, reconcile, status: readStatus };
 }
 
 module.exports = { IO_CONTRACT, createOwnedHookWriter };
