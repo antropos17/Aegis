@@ -24,8 +24,9 @@ with timeout five, and an unambiguous supported structure. It removes the recogn
 entries; all unrelated bytes remain exact. Changed routes, additional
 fields, mixed commands or duplicate matching entries are refused.
 
-`claude-hook:review` admits only `status`, `install`, `remove`, `open-profile`,
-`guard-start` and `guard-stop` from the current owned top-level renderer. The renderer supplies no path,
+`claude-hook:review` admits only `status`, `install`, `install-project-policy`,
+`remove`, `open-profile`, `guard-start`, `guard-start-snapshot` and `guard-stop`
+from the current owned top-level renderer. The renderer supplies no path,
 command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
 AEGIS pre- and after-hook commands quote their fixed absolute paths. The
@@ -54,6 +55,22 @@ identity, delivery coverage and action effects remain unknown. `canRemove` still
 describes live session ownership; `canReviewExisting` offers a fresh review and
 does not assert ownership. Status reads only bounded file metadata and creates
 no draft, backup directory or native session.
+
+The optional snapshot-checked terminal launch asks for an existing accepted
+project inventory snapshot after selecting the working folder. For snapshots
+that include an offline tool catalog it also asks for that same catalog. The
+main process freshly compares the selected project and verifies the snapshot
+again after the owner's native review, at terminal confirmation and immediately
+before broker start. A changed, incomplete, incompatible, unaccepted or
+unavailable snapshot refuses this route. Use Local security to review and
+explicitly accept a complete snapshot first. The ordinary terminal launch is
+still available and does not check a snapshot.
+
+This check covers only the recognized inventory layouts, and a local accepted
+snapshot is not authenticated. It does not establish effective Claude settings,
+complete project contents, provider blocking, or that the project cannot change
+between the check and use. A timed-out filesystem capture may continue in the
+background; the launcher refuses new checks until it has actually finished.
 
 The folder action reveals only this fixed target and still requires the owned
 renderer. Missing helper assets do not block access to a retained draft folder.
