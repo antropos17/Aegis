@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { confirmed, invoke, record, type Host } from '../runtime/host';
   import { t } from '../runtime/i18n';
   import Icon from './Icon.svelte';
@@ -34,42 +34,85 @@
     RETAINED_UNKNOWN: 'The write or native helper shutdown is uncertain. Review retained files.',
     OPERATION_FAILED: 'Profile review could not complete. Retained files are preserved.',
   };
-  let capabilities = $state({ canInstall: false, canRemove: false, canOpen: false });
+  const none = () => ({ canInstall: false, canRemove: false, canOpen: false, canLaunch: false });
+  let capabilities = $state(none());
   let pending = $state<Operation | null>(null);
   let feedback = $state('');
   let failure = $state(false);
+  let mutationOutcomeUnknown = $state(false);
   const available = $derived(!preview && typeof host?.reviewCodexHookProfile === 'function');
   let alive = true;
-  onMount(() => {
-    if (available) void perform('status');
-    return () => {
-      alive = false;
-    };
+  let generation = 0;
+  $effect(() => {
+    const nextHost = host;
+    const nextPreview = preview;
+    untrack(() => {
+      generation++;
+      if (pending === 'install' || pending === 'remove') mutationOutcomeUnknown = true;
+      pending = null;
+      capabilities = none();
+      feedback = '';
+      failure = false;
+      if (!nextPreview && typeof nextHost?.reviewCodexHookProfile === 'function')
+        void perform('status');
+    });
+  });
+  onDestroy(() => {
+    alive = false;
+    generation++;
   });
   async function perform(action: Operation) {
     if (!available || pending) return;
+    const requestGeneration = generation;
+    const requestHost = host;
+    const current = () =>
+      alive && generation === requestGeneration && host === requestHost && !preview;
+    const mutation = action === 'install' || action === 'remove';
     pending = action;
+    capabilities = none();
     try {
-      const result = record(confirmed(await invoke(host, 'reviewCodexHookProfile', action)));
-      if (!alive) return;
-      const code = typeof result.code === 'string' ? result.code : 'OPERATION_FAILED';
+      const result = record(confirmed(await invoke(requestHost, 'reviewCodexHookProfile', action)));
+      if (!current()) return;
+      const code = result.code;
+      if (
+        typeof code !== 'string' ||
+        !Object.hasOwn(messages, code) ||
+        typeof result.available !== 'boolean' ||
+        typeof result.canInstall !== 'boolean' ||
+        typeof result.canRemove !== 'boolean' ||
+        typeof result.canOpen !== 'boolean' ||
+        ((result.canInstall || result.canRemove) && !result.available) ||
+        (result.canRemove && !result.canOpen) ||
+        (code === 'UNAVAILABLE' && result.available)
+      )
+        throw Error('invalid-response');
+      const uncertain = ['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'].includes(code);
+      const blocked = uncertain || ['BUSY', 'UNAVAILABLE', 'OPERATION_FAILED'].includes(code);
+      if (mutation && (uncertain || code === 'OPERATION_FAILED')) mutationOutcomeUnknown = true;
       capabilities = {
-        canInstall: result.canInstall === true,
-        canRemove: result.canRemove === true,
-        canOpen: result.canOpen === true,
+        canInstall: !blocked && result.canInstall,
+        canRemove: !blocked && result.canRemove,
+        canOpen: code !== 'BUSY' && result.canOpen,
+        canLaunch: !blocked && result.available && result.canOpen,
       };
-      feedback = messages[code] || messages.OPERATION_FAILED;
+      feedback =
+        action === 'status' && code === 'INSTALLED'
+          ? 'Last verified setup result was installation; the current profile has not been rechecked.'
+          : action === 'status' && code === 'REMOVED'
+            ? 'Last verified setup result was removal; the current profile has not been rechecked.'
+            : messages[code];
       failure = !['IDLE', 'BUSY', 'CANCELLED', 'INSTALLED', 'REMOVED', 'LAUNCH_READY'].includes(
         code,
       );
     } catch {
-      if (alive) {
-        capabilities = { canInstall: false, canRemove: false, canOpen: false };
+      if (current()) {
+        if (mutation) mutationOutcomeUnknown = true;
+        capabilities = none();
         feedback = messages.OPERATION_FAILED;
         failure = true;
       }
     } finally {
-      if (alive) pending = null;
+      if (current()) pending = null;
     }
   }
 </script>
@@ -117,7 +160,7 @@
       >
       <button
         class="button"
-        disabled={!available || pending !== null || !capabilities.canOpen}
+        disabled={!available || pending !== null || !capabilities.canLaunch}
         onclick={() => perform('prepare-launch')}>{$t('Review Codex terminal command')}</button
       >
       <button
@@ -131,6 +174,11 @@
         onclick={() => perform('status')}>{$t('Refresh setup status')}</button
       >
     </div>
+    {#if mutationOutcomeUnknown}<p role="alert">
+        {$t(
+          'The outcome of a previous profile change is unknown. Refresh can restore current controls but cannot confirm that change.',
+        )}
+      </p>{/if}
     {#if feedback}<p role={failure ? 'alert' : 'status'}>{$t(feedback)}</p>{/if}
     {#if preview}<p class="muted">
         {$t('Profile changes are disabled in this simulated preview.')}
