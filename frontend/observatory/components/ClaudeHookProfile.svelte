@@ -5,7 +5,14 @@
   import { claudeHookLaunchCommand } from '../runtime/claude-hook-guide';
   import Icon from './Icon.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
-  type Operation = 'status' | 'install' | 'remove' | 'open-profile' | 'guard-start' | 'guard-stop';
+  type Operation =
+    | 'status'
+    | 'install'
+    | 'install-project-policy'
+    | 'remove'
+    | 'open-profile'
+    | 'guard-start'
+    | 'guard-stop';
   type Outcome = 'reported-completed' | 'reported-failed' | 'unknown';
   const id = $props.id();
   const messages: Record<string, string> = {
@@ -33,6 +40,12 @@
     SESSION_RELEASE_UNCONFIRMED:
       'The previous native session has not confirmed shutdown. Another write is unavailable.',
     INVALID_POLICY: 'Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.',
+    POLICY_CREATE_REFUSED:
+      'The new project policy could not be created. The profile was not installed.',
+    POLICY_CREATE_UNCERTAIN:
+      'Policy creation could not be verified. Retained files require review before another setup.',
+    POLICY_UNADOPTED:
+      'A new policy was retained, but the profile was not installed. Review retained files before another setup.',
     UNSUPPORTED_PATH: 'A selected path cannot be represented safely in this hook command.',
     RETENTION_LIMIT:
       'The retained backup limit was reached. Review the existing profile files before another setup.',
@@ -57,6 +70,9 @@
     'SESSION_ENDED',
     'SESSION_RELEASE_UNCONFIRMED',
     'INVALID_POLICY',
+    'POLICY_CREATE_REFUSED',
+    'POLICY_CREATE_UNCERTAIN',
+    'POLICY_UNADOPTED',
     'UNSUPPORTED_PATH',
     'RETENTION_LIMIT',
     'PREVIEW_TOO_LARGE',
@@ -223,6 +239,17 @@
       )}
     </p>
     <div class="profile-actions">
+      <button
+        class="button"
+        disabled={!available || pending !== null || !profileState.canInstall}
+        aria-busy={pending === 'install-project-policy'}
+        onclick={() => perform('install-project-policy')}
+        >{$t(
+          pending === 'install-project-policy'
+            ? 'Preparing native review…'
+            : 'Choose project and review built-in policy',
+        )}</button
+      >
       <button
         class="button"
         disabled={!available || pending !== null || !profileState.canInstall}
