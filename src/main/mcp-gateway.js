@@ -86,6 +86,8 @@ function createMcpGateway({
   manifestPath,
   grantStorePath,
   secretPolicyPath,
+  disclosurePolicyPath,
+  reviewCall,
   onFailure,
   onEvidence,
 }) {
@@ -99,14 +101,18 @@ function createMcpGateway({
     grantStore,
     manifest,
     digest,
-    activeId;
+    activeId,
+    disclosureDigest;
   const ids = new Set(),
     used = new Set();
+  const reviewed = reviewCall !== undefined || disclosurePolicyPath !== undefined;
+  const approved = new Map();
   const controller = new AbortController();
   const close = (failed = false) => {
     if (closed) return;
     closed = true;
     phase = 'closed';
+    approved.clear();
     controller.abort();
     route?.close();
     secretGuard?.close();
@@ -139,11 +145,49 @@ function createMcpGateway({
       const hash = createHash('sha256').update(bytes).digest('hex');
       if (digest && digest !== hash) throw Error('manifest-changed');
       const value = parseActionJson(bytes);
-      if (!validManifest(value)) throw Error('manifest-unsupported');
+      if (!validManifest(value, { allowDistinctReviewedGrants: reviewed }))
+        throw Error('manifest-unsupported');
       digest = hash;
       return value;
     } finally {
       bytes.fill(0);
+    }
+  };
+  const readDisclosure = async () => {
+    const bytes = await readActionFile(disclosurePolicyPath);
+    try {
+      const hash = createHash('sha256').update(bytes).digest('hex');
+      if (disclosureDigest && disclosureDigest !== hash) throw Error('disclosure-changed');
+      const policy = parseActionJson(bytes);
+      if (!require('./mcp-gateway-review-display').validReviewPolicy(policy))
+        throw Error('disclosure-unsupported');
+      disclosureDigest = hash;
+      return policy;
+    } finally {
+      bytes.fill(0);
+    }
+  };
+  const askOwner = async (preview) => {
+    let timer, abort;
+    const start = performance.now();
+    try {
+      const result = await Promise.race([
+        Promise.resolve().then(() => reviewCall(preview, { signal: controller.signal })),
+        new Promise((_, reject) => {
+          abort = () => reject(Error('gateway-closed'));
+          controller.signal.addEventListener('abort', abort, { once: true });
+          timer = setTimeout(() => {
+            close(true);
+            abort();
+          }, 65000);
+          if (closed) abort();
+        }),
+      ]);
+      if (closed || performance.now() - start >= 65000) throw Error('review-expired');
+      return result === true;
+    } finally {
+      clearTimeout(timer);
+      controller.signal.removeEventListener('abort', abort);
     }
   };
   const verifyCredential = async () => {
@@ -226,8 +270,22 @@ function createMcpGateway({
       phase = 'initializing';
       try {
         if (!isExecutionRuntimeSupported()) throw Error('runtime');
+        if (
+          reviewed &&
+          (typeof reviewCall !== 'function' ||
+            typeof disclosurePolicyPath !== 'string' ||
+            !disclosurePolicyPath ||
+            typeof secretPolicyPath !== 'string' ||
+            !secretPolicyPath ||
+            typeof grantStorePath !== 'string' ||
+            !grantStorePath ||
+            endpointPath !== undefined)
+        )
+          throw Error('review-route-unsupported');
         secretGuard = await step(captureSecretPolicy(secretPolicyPath, controller.signal));
+        if (reviewed) await step(readDisclosure());
         manifest = await step(readManifest());
+        if (reviewed && manifest.schemaVersion < 2) throw Error('review-store-required');
         secretGuard.assertSafe(manifest.tools);
         if (
           manifest.schemaVersion >= 2 !==
@@ -315,7 +373,8 @@ function createMcpGateway({
     if (!tool || !matchesSchema(tool.inputSchema, params.arguments))
       return error(id, -32602, 'gateway-arguments-invalid');
     const grant = manifest.grants.findIndex(
-      (item) => item.tool === params.name && equal(item.arguments, params.arguments),
+      (item, index) =>
+        !used.has(index) && item.tool === params.name && equal(item.arguments, params.arguments),
     );
     if (grant < 0 || used.has(grant)) return error(id, -32000, 'gateway-grant-unavailable');
     // Consume before asynchronous work, even if upstream fails or the caller cancels.
@@ -341,8 +400,37 @@ function createMcpGateway({
       )
         throw Error('grant-expired');
       secretGuard.assertSafe(params);
+      if (reviewed) {
+        const disclosure = await step(readDisclosure());
+        const previous = approved.get(params.name);
+        if (previous !== undefined) secretGuard.assertSafe(previous);
+        const rendered = require('./mcp-gateway-review-display').renderReview({
+          policy: disclosure,
+          tool: params.name,
+          current: params.arguments,
+          previous,
+        });
+        if (!rendered.ok) throw Error('review-display-unavailable');
+        secretGuard.assertSafe(rendered.preview);
+        if (!(await askOwner(rendered.preview))) {
+          evidence.emit('failed', operationId);
+          return error(id, -32000, 'gateway-review-declined');
+        }
+        await step(readDisclosure());
+        await verifyCredential();
+        const launch = await recheck();
+        if (manifest.schemaVersion === 5) await verifyStdioRoute(launch);
+        await checkCatalog();
+        await recheck();
+        if (grantStore) await step(grantStore.recheck(consumption));
+        if (closed || Date.now() < permission.notBefore || Date.now() >= permission.expiresAt)
+          throw Error('review-invalidated');
+        secretGuard.assertSafe(params);
+      }
       evidence.emit('dispatch', operationId);
-      const returned = await step(peer.request('tools/call', params));
+      const request = peer.request('tools/call', params);
+      if (reviewed) approved.set(params.name, params.arguments);
+      const returned = await step(request);
       if (closed || !validResult(tool, returned)) throw Error('upstream-result');
       await step(secretGuard.recheck());
       secretGuard.assertSafe(returned);
