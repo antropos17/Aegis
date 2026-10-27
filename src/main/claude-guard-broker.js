@@ -1,6 +1,7 @@
 'use strict';
 
 const http = require('node:http');
+const fs = require('node:fs');
 const tty = require('node:tty');
 const path = require('node:path');
 const { randomBytes, randomInt, createHmac, timingSafeEqual } = require('node:crypto');
@@ -9,19 +10,111 @@ const { spawn } = require('node:child_process');
 const LIMITS = Object.freeze({ keyMs: 45000, claimMs: 65000, replyBytes: 8192, cleanupMs: 4000 });
 let testDeps = null;
 
-// Read the actual descriptor rather than Electron's ended Windows process.stdin.
+function hostRuntime() {
+  return testDeps?.runtime || process;
+}
+
+function terminalAvailable() {
+  const terminal = testDeps?.tty || tty;
+  const runtime = hostRuntime();
+  try {
+    return (
+      runtime.platform === 'win32' &&
+      terminal.isatty(1) &&
+      (Boolean(runtime.versions?.electron) || terminal.isatty(0))
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Electron replaces stdin on Windows. Open only the currently attached console,
+// never a renderer-selected path or a file supplied by a caller.
+function openTerminalInput() {
+  const terminal = testDeps?.tty || tty;
+  const runtime = hostRuntime();
+  if (!(testDeps?.terminal || terminalAvailable)()) return null;
+  if (!runtime.versions?.electron) return { fd: 0, owned: false };
+  const files = testDeps?.fs || fs;
+  let fd;
+  try {
+    fd = files.openSync('\\\\.\\CONIN$', 'r+');
+    if (!terminal.isatty(fd)) {
+      const rejected = fd;
+      fd = undefined;
+      files.closeSync(rejected);
+      return null;
+    }
+    return { fd, owned: true };
+  } catch {
+    if (fd !== undefined) {
+      try {
+        files.closeSync(fd);
+      } catch {
+        // No launch is admitted if a console descriptor cannot be verified.
+      }
+    }
+    return null;
+  }
+}
+
+function closeReadStream(input, owned) {
+  if (!owned) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), testDeps?.closeMs || 1000);
+    input.once('close', () => finish(true));
+    input.once('error', () => finish(false));
+    try {
+      input.destroy();
+    } catch {
+      finish(false);
+    }
+  });
+}
+
 // Neither input bytes nor the normalized key are written to the terminal.
-function readLaunchKey() {
+async function readLaunchKey() {
   const terminal = testDeps?.tty || tty;
   const signals = testDeps?.signals || process;
-  if (!terminal.isatty(0) || !terminal.isatty(1)) return Promise.resolve(null);
+  const opened = openTerminalInput();
+  if (!opened) return null;
   let input;
+  const ignoreSetupError = () => {};
   try {
-    input = new terminal.ReadStream(0);
+    input = new terminal.ReadStream(opened.fd);
+    input.on('error', ignoreSetupError);
     input.setRawMode(true);
+    if (input.isRaw !== true) throw Error('raw-input-unavailable');
+    input.removeListener('error', ignoreSetupError);
   } catch {
-    input?.pause();
-    return Promise.resolve(null);
+    if (input) {
+      try {
+        input.setRawMode(false);
+      } catch {
+        // Refuse the launch even if the console mode could not be restored.
+      }
+      try {
+        input.pause();
+        input.unref?.();
+      } catch {
+        // Continue closing the owned console handle after a stream error.
+      }
+      await closeReadStream(input, opened.owned);
+    } else if (opened.owned) {
+      try {
+        (testDeps?.fs || fs).closeSync(opened.fd);
+      } catch {
+        // Refuse the launch when native console setup is uncertain.
+      }
+    }
+    return null;
   }
   return new Promise((resolve) => {
     let value = '',
@@ -43,6 +136,7 @@ function readLaunchKey() {
       }
       try {
         input.setRawMode(false);
+        if (input.isRaw !== false) ok = false;
       } catch {
         ok = false;
       }
@@ -54,7 +148,9 @@ function readLaunchKey() {
         .replace(/[ -]/g, '')
         .toLowerCase();
       value = '';
-      resolve(ok && /^[a-f0-9]{24}$/.test(normalized) ? normalized : null);
+      void closeReadStream(input, opened.owned).then((closed) => {
+        resolve(ok && closed && /^[a-f0-9]{24}$/.test(normalized) ? normalized : null);
+      });
     };
     const fail = () => finish(false);
     const onData = (chunk) => {
@@ -75,7 +171,11 @@ function readLaunchKey() {
     input.once('end', fail);
     signals.once('SIGINT', fail);
     signals.once('SIGTERM', fail);
-    input.resume();
+    try {
+      input.resume();
+    } catch {
+      fail();
+    }
   });
 }
 
@@ -223,11 +323,14 @@ function runChild(selected, port, session, write) {
         /* Timed settlement retains uncertainty. */
       }
     };
+    const opened = openTerminalInput();
+    if (!opened) return finish(2);
+    let closeFailed = false;
     try {
       child = (testDeps?.spawn || spawn)(selected.executable, ['--settings', selected.settings], {
         cwd: selected.cwd,
         env,
-        stdio: 'inherit',
+        stdio: opened.owned ? [opened.fd, 'inherit', 'inherit'] : 'inherit',
         shell: false,
         windowsHide: false,
       });
@@ -237,6 +340,22 @@ function runChild(selected, port, session, write) {
       signals.once('SIGTERM', stop);
     } catch {
       finish(2);
+    } finally {
+      if (opened.owned) {
+        try {
+          (testDeps?.fs || fs).closeSync(opened.fd);
+        } catch {
+          closeFailed = true;
+        }
+      }
+    }
+    if (closeFailed) {
+      try {
+        write('Console input handle closure is unconfirmed.');
+      } catch {
+        // Retain a fixed failure when terminal output closes.
+      }
+      if (child && !done) stop();
     }
   });
 }
@@ -312,7 +431,7 @@ async function runSession(args, write) {
     write('Claude Guard session is unavailable.');
     return 2;
   }
-  if (!(testDeps?.terminal || (() => tty.isatty(0) && tty.isatty(1)))()) {
+  if (!(testDeps?.terminal || terminalAvailable)()) {
     write('Claude Guard requires an interactive terminal.');
     return 2;
   }

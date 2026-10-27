@@ -243,6 +243,7 @@ describe('Claude Guard terminal broker', () => {
     const modes = [];
     class FakeTerminal extends EventEmitter {
       setRawMode(value) {
+        this.isRaw = value;
         modes.push(value);
       }
       pause() {}
@@ -352,4 +353,282 @@ describe('Claude Guard terminal broker', () => {
       expect(claim).not.toHaveBeenCalled();
     },
   );
+
+  describe('Windows Electron console handles', () => {
+    let modes, closedReads, files, signals, terminal, options;
+
+    beforeEach(() => {
+      modes = [];
+      closedReads = [];
+      signals = new EventEmitter();
+      files = {
+        openSync: vi.fn().mockReturnValueOnce(91).mockReturnValueOnce(92),
+        closeSync: vi.fn(),
+      };
+      class FakeReadStream extends EventEmitter {
+        constructor(fd) {
+          super();
+          this.fd = fd;
+          this.isRaw = false;
+        }
+        setRawMode(value) {
+          this.isRaw = value;
+          modes.push(value);
+        }
+        pause() {}
+        unref() {}
+        resume() {
+          setImmediate(() => this.emit('data', Buffer.from('1234-5678-90ab-cdef-1234-5678\r')));
+        }
+        destroy() {
+          closedReads.push(this.fd);
+          setImmediate(() => this.emit('close'));
+        }
+      }
+      terminal = {
+        isatty: vi.fn((fd) => fd === 1 || fd === 91 || fd === 92),
+        ReadStream: FakeReadStream,
+      };
+      options = {
+        runtime: { platform: 'win32', versions: { electron: '45.0.0' } },
+        tty: terminal,
+        fs: files,
+        signals,
+        randomInt: () => 123,
+        randomBytes: () => Buffer.alloc(16, 0x12),
+        claim: async (_port, _session, code, nonce) => response({ code, nonce }),
+        startReport: async () => true,
+        finishReport: vi.fn(async () => {}),
+        spawn: spawned,
+      };
+    });
+
+    it('restores and closes key input, then passes a fresh console descriptor to the child', async () => {
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(0);
+      expect(files.openSync.mock.calls).toEqual([
+        ['\\\\.\\CONIN$', 'r+'],
+        ['\\\\.\\CONIN$', 'r+'],
+      ]);
+      expect(modes).toEqual([true, false]);
+      expect(closedReads).toEqual([91]);
+      expect(spawned.mock.calls[0][2].stdio).toEqual([92, 'inherit', 'inherit']);
+      expect(files.closeSync.mock.calls).toEqual([[92]]);
+      expect(output.join(' ')).not.toContain(KEY);
+    });
+
+    it.each([
+      'non-windows',
+      'redirected-output',
+      'tty-query-fails',
+      'open-fails',
+      'not-a-console',
+      'stream-fails',
+      'raw-fails',
+      'resume-fails',
+      'restore-fails',
+    ])('refuses %s before contacting or starting Claude', async (kind) => {
+      if (kind === 'non-windows')
+        options.runtime = { platform: 'linux', versions: { electron: '45.0.0' } };
+      if (kind === 'redirected-output') terminal.isatty.mockImplementation(() => false);
+      if (kind === 'tty-query-fails')
+        terminal.isatty.mockImplementation(() => {
+          throw Error('tty');
+        });
+      if (kind === 'open-fails')
+        files.openSync.mockReset().mockImplementation(() => {
+          throw Error('open');
+        });
+      if (kind === 'not-a-console') terminal.isatty.mockImplementation((fd) => fd === 1);
+      if (kind === 'stream-fails')
+        terminal.ReadStream = class {
+          constructor() {
+            throw Error('stream');
+          }
+        };
+      if (kind === 'raw-fails')
+        terminal.ReadStream = class extends EventEmitter {
+          pause() {}
+          destroy() {
+            closedReads.push(91);
+            setImmediate(() => this.emit('close'));
+          }
+          setRawMode() {
+            throw Error('raw');
+          }
+        };
+      if (kind === 'resume-fails')
+        terminal.ReadStream = class extends terminal.ReadStream {
+          resume() {
+            throw Error('resume');
+          }
+        };
+      if (kind === 'restore-fails')
+        terminal.ReadStream = class extends terminal.ReadStream {
+          setRawMode(value) {
+            if (!value) throw Error('restore');
+            super.setRawMode(value);
+          }
+        };
+      options.claim = vi.fn();
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(options.claim).not.toHaveBeenCalled();
+      expect(spawned).not.toHaveBeenCalled();
+      if (kind === 'not-a-console' || kind === 'stream-fails')
+        expect(files.closeSync).toHaveBeenCalledWith(91);
+      if (kind === 'raw-fails') expect(closedReads).toEqual([91]);
+      if (kind === 'resume-fails' || kind === 'restore-fails') expect(closedReads).toEqual([91]);
+    });
+
+    it('restores and closes the owned input when terminal confirmation is interrupted', async () => {
+      terminal.ReadStream = class extends terminal.ReadStream {
+        resume() {
+          setImmediate(() => signals.emit('SIGINT'));
+        }
+      };
+      options.claim = vi.fn();
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(modes).toEqual([true, false]);
+      expect(closedReads).toEqual([91]);
+      expect(options.claim).not.toHaveBeenCalled();
+      expect(spawned).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['owned', 'throw'],
+      ['inherited', 'throw'],
+      ['owned', 'mismatch'],
+      ['inherited', 'mismatch'],
+    ])('attempts to restore %s console mode after a raw setup %s', async (kind, failure) => {
+      let unreferenced = false;
+      terminal.ReadStream = class extends terminal.ReadStream {
+        setRawMode(value) {
+          modes.push(value);
+          if (value && failure === 'mismatch') return;
+          this.isRaw = value;
+          if (value) throw Error('raw-after-change');
+        }
+        unref() {
+          unreferenced = true;
+        }
+      };
+      if (kind === 'inherited') {
+        options.runtime = { platform: 'win32', versions: {} };
+        terminal.isatty.mockImplementation((fd) => fd === 0 || fd === 1);
+      }
+      options.claim = vi.fn();
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(modes).toEqual([true, false]);
+      expect(unreferenced).toBe(true);
+      expect(closedReads).toEqual(kind === 'owned' ? [91] : []);
+      expect(options.claim).not.toHaveBeenCalled();
+      expect(spawned).not.toHaveBeenCalled();
+    });
+
+    it('closes key input and refuses a launch when a fresh child console cannot open', async () => {
+      files.openSync
+        .mockReset()
+        .mockReturnValueOnce(91)
+        .mockImplementationOnce(() => {
+          throw Error('open');
+        });
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(closedReads).toEqual([91]);
+      expect(spawned).not.toHaveBeenCalled();
+      expect(options.finishReport).toHaveBeenCalledOnce();
+    });
+
+    it('closes key input on a bad proof and revokes the unused capability', async () => {
+      options.claim = async (_port, _session, code, nonce) => ({
+        ...response({ code, nonce }),
+        proof: '0'.repeat(64),
+      });
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(closedReads).toEqual([91]);
+      expect(files.openSync).toHaveBeenCalledOnce();
+      expect(spawned).not.toHaveBeenCalled();
+      expect(options.finishReport).toHaveBeenCalledOnce();
+    });
+
+    it('closes the child descriptor if spawn fails', async () => {
+      options.spawn = vi.fn(() => {
+        throw Error('launch');
+      });
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(closedReads).toEqual([91]);
+      expect(files.closeSync).toHaveBeenCalledWith(92);
+      expect(options.finishReport).toHaveBeenCalledOnce();
+    });
+
+    it('stops only the owned child and reports an unconfirmed parent descriptor close', async () => {
+      const child = new EventEmitter();
+      child.kill = vi.fn(() => {
+        setImmediate(() => child.emit('close', null));
+      });
+      options.spawn = vi.fn(() => child);
+      files.closeSync.mockImplementation(() => {
+        throw Error('close');
+      });
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(child.kill).toHaveBeenCalledOnce();
+      expect(output).toContain('Console input handle closure is unconfirmed.');
+      expect(options.finishReport).toHaveBeenCalledOnce();
+    });
+
+    it('reports unconfirmed descriptor close even when process creation fails', async () => {
+      options.spawn = vi.fn(() => {
+        throw Error('launch');
+      });
+      files.closeSync.mockImplementation(() => {
+        throw Error('close');
+      });
+      broker._setDepsForTest(options);
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (x) =>
+          output.push(x),
+        ),
+      ).toBe(2);
+      expect(output).toContain('Console input handle closure is unconfirmed.');
+      expect(options.finishReport).toHaveBeenCalledOnce();
+    });
+  });
 });
