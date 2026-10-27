@@ -340,12 +340,12 @@ it('clears old feedback when an instance or its witness changes', async () => {
     simple: true,
   });
   await fireEvent.click(screen.getByRole('button', { name: 'Pause process' }));
-  expect(await screen.findByText(/process control request reported success/)).toBeVisible();
+  expect(await screen.findByText(/pause request reported success/)).toBeVisible();
   await mounted.rerender({ row: second });
-  expect(screen.queryByText(/process control request reported success/)).toBeNull();
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
   await mounted.rerender({ row: worker });
   await fireEvent.click(screen.getByRole('button', { name: 'Resume process' }));
-  expect(await screen.findByText(/process control request reported success/)).toBeVisible();
+  expect(await screen.findByText(/resume request reported success/)).toBeVisible();
   await mounted.rerender({
     telemetry: {
       ...props.telemetry,
@@ -354,7 +354,7 @@ it('clears old feedback when an instance or its witness changes', async () => {
       ] as unknown as Telemetry['agents'],
     },
   });
-  expect(screen.queryByText(/process control request reported success/)).toBeNull();
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
 });
 
 it('drops a late reply after switching away and back to the same process', async () => {
@@ -376,7 +376,7 @@ it('drops a late reply after switching away and back to the same process', async
   await mounted.rerender({ row: second });
   await mounted.rerender({ row: worker });
   await act(() => complete({ success: true }));
-  expect(screen.queryByText(/process control request reported success/)).toBeNull();
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Pause process' })).toBeEnabled();
 });
 
@@ -434,7 +434,7 @@ it('drops an in-flight result for a replaced generation with the same instance I
     },
   });
   await act(() => complete({ success: true }));
-  expect(screen.queryByText(/process control request reported success/)).toBeNull();
+  expect(screen.queryByText(/(pause|resume) request reported success/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Pause process' })).toBeDisabled();
 });
 

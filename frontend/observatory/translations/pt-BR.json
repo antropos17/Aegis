@@ -1,6 +1,7 @@
 {
   "Actions target only this process. Other processes and remote work can continue.": "As ações se aplicam apenas a este processo. Outros processos e trabalhos remotos podem continuar.",
-  "The process control request reported success. Its lasting effect was not verified.": "A solicitação de controle do processo informou sucesso. Seu efeito duradouro não foi verificado.",
+  "The pause request reported success. Its lasting effect was not verified.": "A solicitação de pausa informou sucesso. Seu efeito duradouro não foi verificado.",
+  "The resume request reported success. Its lasting effect was not verified.": "A solicitação de retomada informou sucesso. Seu efeito duradouro não foi verificado.",
   "The request was not confirmed; its effect is unknown.": "A solicitação não foi confirmada; seu efeito é desconhecido.",
   "The request was not sent.": "A solicitação não foi enviada.",
   "The stop request reported success. Its lasting effect was not verified.": "A solicitação de parada informou sucesso. Seu efeito duradouro não foi verificado.",

@@ -259,7 +259,9 @@
           : $t(
               feedback.method === 'killProcess'
                 ? 'The stop request reported success. Its lasting effect was not verified.'
-                : 'The process control request reported success. Its lasting effect was not verified.',
+                : feedback.method === 'suspendProcess'
+                  ? 'The pause request reported success. Its lasting effect was not verified.'
+                  : 'The resume request reported success. Its lasting effect was not verified.',
             )}
     </p>{/if}
 </section>
