@@ -50,9 +50,11 @@ Each eligible call receives a fresh terminal challenge, including when its
 arguments match a previously approved call. The comparison baseline is private
 to the selected gateway session and is established only by an owner-approved
 call that remains valid through final admission checks. No baseline exists for a
-tool before its first such call. Cancellation, timeout, stale authorization or
-missing disclosure evidence does not dispatch. The review does not resolve
-filesystem targets or establish argument provenance; both remain unknown.
+tool before its first such call. Cancellation or timeout during review, stale
+authorization and missing disclosure evidence refuse dispatch. Cancellation or
+timeout after dispatch cannot establish whether an upstream effect occurred.
+The review does not resolve filesystem targets or establish argument provenance;
+both remain unknown.
 Ordinary preauthorized gateway modes remain separate and do not gain a prompt.
 
 For example, a version 2 manifest may select two separate one-attempt grants for
@@ -76,10 +78,13 @@ and a reviewed tool definition; each ID must be unique in the selected store:
 
 With `{"schemaVersion":1,"tools":[{"name":"record","paths":["/recipient"]}]}`
 as the disclosure file, the first eligible call shows no baseline. The second
-still requires a new terminal approval even if its argument is unchanged. Each
-attempt consumes its distinct grant before asynchronous review; denial or
-cancellation does not restore it. The ordinary gateway continues to reject
-duplicate tool-and-argument entries.
+still requires a new terminal approval even if its argument is unchanged. An
+attempt reserves its distinct grant within that session before asynchronous work.
+Once its durable receipt has been confirmed, denial or cancellation does not
+restore it. Cancellation before receipt confirmation can leave durable status
+unknown and may leave the ID reusable in a new session; do not infer a durable
+consumption from the closed session alone. The ordinary gateway continues to
+reject duplicate tool-and-argument entries.
 
 Within one session, the next unused matching grant can be selected. On a later
 session, the first matching entry can already be spent in the durable store;
@@ -177,7 +182,9 @@ frames and 1 MiB total input, with 16 KiB frames and a 64 KiB output queue; at m
 64 distinct request IDs are admitted. Upstream output is limited to 16 KiB per
 frame and 1 MiB total; stderr is discarded and capped at 32 KiB. Reads/RPCs have
 three-second deadlines (launch binding capture is stricter at 1.5 seconds).
-The CLI connection lasts at most 30 seconds. Direct-child cleanup waits at most
+The ordinary gateway CLI connection lasts at most 30 seconds. The separate owner
+review relay lasts at most 15 minutes, with a 60-second terminal challenge and
+the same three-second bounds for non-review gateway operations. Direct-child cleanup waits at most
 one second; Windows protected cleanup waits at most two seconds;
 unconfirmed cleanup returns exit 2. Clean EOF after confirmed cleanup returns 0.
 Transport loss may close without a final JSON-RPC error response.
