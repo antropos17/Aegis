@@ -90,6 +90,25 @@ only exact validated, closed task paths, preserving receipts and unresolved fail
 
 ## Readiness decision
 
+### Pinned .NET build inputs
+
+The qualification build workflows and `release-build.yml` select SDK `10.0.403`
+in a job-local `DOTNET_INSTALL_DIR`, then check `dotnet --version` and the host
+path before packaging. They pass `RuntimeFrameworkVersion=10.0.14` and
+`TargetLatestRuntimePatch=false` through the job environment. MSBuild imports
+[environment properties](https://learn.microsoft.com/en-us/visualstudio/msbuild/how-to-use-environment-variables-in-a-build);
+for a self-contained publish,
+[RuntimeFrameworkVersion selects an exact runtime](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props#runtimeframeworkversion).
+
+After packaging, both runtimeconfig and the win-x64 runtime-pack entry in
+`EtwFile.deps.json` must identify `10.0.14` before the candidate or release asset
+can be uploaded. A project override or different SDK selection therefore fails
+the job rather than admitting an unreviewed runtime. Updating these versions
+requires changing all three build lanes together and reviewing new output.
+This pin does not change already published assets or certify reproducible
+installer bytes. The PR-1048 lane retains its historical source/head guards;
+those inputs need a separate review before another candidate is selected.
+
 Preparation validation covers script syntax, workflow structure, source pins,
 non-host refusal and baseline signature/hash checks. Run the import-boundary
 regression with a new task-local directory:

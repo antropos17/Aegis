@@ -22,6 +22,12 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      DOTNET_INSTALL_DIR: ${{ runner.temp }}/aegis-dotnet-10.0.403
+      DOTNET_CLI_HOME: ${{ runner.temp }}/aegis-dotnet-home
+      NUGET_PACKAGES: ${{ runner.temp }}/aegis-nuget
+      RuntimeFrameworkVersion: '10.0.14'
+      TargetLatestRuntimePatch: 'false'
     steps:
       # First step on purpose. A missing key costs a minute here instead of failing
       # after a ten-minute build, and nothing can reach the Release before it passes.
@@ -56,6 +62,18 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.403'
+
+      - name: Verify selected .NET SDK
+        shell: pwsh
+        run: |
+          $sdk = dotnet --version
+          if ($LASTEXITCODE -or $sdk.Trim() -ne '10.0.403') { throw 'Expected .NET SDK 10.0.403' }
+          $hostPath = (Get-Command dotnet).Source
+          if (-not $hostPath.StartsWith([IO.Path]::GetFullPath($env:DOTNET_INSTALL_DIR).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'dotnet escaped the job-local installation' }
+
       - run: npm ci
 
       - name: Build renderer
@@ -63,6 +81,16 @@ jobs:
 
       - name: Build Windows .exe
         run: npx electron-builder --win --publish never
+
+      - name: Verify published .NET runtime
+        shell: pwsh
+        run: |
+          $runtime = Get-Content -LiteralPath dist/win-unpacked/resources/etw-file/EtwFile.runtimeconfig.json -Raw | ConvertFrom-Json
+          $frameworks = @($runtime.runtimeOptions.includedFrameworks)
+          if ($frameworks.Count -ne 1 -or $frameworks[0].name -ne 'Microsoft.NETCore.App' -or $frameworks[0].version -ne '10.0.14') { throw 'Expected self-contained .NET runtime 10.0.14' }
+          $deps = Get-Content -LiteralPath dist/win-unpacked/resources/etw-file/EtwFile.deps.json -Raw | ConvertFrom-Json
+          $packs = @($deps.libraries.PSObject.Properties.Name | Where-Object { $_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.*' })
+          if ($packs.Count -ne 1 -or $packs[0] -ne 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.14') { throw 'Unexpected runtime pack in published dependencies' }
 
       # Everything that gets uploaded is staged here first, so the set that is hashed
       # is exactly the set that is published - not a superset of dist/ that happens to
