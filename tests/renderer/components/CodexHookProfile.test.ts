@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import CodexHookProfile from '../../../frontend/observatory/components/CodexHookProfile.svelte';
 import type { Host } from '../../../frontend/observatory/runtime/host';
 import { language } from '../../../frontend/observatory/runtime/i18n';
@@ -439,4 +439,89 @@ it('retains native uncertainty on remount using the same host despite a positive
   expect(installButton()).toBeDisabled();
   expect(removeButton()).toBeDisabled();
   expect(launchButton()).toBeDisabled();
+});
+
+it('invalidates each mounted component after another component removes the shared profile', async () => {
+  const removal = deferred();
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce(reply('INSTALLED', { canRemove: true, canOpen: true }))
+    .mockResolvedValueOnce(reply('INSTALLED', { canRemove: true, canOpen: true }))
+    .mockImplementationOnce(() => removal.promise)
+    .mockResolvedValueOnce(reply('REMOVED', { canInstall: true, canOpen: true }))
+    .mockResolvedValueOnce(reply('REMOVED', { canInstall: true, canOpen: true }));
+  const host = { reviewCodexHookProfile: review } as Host;
+  const a = render(CodexHookProfile, { host });
+  const b = render(CodexHookProfile, { host });
+  const first = within(a.container);
+  const second = within(b.container);
+  const firstOpen = () => first.getByRole('button', { name: 'Open profile folder' });
+  const firstLaunch = () => first.getByRole('button', { name: 'Review Codex terminal command' });
+  await waitFor(() => expect(firstLaunch()).toBeEnabled());
+  expect(firstOpen()).toBeEnabled();
+  await waitFor(() =>
+    expect(second.getByRole('button', { name: 'Review Codex hook removal' })).toBeEnabled(),
+  );
+  await fireEvent.click(second.getByRole('button', { name: 'Review Codex hook removal' }));
+  expect(firstLaunch()).toBeDisabled();
+  removal.resolve(reply('REMOVED', { canInstall: true }));
+  await waitFor(() =>
+    expect(
+      second.getByText('The reviewed hook was removed from the separate profile.'),
+    ).toBeVisible(),
+  );
+  expect(firstOpen()).toBeDisabled();
+  expect(firstLaunch()).toBeDisabled();
+  await fireEvent.click(second.getByRole('button', { name: 'Refresh setup status' }));
+  await waitFor(() =>
+    expect(second.getByRole('button', { name: 'Review Codex terminal command' })).toBeEnabled(),
+  );
+  expect(firstOpen()).toBeDisabled();
+  expect(firstLaunch()).toBeDisabled();
+  await fireEvent.click(first.getByRole('button', { name: 'Refresh setup status' }));
+  await waitFor(() => expect(firstOpen()).toBeEnabled());
+  expect(firstLaunch()).toBeEnabled();
+  expect(review.mock.calls).toEqual([['status'], ['status'], ['remove'], ['status'], ['status']]);
+});
+
+it.each(['install', 'remove'] as const)(
+  'treats %s returning IDLE as an unknown outcome requiring fresh status',
+  async (action) => {
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }))
+      .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }))
+      .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+    render(CodexHookProfile, { host: { reviewCodexHookProfile: review } as Host });
+    await screen.findByText('Setup has not been reviewed.');
+    await fireEvent.click(action === 'install' ? installButton() : removeButton());
+    expect(await screen.findByText(unknownOutcome)).toBeVisible();
+    expect(installButton()).toBeDisabled();
+    expect(removeButton()).toBeDisabled();
+    expect(launchButton()).toBeDisabled();
+    await fireEvent.click(refreshButton());
+    await waitFor(() => expect(installButton()).toBeEnabled());
+    expect(screen.getByText(unknownOutcome)).toBeVisible();
+  },
+);
+
+it('latches a retained code even when the host response is unsuccessful', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ...reply('RETAINED_UNKNOWN', { canOpen: true }),
+      success: false,
+      error: 'PRIVATE_ERROR',
+    })
+    .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+  const view = render(CodexHookProfile, { host: { reviewCodexHookProfile: review } as Host });
+  await screen.findByText(
+    'An uncertain native result is retained. Profile changes and launch review remain unavailable.',
+  );
+  await fireEvent.click(refreshButton());
+  await screen.findByText('Setup has not been reviewed.');
+  expect(installButton()).toBeDisabled();
+  expect(removeButton()).toBeDisabled();
+  expect(launchButton()).toBeDisabled();
+  expect(view.container.textContent).not.toContain('PRIVATE_ERROR');
 });

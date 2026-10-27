@@ -59,6 +59,7 @@
   };
   const none = () => ({ canInstall: false, canRemove: false, canOpen: false, canLaunch: false });
   let capabilities = $state(none());
+  let capabilitiesRevision = $state(-1);
   let pending = $state<Operation | null>(null);
   let feedback = $state('');
   let failure = $state(false);
@@ -67,6 +68,7 @@
     retained: false,
     unknown: false,
     outstanding: 0,
+    revision: 0,
     refreshRequired: false,
   });
   const syncCustody = () => {
@@ -75,6 +77,7 @@
         retained: custody.retained,
         unknown: custody.unknown,
         outstanding: custody.outstanding,
+        revision: custody.revision,
         refreshRequired: custody.refreshRequired,
       };
   };
@@ -133,6 +136,7 @@
     const current = () =>
       alive && generation === requestGeneration && host === requestHost && !preview;
     const mutation = action === 'install' || action === 'remove';
+    if (action !== 'status' && capabilitiesRevision !== requestCustody.revision) return;
     if (
       (mutation || action === 'prepare-launch') &&
       (requestCustody.outstanding || requestCustody.retained || requestCustody.refreshRequired)
@@ -145,8 +149,8 @@
     pending = action;
     capabilities = none();
     try {
-      const result = record(confirmed(await invoke(requestHost, 'reviewCodexHookProfile', action)));
-      const code = result.code;
+      const raw = record(await invoke(requestHost, 'reviewCodexHookProfile', action));
+      const code = raw.code;
       if (
         typeof code === 'string' &&
         ['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'].includes(code)
@@ -154,6 +158,7 @@
         requestCustody.retained = true;
         notifyCustody(requestCustody);
       }
+      const result = record(confirmed(raw));
       if (!current()) return;
       if (
         typeof code !== 'string' ||
@@ -167,6 +172,7 @@
         (code === 'UNAVAILABLE' && result.available) ||
         (code === 'INSTALLED' && !['install', 'status', 'open-profile'].includes(action)) ||
         (code === 'REMOVED' && !['remove', 'status', 'open-profile'].includes(action)) ||
+        (code === 'IDLE' && !['status', 'open-profile'].includes(action)) ||
         (code === 'LAUNCH_READY' && action !== 'prepare-launch')
       )
         throw Error('invalid-response');
@@ -190,6 +196,7 @@
         canOpen: code !== 'BUSY' && result.canOpen,
         canLaunch: !blocked && result.available && result.canOpen,
       };
+      capabilitiesRevision = requestRevision + (mutation ? 1 : 0);
       feedback =
         ['status', 'open-profile'].includes(action) && code === 'INSTALLED'
           ? 'Last verified setup result was installation; the current profile has not been rechecked.'
@@ -257,6 +264,7 @@
         class="button"
         disabled={!available ||
           pending !== null ||
+          capabilitiesRevision !== custodyView.revision ||
           !capabilities.canInstall ||
           custodyView.outstanding > 0 ||
           custodyView.retained ||
@@ -267,6 +275,7 @@
         class="button"
         disabled={!available ||
           pending !== null ||
+          capabilitiesRevision !== custodyView.revision ||
           !capabilities.canRemove ||
           custodyView.outstanding > 0 ||
           custodyView.retained ||
@@ -277,6 +286,7 @@
         class="button"
         disabled={!available ||
           pending !== null ||
+          capabilitiesRevision !== custodyView.revision ||
           !capabilities.canLaunch ||
           custodyView.outstanding > 0 ||
           custodyView.retained ||
@@ -285,7 +295,10 @@
       >
       <button
         class="button"
-        disabled={!available || pending !== null || !capabilities.canOpen}
+        disabled={!available ||
+          pending !== null ||
+          capabilitiesRevision !== custodyView.revision ||
+          !capabilities.canOpen}
         onclick={() => perform('open-profile')}>{$t('Open profile folder')}</button
       >
       <button
