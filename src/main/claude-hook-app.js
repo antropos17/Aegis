@@ -92,7 +92,7 @@ function createClaudeHookApp(options) {
       code: CODES.has(code) ? code : 'OPERATION_FAILED',
       presence: configured ? 'Configured' : 'Unknown',
       available: ready && !closed,
-      canInstall: ready && !closed && !configured && !retained,
+      canInstall: ready && !closed && !configured && !retained && !session?.ended,
       canRemove: ready && !closed && ownedInstall && !retained && !!session && !session.ended,
       canReviewExisting:
         ready &&
@@ -181,6 +181,19 @@ function createClaudeHookApp(options) {
     const assets = platform === 'win32' ? await getAssets() : null;
     ready = !!assets;
     if (!owned()) return { success: false, error: 'Renderer request denied' };
+    if (ownedInstall && session?.ended) configured = false;
+    if (ownedInstall && session && !session.ended) {
+      const result = await session.review.reconcile(owner);
+      if (!owned()) return { success: false, error: 'Renderer request denied' };
+      if (!result.ok || result.code !== 'OWNED_MATCH' || session.ended) {
+        configured = false;
+        ownedInstall = false;
+        retained = true;
+        last = result.code === 'TARGET_CHANGED' ? 'TARGET_CHANGED' : 'TARGET_READ_FAILED';
+        await endSession();
+        if (!owned()) return { success: false, error: 'Renderer request denied' };
+      }
+    }
     const file = await profilePresence(target);
     present = file.present;
     reviewable = file.reviewable;
@@ -230,6 +243,7 @@ function createClaudeHookApp(options) {
     }
     if (!ready) return reply('UNAVAILABLE');
     if (retained) return reply('RETAINED_UNKNOWN');
+    if (action === 'install' && session?.ended) return reply('SESSION_ENDED');
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
     const observedRemoval = action === 'remove' && (!ownedInstall || session?.ended);
