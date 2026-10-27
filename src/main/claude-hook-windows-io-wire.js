@@ -20,7 +20,7 @@ const exact = (value, keys) =>
 function ordinary(selected, directory) {
   if (
     typeof selected !== 'string' ||
-    !/^[A-Z]:\\/.test(selected) ||
+    !/^[A-Za-z]:\\/.test(selected) ||
     selected.length > 260 ||
     [...selected].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) ||
     path.win32.normalize(selected) !== selected

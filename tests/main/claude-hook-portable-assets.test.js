@@ -80,6 +80,12 @@ describe.skipIf(process.platform !== 'win32')('portable Claude hook review asset
     expect(launch.env.DOTNET_STARTUP_HOOKS).toBeUndefined();
   });
 
+  it('loads an ordinary Windows installation path with a lowercase drive letter', async () => {
+    const root = path.join(fixture, 'first').replace(/^[A-Z]:/, (drive) => drive.toLowerCase());
+    expect(root[0]).toMatch(/[a-z]/);
+    expect(await loadProfileAssets(root)).not.toBeNull();
+  });
+
   it.each(['missing', 'extra', 'altered', 'runtime-config', 'extra-hostfxr'])(
     'refuses %s assets',
     async (change) => {
