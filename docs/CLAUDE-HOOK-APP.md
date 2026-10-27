@@ -25,9 +25,13 @@ fields, mixed commands or duplicate matching entries are refused.
 `guard-start` and `guard-stop` from the current owned top-level renderer. The renderer supplies no path,
 command, config bytes, review ID, backup reference or confirmation decision.
 The selected policy comes from the main-process native file dialog. The fixed
-AEGIS pre- and after-hook commands quote their fixed absolute paths. Literal
-ampersands stay inside those quotes; expansion, quote, control and other
-unsupported shell syntax remains refused.
+AEGIS pre- and after-hook commands quote their fixed absolute paths. The
+after-hook command ends with the exact Git Bash redirection `> /dev/null` to
+discard its stdout; its stderr, exit status and local observation channel remain
+available. The pre-hook retains stdout for the provider decision. Literal
+ampersands stay inside quoted paths; expansion, quote, control and arbitrary
+shell syntax remain refused. The redirected route requires Git Bash; behavior
+with other command shells has not been qualified.
 
 The real owner-review capability shows only the exact target and changed
 fragments with line/column positions in a native Cancel-default dialog. Native
@@ -64,6 +68,10 @@ or a provider session is cancelled. The event names and reported completion or
 failure semantics follow the [Claude Code hook reference](https://code.claude.com/docs/en/hooks#posttooluse).
 These after-hook changes have not been exercised in a Claude client version; the
 historical provider qualification below covers its stated version and pre-hook only.
+Electron 45.0.0's Windows browser-process startup writes a newline before app
+code ([upstream source](https://github.com/electron/electron/blob/v45.0.0/shell/app/electron_main_delegate.cc)).
+The fixed post-hook redirection keeps that bootstrap output out of the supported
+Git Bash hook route; it does not establish how a Claude client interprets output.
 
 ## Portable asset preparation
 

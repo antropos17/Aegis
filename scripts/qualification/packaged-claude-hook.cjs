@@ -12,7 +12,7 @@ const { performance } = require('node:perf_hooks');
 const http = require('node:http');
 const { extractFile } = require('@electron/asar');
 const { boundedChild } = require('./claude-hook-app.cjs');
-const { profileCommand } = require('../../src/main/claude-hook-app-profile');
+const { profileCommand, profileAfterCommand } = require('../../src/main/claude-hook-app-profile');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { createWindowsHookIO } = require('../../src/main/claude-hook-windows-io');
 const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
@@ -319,6 +319,8 @@ async function run() {
     const hooks = JSON.parse(await fs.readFile(settings, 'utf8')).hooks;
     const selected = hooks.PreToolUse[0].hooks[0].command;
     assert.equal(selected, command);
+    for (const event of ['PostToolUse', 'PostToolUseFailure'])
+      assert.equal(hooks[event][0].hooks[0].command, profileAfterCommand(exe, asar, policy));
     receipt.scriptedSourceProfileInstall = true;
     const settingsHash = await digest(settings);
     const request = (input) =>

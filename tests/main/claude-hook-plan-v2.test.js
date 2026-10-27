@@ -98,3 +98,37 @@ describe('three-event owned profile planning', () => {
     expect(edited(after, removal).equals(before)).toBe(true);
   });
 });
+
+it('shows the exact redirected post commands and their effect in native review', () => {
+  const path = require('node:path');
+  const {
+    profileCommand,
+    profileAfterCommand,
+    profileAfterCommandLegacy,
+    profileReviewText,
+  } = require('../../src/main/claude-hook-app-profile');
+  const executable = path.resolve('fixture/app.exe');
+  const app = path.resolve('fixture/app.asar');
+  const policy = path.resolve('fixture/policy.json');
+  const before = Buffer.from('{}');
+  const pre = profileCommand(executable, app, policy);
+  const post = profileAfterCommand(executable, app, policy);
+  expect(post).toBe(profileAfterCommandLegacy(executable, app, policy) + ' > /dev/null');
+  expect(pre).not.toContain('> /dev/null');
+  const plan = planInstall({
+    configPath,
+    configBytes: before,
+    command: pre,
+    afterCommand: post,
+    contract: CONTRACT_V2,
+    timeoutSeconds: 5,
+  });
+  const detail = profileReviewText(plan, configPath);
+  expect(detail).toContain(' > /dev/null');
+  expect(detail).toContain('after-hook stdout is discarded');
+  expect(detail).toContain('stderr, exit status and the local receiver are unaffected');
+  const installed = JSON.parse(edited(before, plan));
+  expect(installed.hooks.PreToolUse[0].hooks[0].command).toBe(pre);
+  expect(installed.hooks.PostToolUse[0].hooks[0].command).toBe(post);
+  expect(installed.hooks.PostToolUseFailure[0].hooks[0].command).toBe(post);
+});

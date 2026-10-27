@@ -2,7 +2,11 @@
 
 const { createHash } = require('node:crypto');
 const { scanJson, previewEdits } = require('./claude-hook-json');
-const { profileCommand, profileAfterCommand } = require('./claude-hook-app-profile');
+const {
+  profileCommand,
+  profileAfterCommand,
+  profileAfterCommandLegacy,
+} = require('./claude-hook-app-profile');
 const { IO_CONTRACT } = require('./claude-hook-writer');
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const result = (code) => Object.freeze({ code });
@@ -88,7 +92,10 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
     if (!exactEntry(entry, command)) return result('PLAN_REFUSED');
     const policy = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command)?.[1];
     if (!policy) return result('PLAN_REFUSED');
-    const afterCommand = profileAfterCommand(executable, appPath, policy);
+    const afterCommands = [
+      profileAfterCommand(executable, appPath, policy),
+      profileAfterCommandLegacy(executable, appPath, policy),
+    ];
     const afterEntries = [];
     for (const event of ['PostToolUse', 'PostToolUseFailure']) {
       const selected = hooks?.members.get(event);
@@ -109,11 +116,16 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
         }),
       );
       if (candidates.length > 1) return result('AMBIGUOUS_HOOK');
-      if (candidates.length && !exactEntry(candidates[0], afterCommand))
-        return result('PLAN_REFUSED');
-      afterEntries.push({ array: selected, entry: candidates[0] });
+      const form = candidates.length
+        ? afterCommands.findIndex((expected) => exactEntry(candidates[0], expected))
+        : -1;
+      if (candidates.length && form === -1) return result('PLAN_REFUSED');
+      afterEntries.push({ array: selected, entry: candidates[0], form });
     }
-    if (afterEntries.some((item) => item.entry) && !afterEntries.every((item) => item.entry))
+    if (
+      afterEntries.some((item) => item.entry) &&
+      (!afterEntries.every((item) => item.entry) || afterEntries[0].form !== afterEntries[1].form)
+    )
       return result('PLAN_REFUSED');
     const edits = [];
     removeEntry(array, entry, edits);

@@ -281,3 +281,25 @@ it('preserves an unrelated legacy post command containing a flag as ordinary tex
   expect(plan.mode).toBe('legacy');
   expect(JSON.parse(plan.after).hooks.PostToolUse).toEqual(hooks.PostToolUse);
 });
+
+it.each([
+  [afterCommand, afterCommand, true],
+  [afterCommand + ' > /dev/null', afterCommand + ' > /dev/null', true],
+  [afterCommand, afterCommand + ' > /dev/null', false],
+  [afterCommand + ' > /dev/null', afterCommand, false],
+  [afterCommand + ' > /dev/null 2>&1', afterCommand + ' > /dev/null 2>&1', false],
+  [afterCommand + ' > /dev/null; echo x', afterCommand + ' > /dev/null; echo x', false],
+])(
+  'accepts only matching exact legacy or redirected post-hook commands',
+  (post, failure, allowed) => {
+    const make = (value) => ({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: value, timeout: 5 }],
+    });
+    const plan = planObservedRemoval(
+      Buffer.from(fullProfile([make(post)], [make(failure)])),
+      selection,
+    );
+    expect(plan.ok === true).toBe(allowed);
+  },
+);

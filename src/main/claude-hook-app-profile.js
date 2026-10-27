@@ -127,8 +127,12 @@ function profileCommand(executable, appPath, policyPath) {
  * @param {string} executable Application executable. @param {string} appPath Application source/package.
  * @param {string} policyPath Native-dialog selected policy.
  * @returns {string} Private command shown only in native review. @since v0.21.0 */
-function profileAfterCommand(executable, appPath, policyPath) {
+function profileAfterCommandLegacy(executable, appPath, policyPath) {
   return `${quote(executable)} ${quote(appPath)} --action-policy-after-hook ${quote(policyPath)}`;
+}
+
+function profileAfterCommand(executable, appPath, policyPath) {
+  return `${profileAfterCommandLegacy(executable, appPath, policyPath)} > /dev/null`;
 }
 
 /** Validate the selected existing policy without retaining or publishing its contents.
@@ -157,7 +161,9 @@ function profileReviewText(review, target, observedRemoval = false) {
   const multipleEvents = Array.isArray(review.eventNames) && review.eventNames.length === 3;
   const explanation = observedRemoval
     ? `This is a fresh authorization to remove only the recognized current AEGIS Bash ${multipleEvents ? 'hooks' : 'hook'}. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.`
-    : 'This configures the Bash hook only; blocking is not verified.';
+    : multipleEvents
+      ? 'For the supported Git Bash route, after-hook stdout is discarded; stderr, exit status and the local receiver are unaffected. Blocking is not verified.'
+      : 'This configures the Bash hook only; blocking is not verified.';
   const events = multipleEvents
     ? 'PreToolUse / PostToolUse / PostToolUseFailure · Bash'
     : 'PreToolUse · Bash';
@@ -186,6 +192,7 @@ module.exports = {
   profilePresence,
   profileCommand,
   profileAfterCommand,
+  profileAfterCommandLegacy,
   checkProfilePolicy,
   profileReviewText,
   profileDraftEligibility,
