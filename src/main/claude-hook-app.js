@@ -61,6 +61,11 @@ const CODES = new Set([
   'GUARD_CANCELLED',
   'GUARD_STOPPED',
   'GUARD_UNAVAILABLE',
+  'GUARD_SNAPSHOT_BUSY',
+  'GUARD_SNAPSHOT_UNAVAILABLE',
+  'GUARD_SNAPSHOT_REVIEW_REQUIRED',
+  'GUARD_SNAPSHOT_INCOMPATIBLE',
+  'GUARD_SNAPSHOT_INCOMPLETE',
 ]);
 
 /** Create the application-owned separate Claude profile review boundary.
@@ -279,7 +284,7 @@ function createClaudeHookApp(options) {
     }
     if (!ready) return reply('UNAVAILABLE');
     if (retained) return reply('RETAINED_UNKNOWN');
-    if (action === 'guard-start') {
+    if (action === 'guard-start' || action === 'guard-start-snapshot') {
       if (!clipboard?.writeText) return reply('GUARD_UNAVAILABLE');
       guardAssets = assets;
       guardLauncher ||= require('./claude-guard-launch').createClaudeGuardLauncher({
@@ -301,7 +306,7 @@ function createClaudeHookApp(options) {
             cleanupMs: 1000,
           }),
       });
-      const code = await guardLauncher.start(owned);
+      const code = await guardLauncher.start(owned, action === 'guard-start-snapshot');
       return owned() ? reply(code) : { success: false, error: 'Renderer request denied' };
     }
     const installing = action === 'install' || action === 'install-project-policy';
@@ -567,6 +572,7 @@ function createClaudeHookApp(options) {
         'remove',
         'open-profile',
         'guard-start',
+        'guard-start-snapshot',
         'guard-stop',
       ].includes(action)
     )

@@ -194,6 +194,7 @@ function register() {
         'remove',
         'open-profile',
         'guard-start',
+        'guard-start-snapshot',
         'guard-stop',
       ].includes(action)
     )

@@ -12,6 +12,7 @@
     | 'remove'
     | 'open-profile'
     | 'guard-start'
+    | 'guard-start-snapshot'
     | 'guard-stop';
   type Outcome = 'reported-completed' | 'reported-failed' | 'unknown';
   const id = $props.id();
@@ -63,6 +64,16 @@
       'The previous native reader did not confirm shutdown. Another reporting session is unavailable.',
     GUARD_CANCELLED: 'Terminal session preparation cancelled.',
     GUARD_STOPPED: 'Reporting stopped. A previously launched Claude process may still be running.',
+    GUARD_SNAPSHOT_BUSY:
+      'A previous project inventory check is still finishing. Try again after it completes.',
+    GUARD_SNAPSHOT_UNAVAILABLE:
+      'The project snapshot check did not succeed and launch was refused. Review the project and snapshot before trying again.',
+    GUARD_SNAPSHOT_REVIEW_REQUIRED:
+      'The project needs a fresh Local security review and explicit snapshot acceptance.',
+    GUARD_SNAPSHOT_INCOMPATIBLE:
+      'The snapshot does not match this project, inventory scope or selected catalog.',
+    GUARD_SNAPSHOT_INCOMPLETE:
+      'The project inventory or snapshot is incomplete. Review the coverage gaps first.',
     GUARD_UNAVAILABLE: 'The terminal session could not be prepared.',
   };
   const failedCodes = new Set([
@@ -85,6 +96,11 @@
     'GUARD_PROFILE_UNVERIFIED',
     'GUARD_RELEASE_UNCONFIRMED',
     'GUARD_UNAVAILABLE',
+    'GUARD_SNAPSHOT_BUSY',
+    'GUARD_SNAPSHOT_UNAVAILABLE',
+    'GUARD_SNAPSHOT_REVIEW_REQUIRED',
+    'GUARD_SNAPSHOT_INCOMPATIBLE',
+    'GUARD_SNAPSHOT_INCOMPLETE',
   ]);
   const reasons: Record<string, string> = {
     generic: 'Selected policy decision',
@@ -324,10 +340,24 @@
         class="button"
         disabled={!available ||
           pending !== null ||
+          !profileState.canOpen ||
+          ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
+        onclick={() => perform('guard-start-snapshot')}
+        >{$t('Prepare with accepted project snapshot')}</button
+      >
+      <button
+        class="button"
+        disabled={!available ||
+          pending !== null ||
           !['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
         onclick={() => perform('guard-stop')}>{$t('Stop reporting')}</button
       >
     </div>
+    <p class="muted">
+      {$t(
+        'The ordinary terminal session does not check a project snapshot. The snapshot-checked option compares recognized project inventory only; acceptance is local, not authenticated, and the project can change after the check. Use Local security to review and explicitly accept a complete snapshot first.',
+      )}
+    </p>
     <p class="muted">
       {$t(sessionStatuses[guardSession.status])}. {$t(
         'Refresh setup status to see recent reports.',
