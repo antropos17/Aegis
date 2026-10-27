@@ -1,0 +1,142 @@
+name: Qualify Windows 0.21 candidate without publication
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+  pull-requests: read
+defaults:
+  run:
+    shell: pwsh
+env:
+  HUSKY: '0'
+  CI: 'true'
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  npm_config_logs_max: '1'
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 5526376f39d01305f98e707e8e2ea9807f68a33b
+          persist-credentials: false
+      - name: Require the reviewed PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pr = gh pr view 1048 --repo antropos17/Aegis --json headRefOid,state | ConvertFrom-Json
+          if ($LASTEXITCODE -or $pr.state -ne 'OPEN' -or $pr.headRefOid -ne '5526376f39d01305f98e707e8e2ea9807f68a33b') { throw 'Release PR moved or closed; review candidate inputs again' }
+      - name: Allocate build storage and verify source
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP ('aegis-021-build-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $root) { throw 'Refusing reused scratch' }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          @(
+            ('AEGIS_CANDIDATE_BUILD=' + $root), ('TEMP=' + $root), ('TMP=' + $root)
+            ('npm_config_cache=' + (Join-Path $root 'npm'))
+            ('ELECTRON_CACHE=' + (Join-Path $root 'electron'))
+            ('ELECTRON_BUILDER_CACHE=' + (Join-Path $root 'builder'))
+            ('NUGET_PACKAGES=' + (Join-Path $root 'nuget'))
+            ('DOTNET_CLI_HOME=' + (Join-Path $root 'dotnet'))
+            ('NODE_COMPILE_CACHE=' + (Join-Path $root 'node-cache'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+          if ((git rev-parse HEAD) -ne '5526376f39d01305f98e707e8e2ea9807f68a33b' -or (git rev-parse 'HEAD^{tree}') -ne '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a' -or (git status --porcelain)) { throw 'Candidate source mismatch' }
+          if ((Get-Content package.json -Raw | ConvertFrom-Json).version -ne '0.21.0-beta') { throw 'Candidate version mismatch' }
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+          if ((Get-PSDrive -Name ((Split-Path -Qualifier $root).TrimEnd(':'))).Free -lt 8GB) { throw 'Insufficient build storage' }
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.21.0'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install locked build dependencies
+        timeout-minutes: 5
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Build without publishing
+        run: |
+          npx --no-install electron-builder --win --x64 --publish never
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if (git status --porcelain) { throw 'Build changed tracked source inputs' }
+      - name: Record actual candidate bytes and provenance
+        run: |
+          $files = @(Get-ChildItem -LiteralPath dist -Filter '*.exe' -File)
+          if ($files.Count -ne 1 -or $files[0].Length -gt 250MB) { throw 'Expected one bounded installer' }
+          $stage = Join-Path $env:AEGIS_CANDIDATE_BUILD 'artifact'
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item -LiteralPath $files[0].FullName -Destination $stage
+          @{
+            schema='aegis-ci-installer/1'; repository=$env:GITHUB_REPOSITORY
+            sourceSha=(git rev-parse HEAD); sourceTree=(git rev-parse 'HEAD^{tree}')
+            runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT
+            version='0.21.0-beta'; filename=$files[0].Name; bytes=$files[0].Length
+            sha256=(Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            releaseSigned=$false; published=$false
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'candidate.json') -Encoding utf8
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: candidate-021-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_CANDIDATE_BUILD }}/artifact/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Measure final build storage
+        if: always()
+        run: Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+  lifecycle:
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [fresh, upgrade]
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Allocate driver storage
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP ('aegis-021-driver-${{ matrix.scenario }}-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $root) { throw 'Refusing reused scratch' }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          @(
+            ('TEMP=' + $root), ('TMP=' + $root)
+            ('npm_config_cache=' + (Join-Path $root 'npm'))
+            ('NODE_COMPILE_CACHE=' + (Join-Path $root 'node-cache'))
+            ('AEGIS_INSTALLER_QA=' + (Join-Path $env:RUNNER_TEMP 'aegis-021-${{ matrix.scenario }}'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used
+          if ((Get-PSDrive -Name ((Split-Path -Qualifier $root).TrimEnd(':'))).Free -lt 8GB) { throw 'Insufficient driver storage' }
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.21.0'
+      - name: Install locked driver dependencies
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+      - name: Check candidate import contract without executing fixture bytes
+        run: ./scripts/qualification/test-windows-candidate-021.ps1 -Scratch (Join-Path $env:RUNNER_TEMP 'aegis-021-import-check')
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: candidate-021-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/aegis-021-candidate-input
+      - name: Qualify the frozen candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario '${{ matrix.scenario }}' -QaRoot $env:AEGIS_INSTALLER_QA -CandidateDirectory (Join-Path $env:RUNNER_TEMP 'aegis-021-candidate-input') -ExpectedArchitecture X64 -Mode silent -Pr1048Candidate
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always() && env.AEGIS_INSTALLER_QA != ''
+        with:
+          name: lifecycle-021-${{ matrix.scenario }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_INSTALLER_QA }}/evidence/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Measure final driver storage
+        if: always()
+        run: Get-PSDrive -PSProvider FileSystem | Select-Object Name,Free,Used

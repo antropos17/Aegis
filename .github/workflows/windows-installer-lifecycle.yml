@@ -15,17 +15,24 @@ on:
           - windows11-x64-all-users
           - windows11-x64-all-users-updater
       candidate:
-        description: Use the signed published installer or build this exact workflow revision
+        description: Published installer, this revision, or the frozen PR 1048 candidate
         type: choice
         default: published
         options:
           - published
           - build
+          - pr1048
 
 permissions:
   contents: read
 
 jobs:
+  qualification-pr1048:
+    if: inputs.candidate == 'pr1048'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/windows-candidate-021.yml
   build-candidate:
     if: inputs.candidate == 'build' && !startsWith(inputs.target, 'windows11-x64')
     runs-on: windows-2025
@@ -96,7 +103,7 @@ jobs:
           retention-days: 7
   installer:
     needs: build-candidate
-    if: always() && !cancelled() && !startsWith(inputs.target, 'windows11-x64') && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
+    if: always() && !cancelled() && inputs.candidate != 'pr1048' && !startsWith(inputs.target, 'windows11-x64') && (needs.build-candidate.result == 'success' || (inputs.candidate != 'build' && needs.build-candidate.result == 'skipped'))
     runs-on: ${{ inputs.target == 'windows11-wizard' && 'windows-11-vs2026-arm' || 'windows-2025' }}
     timeout-minutes: 15
     strategy:
@@ -160,7 +167,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   installer-x64:
-    if: startsWith(inputs.target, 'windows11-x64')
+    if: inputs.candidate != 'pr1048' && startsWith(inputs.target, 'windows11-x64')
     runs-on: windows-2025-vs2026
     timeout-minutes: 45
     strategy:
