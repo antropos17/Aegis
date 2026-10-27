@@ -284,6 +284,55 @@ it('cancels an in-flight AppContainer metadata observation without publishing it
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it.each(['abort', 'deadline', 'success'])(
+  'only observes AppContainer metadata after timely preparation: %s',
+  async (completion) => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    let finish;
+    const deps = setup({
+      platform: 'win32',
+      helper: () => true,
+      prepare: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const waiting = check('appcontainer', { signal: controller.signal });
+    await vi.advanceTimersByTimeAsync(0);
+    if (completion === 'abort') controller.abort();
+    if (completion === 'deadline') await vi.advanceTimersByTimeAsync(api.LIMITS.checkMs);
+    if (completion !== 'success') {
+      const report = await waiting;
+      expect(report.reason).toBe(completion === 'abort' ? 'check-cancelled' : 'check-timeout');
+      finish(selected);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.statExecutable).not.toHaveBeenCalled();
+      expect(JSON.stringify(report)).not.toContain('PRIVATE');
+    } else {
+      finish(selected);
+      expect(await waiting).toMatchObject({
+        policyDecision: 'allow',
+        executableObservation: 'metadata-within-limit',
+      });
+      expect(deps.statExecutable).toHaveBeenCalledOnce();
+    }
+  },
+);
+
+it('does not start metadata after the monotonic deadline if its timer has not fired', async () => {
+  const deps = setup({
+    platform: 'win32',
+    helper: () => true,
+    now: vi.fn().mockReturnValueOnce(0).mockReturnValue(api.LIMITS.checkMs),
+  });
+  expect(await check('appcontainer')).toMatchObject({
+    policyDecision: 'allow',
+    executableObservation: 'unavailable',
+  });
+  expect(deps.statExecutable).not.toHaveBeenCalled();
+});
+
 it('refuses AppContainer preflight off Windows before reading selected files or helper', async () => {
   const deps = setup({ platform: 'linux', helper: vi.fn(() => true) });
   expect(await check('appcontainer')).toMatchObject({
