@@ -28,6 +28,7 @@ internal sealed class ProfileIsolation : IDisposable
     internal static Func<long> DeadlineClockForTest=null;
     internal static Action BeforeDeadlineWatchdogForTest=null;
     internal static Func<bool> DeadlineTerminateForTest=null;
+    internal static Action AfterProfileOpenForTest=null;
     internal static IDisposable NewDeadlineForTest() { return new Deadline(); }
 #endif
     internal string Root { get; private set; }
@@ -114,7 +115,15 @@ internal sealed class ProfileIsolation : IDisposable
     internal static ProfileIsolation Open(string root)
     {
         ProfileIsolation result=null;
-        try { using(new Deadline()) result=OpenCore(root); return result; }
+        try {
+            using(new Deadline()) {
+                result=OpenCore(root);
+#if OWNER_PROFILE_TEST
+                if(AfterProfileOpenForTest!=null) AfterProfileOpenForTest();
+#endif
+            }
+            return result;
+        }
         catch { if(result!=null) result.Dispose(); throw; }
     }
     private static ProfileIsolation OpenCore(string root)

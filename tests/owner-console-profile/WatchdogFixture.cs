@@ -103,9 +103,11 @@ internal static class WatchdogFixture
     {
         var entered=new ManualResetEvent(false);var gate=new ManualResetEvent(false);
         int owner=Thread.CurrentThread.ManagedThreadId,ownerReads=0;
-        long clock=Stopwatch.Frequency*100;
+        long clock=Stopwatch.Frequency*100;bool openedAndHeld=false;
         try {
             ProfileIsolation.ProtectedPathsForTest=delegate{return new[]{protect};};
+            using(ProfileIsolation.Open(root)) { Need(RenameRefused(root),"normal profile did not hold root"); }
+            ProfileIsolation.AfterProfileOpenForTest=delegate{openedAndHeld=RenameRefused(root);};
             ProfileIsolation.DeadlineClockForTest=delegate {
                 if(Thread.CurrentThread.ManagedThreadId==owner && Interlocked.Increment(ref ownerReads)==2) {
                     Interlocked.Exchange(ref clock,Stopwatch.Frequency*103);gate.Set();
@@ -115,13 +117,20 @@ internal static class WatchdogFixture
             ProfileIsolation.BeforeDeadlineWatchdogForTest=delegate{entered.Set();gate.WaitOne();};
             ProfileIsolation.DeadlineTerminateForTest=delegate{return false;};
             bool refused=false;try { using(ProfileIsolation.Open(root)) {} } catch(InvalidOperationException) { refused=true; }
-            Need(refused,"late profile open returned its handles");
+            Need(openedAndHeld && refused,"late profile open did not refuse held handles");
             string moved=root+"-moved";Directory.Move(root,moved);Directory.Move(moved,root);
         } finally {
             gate.Set();ProfileIsolation.ProtectedPathsForTest=null;ProfileIsolation.DeadlineClockForTest=null;
             ProfileIsolation.BeforeDeadlineWatchdogForTest=null;ProfileIsolation.DeadlineTerminateForTest=null;
+            ProfileIsolation.AfterProfileOpenForTest=null;
             entered.Dispose();gate.Dispose();
         }
+    }
+    private static bool RenameRefused(string root)
+    {
+        string moved=root+"-probe";
+        try { Directory.Move(root,moved);Directory.Move(moved,root);return false; }
+        catch(IOException) { return true; }
     }
     private static void Owner(string root,string protectedPath,string pidMarker,string hookMarker)
     {
