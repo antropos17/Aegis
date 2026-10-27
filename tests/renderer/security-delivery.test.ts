@@ -23,7 +23,7 @@ function fixture() {
     ...emptyTelemetry(),
     ready: true,
     stale: false,
-    statsAt: now,
+    statsAt: now as number | null,
     stats: {
       ipc: {
         securityEvents: {
