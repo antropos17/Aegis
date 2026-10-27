@@ -864,6 +864,25 @@ rechecks do not establish freshness of the target's business state.
   the intended operation and payload, with a defined retention window and
   duplicate-result contract. Fresh approval alone does not prevent duplicate
   effects; expose unsupported reconciliation/idempotency explicitly to the owner.
+- Keep `operationId` and `grantId` separate. `operationId` identifies one intended
+  operation and remains stable across retries of that operation. Each fresh
+  approval issues a new single-use `grantId`, bound to that operation and the
+  approved caller, target, route, payload and state precondition. Retrying never
+  restores or reuses a consumed grant. A deliberately new operation gets a new
+  `operationId`, even when its arguments equal an earlier operation's arguments.
+  Existing per-attempt gateway evidence IDs remain separately identifiable during
+  migration; they must not be mistaken for the stable operation identity.
+- Use the stable operation identity as the executor's idempotency key within a
+  defined caller/tenant and target scope. Bind its durable entry to the approved
+  payload and precondition; reject key reuse with different bindings. Coordinate
+  deduplication, the side effect and outcome recording atomically where supported,
+  including concurrent requests and executor restart. An already completed
+  operation returns its recorded result without another side effect; in-flight,
+  partial or unknown outcomes require an explicit reconciliation outcome before
+  another effect is permitted. Define retention/expiry behavior: an expired or
+  missing deduplication record alone cannot establish that a previous attempt
+  never executed. An identifier or gateway-only log does not by itself establish
+  exactly-once execution; unsupported tools retain an explicit limitation.
 - Define a short, route-appropriate approval validity window and recheck expiry
   at the executor before applying the action. Bind approval to the reviewed
   target's version, ETag or equivalent state precondition. Check that precondition
@@ -871,6 +890,14 @@ rechecks do not establish freshness of the target's business state.
   operation; a separate preflight read leaves a race. Changed state requires
   review and fresh approval. Routes without this support must state the limit
   and cannot claim state-bound execution.
+- If the applicable policy requires live-state verification or an atomic state
+  precondition and that requirement cannot be satisfied, deny the operation
+  before its side effect. Missing versions, unavailable checks, timeout and
+  unsupported conditional writes cannot silently downgrade to allow or
+  approve-with-warning. The executor enforces the required precondition at the
+  mutation boundary. A route without that capability can operate only under a
+  separately explicit policy that permits its stated limitations. Compensation
+  is tool-specific and does not satisfy a mandatory pre-execution state check.
 
 Acceptance: use independent fixture outcomes to cover successful execution with
 matching records, differing executed parameters, missing executor evidence,
@@ -879,6 +906,13 @@ replay after reconnect, expiry between dispatch and execution, and state changes
 both before execution and during a concurrent write. Prove that a stale approved
 version leaves the target unchanged, a valid version succeeds, and a supported
 idempotent retry produces one effect even when the first response is lost.
+Also cover fresh `grantId` with stable `operationId` after a lost response,
+distinct intentional operations with identical arguments, conflicting key/payload
+or precondition reuse, concurrent duplicate calls, executor restart and expired
+deduplication evidence. Use independent target outcomes to prove that required
+state-check failure or unavailability prevents the effect, and that unsupported
+conditional execution is refused under a policy requiring it. A completed retry
+must return the recorded outcome without creating a second effect.
 Preserve existing grant-profile distinctions and W6.1 target binding. Keep
 fixture evidence separate from qualification of a real provider/server/version;
 this planning change grants no native run or product acceptance.

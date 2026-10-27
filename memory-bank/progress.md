@@ -4147,3 +4147,15 @@ Local hash-chain limits and inferred Claude association remain explicit. This
 documentation delivery changes no runtime, native acceptance, target completion,
 profile or launch permission. The next deliverables remain W11 admission/recovery,
 W4.3/W4.4 qualification and W6.3/W6.4 owner-visible Guard behavior.
+
+## W6.2 approval identity clarification — 2026-10-27
+
+At the owner's request, W6.2 now separates stable intended-operation identity
+from each fresh single-use approval and existing per-attempt evidence IDs. Its
+acceptance requires durable executor-side deduplication, payload/precondition
+binding, concurrent/restart/lost-response controls and explicit handling of
+expired deduplication evidence. A mandatory live-state or atomic-precondition
+check that is unavailable or unsupported must refuse the effect. Compensation
+does not replace that check. Source and process policy were reviewed at
+`3cacb15809fa94835feda316baad9962556c6215`; this documentation change leaves
+implementation and provider qualification open.
