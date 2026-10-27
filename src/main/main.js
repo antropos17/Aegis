@@ -15,6 +15,7 @@ if (ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1)))
 const _cliFlags = new Set([
   '--mcp-gateway-http',
   '--mcp-gateway-stdio',
+  '--mcp-gateway-stdio-review',
   '--mcp-gateway-credential-tag',
   '--mcp-gateway-stdio-route-tag',
   '--action-mcp-config-json',
@@ -63,6 +64,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
         [
           '--mcp-gateway-http',
           '--mcp-gateway-stdio',
+          '--mcp-gateway-stdio-review',
           '--action-mcp-stdio',
           '--action-mcp-review',
           '--action-mcp-delete-review',
