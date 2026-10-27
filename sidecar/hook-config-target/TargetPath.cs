@@ -26,32 +26,35 @@ internal sealed class TargetPath : IDisposable
         return true;
     }
 
-    internal static TargetPath Pin(string path)
+    internal static TargetPath Pin(string path, bool retainDirectoryRead = false)
     {
         var pinned = new TargetPath(path);
         try
         {
             string root = path[..3];
             Native.Require(Native.GetDriveTypeW(root) == 3);
-            pinned.Add(root);
+            pinned.Add(root, retainDirectoryRead);
             string current = root[..2];
             string[] parts = path[3..].Split('\\');
             foreach (string part in parts[..^1])
             {
                 current += "\\" + part;
-                pinned.Add(current);
+                pinned.Add(current, retainDirectoryRead);
             }
             return pinned;
         }
         catch { pinned.Dispose(); throw; }
     }
 
-    private void Add(string path)
+    private void Add(string path, bool retainDirectoryRead)
     {
         // Retain ancestor identity and exclude ancestor rename/delete. Directory
         // writes remain shareable during review so ordinary target replacement
         // is possible; Guard() excludes them during snapshot/commit operations.
-        var handle = Native.Open(path, Native.ReadAttributes, Native.ShareRead | Native.ShareWrite, true);
+        // Attribute-only handles do not necessarily prevent directory rename on
+        // Windows. A selected scope requires a data-access handle throughout review.
+        var handle = Native.Open(path, retainDirectoryRead ? Native.Read : Native.ReadAttributes,
+            Native.ShareRead | Native.ShareWrite, true);
         try { parents.Add((path, handle, Native.Inspect(handle, path, true).Id)); }
         catch { handle.Dispose(); throw; }
     }
