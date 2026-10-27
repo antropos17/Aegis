@@ -7,7 +7,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Native.cs;TargetPath.cs;TargetLease.cs" />
+    <Compile Include="Native.cs;TargetPath.cs;TargetLease.cs;CreateLease.cs" />
     <InternalsVisibleTo Include="HookConfigTarget.Fixtures" />
   </ItemGroup>
 </Project>

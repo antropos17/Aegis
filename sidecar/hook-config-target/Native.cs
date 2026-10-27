@@ -74,6 +74,16 @@ internal static class Native
         throw new TargetRefusal();
     }
 
+    internal static SafeFileHandle CreateNew(string path)
+    {
+        // CREATE_NEW never opens or truncates an existing path. The retained
+        // handle excludes write and delete sharing until the caller closes it.
+        var handle = CreateFileW(path, Read | Write, ShareRead, 0, 1, Reparse, 0);
+        if (!handle.IsInvalid) return handle;
+        handle.Dispose();
+        throw new TargetRefusal();
+    }
+
     internal static (Identity Id, Basic Metadata, Standard State) Inspect(
         SafeFileHandle handle, string path, bool directory)
     {

@@ -169,7 +169,7 @@ interface AegisIpcBridge {
   getStats(): Promise<Record<string, unknown>>;
   explainToolContext(eventId: string): Promise<Record<string, unknown>>;
   reviewClaudeHookProfile(
-    action: 'status' | 'install' | 'remove' | 'open-profile',
+    action: 'status' | 'install' | 'install-project-policy' | 'remove' | 'open-profile',
   ): Promise<Record<string, unknown>>;
   controlProjectWatch(action: 'status' | 'select' | 'clear'): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
