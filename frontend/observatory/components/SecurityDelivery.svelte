@@ -31,7 +31,7 @@
         'These rates are not total sensor activity or completeness. Zero does not mean no activity.',
       )}
     </p>
-    {#if rateState?.rates && rateState.intervalMs !== null}
+    {#if delivery.available && rateState?.rates && rateState.intervalMs !== null}
       <p>
         {$t('Sample interval: {seconds} seconds. Source freshness is unknown.', {
           seconds: (rateState.intervalMs / 1000).toFixed(2),

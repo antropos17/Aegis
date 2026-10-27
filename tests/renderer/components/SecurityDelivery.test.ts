@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import StatsSensors from '../../../frontend/observatory/components/StatsSensors.svelte';
 import Statistics from '../../../frontend/observatory/components/Statistics.svelte';
+import SecurityDelivery from '../../../frontend/observatory/components/SecurityDelivery.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 import { language } from '../../../frontend/observatory/runtime/i18n';
 
@@ -32,6 +33,31 @@ function fixture() {
 afterEach(() => {
   language.set('en');
   vi.restoreAllMocks();
+});
+
+it('hides an existing rate immediately when the accompanying delivery report is stale', () => {
+  const telemetry = { ...fixture(), stale: true };
+  const values = { 'file-watch': 1, 'file-handle': 1, process: 1, network: 1, other: 1 };
+  render(SecurityDelivery, {
+    telemetry,
+    now: Date.now(),
+    rateState: {
+      generation: '11111111-1111-4111-8111-111111111111',
+      sampleMs: 2000,
+      receivedAt: Date.now(),
+      accepted: values,
+      rates: values,
+      intervalMs: 1000,
+      invalidated: false,
+      retiredGenerations: [],
+      exhausted: false,
+    },
+  });
+  const rate = screen.getByRole('region', {
+    name: 'Accepted audit-lane records per second between samples',
+  });
+  expect(rate).toHaveTextContent('Admission rates unavailable');
+  expect(within(rate).queryByText('1.00')).toBeNull();
 });
 
 it('shows per-bucket admission rates only after a second sample and clears them on stale telemetry', async () => {
