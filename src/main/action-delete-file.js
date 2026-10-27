@@ -11,6 +11,17 @@ const {
 } = require('./execution-binding');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const terminal = require('./action-confirmation-terminal');
+const { openWindowsDelete } = require('./action-delete-windows');
+let testDeps = null;
+
+/** @internal Replace platform and native session for focused orchestration fixtures. */
+function _setDeleteDepsForTest(deps) {
+  testDeps = deps;
+}
+/** @internal Restore production platform and native session. */
+function _resetDeleteDepsForTest() {
+  testDeps = null;
+}
 
 const LIMITS = Object.freeze({ prepareMs: 1500, rules: 32 });
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -136,6 +147,16 @@ function sameFile(a, b) {
   );
 }
 
+async function distinctControls(target, policyPath, requestPath) {
+  if (!target.dev || !target.ino) return false;
+  for (const file of [policyPath, requestPath]) {
+    const stat = await fs.promises.stat(file, { bigint: true });
+    if (!stat.dev || !stat.ino || (stat.dev === target.dev && stat.ino === target.ino))
+      return false;
+  }
+  return true;
+}
+
 async function inspectTarget(filename) {
   if (!validPath(filename)) throw new Error('invalid');
   const root = path.parse(filename).root;
@@ -154,9 +175,8 @@ async function inspectTarget(filename) {
 
 /**
  * Confirm and remove one exact regular file through an AEGIS-owned operation.
- * No executable or provider tool is launched. Filesystem identity is rechecked
- * before unlink; same-account replacement between that check and unlink remains
- * outside the guarantee.
+ * Windows retains a native handle through review and deletes that object only.
+ * Other supported platforms recheck before pathname unlink, which can race.
  * @param {string} policyPath Explicit bounded policy file.
  * @param {string} requestPath Explicit bounded request file.
  * @param {{signal?: AbortSignal, binding?: object}} [options] Owner cancellation and optional borrowed connection binding.
@@ -177,6 +197,8 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
   const stopWatching = terminal.watchTerminalLifetime(abort);
   let binding;
   let stopReading = () => {};
+  let nativeSession;
+  const windows = (testDeps?.platform ?? process.platform) === 'win32';
   try {
     binding = borrowed
       ? borrowedBinding
@@ -184,8 +206,19 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     const first = await bounded(() => prepare(policyPath, requestPath, binding), controller.signal);
     if (!first || controller.signal.aborted) return result('deny', 'preparation-unavailable');
     if (!first.operation) return result('deny', first.reason);
+    if (windows) {
+      nativeSession = await (testDeps?.openWindowsDelete ?? openWindowsDelete)(
+        first.operation.path,
+      );
+    }
     const before = await bounded(() => inspectTarget(first.operation.path), controller.signal);
     if (!before || controller.signal.aborted) return result('deny', 'target-unavailable');
+    if (
+      windows &&
+      !(await bounded(() => distinctControls(before, policyPath, requestPath), controller.signal))
+    )
+      return result('deny', 'target-changed');
+    if (controller.signal.aborted) return result('deny', 'action-cancelled');
     const confirmed = await terminal.confirmInTerminal(first.operation, {
       signal: controller.signal,
       kind: 'delete-file',
@@ -199,8 +232,29 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     if (!second?.operation || controller.signal.aborted)
       return result('deny', 'configuration-changed');
     const after = await bounded(() => inspectTarget(second.operation.path), controller.signal);
-    if (!after || !sameFile(before, after) || controller.signal.aborted)
+    if (
+      !after ||
+      !sameFile(before, after) ||
+      controller.signal.aborted ||
+      (windows &&
+        !(await bounded(() => distinctControls(after, policyPath, requestPath), controller.signal)))
+    )
       return result('deny', 'target-changed');
+    if (windows) {
+      if (controller.signal.aborted) return result('deny', 'action-cancelled');
+      let outcome;
+      try {
+        outcome = await nativeSession.commit();
+      } catch {
+        outcome = 'unknown';
+      }
+      const closed = await nativeSession.close().catch(() => false);
+      nativeSession = null;
+      if (!closed || outcome === 'unknown')
+        return result('unknown', 'deletion-unavailable', 'unknown');
+      if (outcome !== 'deleted') return result('deny', 'target-changed');
+      return result('allow', 'file-deleted', 'deleted');
+    }
     try {
       await fs.promises.unlink(second.operation.path);
       return result('allow', 'file-deleted', 'deleted');
@@ -211,6 +265,7 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     return result('deny', 'preparation-unavailable');
   } finally {
     controller.abort();
+    if (nativeSession) await nativeSession.close().catch(() => false);
     stopReading();
     stopWatching();
     signal?.removeEventListener('abort', abort);
@@ -248,4 +303,10 @@ async function handleDeleteFileCLI(args, write) {
   }
 }
 
-module.exports = { deleteSelectedFile, handleDeleteFileCLI, LIMITS };
+module.exports = {
+  deleteSelectedFile,
+  handleDeleteFileCLI,
+  LIMITS,
+  _setDeleteDepsForTest,
+  _resetDeleteDepsForTest,
+};

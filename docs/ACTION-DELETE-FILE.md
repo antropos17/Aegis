@@ -2,8 +2,9 @@
 
 `--action-delete-file-confirm <policy.json> <request.json>` is an opt-in,
 terminal-owned operation. AEGIS itself removes one existing regular file after
-an exact policy match and a fresh `DELETE <challenge>` answer. It does not launch
-an executable. This standalone command is separate from the schema 2/3 execution
+an exact policy match and a fresh `DELETE <challenge>` answer. On Windows it
+starts only the private native helper; it does not launch a requested executable
+or provider tool. This standalone command is separate from the schema 2/3 execution
 policy.
 
 ## Selected-file MCP terminal route
@@ -31,11 +32,11 @@ the exact selected policy and request bytes; each accepted call uses that same
 private binding and requires a fresh terminal challenge. An observed change or
 read failure revokes the connection binding; restoring bytes afterward does not
 revive it. An affirmative answer permits the existing deletion executor to
-recheck the target and issue one regular-file unlink. A second call needs its own
+recheck the target and attempt one selected-file deletion. A second call needs its own
 review. The MCP result contains the redacted `action-delete-file` report;
 `isError: false` requires
 `operation.state: "deleted"`. Cancellation, transport closure and owner shutdown
-abort pending review; a completed unlink cannot be undone.
+abort pending review; a completed deletion cannot be undone.
 The selection is checked on calls and after review; there is no continuous
 filesystem watcher.
 
@@ -45,7 +46,7 @@ this route and reports attempts and owner outcomes. Add
 read-only desktop observation endpoint. **Action control → Live route observation**
 labels its selection as file deletion and shows operation attempts and owner
 settlements. Its snapshots contain no selected path, contents or bearer. A settled
-call does not by itself prove unlink; inspect the returned deletion report for its
+call does not by itself prove deletion; inspect the returned deletion report for its
 operation state. These counters do not prove blocking outside this selected route.
 
 The request and policy are bounded JSON files selected by the operator:
@@ -67,33 +68,51 @@ The request and policy are bounded JSON files selected by the operator:
 All fields are closed. The rule must name the identical path; no prefix, glob,
 command string or directory recursion is accepted. `allow` still requires the
 terminal challenge. `deny`, an absent rule, missing terminal, refusal, timeout,
-input failure and cancellation before the unlink prevent the deletion. The
+input failure and cancellation before mutation admission prevent the deletion. The
 selected policy and request are captured as private byte bindings and checked
 again after confirmation. The target must be an ordinary file with directory
 parents that are not links or junctions. Its filesystem identity, size and
 change timestamps are checked before and after confirmation. The policy and
 request files cannot themselves be the target.
 
+On Windows the operation requires the ordinary packaged `hook-review` native
+assets (or prepared assets under `build/hook-review` for the documented Node source
+command). The operator must keep the helper assets and their load directories
+trusted and stable through launch and execution; the asset manifest is not an
+independent signature. See [the native IO prerequisites](CLAUDE-HOOK-WINDOWS-IO.md).
+The helper accepts a restricted absolute local NTFS path, rejects reparse points,
+multiple hardlinks and unsupported attributes, and pins the original file and
+its ancestors through review. It prevents incompatible concurrent opens and
+marks that same handle for deletion only after the second configuration and
+target checks. Unsupported paths, unavailable assets and conflicting handles
+are refused. The target must also be distinct by file identity from both control
+files. Other platforms retain the existing pathname-based unlink.
+
 The command emits a fixed-metadata `action-delete-file` report without the file
-path or contents. Exit 0 requires an observed successful unlink; exit 1 means
-invalid command arguments; other outcomes exit 2. If unlink reports an error,
-the report conservatively says `unknown` because the caller cannot infer the
-state from that error alone. There is no retry and no recursive removal.
+path or contents. Exit 0 requires native confirmation that the Windows target is
+absent after disposition and handle closure, or a successful unlink elsewhere;
+exit 1 means invalid command arguments; other outcomes exit 2. A pending deletion,
+interrupted native request or uncertain cleanup is `unknown`; a previously open
+reader can delay deletion after it has been marked. There is no retry and no
+recursive removal.
 
 This control applies only to a request explicitly sent through the standalone
 command or the selected-file MCP terminal route.
 The target is an exact absolute path and may be outside a project if the
 operator explicitly permits it. Other agent tools, ordinary shell commands and
 allowed child processes can still delete files. The process uses the caller's
-account. A same-account actor can change policy or filesystem paths; a swap
-between the final path check and unlink is not excluded by Node's path-based
-unlink. No protected launch, separate account, process-tree containment or
+account. A same-account actor can change policy or filesystem paths. On non-Windows
+platforms, a swap between the final path check and unlink remains possible.
+Windows handle custody is limited to the selected local NTFS file and does not
+protect against privileged or raw-volume modification, pre-existing writable
+mappings, outside-route operations or control-file changes after the final check. No protected launch, separate account, process-tree containment or
 outside-route coverage is established. C1 is required before extending a
 destructive-operation guarantee to arbitrary allowed children.
 
 Focused tests cover real local file removal, policy denial, missing rule and
 terminal, refused review, selected-file mutation, target changes, links and
-junctions, invalid schema/path and cancellation. The MCP route tests also cover
+junctions, invalid schema/path and cancellation. Windows native owned fixtures
+cover original-handle deletion, replacement refusal and pending-reader uncertainty. The MCP route tests also cover
 argument rejection, request-ID replay, terminal timeout, and a separate process
 deleting an outside-route sentinel. These fixtures do not establish control of
 third-party agent routes or resistance to same-account races.

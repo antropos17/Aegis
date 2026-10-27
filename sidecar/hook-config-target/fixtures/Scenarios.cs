@@ -39,6 +39,7 @@ internal static class Scenarios
         Scenario("readback-mismatch-retained-unknown", ReadbackFault);
         Scenario("dispose-releases-all-handles", Disposal);
         CreateScenarios.Run();
+        DeleteScenarios.Run();
     }
 
     private static TargetCode Commit(TargetLease lease, byte[] after) =>
