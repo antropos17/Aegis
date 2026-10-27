@@ -46,7 +46,6 @@ jobs:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       npm_config_logs_max: '1'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      DOTNET_INSTALL_DIR: ${{ runner.temp }}/aegis-dotnet-10.0.403
       RuntimeFrameworkVersion: '10.0.14'
       TargetLatestRuntimePatch: 'false'
     steps:
@@ -57,6 +56,9 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
+      - name: Allocate .NET job paths
+        run: |
+          ('DOTNET_INSTALL_DIR=' + (Join-Path $env:RUNNER_TEMP 'aegis-dotnet-10.0.403')) | Add-Content -LiteralPath $env:GITHUB_ENV
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: '10.0.403'
