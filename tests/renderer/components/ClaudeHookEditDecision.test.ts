@@ -131,7 +131,8 @@ it('shows an actual patch-review hook decision without claiming its effect or ex
         reviewClaudeHookProfile: vi.fn().mockResolvedValue({
           success: true,
           code: 'READY',
-          guardSession: state,
+          // Production wraps the receiver snapshot with launcher admission metadata.
+          guardSession: { ...state, afterHooks: false, afterHooksAtAdmission: false },
         }),
       } as Host,
     });
