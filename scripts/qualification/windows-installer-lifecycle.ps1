@@ -4,7 +4,8 @@ param(
   [ValidateSet('silent','wizard')][string]$Mode = 'silent',
   [string]$CandidateDirectory,
   [string]$ReleaseDirectory,
-  [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64'
+  [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64',
+  [switch]$Pr1048Candidate
 )
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-hosted','github-hosted-hyperv-guest') -or $env:RUNNER_OS -ne 'Windows') {
@@ -28,7 +29,21 @@ $supportRoot = Join-Path $env:GITHUB_WORKSPACE 'scripts/qualification'
 $checker = Join-Path $supportRoot 'windows-installer-profile.cjs'
 $currentVersion = '0.20.1-beta'
 $previousVersion = '0.20.0-beta'
+$candidateSource = $env:GITHUB_SHA
+$previousCommit = 'd3d277d789da4ca3e38cac54176b6a983a14a3b5'
+$previousHash = '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3'
+if ($Pr1048Candidate) {
+  if (-not $CandidateDirectory -or $ReleaseDirectory -or $Scenario -notin @('fresh','upgrade') -or $Mode -ne 'silent' -or $ExpectedArchitecture -ne 'X64') { throw 'PR 1048 candidate requires fresh/upgrade, silent native x64 and an unpublished build artifact' }
+  $currentVersion = '0.21.0-beta'
+  $previousVersion = '0.20.1-beta'
+  $candidateSource = '5526376f39d01305f98e707e8e2ea9807f68a33b'
+  $previousCommit = '274d65711ac858c9d309c73f1f7c9c4e52872ed1'
+  $previousHash = '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339'
+}
 $result = [ordered]@{ schema='aegis-installer-lifecycle/1'; status='RUNNING'; scenario=$Scenario; sourceSha=$env:GITHUB_SHA; runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; capturedAt=[DateTime]::UtcNow.ToString('o'); host=$null; artifacts=@(); phases=@(); limits=@('Silent current-user installation on a disposable GitHub-hosted Windows Server image; interactive wizard and Windows 11 consumer-host behavior are not qualified.','No privileged ETW, provider/VM, protection, Authenticode signing or full W10 acceptance.'); error=$null }
+$result.candidateSourceSha = $candidateSource
+$result.candidateVersion = $currentVersion
+$result.previousVersion = $previousVersion
 $result.mode = $Mode
 if ($Mode -eq 'wizard') { $result.limits[0] = 'Windows 11 interactive current-user wizard on the recorded architecture. ARM64 runs use x64 emulation; X64 runs require native x64 OS/process observations. All-users elevation, Finish auto-launch and automatic-update delivery are not qualified.' }
 function SaveResult { $result | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $qa 'evidence/result.json') -Encoding utf8 }
@@ -157,7 +172,7 @@ function ImportCandidate([string]$Directory) {
   if (-not $directoryPath.StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase)) { throw 'Candidate artifact is outside guest scratch' }
   $receiptPath = Join-Path $directoryPath 'candidate.json'
   $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $env:GITHUB_SHA -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
+  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $candidateSource -or ($Pr1048Candidate -and $receipt.sourceTree -ne '0a704c1c2843c7d1ebde9c2eae073ec80d301b3a') -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
   $files = @(Get-ChildItem -LiteralPath $directoryPath -Filter '*.exe' -File)
   if ($files.Count -ne 1 -or $files[0].Name -ne $receipt.filename -or $files[0].Length -ne $receipt.bytes -or $files[0].Length -gt 250MB -or (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash -ne $receipt.sha256) { throw 'Candidate bytes do not match build receipt' }
   $destination = Join-Path $qa ('candidate/'+$files[0].Name)
@@ -175,6 +190,7 @@ try {
   $result.host.sessionId = (Get-Process -Id $PID).SessionId
   $result.host.nativeArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
   $result.host.processArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+  if ($Pr1048Candidate -and ($result.host.nativeArchitecture -ine 'X64' -or $result.host.processArchitecture -ine 'X64')) { throw 'PR 1048 qualification requires native x64 OS and driver' }
   if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne $ExpectedArchitecture -or $result.host.nativeArchitecture -ine $ExpectedArchitecture)) { throw 'Wizard mode requires the declared Windows 11 architecture' }
   if ($ExpectedArchitecture -eq 'X64' -and $Mode -eq 'wizard' -and $result.host.processArchitecture -ine 'X64') { throw 'Native x64 driver required' }
   SaveResult; Sample 'preflight'
@@ -207,7 +223,7 @@ try {
     return
   }
   $candidate = if ($CandidateDirectory) { ImportCandidate $CandidateDirectory } else { DownloadVerified ('aegis-v'+$currentVersion) '274d65711ac858c9d309c73f1f7c9c4e52872ed1' '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339' (Join-Path $qa 'candidate') }
-  if ($Scenario -eq 'upgrade') { $previous = DownloadVerified ('aegis-v'+$previousVersion) 'd3d277d789da4ca3e38cac54176b6a983a14a3b5' '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3' (Join-Path $qa 'previous') }
+  if ($Scenario -eq 'upgrade') { $previous = DownloadVerified ('aegis-v'+$previousVersion) $previousCommit $previousHash (Join-Path $qa 'previous') }
   Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
   if ($Mode -eq 'wizard') {
     $originalInstallRoot=$installRoot

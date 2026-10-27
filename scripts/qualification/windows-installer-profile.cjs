@@ -21,7 +21,7 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 for (const key of ['exe', 'root', 'phase', 'version']) assert(options[key]);
 assert(['fresh', 'baseline', 'upgrade', 'reinstall'].includes(options.phase));
-assert(['0.20.0-beta', '0.20.1-beta'].includes(options.version));
+assert(['0.20.0-beta', '0.20.1-beta', '0.21.0-beta'].includes(options.version));
 const normalize = (p) => path.resolve(p).toLowerCase();
 const root = path.resolve(options.root);
 assert(normalize(root).startsWith(normalize(process.env.RUNNER_TEMP) + path.sep));

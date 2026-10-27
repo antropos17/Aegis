@@ -226,3 +226,4 @@ aegis_landing.html
 !/scripts/installation/ProtectedGuestDesktop.cs
 !/scripts/qualification/protected-guest-controls.ps1
 !/tests/fixtures/protected-installation/guest-fixture.ps1
+!/scripts/qualification/test-windows-candidate-021.ps1
