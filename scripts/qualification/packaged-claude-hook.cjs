@@ -37,6 +37,20 @@ async function digest(file) {
   return hash.digest('hex');
 }
 
+/** Compare the profile sources in an actual archive against the selected checkout.
+ * @param {string} archive Candidate app.asar. @param {string} sourceRoot Checkout root.
+ * @returns {Promise<void>} Resolves only when every selected source matches.
+ * @since v0.21.0 */
+async function assertArchivedProfileSourcesMatch(archive, sourceRoot) {
+  const sourceFiles = (await fs.readdir(path.join(sourceRoot, 'src/main')))
+    .filter((name) => /^claude-hook.*\.js$/.test(name))
+    .concat('action-policy.js');
+  for (const name of sourceFiles) {
+    const source = path.join('src', 'main', name);
+    assert.deepEqual(extractFile(archive, source), await fs.readFile(path.join(sourceRoot, source)));
+  }
+}
+
 async function regular(file) {
   const stat = await fs.lstat(file);
   assert(stat.isFile() && !stat.isSymbolicLink());
@@ -123,13 +137,7 @@ async function run() {
   receipt.artifacts = await hashes();
 
   stage = 'archive-command-generator';
-  const sourceFiles = (await fs.readdir(path.join(root, 'src/main')))
-    .filter((name) => /^claude-hook.*\.js$/.test(name))
-    .concat('action-policy.js');
-  for (const name of sourceFiles) {
-    const source = 'src/main/' + name;
-    assert.deepEqual(extractFile(asar, source), await fs.readFile(path.join(root, source)));
-  }
+  await assertArchivedProfileSourcesMatch(asar, root);
   receipt.archiveProfileSourcesMatch = true;
 
   stage = 'shell-preflight';
@@ -315,17 +323,19 @@ async function run() {
   console.log('PASS: packaged hook and assets; source profile used scripted confirmation.');
 }
 
-run().catch(async (error) => {
-  receipt.complete = false;
-  receipt.failureStage = stage;
-  receipt.failure = String(error.message).slice(0, 300);
-  if (outputCreated)
-    await fs
-      .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {
-        flag: 'wx',
-      })
-      .catch(() => {});
-  console.error('Packaged hook qualification failed at ' + stage + '; private files retained.');
-  process.exitCode = 1;
-  if (receipt.ownedChildCleanupUnconfirmed) process.exit(1);
-});
+module.exports = { assertArchivedProfileSourcesMatch };
+if (require.main === module)
+  run().catch(async (error) => {
+    receipt.complete = false;
+    receipt.failureStage = stage;
+    receipt.failure = String(error.message).slice(0, 300);
+    if (outputCreated)
+      await fs
+        .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {
+          flag: 'wx',
+        })
+        .catch(() => {});
+    console.error('Packaged hook qualification failed at ' + stage + '; private files retained.');
+    process.exitCode = 1;
+    if (receipt.ownedChildCleanupUnconfirmed) process.exit(1);
+  });
