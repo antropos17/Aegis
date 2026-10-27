@@ -8,6 +8,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { createHash, createHmac } = require('node:crypto');
+const { performance } = require('node:perf_hooks');
 const { createReadStream } = require('node:fs');
 const { spawn, execFileSync } = require('node:child_process');
 const { extractFile } = require('@electron/asar');
@@ -50,6 +51,114 @@ function uniformCRLFCheckout(blob, checkout) {
     bytes.push(byte);
   }
   return Buffer.from(bytes).equals(checkout);
+}
+
+/** Bind both archive and checkout bytes to an independently selected Git blob.
+ * @param {Buffer} archive Packaged source. @param {Buffer} checkout Local source.
+ * @param {Buffer} blob Source committed at HEAD.
+ * @returns {object} Fixed newline-normalization labels. @since v0.21.0 */
+function bindSourceToBlob(archive, checkout, blob) {
+  const normalized = (value) => {
+    if (value.equals(blob)) return 'none';
+    if (uniformCRLFCheckout(blob, value)) return 'uniform-lf-to-crlf';
+    throw Error('Source differs from canonical Git blob');
+  };
+  return { archiveNormalization: normalized(archive), checkoutNormalization: normalized(checkout) };
+}
+
+async function waitBounded(promise, ms) {
+  if (!promise) return null;
+  let timer;
+  try {
+    return await Promise.race([
+      promise.then(
+        (value) => ({ settled: true, fulfilled: true, value }),
+        () => ({ settled: true, fulfilled: false, value: null }),
+      ),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), Math.max(0, ms));
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Settle only owned shell/witness handles; never infer an unobserved broker exit.
+ * @param {object} options Owned process outcomes, callbacks and deadlines.
+ * @returns {Promise<object>} Fixed cleanup evidence. @since v0.21.0 */
+async function settleOwnedProcesses(options) {
+  const {
+    shellResult,
+    witnessResult,
+    gateOpened,
+    stopShell,
+    stopWitness,
+    readWitness,
+    isShellClosed,
+    witnessDeadline,
+    shellWaitMs = 2000,
+    closeWaitMs = 3000,
+  } = options;
+  const result = {
+    gateOpened,
+    shellSettled: false,
+    witnessSettled: false,
+    shellTerminationRequested: false,
+    witnessTerminationRequested: false,
+    brokerIdentified: false,
+    brokerGone: false,
+    confirmed: false,
+  };
+  const stopOwnedShell = () => {
+    if (shellResult && !isShellClosed()) {
+      result.shellTerminationRequested = true;
+      try {
+        stopShell();
+      } catch {
+        /* Retain unknown settlement. */
+      }
+    }
+  };
+  if (!gateOpened) stopOwnedShell();
+  let witness = await waitBounded(witnessResult, Math.max(0, witnessDeadline - performance.now()));
+  if (witnessResult && !witness) {
+    result.witnessTerminationRequested = true;
+    try {
+      stopWitness();
+    } catch {
+      /* Retain unknown settlement. */
+    }
+    witness = await waitBounded(witnessResult, closeWaitMs);
+  }
+  result.witnessSettled = !!witness;
+  if (witness) result.witnessExitCode = witness.value?.code ?? null;
+  if (gateOpened && witness) {
+    try {
+      const proof = await readWitness();
+      result.brokerIdentified = proof.identified === true;
+      result.brokerGone = proof.identified === true && proof.gone === true;
+      result.brokerForced = proof.forced === true;
+    } catch {
+      /* A missing witness is unknown, not a clean exit. */
+    }
+  }
+  let shell = await waitBounded(shellResult, shellWaitMs);
+  if (shellResult && !shell) {
+    stopOwnedShell();
+    shell = await waitBounded(shellResult, closeWaitMs);
+  }
+  result.shellSettled = !!shell && isShellClosed();
+  if (shell) result.shellExitCode = shell.value?.code ?? null;
+  result.confirmed =
+    result.shellSettled &&
+    (!witnessResult || result.witnessSettled) &&
+    (!gateOpened ||
+      (result.witnessSettled &&
+        result.witnessExitCode === 0 &&
+        result.brokerIdentified &&
+        result.brokerGone));
+  return result;
 }
 async function processGone(pid) {
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -105,23 +214,18 @@ async function run() {
     const relative = path.join('src', 'main', name);
     const archived = extractFile(asar, relative);
     const checkout = await fs.readFile(path.join(root, relative));
+    const blob = execFileSync('git', ['show', 'HEAD:src/main/' + name], {
+      cwd: root,
+      windowsHide: true,
+      maxBuffer: 2 * 1024 * 1024,
+    });
     const record = {
       archiveSha256: createHash('sha256').update(archived).digest('hex'),
       checkoutSha256: createHash('sha256').update(checkout).digest('hex'),
-      checkoutNormalization: 'none',
+      gitBlobSha256: createHash('sha256').update(blob).digest('hex'),
+      ...bindSourceToBlob(archived, checkout, blob),
     };
     receipt.archiveSourceFiles[name] = record;
-    if (!archived.equals(checkout)) {
-      const blob = execFileSync('git', ['show', 'HEAD:src/main/' + name], {
-        cwd: root,
-        windowsHide: true,
-        maxBuffer: 2 * 1024 * 1024,
-      });
-      record.gitBlobSha256 = createHash('sha256').update(blob).digest('hex');
-      assert(archived.equals(blob), 'Archive differs from canonical Git blob');
-      assert(uniformCRLFCheckout(blob, checkout), 'Checkout differs beyond uniform LF-to-CRLF');
-      record.checkoutNormalization = 'uniform-lf-to-crlf';
-    }
   }
   receipt.archiveSourcesMatch = true;
 
@@ -215,6 +319,12 @@ async function run() {
     server.listen(0, '127.0.0.1', resolve);
   });
   let launcher;
+  let shellResult = null;
+  let observer = null;
+  let witnessResult = null;
+  let witnessDeadline = performance.now();
+  let witnessFile = null;
+  let gateOpened = false;
   try {
     stage = 'scripted-production-command';
     const port = server.address().port;
@@ -283,36 +393,41 @@ async function run() {
     assert(!Object.hasOwn(env, 'ELECTRON_RUN_AS_NODE'));
     const gate = path.join(output, 'terminal-gate');
     const ready = path.join(output, 'observer-ready');
-    const witnessFile = path.join(output, 'process-witness.json');
+    witnessFile = path.join(output, 'process-witness.json');
     const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
     const gatedCommand = `$deadline=[DateTime]::UtcNow.AddSeconds(15); while (-not (Test-Path -LiteralPath ${quote(gate)})) { if ([DateTime]::UtcNow -gt $deadline) { exit 2 }; Start-Sleep -Milliseconds 20 }; ${clipboard}; $deadline=[DateTime]::UtcNow.AddSeconds(70); while (-not (Test-Path -LiteralPath ${quote(witnessFile)}) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 20 }`;
-    const shellResult = new Promise((resolve, reject) => {
+    shellResult = new Promise((resolve) => {
       shell = spawn(powershell, ['-NoProfile', '-Command', gatedCommand], {
         cwd: output,
         env,
         stdio: 'inherit',
         windowsHide: false,
       });
-      shell.once('error', reject);
+      let spawnError = false;
+      shell.once('error', () => {
+        spawnError = true;
+      });
       shell.once('close', (code, signal) => {
         shellClosed = true;
-        resolve({ code, signal });
+        resolve({ code, signal, spawnError });
       });
     });
-    const observer = spawn(
-      witness,
-      [String(shell.pid), powershell, executable, ready, witnessFile],
-      {
-        cwd: output,
-        env,
-        stdio: 'ignore',
-        windowsHide: true,
-      },
-    );
-    const witnessResult = new Promise((resolve, reject) => {
-      observer.once('error', reject);
-      observer.once('close', (code, signal) => resolve({ code, signal }));
+    shellResult.catch(() => {});
+    witnessDeadline = performance.now() + 90000;
+    observer = spawn(witness, [String(shell.pid), powershell, executable, ready, witnessFile], {
+      cwd: output,
+      env,
+      stdio: 'ignore',
+      windowsHide: true,
     });
+    witnessResult = new Promise((resolve) => {
+      let spawnError = false;
+      observer.once('error', () => {
+        spawnError = true;
+      });
+      observer.once('close', (code, signal) => resolve({ code, signal, spawnError }));
+    });
+    witnessResult.catch(() => {});
     let readySeen = false;
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
@@ -323,26 +438,17 @@ async function run() {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
-    if (!readySeen) {
-      shell.kill();
-      throw Error('Process witness did not become ready');
-    }
+    if (!readySeen) throw Error('Process witness did not become ready');
+    // A partially created gate may release the child even when the write fails.
+    gateOpened = true;
     await fs.writeFile(gate, '', { flag: 'wx' });
-    let outerTimer;
-    const outcome = await Promise.race([
+    const settled = await waitBounded(
       Promise.all([shellResult, witnessResult]),
-      new Promise((resolve) => {
-        outerTimer = setTimeout(() => resolve(null), 75000);
-      }),
-    ]);
-    clearTimeout(outerTimer);
-    if (!outcome) {
-      if (!shellClosed) shell.kill();
-      observer.kill();
-      throw Error('Owned process cleanup unconfirmed');
-    }
-    receipt.shell = outcome[0];
-    receipt.witness = outcome[1];
+      Math.max(0, witnessDeadline - performance.now()),
+    );
+    if (!settled?.value) throw Error('Owned process outcome unavailable');
+    receipt.shell = settled.value[0];
+    receipt.witness = settled.value[1];
     receipt.process = JSON.parse(await fs.readFile(witnessFile, 'utf8'));
     assert.equal(receipt.witness.code, 0);
     assert.equal(receipt.shell.code, 0);
@@ -365,19 +471,49 @@ async function run() {
     assert.equal(await digest(witness), receipt.witnessSha256);
     assert.equal(await digest(settings), settingsHash);
     assert.deepEqual({ executable: await digest(executable), asar: await digest(asar) }, before);
-    receipt.complete = true;
-    await fs.writeFile(path.join(output, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n', {
-      flag: 'wx',
-    });
-    console.log('PASS: packaged broker and disposable receiver; scripted admission.');
   } finally {
-    await launcher?.close();
+    if (shellResult) {
+      receipt.cleanup = await settleOwnedProcesses({
+        shellResult,
+        witnessResult,
+        gateOpened,
+        witnessDeadline,
+        stopShell: () => shell?.kill(),
+        stopWitness: () => observer?.kill(),
+        isShellClosed: () => shellClosed,
+        readWitness: async () => JSON.parse(await fs.readFile(witnessFile, 'utf8')),
+      });
+    }
+    const launcherCleanup = launcher
+      ? await waitBounded(
+          Promise.resolve().then(() => launcher.close()),
+          3000,
+        )
+      : { fulfilled: true };
+    receipt.launcherCleanupConfirmed = launcherCleanup?.fulfilled === true;
     server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    const serverCleanup = await waitBounded(
+      new Promise((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+      3000,
+    );
+    receipt.receiverCleanupConfirmed = serverCleanup?.fulfilled === true;
   }
+  if (
+    !receipt.cleanup?.confirmed ||
+    !receipt.launcherCleanupConfirmed ||
+    !receipt.receiverCleanupConfirmed
+  )
+    throw Error('Owned cleanup unconfirmed');
+  receipt.complete = true;
+  await fs.writeFile(path.join(output, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n', {
+    flag: 'wx',
+  });
+  console.log('PASS: packaged broker and disposable receiver; scripted admission.');
 }
 
-module.exports = { uniformCRLFCheckout };
+module.exports = { uniformCRLFCheckout, bindSourceToBlob, settleOwnedProcesses };
 if (require.main === module)
   run().catch(async (error) => {
     receipt.complete = false;
@@ -393,5 +529,7 @@ if (require.main === module)
     console.error(
       'Packaged terminal qualification failed at ' + stage + '; private output retained.',
     );
+    if (receipt.cleanup && !receipt.cleanup.confirmed)
+      console.error('Owned process cleanup is unconfirmed; inspect the retained receipt.');
     process.exitCode = 1;
   });
