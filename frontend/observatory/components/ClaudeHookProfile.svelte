@@ -6,6 +6,7 @@
   import Icon from './Icon.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   type Operation = 'status' | 'install' | 'remove' | 'open-profile' | 'guard-start' | 'guard-stop';
+  type Outcome = 'reported-completed' | 'reported-failed' | 'unknown';
   const id = $props.id();
   const messages: Record<string, string> = {
     IDLE: 'Setup has not been reviewed.',
@@ -100,6 +101,11 @@
     'project-deny-destructive': ['deny'],
     'project-deny-unsupported': ['deny'],
   };
+  const outcomes: Record<Outcome, string> = {
+    'reported-completed': 'Claimed provider result: tool completed',
+    'reported-failed': 'Claimed provider result: tool failed',
+    unknown: 'Provider result unknown',
+  };
   let profileState = $state({
     code: 'IDLE',
     canInstall: false,
@@ -114,7 +120,9 @@
     status: 'inactive',
     available: false,
     lossDetected: false,
-    entries: [] as { decision: string; reason: string }[],
+    afterHooks: false,
+    afterHooksAtAdmission: false,
+    entries: [] as { decision: string; reason: string; outcome: Outcome }[],
   });
   let alive = true;
   let available = $derived(!preview && typeof host?.reviewClaudeHookProfile === 'function');
@@ -148,6 +156,8 @@
             : 'inactive',
         available: session.available === true,
         lossDetected: session.lossDetected === true,
+        afterHooks: session.afterHooks === true,
+        afterHooksAtAdmission: session.afterHooksAtAdmission === true,
         entries: entries.flatMap((item: unknown) => {
           const entry = record(item);
           return typeof entry.decision === 'string' &&
@@ -155,7 +165,16 @@
             typeof entry.reason === 'string' &&
             Object.hasOwn(reasonDecisions, entry.reason) &&
             reasonDecisions[entry.reason].includes(entry.decision)
-            ? [{ decision: entry.decision, reason: entry.reason }]
+            ? [
+                {
+                  decision: entry.decision,
+                  reason: entry.reason,
+                  outcome:
+                    entry.outcome === 'reported-completed' || entry.outcome === 'reported-failed'
+                      ? entry.outcome
+                      : ('unknown' as const),
+                },
+              ]
             : [];
         }),
       };
@@ -287,6 +306,17 @@
         'Refresh setup status to see recent reports.',
       )}
     </p>
+    {#if guardSession.status !== 'inactive'}
+      <p class="muted">
+        {$t(
+          guardSession.afterHooks
+            ? 'After-result hooks were verified in the selected profile; delivery remains unknown.'
+            : guardSession.afterHooksAtAdmission
+              ? 'After-result hooks were verified at admission; the profile is not currently verified.'
+              : 'After-result hooks are not currently verified; delivery remains unknown.',
+        )}
+      </p>
+    {/if}
     {#if guardSession.lossDetected}<p role="alert">
         {$t('Some reporting may have been lost or discarded; delivery remains unknown.')}
       </p>{/if}
@@ -294,7 +324,9 @@
       <ul>
         {#each guardSession.entries as entry, index (index)}
           <li>
-            {entry.decision.toUpperCase()}: {$t(reasons[entry.reason])} · {$t('Effect unknown')}
+            {entry.decision.toUpperCase()}: {$t(reasons[entry.reason])} · {$t(
+              outcomes[entry.outcome],
+            )} · {$t('Effect unknown')}
           </li>
         {/each}
       </ul>

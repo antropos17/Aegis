@@ -302,6 +302,35 @@ it.skipIf(process.platform !== 'win32')(
 );
 
 it.skipIf(process.platform !== 'win32')(
+  'reports after hooks only for a currently admitted binding',
+  async () => {
+    const f = fixture();
+    f.admission.hasAfterHooks = vi.fn().mockReturnValue(true);
+    expect(f.launcher.snapshot().afterHooks).toBe(false);
+    expect(await f.launcher.start(() => true)).toBe('GUARD_READY');
+    expect(f.launcher.snapshot()).toMatchObject({ afterHooks: true, afterHooksAtAdmission: true });
+    f.receiver.snapshot = () => ({
+      status: 'ended',
+      available: false,
+      entries: [{ decision: 'allow', reason: 'generic', outcome: 'reported-completed' }],
+    });
+    f.admission.hasAfterHooks.mockReturnValue(false);
+    expect(f.launcher.snapshot().afterHooks).toBe(false);
+    f.admission.hasAfterHooks.mockImplementation(() => {
+      throw Error('private');
+    });
+    expect(f.launcher.snapshot().afterHooks).toBe(false);
+    await f.launcher.stop();
+    expect(f.launcher.snapshot()).toMatchObject({
+      status: 'ended',
+      afterHooks: false,
+      afterHooksAtAdmission: true,
+      entries: [{ decision: 'allow', reason: 'generic', outcome: 'reported-completed' }],
+    });
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
   'requires exact selection and native confirmation without copying the launch secret',
   async () => {
     const f = fixture();

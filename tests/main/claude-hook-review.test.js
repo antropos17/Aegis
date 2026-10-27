@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+const { CONTRACT_V2 } = createRequire(import.meta.url)('../../src/main/claude-hook-plan');
 import {
   configPath,
   createOwnedHookReview,
@@ -217,3 +219,56 @@ describe('private hook owner review admission', () => {
     expect(extraCalls).toBe(0);
   });
 });
+
+it('reviews and commits all three events atomically, then restores the exact original', async () => {
+  const f = fixture();
+  const selected = { ...selection, contract: CONTRACT_V2, afterCommand: 'fixture-after-command' };
+  const prepared = await f.review.prepareInstall(f.owner, selected);
+  expect(prepared.review.eventNames).toEqual(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
+  expect(f.state.writes).toBe(0);
+  expect((await f.review.confirm(f.owner, prepared.planId, true)).code).toBe('INSTALLED');
+  expect(f.state.writes).toBe(1);
+  expect(JSON.parse(f.state.bytes).hooks).toEqual({
+    PreToolUse: [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: selection.command, timeout: 5 }] },
+    ],
+    PostToolUse: [
+      {
+        matcher: 'Bash',
+        hooks: [{ type: 'command', command: 'fixture-after-command', timeout: 5 }],
+      },
+    ],
+    PostToolUseFailure: [
+      {
+        matcher: 'Bash',
+        hooks: [{ type: 'command', command: 'fixture-after-command', timeout: 5 }],
+      },
+    ],
+  });
+  const removal = await f.review.prepareRemoval(f.owner);
+  expect((await f.review.confirm(f.owner, removal.planId, true)).code).toBe('REMOVED');
+  expect(f.state.bytes.toString()).toBe(original);
+});
+
+it.each(['cancel', 'stale-identity', 'readback'])(
+  'handles V2 %s without claiming an unverified installation',
+  async (mode) => {
+    const f = fixture();
+    const prepared = await f.review.prepareInstall(f.owner, {
+      ...selection,
+      contract: CONTRACT_V2,
+      afterCommand: 'fixture-after-command',
+    });
+    if (mode === 'cancel') f.review.cancel(f.owner);
+    if (mode === 'stale-identity') f.state.identity = 'replacement';
+    if (mode === 'readback') f.state.mode = 'readback';
+    const result = await f.review.confirm(f.owner, prepared.planId, true);
+    expect(result.code).toBe(
+      {
+        cancel: 'INVALID_APPROVAL',
+        'stale-identity': 'TARGET_IDENTITY_CHANGED',
+        readback: 'READBACK_FAILED',
+      }[mode],
+    );
+  },
+);

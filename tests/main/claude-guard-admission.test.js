@@ -205,3 +205,93 @@ it('revokes both concurrent verification attempts', async () => {
   expect(await f.admission.verify(binding)).toBe(false);
   f.admission.close();
 });
+
+it('exposes after-observation capability only for the complete binding and clears it on release', async () => {
+  const f = fixture();
+  const { profileAfterCommand } = require('../../src/main/claude-hook-app-profile');
+  const after = {
+    matcher: 'Bash',
+    hooks: [
+      {
+        type: 'command',
+        command: profileAfterCommand(
+          process.execPath,
+          path.join(f.directory, 'app.asar'),
+          f.policyPath,
+        ),
+        timeout: 5,
+      },
+    ],
+  };
+  f.setProfile({
+    hooks: { PreToolUse: [f.entry], PostToolUse: [after], PostToolUseFailure: [after] },
+  });
+  const binding = await f.admission.capture(f.directory);
+  expect(binding).toEqual({});
+  expect(f.admission.hasAfterHooks(binding)).toBe(true);
+  expect(f.admission.hasAfterHooks({})).toBe(false);
+  f.admission.release(binding);
+  expect(f.admission.hasAfterHooks(binding)).toBe(false);
+  f.admission.close();
+});
+
+it('does not admit an incomplete after group or report it enabled on a legacy binding', async () => {
+  const f = fixture();
+  const legacy = await f.admission.capture(f.directory);
+  expect(f.admission.hasAfterHooks(legacy)).toBe(false);
+  f.admission.release(legacy);
+  const { profileAfterCommand } = require('../../src/main/claude-hook-app-profile');
+  const after = {
+    matcher: 'Bash',
+    hooks: [
+      {
+        type: 'command',
+        command: profileAfterCommand(
+          process.execPath,
+          path.join(f.directory, 'app.asar'),
+          f.policyPath,
+        ),
+        timeout: 5,
+      },
+    ],
+  };
+  f.setProfile({ hooks: { PreToolUse: [f.entry], PostToolUse: [after] } });
+  expect(await f.admission.capture(f.directory)).toBeNull();
+  f.admission.close();
+});
+
+it.each(['legacy', 'redirected', 'mixed', 'extra-shell'])(
+  'admits only matched exact %s post commands',
+  async (mode) => {
+    const f = fixture();
+    const {
+      profileAfterCommand,
+      profileAfterCommandLegacy,
+    } = require('../../src/main/claude-hook-app-profile');
+    const args = [process.execPath, path.join(f.directory, 'app.asar'), f.policyPath];
+    const legacy = profileAfterCommandLegacy(...args);
+    const redirected = profileAfterCommand(...args);
+    const post = mode === 'legacy' ? legacy : redirected;
+    const failure =
+      mode === 'legacy' || mode === 'mixed'
+        ? legacy
+        : mode === 'extra-shell'
+          ? redirected + ' 2>&1'
+          : redirected;
+    const make = (value) => ({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: value, timeout: 5 }],
+    });
+    f.setProfile({
+      hooks: {
+        PreToolUse: [f.entry],
+        PostToolUse: [make(post)],
+        PostToolUseFailure: [make(failure)],
+      },
+    });
+    const binding = await f.admission.capture(f.directory);
+    expect(Boolean(binding)).toBe(mode === 'legacy' || mode === 'redirected');
+    if (binding) expect(f.admission.hasAfterHooks(binding)).toBe(mode === 'redirected');
+    f.admission.close();
+  },
+);

@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { EventEmitter } from 'node:events';
 import { request } from 'node:http';
@@ -130,6 +130,87 @@ it('delivers a real hook CLI decision to the selected finite receiver without ra
   expect(JSON.stringify(state)).not.toContain(directory);
 });
 
+it('links an actual post-hook CLI report to its matching decision without exporting provider content', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-after-'));
+  directories.push(directory);
+  const policy = path.join(directory, 'policy.json');
+  writeFileSync(
+    policy,
+    JSON.stringify({
+      schemaVersion: 2,
+      cwd: directory,
+      profile: 'aegis-windows-project-review-v1',
+    }),
+  );
+  receiver = await startClaudeGuardReceiver({
+    selection: {
+      executable: path.join(directory, 'claude.exe'),
+      settings: path.join(directory, 'settings.json'),
+      cwd: directory,
+    },
+    approve: async () => true,
+    verify: async () => true,
+  });
+  const grant = await claim(receiver.port, receiver.sessionId);
+  expect(await start(receiver.port, receiver.sessionId, grant.token)).toBe(204);
+  const env = {
+    ...process.env,
+    AEGIS_CLAUDE_GUARD_PORT: String(receiver.port),
+    AEGIS_CLAUDE_GUARD_SESSION: receiver.sessionId,
+    AEGIS_CLAUDE_GUARD_CAPABILITY: grant.token,
+  };
+  const request = {
+    session_id: 'PRIVATE_SESSION',
+    tool_use_id: 'PRIVATE_TOOL',
+    tool_name: 'Bash',
+    cwd: directory,
+    tool_input: { command: 'pwd', description: 'PRIVATE_DESCRIPTION' },
+  };
+  async function send(flag, body) {
+    const child = spawn(process.execPath, ['src/main/main.js', flag, policy], {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '',
+      stderr = '';
+    child.stdout.on('data', (bytes) => (stdout += bytes));
+    child.stderr.on('data', (bytes) => (stderr += bytes));
+    child.stdin.end(JSON.stringify(body));
+    const timer = setTimeout(() => child.kill(), 6000);
+    const [code] = await once(child, 'close');
+    clearTimeout(timer);
+    return { code, stdout, stderr };
+  }
+  const before = await send('--action-policy-hook', { ...request, hook_event_name: 'PreToolUse' });
+  expect(before.code).toBe(0);
+  expect(JSON.parse(before.stdout).hookSpecificOutput.permissionDecision).toBe('ask');
+  expect(before.stderr).toBe('');
+  const after = await send('--action-policy-after-hook', {
+    ...request,
+    hook_event_name: 'PostToolUse',
+    tool_response: 'PRIVATE_OUTPUT',
+  });
+  expect(after).toEqual({ code: 0, stdout: '', stderr: '' });
+  expect(receiver.snapshot().entries).toEqual([
+    { decision: 'ask', reason: 'project-review-ordinary', outcome: 'reported-completed' },
+  ]);
+  const publicState = JSON.stringify(receiver.snapshot());
+  for (const secret of [
+    'PRIVATE_SESSION',
+    'PRIVATE_TOOL',
+    'PRIVATE_DESCRIPTION',
+    'PRIVATE_OUTPUT',
+    directory,
+    grant.token,
+  ])
+    expect(publicState).not.toContain(secret);
+  expect(receiver.snapshot()).toMatchObject({
+    sender: 'unverified',
+    effect: 'unknown',
+    delivery: 'unknown',
+  });
+});
+
 it.skipIf(process.platform !== 'win32')(
   'connects explicit desktop session selection to the real hook CLI and redacted status',
   async () => {
@@ -204,8 +285,41 @@ it.skipIf(process.platform !== 'win32')(
       const secret = dialogs[1].detail.match(/Code: ([a-f0-9 ]+)/)[1].replaceAll(' ', '');
       expect(secret).toMatch(/^[a-f0-9]{24}$/);
       expect(clipboard).not.toContain(secret);
-      const address = clipboard.match(/--claude-guard-session (\d+) '([a-f0-9]{32})'/);
-      expect(address).not.toBeNull();
+      // Parse the actual generated PowerShell as data; never execute it in this fixture.
+      const parserScript = `
+        $tokens=$null; $parseErrors=$null
+        $ast=[System.Management.Automation.Language.Parser]::ParseInput($env:AEGIS_TEST_COMMAND,[ref]$tokens,[ref]$parseErrors)
+        if ($parseErrors.Count -ne 0) { exit 1 }
+        $commands=@($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Microsoft.PowerShell.Management\\Start-Process' },$true))
+        if ($commands.Count -ne 1) { exit 2 }
+        $elements=$commands[0].CommandElements
+        $params=@($elements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] } | ForEach-Object { $_.ParameterName })
+        function Arg($name) { for($i=0;$i -lt $elements.Count-1;$i++) { if($elements[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and $elements[$i].ParameterName -eq $name) { return $elements[$i+1].Value } }; throw 'missing parameter' }
+        @{ file=(Arg 'FilePath'); arguments=(Arg 'ArgumentList'); wait=($params -contains 'Wait'); terminal=($params -contains 'NoNewWindow') } | ConvertTo-Json -Compress
+      `;
+      const parsed = spawnSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-EncodedCommand',
+          Buffer.from(parserScript, 'utf16le').toString('base64'),
+        ],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, AEGIS_TEST_COMMAND: clipboard },
+        },
+      );
+      expect(parsed.status, parsed.stderr).toBe(0);
+      const launch = JSON.parse(parsed.stdout);
+      expect(launch).toMatchObject({ file: appExecutable, wait: true, terminal: true });
+      const prefix = `"${appPath}" --claude-guard-session `;
+      expect(launch.arguments.startsWith(prefix)).toBe(true);
+      const [portText, sessionId, ...unexpected] = launch.arguments.slice(prefix.length).split(' ');
+      expect(portText).toMatch(/^[1-9][0-9]{0,4}$/);
+      expect(sessionId).toMatch(/^[a-f0-9]{32}$/);
+      expect(unexpected).toEqual([]);
+      const address = [null, portText, sessionId];
       let output = '';
       let inheritedToken = '';
       broker._setDepsForTest({

@@ -1,15 +1,17 @@
 'use strict';
 
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { createOwnedHookReview } = require('./claude-hook-review');
 const { createWindowsHookIO } = require('./claude-hook-windows-io');
-const { CONTRACT } = require('./claude-hook-plan');
+const { CONTRACT_V2 } = require('./claude-hook-plan');
 const { prepareObservedRemoval } = require('./claude-hook-app-removal');
 const {
   loadProfileAssets,
   prepareProfile,
   profileCommand,
+  profileAfterCommand,
   checkProfilePolicy,
   profileReviewText,
   profileDraftEligibility,
@@ -128,6 +130,8 @@ function createClaudeHookApp(options) {
         delivery: 'unknown',
         sender: 'unverified',
         effect: 'unknown',
+        afterHooks: false,
+        afterHooksAtAdmission: false,
         entries: [],
       },
     };
@@ -309,7 +313,7 @@ function createClaudeHookApp(options) {
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
     const observedRemoval = action === 'remove' && (!ownedInstall || session?.ended);
-    let command;
+    let command, afterCommand;
     if (action === 'install') {
       const chosen = await dialog.showOpenDialog(window, {
         title: 'Select Claude Bash policy',
@@ -320,6 +324,7 @@ function createClaudeHookApp(options) {
       if (chosen.canceled || chosen.filePaths?.length !== 1) return reply('CANCELLED');
       if (!(await checkProfilePolicy(chosen.filePaths[0]))) return reply('INVALID_POLICY');
       command = profileCommand(executable, appPath, chosen.filePaths[0]);
+      afterCommand = profileAfterCommand(executable, appPath, chosen.filePaths[0]);
       if (!owned()) return { success: false, error: 'Renderer request denied' };
     }
     pendingSession = ensureSession(assets, action === 'remove');
@@ -337,7 +342,8 @@ function createClaudeHookApp(options) {
       action === 'install'
         ? await current.review.prepareInstall(owner, {
             command,
-            contract: CONTRACT,
+            afterCommand,
+            contract: CONTRACT_V2,
             timeoutSeconds: 5,
           })
         : observedRemoval
@@ -351,7 +357,25 @@ function createClaudeHookApp(options) {
       cancel();
       return { success: false, error: 'Renderer request denied' };
     }
-    if (observedRemoval ? prepared.ok !== true : !prepared.planId) return retainResult(prepared);
+    if (observedRemoval ? prepared.ok !== true : !prepared.planId) {
+      // A V2 planner refuses occupied event arrays before producing a plan. Preserve
+      // the existing unowned-profile status without treating this read as authority
+      // to write anything; successful plans still receive the separate bound check.
+      if (action === 'install' && prepared.code === 'PLAN_REFUSED') {
+        let currentTarget;
+        try {
+          currentTarget = await current.io.readTarget();
+          const beforeSha256 = createHash('sha256').update(currentTarget.bytes).digest('hex');
+          if (profileDraftEligibility({ beforeSha256 }, currentTarget.bytes) === 'configured')
+            return retainResult({ code: 'CONFIGURED_UNOWNED' });
+        } catch {
+          // Keep the original refusal when the bounded status read fails.
+        } finally {
+          currentTarget?.bytes?.fill(0);
+        }
+      }
+      return retainResult(prepared);
+    }
     if (observedRemoval) observedPlan = prepared;
     if (action === 'install') {
       const currentTarget = await current.io.readTarget();

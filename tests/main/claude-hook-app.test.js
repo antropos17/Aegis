@@ -15,6 +15,9 @@ const {
 } = require('../../scripts/qualification/claude-hook-app.cjs');
 let root, target, policy, service, state, options;
 const original = '{ "private": "PROFILE_PRIVATE_CANARY", "hooks": {"PreToolUse":[]} }\n';
+// Fresh removal cannot establish which empty event arrays predated installation.
+const observedRemoved =
+  '{ "private": "PROFILE_PRIVATE_CANARY", "hooks": {"PreToolUse":[],"PostToolUse":[],"PostToolUseFailure":[]} }\n';
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'aegis-hook-app-'));
   target = path.join(root, 'claude-hook-profile', 'settings.json');
@@ -530,7 +533,7 @@ it('requires a fresh exact native review to remove a retained installation after
     code: 'OBSERVED_REMOVED',
     canRemove: false,
   });
-  expect(await fs.readFile(target, 'utf8')).toBe(original);
+  expect(await fs.readFile(target, 'utf8')).toBe(observedRemoved);
   expect(state.dialogs[1].detail).toContain('fresh authorization');
   expect(state.writes).toBe(2);
 });
@@ -666,7 +669,7 @@ it('closes expired IO before a new targeted removal session without restoring ol
   });
   expect(await service.handle('remove', () => true)).toMatchObject({ code: 'OBSERVED_REMOVED' });
   expect(state.ioCreates).toBe(2);
-  expect(await fs.readFile(target, 'utf8')).toBe(original);
+  expect(await fs.readFile(target, 'utf8')).toBe(observedRemoved);
 });
 
 it('renews a cancelled draft after expiry only for a fresh review and confirmation', async () => {

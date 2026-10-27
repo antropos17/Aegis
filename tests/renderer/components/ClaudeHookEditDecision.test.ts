@@ -137,7 +137,7 @@ it('shows an actual patch-review hook decision without claiming its effect or ex
     });
     expect(
       await screen.findByText(
-        'ASK: Patch contents, written paths and executable are unverified; provider confirmation requested · Effect unknown',
+        'ASK: Patch contents, written paths and executable are unverified; provider confirmation requested · Provider result unknown · Effect unknown',
       ),
     ).toBeVisible();
     expect(

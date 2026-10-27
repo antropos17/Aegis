@@ -29,7 +29,8 @@ const REASONS = Object.freeze({
 });
 const CLAIM = /^\{"code":"([0-9]{6})","nonce":"([a-f0-9]{32})"\}$/;
 const DECISION =
-  /^\{"decision":"(allow|ask|deny)","reason":"(generic|project-review-ordinary|project-review-script|project-review-edit|project-deny-sensitive|project-deny-destructive|project-deny-unsupported|adapter-failure)"\}$/;
+  /^\{"decision":"(allow|ask|deny)","reason":"(generic|project-review-ordinary|project-review-script|project-review-edit|project-deny-sensitive|project-deny-destructive|project-deny-unsupported|adapter-failure)"(?:,"attempt":"([a-f0-9]{64})")?\}$/;
+const OUTCOME = /^\{"attempt":"([a-f0-9]{64})","outcome":"(reported-completed|reported-failed)"\}$/;
 
 function validSelection(value) {
   if (!value || typeof value !== 'object') return false;
@@ -83,6 +84,9 @@ async function startClaudeGuardReceiver({
   const expected = Buffer.from(`Bearer ${token.toString('hex')}`);
   const sockets = new Set();
   const records = [];
+  // Opaque keyed attempt IDs stay private to this bounded in-memory session.
+  // Null tombstones prevent a duplicate or out-of-order callback being relinked.
+  const attempts = new Map();
   let status = 'waiting',
     loss = false,
     closed = false,
@@ -133,6 +137,7 @@ async function startClaudeGuardReceiver({
     token.fill(0);
     launchKey.fill(0);
     expected.fill(0);
+    attempts.clear();
     for (const socket of sockets) socket.destroy();
     closing = new Promise((resolve) => server.close(() => resolve(snapshot())));
     return closing;
@@ -175,11 +180,12 @@ async function startClaudeGuardReceiver({
     }
     const claim = req.url === `/claim/${sessionId}`;
     const decision = req.url === `/decision/${sessionId}`;
+    const outcome = req.url === `/outcome/${sessionId}`;
     const start = req.url === `/start/${sessionId}`;
     const ending = req.url === `/finish/${sessionId}`;
     if (
       req.method !== 'POST' ||
-      (!claim && !decision && !start && !ending) ||
+      (!claim && !decision && !outcome && !start && !ending) ||
       req.headers.host !== `127.0.0.1:${port}` ||
       req.headers['content-type'] !== 'application/json' ||
       Object.hasOwn(req.headers, 'origin') ||
@@ -196,7 +202,7 @@ async function startClaudeGuardReceiver({
       if (startReserved) return fail(res, 409);
       startReserved = true;
     }
-    if (decision && !launchStarted) return fail(res, 409);
+    if ((decision || outcome) && !launchStarted) return fail(res, 409);
 
     let ended = false,
       responseClosed = false,
@@ -339,12 +345,40 @@ async function startClaudeGuardReceiver({
           res.end();
           return;
         }
-        const match = DECISION.exec(text);
-        if (!match || !REASONS[match[2]].includes(match[1])) return fail(res, 422);
-        records.push({ decision: match[1], reason: match[2] });
-        if (records.length > LIMITS.records) {
-          records.shift();
-          loss = true;
+        if (outcome) {
+          if (text === '{"outcome":"loss"}') {
+            loss = true;
+          } else {
+            const match = OUTCOME.exec(text);
+            if (!match) return fail(res, 422);
+            const state = attempts.get(match[1]);
+            if (!state || state.done) {
+              if (state?.record) delete state.record.outcome;
+              attempts.set(match[1], null);
+              return fail(res, 422);
+            }
+            state.record.outcome = match[2];
+            state.done = true;
+          }
+        } else {
+          const match = DECISION.exec(text);
+          if (!match || !REASONS[match[2]].includes(match[1])) return fail(res, 422);
+          const record = { decision: match[1], reason: match[2] };
+          records.push(record);
+          if (match[3]) {
+            if (attempts.has(match[3])) {
+              const previous = attempts.get(match[3]);
+              if (previous?.record) delete previous.record.outcome;
+              attempts.set(match[3], null);
+              loss = true;
+            } else attempts.set(match[3], { record, done: false });
+          }
+          if (records.length > LIMITS.records) {
+            const removed = records.shift();
+            for (const [key, state] of attempts)
+              if (state?.record === removed) attempts.set(key, null);
+            loss = true;
+          }
         }
         res.writeHead(204, { Connection: 'close' });
         res.end();

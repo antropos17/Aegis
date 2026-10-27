@@ -41,6 +41,7 @@ Options:
   --action-exec-appcontainer-import-confirm <policy.json> <request.json> <input-file>  Import one 64 KiB snapshot as input.bin before a confirmed isolated launch
   --action-appcontainer-workspaces  Privately list AEGIS-tracked AppContainer workspaces and current identity status
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
+  --action-policy-after-hook <policy.json>  Observe a reported Claude Bash result without changing it
   --claude-guard-session <port> <session-id>  Start one explicitly reviewed Claude session
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
@@ -115,6 +116,8 @@ async function handleCLI(argv) {
   // A misplaced hook flag is still a hook invocation: emit only its fixed JSON deny.
   if (args.includes('--action-policy-hook'))
     return require('./action-policy-hook').handleActionPolicyHook(args, write);
+  if (args.includes('--action-policy-after-hook'))
+    return require('./action-policy-hook').handleActionPolicyAfterHook(args);
   if (args.includes('--gemini-beforetool-hook'))
     return require('./gemini-beforetool-hook').handleGeminiBeforeToolHook(args, write);
   if (flag === '--claude-guard-session')

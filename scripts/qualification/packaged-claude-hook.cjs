@@ -9,11 +9,13 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
+const http = require('node:http');
 const { extractFile } = require('@electron/asar');
 const { boundedChild } = require('./claude-hook-app.cjs');
-const { profileCommand } = require('../../src/main/claude-hook-app-profile');
+const { profileCommand, profileAfterCommand } = require('../../src/main/claude-hook-app-profile');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { createWindowsHookIO } = require('../../src/main/claude-hook-windows-io');
+const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
 
 const root = path.resolve(__dirname, '../..');
 const [exeArg, bashArg, outputArg] = process.argv.slice(2);
@@ -37,17 +39,32 @@ async function digest(file) {
   return hash.digest('hex');
 }
 
-/** Compare the profile sources in an actual archive against the selected checkout.
+/** Compare the selected hook and Guard source closure in an actual archive.
  * @param {string} archive Candidate app.asar. @param {string} sourceRoot Checkout root.
  * @returns {Promise<void>} Resolves only when every selected source matches.
  * @since v0.21.0 */
 async function assertArchivedProfileSourcesMatch(archive, sourceRoot) {
   const sourceFiles = (await fs.readdir(path.join(sourceRoot, 'src/main')))
-    .filter((name) => /^claude-hook.*\.js$/.test(name))
-    .concat('action-policy.js');
-  for (const name of sourceFiles) {
+    .filter((name) => /^claude-(?:hook|guard).*\.js$/.test(name))
+    .concat(
+      'action-policy.js',
+      'action-policy-hook.js',
+      'command-hook-input.js',
+      'claude-guard-report.js',
+      'claude-guard-receiver.js',
+      'claude-guard-admission.js',
+      'claude-guard-launch.js',
+      'claude-guard-broker.js',
+      'owned-gui-profile.js',
+      'cli.js',
+      'main.js',
+    );
+  for (const name of new Set(sourceFiles)) {
     const source = path.join('src', 'main', name);
-    assert.deepEqual(extractFile(archive, source), await fs.readFile(path.join(sourceRoot, source)));
+    assert.deepEqual(
+      extractFile(archive, source),
+      await fs.readFile(path.join(sourceRoot, source)),
+    );
   }
 }
 
@@ -103,6 +120,92 @@ async function child(executable, args, options) {
   return { result, evidence };
 }
 
+function post(receiver, route, body, token, timeoutMs = 2000) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const chunks = [];
+    let bytes = 0,
+      response,
+      settled = false;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        response?.destroy();
+        req.destroy();
+      }
+      for (const chunk of chunks) chunk.fill(0);
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const timer = setTimeout(() => finish(Error('Observer request deadline exceeded')), timeoutMs);
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: receiver.port,
+        method: 'POST',
+        path: `/${route}/${receiver.sessionId}`,
+        agent: false,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(payload),
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+      },
+      (res) => {
+        response = res;
+        res.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > 8192) return finish(Error('Observer response exceeded limit'));
+          chunks.push(chunk);
+        });
+        res.on('end', () => {
+          const combined = Buffer.concat(chunks, bytes);
+          const result = { code: res.statusCode, body: combined.toString() };
+          combined.fill(0);
+          finish(null, result);
+        });
+        res.on('error', () => finish(Error('Observer response failed')));
+      },
+    );
+    req.on('error', () => finish(Error('Observer request failed')));
+    req.end(payload);
+  });
+}
+
+function failureSummary(stage) {
+  return {
+    complete: false,
+    failureStage: stage,
+    failure: 'Qualification failed; see bounded stage and case evidence.',
+  };
+}
+
+function classifyOutput(bytes) {
+  if (bytes.length === 0) return 'empty';
+  if (bytes.length === 1 && bytes[0] === 10) return 'lf';
+  if (bytes.length === 2 && bytes[0] === 13 && bytes[1] === 10) return 'crlf';
+  return bytes.every((value) => value === 32 || (value >= 9 && value <= 13))
+    ? 'ascii-whitespace'
+    : 'other';
+}
+
+function fixtureEnvironment(source) {
+  const env = { ...source };
+  const excluded = new Set([
+    'ELECTRON_RUN_AS_NODE',
+    'NODE_OPTIONS',
+    'BASH_ENV',
+    'ENV',
+    'AEGIS_CLAUDE_GUARD_PORT',
+    'AEGIS_CLAUDE_GUARD_SESSION',
+    'AEGIS_CLAUDE_GUARD_CAPABILITY',
+  ]);
+  for (const name of Object.keys(env)) if (excluded.has(name.toUpperCase())) delete env[name];
+  return env;
+}
+
 async function run() {
   assert.equal(process.platform, 'win32');
   assert.equal(process.argv.length, 5);
@@ -124,11 +227,7 @@ async function run() {
   await unlinkedDirectory(path.dirname(output));
   await fs.mkdir(output); // Never adopt an existing directory or profile.
   outputCreated = true;
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;
-  delete env.NODE_OPTIONS;
-  delete env.BASH_ENV;
-  delete env.ENV;
+  const env = fixtureEnvironment(process.env);
   const hashes = async () => ({
     exe: await digest(exe),
     asar: await digest(asar),
@@ -221,9 +320,11 @@ async function run() {
     assert.equal((await app.handle('status', () => true)).available, true);
     assert.equal(sessions.length, 0);
     assert.equal((await app.handle('install', () => true)).code, 'INSTALLED');
-    const selected = JSON.parse(await fs.readFile(settings, 'utf8')).hooks.PreToolUse[0].hooks[0]
-      .command;
+    const hooks = JSON.parse(await fs.readFile(settings, 'utf8')).hooks;
+    const selected = hooks.PreToolUse[0].hooks[0].command;
     assert.equal(selected, command);
+    for (const event of ['PostToolUse', 'PostToolUseFailure'])
+      assert.equal(hooks[event][0].hooks[0].command, profileAfterCommand(exe, asar, policy));
     receipt.scriptedSourceProfileInstall = true;
     const settingsHash = await digest(settings);
     const request = (input) =>
@@ -276,6 +377,120 @@ async function run() {
         value.result.stdout.fill(0);
       }
     }
+    stage = 'packaged-after-observation';
+    const observer = await startClaudeGuardReceiver({
+      selection: { executable: exe, settings, cwd: output },
+      approve: async () => true,
+      verify: async () => true,
+    });
+    try {
+      const claim = await post(observer, 'claim', { code: '123456', nonce: 'c'.repeat(32) });
+      assert.equal(claim.code, 200);
+      const token = JSON.parse(claim.body).token;
+      assert.equal((await post(observer, 'start', {}, token)).code, 204);
+      const reportEnv = {
+        ...env,
+        AEGIS_CLAUDE_GUARD_PORT: String(observer.port),
+        AEGIS_CLAUDE_GUARD_SESSION: observer.sessionId,
+        AEGIS_CLAUDE_GUARD_CAPABILITY: token,
+      };
+      const before = JSON.parse(request(allowed));
+      for (const [event, outcome] of [
+        ['PostToolUse', 'reported-completed'],
+        ['PostToolUseFailure', 'reported-failed'],
+      ]) {
+        before.tool_use_id = `fixture-${event}`;
+        if (event === 'PostToolUse') {
+          stage = 'PostToolUse-node-control';
+          const nodeControl = await child(
+            process.execPath,
+            [path.join(root, 'src/main/main.js'), '--action-policy-after-hook', policy],
+            {
+              cwd: output,
+              env,
+              deadlineMs: 6000,
+              input: JSON.stringify({ ...before, hook_event_name: event }),
+            },
+          );
+          receipt.cases.push({
+            name: stage,
+            ...nodeControl.evidence,
+            stdoutClass: classifyOutput(nodeControl.result.stdout),
+          });
+          nodeControl.result.stdout.fill(0);
+          assert.equal(nodeControl.result.code, 0);
+          stage = 'PostToolUse-direct-control';
+          const control = await child(exe, [asar, '--action-policy-after-hook', policy], {
+            cwd: output,
+            env,
+            deadlineMs: 6000,
+            input: JSON.stringify({ ...before, hook_event_name: event }),
+          });
+          receipt.cases.push({
+            name: stage,
+            ...control.evidence,
+            stdoutClass: classifyOutput(control.result.stdout),
+          });
+          control.result.stdout.fill(0);
+          assert.equal(control.result.code, 0);
+        }
+        stage = `${event}-pre`;
+        const pre = await child(bash, ['--noprofile', '--norc', '-c', selected], {
+          cwd: output,
+          env: reportEnv,
+          deadlineMs: 6000,
+          input: JSON.stringify(before),
+        });
+        receipt.cases.push({ name: stage, ...pre.evidence });
+        try {
+          assert.equal(pre.result.code, 0);
+          assert.equal(
+            JSON.parse(pre.result.stdout.toString()).hookSpecificOutput.permissionDecision,
+            'allow',
+          );
+        } finally {
+          pre.result.stdout.fill(0);
+        }
+        stage = `${event}-after`;
+        const after = await child(
+          bash,
+          ['--noprofile', '--norc', '-c', hooks[event][0].hooks[0].command],
+          {
+            cwd: output,
+            env: reportEnv,
+            deadlineMs: 6000,
+            input: JSON.stringify({
+              ...before,
+              hook_event_name: event,
+              tool_response: 'PRIVATE_OUTPUT',
+              error: 'PRIVATE_ERROR',
+            }),
+          },
+        );
+        receipt.cases.push({
+          name: stage,
+          ...after.evidence,
+          stdoutClass: classifyOutput(after.result.stdout),
+        });
+        try {
+          assert.equal(after.result.code, 0);
+          assert.equal(after.result.stdoutBytes, 0);
+          assert.equal(after.result.stderrBytes, 0);
+        } finally {
+          after.result.stdout.fill(0);
+        }
+        stage = `${event}-correlation`;
+        assert.equal(observer.snapshot().entries.at(-1).outcome, outcome);
+      }
+      const state = observer.snapshot();
+      assert.equal(state.sender, 'unverified');
+      assert.equal(state.effect, 'unknown');
+      assert(!JSON.stringify(state).includes('PRIVATE'));
+      assert(!JSON.stringify(state).includes(token));
+      receipt.packagedAfterObservation = true;
+    } finally {
+      await observer.close();
+    }
     stage = 'packaged-assets-source-profile-removal';
     approve = false;
     assert.equal((await app.handle('remove', () => true)).code, 'CANCELLED');
@@ -323,12 +538,16 @@ async function run() {
   console.log('PASS: packaged hook and assets; source profile used scripted confirmation.');
 }
 
-module.exports = { assertArchivedProfileSourcesMatch };
+module.exports = {
+  assertArchivedProfileSourcesMatch,
+  post,
+  failureSummary,
+  classifyOutput,
+  fixtureEnvironment,
+};
 if (require.main === module)
-  run().catch(async (error) => {
-    receipt.complete = false;
-    receipt.failureStage = stage;
-    receipt.failure = String(error.message).slice(0, 300);
+  run().catch(async () => {
+    Object.assign(receipt, failureSummary(stage));
     if (outputCreated)
       await fs
         .writeFile(path.join(output, 'failure.json'), JSON.stringify(receipt, null, 2) + '\n', {

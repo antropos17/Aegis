@@ -205,6 +205,12 @@ describe('Observatory localization', () => {
       'Session refused',
       'Session expired',
       'Reporting session ended',
+      'Claimed provider result: tool completed',
+      'Claimed provider result: tool failed',
+      'Provider result unknown',
+      'After-result hooks were verified in the selected profile; delivery remains unknown.',
+      'After-result hooks are not currently verified; delivery remains unknown.',
+      'After-result hooks were verified at admission; the profile is not currently verified.',
     ];
     const pt = translator('pt');
     for (const label of labels) {

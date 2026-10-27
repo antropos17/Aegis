@@ -372,4 +372,92 @@ describe('finite Claude Guard decision observer', () => {
       post(receiver, 'decision', { decision: 'deny', reason: 'generic' }, auth),
     ).rejects.toThrow();
   });
+
+  it('links interleaved reported outcomes only to matching opaque attempts', async () => {
+    const receiver = await start();
+    const { token } = await claim(receiver);
+    const auth = { Authorization: `Bearer ${token}` };
+    const first = '1'.repeat(64),
+      second = '2'.repeat(64);
+    expect(
+      (
+        await post(
+          receiver,
+          'decision',
+          { decision: 'ask', reason: 'generic', attempt: first },
+          auth,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await post(
+          receiver,
+          'decision',
+          { decision: 'deny', reason: 'generic', attempt: second },
+          auth,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (await post(receiver, 'outcome', { attempt: second, outcome: 'reported-failed' }, auth))
+        .status,
+    ).toBe(204);
+    expect(
+      (await post(receiver, 'outcome', { attempt: first, outcome: 'reported-completed' }, auth))
+        .status,
+    ).toBe(204);
+    const snapshot = receiver.snapshot();
+    expect(snapshot.entries).toEqual([
+      { decision: 'ask', reason: 'generic', outcome: 'reported-completed' },
+      { decision: 'deny', reason: 'generic', outcome: 'reported-failed' },
+    ]);
+    expect(snapshot.effect).toBe('unknown');
+    expect(JSON.stringify(snapshot)).not.toContain(first);
+    expect(JSON.stringify(snapshot)).not.toContain(second);
+  });
+
+  it('invalidates duplicate and out-of-order attempts instead of guessing a result', async () => {
+    const receiver = await start();
+    const { token } = await claim(receiver);
+    const auth = { Authorization: `Bearer ${token}` };
+    const early = '3'.repeat(64),
+      duplicate = '4'.repeat(64);
+    expect(
+      (await post(receiver, 'outcome', { attempt: early, outcome: 'reported-completed' }, auth))
+        .status,
+    ).toBe(422);
+    await post(receiver, 'decision', { decision: 'ask', reason: 'generic', attempt: early }, auth);
+    await post(
+      receiver,
+      'decision',
+      { decision: 'ask', reason: 'generic', attempt: duplicate },
+      auth,
+    );
+    await post(receiver, 'outcome', { attempt: duplicate, outcome: 'reported-completed' }, auth);
+    expect(
+      (await post(receiver, 'outcome', { attempt: duplicate, outcome: 'reported-failed' }, auth))
+        .status,
+    ).toBe(422);
+    expect(receiver.snapshot()).toMatchObject({
+      lossDetected: true,
+      entries: [
+        { decision: 'ask', reason: 'generic' },
+        { decision: 'ask', reason: 'generic' },
+      ],
+    });
+  });
+
+  it('marks malformed or oversized after-input observation as loss without inventing an outcome', async () => {
+    const receiver = await start();
+    const { token } = await claim(receiver);
+    const auth = { Authorization: `Bearer ${token}` };
+    const attempt = '5'.repeat(64);
+    await post(receiver, 'decision', { decision: 'ask', reason: 'generic', attempt }, auth);
+    expect((await post(receiver, 'outcome', { outcome: 'loss' }, auth)).status).toBe(204);
+    expect(receiver.snapshot()).toMatchObject({
+      lossDetected: true,
+      entries: [{ decision: 'ask', reason: 'generic' }],
+    });
+  });
 });

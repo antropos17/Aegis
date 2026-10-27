@@ -48,6 +48,7 @@ let testDeps = null;
 function handleActionPolicyHook(args, write) {
   const runtime = testDeps?.runtime || process;
   let reportable;
+  let attempt;
   const finish = async (code) => {
     if (reportable) {
       try {
@@ -80,9 +81,14 @@ function handleActionPolicyHook(args, write) {
       return Promise.resolve(2);
     }
   }
-  const evaluate =
-    testDeps?.evaluate ||
-    ((policyPath, raw) => require('./action-policy').evaluateActionPolicy(policyPath, raw));
+  const evaluate = (policyPath, raw) => {
+    attempt = require('./claude-guard-report').correlateClaudeGuardAttempt(
+      raw,
+      ['PreToolUse'],
+      testDeps?.env || process.env,
+    );
+    return (testDeps?.evaluate || require('./action-policy').evaluateActionPolicy)(policyPath, raw);
+  };
   return runCommandHookInput({
     input,
     args,
@@ -115,9 +121,82 @@ function handleActionPolicyHook(args, write) {
     const reason = Object.entries(PROJECT_REASONS).find(
       ([, value]) => value[0] === decision && value[1] === message,
     )?.[0];
-    reportable = { decision, reason: code === 2 ? 'adapter-failure' : reason || 'generic' };
+    reportable = {
+      decision,
+      reason: code === 2 ? 'adapter-failure' : reason || 'generic',
+      ...(attempt ? { attempt } : {}),
+    };
     return code;
   }
+}
+
+/** Consume a bounded provider after-event without changing the tool result.
+ * A malformed callback attempts to report loss, never an inferred outcome.
+ * @param {string[]} args Fixed after-hook flag and selected policy path.
+ * @returns {Promise<number>} Always zero after bounded observation. @since v0.21.0 */
+function handleActionPolicyAfterHook(args) {
+  const runtime = testDeps?.runtime || process;
+  let input;
+  try {
+    input =
+      testDeps?.input ||
+      (runtime.platform === 'win32' && runtime.versions.electron
+        ? (testDeps?.createSocket || ((options) => new (require('node:net').Socket)(options)))({
+            fd: 0,
+            readable: true,
+            writable: false,
+          })
+        : runtime.stdin);
+  } catch {
+    try {
+      return Promise.resolve(
+        (testDeps?.reportOutcome || require('./claude-guard-report').reportClaudeGuardOutcome)({
+          outcome: 'loss',
+        }),
+      )
+        .catch(() => {})
+        .then(() => 0);
+    } catch {
+      return Promise.resolve(0);
+    }
+  }
+  let event = { outcome: 'loss' };
+  return runCommandHookInput({
+    input,
+    args,
+    flag: '--action-policy-after-hook',
+    limits: LIMITS,
+    evaluate(_policy, raw) {
+      const input = require('./action-policy').decodeActionRequest(raw, [
+        'PostToolUse',
+        'PostToolUseFailure',
+      ]);
+      const attempt = require('./claude-guard-report').correlateClaudeGuardAttempt(
+        raw,
+        [input.hook_event_name],
+        testDeps?.env || process.env,
+      );
+      if (!attempt) return null;
+      return {
+        attempt,
+        outcome: input.hook_event_name === 'PostToolUse' ? 'reported-completed' : 'reported-failed',
+      };
+    },
+    normalize: (result) => result,
+    respond(result) {
+      if (result) event = result;
+      return 0;
+    },
+  }).then(async () => {
+    try {
+      await (testDeps?.reportOutcome || require('./claude-guard-report').reportClaudeGuardOutcome)(
+        event,
+      );
+    } catch {
+      // Observation cannot change an already completed provider action.
+    }
+    return 0;
+  });
 }
 
 /**
@@ -139,4 +218,10 @@ function _resetForTest() {
   testDeps = null;
 }
 
-module.exports = { handleActionPolicyHook, LIMITS, _setDepsForTest, _resetForTest };
+module.exports = {
+  handleActionPolicyHook,
+  handleActionPolicyAfterHook,
+  LIMITS,
+  _setDepsForTest,
+  _resetForTest,
+};
