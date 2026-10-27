@@ -62,7 +62,10 @@ beforeEach(async () => {
       return {
         contract: IO_CONTRACT,
         async readTarget() {
-          return { identity: 'owned-fixture', bytes: await fs.readFile(target) };
+          if (state.readFailure) throw Error('fixture read failed');
+          if (state.beforeRead) await state.beforeRead();
+          if (ended) throw Error('fixture IO closed');
+          return { identity: state.identity || 'owned-fixture', bytes: await fs.readFile(target) };
         },
         async retainPrivate(value) {
           const ref = {};
@@ -184,6 +187,109 @@ it('installs and removes the app-owned profile through private native review wit
     ])
       expect(serialized).not.toContain(privateValue);
   }
+});
+
+it.each(['deleted', 'changed bytes', 'changed identity', 'read failure'])(
+  'fails closed when an installed profile has %s',
+  async (kind) => {
+    expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+    const before = await fs.readFile(target);
+    if (kind === 'deleted') await fs.unlink(target);
+    if (kind === 'changed bytes') await fs.appendFile(target, ' ');
+    if (kind === 'changed identity') state.identity = 'replacement-fixture';
+    if (kind === 'read failure') state.readFailure = true;
+    const expected =
+      kind === 'changed bytes' || kind === 'changed identity'
+        ? 'TARGET_CHANGED'
+        : 'TARGET_READ_FAILED';
+    expect(await service.handle('status', () => true)).toMatchObject({
+      code: expected,
+      presence: 'Unknown',
+      canInstall: false,
+      canRemove: false,
+      canReviewExisting: false,
+    });
+    expect(await service.handle('install', () => true)).toMatchObject({
+      code: 'RETAINED_UNKNOWN',
+      canInstall: false,
+    });
+    expect(await service.handle('remove', () => true)).toMatchObject({
+      code: 'RETAINED_UNKNOWN',
+      canRemove: false,
+    });
+    expect(state.writes).toBe(1);
+    expect(state.backups).toHaveLength(1);
+    expect(state.closes).toBe(1);
+    if (kind === 'changed identity' || kind === 'read failure')
+      expect(await fs.readFile(target)).toEqual(before);
+  },
+);
+
+it('keeps mutations blocked if release is unconfirmed after reconciliation fails', async () => {
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  state.readFailure = true;
+  state.releaseUnknown = true;
+  expect(await service.handle('status', () => true)).toMatchObject({
+    code: 'TARGET_READ_FAILED',
+    presence: 'Unknown',
+    canInstall: false,
+    canRemove: false,
+  });
+  expect(await service.handle('install', () => true)).toMatchObject({
+    code: 'RETAINED_UNKNOWN',
+    canInstall: false,
+  });
+  expect(state.writes).toBe(1);
+  expect(state.backups).toHaveLength(1);
+});
+
+it('fails closed if the session expires during a guarded reconciliation read', async () => {
+  vi.useFakeTimers();
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  let entered, release;
+  const reading = new Promise((resolve) => {
+    entered = resolve;
+  });
+  state.beforeRead = async () => {
+    entered();
+    await new Promise((resolve) => {
+      release = resolve;
+    });
+  };
+  const status = service.handle('status', () => true);
+  await reading;
+  await vi.advanceTimersByTimeAsync(180000);
+  release();
+  expect(await status).toMatchObject({
+    code: 'TARGET_READ_FAILED',
+    presence: 'Unknown',
+    canInstall: false,
+    canRemove: false,
+  });
+  expect(state.writes).toBe(1);
+  expect(state.backups).toHaveLength(1);
+});
+
+it('does not trust a matching read when the service closes during reconciliation', async () => {
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  let entered, release;
+  const reading = new Promise((resolve) => {
+    entered = resolve;
+  });
+  state.beforeRead = async () => {
+    entered();
+    await new Promise((resolve) => {
+      release = resolve;
+    });
+  };
+  const status = service.handle('status', () => true);
+  await reading;
+  const closing = service.close();
+  release();
+  expect(await status).toEqual({ success: false, error: 'Renderer request denied' });
+  await closing;
+  expect(state.writes).toBe(1);
+  expect(state.backups).toHaveLength(1);
 });
 
 it('does not write or retain a backup when native confirmation is cancelled', async () => {
@@ -452,6 +558,28 @@ it('closes expired IO before a new targeted removal session without restoring ol
   expect(state.ioCreates).toBe(2);
   expect(await fs.readFile(target, 'utf8')).toBe(original);
 });
+
+it.each(['deleted', 'changed'])(
+  'reports Unknown and blocks installation after expiry and %s',
+  async (kind) => {
+    vi.useFakeTimers();
+    expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+    await vi.advanceTimersByTimeAsync(180000);
+    if (kind === 'deleted') await fs.unlink(target);
+    else await fs.appendFile(target, ' ');
+    expect(await service.handle('status', () => true)).toMatchObject({
+      presence: 'Unknown',
+      canInstall: false,
+      canRemove: false,
+    });
+    expect(await service.handle('install', () => true)).toMatchObject({
+      code: 'SESSION_ENDED',
+      canInstall: false,
+    });
+    expect(state.writes).toBe(1);
+    expect(state.backups).toHaveLength(1);
+  },
+);
 
 it('status and missing-target removal create no draft or backup directories', async () => {
   expect(path.dirname(path.resolve(path.dirname(target)))).toBe(path.resolve(root));

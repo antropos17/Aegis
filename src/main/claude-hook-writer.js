@@ -1,7 +1,7 @@
 // @ts-check
 'use strict';
 
-const { createHash } = require('node:crypto');
+const { hash, snapshot, edited } = require('./claude-hook-json');
 const { planInstall, planRemoval } = require('./claude-hook-plan');
 
 /** @typedef {{ identity: string, bytes: Buffer }} Snapshot */
@@ -12,43 +12,15 @@ const { planInstall, planRemoval } = require('./claude-hook-plan');
 /** @typedef {{ startByte: number, endByte: number, replacementUtf8: string }} Edit */
 /** @typedef {{ beforeSha256: string, afterSha256: string, edits: Edit[], manifest?: string, manifestSha256?: string }} Plan */
 /** @typedef {{ kind: 'install'|'removal', snapshot: Snapshot, after: Buffer, plan: Plan, manifest: string }} Transaction */
-/** @typedef {{ identity: string, retained: Retained }} Ownership */
+/** @typedef {{ identity: string, afterSha256: string, retained: Retained }} Ownership */
 const IO_CONTRACT = 'trusted-owned-target-compare-write-v1';
 const MAX_BACKUPS = 8;
-/** @param {string|Buffer} bytes */
-const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 /** @param {boolean} ok @param {string} code @param {string} [presence] */
 const status = (ok, code, presence = 'Unknown') => Object.freeze({ ok, code, presence });
-/** @param {Snapshot} value @returns {Snapshot} */
-function snapshot(value) {
-  if (
-    !value ||
-    typeof value.identity !== 'string' ||
-    !value.identity.length ||
-    value.identity.length > 256 ||
-    !Buffer.isBuffer(value.bytes) ||
-    value.bytes.length > 262144
-  )
-    throw Error();
-  return { identity: value.identity, bytes: Buffer.from(value.bytes) };
-}
 /** @param {object} value */
 function freeze(value) {
   for (const child of Object.values(value)) if (child && typeof child === 'object') freeze(child);
   return Object.freeze(value);
-}
-/** @param {Buffer} before @param {Plan} plan */
-function edited(before, plan) {
-  let after = Buffer.from(before);
-  for (const edit of [...plan.edits].reverse()) {
-    after = Buffer.concat([
-      after.subarray(0, edit.startByte),
-      Buffer.from(edit.replacementUtf8),
-      after.subarray(edit.endByte),
-    ]);
-  }
-  if (hash(before) !== plan.beforeSha256 || hash(after) !== plan.afterSha256) throw Error();
-  return after;
 }
 
 /**
@@ -275,12 +247,37 @@ function createOwnedHookWriter(options) {
         uncertain = true;
         return finish(false, 'READBACK_FAILED');
       }
-      owned = tx.kind === 'install' ? { identity: current.identity, retained: record } : null;
+      owned =
+        tx.kind === 'install'
+          ? { identity: current.identity, afterSha256: hash(tx.after), retained: record }
+          : null;
       return finish(
         true,
         tx.kind === 'install' ? 'INSTALLED' : 'REMOVED',
         tx.kind === 'install' ? 'Configured' : 'Unknown',
       );
+    });
+  }
+  /** Compare the current guarded target with this session's verified installation.
+   * @returns {Promise<ReturnType<typeof status>>} Sanitized match, change or read failure. @since v0.21.0 */
+  async function reconcile() {
+    return exclusive(async () => {
+      if (!owned) return status(false, 'NO_OWNED_INSTALL');
+      try {
+        const raw = await io.readTarget();
+        let current;
+        try {
+          current = snapshot(raw);
+          return current.identity === owned.identity && hash(current.bytes) === owned.afterSha256
+            ? status(true, 'OWNED_MATCH')
+            : status(false, 'TARGET_CHANGED');
+        } finally {
+          current?.bytes.fill(0);
+          if (Buffer.isBuffer(raw?.bytes)) raw.bytes.fill(0);
+        }
+      } catch {
+        return status(false, 'TARGET_READ_FAILED');
+      }
     });
   }
   /**
@@ -291,7 +288,7 @@ function createOwnedHookWriter(options) {
   function readStatus() {
     return { ...last };
   }
-  return { ok: true, prepareInstall, prepareRemoval, apply, status: readStatus };
+  return { ok: true, prepareInstall, prepareRemoval, apply, reconcile, status: readStatus };
 }
 
 module.exports = { IO_CONTRACT, createOwnedHookWriter };
