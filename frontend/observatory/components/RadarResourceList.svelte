@@ -56,7 +56,9 @@
   </div>
   {#each visible as resource (resource.key)}
     {@const actors = [
-      ...new Set(resource.relations.map((relation) => relation.actor || 'Agent not identified')),
+      ...new Set(
+        resource.relations.map((relation) => relation.actor || $t('Agent not identified')),
+      ),
     ]}
     <button
       class="resource-choice"
@@ -68,7 +70,7 @@
         ><ResourceIcon row={resource.rows[0]} /><strong>{resource.label}</strong><span
           class="resource-level"
           class:review={resource.level === 'review'}
-          >{resource.sensitive ? $t('Sensitive') : labels[resource.level]}</span
+          >{resource.sensitive ? $t('Sensitive') : $t(labels[resource.level])}</span
         ></span
       >
       {#if layer === 'files'}<span class="resource-path">{resource.address}</span>{/if}

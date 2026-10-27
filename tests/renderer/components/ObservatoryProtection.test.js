@@ -147,6 +147,20 @@ it('returns focus to the activity region when the selected row is filtered away'
   expect(screen.getByRole('region', { name: 'Agent activity' })).toHaveFocus();
 });
 
+it('does not describe review activity as absent when a search hides it', async () => {
+  render(ProtectionOverview, props());
+  await fireEvent.click(screen.getByRole('button', { name: 'Needs review' }));
+  expect(screen.getByRole('button', { name: /Needs your review/ })).toHaveTextContent(
+    '1 activity groups',
+  );
+  const search = screen.getByRole('searchbox', { name: 'Search agent activity' });
+  await fireEvent.input(search, { target: { value: 'no matching observation' } });
+  expect(screen.getByText('No records match this search.')).toBeVisible();
+  expect(screen.queryByText(/No retained activity has these review flags/)).toBeNull();
+  await fireEvent.input(search, { target: { value: '' } });
+  expect(screen.getByRole('button', { name: /Codex.*Held a file open/ })).toBeVisible();
+});
+
 it('reviews only retained file rows for this mount and reopens an unchanged-looking new delivery', async () => {
   const input = props();
   const first = input.telemetry.events[0];

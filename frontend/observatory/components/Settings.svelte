@@ -129,7 +129,7 @@
       baseline = JSON.stringify(saved);
     }
   });
-  async function load() {
+  async function load(importing = false) {
     const settings = record(await invoke(host, 'getSettings'));
     if (!alive) return;
     // The provider key never enters the generic settings form or history.
@@ -139,7 +139,7 @@
     // The renderer uses a fixed 100% layout without silently rewriting saved preferences.
     form.uiScale = 1;
     const theme = localStorage.getItem('aegis-theme');
-    if (theme) form.darkMode = theme.startsWith('dark');
+    if (theme && !importing) form.darkMode = theme.startsWith('dark');
     patterns = Array.isArray(safe.customSensitivePatterns)
       ? safe.customSensitivePatterns.join('\n')
       : '';
@@ -230,11 +230,24 @@
     mutation = 'replace';
     try {
       if (importing) confirmed(await invoke(host, 'importConfig'));
-      const saved = await load();
+      const saved = await load(importing);
       if (!alive || !saved) return;
+      let themePersisted = true;
+      if (importing) {
+        try {
+          localStorage.setItem(
+            'aegis-theme',
+            (form.darkMode ? 'dark' : 'light') + (contrast ? '-hc' : ''),
+          );
+        } catch {
+          themePersisted = false;
+        }
+      }
       appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
       document.documentElement.dataset.motion = motion ? 'full' : 'reduce';
-      refreshWarning = '';
+      refreshWarning = themePersisted
+        ? ''
+        : 'Settings imported. Theme could not be saved on this device.';
       if (importing) publishSettings(saved);
     } finally {
       if (alive) mutation = null;
@@ -290,7 +303,7 @@
       }}><Icon name="refresh" />{$t('Retry loading')}</Action
     >
   </div>{/if}
-{#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
+{#if refreshWarning}<p role="status" class="notice">{$t(refreshWarning)}</p>{/if}
 <div class="settings-workspace" bind:this={workspace} use:revealSettingsFocus>
   <div class="settings-intro">
     <div>

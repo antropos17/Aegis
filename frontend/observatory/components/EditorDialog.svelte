@@ -8,6 +8,8 @@
   let {
     title,
     caption,
+    sectionLabel,
+    pending = false,
     close,
     focusFallback,
     children,
@@ -17,6 +19,8 @@
   }: {
     title: string;
     caption: string;
+    sectionLabel?: string;
+    pending?: boolean;
     close: () => void;
     focusFallback?: () => HTMLElement | null | undefined;
     children: Snippet<[string]>;
@@ -30,6 +34,9 @@
   let body: HTMLDivElement;
   const scroll: Record<string, number> = {};
   let previous = '';
+  function dismiss() {
+    if (!pending) close();
+  }
   $effect.pre(() => {
     const next = selected;
     untrack(() => {
@@ -55,21 +62,33 @@
   });
 </script>
 
-<dialog class="editor-dialog" bind:this={dialog} aria-labelledby={id} oncancel={close}>
+<dialog
+  class="editor-dialog"
+  bind:this={dialog}
+  aria-labelledby={id}
+  aria-busy={pending}
+  oncancel={(event) => {
+    event.preventDefault();
+    dismiss();
+  }}
+>
   <div class="modal-head">
     <div>
       <span class="muted">{caption}</span>
       <h2 {id} tabindex="-1" bind:this={heading}>{title}</h2>
     </div>
-    <button class="icon-button" aria-label={$t('Close dialog')} onclick={close}
-      ><Icon name="close" /></button
+    <button
+      class="icon-button"
+      aria-label={$t('Close dialog')}
+      aria-disabled={pending}
+      onclick={dismiss}><Icon name="close" /></button
     >
   </div>
   <SectionTabs
     {tabs}
     {selected}
     prefix={id}
-    label={caption + ' sections'}
+    label={sectionLabel ?? caption + ' sections'}
     change={(tab) => {
       selected = tab;
     }}

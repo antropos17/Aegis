@@ -142,13 +142,13 @@
       editorSection = 'general';
       await tick();
       nameInput?.focus();
-      throw new Error('Name is required');
+      throw new Error($t('Name is required'));
     }
     if (!form.processName.trim()) {
       editorSection = 'recognition';
       await tick();
       processInput?.focus();
-      throw new Error('Process signature is required');
+      throw new Error($t('Process signature is required'));
     }
     await mutate(async () => {
       const next = editing
@@ -364,6 +364,8 @@
   <EditorDialog
     title={editing ? $t('Edit custom agent') : $t('Add custom agent')}
     caption={$t('Agent catalog')}
+    sectionLabel="Agent catalog sections"
+    pending={mutating || loading}
     tabs={[
       { id: 'general', label: 'General', icon: 'agents' },
       { id: 'recognition', label: 'Recognition', icon: 'search' },
@@ -449,8 +451,14 @@
         {/if}
       </fieldset>
     {/snippet}
-    {#snippet actions()}<button class="button" onclick={() => (showForm = false)}
-        >{$t('Cancel')}</button
+    {#snippet actions()}{#if mutating || loading}<span role="status" class="muted"
+          >{$t('Saving catalog changes…')}</span
+        >{/if}<button
+        class="button"
+        aria-disabled={mutating || loading}
+        onclick={() => {
+          if (!mutating && !loading) showForm = false;
+        }}>{$t('Cancel')}</button
       ><Action disabled={mutating || !loaded || loading} action={save}>{$t('Save agent')}</Action
       >{/snippet}
   </EditorDialog>

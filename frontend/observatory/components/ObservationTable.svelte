@@ -222,7 +222,9 @@
             >
             <td
               ><span class="event-type"
-                >{actions.length > 1 ? actions.length + ' activity types' : actions[0]}</span
+                >{actions.length > 1
+                  ? $t('{count} activity types', { count: actions.length })
+                  : actions[0]}</span
               ></td
             >
             <td

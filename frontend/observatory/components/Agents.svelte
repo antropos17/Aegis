@@ -10,6 +10,7 @@
     riskBand,
   } from '../runtime/radar';
   import { leadingRiskReason } from '../runtime/risk-context';
+  import { networkSnapshotStatus } from '../runtime/network-coverage';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   let {
@@ -89,12 +90,14 @@
           ><th>{$t('Agent')}</th>
           <th>{$t('Status')}</th><th>{$t('Risk')}</th>
           <th>{$t('CPU')}</th><th>{$t('RAM')}</th>
-          {#if advanced}<th>{$t('Tokens')}</th><th>{$t('Cost')}</th>
+          {#if advanced}<th>{$t('Tokens')}</th><th>{$t('Estimated cost')}</th>
             <th>{$t('Files')}</th><th>{$t('Network')}</th>{/if}
           <th>{$t('Latest event')}</th>{#if !advanced}<th>{$t('Details')}</th>{/if}
         </tr></thead
       ><tbody>
-        {#each agents as a (a.key)}<tr class="agent-group-row"
+        {#each agents as a (a.key)}
+          {@const networkStatus = networkSnapshotStatus(telemetry, a.network)}
+          <tr class="agent-group-row"
             ><td
               ><button class="table-agent" onclick={() => inspect(a.name, groupRecord(a))}
                 ><AgentLogo id={a.key} name={a.name} /><strong>{a.name}</strong></button
@@ -117,15 +120,26 @@
               >
               <button
                 class="entity-link risk-reason"
-                aria-label={'Explain risk for ' + a.name}
+                aria-label={$t('Explain risk for {agent}', { agent: a.name })}
                 onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'risk' })}
-                >{leadingRiskReason(a.members[0])}</button
+                >{$t(leadingRiskReason(a.members[0]))}</button
               ></td
             ><td class="mono">{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td><td class="mono"
               >{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
-            >{#if advanced}<td>{a.tokens?.toLocaleString() ?? '—'}</td><td
-                >{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
-              ><td>{a.files}</td><td>{a.network}</td>
+            >{#if advanced}<td
+                >{a.tokens?.toLocaleString() ?? '—'}{#if a.tokens !== null && a.estimated}<small
+                    class="evidence-note">{$t('Estimated')}</small
+                  >{/if}</td
+              ><td>{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td><td>{a.files}</td><td
+                >{networkStatus === 'unavailable' ? '—' : a.network}
+                {#if networkStatus !== 'latest'}<small class="evidence-note"
+                    >{$t(
+                      networkStatus === 'retained'
+                        ? 'Retained network snapshot'
+                        : 'Network observation unavailable',
+                    )}</small
+                  >{/if}</td
+              >
             {/if}<td class="mono"
               >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
             ><td
@@ -133,7 +147,7 @@
                 >{$t('Open')}<Icon name="chevron" /></button
               >{#if openStatistics}<button
                   class="text-button"
-                  aria-label={a.name + ' statistics'}
+                  aria-label={$t('{agent} statistics', { agent: a.name })}
                   onclick={() => openStatistics?.(a.key)}
                   >{$t('Statistics')}<Icon name="chart" /></button
                 >{/if}</td
@@ -219,6 +233,11 @@
     font-size: calc(11px * var(--ui-scale));
     line-height: 1.4;
     text-align: left;
+    white-space: normal;
+  }
+  .evidence-note {
+    display: block;
+    color: var(--muted);
     white-space: normal;
   }
 </style>

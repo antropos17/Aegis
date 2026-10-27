@@ -11,6 +11,7 @@ import { checkComfort, checkFooter } from './comfort-check.mjs';
 import { checkClarity } from './clarity-check.mjs';
 import { checkUsability } from './usability-check.mjs';
 import { checkGraphs } from './graph-check.mjs';
+import { checkChartGapVisibility } from './chart-gap-visibility-check.mjs';
 import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
 import { checkResourceLayers } from './resource-layer-check.mjs';
@@ -501,6 +502,7 @@ try {
   await checkComfort(browser, base + '/preview/', out);
   await checkFooter(browser, base + '/desktop/', out);
   await checkGraphs(browser, base + '/preview/', out);
+  await checkChartGapVisibility(browser, base + '/preview/');
   await checkUsability(browser, base + '/preview/', out);
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));
