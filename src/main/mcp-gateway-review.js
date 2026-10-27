@@ -169,8 +169,8 @@ async function handleGatewayMcpReview(args, options = {}) {
               }
             },
           });
-          let result = 2;
-          let cleanup = false;
+          let result;
+          let cleanup;
           try {
             const serving = (deps.serve || require('./mcp-stdio-transport').serveMcpTransport)({
               input: peer,
