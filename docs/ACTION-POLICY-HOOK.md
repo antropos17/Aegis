@@ -136,6 +136,18 @@ receiver also has bounded request, lifetime and retention limits. A broker that
 disappears before its finish message can leave the reporting session listening
 until expiry; coverage remains unknown throughout.
 
+Before launch, a read-only native witness checks the current recognized hook and
+the selected policy, including the policy's exact working directory. Profile and
+policy identity and bytes are rechecked after confirmation, immediately before
+launch and periodically while reporting. Observed changes revoke the reporting
+session. The selected executable is checked for observed file-identity and
+metadata changes; its signature and exact bytes are not verified. These checks
+do not hold an exclusive lock across process creation or
+an action: a change after a check, a failed hook, or an unobserved action remains
+unknown. Reporting expires after at most 150 seconds; a running Claude process can
+continue after reporting ends. No backup directory is created by this read-only
+launch admission.
+
 ### Hook response
 
 | Result | Meaning |

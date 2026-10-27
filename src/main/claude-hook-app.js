@@ -51,6 +51,7 @@ const CODES = new Set([
   'GUARD_READY',
   'GUARD_ALREADY_ACTIVE',
   'GUARD_PROFILE_REQUIRED',
+  'GUARD_PROFILE_UNVERIFIED',
   'GUARD_CANCELLED',
   'GUARD_STOPPED',
   'GUARD_UNAVAILABLE',
@@ -73,6 +74,7 @@ function createClaudeHookApp(options) {
     platform = process.platform,
     getAssets = () => loadProfileAssets(assetsRoot),
     makeIO = createWindowsHookIO,
+    makeReadIO = require('./claude-hook-windows-io').createWindowsHookReadIO,
     now = () => performance.now(),
   } = options;
   const directory = path.join(userData, 'claude-hook-profile');
@@ -94,6 +96,7 @@ function createClaudeHookApp(options) {
     active = null,
     pendingSession = null;
   let guardLauncher = null;
+  let guardAssets = null;
   function reply(code = last) {
     return {
       success: true,
@@ -268,6 +271,7 @@ function createClaudeHookApp(options) {
     if (retained) return reply('RETAINED_UNKNOWN');
     if (action === 'guard-start') {
       if (!clipboard?.writeText) return reply('GUARD_UNAVAILABLE');
+      guardAssets = assets;
       guardLauncher ||= require('./claude-guard-launch').createClaudeGuardLauncher({
         target,
         executable,
@@ -275,10 +279,22 @@ function createClaudeHookApp(options) {
         dialog,
         getWindow,
         clipboard,
+        openRead: () =>
+          makeReadIO({
+            ownedProfile: true,
+            targetPath: path.win32
+              .normalize(target)
+              .replace(/^[a-z]:/, (drive) => drive.toUpperCase()),
+            assets: guardAssets,
+            requestMs: 1500,
+            sessionMs: 180000,
+            cleanupMs: 1000,
+          }),
       });
       const code = await guardLauncher.start(owned);
       return owned() ? reply(code) : { success: false, error: 'Renderer request denied' };
     }
+    if (action === 'install' || action === 'remove') await guardLauncher?.stop(true);
     if (action === 'install' && session?.ended) return reply('SESSION_ENDED');
     if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');

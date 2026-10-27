@@ -241,24 +241,24 @@ function runChild(selected, port, session, write) {
   });
 }
 
-function finishReport(port, session, token) {
+function controlReport(port, session, token, operation, deadlineMs) {
   return new Promise((resolve) => {
     let done = false,
       request;
-    const finish = () => {
+    const finish = (accepted = false) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       request?.destroy();
-      resolve();
+      resolve(accepted);
     };
-    const timer = setTimeout(finish, 250);
+    const timer = setTimeout(() => finish(false), deadlineMs);
     try {
       request = http.request(
         {
           hostname: '127.0.0.1',
           port,
-          path: `/finish/${session}`,
+          path: `/${operation}/${session}`,
           method: 'POST',
           agent: false,
           headers: {
@@ -269,17 +269,20 @@ function finishReport(port, session, token) {
         },
         (response) => {
           response.resume();
-          response.on('end', finish);
-          response.on('error', finish);
+          response.on('end', () => finish(response.statusCode === 204));
+          response.on('error', () => finish(false));
         },
       );
-      request.on('error', finish);
+      request.on('error', () => finish(false));
       request.end('{}');
     } catch {
       finish();
     }
   });
 }
+
+const finishReport = (port, session, token) => controlReport(port, session, token, 'finish', 250);
+const startReport = (port, session, token) => controlReport(port, session, token, 'start', 4000);
 
 /** Launch one explicitly approved Claude route from a real terminal.
  * @param {string[]} args Fixed CLI flag, local port and session reference.
@@ -329,6 +332,11 @@ async function runSession(args, write) {
     if (selected && typeof selected.token === 'string' && /^[a-f0-9]{64}$/.test(selected.token))
       await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token);
     write('Claude Guard session was not confirmed.');
+    return 2;
+  }
+  if (!(await (testDeps?.startReport || startReport)(Number(args[1]), args[2], selected.token))) {
+    await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token);
+    write('Claude profile or policy could not be verified; the session did not start.');
     return 2;
   }
   const result = await runChild(selected, Number(args[1]), args[2], write);

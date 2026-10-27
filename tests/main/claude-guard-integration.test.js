@@ -4,13 +4,15 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { EventEmitter } from 'node:events';
 import { request } from 'node:http';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
+const { profileCommand } = require('../../src/main/claude-hook-app-profile');
+const { createClaudeGuardAdmission } = require('../../src/main/claude-guard-admission');
 const broker = require('../../src/main/claude-guard-broker');
 const directories = [];
 let receiver;
@@ -48,6 +50,26 @@ function claim(port, session) {
   });
 }
 
+function start(port, session, token) {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: `/start/${session}`,
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      },
+      (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      },
+    );
+    req.on('error', reject);
+    req.end('{}');
+  });
+}
+
 it('delivers a real hook CLI decision to the selected finite receiver without raw input', async () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-integration-'));
   directories.push(directory);
@@ -67,8 +89,10 @@ it('delivers a real hook CLI decision to the selected finite receiver without ra
       cwd: directory,
     },
     approve: async (code) => code === '123456',
+    verify: async () => true,
   });
   const grant = await claim(receiver.port, receiver.sessionId);
+  expect(await start(receiver.port, receiver.sessionId, grant.token)).toBe(204);
   const child = spawn(process.execPath, ['src/main/main.js', '--action-policy-hook', policy], {
     env: {
       ...process.env,
@@ -106,115 +130,205 @@ it('delivers a real hook CLI decision to the selected finite receiver without ra
   expect(JSON.stringify(state)).not.toContain(directory);
 });
 
-it('connects explicit desktop session selection to the real hook CLI and redacted status', async () => {
-  const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-app-'));
-  directories.push(directory);
-  const profile = path.join(directory, 'claude-hook-profile');
-  mkdirSync(profile);
-  writeFileSync(path.join(profile, 'settings.json'), '{}');
-  const program = path.join(directory, 'claude.exe');
-  writeFileSync(program, 'fixture is never executed');
-  const policy = path.join(directory, 'policy.json');
-  writeFileSync(
-    policy,
-    JSON.stringify({
-      schemaVersion: 2,
-      cwd: directory,
-      profile: 'aegis-windows-project-review-v1',
-    }),
-  );
-  const choices = [program, directory];
-  const dialogs = [];
-  let clipboard = '';
-  const app = createClaudeHookApp({
-    userData: directory,
-    executable: path.join(directory, 'AEGIS.exe'),
-    appPath: path.join(directory, 'app.asar'),
-    platform: 'win32',
-    getAssets: async () => ({}),
-    getWindow: () => window,
-    clipboard: { writeText: (text) => (clipboard = text) },
-    dialog: {
-      showOpenDialog: async () => ({ canceled: false, filePaths: [choices.shift()] }),
-      showMessageBox: async (_window, value) => {
-        dialogs.push(value);
-        return { response: 1 };
-      },
-    },
-  });
-  const window = { isDestroyed: () => false };
-  try {
-    const started = await app.handle('guard-start', () => true);
-    expect(started.code).toBe('GUARD_READY');
-    expect(started.guardSession.status).toBe('waiting');
-    expect(dialogs[0].detail).toContain(program);
-    expect(dialogs[0].detail).toContain(directory);
-    const secret = dialogs[1].detail.match(/Code: ([a-f0-9 ]+)/)[1].replaceAll(' ', '');
-    expect(secret).toMatch(/^[a-f0-9]{24}$/);
-    expect(clipboard).not.toContain(secret);
-    const address = clipboard.match(/--claude-guard-session (\d+) '([a-f0-9]{32})'/);
-    expect(address).not.toBeNull();
-    let output = '';
-    let inheritedToken = '';
-    broker._setDepsForTest({
-      terminal: () => true,
-      readKey: async () => secret,
-      randomInt: () => 123456,
-      signals: new EventEmitter(),
-      spawn: (executable, args, options) => {
-        expect(executable).toBe(program);
-        expect(args).toEqual(['--settings', path.join(profile, 'settings.json')]);
-        expect(options.cwd).toBe(directory);
-        expect(options.shell).toBe(false);
-        inheritedToken = options.env.AEGIS_CLAUDE_GUARD_CAPABILITY;
-        const child = spawn(
-          process.execPath,
-          ['src/main/main.js', '--action-policy-hook', policy],
-          {
-            env: options.env,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          },
-        );
-        child.stdout.on('data', (chunk) => (output += chunk));
-        child.stdin.end(
-          JSON.stringify({
-            hook_event_name: 'PreToolUse',
-            session_id: 'private-session',
-            tool_use_id: 'private-tool',
-            tool_name: 'Bash',
-            cwd: directory,
-            tool_input: {
-              command: 'cat .env.production.local',
-              description: 'PRIVATE_DESCRIPTION',
-            },
-          }),
-        );
-        return child;
-      },
-    });
-    const messages = [];
-    const code = await broker.handleClaudeGuardSession(
-      ['--claude-guard-session', address[1], address[2]],
-      (message) => messages.push(message),
+it.skipIf(process.platform !== 'win32')(
+  'connects explicit desktop session selection to the real hook CLI and redacted status',
+  async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-app-'));
+    directories.push(directory);
+    const profile = path.join(directory, 'claude-hook-profile');
+    mkdirSync(profile);
+    const settings = path.join(profile, 'settings.json');
+    const program = path.join(directory, 'claude.exe');
+    writeFileSync(program, 'fixture is never executed');
+    const policy = path.join(directory, 'policy.json');
+    writeFileSync(
+      policy,
+      JSON.stringify({
+        schemaVersion: 2,
+        cwd: directory,
+        profile: 'aegis-windows-project-review-v1',
+      }),
     );
-    expect(code).toBe(0);
-    expect(dialogs[2].detail).toContain('Code: 123456');
-    expect(JSON.parse(output).hookSpecificOutput.permissionDecision).toBe('deny');
-    const status = await app.handle('status', () => true);
-    expect(status.guardSession.entries).toEqual([
-      { decision: 'deny', reason: 'project-deny-sensitive' },
-    ]);
-    expect(status.guardSession).toMatchObject({
-      sender: 'unverified',
-      effect: 'unknown',
-      delivery: 'unknown',
+    const appExecutable = path.join(directory, 'AEGIS.exe');
+    const appPath = path.join(directory, 'app.asar');
+    writeFileSync(
+      settings,
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: 'Bash',
+              hooks: [
+                {
+                  type: 'command',
+                  command: profileCommand(appExecutable, appPath, policy),
+                  timeout: 5,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    const choices = [program, directory];
+    const dialogs = [];
+    let clipboard = '';
+    const app = createClaudeHookApp({
+      userData: directory,
+      executable: appExecutable,
+      appPath,
+      platform: 'win32',
+      getAssets: async () => ({}),
+      makeReadIO: async () => ({
+        readTarget: async () => ({ identity: 'fixture-object', bytes: readFileSync(settings) }),
+        close: async () => {},
+        status: () => ({ admission: 'closed', exit: 'confirmed' }),
+      }),
+      getWindow: () => window,
+      clipboard: { writeText: (text) => (clipboard = text) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: false, filePaths: [choices.shift()] }),
+        showMessageBox: async (_window, value) => {
+          dialogs.push(value);
+          return { response: 1 };
+        },
+      },
     });
-    expect(JSON.stringify(status)).not.toContain(directory);
-    expect(JSON.stringify(status)).not.toContain(inheritedToken);
-    expect(JSON.stringify(status)).not.toContain(secret);
-    expect(JSON.stringify(messages)).not.toContain(secret);
-    expect(JSON.stringify(messages)).not.toContain(inheritedToken);
-  } finally {
-    await app.close();
-  }
-});
+    const window = { isDestroyed: () => false };
+    try {
+      const started = await app.handle('guard-start', () => true);
+      expect(started.code).toBe('GUARD_READY');
+      expect(started.guardSession.status).toBe('waiting');
+      expect(dialogs[0].detail).toContain(program);
+      expect(dialogs[0].detail).toContain(directory);
+      const secret = dialogs[1].detail.match(/Code: ([a-f0-9 ]+)/)[1].replaceAll(' ', '');
+      expect(secret).toMatch(/^[a-f0-9]{24}$/);
+      expect(clipboard).not.toContain(secret);
+      const address = clipboard.match(/--claude-guard-session (\d+) '([a-f0-9]{32})'/);
+      expect(address).not.toBeNull();
+      let output = '';
+      let inheritedToken = '';
+      broker._setDepsForTest({
+        terminal: () => true,
+        readKey: async () => secret,
+        randomInt: () => 123456,
+        signals: new EventEmitter(),
+        spawn: (executable, args, options) => {
+          expect(executable).toBe(program);
+          expect(args).toEqual(['--settings', path.join(profile, 'settings.json')]);
+          expect(options.cwd).toBe(directory);
+          expect(options.shell).toBe(false);
+          inheritedToken = options.env.AEGIS_CLAUDE_GUARD_CAPABILITY;
+          const child = spawn(
+            process.execPath,
+            ['src/main/main.js', '--action-policy-hook', policy],
+            {
+              env: options.env,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            },
+          );
+          child.stdout.on('data', (chunk) => (output += chunk));
+          child.stdin.end(
+            JSON.stringify({
+              hook_event_name: 'PreToolUse',
+              session_id: 'private-session',
+              tool_use_id: 'private-tool',
+              tool_name: 'Bash',
+              cwd: directory,
+              tool_input: {
+                command: 'cat .env.production.local',
+                description: 'PRIVATE_DESCRIPTION',
+              },
+            }),
+          );
+          return child;
+        },
+      });
+      const messages = [];
+      const code = await broker.handleClaudeGuardSession(
+        ['--claude-guard-session', address[1], address[2]],
+        (message) => messages.push(message),
+      );
+      expect(code).toBe(0);
+      expect(dialogs[2].detail).toContain('Code: 123456');
+      expect(JSON.parse(output).hookSpecificOutput.permissionDecision).toBe('deny');
+      const status = await app.handle('status', () => true);
+      expect(status.guardSession.entries).toEqual([
+        { decision: 'deny', reason: 'project-deny-sensitive' },
+      ]);
+      expect(status.guardSession).toMatchObject({
+        sender: 'unverified',
+        effect: 'unknown',
+        delivery: 'unknown',
+      });
+      expect(JSON.stringify(status)).not.toContain(directory);
+      expect(JSON.stringify(status)).not.toContain(inheritedToken);
+      expect(JSON.stringify(status)).not.toContain(secret);
+      expect(JSON.stringify(messages)).not.toContain(secret);
+      expect(JSON.stringify(messages)).not.toContain(inheritedToken);
+    } finally {
+      await app.close();
+    }
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'refuses launch when the verified hook is removed after confirmation',
+  async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-drift-'));
+    directories.push(directory);
+    const target = path.join(directory, 'settings.json');
+    const policy = path.join(directory, 'policy.json');
+    const executable = path.join(directory, 'AEGIS.exe');
+    const appPath = path.join(directory, 'app.asar');
+    writeFileSync(
+      policy,
+      JSON.stringify({
+        schemaVersion: 2,
+        cwd: directory,
+        profile: 'aegis-windows-project-review-v1',
+      }),
+    );
+    writeFileSync(
+      target,
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: 'Bash',
+              hooks: [
+                {
+                  type: 'command',
+                  command: profileCommand(executable, appPath, policy),
+                  timeout: 5,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    const admission = createClaudeGuardAdmission({
+      target,
+      executable,
+      appPath,
+      io: { readTarget: async () => ({ identity: 'fixture-object', bytes: readFileSync(target) }) },
+    });
+    const binding = await admission.capture(directory);
+    expect(binding).not.toBeNull();
+    receiver = await startClaudeGuardReceiver({
+      selection: {
+        executable: path.join(directory, 'claude.exe'),
+        settings: target,
+        cwd: directory,
+      },
+      approve: async () => true,
+      verify: () => admission.verify(binding),
+    });
+    const grant = await claim(receiver.port, receiver.sessionId);
+    writeFileSync(target, '{}');
+    expect(await start(receiver.port, receiver.sessionId, grant.token)).toBe(403);
+    expect(receiver.snapshot().entries).toEqual([]);
+    admission.close();
+  },
+);

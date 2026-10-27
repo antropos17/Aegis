@@ -43,6 +43,8 @@
     GUARD_READY: 'Broker command copied. Run it in PowerShell and compare the confirmation code.',
     GUARD_ALREADY_ACTIVE: 'A reporting session is already active.',
     GUARD_PROFILE_REQUIRED: 'Prepare the separate Claude profile before starting a session.',
+    GUARD_PROFILE_UNVERIFIED:
+      'The current hook or policy could not be verified for the selected working folder. Review the profile and policy.',
     GUARD_CANCELLED: 'Terminal session preparation cancelled.',
     GUARD_STOPPED: 'Reporting stopped. A previously launched Claude process may still be running.',
     GUARD_UNAVAILABLE: 'The terminal session could not be prepared.',
@@ -61,12 +63,15 @@
     'AMBIGUOUS_HOOK',
     'PLAN_REFUSED',
     'GUARD_PROFILE_REQUIRED',
+    'GUARD_PROFILE_UNVERIFIED',
     'GUARD_UNAVAILABLE',
   ]);
   const reasons: Record<string, string> = {
     generic: 'Selected policy decision',
     'adapter-failure': 'Hook adapter failure',
     'project-review-ordinary': 'Supported command requires provider confirmation',
+    'project-review-script':
+      'Project script can run unchecked actions; provider confirmation required',
     'project-deny-sensitive': 'Declared sensitive filename',
     'project-deny-destructive': 'Declared destructive command',
     'project-deny-unsupported': 'Unsupported command or input',
@@ -79,6 +84,15 @@
     refused: 'Session refused',
     expired: 'Session expired',
     ended: 'Reporting session ended',
+  };
+  const reasonDecisions: Record<string, string[]> = {
+    generic: ['allow', 'ask', 'deny'],
+    'adapter-failure': ['deny'],
+    'project-review-ordinary': ['ask'],
+    'project-review-script': ['ask'],
+    'project-deny-sensitive': ['deny'],
+    'project-deny-destructive': ['deny'],
+    'project-deny-unsupported': ['deny'],
   };
   let profileState = $state({
     code: 'IDLE',
@@ -133,7 +147,8 @@
           return typeof entry.decision === 'string' &&
             ['allow', 'ask', 'deny'].includes(entry.decision) &&
             typeof entry.reason === 'string' &&
-            Object.hasOwn(reasons, entry.reason)
+            Object.hasOwn(reasonDecisions, entry.reason) &&
+            reasonDecisions[entry.reason].includes(entry.decision)
             ? [{ decision: entry.decision, reason: entry.reason }]
             : [];
         }),
@@ -165,6 +180,11 @@
     <p class="muted">
       {$t(
         'This creates a private draft and retained backups. Use the profile only with --settings. Personal Claude settings are not edited; Bash blocking remains unverified.',
+      )}
+    </p>
+    <p class="muted">
+      {$t(
+        'Reporting expires after at most two and a half minutes. Profile checks are periodic and cannot prevent changes between a check and an action.',
       )}
     </p>
     <p class="muted">

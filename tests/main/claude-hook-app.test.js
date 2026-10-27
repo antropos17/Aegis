@@ -106,6 +106,61 @@ afterEach(async () => {
   }
 });
 
+it.skipIf(process.platform !== 'win32')(
+  'revokes reporting before a profile removal review, even when removal is cancelled',
+  async () => {
+    await service.close();
+    const program = path.join(root, 'claude.exe');
+    await fs.writeFile(program, 'fixture never executed');
+    await fs.writeFile(
+      target,
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: 'Bash',
+              hooks: [
+                {
+                  type: 'command',
+                  command: profileCommand(options.executable, options.appPath, policy),
+                  timeout: 5,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    const initial = await fs.readFile(target);
+    const choices = [program, root];
+    options.clipboard = { writeText: vi.fn() };
+    options.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [choices.shift()] });
+    let readerClosed = false;
+    options.makeReadIO = async () => ({
+      readTarget: async () => ({ identity: 'fixture-object', bytes: await fs.readFile(target) }),
+      close: async () => {
+        readerClosed = true;
+      },
+      status: () => ({
+        admission: readerClosed ? 'closed' : 'open',
+        exit: readerClosed ? 'confirmed' : 'unknown',
+      }),
+    });
+    service = createClaudeHookApp(options);
+    expect((await service.handle('guard-start', () => true)).code).toBe('GUARD_READY');
+    state.approve = false;
+    const removed = await service.handle('remove', () => true);
+    expect(removed.code).toBe('CANCELLED');
+    expect(removed.guardSession).toMatchObject({
+      status: 'refused',
+      available: false,
+      lossDetected: true,
+    });
+    expect(readerClosed).toBe(true);
+    expect(await fs.readFile(target)).toEqual(initial);
+  },
+);
+
 it('quotes the default packaged executable and literal ampersands in every hook path', () => {
   const executable = path.join(root, 'AEGIS - AI Monitoring & Threat Detection.exe');
   const appPath = path.join(root, 'resources & application', 'app.asar');

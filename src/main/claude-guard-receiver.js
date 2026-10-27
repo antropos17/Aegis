@@ -14,11 +14,13 @@ const LIMITS = Object.freeze({
   records: 32,
   requestMs: 2000,
   approvalMs: 60000,
-  durationMs: 1800000,
+  verifyMs: 3500,
+  durationMs: 150000,
 });
 const REASONS = Object.freeze({
   generic: ['allow', 'ask', 'deny'],
   'project-review-ordinary': ['ask'],
+  'project-review-script': ['ask'],
   'project-deny-sensitive': ['deny'],
   'project-deny-destructive': ['deny'],
   'project-deny-unsupported': ['deny'],
@@ -26,7 +28,7 @@ const REASONS = Object.freeze({
 });
 const CLAIM = /^\{"code":"([0-9]{6})","nonce":"([a-f0-9]{32})"\}$/;
 const DECISION =
-  /^\{"decision":"(allow|ask|deny)","reason":"(generic|project-review-ordinary|project-deny-sensitive|project-deny-destructive|project-deny-unsupported|adapter-failure)"\}$/;
+  /^\{"decision":"(allow|ask|deny)","reason":"(generic|project-review-ordinary|project-review-script|project-deny-sensitive|project-deny-destructive|project-deny-unsupported|adapter-failure)"\}$/;
 
 function validSelection(value) {
   if (!value || typeof value !== 'object') return false;
@@ -53,8 +55,18 @@ function validSelection(value) {
  * @param {object} options Trusted launch selection, confirmation and optional clock.
  * @returns {Promise<object>} Bounded local endpoint, detached snapshot and close.
  * @since v0.21.0 */
-async function startClaudeGuardReceiver({ selection, approve, now = () => performance.now() }) {
-  if (!validSelection(selection) || typeof approve !== 'function' || typeof now !== 'function')
+async function startClaudeGuardReceiver({
+  selection,
+  approve,
+  verify,
+  now = () => performance.now(),
+}) {
+  if (
+    !validSelection(selection) ||
+    typeof approve !== 'function' ||
+    typeof verify !== 'function' ||
+    typeof now !== 'function'
+  )
     throw Error('observer-configuration-invalid');
   const started = now();
   if (!Number.isFinite(started) || started < 0) throw Error('observer-clock-invalid');
@@ -79,6 +91,8 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
     connections = 0,
     totalBytes = 0;
   let port = 0;
+  let startReserved = false,
+    launchStarted = false;
 
   function expired() {
     try {
@@ -160,10 +174,11 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
     }
     const claim = req.url === `/claim/${sessionId}`;
     const decision = req.url === `/decision/${sessionId}`;
+    const start = req.url === `/start/${sessionId}`;
     const ending = req.url === `/finish/${sessionId}`;
     if (
       req.method !== 'POST' ||
-      (!claim && !decision && !ending) ||
+      (!claim && !decision && !start && !ending) ||
       req.headers.host !== `127.0.0.1:${port}` ||
       req.headers['content-type'] !== 'application/json' ||
       Object.hasOwn(req.headers, 'origin') ||
@@ -176,6 +191,11 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
       if (status !== 'waiting') return fail(res, 409);
       status = 'awaiting-confirmation';
     } else if (status !== 'active' || !authorized(req)) return fail(res, 403);
+    if (start) {
+      if (startReserved) return fail(res, 409);
+      startReserved = true;
+    }
+    if (decision && !launchStarted) return fail(res, 409);
 
     let ended = false,
       responseClosed = false,
@@ -279,6 +299,34 @@ async function startClaudeGuardReceiver({ selection, approve, now = () => perfor
       } else {
         // A finish request can revoke admission while a decision body is still arriving.
         if (status !== 'active') return fail(res, 403);
+        if (start) {
+          if (text !== '{}') {
+            res.once('finish', () => void finish('refused'));
+            return fail(res, 422);
+          }
+          let valid, verifyTimer;
+          try {
+            valid = await Promise.race([
+              Promise.resolve().then(() => verify()),
+              new Promise((resolve) => {
+                verifyTimer = setTimeout(() => resolve(false), LIMITS.verifyMs);
+                verifyTimer.unref?.();
+              }),
+            ]);
+          } catch {
+            valid = false;
+          }
+          clearTimeout(verifyTimer);
+          if (closed || responseClosed || res.destroyed || status !== 'active') return;
+          if (valid !== true || expired()) {
+            res.once('finish', () => void finish('refused'));
+            return fail(res, 403);
+          }
+          launchStarted = true;
+          res.writeHead(204, { Connection: 'close' });
+          res.end();
+          return;
+        }
         if (ending) {
           if (text !== '{}') return fail(res, 422);
           status = 'ended';

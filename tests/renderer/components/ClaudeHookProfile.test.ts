@@ -75,6 +75,7 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
       entries: [
         { decision: 'deny', reason: 'project-deny-sensitive', command: 'PRIVATE_COMMAND' },
         { decision: 'SECRET_DECISION', reason: 'generic' },
+        { decision: 'allow', reason: 'project-deny-sensitive' },
       ],
       token: 'PRIVATE_TOKEN',
     },
@@ -90,5 +91,6 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
   expect(screen.queryByText('PRIVATE_COMMAND')).toBeNull();
   expect(screen.queryByText('PRIVATE_TOKEN')).toBeNull();
   expect(screen.queryByText('SECRET_DECISION')).toBeNull();
+  expect(screen.queryByText('ALLOW: Declared sensitive filename · Effect unknown')).toBeNull();
   expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
 });

@@ -16,7 +16,12 @@ const nonce = 'a'.repeat(32);
 const claimBody = (code) => ({ code, nonce });
 
 async function start(options = {}) {
-  const receiver = await startClaudeGuardReceiver({ selection, approve: () => true, ...options });
+  const receiver = await startClaudeGuardReceiver({
+    selection,
+    approve: () => true,
+    verify: () => true,
+    ...options,
+  });
   opened.push(receiver);
   return receiver;
 }
@@ -45,10 +50,15 @@ function post(receiver, route, payload, headers = {}) {
     req.end(body);
   });
 }
-async function claim(receiver) {
+async function claim(receiver, startLaunch = true) {
   const result = await post(receiver, 'claim', claimBody('123456'));
   expect(result.status).toBe(200);
-  return JSON.parse(result.body);
+  const admitted = JSON.parse(result.body);
+  if (startLaunch)
+    expect(
+      (await post(receiver, 'start', {}, { Authorization: `Bearer ${admitted.token}` })).status,
+    ).toBe(204);
+  return admitted;
 }
 afterEach(async () => {
   await Promise.all(opened.splice(0).map((receiver) => receiver.close()));
@@ -112,6 +122,30 @@ describe('finite Claude Guard decision observer', () => {
       expect(text).not.toContain(privateValue);
     report.entries[0].decision = 'deny';
     expect(receiver.snapshot().entries[0].decision).toBe('ask');
+    expect(
+      (
+        await post(
+          receiver,
+          'decision',
+          { decision: 'ask', reason: 'project-review-script' },
+          {
+            Authorization: `Bearer ${admitted.token}`,
+          },
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await post(
+          receiver,
+          'decision',
+          { decision: 'allow', reason: 'project-review-script' },
+          {
+            Authorization: `Bearer ${admitted.token}`,
+          },
+        )
+      ).status,
+    ).toBe(422);
   });
 
   it('reserves one claim before awaiting human confirmation, and rejects concurrent claims', async () => {
@@ -190,6 +224,50 @@ describe('finite Claude Guard decision observer', () => {
     expect(result.body).toBe('');
     await vi.waitFor(() => expect(receiver.snapshot().status).toBe('refused'));
     await expect(post(receiver, 'claim', claimBody('123456'))).rejects.toThrow();
+  });
+
+  it('refuses a profile changed after confirmation and before launch', async () => {
+    let current = true;
+    const verify = vi.fn(() => current);
+    const receiver = await start({ verify });
+    const { token } = await claim(receiver, false);
+    current = false;
+    const result = await post(receiver, 'start', {}, { Authorization: `Bearer ${token}` });
+    expect(result.status).toBe(403);
+    expect(verify).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(receiver.snapshot().status).toBe('refused'));
+    expect(receiver.snapshot().entries).toEqual([]);
+  });
+
+  it('admits one verified launch before accepting any reported decisions', async () => {
+    const verify = vi.fn(() => true);
+    const receiver = await start({ verify });
+    const { token } = await claim(receiver, false);
+    const auth = { Authorization: `Bearer ${token}` };
+    expect(
+      (await post(receiver, 'decision', { decision: 'deny', reason: 'generic' }, auth)).status,
+    ).toBe(409);
+    expect((await post(receiver, 'start', {}, auth)).status).toBe(204);
+    expect(verify).toHaveBeenCalledOnce();
+    expect((await post(receiver, 'start', {}, auth)).status).toBe(409);
+    expect(
+      (await post(receiver, 'decision', { decision: 'deny', reason: 'generic' }, auth)).status,
+    ).toBe(204);
+  });
+
+  it('cannot admit a late verification after the session closes', async () => {
+    let resolveVerification;
+    const verify = vi.fn(() => new Promise((resolve) => (resolveVerification = resolve)));
+    const receiver = await start({ verify });
+    const { token } = await claim(receiver, false);
+    const pending = post(receiver, 'start', {}, { Authorization: `Bearer ${token}` }).catch(
+      () => null,
+    );
+    await vi.waitFor(() => expect(verify).toHaveBeenCalledOnce());
+    await receiver.close();
+    resolveVerification(true);
+    expect(await pending).toBeNull();
+    expect(receiver.snapshot().status).toBe('ended');
   });
 
   it('does not grant a late approval after closure and reports incomplete delivery', async () => {

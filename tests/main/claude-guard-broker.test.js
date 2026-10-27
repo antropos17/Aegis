@@ -104,12 +104,17 @@ describe('Claude Guard terminal broker', () => {
       (line) => output.push(line),
     );
     expect(status).toBe(0);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls[0].path).toBe('/claim/' + SESSION);
     expect(JSON.parse(calls[0].text)).toEqual({ code: '000123', nonce: '12'.repeat(16) });
     expect(calls[0].authorization).toBeUndefined();
     expect(calls[0].text).not.toContain(KEY);
     expect(calls[1]).toEqual({
+      path: '/start/' + SESSION,
+      authorization: 'Bearer ' + TOKEN,
+      text: '{}',
+    });
+    expect(calls[2]).toEqual({
       path: '/finish/' + SESSION,
       authorization: 'Bearer ' + TOKEN,
       text: '{}',
@@ -128,6 +133,36 @@ describe('Claude Guard terminal broker', () => {
     expect(output.join(' ')).not.toContain(KEY);
     expect(output.join(' ')).not.toContain(TOKEN);
     expect(output.join(' ')).not.toContain(selection.executable);
+  });
+
+  it('does not launch when the confirmed profile fails revalidation immediately before start', async () => {
+    await listen((request, reply) => {
+      let text = '';
+      request.on('data', (chunk) => (text += chunk));
+      request.on('end', () => {
+        calls.push({ path: request.url, authorization: request.headers.authorization });
+        if (request.url.startsWith('/claim/'))
+          reply.end(JSON.stringify(response(JSON.parse(text))));
+        else {
+          reply.statusCode = request.url.startsWith('/start/') ? 403 : 204;
+          reply.end();
+        }
+      });
+    });
+    expect(
+      await broker.handleClaudeGuardSession(
+        ['--claude-guard-session', String(port), SESSION],
+        (line) => output.push(line),
+      ),
+    ).toBe(2);
+    expect(spawned).not.toHaveBeenCalled();
+    expect(calls.map((call) => call.path)).toEqual([
+      '/claim/' + SESSION,
+      '/start/' + SESSION,
+      '/finish/' + SESSION,
+    ]);
+    expect(output.join(' ')).toContain('the session did not start');
+    expect(output.join(' ')).not.toContain(TOKEN);
   });
 
   it.each(['wrong-proof', 'changed-path', 'extra-field', 'wrong-executable', 'invalid-token'])(
@@ -223,6 +258,7 @@ describe('Claude Guard terminal broker', () => {
       randomInt: () => 123,
       randomBytes: () => Buffer.alloc(16, 0x12),
       claim,
+      startReport: async () => true,
       finishReport: async () => {},
       spawn: spawned,
     });
@@ -281,6 +317,7 @@ describe('Claude Guard terminal broker', () => {
       claim,
       signals,
       cleanupMs: 20,
+      startReport: async () => true,
       finishReport,
       spawn: spawned,
     });
