@@ -1,10 +1,10 @@
 'use strict';
 
 const path = require('node:path');
-const { createHash } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { createOwnedHookReview } = require('./claude-hook-review');
-const { createWindowsHookIO } = require('./claude-hook-windows-io');
+const { createWindowsHookIO, createWindowsPolicyIO } = require('./claude-hook-windows-io');
 const { CONTRACT_V2 } = require('./claude-hook-plan');
 const { prepareObservedRemoval } = require('./claude-hook-app-removal');
 const {
@@ -36,6 +36,9 @@ const CODES = new Set([
   'SESSION_ENDED',
   'SESSION_RELEASE_UNCONFIRMED',
   'INVALID_POLICY',
+  'POLICY_CREATE_REFUSED',
+  'POLICY_CREATE_UNCERTAIN',
+  'POLICY_UNADOPTED',
   'UNSUPPORTED_PATH',
   'RETENTION_LIMIT',
   'PREVIEW_TOO_LARGE',
@@ -77,6 +80,7 @@ function createClaudeHookApp(options) {
     platform = process.platform,
     getAssets = () => loadProfileAssets(assetsRoot),
     makeIO = createWindowsHookIO,
+    makePolicyIO = createWindowsPolicyIO,
     makeReadIO = require('./claude-hook-windows-io').createWindowsHookReadIO,
     now = () => performance.now(),
   } = options;
@@ -300,7 +304,8 @@ function createClaudeHookApp(options) {
       const code = await guardLauncher.start(owned);
       return owned() ? reply(code) : { success: false, error: 'Renderer request denied' };
     }
-    if ((action === 'install' || action === 'remove') && guardLauncher) {
+    const installing = action === 'install' || action === 'install-project-policy';
+    if ((installing || action === 'remove') && guardLauncher) {
       const released = await guardLauncher.stop(true);
       if (!released) {
         retained = true;
@@ -309,37 +314,64 @@ function createClaudeHookApp(options) {
       }
       if (!owned()) return { success: false, error: 'Renderer request denied' };
     }
-    if (action === 'install' && session?.ended && ownedInstall) return reply('SESSION_ENDED');
-    if (action === 'install' && configured) return reply('OWNED_INSTALL_EXISTS');
+    if (installing && session?.ended && ownedInstall) return reply('SESSION_ENDED');
+    if (installing && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
     const observedRemoval = action === 'remove' && (!ownedInstall || session?.ended);
-    let command, afterCommand;
-    if (action === 'install') {
-      const chosen = await dialog.showOpenDialog(window, {
-        title: 'Select Claude Bash policy',
-        properties: ['openFile'],
-        filters: [{ name: 'AEGIS action policy', extensions: ['json'] }],
-      });
-      if (!owned()) return { success: false, error: 'Renderer request denied' };
-      if (chosen.canceled || chosen.filePaths?.length !== 1) return reply('CANCELLED');
-      if (!(await checkProfilePolicy(chosen.filePaths[0]))) return reply('INVALID_POLICY');
-      command = profileCommand(executable, appPath, chosen.filePaths[0]);
-      afterCommand = profileAfterCommand(executable, appPath, chosen.filePaths[0]);
-      if (!owned()) return { success: false, error: 'Renderer request denied' };
-    }
-    pendingSession = ensureSession(assets, action === 'remove');
-    let current;
+    let command,
+      afterCommand,
+      policyLease,
+      policyBytes,
+      policyCreated = false;
     try {
-      current = await pendingSession;
-    } finally {
-      pendingSession = null;
-    }
-    if (!owned()) {
-      current.review.cancel(owner);
-      return { success: false, error: 'Renderer request denied' };
-    }
-    const prepared =
-      action === 'install'
+      let policyPath, scope;
+      if (action === 'install-project-policy') {
+        const chosen = await dialog.showOpenDialog(window, {
+          title: 'Select project working directory',
+          properties: ['openDirectory'],
+        });
+        if (!owned()) return { success: false, error: 'Renderer request denied' };
+        if (chosen.canceled || chosen.filePaths?.length !== 1) return reply('CANCELLED');
+        scope = path.win32
+          .normalize(chosen.filePaths[0])
+          .replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
+        policyPath = path.win32
+          .normalize(path.join(directory, `project-policy-${randomUUID()}.json`))
+          .replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
+        policyBytes = Buffer.from(
+          JSON.stringify(
+            { schemaVersion: 2, cwd: scope, profile: 'aegis-windows-project-review-v1' },
+            null,
+            2,
+          ) + '\n',
+        );
+        command = profileCommand(executable, appPath, policyPath);
+        afterCommand = profileAfterCommand(executable, appPath, policyPath);
+      } else if (action === 'install') {
+        const chosen = await dialog.showOpenDialog(window, {
+          title: 'Select Claude Bash policy',
+          properties: ['openFile'],
+          filters: [{ name: 'AEGIS action policy', extensions: ['json'] }],
+        });
+        if (!owned()) return { success: false, error: 'Renderer request denied' };
+        if (chosen.canceled || chosen.filePaths?.length !== 1) return reply('CANCELLED');
+        if (!(await checkProfilePolicy(chosen.filePaths[0]))) return reply('INVALID_POLICY');
+        command = profileCommand(executable, appPath, chosen.filePaths[0]);
+        afterCommand = profileAfterCommand(executable, appPath, chosen.filePaths[0]);
+        if (!owned()) return { success: false, error: 'Renderer request denied' };
+      }
+      pendingSession = ensureSession(assets, action === 'remove');
+      let current;
+      try {
+        current = await pendingSession;
+      } finally {
+        pendingSession = null;
+      }
+      if (!owned()) {
+        current.review.cancel(owner);
+        return { success: false, error: 'Renderer request denied' };
+      }
+      const prepared = installing
         ? await current.review.prepareInstall(owner, {
             command,
             afterCommand,
@@ -349,94 +381,178 @@ function createClaudeHookApp(options) {
         : observedRemoval
           ? await prepareObservedRemoval(current.io, { target, executable, appPath, now })
           : await current.review.prepareRemoval(owner);
-    const cancel = () => {
-      prepared.cancel?.();
-      current.review.cancel(owner);
-    };
-    if (!owned()) {
-      cancel();
-      return { success: false, error: 'Renderer request denied' };
-    }
-    if (observedRemoval ? prepared.ok !== true : !prepared.planId) {
-      // A V2 planner refuses occupied event arrays before producing a plan. Preserve
-      // the existing unowned-profile status without treating this read as authority
-      // to write anything; successful plans still receive the separate bound check.
-      if (action === 'install' && prepared.code === 'PLAN_REFUSED') {
-        let currentTarget;
+      const cancel = () => {
+        prepared.cancel?.();
+        current.review.cancel(owner);
+      };
+      if (!owned()) {
+        cancel();
+        return { success: false, error: 'Renderer request denied' };
+      }
+      if (observedRemoval ? prepared.ok !== true : !prepared.planId) {
+        // A V2 planner refuses occupied event arrays before producing a plan. Preserve
+        // the existing unowned-profile status without treating this read as authority
+        // to write anything; successful plans still receive the separate bound check.
+        if (installing && prepared.code === 'PLAN_REFUSED') {
+          let currentTarget;
+          try {
+            currentTarget = await current.io.readTarget();
+            const beforeSha256 = createHash('sha256').update(currentTarget.bytes).digest('hex');
+            if (profileDraftEligibility({ beforeSha256 }, currentTarget.bytes) === 'configured')
+              return retainResult({ code: 'CONFIGURED_UNOWNED' });
+          } catch {
+            // Keep the original refusal when the bounded status read fails.
+          } finally {
+            currentTarget?.bytes?.fill(0);
+          }
+        }
+        return retainResult(prepared);
+      }
+      if (observedRemoval) observedPlan = prepared;
+      if (installing) {
+        const currentTarget = await current.io.readTarget();
+        let eligibility;
         try {
-          currentTarget = await current.io.readTarget();
-          const beforeSha256 = createHash('sha256').update(currentTarget.bytes).digest('hex');
-          if (profileDraftEligibility({ beforeSha256 }, currentTarget.bytes) === 'configured')
-            return retainResult({ code: 'CONFIGURED_UNOWNED' });
-        } catch {
-          // Keep the original refusal when the bounded status read fails.
+          eligibility = profileDraftEligibility(prepared.review, currentTarget.bytes);
         } finally {
-          currentTarget?.bytes?.fill(0);
+          currentTarget.bytes.fill(0);
+        }
+        if (eligibility !== 'empty') {
+          cancel();
+          return retainResult({
+            code: eligibility === 'configured' ? 'CONFIGURED_UNOWNED' : 'TARGET_CHANGED',
+          });
         }
       }
-      return retainResult(prepared);
-    }
-    if (observedRemoval) observedPlan = prepared;
-    if (action === 'install') {
-      const currentTarget = await current.io.readTarget();
-      let eligibility;
-      try {
-        eligibility = profileDraftEligibility(prepared.review, currentTarget.bytes);
-      } finally {
-        currentTarget.bytes.fill(0);
-      }
-      if (eligibility !== 'empty') {
+      if (!owned()) {
         cancel();
-        return retainResult({
-          code: eligibility === 'configured' ? 'CONFIGURED_UNOWNED' : 'TARGET_CHANGED',
-        });
+        return { success: false, error: 'Renderer request denied' };
       }
-    }
-    if (!owned()) {
-      cancel();
-      return { success: false, error: 'Renderer request denied' };
-    }
-    if (current.ended) {
-      cancel();
-      return reply('SESSION_ENDED');
-    }
-    const detail = profileReviewText(prepared.review, target, observedRemoval);
-    const answer = await dialog.showMessageBox(window, {
-      type: 'question',
-      title: 'Review Claude hook profile',
-      message:
-        action === 'install'
+      if (current.ended) {
+        cancel();
+        return reply('SESSION_ENDED');
+      }
+      if (policyBytes) {
+        policyLease = await makePolicyIO({
+          targetPath: policyPath,
+          scope,
+          assets,
+          requestMs: 1500,
+          sessionMs: 180000,
+          cleanupMs: 1000,
+        });
+        if (!owned() || current.ended) {
+          cancel();
+          return reply('SESSION_ENDED');
+        }
+      }
+      const detail =
+        profileReviewText(prepared.review, target, observedRemoval) +
+        (policyBytes
+          ? `\n\nNew project policy destination:\n${policyPath}\n\nExact policy:\n${policyBytes.toString('utf8')}\nThe working directory must match exactly. Provider confirmation is requested for pwd, ls, git status, git status --short, git diff --stat, bounded single-name cat, npm test, npm run lint, and git apply -- NAME.patch or NAME.diff. Sensitive .env, credentials.json and SSH key names, declared destructive commands and unsupported inputs are denied. There is no automatic allow. Script effects, patch content and executable identity are not verified.`
+          : '');
+      if (Buffer.byteLength(detail) > 8192) throw Error('preview-too-large');
+      const answer = await dialog.showMessageBox(window, {
+        type: 'question',
+        title: 'Review Claude hook profile',
+        message: installing
           ? 'Install the reviewed Claude hook profile?'
           : observedRemoval
             ? 'Remove only this recognized current AEGIS hook?'
             : 'Remove the reviewed Claude hook?',
-      detail,
-      buttons: ['Cancel', action === 'install' ? 'Install profile' : 'Remove hook'],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true,
-    });
-    if (!owned()) {
-      cancel();
-      return { success: false, error: 'Renderer request denied' };
-    }
-    if (answer.response !== 1) {
-      cancel();
-      return reply('CANCELLED');
-    }
-    if (current.ended) {
-      cancel();
-      return reply('SESSION_ENDED');
-    }
-    applying = true;
-    try {
-      return retainResult(
-        observedRemoval
+        detail,
+        buttons: ['Cancel', installing ? 'Install profile' : 'Remove hook'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      if (!owned()) {
+        cancel();
+        return { success: false, error: 'Renderer request denied' };
+      }
+      if (answer.response !== 1) {
+        cancel();
+        return reply('CANCELLED');
+      }
+      if (current.ended) {
+        cancel();
+        return reply('SESSION_ENDED');
+      }
+      applying = true;
+      try {
+        if (policyLease) {
+          let outcome;
+          try {
+            outcome = await policyLease.create(policyBytes);
+          } catch {
+            retained = true;
+            last = 'POLICY_CREATE_UNCERTAIN';
+            cancel();
+            return reply();
+          }
+          if (outcome === 'refused') {
+            cancel();
+            return reply('POLICY_CREATE_REFUSED');
+          }
+          if (outcome !== 'written') {
+            retained = true;
+            last = 'POLICY_CREATE_UNCERTAIN';
+            cancel();
+            return reply();
+          }
+          policyCreated = true;
+          if (!owned() || current.ended || (await policyLease.checkCreated()) !== 'valid') {
+            retained = true;
+            last = 'POLICY_UNADOPTED';
+            cancel();
+            return reply();
+          }
+        }
+        const result = observedRemoval
           ? await prepared.confirm(true)
-          : await current.review.confirm(owner, prepared.planId, true),
-      );
+          : await current.review.confirm(owner, prepared.planId, true);
+        if (policyLease && !owned()) {
+          retained = true;
+          last = 'RETAINED_UNKNOWN';
+          return { success: false, error: 'Renderer request denied' };
+        }
+        if (policyLease && result.code !== 'INSTALLED') {
+          retained = true;
+          return retainResult({
+            code: ['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'].includes(result.code)
+              ? result.code
+              : 'POLICY_UNADOPTED',
+          });
+        }
+        if (policyLease && (await policyLease.checkCreated()) !== 'valid') {
+          retained = true;
+          return retainResult({ code: 'RETAINED_UNKNOWN' });
+        }
+        if (policyLease) {
+          const status = await policyLease.close();
+          policyLease = null;
+          if (status?.exit !== 'confirmed') {
+            retained = true;
+            return retainResult({ code: 'RETAINED_UNKNOWN' });
+          }
+        }
+        return retainResult(result);
+      } catch (error) {
+        if (policyCreated) {
+          retained = true;
+          last = 'RETAINED_UNKNOWN';
+          return reply();
+        }
+        throw error;
+      } finally {
+        applying = false;
+      }
     } finally {
-      applying = false;
+      policyBytes?.fill(0);
+      if (policyLease) {
+        const status = await policyLease.close();
+        if (policyCreated && status?.exit !== 'confirmed') retained = true;
+      }
     }
   }
   /** Handle one path-free operation after owned-frame admission.
@@ -444,7 +560,15 @@ function createClaudeHookApp(options) {
    * @returns {Promise<object>} Fixed public outcome, never private review data. @since v0.21.0 */
   async function handle(action, guard) {
     if (
-      !['status', 'install', 'remove', 'open-profile', 'guard-start', 'guard-stop'].includes(action)
+      ![
+        'status',
+        'install',
+        'install-project-policy',
+        'remove',
+        'open-profile',
+        'guard-start',
+        'guard-stop',
+      ].includes(action)
     )
       return { success: false, error: 'Invalid profile operation' };
     const window = getWindow?.();

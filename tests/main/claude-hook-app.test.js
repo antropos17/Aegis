@@ -302,6 +302,113 @@ it('installs and removes the app-owned profile through private native review wit
   }
 });
 
+it.skipIf(process.platform !== 'win32')(
+  'reviews the exact project policy before creating and adopting it',
+  async () => {
+    await service.close();
+    const selected = root.replace(/^[a-z](?=:)/, (letter) => letter.toUpperCase());
+    let created = false,
+      policyTarget,
+      policySource;
+    options.dialog.showOpenDialog = async (_window, input) => {
+      expect(input.properties).toEqual(['openDirectory']);
+      return { canceled: false, filePaths: [selected] };
+    };
+    options.makePolicyIO = async ({ targetPath, scope }) => {
+      policyTarget = targetPath;
+      expect(scope).toBe(selected);
+      return {
+        create: async (bytes) => {
+          expect(state.dialogs).toHaveLength(1);
+          policySource = Buffer.from(bytes);
+          await fs.writeFile(targetPath, bytes, { flag: 'wx' });
+          created = true;
+          return 'written';
+        },
+        checkCreated: async () => (created ? 'valid' : 'stale'),
+        close: async () => ({ exit: 'confirmed' }),
+      };
+    };
+    service = createClaudeHookApp(options);
+    const result = await service.handle('install-project-policy', () => state.owned);
+    expect(result).toMatchObject({ code: 'INSTALLED', canRemove: true });
+    expect(JSON.parse(policySource)).toEqual({
+      schemaVersion: 2,
+      cwd: selected,
+      profile: 'aegis-windows-project-review-v1',
+    });
+    expect(state.dialogs[0]).toMatchObject({ defaultId: 0, cancelId: 0 });
+    expect(state.dialogs[0].detail).toContain(policyTarget);
+    expect(state.dialogs[0].detail).toContain(policySource.toString());
+    expect(await fs.readFile(target, 'utf8')).toContain(policyTarget.replaceAll('\\', '/'));
+    for (const secret of [selected, policyTarget, 'aegis-windows-project-review-v1'])
+      expect(JSON.stringify(result)).not.toContain(secret);
+    expect(await service.handle('remove', () => true)).toMatchObject({ code: 'REMOVED' });
+    expect(await fs.readFile(target, 'utf8')).toBe(original);
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'does not create a project policy when native review is cancelled',
+  async () => {
+    await service.close();
+    state.approve = false;
+    options.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [root] });
+    const create = vi.fn();
+    options.makePolicyIO = async () => ({ create, close: async () => ({ exit: 'confirmed' }) });
+    service = createClaudeHookApp(options);
+    expect(await service.handle('install-project-policy', () => true)).toMatchObject({
+      code: 'CANCELLED',
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(state.writes).toBe(0);
+    expect(await fs.readFile(target, 'utf8')).toBe(original);
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'retains an unadopted policy when the profile changes after confirmation',
+  async () => {
+    await service.close();
+    options.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [root] });
+    options.makePolicyIO = async () => ({
+      create: async () => {
+        await fs.writeFile(target, '{"changed": true}');
+        return 'written';
+      },
+      checkCreated: async () => 'valid',
+      close: async () => ({ exit: 'confirmed' }),
+    });
+    service = createClaudeHookApp(options);
+    expect(await service.handle('install-project-policy', () => true)).toMatchObject({
+      code: 'POLICY_UNADOPTED',
+      canInstall: false,
+    });
+    expect(state.writes).toBe(0);
+    expect(await fs.readFile(target, 'utf8')).toBe('{"changed": true}');
+  },
+);
+
+it.skipIf(process.platform !== 'win32').each([
+  ['refused', 'POLICY_CREATE_REFUSED'],
+  ['retained-unknown', 'POLICY_CREATE_UNCERTAIN'],
+  ['transport-failure', 'POLICY_CREATE_UNCERTAIN'],
+])('never installs the profile after policy creation reports %s', async (outcome, code) => {
+  await service.close();
+  options.dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [root] });
+  options.makePolicyIO = async () => ({
+    create: async () => {
+      if (outcome === 'transport-failure') throw Error('private failure');
+      return outcome;
+    },
+    close: async () => ({ exit: 'confirmed' }),
+  });
+  service = createClaudeHookApp(options);
+  expect(await service.handle('install-project-policy', () => true)).toMatchObject({ code });
+  expect(state.writes).toBe(0);
+  expect(await fs.readFile(target, 'utf8')).toBe(original);
+});
+
 it.each(['deleted', 'changed bytes', 'changed identity', 'read failure'])(
   'fails closed when an installed profile has %s',
   async (kind) => {

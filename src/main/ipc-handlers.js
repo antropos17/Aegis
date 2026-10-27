@@ -185,7 +185,15 @@ function register() {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();
     if (
-      !['status', 'install', 'remove', 'open-profile', 'guard-start', 'guard-stop'].includes(action)
+      ![
+        'status',
+        'install',
+        'install-project-policy',
+        'remove',
+        'open-profile',
+        'guard-start',
+        'guard-stop',
+      ].includes(action)
     )
       return { success: false, error: 'Invalid profile operation' };
     try {

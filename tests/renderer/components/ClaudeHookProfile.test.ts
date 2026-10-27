@@ -3,6 +3,20 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import ClaudeHookProfile from '../../../frontend/observatory/components/ClaudeHookProfile.svelte';
 import type { Host } from '../../../frontend/observatory/runtime/host';
 
+it('starts built-in project policy review with a fixed path-free operation', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, code: 'READY', canInstall: true })
+    .mockResolvedValueOnce({ success: true, code: 'CANCELLED', canInstall: true });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText('Prepared setup files are available for native review.');
+  await fireEvent.click(
+    screen.getByRole('button', { name: 'Choose project and review built-in policy' }),
+  );
+  await screen.findByText('Review cancelled. The hook was not changed.');
+  expect(review.mock.calls).toEqual([['status'], ['install-project-policy']]);
+});
+
 it('connects install and separate removal to fixed desktop operations and confirmed outcomes', async () => {
   const review = vi
     .fn()

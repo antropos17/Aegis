@@ -276,4 +276,72 @@ async function createWindowsHookReadIO(options) {
   }
 }
 
-module.exports = { createWindowsHookIO, createWindowsHookReadIO };
+/** Open a private create-only policy lease. No target is created until create().
+ * @param {object} options Fixed owned destination and native-selected scope.
+ * @returns {Promise<object>} Private bounded create, verification and close operations.
+ * @since v0.21.0 */
+async function createWindowsPolicyIO(options) {
+  let pipe;
+  try {
+    privateMode();
+    if (
+      !exact(options, ['targetPath', 'scope', 'assets', 'requestMs', 'sessionMs', 'cleanupMs']) ||
+      ![options.targetPath, options.scope].every(
+        (value) => typeof value === 'string' && /^[A-Z]:\\/.test(value) && value.length <= 240,
+      ) ||
+      !bounded(options.requestMs, 100, 10000) ||
+      !bounded(options.sessionMs, options.requestMs, 180000) ||
+      !bounded(options.cleanupMs, 100, 5000)
+    )
+      throw failure();
+    const assets = qualifyAssets(options.assets);
+    privateMode();
+    const child = spawn(assets.executable, assets.args, {
+      cwd: assets.cwd,
+      env: assets.env,
+      windowsHide: true,
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    pipe = createPipe(child, options);
+    const opened = await pipe.request({
+      op: 'open-create',
+      target: options.targetPath,
+      scope: options.scope,
+    });
+    if (!exact(opened, ['id', 'ok', 'protocol']) || opened.protocol !== 1) throw failure();
+    let busy = false;
+    const operation = async (body, outcomes) => {
+      if (busy) throw failure();
+      busy = true;
+      try {
+        privateMode();
+        const result = await pipe.request(body);
+        if (!exact(result, ['id', 'ok', 'outcome']) || !outcomes.includes(result.outcome))
+          throw failure();
+        return result.outcome;
+      } catch {
+        await pipe.close();
+        throw failure();
+      } finally {
+        busy = false;
+      }
+    };
+    return Object.freeze({
+      create: (bytes) =>
+        operation({ op: 'create', bytes: encoded(bytes, 65536) }, [
+          'written',
+          'refused',
+          'retained-unknown',
+        ]),
+      checkCreated: () => operation({ op: 'check-created' }, ['valid', 'stale']),
+      close: () => pipe.close(),
+      status: () => pipe.status(),
+    });
+  } catch {
+    if (pipe) await pipe.close();
+    throw failure();
+  }
+}
+
+module.exports = { createWindowsHookIO, createWindowsHookReadIO, createWindowsPolicyIO };
