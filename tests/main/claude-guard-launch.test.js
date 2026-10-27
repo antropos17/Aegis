@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -50,6 +51,48 @@ it.each([
     'unsupported-launch-command',
   );
 });
+
+it.each(Array.from({ length: 8 }, (_, index) => String.fromCodePoint(0x2018 + index)))(
+  'rejects PowerShell smart quote %s in executable or archive path',
+  (quote) => {
+    const injected = `C:\\owner${quote}; Write-Output INERT; ${quote}\\file`;
+    expect(() => buildClaudeGuardCommand(injected, 'C:\\app.asar', 1234, 'a'.repeat(32))).toThrow();
+    expect(() => buildClaudeGuardCommand('C:\\app.exe', injected, 1234, 'a'.repeat(32))).toThrow();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'rejects a path that PowerShell would parse as a separate inert command',
+  () => {
+    const injected = 'C:\\sample\u2019; Write-Output INERT; \u2018';
+    const formerlyUnsafe = `Start-Process -FilePath '${injected}' -Wait`;
+    const encodedInput = Buffer.from(formerlyUnsafe, 'utf16le').toString('base64');
+    const parserScript = `
+      $sourceText = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encodedInput}'))
+      $parsedTokens = $null
+      $parsedErrors = $null
+      $tree = [System.Management.Automation.Language.Parser]::ParseInput($sourceText, [ref]$parsedTokens, [ref]$parsedErrors)
+      $names = @($tree.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true) | ForEach-Object { $_.GetCommandName() })
+      $names -join ','
+    `;
+    const parser = spawnSync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        Buffer.from(parserScript, 'utf16le').toString('base64'),
+      ],
+      { encoding: 'utf8', timeout: 5000, windowsHide: true },
+    );
+    expect(parser.status).toBe(0);
+    expect(parser.stdout.trim()).toBe('Start-Process,Write-Output');
+    expect(() => buildClaudeGuardCommand(injected, 'C:\\app.asar', 1234, 'a'.repeat(32))).toThrow(
+      'unsupported-launch-command',
+    );
+  },
+);
 
 afterEach(() => {
   for (const directory of directories.splice(0))

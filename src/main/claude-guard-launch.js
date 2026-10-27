@@ -21,7 +21,9 @@ function quotePowerShell(value) {
 function localLaunchPath(value, basename) {
   if (typeof value !== 'string' || value.length > 4096 || !/^[A-Za-z]:[\\/]/.test(value))
     return false;
-  if (/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}"<>|?*]/u.test(value) || value.slice(2).includes(':')) return false;
+  // PowerShell treats U+2018–U+201F as quote delimiters, even in ASCII-quoted literals.
+  if (/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u2018-\u201f"<>|?*]/u.test(value) || value.slice(2).includes(':'))
+    return false;
   return (
     path.win32.isAbsolute(value) &&
     path.win32.normalize(value) === value &&
