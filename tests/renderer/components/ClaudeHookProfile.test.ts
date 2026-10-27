@@ -2,6 +2,56 @@ import { expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import ClaudeHookProfile from '../../../frontend/observatory/components/ClaudeHookProfile.svelte';
 import type { Host } from '../../../frontend/observatory/runtime/host';
+import { language } from '../../../frontend/observatory/runtime/i18n';
+
+it.each([
+  [
+    'POLICY_CREATE_REFUSED',
+    'Não foi possível criar a nova política do projeto. O perfil não foi instalado.',
+  ],
+  [
+    'POLICY_CREATE_UNCERTAIN',
+    'Não foi possível verificar a criação da política. Revise os arquivos retidos antes de outra configuração.',
+  ],
+  [
+    'POLICY_UNADOPTED',
+    'Uma nova política foi retida, mas o perfil não foi instalado. Revise os arquivos retidos antes de outra configuração.',
+  ],
+])('shows the project policy action and %s in Portuguese', async (code, message) => {
+  language.set('pt');
+  try {
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce({ success: true, code: 'READY', canInstall: true })
+      .mockResolvedValueOnce({ success: true, code, canInstall: false });
+    render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+    await screen.findByText(
+      'Os arquivos de configuração preparados estão disponíveis para revisão nativa.',
+    );
+    const button = await screen.findByRole('button', {
+      name: 'Escolher projeto e revisar política integrada',
+    });
+    await fireEvent.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(review.mock.calls).toEqual([['status'], ['install-project-policy']]);
+  } finally {
+    language.set('en');
+  }
+});
+
+it('starts built-in project policy review with a fixed path-free operation', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({ success: true, code: 'READY', canInstall: true })
+    .mockResolvedValueOnce({ success: true, code: 'CANCELLED', canInstall: true });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText('Prepared setup files are available for native review.');
+  await fireEvent.click(
+    screen.getByRole('button', { name: 'Choose project and review built-in policy' }),
+  );
+  await screen.findByText('Review cancelled. The hook was not changed.');
+  expect(review.mock.calls).toEqual([['status'], ['install-project-policy']]);
+});
 
 it('connects install and separate removal to fixed desktop operations and confirmed outcomes', async () => {
   const review = vi

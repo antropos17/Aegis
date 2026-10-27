@@ -9,6 +9,7 @@ internal sealed class Transaction : IDisposable
     private string? target;
     // This ORIGINAL witness survives consumed commit leases and fresh read leases.
     private TargetLease? witness;
+    private CreateLease? creation;
     private PrivateBackupStore? store;
     private bool readOnly;
     private readonly Dictionary<int, PrivateBackupStore.Reference> references = new();
@@ -16,6 +17,47 @@ internal sealed class Transaction : IDisposable
     internal object Dispatch(JsonElement request, int id)
     {
         string op = Wire.Text(request, "op", 16);
+        if (op == "open-create")
+        {
+            Wire.Exact(request, "id", "op", "target", "scope");
+            if (witness is not null || creation is not null) throw new InvalidDataException();
+            string destination = Wire.Text(request, "target", 240);
+            string scope = Wire.Text(request, "scope", 240);
+            if (CreateLease.Begin(destination, scope, out creation) != TargetCode.Ready || creation is null)
+                throw new InvalidDataException();
+            return new { id, ok = true, protocol = 1 };
+        }
+        if (creation is not null)
+        {
+            if (op == "create")
+            {
+                Wire.Exact(request, "id", "op", "bytes");
+                byte[] bytes = Wire.Bytes(request, "bytes", CreateLease.MaxBytes);
+                try
+                {
+                    var outcome = creation.Create(bytes);
+                    return outcome switch
+                    {
+                        TargetCode.Written => new { id, ok = true, outcome = "written" },
+                        TargetCode.Refused => new { id, ok = true, outcome = "refused" },
+                        TargetCode.RetainedUnknown => new { id, ok = true, outcome = "retained-unknown" },
+                        _ => throw new InvalidDataException()
+                    };
+                }
+                finally { Array.Clear(bytes); }
+            }
+            if (op == "check-created")
+            {
+                Wire.Exact(request, "id", "op");
+                return creation.Check() switch
+                {
+                    TargetCode.Ready => new { id, ok = true, outcome = "valid" },
+                    TargetCode.Stale => new { id, ok = true, outcome = "stale" },
+                    _ => throw new InvalidDataException()
+                };
+            }
+            throw new InvalidDataException();
+        }
         if (op == "open-read")
         {
             Wire.Exact(request, "id", "op", "target");
@@ -111,5 +153,5 @@ internal sealed class Transaction : IDisposable
         return lease;
     }
 
-    public void Dispose() { references.Clear(); store?.Dispose(); witness?.Dispose(); }
+    public void Dispose() { references.Clear(); store?.Dispose(); witness?.Dispose(); creation?.Dispose(); }
 }
