@@ -150,6 +150,34 @@ function main() {
   );
   console.log(`built  ${mcpJobExe}`);
 
+  // Explicit selected-delete console broker; missing assets must fail packaging.
+  const ownerConsoleExe = path.join(OUT_DIR, 'aegis-owner-console.exe');
+  execFileSync(
+    csc,
+    [
+      '/nologo',
+      '/target:exe',
+      '/platform:x64',
+      '/optimize+',
+      '/warnaserror+',
+      `/out:${ownerConsoleExe}`,
+      ...[
+        'Program.cs',
+        'NativeLaunch.cs',
+        'PrivatePipe.cs',
+        'PeerIdentity.cs',
+        'ConsoleWorker.cs',
+        'Wire.cs',
+        'Authentication.cs',
+        'OwnerSession.cs',
+        'VerifierSession.cs',
+        'WorkerHost.cs',
+      ].map((name) => path.join(ROOT, 'sidecar', 'owner-console', name)),
+    ],
+    { stdio: 'inherit' },
+  );
+  console.log(`built  ${ownerConsoleExe}`);
+
   // The separate session helper probes/refuses and inspects enrollment read-only.
   const sessionExe = path.join(OUT_DIR, 'aegis-session.exe');
   execFileSync(

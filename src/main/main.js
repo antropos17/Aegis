@@ -6,6 +6,21 @@
  */
 'use strict';
 
+// The native owner launcher provides only a locator and a per-session secret.
+// Remove both before loading application modules or starting any descendants.
+let ownerConsoleBootstrap;
+if (
+  process.argv[2] === '--action-mcp-delete-review' &&
+  (process.env.AEGIS_OWNER_PIPE !== undefined || process.env.AEGIS_OWNER_SECRET !== undefined)
+) {
+  ownerConsoleBootstrap = {
+    pipe: process.env.AEGIS_OWNER_PIPE,
+    secret: process.env.AEGIS_OWNER_SECRET,
+  };
+  delete process.env.AEGIS_OWNER_PIPE;
+  delete process.env.AEGIS_OWNER_SECRET;
+}
+
 // Storage configuration only; reject malformed selectors before CLI or settings.
 const ownedGuiProfile = require('./owned-gui-profile');
 if (ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1)))
@@ -56,7 +71,7 @@ const _cliFlags = new Set([
 ]);
 if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
-    .handleCLI()
+    .handleCLI(undefined, { ownerConsoleBootstrap })
     .then(async (code) => {
       if (
         !process.argv.slice(2).includes('--gemini-beforetool-hook') &&

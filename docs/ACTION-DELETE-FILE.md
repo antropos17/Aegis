@@ -16,6 +16,24 @@ a terminal broker with fixed policy, request and new endpoint paths:
 node src/main/main.js --action-mcp-delete-review /absolute/policy.json /absolute/request.json /private/newendpoint.json
 ```
 
+On Windows, the installed application also provides an explicit native owner
+console launcher at `resources/sidecar/aegis-owner-console.exe` under the
+installation directory. Start that executable from a console and pass the same
+`--action-mcp-delete-review` arguments. Its original standard input and standard
+error must both be console handles; redirected or missing handles are refused.
+The launcher runs one review attempt per session, so start a new session for a
+further attempt. The response is not echoed. The optional `--observe` argument
+works as on the source route.
+
+The launcher checks the original handles before starting the packaged app and
+uses a bounded, authenticated local channel to a supervised console worker. A
+console response is not human authentication: a local process may automate a
+console, and a completed console write does not prove a person saw the preview.
+Console input does not establish physical key timing. Same-account injection,
+handle duplication and modification of installed binaries are outside this
+boundary. An abrupt shutdown may prevent a final report, and cancellation after
+the native delete begins cannot undo an already completed deletion.
+
 Configure the intended client to use the existing
 [review relay](ACTION-MCP-REVIEW.md) with
 `--action-mcp-connect /private/newendpoint.json`. The
