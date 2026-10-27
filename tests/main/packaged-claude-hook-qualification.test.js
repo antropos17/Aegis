@@ -7,7 +7,21 @@ const {
   post,
   failureSummary,
   classifyOutput,
+  fixtureEnvironment,
 } = require('../../scripts/qualification/packaged-claude-hook.cjs');
+
+it('removes inherited Guard credentials from every fixture child base environment', () => {
+  const inherited = {
+    AEGIS_CLAUDE_GUARD_PORT: '1234',
+    AEGIS_CLAUDE_GUARD_SESSION: 'PRIVATE_SESSION',
+    AEGIS_CLAUDE_GUARD_CAPABILITY: 'PRIVATE_CAPABILITY',
+    aegis_claude_guard_port: '4321',
+    NODE_OPTIONS: 'PRIVATE_OPTIONS',
+    PATH: 'fixture-path',
+  };
+  expect(fixtureEnvironment(inherited)).toEqual({ PATH: 'fixture-path' });
+  expect(inherited.AEGIS_CLAUDE_GUARD_CAPABILITY).toBe('PRIVATE_CAPABILITY');
+});
 
 it('classifies bounded stdout without retaining its content', () => {
   expect(classifyOutput(Buffer.alloc(0))).toBe('empty');

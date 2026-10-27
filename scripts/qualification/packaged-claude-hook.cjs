@@ -185,6 +185,21 @@ function classifyOutput(bytes) {
     : 'other';
 }
 
+function fixtureEnvironment(source) {
+  const env = { ...source };
+  const excluded = new Set([
+    'ELECTRON_RUN_AS_NODE',
+    'NODE_OPTIONS',
+    'BASH_ENV',
+    'ENV',
+    'AEGIS_CLAUDE_GUARD_PORT',
+    'AEGIS_CLAUDE_GUARD_SESSION',
+    'AEGIS_CLAUDE_GUARD_CAPABILITY',
+  ]);
+  for (const name of Object.keys(env)) if (excluded.has(name.toUpperCase())) delete env[name];
+  return env;
+}
+
 async function run() {
   assert.equal(process.platform, 'win32');
   assert.equal(process.argv.length, 5);
@@ -206,11 +221,7 @@ async function run() {
   await unlinkedDirectory(path.dirname(output));
   await fs.mkdir(output); // Never adopt an existing directory or profile.
   outputCreated = true;
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;
-  delete env.NODE_OPTIONS;
-  delete env.BASH_ENV;
-  delete env.ENV;
+  const env = fixtureEnvironment(process.env);
   const hashes = async () => ({
     exe: await digest(exe),
     asar: await digest(asar),
@@ -501,7 +512,13 @@ async function run() {
   console.log('PASS: packaged hook and assets; source profile used scripted confirmation.');
 }
 
-module.exports = { assertArchivedProfileSourcesMatch, post, failureSummary, classifyOutput };
+module.exports = {
+  assertArchivedProfileSourcesMatch,
+  post,
+  failureSummary,
+  classifyOutput,
+  fixtureEnvironment,
+};
 if (require.main === module)
   run().catch(async () => {
     Object.assign(receipt, failureSummary(stage));
