@@ -74,8 +74,7 @@ internal static class Program
                     var env=NativeLaunch.MinimalEnvironment();
                     if(profile!=null) {
                         profile.Validate();
-                        env["AEGIS_OWNER_PROFILE_ROOT"]=profile.Root; env["APPDATA"]=profile.AppData; env["LOCALAPPDATA"]=profile.LocalAppData;
-                        env["USERPROFILE"]=profile.UserProfile; env["HOME"]=profile.Home; env["TEMP"]=profile.Temp; env["TMP"]=profile.Temp;
+                        env["AEGIS_OWNER_PROFILE_ROOT"]=profile.Root; profile.ApplyEnvironment(env);
                     }
                     env["ELECTRON_RUN_AS_NODE"]="1";
                     env[PipeVariable]=name; env[SecretVariable]=Convert.ToBase64String(secret);

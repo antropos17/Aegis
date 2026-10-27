@@ -9,7 +9,10 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { createOwnerConsole } = require('../../src/main/action-owner-console');
-const { selectedProfileEnvironment } = require('../../src/main/action-owner-console-cli');
+const {
+  selectedProfileEnvironment,
+  verifierEnvironment,
+} = require('../../src/main/action-owner-console-cli');
 const { selectedDeleteEnvironment } = require('../../src/main/action-delete-windows');
 const broker = require('../../src/main/action-mcp-review');
 const deletion = require('../../src/main/action-delete-file');
@@ -150,6 +153,44 @@ it('selects an immutable exact six-key profile environment and removes unrelated
   expect(Object.isFrozen(selected)).toBe(true);
   expect(JSON.stringify(selected)).not.toContain('PRIVATE_PROFILE_CANARY');
 });
+
+it.each(['selected profile', 'no profile'])(
+  'constructs a fixed verifier environment with %s',
+  (mode) => {
+    const bootstrap = { ...profileBootstrap(), pipe: 'fixture-pipe', secret: 'fixture-secret' };
+    const source = {
+      SystemRoot: 'C:\\Windows',
+      WINDIR: 'C:\\Windows',
+      TEMP: 'X:\\source-temp',
+      TMP: 'X:\\source-tmp',
+      NODE_OPTIONS: 'PRIVATE_NODE_OPTIONS',
+      NODE_DEBUG: 'PRIVATE_NODE_DEBUG',
+      COR_ENABLE_PROFILING: 'PRIVATE_COR',
+      COMPlus_ReadyToRun: 'PRIVATE_COMPLUS',
+      DOTNET_STARTUP_HOOKS: 'PRIVATE_DOTNET',
+      AEGIS_EXTRA: 'PRIVATE_AEGIS_EXTRA',
+      OTHER_CANARY: 'PRIVATE_OTHER_CANARY',
+    };
+    const selected =
+      mode === 'selected profile' ? selectedProfileEnvironment(bootstrap) : undefined;
+    const result = verifierEnvironment(bootstrap, selected, source);
+    expect(result).toEqual({
+      AEGIS_OWNER_PIPE: 'fixture-pipe',
+      AEGIS_OWNER_SECRET: 'fixture-secret',
+      SystemRoot: 'C:\\Windows',
+      WINDIR: 'C:\\Windows',
+      TEMP: 'X:\\source-temp',
+      TMP: 'X:\\source-tmp',
+      ...(selected || {}),
+    });
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_');
+    expect(source.TEMP).toBe('X:\\source-temp');
+    if (selected) {
+      expect(result.TEMP).toBe(selected.TEMP);
+      expect(result.TMP).toBe(selected.TMP);
+    }
+  },
+);
 
 it('selects only six profile paths while retaining the trusted helper environment', () => {
   const base = { DOTNET_ROOT: 'X:\\runtime', DOTNET_ROLL_FORWARD: 'Disable', TEMP: 'X:\\old' };

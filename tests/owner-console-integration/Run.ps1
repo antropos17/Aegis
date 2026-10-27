@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Owner death fixture compilation failed.' }
 Set-Content (Join-Path $out 'install/resources/app.asar') 'Synthetic fixture archive'
 & node (Join-Path $PSScriptRoot 'capture-preview.cjs') (Join-Path $out 'actual-preview.b64')
 if ($LASTEXITCODE -ne 0) { throw 'JS preview capture failed.' }
-foreach ($scenario in @('shutdown','approve','profile','profile-missing','cancel','idle','after','early','cancel-wait','output-loss','wrong-secret','redirected-stdin','redirected-stderr','verifier-death','wrong-ack','duplicate-ack','partial-input','stuck-descendant')) {
+foreach ($scenario in @('shutdown','approve','profile','profile-missing','profile-marker-missing','cancel','idle','after','early','cancel-wait','output-loss','wrong-secret','redirected-stdin','redirected-stderr','verifier-death','wrong-ack','duplicate-ack','partial-input','stuck-descendant')) {
     & $fixture outer $scenario
     if ($LASTEXITCODE -ne 0) { throw "Fixture failed: $scenario; see $out for diagnostics." }
 }

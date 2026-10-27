@@ -26,17 +26,26 @@ further attempt. The response is not echoed. The optional `--observe` argument
 works as on the source route.
 
 To choose explicit profile paths, place `--profile-root <absolute-directory>`
-before the review flag. The root must already contain directories named
-`appdata`, `localappdata`, `userprofile`, `home`, and `temp`. The launcher checks
-and retains the directory identities, refuses links and junctions, and shows the
-selected root and mappings in the review. Invalid selections are refused; the
-launcher does not substitute the account profile. This selects environment paths
+before the review flag. The root must be on a local fixed NTFS volume and must
+already contain directories named
+`appdata`, `localappdata`, `userprofile`, `home`, and `temp`. Each directory must
+already contain a regular, non-link file named `.aegis-owner-profile-anchor`,
+owned by the current account and with exactly one hard link.
+The launcher retains these file and directory identities without reading anchor
+contents, refuses links and junctions, and shows the selected root and mappings
+in the review. The handles remain held through
+confirmed Job cleanup; if cleanup cannot be confirmed, the launcher fails and
+cannot guarantee custody for any process still alive. Invalid selections are
+refused; the launcher does not substitute the account profile. This selects environment paths
 for the launched route and delete helper; it is not a filesystem sandbox and does
 not prevent Windows known-folder APIs or same-account code from accessing other
 locations. Without `--profile-root`, the launcher does not claim profile isolation.
+Retained ancestor handles deny renaming and can prevent exclusive opens until the
+session closes; ordinary shared writes to those ancestors remain available.
 
-For example, with those five directories already created under a private scratch
-root, start the launcher from PowerShell using your actual installation and paths:
+For example, with those five directories and anchor files already created under a
+private scratch root, start the launcher from PowerShell using your actual
+installation and paths:
 
 ```powershell
 & 'C:\path\to\AEGIS\resources\sidecar\aegis-owner-console.exe' --profile-root 'X:\private\profile-root' --action-mcp-delete-review 'X:\private\policy.json' 'X:\private\request.json' 'X:\private\newendpoint.json'

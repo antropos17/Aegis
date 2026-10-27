@@ -60,6 +60,19 @@ function selectedProfileEnvironment(bootstrap) {
   return Object.freeze(profileEnvironment);
 }
 
+function verifierEnvironment(bootstrap, profileEnvironment, source = process.env) {
+  const environment = {
+    AEGIS_OWNER_PIPE: bootstrap.pipe,
+    AEGIS_OWNER_SECRET: bootstrap.secret,
+  };
+  for (const key of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP'])
+    if (source[key]) environment[key] = source[key];
+  if (profileEnvironment)
+    for (const key of ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP'])
+      environment[key] = profileEnvironment[key];
+  return environment;
+}
+
 /** Run only the selected-delete broker after the packaged verifier authenticates its owner. */
 async function runOwnerConsoleReview(args, bootstrap) {
   if (
@@ -75,12 +88,7 @@ async function runOwnerConsoleReview(args, bootstrap) {
     return 2;
   const profileEnvironment = selectedProfileEnvironment(bootstrap);
   if (profileEnvironment === false) return 2;
-  const environment = {
-    AEGIS_OWNER_PIPE: bootstrap.pipe,
-    AEGIS_OWNER_SECRET: bootstrap.secret,
-  };
-  for (const key of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP'])
-    if (process.env[key]) environment[key] = process.env[key];
+  const environment = verifierEnvironment(bootstrap, profileEnvironment);
   let child;
   let terminal;
   try {
@@ -118,4 +126,4 @@ async function runOwnerConsoleReview(args, bootstrap) {
   }
 }
 
-module.exports = { runOwnerConsoleReview, selectedProfileEnvironment };
+module.exports = { runOwnerConsoleReview, selectedProfileEnvironment, verifierEnvironment };
