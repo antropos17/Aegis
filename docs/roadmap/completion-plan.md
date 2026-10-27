@@ -85,6 +85,17 @@ W6/W9 require a visible decision and response outcome; W8 adds ordinary-work and
 bounded decoy comparisons. This is a plan revision, with no new acceptance,
 production honeypot activation, profile change or native-run authorization.
 
+Revision 7 (2026-10-27) responds to the owner's HOL Guard comparison and delivery
+review. The [source and CI findings](guard-delivery-review-20261027.md) identify
+portable Guard packaging, everyday policy behavior and installed-route checks
+as the immediate product gaps. Section 7 now puts a usable Windows Claude Guard
+journey first for new work, with W11/W4 continuing on their own evidence-bound
+lanes. It reuses the genuine source and packaged-Claude results in #1115 and
+does not promote those bounded results to full Guard acceptance. T1–T10 and
+their security/acceptance requirements remain unchanged. This revision changes
+planning documents only; protected workflow edits, paid-provider/cloud-VM runs and
+release actions retain their existing authorization boundaries.
+
 ## 1. Instruction priority
 
 When two sources disagree, the higher one wins:
@@ -795,8 +806,10 @@ evidence that either product covers every agent action. rv's dated
 also records unresolved isolation and integration gaps for its tested revision.
 No rv code, policy packs or runtime is adopted by this plan.
 
-Apply the following priorities within the existing section 7 queue; they do not
-move Guard ahead of the Windows and W4 closure work:
+Apply the following priorities within the revised section 7 queue. The first
+usable Guard journey is now the priority for new work. Existing W11/W4 ownership
+continues independently, and claims depending on their sensors or attribution
+still require their acceptance evidence.
 
 1. **Finish one usable Guard route (W6.3/W6.4 and W9).** Reuse the
    [separate Claude hook profile](../CLAUDE-HOOK-APP.md): the app can review,
@@ -826,14 +839,17 @@ move Guard ahead of the Windows and W4 closure work:
    decisions and evidence of an outside-route action must not imply that all
    bypasses are detectable. Verify transitions without converting configuration
    checks or self-reported client metadata into proof of enforcement.
-4. **Add a small, measured rule set after the first route works (W6/W8).**
+4. **Include a small, measured rule set in the first usable route (W6/W8).**
    Scope initial Windows developer cases to destructive Git operations, file
    deletion and selected secret paths. The current Claude Bash hook matches
    complete exact input; it is not a general shell parser. Design any broader
    evaluator and route-specific defaults explicitly, with safe examples and
    bypass/unsupported syntax cases. Compare blocked and ordinary work against an
    independent oracle, including false allows, false blocks, task completion and
-   latency, before expanding categories. Static npm lifecycle-script analysis
+   latency, before expanding categories. Exact-input demonstrations remain useful
+   boundary evidence; the first usable milestone also needs ordinary tasks that
+   do not require hand-authoring each complete tool request. Static npm
+   lifecycle-script analysis
    already exists; evaluating scripts before execution is a separate later
    capability, with explicit bounds and unknown results, not a current claim.
 5. **Evaluate a nonblocking policy trial after that route is qualified (W6/W8).**
@@ -1285,37 +1301,80 @@ mode, polling mode or a mix; the documented coverage limits in README and
 
 ## 7. Execution order
 
-The original waves below are a dependency map, not barriers requiring every
-platform to finish together. Next work follows three milestones:
+Revision 7's order is authoritative for new work. The original waves retained
+below describe dependencies and history; they do not put every sensor, Cedar or
+Protected Session ahead of a usable Guard route. The
+[27 October review](guard-delivery-review-20261027.md) records the source and CI
+evidence. Keep one active primary delivery milestone. Existing independent task
+ownership remains intact; do not take over another chat's changes.
 
-1. Close the bounded Windows diagnostic admission and recovery path on one
-   identified packaged candidate. Reuse unaffected receipts and fix demonstrated
-   failures narrowly. Synthetic read fixtures establish only their recorded
-   diagnostic scope; they do not establish `productionAdmission`.
-2. Qualify the existing ordinary packaged-agent path through the application,
-   audit, alert/risk and coverage view with a supported real-agent caller; fix
-   only demonstrated gaps. Then measure one useful workload with an independent
-   oracle. Record the actual version, mode, losses and limits.
-3. Expand through complete caller-to-visible-result slices: another platform or
-   mode, explanation, one provider Guard route, Cedar, or Protected Session.
-   Choose ready slices by user value and an available qualification environment.
-   Their order is selectable; all T1–T10 remain in the long-term completion target.
+1. **G1 — Usable Windows Claude Guard (W6/W9/W10, measured with W8).** A clean
+   installation supplies its Guard dependencies, guides an explicitly selected
+   Claude launch, applies a small practical policy, shows a decision and its
+   known/unknown result, and supports safe removal. Qualify one agent version,
+   shell and action surface with ordinary and forbidden tasks. ETW read admission
+   is required for native-read claims, not for the hook's independently checked
+   allow/deny outcome. Reuse #1115's bounded evidence; finish the gaps below.
+2. **G2 — Extend the same usable contract (W6/W9 and local security review).**
+   Qualify one Codex surface, then Gemini, using the shared policy semantics and
+   each provider's actual approval/failure behavior. Connect existing artifact
+   inventory/snapshot review to a selected launch; add a package-install check
+   only at a real supported pre-install boundary. Record unsupported routes.
+   This increases practical overlap with HOL; it does not establish equal
+   cross-platform effectiveness or coverage of its full advertised catalog.
+3. **G3 — Measured differentiation (W4/W8/W9 plus qualified W11 inputs).**
+   Connect decisions to the correct agent instance and independently observed
+   effects. Compare declared supported tasks and ordinary-work costs against a
+   pinned HOL version when that comparison run is authorized. Continue the OS
+   lanes and later Cedar/Protected Session slices according to concrete value
+   and readiness. All T1–T10 retain their full long-term acceptance targets.
 
-Prefer completing an existing slice over adding more dormant utilities. Shared
-infrastructure is scheduled only when the next slice demonstrates its need.
-Reuse completed prerequisites rather than reopening them without changed inputs.
+W11 diagnostic admission/recovery and W4 source ownership can continue alongside
+G1 under their existing owners and authorizations. Their missing evidence must
+remain visible, and cannot be supplied by hook fixtures or a passing CI suite.
+Do not start another native/cloud run merely because the priority order changed.
 
 ### Next closure milestones
 
-Use this queue when selecting new work. Existing task ownership remains in force;
-independent integration proceeds while the Windows run is pending.
+Use this queue to implement G1. A preparation PR can close its own integration
+boundary but cannot mark G1 complete. Scope a PR to a coherent observable change;
+do not create a separate delivery milestone for every helper or report.
 
 | Priority | Existing substep | Next deliverable and closure evidence |
 | --- | --- | --- |
-| 1 | W11.2 / W11.4 | Consume the single authorized Windows diagnostic run. Diagnose its first failing stage from the saved artifact. Close read-to-audit/alert/risk and recovery only when the actual candidate proves them; otherwise implement the narrow demonstrated fix before considering another run. |
-| 2 | W4.3–W4.4, retaining partial W4.2 | Reuse the recorded native Claude ownership, active-writer, real Write, external-project, two-instance and restart/resume receipts (#1106, #1108). Continue measured clock alignment, native file-read acceptance and named remaining source/privacy gaps; qualify another provider only with its consumer and missing ownership evidence named. Keep inferred association explicit and packaged/native-consent acceptance open. |
-| 3 | W6.3, then W6.4; W9 | Connect existing review/backup/readback operations to owner-visible preview, install and remove for one provider. Demonstrate rollback on a disposable profile, then a real denied and allowed operation with a visible outcome. Verify the selected route before using Blocking verified; exercise expiry/replay/bypass within that route's contract. |
-| 4 | W8.3–W8.4; existing W4/W6/W9 consumers | Measure one real ordinary/unauthorized task pair with an independent oracle; record available explanation/decision/response outcomes and unavailable surfaces. Publish false alarms, misses, task completion, latency and coverage limits. Only then run the bounded decoy comparison if it answers a remaining detection question. |
+| G1-A — start next | W6.3, W9, W10 | Make ordinary Windows packaging prepare and validate portable hook-review assets. Finish the existing owned-profile setup/removal and supported launch guidance in Observatory. Produce one candidate whose installed path, native assets and packaged hook IO work on a clean supported Windows environment. Preserve exact preview, backups, readback, consent and integrity checks. Scripted confirmation remains distinct from a real owner-dialog journey. |
+| G1-B | W6.4, W9, W8 | Add the bounded practical rule set and policy selection needed for ordinary project work, selected secret reads and destructive Git/file actions. Reuse applicable parser/policy components only after checking their runtime limits. Unsupported syntax/programs cannot silently allow. Show policy/rule reason and known/unknown outcome through the existing UI; keep provider ask distinct from AEGIS approval. Preserve schema-1 exact policies and qualify any new semantics. |
+| G1-C | W6.4, W8.3–W8.4, W9 | On the resulting installed candidate, exercise the declared ordinary/forbidden cases, missing/unstartable/timed-out hooks, malformed responses, restart/removal and outside-route behavior. Prove denied-no-effect and allowed-effect with independent filesystem/receiver evidence. Record false blocks, misses, approvals, task completion and latency. Label Blocking verified only for the accepted agent/version/platform/surface. Full G1 waits for this record and the real owner journey. |
+| CI companion to G1 | Existing required checks and packaging | Implement the review's required Windows package/Guard lane and cheap early validation when workflow edits are authorized. Keep all five context names and strict protection; relevant native failures must reach a required result. Reuse one candidate and keep provider-free checks separate from paid/installed-provider acceptance. |
+| Continuing independent lane | W11.2/W11.4 and W4.3–W4.4 | Consume existing Windows diagnostics and #1106/#1108/#1115 receipts within their source and environment scope. Fix demonstrated gaps; retain inferred association, native-read and packaged/native-consent limits. Do not reopen accepted renewal/ownership work without changed inputs or a specific residual defect. |
+
+G1 is complete only when a user can install, select the supported policy/route,
+complete the declared ordinary tasks, encounter a real blocked attempted action,
+inspect the decision/result and remove the integration. A two-command exact-input
+fixture, a green installer build or a policy file alone does not close G1.
+The existing [source and packaged-Claude receipts](../CLAUDE-HOOK-APP.md) prove
+their recorded marker outcomes and transport behavior. They reduce repeated
+work, while portability, everyday policy and broader failure coverage remain open.
+
+### Start the next implementation task
+
+Begin G1-A from current `origin/master` in an isolated worktree after a small
+delta check against this review. Read the current asset builder, packaging hook,
+profile loader and actual Observatory consumer; preserve unrelated work. Fix the
+portable asset/installation path and connect the result to the existing UI.
+Run focused regression checks for changed behavior and the smallest package
+check that exercises the actual binary. Prepare the related required Windows
+CI integration in the same delivery scope when the owner authorizes workflow
+edits; preserve branch protection and no-secret PR execution. Complete the Git
+cycle under existing authorization. Report the candidate, observed behavior and
+precise remaining G1 condition. Do not replace this task with another general
+audit, new tracker, architecture rewrite or unrelated sensor work.
+
+An authorization boundary does not stop independent source work. Prepare a
+reviewable candidate before requesting a specifically required workflow/cloud-VM/
+paid-provider action. Never infer new paid sessions, VM runs, personal-profile
+changes, release tags or delegation from this plan. Keep the selected model.
+Policy evaluation changes retain the existing independent-review requirement.
 
 W8.1 and W8.2 already represent method and educational harness preparation in
 the tracker. Additional oracle adapters, replay validators or synthetic controls
@@ -1326,8 +1385,9 @@ bounded results under W8.4. Keep cross-platform completion as the long-term goal
 The enterprise diagram does not introduce a competing platform roadmap. Work on
 RAG infrastructure, a hosted registry, SSO, private model hosting, a secrets vault,
 SIEM ingestion or production honeypots is deferred unless a concrete authorized
-consumer makes it necessary. Existing Windows/W4/W6 closure work comes first;
-an unrelated blocked lane does not prevent a ready integration from finishing.
+consumer makes it necessary. The selected G1 journey and already-owned Windows/W4
+closure work come first; an unrelated blocked lane does not prevent a ready
+integration from finishing.
 
 Each new task names the existing substep, final consumer, acceptance observation,
 missing dependency and smallest relevant verification. If its deliverable is
