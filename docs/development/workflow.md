@@ -180,7 +180,7 @@ Existing mutation receipts remain historical evidence; they are not a recurring
 acceptance requirement. Use regression assertions and independent expected
 results instead.
 The optional developer tools are not new required GitHub contexts.
-CI defines 15 verification commands across the five contexts, including scope and
+CI defines 16 verification commands across the five contexts, including scope and
 catalog checks; conditional runs execute only the applicable subset.
 
 CI classifies the exact event range. An allowlisted Markdown-only change runs
