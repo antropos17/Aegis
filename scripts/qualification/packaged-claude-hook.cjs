@@ -116,9 +116,26 @@ async function child(executable, args, options) {
   return { result, evidence };
 }
 
-function post(receiver, route, body, token) {
+function post(receiver, route, body, token, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);
+    const chunks = [];
+    let bytes = 0,
+      response,
+      settled = false;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        response?.destroy();
+        req.destroy();
+      }
+      for (const chunk of chunks) chunk.fill(0);
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const timer = setTimeout(() => finish(Error('Observer request deadline exceeded')), timeoutMs);
     const req = http.request(
       {
         host: '127.0.0.1',
@@ -133,15 +150,22 @@ function post(receiver, route, body, token) {
         },
       },
       (res) => {
-        const chunks = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () =>
-          resolve({ code: res.statusCode, body: Buffer.concat(chunks).toString() }),
-        );
-        res.on('error', reject);
+        response = res;
+        res.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > 8192) return finish(Error('Observer response exceeded limit'));
+          chunks.push(chunk);
+        });
+        res.on('end', () => {
+          const combined = Buffer.concat(chunks, bytes);
+          const result = { code: res.statusCode, body: combined.toString() };
+          combined.fill(0);
+          finish(null, result);
+        });
+        res.on('error', () => finish(Error('Observer response failed')));
       },
     );
-    req.on('error', reject);
+    req.on('error', () => finish(Error('Observer request failed')));
     req.end(payload);
   });
 }
@@ -437,7 +461,7 @@ async function run() {
   console.log('PASS: packaged hook and assets; source profile used scripted confirmation.');
 }
 
-module.exports = { assertArchivedProfileSourcesMatch };
+module.exports = { assertArchivedProfileSourcesMatch, post };
 if (require.main === module)
   run().catch(async (error) => {
     receipt.complete = false;
