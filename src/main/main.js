@@ -201,6 +201,71 @@ let mainWindow = null;
 let latestAgents = [],
   latestAiAgents = [],
   latestOtherAgents = [];
+let liveLifecycleGeneration = 0n;
+let livePopulationGeneration = 0n;
+let livePopulationReady = false;
+
+function invalidateLivePopulation() {
+  livePopulationReady = false;
+  livePopulationGeneration++;
+}
+function noteLiveLifecycleChange() {
+  liveLifecycleGeneration++;
+  invalidateLivePopulation();
+}
+function beginLivePopulationScan() {
+  invalidateLivePopulation();
+  return liveLifecycleGeneration;
+}
+function commitLivePopulationScan(pass) {
+  try {
+    if (
+      !pass ||
+      pass.lifecycleGeneration !== liveLifecycleGeneration ||
+      pass.agents !== latestAgents ||
+      pass.reliable !== true ||
+      pass.observationComplete !== true ||
+      pass.snapshotCurrent !== true ||
+      monitoringPaused ||
+      observationGap.snapshot().state !== 'NONE' ||
+      scanner?.getProcessCapabilities?.().populationReliable !== true
+    )
+      return;
+    livePopulationReady = true;
+  } catch {
+    livePopulationReady = false;
+  }
+}
+function livePopulationWitness() {
+  try {
+    if (
+      !livePopulationReady ||
+      monitoringPaused ||
+      observationGap.snapshot().state !== 'NONE' ||
+      scanner?.getProcessCapabilities?.().populationReliable !== true
+    )
+      return null;
+    return `${liveLifecycleGeneration}:${livePopulationGeneration}`;
+  } catch {
+    return null;
+  }
+}
+function onLiveProcessScanCommitted(pass) {
+  commitLivePopulationScan(pass);
+  nativeSensor?.onProcessScanCommitted(pass);
+}
+function onLiveProcessObservationUnavailable() {
+  invalidateLivePopulation();
+  nativeSensor?.onProcessObservationUnavailable();
+}
+function attachLivePopulationPowerMonitor(powerMonitor) {
+  powerMonitor.on('suspend', noteLiveLifecycleChange);
+  powerMonitor.on('resume', noteLiveLifecycleChange);
+  return () => {
+    powerMonitor.removeListener('suspend', noteLiveLifecycleChange);
+    powerMonitor.removeListener('resume', noteLiveLifecycleChange);
+  };
+}
 /**
  * Publish the current process batch to every main-process reader. Identity stamps
  * enrich these same objects after the population is published.
@@ -209,6 +274,7 @@ let latestAgents = [],
  * @since v0.17.0
  */
 function setLatestAgents(agents) {
+  invalidateLivePopulation();
   latestAgents = agents;
   latestAiAgents = agents.filter((a) => a.category === 'ai');
   latestOtherAgents = agents.filter((a) => a.category === 'other');
@@ -223,6 +289,7 @@ let isQuitting = false,
  * @since v0.19.2-beta
  */
 function setMonitoringPaused(paused) {
+  if (monitoringPaused !== paused) noteLiveLifecycleChange();
   monitoringPaused = paused;
   etwFile?.setPaused(paused);
   nativeSensor?.setPaused(paused);
@@ -725,8 +792,8 @@ function auditCustodyRevision() {
   }
 }
 const liveToolContext = createLiveToolContext({
-  getAgents: () =>
-    scanner?.getProcessCapabilities?.().populationReliable === true ? latestAgents : [],
+  getAgents: () => (livePopulationWitness() === null ? [] : latestAgents),
+  getPopulationGeneration: livePopulationWitness,
   onAuditRevision: (revision) => sendToRenderer('audit:custody-revision', revision),
   auditProof: captureAuditCustodyProof,
 });
@@ -1221,8 +1288,10 @@ function initDeferredSubsystems(userData) {
   scanLoop.init({
     securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
-    onProcessScanCommitted: (pass) => nativeSensor?.onProcessScanCommitted(pass),
-    onProcessObservationUnavailable: () => nativeSensor?.onProcessObservationUnavailable(),
+    beginLivePopulationScan,
+    onLivePopulationIntervalsStopped: noteLiveLifecycleChange,
+    onProcessScanCommitted: onLiveProcessScanCommitted,
+    onProcessObservationUnavailable: onLiveProcessObservationUnavailable,
     scanner,
     procUtil,
     watcher,
@@ -1434,7 +1503,9 @@ app.whenReady().then(() => {
   // of any `agent-exit` a post-sleep reconcile may go on to write. `audit` is a
   // deferred module: a resume before it loaded has no log to write to, and no log is
   // fabricated later.
-  observationGap.attach(require('electron').powerMonitor, {
+  const powerMonitor = require('electron').powerMonitor;
+  attachLivePopulationPowerMonitor(powerMonitor);
+  observationGap.attach(powerMonitor, {
     onGap: (gap) => {
       const details = observationGap.buildGapAuditDetails(gap, {
         monitoringPaused,
@@ -1774,6 +1845,15 @@ module.exports = {
   _setWatcherForTest,
   _setEtwFileForTest,
   _setMonitoringPausedForTest: setMonitoringPaused,
+  _livePopulationHooksForTest: {
+    begin: beginLivePopulationScan,
+    commit: commitLivePopulationScan,
+    committed: onLiveProcessScanCommitted,
+    unavailable: onLiveProcessObservationUnavailable,
+    attachPower: attachLivePopulationPowerMonitor,
+    witness: livePopulationWitness,
+    lifecycleChange: noteLiveLifecycleChange,
+  },
   _setScannerForTest,
   _setLatestAgentsForTest: setLatestAgents,
   _setScanLoopForTest,

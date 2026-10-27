@@ -301,6 +301,7 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  deps.onLivePopulationIntervalsStopped?.();
   maxProcessGapMs = null;
   if (wslInventoryInterval) {
     clearInterval(wslInventoryInterval);
@@ -699,6 +700,7 @@ async function doProcessScan() {
   networkScopePending = true;
   networkScopeRevision++;
   const resourceGeneration = resourceScanGeneration;
+  const lifecycleGeneration = deps.beginLivePopulationScan?.();
   let networkIdentityReady = false;
   updateScanStatus(true);
   const t0 = performance.now();
@@ -1009,6 +1011,8 @@ async function doProcessScan() {
       reliable: result.reliable === true,
       identityDegraded,
       gapStraddled,
+      observationComplete: observed,
+      lifecycleGeneration,
       snapshotCurrent:
         resourceGeneration === resourceScanGeneration &&
         snapshotCurrent &&
