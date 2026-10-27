@@ -1,3 +1,26 @@
+<script module lang="ts">
+  type Custody = {
+    retained: boolean;
+    unknown: boolean;
+    outstanding: number;
+    revision: number;
+    refreshRequired: boolean;
+    listeners: Set<() => void>;
+  };
+  const custodyByHost = new WeakMap<object, Custody>();
+  const newCustody = (): Custody => ({
+    retained: false,
+    unknown: false,
+    outstanding: 0,
+    revision: 0,
+    refreshRequired: false,
+    listeners: new Set(),
+  });
+  const notifyCustody = (value: Custody) => {
+    for (const listener of value.listeners) listener();
+  };
+</script>
+
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { confirmed, invoke, record, type Host } from '../runtime/host';
@@ -39,7 +62,22 @@
   let pending = $state<Operation | null>(null);
   let feedback = $state('');
   let failure = $state(false);
-  let mutationOutcomeUnknown = $state(false);
+  let custody: Custody | null = null;
+  let custodyView = $state({
+    retained: false,
+    unknown: false,
+    outstanding: 0,
+    refreshRequired: false,
+  });
+  const syncCustody = () => {
+    if (custody)
+      custodyView = {
+        retained: custody.retained,
+        unknown: custody.unknown,
+        outstanding: custody.outstanding,
+        refreshRequired: custody.refreshRequired,
+      };
+  };
   const available = $derived(!preview && typeof host?.reviewCodexHookProfile === 'function');
   let alive = true;
   let generation = 0;
@@ -48,32 +86,75 @@
     const nextPreview = preview;
     untrack(() => {
       generation++;
-      if (pending === 'install' || pending === 'remove') mutationOutcomeUnknown = true;
+      if ((pending === 'install' || pending === 'remove') && custody) {
+        custody.unknown = true;
+        custody.refreshRequired = true;
+        notifyCustody(custody);
+      }
       pending = null;
       capabilities = none();
       feedback = '';
       failure = false;
+      if (nextHost && typeof nextHost === 'object') {
+        const known = custodyByHost.get(nextHost);
+        if (!custody) custody = known || newCustody();
+        else if (known && known !== custody) {
+          known.retained = true;
+          known.unknown = true;
+          notifyCustody(known);
+          custody.retained = true;
+          custody.unknown = true;
+        }
+        custodyByHost.set(nextHost, custody);
+        custody.listeners.add(syncCustody);
+        syncCustody();
+      }
       if (!nextPreview && typeof nextHost?.reviewCodexHookProfile === 'function')
         void perform('status');
     });
   });
   onDestroy(() => {
+    if ((pending === 'install' || pending === 'remove') && custody) {
+      custody.unknown = true;
+      custody.refreshRequired = true;
+      notifyCustody(custody);
+    }
     alive = false;
     generation++;
+    custody?.listeners.delete(syncCustody);
   });
   async function perform(action: Operation) {
     if (!available || pending) return;
     const requestGeneration = generation;
     const requestHost = host;
+    const requestCustody = custody;
+    if (!requestCustody) return;
+    const requestRevision = requestCustody.revision;
     const current = () =>
       alive && generation === requestGeneration && host === requestHost && !preview;
     const mutation = action === 'install' || action === 'remove';
+    if (
+      (mutation || action === 'prepare-launch') &&
+      (requestCustody.outstanding || requestCustody.retained || requestCustody.refreshRequired)
+    )
+      return;
+    if (mutation) {
+      requestCustody.outstanding++;
+      notifyCustody(requestCustody);
+    }
     pending = action;
     capabilities = none();
     try {
       const result = record(confirmed(await invoke(requestHost, 'reviewCodexHookProfile', action)));
-      if (!current()) return;
       const code = result.code;
+      if (
+        typeof code === 'string' &&
+        ['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'].includes(code)
+      ) {
+        requestCustody.retained = true;
+        notifyCustody(requestCustody);
+      }
+      if (!current()) return;
       if (
         typeof code !== 'string' ||
         !Object.hasOwn(messages, code) ||
@@ -83,12 +164,26 @@
         typeof result.canOpen !== 'boolean' ||
         ((result.canInstall || result.canRemove) && !result.available) ||
         (result.canRemove && !result.canOpen) ||
-        (code === 'UNAVAILABLE' && result.available)
+        (code === 'UNAVAILABLE' && result.available) ||
+        (code === 'INSTALLED' && !['install', 'status', 'open-profile'].includes(action)) ||
+        (code === 'REMOVED' && !['remove', 'status', 'open-profile'].includes(action)) ||
+        (code === 'LAUNCH_READY' && action !== 'prepare-launch')
       )
         throw Error('invalid-response');
+      if (
+        action === 'status' &&
+        (requestCustody.outstanding || requestCustody.revision !== requestRevision)
+      ) {
+        feedback = messages.BUSY;
+        failure = false;
+        return;
+      }
       const uncertain = ['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'].includes(code);
       const blocked = uncertain || ['BUSY', 'UNAVAILABLE', 'OPERATION_FAILED'].includes(code);
-      if (mutation && (uncertain || code === 'OPERATION_FAILED')) mutationOutcomeUnknown = true;
+      if (mutation && (uncertain || code === 'OPERATION_FAILED')) requestCustody.unknown = true;
+      if (action === 'status' && !blocked && !requestCustody.retained)
+        requestCustody.refreshRequired = false;
+      notifyCustody(requestCustody);
       capabilities = {
         canInstall: !blocked && result.canInstall,
         canRemove: !blocked && result.canRemove,
@@ -96,9 +191,9 @@
         canLaunch: !blocked && result.available && result.canOpen,
       };
       feedback =
-        action === 'status' && code === 'INSTALLED'
+        ['status', 'open-profile'].includes(action) && code === 'INSTALLED'
           ? 'Last verified setup result was installation; the current profile has not been rechecked.'
-          : action === 'status' && code === 'REMOVED'
+          : ['status', 'open-profile'].includes(action) && code === 'REMOVED'
             ? 'Last verified setup result was removal; the current profile has not been rechecked.'
             : messages[code];
       failure = !['IDLE', 'BUSY', 'CANCELLED', 'INSTALLED', 'REMOVED', 'LAUNCH_READY'].includes(
@@ -106,12 +201,22 @@
       );
     } catch {
       if (current()) {
-        if (mutation) mutationOutcomeUnknown = true;
+        if (mutation) {
+          requestCustody.unknown = true;
+          requestCustody.refreshRequired = true;
+          notifyCustody(requestCustody);
+        }
         capabilities = none();
         feedback = messages.OPERATION_FAILED;
         failure = true;
       }
     } finally {
+      if (mutation) {
+        requestCustody.outstanding--;
+        requestCustody.revision++;
+        if (!current() || requestCustody.unknown) requestCustody.refreshRequired = true;
+        notifyCustody(requestCustody);
+      }
       if (current()) pending = null;
     }
   }
@@ -150,17 +255,32 @@
     <div class="profile-actions">
       <button
         class="button"
-        disabled={!available || pending !== null || !capabilities.canInstall}
+        disabled={!available ||
+          pending !== null ||
+          !capabilities.canInstall ||
+          custodyView.outstanding > 0 ||
+          custodyView.retained ||
+          custodyView.refreshRequired}
         onclick={() => perform('install')}>{$t('Choose Codex policy and review install')}</button
       >
       <button
         class="button"
-        disabled={!available || pending !== null || !capabilities.canRemove}
+        disabled={!available ||
+          pending !== null ||
+          !capabilities.canRemove ||
+          custodyView.outstanding > 0 ||
+          custodyView.retained ||
+          custodyView.refreshRequired}
         onclick={() => perform('remove')}>{$t('Review Codex hook removal')}</button
       >
       <button
         class="button"
-        disabled={!available || pending !== null || !capabilities.canLaunch}
+        disabled={!available ||
+          pending !== null ||
+          !capabilities.canLaunch ||
+          custodyView.outstanding > 0 ||
+          custodyView.retained ||
+          custodyView.refreshRequired}
         onclick={() => perform('prepare-launch')}>{$t('Review Codex terminal command')}</button
       >
       <button
@@ -174,9 +294,19 @@
         onclick={() => perform('status')}>{$t('Refresh setup status')}</button
       >
     </div>
-    {#if mutationOutcomeUnknown}<p role="alert">
+    {#if custodyView.unknown}<p role="alert">
         {$t(
           'The outcome of a previous profile change is unknown. Refresh can restore current controls but cannot confirm that change.',
+        )}
+      </p>{/if}
+    {#if custodyView.retained}<p role="alert">
+        {$t(
+          'An uncertain native result is retained. Profile changes and launch review remain unavailable.',
+        )}
+      </p>{/if}
+    {#if custodyView.outstanding > 0 || custodyView.refreshRequired}<p role="status">
+        {$t(
+          'A previous profile operation is still running or has just finished. Refresh setup status again.',
         )}
       </p>{/if}
     {#if feedback}<p role={failure ? 'alert' : 'status'}>{$t(feedback)}</p>{/if}

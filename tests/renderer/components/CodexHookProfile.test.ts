@@ -128,7 +128,11 @@ it('blocks contradictory retained-unknown capabilities while preserving folder a
       reply('RETAINED_UNKNOWN', { canInstall: true, canRemove: true, canOpen: true }),
     );
   render(CodexHookProfile, { host: { reviewCodexHookProfile: review } as Host });
-  expect(await screen.findByRole('alert')).toHaveTextContent('uncertain');
+  expect(
+    await screen.findByText(
+      'An uncertain native result is retained. Profile changes and launch review remain unavailable.',
+    ),
+  ).toHaveAttribute('role', 'alert');
   expect(installButton()).toBeDisabled();
   expect(removeButton()).toBeDisabled();
   expect(launchButton()).toBeDisabled();
@@ -216,27 +220,40 @@ it('suppresses a late response across preview A to B to A and refreshes the reco
   expect(review.mock.calls).toEqual([['status'], ['status']]);
 });
 
-it('serializes pending operations and records an uncertain mutation when the host changes', async () => {
+it('blocks overlapping writes and launch after a host change until a post-settlement status', async () => {
   const pending = deferred();
+  const overlappingStatus = deferred();
   const first = vi
     .fn()
     .mockResolvedValueOnce(reply('IDLE', { canInstall: true }))
     .mockImplementationOnce(() => pending.promise);
-  const second = vi.fn().mockResolvedValue(reply('IDLE', { canInstall: true }));
+  const second = vi
+    .fn()
+    .mockImplementationOnce(() => overlappingStatus.promise)
+    .mockResolvedValue(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
   const { rerender } = render(CodexHookProfile, {
     host: { reviewCodexHookProfile: first } as Host,
   });
   await screen.findByText('Setup has not been reviewed.');
   await fireEvent.click(installButton());
   expect(refreshButton()).toBeDisabled();
-  await fireEvent.click(refreshButton());
-  expect(first.mock.calls).toEqual([['status'], ['install']]);
   await rerender({ host: { reviewCodexHookProfile: second } as Host });
-  await waitFor(() => expect(installButton()).toBeEnabled());
+  await waitFor(() => expect(second).toHaveBeenCalledTimes(1));
   expect(screen.getByText(unknownOutcome)).toBeVisible();
-  pending.resolve(reply('INSTALLED', { canRemove: true, canOpen: true }));
-  await Promise.resolve();
+  expect(installButton()).toBeDisabled();
+  expect(removeButton()).toBeDisabled();
   expect(launchButton()).toBeDisabled();
+  pending.resolve(reply('INSTALLED', { canRemove: true, canOpen: true }));
+  overlappingStatus.resolve(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+  await Promise.resolve();
+  expect(installButton()).toBeDisabled();
+  expect(removeButton()).toBeDisabled();
+  expect(launchButton()).toBeDisabled();
+  await waitFor(() => expect(refreshButton()).toBeEnabled());
+  await fireEvent.click(refreshButton());
+  await waitFor(() => expect(installButton()).toBeEnabled());
+  expect(removeButton()).toBeEnabled();
+  expect(launchButton()).toBeEnabled();
   expect(screen.getByText(unknownOutcome)).toBeVisible();
 });
 
@@ -279,4 +296,147 @@ it.each([
   expect(installButton()).toBeEnabled();
   expect(screen.getByText(unknownOutcome)).toBeVisible();
   expect(view.container.textContent).not.toContain('PRIVATE');
+});
+
+it.each(['WRITE_UNCERTAIN', 'READBACK_FAILED', 'RETAINED_UNKNOWN'])(
+  'keeps %s latched across malformed replies, a positive refresh and a host switch',
+  async (code) => {
+    const first = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...reply(code, { canInstall: true, canRemove: true, canOpen: true }),
+        available: 'bad',
+      })
+      .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+    const second = vi
+      .fn()
+      .mockResolvedValue(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+    const { rerender } = render(CodexHookProfile, {
+      host: { reviewCodexHookProfile: first } as Host,
+    });
+    await screen.findByText('Profile review could not complete. Retained files are preserved.');
+    await fireEvent.click(refreshButton());
+    await screen.findByText('Setup has not been reviewed.');
+    expect(installButton()).toBeDisabled();
+    expect(removeButton()).toBeDisabled();
+    expect(launchButton()).toBeDisabled();
+    await rerender({ host: { reviewCodexHookProfile: second } as Host });
+    await waitFor(() => expect(second).toHaveBeenCalledTimes(1));
+    await screen.findByText('Setup has not been reviewed.');
+    expect(installButton()).toBeDisabled();
+    expect(removeButton()).toBeDisabled();
+    expect(launchButton()).toBeDisabled();
+  },
+);
+
+it.each([
+  [
+    'INSTALLED',
+    'Last verified setup result was installation; the current profile has not been rechecked.',
+  ],
+  [
+    'REMOVED',
+    'Last verified setup result was removal; the current profile has not been rechecked.',
+  ],
+])('labels %s returned by open-profile as historical', async (code, message) => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce(reply('IDLE', { canOpen: true }))
+    .mockResolvedValueOnce(reply(code, { canOpen: true }));
+  render(CodexHookProfile, { host: { reviewCodexHookProfile: review } as Host });
+  await screen.findByText('Setup has not been reviewed.');
+  await fireEvent.click(openButton());
+  expect(await screen.findByText(message)).toBeVisible();
+  expect(review.mock.calls).toEqual([['status'], ['open-profile']]);
+});
+
+it.each([
+  ['install', 'REMOVED'],
+  ['remove', 'INSTALLED'],
+] as const)(
+  'treats %s with contradictory %s result as an unknown mutation outcome',
+  async (action, code) => {
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }))
+      .mockResolvedValueOnce(reply(code, { canInstall: true, canRemove: true, canOpen: true }));
+    render(CodexHookProfile, { host: { reviewCodexHookProfile: review } as Host });
+    await screen.findByText('Setup has not been reviewed.');
+    await fireEvent.click(action === 'install' ? installButton() : removeButton());
+    expect(await screen.findByText(unknownOutcome)).toBeVisible();
+    expect(installButton()).toBeDisabled();
+    expect(removeButton()).toBeDisabled();
+    expect(launchButton()).toBeDisabled();
+  },
+);
+
+it('keeps mutations blocked through preview changes until settlement and a fresh status', async () => {
+  const pending = deferred();
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce(reply('IDLE', { canInstall: true }))
+    .mockImplementationOnce(() => pending.promise)
+    .mockResolvedValue(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+  const host = { reviewCodexHookProfile: review } as Host;
+  const { rerender } = render(CodexHookProfile, { host, preview: false });
+  await screen.findByText('Setup has not been reviewed.');
+  await fireEvent.click(installButton());
+  await rerender({ host, preview: true });
+  await rerender({ host, preview: false });
+  expect(installButton()).toBeDisabled();
+  expect(removeButton()).toBeDisabled();
+  expect(launchButton()).toBeDisabled();
+  pending.resolve(reply('INSTALLED', { canRemove: true, canOpen: true }));
+  await waitFor(() => expect(refreshButton()).toBeEnabled());
+  expect(installButton()).toBeDisabled();
+  await fireEvent.click(refreshButton());
+  await waitFor(() => expect(installButton()).toBeEnabled());
+  expect(screen.getByText(unknownOutcome)).toBeVisible();
+});
+
+it('preserves an unresolved mutation when remounting with the same host', async () => {
+  const pending = deferred();
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce(reply('IDLE', { canInstall: true }))
+    .mockImplementationOnce(() => pending.promise)
+    .mockResolvedValue(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+  const host = { reviewCodexHookProfile: review } as Host;
+  const first = render(CodexHookProfile, { host });
+  await screen.findByText('Setup has not been reviewed.');
+  await fireEvent.click(installButton());
+  first.unmount();
+  render(CodexHookProfile, { host });
+  expect(installButton()).toBeDisabled();
+  expect(removeButton()).toBeDisabled();
+  expect(launchButton()).toBeDisabled();
+  pending.resolve(reply('INSTALLED', { canRemove: true, canOpen: true }));
+  await waitFor(() => expect(refreshButton()).toBeEnabled());
+  expect(installButton()).toBeDisabled();
+  await fireEvent.click(refreshButton());
+  await waitFor(() => expect(installButton()).toBeEnabled());
+  expect(screen.getByText(unknownOutcome)).toBeVisible();
+});
+
+it('retains native uncertainty on remount using the same host despite a positive status', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce(reply('RETAINED_UNKNOWN', { canOpen: true }))
+    .mockResolvedValueOnce(reply('IDLE', { canInstall: true, canRemove: true, canOpen: true }));
+  const host = { reviewCodexHookProfile: review } as Host;
+  const first = render(CodexHookProfile, { host });
+  await screen.findByText(
+    'An uncertain native result is retained. Profile changes and launch review remain unavailable.',
+  );
+  first.unmount();
+  render(CodexHookProfile, { host });
+  await screen.findByText('Setup has not been reviewed.');
+  expect(
+    screen.getByText(
+      'An uncertain native result is retained. Profile changes and launch review remain unavailable.',
+    ),
+  ).toBeVisible();
+  expect(installButton()).toBeDisabled();
+  expect(removeButton()).toBeDisabled();
+  expect(launchButton()).toBeDisabled();
 });
