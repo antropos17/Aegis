@@ -835,6 +835,54 @@ is untouched and an approved write still succeeds on each qualified route and
 platform. Fixture evidence and native execution evidence remain separately
 identified; these criteria do not authorize a new VM run or mutation campaign.
 
+#### W6.2 — Executor evidence, uncertain outcomes and state-bound approval
+
+Pending follow-up added on 2026-10-27 from dylan_skydive's r/LLMDevs
+feedback on "What should an approval bind to when an LLM agent calls a tool?"
+The owner supplied the comment in chat. Extend the selected W6 MCP route and
+coordinate target identity with W6.1; implementation and qualification remain open.
+
+At the post's beta revision `274d65711ac858c9d309c73f1f7c9c4e52872ed1`,
+the gateway consumes the grant before forwarding and does not restore it after
+failure or cancellation. Time-bounded profiles check validity before dispatch.
+Gateway consumption, dispatch and response events do not independently establish
+the executor's actual parameters or side effects. Grant-store and catalog
+rechecks do not establish freshness of the target's business state.
+
+- On a supported executor, record the parameters actually used at execution,
+  resolved target/context, approved state version, operation/grant correlation
+  and outcome. Compare that record with the approval and gateway dispatch;
+  surface mismatches, missing records and partial effects explicitly. Preserve
+  existing secret masking and bounded storage contracts; use defined metadata
+  or digests where raw values cannot be retained. State the executor's trust
+  boundary: its own report alone does not establish an independently verified
+  effect or protection against a compromised executor.
+- Keep a consumed grant spent after timeout, cancellation or partial failure.
+  Do not automatically retry the side effect or renew the grant. A retry needs
+  fresh approval, and an unanswered dispatched call has an unknown outcome until
+  reconciled. Where supported, use an executor-side idempotency key scoped to
+  the intended operation and payload, with a defined retention window and
+  duplicate-result contract. Fresh approval alone does not prevent duplicate
+  effects; expose unsupported reconciliation/idempotency explicitly to the owner.
+- Define a short, route-appropriate approval validity window and recheck expiry
+  at the executor before applying the action. Bind approval to the reviewed
+  target's version, ETag or equivalent state precondition. Check that precondition
+  atomically with the write through a supported transaction or conditional
+  operation; a separate preflight read leaves a race. Changed state requires
+  review and fresh approval. Routes without this support must state the limit
+  and cannot claim state-bound execution.
+
+Acceptance: use independent fixture outcomes to cover successful execution with
+matching records, differing executed parameters, missing executor evidence,
+effect committed followed by a lost response, partial failure, cancellation,
+replay after reconnect, expiry between dispatch and execution, and state changes
+both before execution and during a concurrent write. Prove that a stale approved
+version leaves the target unchanged, a valid version succeeds, and a supported
+idempotent retry produces one effect even when the first response is lost.
+Preserve existing grant-profile distinctions and W6.1 target binding. Keep
+fixture evidence separate from qualification of a real provider/server/version;
+this planning change grants no native run or product acceptance.
+
 ### W7 — Protected Session to acceptance review
 
 Owner: `windows-sensor-engineer`. Runs as its own sequence whenever the Windows
