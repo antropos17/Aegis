@@ -4,6 +4,7 @@ const net = require('node:net');
 const { randomBytes, timingSafeEqual } = require('node:crypto');
 const { publishActionEndpoint } = require('./action-mcp-endpoint');
 const terminal = require('./action-confirmation-terminal');
+const { createGatewayOutcomeReporter } = require('./mcp-gateway-outcomes');
 const LIMITS = Object.freeze({
   lifetimeMs: 900000,
   authMs: 3000,
@@ -55,6 +56,8 @@ async function handleGatewayMcpReview(args, options = {}) {
   let lifetime;
   let removeEndpoint;
   let startup = true;
+  let evidenceStatus = null;
+  let gatewayCleanup = false;
   let resolveDone;
   const done = new Promise((resolve) => {
     resolveDone = resolve;
@@ -71,6 +74,10 @@ async function handleGatewayMcpReview(args, options = {}) {
     server.close(() => {});
     if (!startup) resolveDone();
   };
+  const outcomes = createGatewayOutcomeReporter({
+    output: deps.evidenceOutput || process.stderr,
+    onFailure: stop,
+  });
   signal?.addEventListener('abort', stop, { once: true });
   if (signal?.aborted) stop();
   output.on?.('error', stop);
@@ -140,8 +147,13 @@ async function handleGatewayMcpReview(args, options = {}) {
           const session = (deps.createGateway || require('./mcp-gateway').createMcpGateway)({
             ...selection,
             onFailure: stop,
+            onEvidence: outcomes.onEvidence,
             reviewCall: async (preview, context) => {
               if (closed || context.signal.aborted) return false;
+              if (!(await outcomes.pauseBeforePrompt()) || closed || context.signal.aborted) {
+                outcomes.resumeAfterPrompt();
+                return false;
+              }
               stopIdleInput();
               stopIdleInput = () => {};
               try {
@@ -151,12 +163,14 @@ async function handleGatewayMcpReview(args, options = {}) {
                 });
                 return !closed && !context.signal.aborted && approved === true;
               } finally {
+                outcomes.resumeAfterPrompt();
                 if (!closed)
                   stopIdleInput = (deps.monitorInput || terminal.monitorTerminalInput)(stop);
               }
             },
           });
           let result;
+          let cleanup;
           try {
             const serving = (deps.serve || require('./mcp-stdio-transport').serveMcpTransport)({
               input: peer,
@@ -167,12 +181,28 @@ async function handleGatewayMcpReview(args, options = {}) {
             peer.resume();
             result = await serving;
           } catch {
-            session.close();
-            await session.finish();
-            return 2;
+            result = 2;
           }
-          session.close();
-          return (await session.finish()) ? result : 2;
+          let closeSucceeded = true;
+          try {
+            session.close();
+          } catch {
+            closeSucceeded = false;
+          }
+          try {
+            cleanup = (await session.finish()) === true && closeSucceeded;
+          } catch {
+            cleanup = false;
+          }
+          let status;
+          try {
+            status = await session.finishEvidence();
+          } catch {
+            status = null;
+          }
+          evidenceStatus = status;
+          gatewayCleanup = cleanup;
+          return cleanup ? result : 2;
         })
         .then((result) => {
           code = result;
@@ -232,9 +262,8 @@ async function handleGatewayMcpReview(args, options = {}) {
     if (closed) resolveDone();
     await done;
     await work;
-    return code;
   } catch {
-    return 2;
+    code = 2;
   } finally {
     startup = false;
     stop();
@@ -248,8 +277,16 @@ async function handleGatewayMcpReview(args, options = {}) {
     // A Writable can emit error after invoking its failed write callback.
     setImmediate(() => output.removeListener?.('error', stop)).unref?.();
     secret.fill(0);
-    if (removeEndpoint) await removeEndpoint();
+    let endpointCleanup = true;
+    try {
+      if (removeEndpoint) endpointCleanup = (await removeEndpoint()) === true;
+    } catch {
+      endpointCleanup = false;
+    }
+    const reported = await outcomes.finish(evidenceStatus, gatewayCleanup && endpointCleanup);
+    if (!endpointCleanup || reported.incomplete) code = 2;
   }
+  return code;
 }
 
 /** @param {object} deps Trusted terminal/transport/server seams. @returns {void} @since v0.15.1 */
