@@ -20,7 +20,9 @@ it('builds one synchronous PowerShell command with a single quoted native archiv
     'b'.repeat(32),
   );
   expect(command).toBe(
-    `Start-Process -FilePath 'C:\\Program Files\\AEGIS.exe' -ArgumentList '"C:\\App Folder\\app.asar" --claude-guard-session 1234 ${'b'.repeat(32)}' -NoNewWindow -Wait`,
+    `& { try { $aegisGuardProcess = Microsoft.PowerShell.Management\\Start-Process -FilePath 'C:\\Program Files\\AEGIS.exe' -ArgumentList '"C:\\App Folder\\app.asar" --claude-guard-session 1234 ${'b'.repeat(32)}' -NoNewWindow -Wait -PassThru -ErrorAction Stop; ` +
+      "if ($aegisGuardProcess.ExitCode -ne 0) { Microsoft.PowerShell.Utility\\Write-Host 'AEGIS Guard session did not complete successfully.' } " +
+      "} catch { Microsoft.PowerShell.Utility\\Write-Host 'AEGIS Guard session could not start.' } }",
   );
 });
 
@@ -32,7 +34,9 @@ it('quotes apostrophes, ampersands and terminal backslashes without exposing a l
     'a'.repeat(32),
   );
   expect(command).toBe(
-    `Start-Process -FilePath 'C:\\Owner''s & Tools\\AEGIS.exe' -ArgumentList '"C:\\Owner''s & Project\\\\" --claude-guard-session 65535 ${'a'.repeat(32)}' -NoNewWindow -Wait`,
+    `& { try { $aegisGuardProcess = Microsoft.PowerShell.Management\\Start-Process -FilePath 'C:\\Owner''s & Tools\\AEGIS.exe' -ArgumentList '"C:\\Owner''s & Project\\\\" --claude-guard-session 65535 ${'a'.repeat(32)}' -NoNewWindow -Wait -PassThru -ErrorAction Stop; ` +
+      "if ($aegisGuardProcess.ExitCode -ne 0) { Microsoft.PowerShell.Utility\\Write-Host 'AEGIS Guard session did not complete successfully.' } " +
+      "} catch { Microsoft.PowerShell.Utility\\Write-Host 'AEGIS Guard session could not start.' } }",
   );
   expect(command).not.toContain('launchKey');
   expect(command).not.toContain('capability');
@@ -91,6 +95,70 @@ it.skipIf(process.platform !== 'win32')(
     expect(() => buildClaudeGuardCommand(injected, 'C:\\app.asar', 1234, 'a'.repeat(32))).toThrow(
       'unsupported-launch-command',
     );
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'shows fixed nonzero and startup feedback in real PowerShell without changing outer variables',
+  () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-powershell-'));
+    directories.push(directory);
+    const special = path.join(directory, "Owner's & tools");
+    mkdirSync(special);
+    const source = path.join(special, 'Stub.cs');
+    const executable = path.join(special, "Aegis's & App.exe");
+    writeFileSync(
+      source,
+      'using System; using System.Threading; class Stub { static int Main(string[] args) { Thread.Sleep(150); Console.WriteLine("STUB_FINISHED"); return args.Length == 4 && !args[0].Contains("exit2") ? 0 : 2; } }',
+    );
+    const csc = path.join(
+      process.env.WINDIR || 'C:\\Windows',
+      'Microsoft.NET',
+      'Framework64',
+      'v4.0.30319',
+      'csc.exe',
+    );
+    const compiled = spawnSync(csc, ['/nologo', `/out:${executable}`, source], {
+      encoding: 'utf8',
+      timeout: 10000,
+      windowsHide: true,
+    });
+    expect(compiled.status, compiled.stderr || compiled.stdout).toBe(0);
+    const run = (exe, appPath) => {
+      const command = buildClaudeGuardCommand(exe, appPath, 1234, 'b'.repeat(32));
+      const script = `$aegisGuardProcess = 'OUTER_UNCHANGED'; ${command}; Write-Output ('OUTER=' + $aegisGuardProcess)`;
+      return spawnSync(
+        'powershell.exe',
+        [
+          '-NoLogo',
+          '-NoProfile',
+          '-NonInteractive',
+          '-EncodedCommand',
+          Buffer.from(script, 'utf16le').toString('base64'),
+        ],
+        { encoding: 'utf8', timeout: 10000, windowsHide: true },
+      );
+    };
+    const success = run(executable, "C:\\Project's & area\\exit0\\");
+    expect(success.status, success.stderr).toBe(0);
+    expect(success.stdout).toContain('STUB_FINISHED');
+    expect(success.stdout).not.toContain('AEGIS Guard session did not complete successfully.');
+    expect(success.stdout).toContain('OUTER=OUTER_UNCHANGED');
+
+    const failure = run(executable, "C:\\Project's & area\\exit2\\");
+    expect(failure.status, failure.stderr).toBe(0);
+    expect(failure.stdout).toContain('STUB_FINISHED');
+    expect(failure.stdout).toContain('AEGIS Guard session did not complete successfully.');
+    expect(failure.stdout.indexOf('STUB_FINISHED')).toBeLessThan(
+      failure.stdout.indexOf('AEGIS Guard session did not complete successfully.'),
+    );
+    expect(failure.stdout).toContain('OUTER=OUTER_UNCHANGED');
+
+    const unavailable = run(path.join(special, 'missing.exe'), 'C:\\app.asar');
+    expect(unavailable.status, unavailable.stderr).toBe(0);
+    expect(unavailable.stdout).toContain('AEGIS Guard session could not start.');
+    expect(unavailable.stdout).toContain('OUTER=OUTER_UNCHANGED');
+    expect(unavailable.stdout).not.toContain(special);
   },
 );
 

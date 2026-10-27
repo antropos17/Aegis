@@ -53,7 +53,12 @@ function buildClaudeGuardCommand(executable, appPath, port, sessionId) {
   // closing quote according to the Windows argv parsing convention.
   const nativeArgument = '"' + appPath.replace(/\\+$/, (value) => value + value) + '"';
   const argumentsText = `${nativeArgument} --claude-guard-session ${port} ${sessionId}`;
-  return `Start-Process -FilePath ${quotePowerShell(executable)} -ArgumentList ${quotePowerShell(argumentsText)} -NoNewWindow -Wait`;
+  return (
+    `& { try { $aegisGuardProcess = Microsoft.PowerShell.Management\\Start-Process -FilePath ${quotePowerShell(executable)} ` +
+    `-ArgumentList ${quotePowerShell(argumentsText)} -NoNewWindow -Wait -PassThru -ErrorAction Stop; ` +
+    "if ($aegisGuardProcess.ExitCode -ne 0) { Microsoft.PowerShell.Utility\\Write-Host 'AEGIS Guard session did not complete successfully.' } " +
+    "} catch { Microsoft.PowerShell.Utility\\Write-Host 'AEGIS Guard session could not start.' } }"
+  );
 }
 
 function sameObject(first, next, file) {
