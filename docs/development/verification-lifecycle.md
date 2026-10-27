@@ -40,6 +40,11 @@ links the production startup wait, owner and diagnostic code into a BCL-only
 project with explicit fixture peers. It checks peer exit, canceled I/O and failure
 reporting without elevation, ETW or a qualification guest; its substituted
 authentication/trace boundaries do not establish native capture acceptance.
+The broker-startup fixture references the production sidecar assembly and runs
+its actual two-peer handshake and private framing. Controlled authentication and
+custody callbacks exercise ordering, rejection and cancellation; they do not
+authenticate elevated Windows peers or start ETW. Its default-budget case crosses
+the former shared eight-second deadline while both connection phases stay valid.
 The runner records source HEAD/tree, lock/compiler hashes, Node/platform,
 free space, command exits, duration, test totals and a raw-report hash. Source must
 remain clean at completion. Assertion results must cover every selected suite;

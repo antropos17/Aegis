@@ -34,9 +34,16 @@ linked eight-second budget. The former shared eight-second timer included
 pipeline preparation and both sequential launches, so individually bounded peers
 could still be rejected before the second hello. Custodian and main-deposit
 deadlines remain independent and linked to the total startup cap where applicable.
-The changed sidecar compiles and the cancellation/ownership flow was reviewed;
-the timed native bootstrap branch has not been executed for this correction.
-Existing owner and consumer fixtures do not replace that missing observation.
+The production broker calls `FileBrokerStartup.Connect` for this sequence. Its
+targeted fixture references the actual sidecar assembly and executes the real
+private framing, validation, acknowledgments and custody ordering through
+controlled native-authentication callbacks. The default-budget case completes
+eleven seconds of staged startup, including nine seconds after the first hello,
+while each connection remains within its own eight-second limit. Primary PID
+aliases of the broker or collector are rejected before authentication or ACK1.
+These controls establish managed handshake behavior. Elevated peer authentication,
+original-handle duplication and ETW capture remain separate native boundaries;
+the saved zero-read guest receipt does not qualify them.
 
 The subsequent client repair separates a finite 10000 ms cold-start allowance
 from the existing 1200 ms snapshot response deadline. Explicit finite caller

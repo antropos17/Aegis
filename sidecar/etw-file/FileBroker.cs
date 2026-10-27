@@ -72,47 +72,39 @@ internal static class FileBroker
             Security.Verify(pipe, child.SafeHandle, child.Id, identity.Birth, true, live);
             if (recoveryPipe != null)
             {
-                // Pipeline preparation and sequential peer launches share the total
-                // bootstrap cap. Each peer gets its connection budget after hello.
-                var hello = await FileGuardWire.Read<FileGuardHello>(pipe, startup.Token);
-                if (hello.pid <= 0 || !ulong.TryParse(hello.birth, out ulong birth) || birth == 0 || birth.ToString() != hello.birth)
-                    throw new InvalidDataException();
-                guard = new FileGuardPeer(hello.pid);
-                using var connect = CancellationTokenSource.CreateLinkedTokenSource(startup.Token);
-                connect.CancelAfter(TimeSpan.FromSeconds(8));
-                await recoveryPipe.WaitForConnectionAsync(connect.Token);
-                guard.Verify(recoveryPipe, birth);
-                recovery = FileGuardWire.Read<FileGuardResult>(recoveryPipe, recoveryLifetime.Token);
-                await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), connect.Token);
-                connect.Token.ThrowIfCancellationRequested();
-                connect.CancelAfter(Timeout.InfiniteTimeSpan);
-                var second = await FileGuardWire.Read<FileGuardHello>(pipe, startup.Token);
-                if (second.pid <= 0 || second.pid == hello.pid || second.pid == child.Id || second.pid == self.Pid ||
-                    !ulong.TryParse(second.birth, out ulong secondBirth) || secondBirth == 0 || secondBirth.ToString() != second.birth)
-                    throw new InvalidDataException();
-                fallback = new FileGuardPeer(second.pid);
-                using var fallbackConnect = CancellationTokenSource.CreateLinkedTokenSource(startup.Token);
-                fallbackConnect.CancelAfter(TimeSpan.FromSeconds(8));
-                await fallbackPipe!.WaitForConnectionAsync(fallbackConnect.Token);
-                fallback.Verify(fallbackPipe, secondBirth);
-                reservation = FileBrokerRecovery.Reservation(hello.guid, second.guid);
-                fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
-                if (mainEscrow)
-                {
-                    using var originalBroker = Process.GetCurrentProcess();
-                    mainCustody = FileMainCustody.Deposit(reservation,
-                        [(self.Pid, originalBroker.SafeHandle), (child.Id, child.SafeHandle),
-                         (guard.Id, guard.Handle), (fallback.Id, fallback.Handle)]);
-                    // Collector cannot start until this independent authority and main both acknowledge custody.
-                    await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), fallbackConnect.Token);
-                    fallbackConnect.Token.ThrowIfCancellationRequested();
-                    fallbackConnect.CancelAfter(Timeout.InfiniteTimeSpan);
-                    custodian = await FileOrphanBroker.Reserve(pipe, mainCustody, args.Length == 6 ? args[5] : null);
-                    await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody.Reservation, startup.Token);
-                    custodianWatch = FileOrphanBroker.Watch(custodian, pipe, lifetime.Token);
-                }
-                else await FileGuardWire.Write(pipe, new FileGuardCommand("connected"), fallbackConnect.Token);
-                fallbackConnect.Token.ThrowIfCancellationRequested();
+                string? primaryReservation = null;
+                await FileBrokerStartup.Connect(pipe, self.Pid, child.Id,
+                    async (pid, birth, guid, token) =>
+                    {
+                        guard = new FileGuardPeer(pid);
+                        await recoveryPipe.WaitForConnectionAsync(token);
+                        guard.Verify(recoveryPipe, birth);
+                        primaryReservation = guid;
+                        recovery = FileGuardWire.Read<FileGuardResult>(recoveryPipe, recoveryLifetime.Token);
+                    },
+                    async (pid, birth, guid, token) =>
+                    {
+                        fallback = new FileGuardPeer(pid);
+                        await fallbackPipe!.WaitForConnectionAsync(token);
+                        fallback.Verify(fallbackPipe, birth);
+                        reservation = FileBrokerRecovery.Reservation(primaryReservation!, guid);
+                        fallbackRecovery = FileGuardWire.Read<FileGuardResult>(fallbackPipe, recoveryLifetime.Token);
+                        if (mainEscrow)
+                        {
+                            using var originalBroker = Process.GetCurrentProcess();
+                            // Original process references must be deposited before the second ACK.
+                            mainCustody = FileMainCustody.Deposit(reservation,
+                                [(self.Pid, originalBroker.SafeHandle), (child.Id, child.SafeHandle),
+                                 (guard!.Id, guard.Handle), (fallback.Id, fallback.Handle)]);
+                        }
+                    },
+                    mainEscrow ? async token =>
+                    {
+                        custodian = await FileOrphanBroker.Reserve(pipe, mainCustody!, args.Length == 6 ? args[5] : null);
+                        await FileMainWire.Deposit(output, input, args[1], args[2], mainCustody!.Reservation, token);
+                        custodianWatch = FileOrphanBroker.Watch(custodian, pipe, lifetime.Token);
+                    } : null,
+                    startup.Token);
             }
             startup.Token.ThrowIfCancellationRequested();
             startup.CancelAfter(Timeout.InfiniteTimeSpan);
