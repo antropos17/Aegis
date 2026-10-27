@@ -40,7 +40,8 @@ describe('Windows explicit stable-file JSONL tails', () => {
     expect(batch.calls).toHaveLength(1);
     expect(batch.calls[0].toolName).toBe('Read');
     const cut = m.bytes.length - MAX;
-    expect(copies[0]).toEqual(m.bytes.subarray(m.bytes.indexOf(10, cut)));
+    // Compare the full byte sequence natively; deep equality traverses a half-megabyte buffer.
+    expect(copies[0].equals(m.bytes.subarray(m.bytes.indexOf(10, cut)))).toBe(true);
     expect(m.adapter.parse.mock.calls[0][1].every((byte) => byte === 0)).toBe(true);
     expect(m.events.indexOf('cleanup')).toBeLessThan(m.events.indexOf('parse'));
     expect(m.events[0]).toBe('tail');
