@@ -206,6 +206,19 @@ function register() {
       return { success: false, error: 'Claude profile review could not complete' };
     }
   });
+  ipcMain.handle('gemini-hook:review', async (event, action) => {
+    const window = deps.getWindow?.();
+    if (!isOwned(event, window)) return denied();
+    if (!['status', 'install', 'remove', 'open-profile'].includes(action))
+      return { success: false, error: 'Invalid profile operation' };
+    try {
+      const result = await deps.geminiHookProfile?.handle(action, () => stillOwned(event, window));
+      if (!stillOwned(event, window)) return denied();
+      return result ?? { success: false, error: 'Gemini profile review is unavailable' };
+    } catch {
+      return { success: false, error: 'Gemini profile review could not complete' };
+    }
+  });
   ipcMain.handle('tool-context:explain', async (event, eventId) => {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();

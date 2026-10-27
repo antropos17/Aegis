@@ -113,6 +113,9 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  // This mode never emits child output; invalid or mixed argv must stay nonzero.
+  if (args.includes('--gemini-beforetool-exit-code'))
+    return require('./gemini-beforetool-hook').handleGeminiBeforeToolExitCode(args);
   // A misplaced hook flag is still a hook invocation: emit only its fixed JSON deny.
   if (args.includes('--action-policy-hook'))
     return require('./action-policy-hook').handleActionPolicyHook(args, write);
