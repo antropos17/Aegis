@@ -350,7 +350,11 @@ describe('explicit inventory profiles', () => {
     const open = vi.spyOn(fs.promises, 'open');
     const report = await inventoryProfile('gemini-user', root);
     expect(report.complete).toBe(false);
-    expect(report.issues).toContainEqual({ path: 'linked.md', reason: 'link-skipped' });
+    expect(report.issues).toContainEqual({
+      path: 'settings.json',
+      reason: 'gemini-instruction-link-skipped',
+    });
+    expect(JSON.stringify(report)).not.toContain('linked.md');
     expect(open.mock.calls.map(([name]) => String(name))).not.toContain(
       path.join(outside, 'PRIVATE'),
     );

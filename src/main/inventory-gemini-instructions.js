@@ -72,6 +72,14 @@ function createGeminiInstructionSelection(profile, reader) {
           configuredInstruction: true,
         });
       });
+      for (let index = before; index < reader.issues.length; index++) {
+        if (reader.issues[index].path === name) {
+          reader.issues[index] = {
+            path: selection.settings,
+            reason: `gemini-instruction-${reader.issues[index].reason}`,
+          };
+        }
+      }
       if (!observed && reader.issues.length === before && !reader.isStopped()) {
         issue('gemini-instruction-unavailable');
       }
