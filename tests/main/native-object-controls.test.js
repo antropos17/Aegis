@@ -20,12 +20,12 @@ const recordedNativeOutput = readFileSync(
 );
 function javascriptReport() {
   let index = 0;
-  // Recorded selected inventory, including the two new window-profile cases.
-  const suiteCounts = [25, 13, 17, 11, 5, 4, 7, 20, 26];
+  // Recorded selected inventory plus the twelve native snapshot structure cases.
+  const suiteCounts = [25, 13, 17, 11, 5, 4, 7, 20, 26, 12];
   return {
     success: true,
-    numTotalTests: 128,
-    numPassedTests: 128,
+    numTotalTests: 140,
+    numPassedTests: 140,
     numFailedTests: 0,
     numPendingTests: 0,
     numTodoTests: 0,
@@ -82,18 +82,17 @@ describe('single-pass native object controls evidence', () => {
     expect(validateNativeObjectControls(receipt())).toBe(true);
     const js = javascriptReport();
     js.numRuntimeErrorTestSuites = 0;
-    expect(validateJavascriptControls(js, 0, root).assertions).toBe(128);
-    expect(JAVASCRIPT_ASSERTIONS).toBe(128);
+    expect(validateJavascriptControls(js, 0, root).assertions).toBe(140);
+    expect(JAVASCRIPT_ASSERTIONS).toBe(140);
+    expect(NATIVE_OBJECT_SUITES).toHaveLength(10);
   });
 
-  it('refuses a complete-looking old 126-case inventory after the window-profile regressions', () => {
+  it('refuses the old 128-case inventory without the native snapshot controls', () => {
     const report = javascriptReport();
-    report.testResults.at(-1).assertionResults.splice(-2);
-    report.numTotalTests = 126;
-    report.numPassedTests = 126;
-    expect(() => validateJavascriptControls(report, 0, root)).toThrow(
-      'Incomplete assertion inventory',
-    );
+    report.testResults.pop();
+    report.numTotalTests = 128;
+    report.numPassedTests = 128;
+    expect(() => validateJavascriptControls(report, 0, root)).toThrow('Incomplete selected suites');
   });
 
   it('refuses passing totals hiding omitted, substituted, skipped, duplicated or failed assertions', () => {

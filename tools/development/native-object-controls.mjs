@@ -11,9 +11,10 @@ export const NATIVE_OBJECT_SUITES = Object.freeze([
   'tests/main/windows-native-read-manifest.test.js',
   'tests/main/windows-native-read-invocation.test.js',
   'tests/main/package-window-observation.test.js',
+  'tests/main/platform/proc-snapshot-structure.test.js',
 ]);
-// Includes the fresh-profile refusal and hidden-window classification regressions.
-export const JAVASCRIPT_ASSERTIONS = 128;
+// Includes the window-profile cases and twelve native snapshot structure controls.
+export const JAVASCRIPT_ASSERTIONS = 140;
 export const NATIVE_ASSERTIONS = 146;
 export const NATIVE_OBJECT_SOURCE_PATHS = Object.freeze([
   'src/main/platform/etw-file-admission.js',
@@ -32,6 +33,8 @@ export const NATIVE_OBJECT_SOURCE_PATHS = Object.freeze([
   'frontend/observatory/tests/package-window-observation.mjs',
   'tools/development/etw-window-preflight.mjs',
   'scripts/qualification/windows-native-read-support.mjs',
+  'sidecar/procsnap/NtSnapshot.cs',
+  'tests/fixtures/procsnap/SnapshotStructureControls.cs',
 ]);
 const slash = (value) => value.replaceAll('\\', '/');
 
@@ -200,7 +203,12 @@ export function validateNativeObjectControls(receipt) {
   assert.deepEqual(
     receipt.controls,
     {
-      javascript: { status: 'PASS', suites: 9, assertions: JAVASCRIPT_ASSERTIONS, failed: 0 },
+      javascript: {
+        status: 'PASS',
+        suites: NATIVE_OBJECT_SUITES.length,
+        assertions: JAVASCRIPT_ASSERTIONS,
+        failed: 0,
+      },
       native: { status: 'PASS', assertions: NATIVE_ASSERTIONS, buildExitCode: 0, exitCode: 0 },
     },
     'Incomplete controls',
