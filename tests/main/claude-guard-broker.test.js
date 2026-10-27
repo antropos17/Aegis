@@ -139,7 +139,12 @@ describe('Claude Guard terminal broker', () => {
           text += chunk;
         });
         request.on('end', () => {
-          calls.push(request.url);
+          calls.push({ path: request.url, authorization: request.headers.authorization });
+          if (request.url === '/finish/' + SESSION) {
+            reply.statusCode = 204;
+            reply.end();
+            return;
+          }
           const item = response(JSON.parse(text));
           if (kind === 'wrong-proof') item.proof = '0'.repeat(64);
           if (kind === 'changed-path') item.cwd = 'C:\\Other';
@@ -159,9 +164,15 @@ describe('Claude Guard terminal broker', () => {
           (line) => output.push(line),
         ),
       ).toBe(2);
-      expect(calls).toHaveLength(1);
+      expect(calls).toEqual([
+        { path: '/claim/' + SESSION, authorization: undefined },
+        ...(kind === 'invalid-token'
+          ? []
+          : [{ path: '/finish/' + SESSION, authorization: 'Bearer ' + TOKEN }]),
+      ]);
       expect(spawned).not.toHaveBeenCalled();
       expect(output.join(' ')).not.toContain(KEY);
+      expect(output.join(' ')).not.toContain(TOKEN);
     },
   );
 

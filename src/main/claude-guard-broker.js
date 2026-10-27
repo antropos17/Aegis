@@ -326,6 +326,8 @@ async function runSession(args, write) {
   const selected = await (testDeps?.claim || claim)(Number(args[1]), args[2], code, nonce);
   const accepted = validSelection(selected, args[2], code, nonce, key);
   if (!accepted) {
+    if (selected && typeof selected.token === 'string' && /^[a-f0-9]{64}$/.test(selected.token))
+      await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token);
     write('Claude Guard session was not confirmed.');
     return 2;
   }
