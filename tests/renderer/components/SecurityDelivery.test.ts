@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import StatsSensors from '../../../frontend/observatory/components/StatsSensors.svelte';
@@ -28,7 +28,37 @@ function fixture() {
     },
   };
 }
-afterEach(() => language.set('en'));
+afterEach(() => {
+  language.set('en');
+  vi.restoreAllMocks();
+});
+
+it('shows per-bucket admission rates only after a second sample and clears them on stale telemetry', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(10_000);
+  const first = fixture();
+  Object.assign(first.stats.ipc.securityEvents, {
+    sampleGeneration: '11111111-1111-4111-8111-111111111111',
+    sampleMonotonicMs: 1000,
+  });
+  const mounted = render(StatsSensors, { telemetry: first });
+  const rate = screen.getByRole('region', {
+    name: 'Accepted audit-lane records per second between samples',
+  });
+  expect(rate).toHaveTextContent('Admission rates unavailable');
+  clock.mockReturnValue(12_000);
+  const second = structuredClone(first);
+  second.statsAt = 12_000;
+  Object.assign(second.stats.ipc.securityEvents, { sampleMonotonicMs: 3000 });
+  second.stats.ipc.securityEvents.sensors.network.accepted = 5;
+  await mounted.rerender({ telemetry: second });
+  expect(rate).toHaveTextContent('Network');
+  expect(rate).toHaveTextContent('2.00');
+  expect(rate).toHaveTextContent('Sample interval: 2.00 seconds. Source freshness is unknown.');
+  expect(rate).toHaveTextContent('Zero does not mean no activity.');
+  await mounted.rerender({ telemetry: { ...second, stale: true } });
+  expect(rate).toHaveTextContent('Admission rates unavailable');
+  expect(within(rate).queryByText('2.00')).toBeNull();
+});
 
 it('exposes the bounded audit-lane report and makes source freshness and replay limits explicit', async () => {
   const value = fixture();
