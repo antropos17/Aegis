@@ -127,6 +127,25 @@ function handleGeminiBeforeToolHook(args, write) {
 }
 
 /**
+ * Evaluate a Gemini request without emitting child output. A caller can map
+ * code 0 to no decision and every nonzero code to a fixed provider deny.
+ * @param {string[]} args CLI flag and explicitly selected policy path.
+ * @returns {Promise<number>} 0 only for a valid nonmatch; 1 for denial or failure.
+ * @since v0.21.0
+ */
+function handleGeminiBeforeToolExitCode(args) {
+  return runCommandHookInput({
+    input: testDeps?.input || process.stdin,
+    args,
+    flag: '--gemini-beforetool-exit-code',
+    limits: LIMITS,
+    evaluate: testDeps?.evaluate || evaluateGeminiBeforeTool,
+    normalize: (result) => (typeof result === 'boolean' ? result : true),
+    respond: (result) => (result === false ? 0 : 1),
+  });
+}
+
+/**
  * Inject a stream or evaluator for deterministic boundary tests.
  * @param {object} deps Test-only dependencies.
  * @returns {void}
@@ -149,6 +168,7 @@ module.exports = {
   evaluateGeminiBeforeTool,
   validGeminiPolicy: validPolicy,
   handleGeminiBeforeToolHook,
+  handleGeminiBeforeToolExitCode,
   LIMITS,
   _setDepsForTest,
   _resetForTest,

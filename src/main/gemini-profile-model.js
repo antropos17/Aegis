@@ -11,7 +11,11 @@ const APP_SHELL_PATH = /^[A-Za-z]:[\\/][A-Za-z0-9 _&./\\-]+$/;
  * @since v0.21.0
  */
 function shellPath(input, appPath = false) {
-  if (typeof input !== 'string' || input.length > 1024 || !(appPath ? APP_SHELL_PATH : SHELL_PATH).test(input))
+  if (
+    typeof input !== 'string' ||
+    input.length > 1024 ||
+    !(appPath ? APP_SHELL_PATH : SHELL_PATH).test(input)
+  )
     throw Error('unsupported-path');
   if (input.split(/[\\/]/).some((part) => part === '.' || part === '..'))
     throw Error('unsupported-path');
@@ -28,7 +32,11 @@ function shellPath(input, appPath = false) {
 function hookCommand(executable, appPath, policy) {
   const arg = (input, app = false) => `'"${shellPath(input, app).slice(1, -1)}"'`;
   const entry = path.win32.join(appPath, 'src', 'main', 'main.js');
-  return `[Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE','1','Process'); exit ((Start-Process -FilePath ${shellPath(executable, true)} -ArgumentList @(${arg(entry, true)}, '--gemini-beforetool-hook', ${arg(policy)}) -NoNewWindow -Wait -PassThru).ExitCode)`;
+  const deny = JSON.stringify({
+    decision: 'deny',
+    reason: 'AEGIS policy does not allow this tool request.',
+  });
+  return `try { [Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE','1','Process'); Set-Variable -Name aegisCode -Value ((Start-Process -FilePath ${shellPath(executable, true)} -ArgumentList @(${arg(entry, true)}, '--gemini-beforetool-exit-code', ${arg(policy)}) -RedirectStandardOutput 'NUL' -RedirectStandardError '\\\\.\\NUL' -NoNewWindow -Wait -PassThru -ErrorAction Stop).ExitCode); if ((Get-Variable -Name aegisCode -ValueOnly) -eq 0) { [Console]::Out.WriteLine('{}') } else { [Console]::Out.WriteLine('${deny}') }; exit 0 } catch { [Console]::Out.WriteLine('${deny}'); exit 0 }`;
 }
 
 /** Make the only supported application-owned settings shape.

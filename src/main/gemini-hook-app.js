@@ -74,8 +74,11 @@ function createGeminiHookApp(options) {
     path.win32.normalize(value).replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
   async function ordinaryDirectory(child, create) {
     if (create) {
-      try { await fs.mkdir(child); }
-      catch (error) { if (error.code !== 'EEXIST') throw error; }
+      try {
+        await fs.mkdir(child);
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+      }
     }
     const stat = await fs.lstat(child);
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw Error('profile-unavailable');
@@ -84,8 +87,12 @@ function createGeminiHookApp(options) {
     const guards = [];
     const pin = async (parent, leaf) => {
       const guard = await openFactory(makeDraftIO, {
-        targetPath: nativePath(path.join(parent, leaf)), scope: nativePath(parent), assets,
-        requestMs: 1500, sessionMs: 180000, cleanupMs: 1000,
+        targetPath: nativePath(path.join(parent, leaf)),
+        scope: nativePath(parent),
+        assets,
+        requestMs: 1500,
+        sessionMs: 180000,
+        cleanupMs: 1000,
       });
       guards.push(guard);
       return guard;
@@ -101,22 +108,55 @@ function createGeminiHookApp(options) {
       if (!owned() || closed) return null;
       await ordinaryDirectory(directory, installing);
       if (!owned() || closed) return null;
+      await pin(directory, 'aegis-gemini-settings-witness');
+      if (!owned() || closed) return null;
       const targetGuard = await pin(directory, 'settings.json');
       if (!owned() || closed) return null;
       const present = await profilePresence(target);
       if (!owned() || closed) return null;
       if (installing && !present.present) {
         let outcome;
-        try { outcome = await targetGuard.create(Buffer.from(empty)); }
-        catch { retained = true; throw Error('native-create-uncertain'); }
+        try {
+          outcome = await targetGuard.create(Buffer.from(empty));
+        } catch {
+          retained = true;
+          throw Error('native-create-uncertain');
+        }
         if (outcome === 'refused') throw Error('draft-refused');
         let verified;
-        try { verified = outcome === 'written' && (await targetGuard.checkCreated()) === 'valid'; }
-        catch { verified = false; }
-        if (!verified) { retained = true; throw Error('native-create-uncertain'); }
+        try {
+          verified = outcome === 'written' && (await targetGuard.checkCreated()) === 'valid';
+        } catch {
+          verified = false;
+        }
+        if (!verified) {
+          retained = true;
+          throw Error('native-create-uncertain');
+        }
+      }
+      // A newly created target is held by the create lease. Release that file
+      // handle before opening the reader; the separate directory pin stays live.
+      guards.pop();
+      if (!(await release(targetGuard))) {
+        retained = true;
+        return null;
       }
       if (!owned() || closed) return null;
-      return await prepareProfile(directory, true);
+      const selected = await prepareProfile(directory, true);
+      if (!owned() || closed) return null;
+      const readIO = await openFactory(makeReadIO, {
+        ownedProfile: true,
+        targetPath: selected.targetPath,
+        assets,
+        requestMs: 1500,
+        sessionMs: 180000,
+        cleanupMs: 1000,
+      });
+      if (!owned() || closed) {
+        if (!(await release(readIO))) retained = true;
+        return null;
+      }
+      return { selected, readIO };
     } finally {
       for (const guard of guards.reverse()) if (!(await release(guard))) retained = true;
     }
@@ -180,19 +220,12 @@ function createGeminiHookApp(options) {
         if (!owned() || closed) return denied();
         if (!policy) return status('INVALID_POLICY');
       }
-      const selected = await prepareSelected(assets, owned, action === 'install');
+      const prepared = await prepareSelected(assets, owned, action === 'install');
+      const selected = prepared?.selected;
+      readIO = prepared?.readIO;
       if (!owned() || closed) return denied();
       if (retained) return status('RETAINED_UNKNOWN');
       if (!selected) return status('OPERATION_FAILED');
-      readIO = await openFactory(makeReadIO, {
-        ownedProfile: true,
-        targetPath: selected.targetPath,
-        assets,
-        requestMs: 1500,
-        sessionMs: 180000,
-        cleanupMs: 1000,
-      });
-      if (!owned() || closed) return denied();
       const snap = await readIO.readTarget();
       if (!owned() || closed) {
         snap.bytes?.fill(0);

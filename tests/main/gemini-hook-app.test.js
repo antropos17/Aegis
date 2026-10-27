@@ -237,7 +237,9 @@ it.each(['makeDraftIO', 'makeReadIO', 'makeIO'])(
   'locks when %s rejects without returning a verifiable native child',
   async (name) => {
     await service.close();
-    opts[name] = async () => { throw Error('fixture native open failure'); };
+    opts[name] = async () => {
+      throw Error('fixture native open failure');
+    };
     service = createGeminiHookApp(opts);
     expect((await call('install')).code).toBe('RETAINED_UNKNOWN');
     expect((await call('install')).code).toBe('RETAINED_UNKNOWN');
@@ -286,9 +288,13 @@ it('rejects unsafe PowerShell and Gemini expansion paths instead of interpolatin
   expect(command).toContain('\'"C:/Program Files/AEGIS/resources/app.asar/src/main/main.js"\'');
   expect(command).toContain('\'"C:/Private Policies/gemini.json"\'');
   expect(command).not.toContain('$');
-  const shippedExe = 'C:\\Program Files\\AEGIS - AI Monitoring & Threat Detection\\AEGIS - AI Monitoring & Threat Detection.exe';
-  const shippedApp = 'C:\\Program Files\\AEGIS - AI Monitoring & Threat Detection\\resources\\app.asar';
+  const shippedExe =
+    'C:\\Program Files\\AEGIS - AI Monitoring & Threat Detection\\AEGIS - AI Monitoring & Threat Detection.exe';
+  const shippedApp =
+    'C:\\Program Files\\AEGIS - AI Monitoring & Threat Detection\\resources\\app.asar';
   const shipped = hookCommand(shippedExe, shippedApp, policyPath);
-  expect(shipped).toContain("-FilePath 'C:/Program Files/AEGIS - AI Monitoring & Threat Detection/AEGIS - AI Monitoring & Threat Detection.exe'");
+  expect(shipped).toContain(
+    "-FilePath 'C:/Program Files/AEGIS - AI Monitoring & Threat Detection/AEGIS - AI Monitoring & Threat Detection.exe'",
+  );
   expect(removable(settingsBytes(shipped), shippedExe, shippedApp)).toBe(true);
 });

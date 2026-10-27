@@ -27,6 +27,7 @@ const _cliFlags = new Set([
   '--action-policy-after-hook',
   '--claude-guard-session',
   '--gemini-beforetool-hook',
+  '--gemini-beforetool-exit-code',
   '--action-exec-json',
   '--action-exec-confirm',
   '--action-exec-windows-job-json',

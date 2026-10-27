@@ -51,7 +51,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (65 channels: 54 invoke + 11 push)        │
+│              contextBridge API (66 channels: 55 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -187,13 +187,14 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 54 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
+The 55 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. Application exit (`app:quit`) requires owned-frame native confirmation in `src/main/app-quit.js` and uses the normal shutdown lifecycle. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
 | `local-security:review` | local-security-ipc + local-security-review | Dialog-selected local review, retained-report export and snapshot actions |
 | `get-stats` | main | File counts, agent counts, uptime, attribution counters |
 | `claude-hook:review` | claude-hook-app | Fixed actions for an app-owned Claude settings profile; native preview/confirmation, backed-up install and removal |
+| `gemini-hook:review` | gemini-hook-app | Fixed actions for a separate Gemini profile; native review and guarded settings changes |
 | `tool-context:explain` | live-tool-context | Read bounded local history for a retained event UUID; return metadata-only inferred context |
 | `project-watch:control` | project-watch-selection | Fixed status/select/clear operations; owned native picker and private persisted directory identity |
 | `file-reads:control` | etw-file-runtime | Owned-renderer explicit scoped Start/Stop; no startup capture |

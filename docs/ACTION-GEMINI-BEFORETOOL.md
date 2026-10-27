@@ -26,6 +26,11 @@ refuses to rewrite it and the owner must review the separate file manually.
 The selected policy is limited to 4096 bytes for the exact native preview.
 Some Windows paths are refused when they cannot be represented safely in the
 hook command. This setup does not prove that Gemini loads or honors the hook.
+The packaged command runs the adapter in Electron's Node mode, suppresses its
+child output, waits for completion and maps only the adapter's zero exit code
+to `{}`; every other observed exit or startup exception emits a fixed denial.
+A provider timeout or termination before the wrapper emits a response is still
+outside this boundary and may fail open.
 
 Create a private regular JSON file outside an agent-editable project if possible.
 Schema 1 has exactly these top-level fields:
