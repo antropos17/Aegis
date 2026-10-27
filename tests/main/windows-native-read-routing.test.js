@@ -50,8 +50,8 @@ try {
     $entry='try {'+[Environment]::NewLine+$body+[Environment]::NewLine+'} catch '+$try[0].CatchClauses[0].Body.Extent.Text+' finally '+$try[0].Finally.Extent.Text
     $root=$PSScriptRoot;$vmRoot=Join-Path $root 'vm';New-Item -ItemType Directory -Path $vmRoot | Out-Null
     $iso=Join-Path $root 'windows.iso';$answerIso=Join-Path $root 'answer.iso';$media=Join-Path $root 'media/answer';New-Item -ItemType Directory -Path $media | Out-Null
-    foreach($file in @($iso,$answerIso,(Join-Path $media 'Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))){[IO.File]::WriteAllText($file,'inert fixture')}
-    $session=$null;$consent=@();$id='00000000-0000-0000-0000-000000000001';$name='owned';$unknown=$false;$mounted=$false
+    foreach($file in @($iso,($iso+'.partial'),$answerIso,(Join-Path $media 'Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))){[IO.File]::WriteAllText($file,'inert fixture')}
+    $session=$null;$consent=@();$id='00000000-0000-0000-0000-000000000001';$name='owned';$unknown=$false;$mounted=$false;$vmCreationAttempted=$true
     $script:off=$false;$script:removed=$false;$script:phases=[Collections.Generic.List[string]]::new();$script:stages=[Collections.Generic.List[string]]::new()
     $report=@{status='RUNNING';guest=@{boot='2026-10-24T00:00:00Z'};cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@()}}
     $owner=[pscustomobject]@{PendingUnknown=$false}
@@ -85,7 +85,94 @@ try {
     } else {
       if(($script:phases -join ',') -cne 'admission-preflight' -or $report.status -cne 'FAIL' -or $report.error -cne 'fixture-early-admission-refused' -or $report.ContainsKey('preparation') -or $report.ContainsKey('admission')){throw 'fixture-early-failure-continued'};$cases++
     }
-    if(-not $report.cleanup.offObserved -or -not $report.cleanup.removedObserved -or $report.cleanup.leafObservations.Count -ne 5 -or @($report.cleanup.leafObservations | Where-Object {-not $_.absentAfter}).Count){throw 'fixture-owned-cleanup-not-preserved'};$cases++
+    if(-not $report.cleanup.offObserved -or -not $report.cleanup.removedObserved -or $report.cleanup.leafObservations.Count -ne 6 -or @($report.cleanup.leafObservations | Where-Object {-not $_.absentAfter}).Count){throw 'fixture-owned-cleanup-not-preserved'};$cases++
+  } elseif($Scenario.StartsWith('media-', [StringComparison]::Ordinal)) {
+    $cloud=Parse 'scripts/qualification/windows-native-read-cloud.ps1'
+    $try=@($cloud.EndBlock.Statements | Where-Object {$_ -is [Management.Automation.Language.TryStatementAst]})
+    if($try.Count -ne 1){throw 'fixture-cloud-try'}
+    $selected=@($try[0].Body.Statements | Where-Object {
+      $_.Extent.Text.StartsWith('$report.media=Stage ''download-pinned-microsoft-evaluation-iso''') -or
+      $_.Extent.Text.StartsWith('$metadata=Stage ''verify-exact-read-only-image''') -or
+      $_.Extent.Text.StartsWith("Stage 'create-exact-owned-vm'")
+    })
+    if($selected.Count -ne 3){throw 'fixture-media-segment'}
+    $body=($selected | ForEach-Object {$_.Extent.Text}) -join [Environment]::NewLine
+    $entry='try {'+[Environment]::NewLine+$body+[Environment]::NewLine+'} catch '+$try[0].CatchClauses[0].Body.Extent.Text+' finally '+$try[0].Finally.Extent.Text
+    # Replace only external HTTP/image/provider boundaries. The maintained
+    # stage bodies, integrity gate, diagnostic finally and cleanup execute.
+    Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+public static class CloudGuestMetadata {
+  public static string Mode;
+  public sealed class DownloadObservation {
+    public string Phase = "Read";
+    public int ResponseStatusCode = 206, RequestCount = 2, ResumeRequests = 1, TransientFailures = 1;
+    public long ExpectedBytes = 8225329152L, DeclaredBytes = 4096, BytesRead = 8192, BytesWritten = 8192, ReadCalls = 3;
+    public long ElapsedMilliseconds = 12, LastReadMilliseconds = 10, LastWriteMilliseconds = 11;
+    public bool DeadlineExpired, IntegrityVerified, Promoted;
+  }
+  public static string Download(string url, string destination, long expected, DownloadObservation observation) {
+    File.WriteAllText(destination + ".partial", "inert partial fixture");
+    if (Mode == "media-download-failure") throw new IOException("fixture-download-failed");
+    if (Mode == "media-hash-failure") return new string('0', 64);
+    observation.IntegrityVerified = Mode != "media-unverified";
+    observation.Promoted = Mode != "media-unpromoted";
+    observation.Phase = "Complete";
+    File.Move(destination + ".partial", destination);
+    return "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38";
+  }
+  public static string ImageXml(string path) { return "fixture-image"; }
+}
+'@
+    [CloudGuestMetadata]::Mode=$Scenario
+    $root=$PSScriptRoot;$vmRoot=Join-Path $root 'vm';$media=Join-Path $root 'media/answer'
+    New-Item -ItemType Directory -Path $vmRoot,$media | Out-Null
+    $iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
+    $canary=Join-Path $root 'preserved-receipt.json';[IO.File]::WriteAllText($canary,'preserve receipt')
+    [IO.File]::WriteAllText((Join-Path $root 'input.zip'),'inert bundled fixture')
+    $session=$null;$owner=$null;$consent=@();$id=$null;$name='owned';$unknown=$false;$mounted=$false;$vmCreationAttempted=$false
+    $script:metadataVerified=$false;$script:created=$false;$script:removed=$false;$script:mounts=0;$script:dismounts=0
+    $script:stages=[Collections.Generic.List[string]]::new();$script:saved=[Collections.Generic.List[string]]::new()
+    $report=@{status='RUNNING';cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@()};error=$null;cleanupError=$null}
+    function SaveReport {[void]$script:saved.Add(($report | ConvertTo-Json -Depth 8 -Compress))}
+    function Sample($Phase) {}
+    function Stage([string]$Label,[scriptblock]$Action) {[void]$script:stages.Add($Label);return & $Action}
+    function Mount-DiskImage($ImagePath,$Access) {
+      if(-not $report.media.verifiedBeforeVmCreation -or -not $report.mediaDownload.integrityVerified -or -not $report.mediaDownload.promoted){throw 'fixture-mounted-unverified-media'}
+      $script:mounts++
+    }
+    function Get-DiskImage($ImagePath) {return [pscustomobject]@{DriveLetter='Z'}}
+    function Get-Volume {process {return $_}}
+    function Get-CloudGuestImageMetadata($Xml) {
+      if($Scenario -ceq 'media-metadata-failure'){throw 'fixture-image-metadata-failed'}
+      $script:metadataVerified=$true;return @{index=1}
+    }
+    function Dismount-DiskImage($ImagePath) {$script:dismounts++}
+    function Invoke-CloudHyperVCommand($Operation,$Name,$VmRoot,$Id) {
+      if($Operation -ceq 'recover'){return @{exists=$false}}
+      if($Operation -ceq 'create') {
+        if(-not $script:metadataVerified -or -not $report.mediaDownload.integrityVerified -or -not $report.mediaDownload.promoted -or $mounted){throw 'fixture-created-before-verified-media'}
+        $script:created=$true;return @{exists=$true;vmId='00000000-0000-0000-0000-000000000001'}
+      }
+      if($Operation -ceq 'remove'){$script:removed=$true;return @{removedCommandCompleted=$true}}
+      if($Operation -ceq 'observe'){return @{state='Off';exists=(-not $script:removed)}}
+      throw 'fixture-unexpected-provider'
+    }
+    . ([scriptblock]::Create($entry))
+    $success=$Scenario -ceq 'media-success'
+    if($script:created -ne $success -or $vmCreationAttempted -ne $success -or $report.cleanup.vmCreationAttempted -ne $success){throw 'fixture-media-created-on-failure'};$cases++
+    if($success) {
+      if($report.status -cne 'RUNNING' -or -not $report.cleanup.removedObserved -or $report.error -or ($script:stages -join ',') -cne 'download-pinned-microsoft-evaluation-iso,verify-exact-read-only-image,create-exact-owned-vm'){throw 'fixture-media-success-order'}
+    } else {
+      if($report.status -cne 'FAIL' -or $report.cleanup.removedObserved -or -not $report.error -or $script:stages.Contains('create-exact-owned-vm')){throw 'fixture-media-failure-continued'}
+      if($Scenario -ceq 'media-metadata-failure' -and $report.error -cne 'fixture-image-metadata-failed'){throw 'fixture-metadata-failure-lost'}
+    };$cases++
+    $saved=@($script:saved | ForEach-Object {ConvertFrom-Json -InputObject $_} | Where-Object {$_.mediaDownload})
+    if(-not $saved.Count -or $saved[0].mediaDownload.requestCount -ne 2 -or $saved[0].mediaDownload.resumeRequests -ne 1 -or $saved[0].mediaDownload.bytesWritten -ne 8192){throw 'fixture-media-diagnostic-not-persisted'};$cases++
+    if($report.cleanup.offObserved -or $report.cleanup.leafObservations.Count -ne 6 -or @($report.cleanup.leafObservations | Where-Object {-not $_.absentAfter}).Count -or $report.cleanupError -or [IO.File]::ReadAllText($canary) -cne 'preserve receipt'){throw 'fixture-media-closed-cleanup-failed'};$cases++
+    $expectedMounts=if($success -or $Scenario -ceq 'media-metadata-failure'){1}else{0}
+    if($script:mounts -ne $expectedMounts -or $script:dismounts -ne $expectedMounts -or $mounted){throw 'fixture-media-mount-lifetime-failed'};$cases++
   } elseif($Scenario -ceq 'guest-route') {
     $guest=Parse 'scripts/qualification/windows-native-read-guest.ps1'
     $valid=@($guest.ParamBlock.Parameters[0].Attributes | Where-Object {$_.TypeName.Name -ceq 'ValidateSet'})[0].PositionalArguments | ForEach-Object {$_.Value}
@@ -175,6 +262,12 @@ describe.skipIf(process.platform !== 'win32')(
     it.each([
       ['cloud-success', 2],
       ['cloud-early-failure', 2],
+      ['media-success', 5],
+      ['media-download-failure', 5],
+      ['media-hash-failure', 5],
+      ['media-unverified', 5],
+      ['media-unpromoted', 5],
+      ['media-metadata-failure', 5],
       ['guest-route', 4],
       ['host-entry', 7],
       ['evidence', 6],

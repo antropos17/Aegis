@@ -20,7 +20,7 @@ $env:TEMP=Join-Path $root 'temp';$env:TMP=$env:TEMP
 $report=[ordered]@{schema='aegis-cloud-native-read/1';status='RUNNING';sourceSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;productionAdmission=$false;guest=$null;stages=@();phaseTasks=@{};diskSamples=@();consents=@();cleanup=@{offObserved=$false;removedObserved=$false;filesRemoved=@();leafObservations=@();retainedTaskDirectories=@('build','bundle','bootstrap','source','native','temp','git-preflight','package-preflight')};error=$null;cleanupError=$null}
 $name='aegis-cloud-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT+'-'+[guid]::NewGuid().ToString('N')
 $vmRoot=Join-Path $root 'vm';$iso=Join-Path $root 'media/windows.iso';$answerIso=Join-Path $root 'media/answer.iso'
-$id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$consent=[Collections.ArrayList]::new()
+$id=$null;$owner=$null;$session=$null;$mounted=$false;$unknown=$false;$vmCreationAttempted=$false;$consent=[Collections.ArrayList]::new()
 function SaveReport { $report.consents=@($consent);$report | ConvertTo-Json -Depth 18 | Set-Content -LiteralPath (Join-Path $root 'evidence/cloud.json') -Encoding UTF8 }
 function Sample([string]$Phase) {
   $free=(Get-PSDrive D).Free;$disk=Join-Path $vmRoot 'guest.vhdx'
@@ -113,17 +113,21 @@ try {
     $files=@('scripts/qualification/CloudGuestVm.cs','scripts/qualification/CloudGuestBootDiagnostics.cs','sidecar/session/OwnedVmLifecycle.cs','sidecar/session/VmManagementNative.cs')
     Add-Type -Path @($files | ForEach-Object { Join-Path $Source $_ }) -ReferencedAssemblies @('System.dll','System.Core.dll','System.Management.dll')
   } | Out-Null
-  Stage 'create-exact-owned-vm' {
-    if((Invoke-CloudHyperVCommand recover $name $vmRoot $null).exists) { throw 'VM name already exists' }
-    $script:unknown=$true;$created=Invoke-CloudHyperVCommand create $name $vmRoot $null
-    if(-not $created.exists -or $created.vmId -cnotmatch '^[a-f0-9-]{36}$') { throw 'Owned VM creation unresolved' }
-    $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
-  } | Out-Null
   $report.media=Stage 'download-pinned-microsoft-evaluation-iso' {
     $url='https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso'
-    $observation=[CloudGuestMetadata+DownloadObservation]::new();$hash=[CloudGuestMetadata]::Download($url,$iso,8225329152,$observation)
-    if($hash -cne 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38') { throw 'Evaluation ISO hash mismatch' }
-    return @{url=$url;bytes=8225329152;sha256=$hash;license='Microsoft 90-day Enterprise Evaluation; disposable testing'}
+    $observation=[CloudGuestMetadata+DownloadObservation]::new()
+    try {
+      $hash=[CloudGuestMetadata]::Download($url,$iso,8225329152,$observation)
+      if($hash -cne 'bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38' -or -not $observation.IntegrityVerified -or -not $observation.Promoted) { throw 'Evaluation ISO integrity verification failed' }
+      return @{url=$url;bytes=8225329152;sha256=$hash;verifiedBeforeVmCreation=$true;license='Microsoft 90-day Enterprise Evaluation; disposable testing'}
+    } finally {
+      $report.mediaDownload=@{schemaVersion=1;phase=$observation.Phase.ToString();responseStatusCode=$observation.ResponseStatusCode;
+        expectedBytes=$observation.ExpectedBytes;declaredBytes=$observation.DeclaredBytes;bytesRead=$observation.BytesRead;bytesWritten=$observation.BytesWritten;
+        readCalls=$observation.ReadCalls;elapsedMilliseconds=$observation.ElapsedMilliseconds;lastReadMilliseconds=$observation.LastReadMilliseconds;
+        lastWriteMilliseconds=$observation.LastWriteMilliseconds;deadlineExpired=$observation.DeadlineExpired;requestCount=$observation.RequestCount;
+        resumeRequests=$observation.ResumeRequests;transientFailures=$observation.TransientFailures;integrityVerified=$observation.IntegrityVerified;promoted=$observation.Promoted}
+      SaveReport
+    }
   }
   $metadata=Stage 'verify-exact-read-only-image' {
     Mount-DiskImage -ImagePath $iso -Access ReadOnly | Out-Null;$script:mounted=$true
@@ -132,6 +136,12 @@ try {
     $value=Get-CloudGuestImageMetadata ([CloudGuestMetadata]::ImageXml(($volumes[0].DriveLetter+':\sources\install.wim')))
     Dismount-DiskImage -ImagePath $iso | Out-Null;$script:mounted=$false;return $value
   }
+  Stage 'create-exact-owned-vm' {
+    if((Invoke-CloudHyperVCommand recover $name $vmRoot $null).exists) { throw 'VM name already exists' }
+    $script:vmCreationAttempted=$true;$script:unknown=$true;$created=Invoke-CloudHyperVCommand create $name $vmRoot $null
+    if(-not $created.exists -or $created.vmId -cnotmatch '^[a-f0-9-]{36}$') { throw 'Owned VM creation unresolved' }
+    $script:id=$created.vmId;$report.vmId=$id;$script:unknown=$false
+  } | Out-Null
   $adminPassword=[guid]::NewGuid().ToString('N')+'aA1!';$taskPassword=[guid]::NewGuid().ToString('N')+'bB2!'
   $credential=[pscredential]::new('AegisSetup',(ConvertTo-SecureString $adminPassword -AsPlainText -Force))
   Stage 'prepare-bounded-two-logon-answer' {
@@ -195,8 +205,9 @@ finally {
       if(-not $removed.removedCommandCompleted -or (Invoke-CloudHyperVCommand observe $name $vmRoot $id).exists) { throw 'Owned VM removal unconfirmed' };$report.cleanup.removedObserved=$true
     }
     if($mounted) { Dismount-DiskImage -ImagePath $iso | Out-Null;$mounted=$false }
-    if($report.cleanup.removedObserved) {
-      foreach($file in @($iso,$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
+    $report.cleanup.vmCreationAttempted=$vmCreationAttempted
+    if(-not $vmCreationAttempted -or $report.cleanup.removedObserved) {
+      foreach($file in @($iso,($iso+'.partial'),$answerIso,(Join-Path $root 'media/answer/Autounattend.xml'),(Join-Path $root 'input.zip'),(Join-Path $vmRoot 'guest.vhdx'))) {
         $full=[IO.Path]::GetFullPath($file)
         if(-not $full.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Owned cleanup escaped controller root' }
         $existed=Test-Path -LiteralPath $full;$beforeBytes=0
