@@ -11,9 +11,8 @@ const ordinaryCommands = new Set([
   'git status',
   'git status --short',
   'git diff --stat',
-  'npm test',
-  'npm run lint',
 ]);
+const scriptCommands = new Set(['npm test', 'npm run lint']);
 const sensitiveName = /^(?:\.env(?:\.[a-z0-9_.-]*)?|id_(?:rsa|ed25519)|credentials(?:\.json)?)$/i;
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const deny = (reason) => ({ decision: 'deny', reason });
@@ -40,6 +39,7 @@ function evaluateProjectProfile(input) {
   )
     return unsupported;
   const command = input.command;
+  if (scriptCommands.has(command)) return { decision: 'ask', reason: 'project-review-script' };
   if (ordinaryCommands.has(command)) return { decision: 'ask', reason: 'project-review-ordinary' };
   const read = /^cat ([A-Za-z0-9_.-]+)$/.exec(command);
   if (read && read[1] !== '.' && read[1] !== '..' && !read[1].startsWith('-'))

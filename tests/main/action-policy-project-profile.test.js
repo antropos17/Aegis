@@ -38,21 +38,24 @@ afterEach(() => {
 });
 
 describe('bounded project review policy', () => {
-  it.each([
-    'pwd',
-    'ls',
-    'git status',
-    'git status --short',
-    'git diff --stat',
-    'cat README.md',
-    'npm test',
-    'npm run lint',
-  ])('delegates ordinary command %s to the provider', async (command) => {
-    expect(await run(command, { description: 'Read project', timeout: 5000 })).toEqual({
-      decision: 'ask',
-      reason: 'project-review-ordinary',
-    });
-  });
+  it.each(['pwd', 'ls', 'git status', 'git status --short', 'git diff --stat', 'cat README.md'])(
+    'delegates ordinary command %s to the provider',
+    async (command) => {
+      expect(await run(command, { description: 'Read project', timeout: 5000 })).toEqual({
+        decision: 'ask',
+        reason: 'project-review-ordinary',
+      });
+    },
+  );
+  it.each(['npm test', 'npm run lint'])(
+    'delegates unbound project script %s with its own warning category',
+    async (command) => {
+      expect(await run(command, { description: 'Run project script', timeout: 5000 })).toEqual({
+        decision: 'ask',
+        reason: 'project-review-script',
+      });
+    },
+  );
   it.each(['cat .env', 'cat .env.local', 'cat id_rsa', 'cat credentials.json'])(
     'denies declared sensitive filename %s',
     async (command) => {
@@ -137,7 +140,12 @@ describe('bounded project review policy', () => {
     [
       'npm test',
       'ask',
-      'AEGIS project review requests provider confirmation for this supported command.',
+      'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
+    ],
+    [
+      'npm run lint',
+      'ask',
+      'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
     ],
     [
       'npm run lint -- --fix',
@@ -173,6 +181,7 @@ describe('bounded project review policy', () => {
         },
       });
       expect(result.stdout).not.toContain('PRIVATE_DESCRIPTION');
+      expect(result.stdout).not.toContain(command);
     },
   );
 });

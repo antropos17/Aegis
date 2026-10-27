@@ -13,6 +13,10 @@ const PROJECT_REASONS = Object.freeze({
     'ask',
     'AEGIS project review requests provider confirmation for this supported command.',
   ],
+  'project-review-script': [
+    'ask',
+    'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
+  ],
   'project-deny-sensitive': [
     'deny',
     'AEGIS project review denies this declared sensitive filename.',
