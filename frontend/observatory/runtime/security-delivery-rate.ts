@@ -78,11 +78,13 @@ export function advanceDeliveryRate(
   if (sampleMs < previous.sampleMs || telemetry.statsAt < previous.receivedAt)
     return invalidate(previous);
   if (sampleMs === previous.sampleMs) {
-    if (
-      RATE_BUCKETS.some((bucket) => accepted[bucket] !== previous.accepted[bucket]) ||
-      now < previous.receivedAt ||
-      now - previous.receivedAt >= DELIVERY_FRESHNESS_MS
-    )
+    if (RATE_BUCKETS.some((bucket) => accepted[bucket] !== previous.accepted[bucket])) {
+      const highWater = { ...previous.accepted };
+      for (const bucket of RATE_BUCKETS)
+        highWater[bucket] = Math.max(highWater[bucket], accepted[bucket]);
+      return invalidate({ ...previous, accepted: highWater });
+    }
+    if (now < previous.receivedAt || now - previous.receivedAt >= DELIVERY_FRESHNESS_MS)
       return invalidate(previous);
     return previous;
   }

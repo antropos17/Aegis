@@ -6,6 +6,7 @@
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups } from '../runtime/radar';
   import { scopeStatistics } from '../runtime/statistics-scope';
+  import { advanceDeliveryRate, type DeliveryRateState } from '../runtime/security-delivery-rate';
   import type { AgentScope } from '../runtime/agent-scope';
   import {
     createStatisticsHistory,
@@ -53,6 +54,7 @@
   let agent = $derived(scope?.agent ?? localAgent);
   let instanceId = $derived(scope?.instanceId ?? localInstanceId);
   let allNow = $state(Date.now());
+  let deliveryRate = $state<DeliveryRateState | null>(null);
   let scopedNow = $state(Date.now());
   let historyPeriod = $state(60000);
   let processesVisited = $state(false);
@@ -89,6 +91,15 @@
     ).length,
   );
   let health = $derived(record(telemetry.stats.appHealth));
+  $effect(() => {
+    const current = paused ? { ...telemetry, stale: true } : telemetry;
+    const receivedNow = Math.max(allNow, Date.now());
+    deliveryRate = advanceDeliveryRate(
+      untrack(() => deliveryRate),
+      current,
+      receivedNow,
+    );
+  });
   $effect(() => {
     if (section === 'processes') processesVisited = true;
   });
@@ -164,7 +175,7 @@
           {:else if section === 'tokens'}
             <div class="supporting-content"><StatsTokens telemetry={scoped} {inspect} /></div>
           {:else if section === 'sensors'}
-            <div class="supporting-content"><StatsSensors {telemetry} /></div>
+            <div class="supporting-content"><StatsSensors {telemetry} {deliveryRate} /></div>
           {/if}
         </section>
       {/if}

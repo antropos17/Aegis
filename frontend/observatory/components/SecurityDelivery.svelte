@@ -1,26 +1,15 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
   import { t } from '../runtime/i18n';
   import type { Telemetry } from '../runtime/host';
   import { securityDelivery } from '../runtime/security-delivery';
-  import {
-    advanceDeliveryRate,
-    RATE_BUCKETS,
-    type DeliveryRateState,
-  } from '../runtime/security-delivery-rate';
+  import { RATE_BUCKETS, type DeliveryRateState } from '../runtime/security-delivery-rate';
 
-  let { telemetry, now }: { telemetry: Telemetry; now: number } = $props();
+  let {
+    telemetry,
+    now,
+    rateState = null,
+  }: { telemetry: Telemetry; now: number; rateState?: DeliveryRateState | null } = $props();
   let delivery = $derived(securityDelivery(telemetry, Math.max(now, Date.now())));
-  let rateState = $state<DeliveryRateState | null>(null);
-  $effect(() => {
-    const snapshot = telemetry;
-    const receivedNow = Math.max(now, Date.now());
-    rateState = advanceDeliveryRate(
-      untrack(() => rateState),
-      snapshot,
-      receivedNow,
-    );
-  });
   const rateLabels = {
     'file-watch': 'File watcher',
     'file-handle': 'File handle scan',

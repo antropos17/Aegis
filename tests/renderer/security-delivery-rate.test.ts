@@ -144,6 +144,19 @@ describe('security audit-lane admission rates', () => {
     state = advanceDeliveryRate(state, sample(6000, 7, 15_000), 15_000);
     expect(state?.rates?.network).toBe(1);
   });
+  it('retains higher counts from conflicting reports at the same producer time', () => {
+    let state = advanceDeliveryRate(null, sample(1000, 100, 10_000), 10_000);
+    state = advanceDeliveryRate(state, sample(1000, 200, 10_001), 10_001);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(1001, 101, 10_002), 10_002);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(1002, 102, 10_003), 10_003);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(1003, 200, 10_004), 10_004);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(2003, 201, 11_004), 11_004);
+    expect(state?.rates?.network).toBe(1);
+  });
   it('does not revive retired generations from replayed sample pairs', () => {
     let state = advanceDeliveryRate(null, sample(1000, 5, 10_000), 10_000);
     state = advanceDeliveryRate(state, sample(2000, 6, 11_000), 11_000);
