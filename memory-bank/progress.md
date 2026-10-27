@@ -4159,3 +4159,16 @@ check that is unavailable or unsupported must refuse the effect. Compensation
 does not replace that check. Source and process policy were reviewed at
 `3cacb15809fa94835feda316baad9962556c6215`; this documentation change leaves
 implementation and provider qualification open.
+
+## W6 argument provenance and judgment controls — 2026-10-27
+
+The owner requested per-argument origins, source-evidence credibility and tests
+for instruction-induced false allows and false blocks. W6.1 now requires bounded
+field-level source/transform lineage, system-recorded versus agent-asserted or
+unknown provenance, approval binding and explicit collection limits. User-supplied
+material does not itself authorize embedded instructions. W8 records both error
+directions with independent expected decisions, benign controls and explicit
+unavailable/ask outcomes, including a typed-output classifier-only case when
+applicable. Source and process policy were reviewed at
+`813804e2aae1c020f4b17cb7a30f053a210185ef`. These are pending implementation and
+qualification requirements; this documentation change promotes no acceptance.
