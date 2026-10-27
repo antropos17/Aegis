@@ -24,6 +24,7 @@ const _cliFlags = new Set([
   '--action-mcp-catalog-review',
   '--handoff-import-json',
   '--action-policy-hook',
+  '--claude-guard-session',
   '--gemini-beforetool-hook',
   '--action-exec-json',
   '--action-exec-confirm',
