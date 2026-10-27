@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const STARTUP_STAGES = new Set([
+  'guard-connect',
+  'guard-broker',
+  'guard-reserve',
+  'fallback-connect',
+  'fallback-broker',
+  'fallback-reserve',
+]);
 const COLLECTOR_STAGES = new Set([
+  ...STARTUP_STAGES,
   'peer',
   'pipeline',
   'guard',
@@ -40,7 +49,8 @@ function finiteChildDiagnostics(value) {
           Object.keys(entry).length === 3 &&
           ['stage', 'kind', 'code'].every((key) => Object.hasOwn(entry, key)) &&
           COLLECTOR_STAGES.has(entry.stage) &&
-          ['win32', 'hresult'].includes(entry.kind) &&
+          (['win32', 'hresult'].includes(entry.kind) ||
+            (entry.kind === 'peer-exit' && STARTUP_STAGES.has(entry.stage))) &&
           int32(entry.code)),
     )
   );

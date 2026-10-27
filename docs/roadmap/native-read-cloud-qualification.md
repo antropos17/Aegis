@@ -16,6 +16,18 @@ not establish the helper's actual startup duration or a native query error.
 A separate collector guard-setup cancellation (`0x8013153B`) remains unresolved;
 the artifact has no substage/timing evidence linking it to the snapshot failure.
 
+The guard-startup repair observes the original child's exit during connection,
+broker acknowledgment and reservation. An observed exit cancels pending startup
+I/O and retains a finite `peer-exit` code; the six closed guard/fallback substages
+distinguish that evidence from cancellation or native errors. The original
+eight-second startup limit, process authentication and reservation order remain
+unchanged. Failed startup closes its channel and releases its process reference
+without waiting for a guard that itself awaits collector exit. Normal capture
+shutdown and independent recovery observations keep their existing contracts.
+This repairs failure masking and the exit wait cycle. The original guest's
+underlying guard failure remains unclassified, and these source changes do not
+supply a successful native read-to-audit/alert/risk receipt.
+
 The subsequent client repair separates a finite 10000 ms cold-start allowance
 from the existing 1200 ms snapshot response deadline. Explicit finite caller
 overrides retain their previous per-stage bounds. Protocol, identity, restart

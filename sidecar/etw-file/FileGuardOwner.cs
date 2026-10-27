@@ -30,26 +30,41 @@ internal sealed class FileGuardOwner : IAsyncDisposable
         var child = Process.Start(info) ?? throw new InvalidOperationException();
         var owner = new FileGuardOwner(pipe, child);
         owner.fallback = primary != null;
+        using var watch = new CancellationTokenSource();
         try
         {
             using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var startup = new FileGuardStartup(child.WaitForExitAsync(watch.Token), () => child.ExitCode, limit.Token);
+            string phase = primary == null ? "guard" : "fallback";
+            FileQualificationDiagnostic.Stage(phase + "-connect");
             var identity = Security.Observe(child);
-            await pipe.WaitForConnectionAsync(limit.Token);
+            await startup.Wait(token => pipe.WaitForConnectionAsync(token));
             Security.Verify(pipe, child, identity.Birth, true, true);
             owner.Identity = new FileGuardHello(child.Id, identity.Birth.ToString(), reservation);
-            await FileGuardWire.Write(data, owner.Identity, limit.Token);
-            var ack = await FileGuardWire.Read<FileGuardCommand>(data, limit.Token);
+            FileQualificationDiagnostic.Stage(phase + "-broker");
+            await startup.Wait(token => FileGuardWire.Write(data, owner.Identity, token));
+            var ack = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(data, token));
             if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
+            FileQualificationDiagnostic.Stage(phase + "-reserve");
             if (primary == null)
-                await FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), limit.Token);
+                await startup.Wait(token => FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), token));
             else
-                await FileGuardWire.Write(pipe, new FileFallbackReservation(reservation, primary.pid, primary.birth), limit.Token);
-            var reserved = await FileGuardWire.Read<FileGuardCommand>(pipe, limit.Token);
-            if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null || !owner.Alive)
+                await startup.Wait(token => FileGuardWire.Write(pipe, new FileFallbackReservation(reservation, primary.pid, primary.birth), token));
+            var reserved = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(pipe, token));
+            if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null)
                 throw new InvalidDataException();
+            if (!owner.Alive) throw new FileGuardPeerExitedException(child.ExitCode);
             return owner;
         }
-        catch { await owner.DisposeAsync(); throw; }
+        catch
+        {
+            // Capture cannot start before this returns. Close the failed channel and
+            // release our reference; waiting here would stall the collector's exit
+            // while the guard itself waits for that exit before recovery/reporting.
+            watch.Cancel(); pipe.Dispose(); child.Dispose();
+            throw;
+        }
+        finally { watch.Cancel(); }
     }
     internal async Task Arm(FileTraceToken token)
     {

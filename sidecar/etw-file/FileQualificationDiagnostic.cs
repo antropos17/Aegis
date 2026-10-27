@@ -12,7 +12,10 @@ internal static class FileQualificationDiagnostic
     internal const string CollectorVariable = "AEGIS_ETW_QUALIFICATION_COLLECTOR_DIAGNOSTICS";
     private static bool collector;
     private static string stage = "peer";
+    internal static readonly string[] StartupStages = ["guard-connect", "guard-broker", "guard-reserve",
+        "fallback-connect", "fallback-broker", "fallback-reserve"];
     internal static readonly string[] Stages = ["peer", "pipeline", "guard", "fallback", "custody", "hello", "authorize",
+        .. StartupStages,
         "trace-start", "guard-arm", "capture-start", "trace-enable", "trace-query", "ready", "running", "stop"];
     internal static int Step;
     internal static bool Enabled => Environment.GetEnvironmentVariable(FileQualificationPolicy.Variable) != null;
@@ -32,8 +35,13 @@ internal static class FileQualificationDiagnostic
         if (!collector) return;
         try
         {
-            var diagnostic = new FileCollectorDiagnostic(stage, error is Win32Exception ? "win32" : "hresult",
-                error is Win32Exception native ? native.NativeErrorCode : error.HResult);
+            var diagnostic = error switch
+            {
+                FileGuardPeerExitedException peer when StartupStages.Contains(stage, StringComparer.Ordinal) =>
+                    new FileCollectorDiagnostic(stage, "peer-exit", peer.ExitCode),
+                Win32Exception native => new FileCollectorDiagnostic(stage, "win32", native.NativeErrorCode),
+                _ => new FileCollectorDiagnostic(stage, "hresult", error.HResult)
+            };
             (output ?? Console.Error).WriteLine(JsonSerializer.Serialize(diagnostic));
         }
         catch { } // Diagnostics never replace the original exit contract.
@@ -56,7 +64,8 @@ internal static class FileQualificationDiagnostic
             var value = document.RootElement;
             FileWire.Shape(value, ["stage", "kind", "code"]);
             string? checkpoint = value.GetProperty("stage").GetString(), kind = value.GetProperty("kind").GetString();
-            if (!Stages.Contains(checkpoint, StringComparer.Ordinal) || kind is not ("win32" or "hresult") ||
+            if (!Stages.Contains(checkpoint, StringComparer.Ordinal) || kind is not ("win32" or "hresult" or "peer-exit") ||
+                kind == "peer-exit" && !StartupStages.Contains(checkpoint, StringComparer.Ordinal) ||
                 !value.GetProperty("code").TryGetInt32(out int code)) return null;
             return new(checkpoint!, kind, code);
         }

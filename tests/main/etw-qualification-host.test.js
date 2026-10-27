@@ -48,6 +48,20 @@ describe('qualification collector failure evidence', () => {
     expect(
       (await exchange([{ stage: 'custody', kind: 'hresult', code: -2147024891 }])).failure,
     ).toBeNull();
+    for (const stage of [
+      'guard-connect',
+      'guard-broker',
+      'guard-reserve',
+      'fallback-connect',
+      'fallback-broker',
+      'fallback-reserve',
+    ]) {
+      const peer = { stage, kind: 'peer-exit', code: 3 };
+      const observed = await exchange([peer]);
+      expect(observed.failure).toBeNull();
+      expect(observed.host).toMatchObject({ childExitCodes: [2], childDiagnostics: [peer] });
+      expect((await exchange([{ stage, kind: 'hresult', code: -2146233029 }])).failure).toBeNull();
+    }
     for (const [diagnostics, exits] of [
       [[], [2]],
       [[diagnostic, null], [2]],
@@ -56,6 +70,8 @@ describe('qualification collector failure evidence', () => {
       [[diagnostic], [2147483648]],
       [[{ ...diagnostic, stage: 'PRIVATE_PATH_CANARY' }], [2]],
       [[{ ...diagnostic, kind: 'exception' }], [2]],
+      [[{ ...diagnostic, kind: 'peer-exit' }], [2]],
+      [[{ stage: 'guard-connect', kind: 'peer-exit', code: 1, pid: 71 }], [2]],
       [[{ ...diagnostic, code: 5.5 }], [2]],
       [[{ ...diagnostic, code: 2147483648 }], [2]],
       [[{ ...diagnostic, code: -2147483649 }], [2]],

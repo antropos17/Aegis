@@ -35,6 +35,11 @@ The executable suite allowlist is `WINDOWS_SUITES` in
 These tests compile disposable C# fixtures using the Windows framework compiler
 and exercise caller identity, retained caller context, sealed import and its main
 reader, plus retained GUI process ownership and its shell object-ID regression.
+The guard-startup fixture additionally requires the installed .NET 10 SDK. It
+links the production startup wait, owner and diagnostic code into a BCL-only
+project with explicit fixture peers. It checks peer exit, canceled I/O and failure
+reporting without elevation, ETW or a qualification guest; its substituted
+authentication/trace boundaries do not establish native capture acceptance.
 The runner records source HEAD/tree, lock/compiler hashes, Node/platform,
 free space, command exits, duration, test totals and a raw-report hash. Source must
 remain clean at completion. Assertion results must cover every selected suite;
