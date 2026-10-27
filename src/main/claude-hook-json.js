@@ -162,4 +162,36 @@ function previewEdits(source, path, edits) {
     changedFragments,
   };
 }
-module.exports = { scanJson, previewEdits, LIMITS };
+
+/** @typedef {{ identity: string, bytes: Buffer }} Snapshot */
+/** @typedef {{ startByte: number, endByte: number, replacementUtf8: string }} ByteEdit */
+/** @typedef {{ beforeSha256: string, afterSha256: string, edits: ByteEdit[] }} BytePlan */
+/** @param {Snapshot} value @returns {Snapshot} */
+function snapshot(value) {
+  if (
+    !value ||
+    typeof value.identity !== 'string' ||
+    !value.identity.length ||
+    value.identity.length > 256 ||
+    !Buffer.isBuffer(value.bytes) ||
+    value.bytes.length > 262144
+  )
+    throw Error();
+  return { identity: value.identity, bytes: Buffer.from(value.bytes) };
+}
+
+/** @param {Buffer} before @param {BytePlan} plan */
+function edited(before, plan) {
+  let after = Buffer.from(before);
+  for (const edit of [...plan.edits].reverse()) {
+    after = Buffer.concat([
+      after.subarray(0, edit.startByte),
+      Buffer.from(edit.replacementUtf8),
+      after.subarray(edit.endByte),
+    ]);
+  }
+  if (hash(before) !== plan.beforeSha256 || hash(after) !== plan.afterSha256) throw Error();
+  return after;
+}
+
+module.exports = { scanJson, previewEdits, hash, snapshot, edited, LIMITS };

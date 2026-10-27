@@ -22,7 +22,8 @@ const {
  * @typedef {{
  *   prepareInstall: (selection: Selection) => Promise<Status|Prepared>,
  *   prepareRemoval: () => Promise<Status|Prepared>,
- *   apply: (ticket: object, confirmed: boolean) => Promise<Status>
+ *   apply: (ticket: object, confirmed: boolean) => Promise<Status>,
+ *   reconcile: () => Promise<Status>
  * }} ReviewWriter
  */
 /** @typedef {{owner: object, configPath: string, io: OwnedIO, lifetimeMs: number, now?: () => number}} Options */
@@ -72,7 +73,7 @@ function createOwnedHookReview(options) {
   let generation = 0;
   let clockInvalid = false;
   let lastTime = -Infinity;
-  /** @type {'prepare'|'confirm'|'apply'|'status'|null} */
+  /** @type {'prepare'|'confirm'|'apply'|'status'|'reconcile'|null} */
   let phase = null;
   /** @type {Pending|null} */
   let pending = null;
@@ -209,6 +210,22 @@ function createOwnedHookReview(options) {
       phase = null;
     }
   }
+  /** Check verified ownership without exposing private identity or content.
+   * @param {object} caller Exact constructor owner. @returns {Promise<Status>} Sanitized result. @since v0.21.0 */
+  async function reconcile(caller) {
+    const refused = admission(caller);
+    if (refused) return refused;
+    phase = 'reconcile';
+    const currentGeneration = generation;
+    try {
+      const result = await writer.reconcile();
+      return revoked(currentGeneration) || projected(result);
+    } catch {
+      return status(false, 'TARGET_READ_FAILED');
+    } finally {
+      phase = null;
+    }
+  }
   /**
    * Revoke pending/preparing admission; an admitted apply is already too late.
    * Completed mutation uncertainty survives cancellation and requires recovery.
@@ -270,6 +287,7 @@ function createOwnedHookReview(options) {
     prepareInstall,
     prepareRemoval,
     confirm,
+    reconcile,
     cancel,
     release,
     status: readStatus,
