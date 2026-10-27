@@ -5,11 +5,31 @@ const { createSessionContext } = require('./session-context');
 const { readLiveSessionFile } = require('./live-session-file');
 const { readClaudeProcesses, processWitness } = require('./live-session-process');
 const { validCreateTime100ns } = require('./platform/windows-observer');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, randomUUID } = require('node:crypto');
+const { projectAuditIdentity, auditOrigin } = require('./audit-observation-identity');
 const path = require('node:path');
 const os = require('node:os');
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const AGE_MS = 15 * 60 * 1000;
+const MAX_TOKEN_COUNTER = 0xffffffffffff;
+
+/** Issue process-local UUID locators without reuse or counter wrap.
+ * @param {string} selectedEpoch Random UUID for the current process lifetime.
+ * @param {number} [initial] Starting counter for deterministic boundary tests.
+ * @returns {function(): string|null} Next locator, or null after exhaustion. @since v0.21.0 */
+function createAuditTokenIssuer(selectedEpoch, initial = 0) {
+  if (
+    !UUID.test(selectedEpoch) ||
+    !Number.isSafeInteger(initial) ||
+    initial < 0 ||
+    initial > MAX_TOKEN_COUNTER
+  )
+    throw Error('audit-token-unavailable');
+  const prefix = selectedEpoch.toLowerCase().slice(0, 24);
+  let counter = initial;
+  return () =>
+    counter >= MAX_TOKEN_COUNTER ? null : prefix + (++counter).toString(16).padStart(12, '0');
+}
 const platform = process.platform === 'win32' ? 'win32' : 'posix';
 const normalized = (value) =>
   typeof value === 'string' &&
@@ -75,12 +95,133 @@ function createLiveToolContext(options) {
     getAgents,
     home = os.homedir(),
     now = Date.now,
+    monotonicNow = () => performance.now(),
     observeProcesses = readClaudeProcesses,
+    onAuditRevision = () => {},
+    auditProof = () => null,
   } = options;
   const events = new Map();
+  const sightings = new Map();
+  const auditTokens = new Map();
+  const auditRows = new Map();
+  const ingress = new WeakMap();
+  // One random process-lifetime epoch supplies a UUID prefix; the final 48 bits
+  // are a monotonic counter. Tokens never repeat in this process, and stop at
+  // 2^48-1 instead of wrapping. Tokens are locators, not authentication.
+  const epoch = randomUUID().toLowerCase();
+  const nextToken = createAuditTokenIssuer(epoch, options.initialAuditTokenCounter ?? 0);
   const digestKey = randomBytes(32);
   let busy = false,
     nextRead = 0;
+  let revision = 0;
+  let expiryTimer = null;
+
+  function auditRevision(ready = true) {
+    if (!ready) invalidateAudit();
+    return Number.isSafeInteger(revision) ? { epoch, revision } : null;
+  }
+
+  function invalidateAudit() {
+    const wasActive = auditTokens.size !== 0;
+    auditTokens.clear();
+    auditRows.clear();
+    if (expiryTimer) clearTimeout(expiryTimer);
+    expiryTimer = null;
+    revision = revision < Number.MAX_SAFE_INTEGER ? revision + 1 : NaN;
+    if (wasActive)
+      try {
+        onAuditRevision(auditRevision());
+      } catch {
+        /* no renderer is required */
+      }
+  }
+
+  function scheduleExpiry() {
+    if (expiryTimer) clearTimeout(expiryTimer);
+    if (!auditTokens.size) {
+      expiryTimer = null;
+      return;
+    }
+    let delay = AGE_MS;
+    for (const id of auditTokens.values()) {
+      const sighting = sightings.get(id);
+      const retained = events.get(id);
+      if (!sighting || !retained) {
+        delay = 1;
+        break;
+      }
+      delay = Math.min(
+        delay,
+        AGE_MS - (monotonicNow() - sighting.monotonicAt),
+        AGE_MS - (now() - sighting.at),
+        AGE_MS - (now() - retained.timestamp),
+      );
+    }
+    expiryTimer = setTimeout(
+      () => {
+        expiryTimer = null;
+        prune();
+        scheduleExpiry();
+      },
+      Math.max(1, delay + 1),
+    );
+    expiryTimer.unref?.();
+  }
+
+  function forget(id) {
+    const sighting = sightings.get(id);
+    if (sighting && auditTokens.has(sighting.token)) invalidateAudit();
+    sightings.delete(id);
+    events.delete(id);
+  }
+
+  function prune() {
+    const instant = now();
+    const monotonic = monotonicNow();
+    for (const [id, row] of sightings) {
+      const retained = events.get(id);
+      if (
+        !Number.isFinite(monotonic) ||
+        !Number.isFinite(row.monotonicAt) ||
+        monotonic < row.monotonicAt ||
+        monotonic - row.monotonicAt > AGE_MS ||
+        instant - row.at > AGE_MS ||
+        (retained && instant - retained.timestamp > AGE_MS)
+      )
+        forget(id);
+    }
+    while (sightings.size > 256) forget(sightings.keys().next().value);
+  }
+
+  /** Register each ingress observation before sensitive audit or display dedup.
+   * @param {object} event Main-process file observation.
+   * @returns {object|null} Private audit identity or null. @since v0.21.0 */
+  function prepare(event) {
+    if (!event || typeof event.eventId !== 'string' || !UUID.test(event.eventId)) return null;
+    // Admission can race a pending uniqueness proof, before any alias exists.
+    invalidateAudit();
+    const id = event.eventId.toLowerCase();
+    ingress.delete(event);
+    prune();
+    const aliasOwner = auditTokens.get(id);
+    if (aliasOwner) {
+      const aliased = sightings.get(aliasOwner);
+      if (aliased) aliased.auditAmbiguous = true;
+      invalidateAudit();
+    }
+    const existing = sightings.get(id);
+    if (existing) {
+      existing.ambiguous = true;
+      if (auditTokens.has(existing.token)) invalidateAudit();
+    }
+    const token = nextToken();
+    const identity = Object.freeze({ eventId: id, epoch, token });
+    ingress.set(event, identity);
+    if (existing) return token ? identity : null;
+    sightings.set(id, { token, at: now(), monotonicAt: monotonicNow(), ambiguous: false });
+    prune();
+    return token ? identity : null;
+  }
 
   /** Retain only a bounded selection of already accepted OS observations.
    * @param {object} event Main-process event. @returns {void} @since v0.21.0 */
@@ -97,21 +238,108 @@ function createLiveToolContext(options) {
       event.file.length > 4096
     )
       return;
-    // First accepted identity for an event ID is immutable. The renderer cannot create it.
-    if (events.has(event.eventId)) return;
+    if (!ingress.has(event)) prepare(event);
+    const identity = ingress.get(event);
+    const id = event.eventId.toLowerCase();
+    const sighting = sightings.get(id);
+    if (
+      !identity ||
+      identity.eventId !== id ||
+      identity.epoch !== epoch ||
+      !sighting ||
+      sighting.ambiguous ||
+      sighting.token !== identity.token ||
+      events.has(id)
+    )
+      return;
     events.set(
-      event.eventId,
+      id,
       Object.freeze({
-        eventId: event.eventId,
+        eventId: id,
         pid: event.pid,
         instanceId: event.instanceId,
         timestamp: event.timestamp,
         file: event.file,
+        action: typeof event.action === 'string' ? event.action : '',
         createTime100ns: validCreateTime100ns(event.createTime100ns) ? event.createTime100ns : null,
       }),
     );
-    for (const [id, row] of events) if (now() - row.timestamp > AGE_MS) events.delete(id);
-    while (events.size > 256) events.delete(events.keys().next().value);
+    prune();
+  }
+
+  /** Issue an existing opaque lookup only for an exact live audit observation.
+   * @param {unknown} row Stored audit row. @returns {string|{revoked: string}|null} Locator, revocation, or null. @since v0.21.0 */
+  function auditLookup(row, pageProof = undefined) {
+    prune();
+    if (!row || !['file-access', 'config-access'].includes(row.type)) return null;
+    const identity = projectAuditIdentity(row.details?.auditIdentity);
+    if (!identity || identity.epoch !== epoch) return null;
+    let proof;
+    try {
+      proof = pageProof === undefined ? auditProof() : pageProof;
+    } catch {
+      return null;
+    }
+    if (!proof || typeof proof.unique !== 'function' || !proof.unique(row)) {
+      if (auditTokens.has(identity.token)) invalidateAudit();
+      return null;
+    }
+    const sighting = sightings.get(identity.eventId);
+    const retained = events.get(identity.eventId);
+    if (
+      !sighting ||
+      sighting.ambiguous ||
+      sighting.token !== identity.token ||
+      (auditTokens.has(identity.token) && auditTokens.get(identity.token) !== identity.eventId) ||
+      !retained
+    )
+      return null;
+    // Distinct canonical audit rows claiming one tuple revoke the alias even
+    // if a previously opened Details view still holds that alias. A repeated
+    // read of the same seq/hash is not a second observation.
+    const origin = auditOrigin(row);
+    if (
+      !origin ||
+      !Number.isSafeInteger(row.seq) ||
+      row.seq < 0 ||
+      typeof row.hash !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(row.hash)
+    )
+      return null;
+    const auditKey = `${origin}:${row.seq}:${row.hash}`;
+    if (sighting.auditAmbiguous) {
+      return sighting.auditKey ? { revoked: `audit:${identity.token}` } : null;
+    }
+    if (sighting.auditKey && sighting.auditKey !== auditKey) {
+      sighting.auditAmbiguous = true;
+      invalidateAudit();
+      return { revoked: `audit:${identity.token}` };
+    }
+    if (
+      row.pid !== retained.pid ||
+      row.instanceId !== retained.instanceId ||
+      row.path !== retained.file ||
+      row.action !== retained.action
+    )
+      return null;
+    sighting.auditKey = auditKey;
+    // A token that is also any source UUID is ambiguous, even if that source
+    // observation was dropped by display dedup and has no retained event.
+    if (sightings.has(identity.token)) return null;
+    if (!auditRevision()) return null;
+    auditTokens.set(identity.token, identity.eventId);
+    auditRows.set(identity.token, row);
+    scheduleExpiry();
+    return `audit:${identity.token}`;
+  }
+
+  function selected(id) {
+    const key = id.toLowerCase();
+    if (!key.startsWith('audit:')) return events.get(key);
+    const token = key.slice(6);
+    const aliasId = auditTokens.get(token);
+    if (!aliasId || sightings.has(token)) return undefined;
+    return events.get(aliasId);
   }
 
   async function resolve(event) {
@@ -291,30 +519,67 @@ function createLiveToolContext(options) {
   /** Explain by retained event ID only; no renderer-controlled paths or process data.
    * @param {unknown} id Event UUID. @returns {Promise<object>} Metadata-only reply. @since v0.21.0 */
   async function explain(id) {
-    for (const [key, event] of events) if (now() - event.timestamp > AGE_MS) events.delete(key);
-    if (typeof id !== 'string' || !UUID.test(id) || !events.has(id))
+    prune();
+    if (
+      typeof id !== 'string' ||
+      !(UUID.test(id) || (id.startsWith('audit:') && UUID.test(id.slice(6))))
+    )
       return unavailable('context-unavailable');
+    const retained = selected(id);
+    if (!retained) return unavailable('context-unavailable');
+    const auditRow = id.startsWith('audit:') ? auditRows.get(id.slice(6).toLowerCase()) : null;
+    const validAudit = async () => {
+      if (!auditRow) return !id.startsWith('audit:');
+      try {
+        const proof = await auditProof([auditRow]);
+        return !!proof && proof.unique(auditRow) === true;
+      } catch {
+        return false;
+      }
+    };
     if (busy || now() < nextRead) return unavailable('source-unavailable');
     busy = true;
     nextRead = now() + 1000;
-    const work = resolve(events.get(id))
-      .catch(() => unavailable('source-unavailable'))
-      .finally(() => {
-        busy = false;
-      });
     let timer;
+    let work = null;
+    let workFinished = false;
     try {
-      return await Promise.race([
+      const initialProofValid = await validAudit();
+      prune();
+      if (!initialProofValid || selected(id) !== retained) {
+        if (auditRow) invalidateAudit();
+        return unavailable('context-unavailable');
+      }
+      work = resolve(retained)
+        .catch(() => unavailable('source-unavailable'))
+        .finally(() => {
+          workFinished = true;
+        });
+      const result = await Promise.race([
         work,
         new Promise((resolve) => {
           timer = setTimeout(() => resolve(unavailable('source-unavailable')), 3000);
         }),
       ]);
+      prune();
+      if (selected(id) !== retained) return unavailable('context-unavailable');
+      const finalProofValid = await validAudit();
+      prune();
+      if (selected(id) !== retained || !finalProofValid) {
+        if (auditRow) invalidateAudit();
+        return unavailable('context-unavailable');
+      }
+      return result;
     } finally {
       clearTimeout(timer);
+      if (work && !workFinished)
+        void work.finally(() => {
+          busy = false;
+        });
+      else busy = false;
     }
   }
-  return Object.freeze({ record, explain });
+  return Object.freeze({ prepare, record, auditLookup, explain, auditRevision, invalidateAudit });
 }
 
-module.exports = { createLiveToolContext };
+module.exports = { createLiveToolContext, createAuditTokenIssuer };

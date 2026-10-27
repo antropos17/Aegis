@@ -132,6 +132,7 @@ describe('Observatory production components', () => {
     const page = Array.from({ length: 100 }, (_, id) => ({
       timestamp,
       eventId: id,
+      testOrdinal: id,
       type: 'file-access',
     }));
     const host = {
@@ -139,7 +140,7 @@ describe('Observatory production components', () => {
       getAuditEntriesBefore: vi
         .fn()
         .mockResolvedValueOnce(page)
-        .mockResolvedValueOnce([{ timestamp, eventId: 100, type: 'file-access' }]),
+        .mockResolvedValueOnce([{ timestamp, eventId: 100, testOrdinal: 100, type: 'file-access' }]),
     };
     const inspect = vi.fn();
     render(Reports, { host, audit: true, inspect, telemetry: telemetry(), navigate: noOp });
@@ -150,7 +151,12 @@ describe('Observatory production components', () => {
     await fireEvent.click(
       screen.getByRole('button', { name: 'Open 101 observations for file-access' }),
     );
-    expect(new Set(inspect.mock.calls[0][1].observations.map((row) => row.eventId)).size).toBe(101);
+    const observations = inspect.mock.calls[0][1].observations;
+    expect(observations).toHaveLength(101);
+    expect(observations.map((row) => row.testOrdinal).sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 101 }, (_, id) => id),
+    );
+    expect(observations.every((row) => !Object.hasOwn(row, 'eventId'))).toBe(true);
     expect(host.getAuditEntriesBefore.mock.calls[1]).toEqual([timestamp, 100, undefined, 100]);
     await waitFor(() => expect(older).toHaveAttribute('aria-busy', 'false'));
     expect(older).toHaveAttribute('aria-disabled', 'true');

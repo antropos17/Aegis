@@ -223,7 +223,12 @@ function register() {
   ipcMain.handle('tool-context:explain', async (event, eventId) => {
     const window = deps.getWindow?.();
     if (!isOwned(event, window)) return denied();
-    if (typeof eventId !== 'string' || !/^[a-f0-9-]{36}$/i.test(eventId))
+    if (
+      typeof eventId !== 'string' ||
+      !/^(?:audit:)?[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
+        eventId,
+      )
+    )
       return { success: false, error: 'Invalid observation' };
     try {
       const result = await deps.explainToolContext?.(eventId);
@@ -576,16 +581,76 @@ ${findingsHtml}${recsHtml}
     const result = await reviewAuditIntegrity(date);
     return stillOwned(event, window) ? result : denied();
   });
-  ipcMain.handle('get-audit-entries-before', (event, beforeTs, limit, types, boundaryOffset) => {
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
-    return audit.getEntriesBefore(
-      beforeTs,
-      limit,
-      types,
-      ...(boundaryOffset === undefined ? [] : [boundaryOffset]),
-    );
-  });
+  ipcMain.handle('audit:custody-revision', (event) =>
+    ownedRead(event, () => deps.auditCustodyRevision?.() ?? null),
+  );
+  ipcMain.handle(
+    'get-audit-entries-before',
+    async (event, beforeTs, limit, types, boundaryOffset) => {
+      const window = deps.getWindow?.();
+      if (!ownsTopLevelRenderer(event, window, deps.rendererUrl))
+        return { success: false, error: 'Renderer request denied' };
+      const rows = audit.getEntriesBefore(
+        beforeTs,
+        limit,
+        types,
+        ...(boundaryOffset === undefined ? [] : [boundaryOffset]),
+      );
+      if (!Array.isArray(rows)) return rows;
+      let proof = null;
+      try {
+        proof = (await deps.captureAuditCustodyProof?.(rows)) ?? null;
+      } catch {
+        /* history remains available */
+      }
+      if (!stillOwned(event, window)) return { success: false, error: 'Renderer request denied' };
+      return rows.map((row) => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+        const projected = { ...row };
+        // Historical JSON is not authority to select a live event on its own.
+        delete projected.eventId;
+        delete projected.auditLookupId;
+        delete projected.auditRevokedLookupId;
+        delete projected.auditCustodyRevision;
+        if (!['file-access', 'config-access'].includes(row.type)) return projected;
+        if (row.details && typeof row.details === 'object' && !Array.isArray(row.details)) {
+          projected.details = { ...row.details };
+          delete projected.details.auditIdentity;
+        }
+        try {
+          const token = deps.auditToolContextLookup?.(row, proof);
+          if (
+            typeof token === 'string' &&
+            /^audit:[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+              token,
+            )
+          ) {
+            const revision = deps.auditCustodyRevision?.();
+            if (
+              revision &&
+              typeof revision.epoch === 'string' &&
+              Number.isSafeInteger(revision.revision) &&
+              revision.revision >= 0
+            ) {
+              projected.auditLookupId = token;
+              projected.auditCustodyRevision = revision;
+            }
+          } else if (
+            token &&
+            typeof token === 'object' &&
+            typeof token.revoked === 'string' &&
+            /^audit:[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+              token.revoked,
+            )
+          )
+            projected.auditRevokedLookupId = token.revoked;
+        } catch {
+          // Unavailable custody never prevents history from being read.
+        }
+        return projected;
+      });
+    },
+  );
   ipcMain.handle('open-audit-log-dir', async (event) => {
     const window = deps.getWindow?.();
     if (!stillOwned(event, window)) return denied();

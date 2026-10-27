@@ -677,9 +677,58 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   mode: 'latest',
 });
 let securityEvents = null;
+function auditSecuritySettled() {
+  try {
+    const state = securityEvents?.getStats();
+    const names = ['file-watch', 'file-handle', 'process', 'network', 'other'];
+    if (
+      !state ||
+      state.replayPending !== false ||
+      state.pendingLoss !== 0 ||
+      state.unknownLoss !== false ||
+      state.markerDurable !== true ||
+      state.spill?.blocked !== false ||
+      state.spill?.files !== 0 ||
+      !state.sensors ||
+      names.some((name) => state.sensors[name]?.buffered !== 0)
+    )
+      return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function captureAuditCustodyProof(rows) {
+  if (!auditSecuritySettled()) return null;
+  try {
+    const before = liveToolContext.auditRevision();
+    if (!before) return null;
+    const proof = await audit?.captureObservationProof?.(rows);
+    const after = liveToolContext.auditRevision();
+    return auditSecuritySettled() &&
+      after &&
+      before.epoch === after.epoch &&
+      before.revision === after.revision
+      ? (proof ?? null)
+      : null;
+  } catch {
+    return null;
+  }
+}
+function auditCustodyRevision() {
+  try {
+    return liveToolContext.auditRevision(
+      auditSecuritySettled() && audit?.observationCustodyClear?.() === true,
+    );
+  } catch {
+    return liveToolContext.auditRevision(false);
+  }
+}
 const liveToolContext = createLiveToolContext({
   getAgents: () =>
     scanner?.getProcessCapabilities?.().populationReliable === true ? latestAgents : [],
+  onAuditRevision: (revision) => sendToRenderer('audit:custody-revision', revision),
+  auditProof: captureAuditCustodyProof,
 });
 
 /** Preserve watcher UUIDs; stamp accepted legacy/test events before display or audit. */
@@ -703,6 +752,7 @@ function auditInitOptions(userDataPath) {
     onFlushError: () =>
       logger.error('audit-logger', 'Flush failed', { code: 'audit-flush-failed' }),
     onDeliveryChange: () => {
+      liveToolContext.invalidateAudit();
       if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
         statsUpdateBatcher.pushLazy(getStats);
     },
@@ -1186,6 +1236,7 @@ function initDeferredSubsystems(userData) {
     observationGap,
     sendToRenderer,
     fileAccessBatcher,
+    prepareFileObservation: (event) => liveToolContext.prepare(event),
     recordAcceptedFileEvent,
     statsUpdateBatcher,
     getStats,
@@ -1444,6 +1495,9 @@ app.whenReady().then(() => {
     geminiHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
+    auditToolContextLookup: (row, proof) => liveToolContext.auditLookup(row, proof),
+    captureAuditCustodyProof,
+    auditCustodyRevision,
     controlFileReads: (request) => etwFile.control(request),
     updates,
     getWindow: () => mainWindow,

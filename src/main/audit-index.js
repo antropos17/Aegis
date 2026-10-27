@@ -117,6 +117,7 @@ let _state = 'closed';
 let _lastError = null;
 /** @type {Record<string, import('node:sqlite').StatementSync>|null} */
 let _stmts = null;
+let _proofGeneration = 0n;
 
 /**
  * The capability gate. `require('node:sqlite')` in a try/catch — the module is part of the
@@ -252,6 +253,7 @@ function _prepare() {
  * @param {string} code
  */
 function _fail(code) {
+  _proofGeneration++;
   _lastError = code;
   try {
     if (_db) _db.close();
@@ -343,6 +345,7 @@ function projectLine(line) {
  */
 function writeBatch(batch) {
   if (!_db || !_stmts) throw new Error('audit-index: database is not open');
+  _proofGeneration++;
   let malformed = 0;
   _db.exec('BEGIN');
   try {
@@ -436,6 +439,7 @@ function append(b) {
  */
 function forget(file) {
   if (!_db || !_stmts) return false;
+  _proofGeneration++;
   _stmts.deleteFile.run(file);
   return true;
 }
@@ -467,6 +471,20 @@ function queryBefore(beforeTs, limit, types, boundaryOffset) {
   }
 }
 
+/** Pin the index generation for an isolated read-side observation proof.
+ * @returns {object|null} Private worker input and liveness check, or unavailable.
+ * @since 0.21.0-beta
+ */
+function observationProofLease() {
+  if (!isReady()) return null;
+  const db = _db;
+  const generation = _proofGeneration;
+  return Object.freeze({
+    databasePath: _file,
+    current: () => isReady() && _db === db && _proofGeneration === generation,
+  });
+}
+
 /**
  * Every `audit_files` row, for the reconcile.
  * @returns {Array<{file: string, file_date: string, indexed_bytes: number, indexed_lines: number,
@@ -486,6 +504,7 @@ function files() {
  */
 function setState(state) {
   if (!_db) return;
+  _proofGeneration++;
   if (state === 'failed') {
     _fail('index-rebuild-failed');
     return;
@@ -522,6 +541,7 @@ function status() {
  * @since v0.14.0
  */
 function close() {
+  _proofGeneration++;
   if (_db) {
     try {
       _db.close();
@@ -545,6 +565,7 @@ module.exports = {
   append,
   isReady,
   queryBefore,
+  observationProofLease,
   writeBatch,
   forget,
   files,
