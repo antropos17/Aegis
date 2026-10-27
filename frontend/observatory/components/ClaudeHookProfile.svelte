@@ -121,6 +121,7 @@
     available: false,
     lossDetected: false,
     afterHooks: false,
+    afterHooksAtAdmission: false,
     entries: [] as { decision: string; reason: string; outcome: Outcome }[],
   });
   let alive = true;
@@ -156,6 +157,7 @@
         available: session.available === true,
         lossDetected: session.lossDetected === true,
         afterHooks: session.afterHooks === true,
+        afterHooksAtAdmission: session.afterHooksAtAdmission === true,
         entries: entries.flatMap((item: unknown) => {
           const entry = record(item);
           return typeof entry.decision === 'string' &&
@@ -309,7 +311,9 @@
         {$t(
           guardSession.afterHooks
             ? 'After-result hooks were verified in the selected profile; delivery remains unknown.'
-            : 'After-result hooks were not verified as configured for this session.',
+            : guardSession.afterHooksAtAdmission
+              ? 'After-result hooks were verified at admission; the profile is not currently verified.'
+              : 'After-result hooks are not currently verified; delivery remains unknown.',
         )}
       </p>
     {/if}

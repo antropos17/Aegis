@@ -105,7 +105,7 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
     screen.getByText('Some reporting may have been lost or discarded; delivery remains unknown.'),
   ).toBeVisible();
   expect(
-    screen.getByText('After-result hooks were not verified as configured for this session.'),
+    screen.getByText('After-result hooks are not currently verified; delivery remains unknown.'),
   ).toBeVisible();
   expect(screen.queryByText('PRIVATE_COMMAND')).toBeNull();
   expect(screen.queryByText('PRIVATE_TOKEN')).toBeNull();
@@ -145,6 +145,44 @@ it('shows only bounded provider-reported results and keeps missing or malformed 
   expect(screen.getAllByText(/Provider result unknown/)).toHaveLength(3);
   expect(screen.queryByText('PRIVATE_OUTCOME')).toBeNull();
   expect(screen.queryByText('PRIVATE_RESPONSE')).toBeNull();
+});
+
+it('retains historical admission without claiming the stopped profile is currently verified', async () => {
+  const entry = { decision: 'allow', reason: 'generic', outcome: 'reported-completed' };
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'READY',
+      guardSession: {
+        status: 'active',
+        afterHooks: true,
+        afterHooksAtAdmission: true,
+        entries: [entry],
+      },
+    })
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_STOPPED',
+      guardSession: {
+        status: 'ended',
+        afterHooks: false,
+        afterHooksAtAdmission: true,
+        entries: [entry],
+      },
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(/Claimed provider result: tool completed/);
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop reporting' }));
+  expect(
+    await screen.findByText(
+      'After-result hooks were verified at admission; the profile is not currently verified.',
+    ),
+  ).toBeVisible();
+  expect(screen.getByText(/Claimed provider result: tool completed/)).toHaveTextContent(
+    'Effect unknown',
+  );
+  expect(review.mock.calls).toEqual([['status'], ['guard-stop']]);
 });
 
 it('explains the selected launch route and its unverified failure boundary', () => {

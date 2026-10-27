@@ -12,6 +12,7 @@ const INACTIVE = Object.freeze({
   sender: 'unverified',
   effect: 'unknown',
   afterHooks: false,
+  afterHooksAtAdmission: false,
   entries: [],
 });
 
@@ -112,6 +113,7 @@ function createClaudeGuardLauncher(options) {
     selectedPaths = null,
     timer = null,
     retained = false,
+    afterHooksAtAdmission = false,
     last = { ...INACTIVE, entries: [] };
 
   const snapshot = () => {
@@ -122,7 +124,7 @@ function createClaudeGuardLauncher(options) {
     } catch {
       // An unavailable or stale admission never establishes hook coverage.
     }
-    return { ...active.snapshot(), afterHooks };
+    return { ...active.snapshot(), afterHooks, afterHooksAtAdmission };
   };
   async function stop(stale = false) {
     generation++;
@@ -162,6 +164,7 @@ function createClaudeGuardLauncher(options) {
             : 'ended',
         available: false,
         afterHooks: false,
+        afterHooksAtAdmission,
         lossDetected: stale || prior.lossDetected,
       };
       try {
@@ -333,6 +336,7 @@ function createClaudeGuardLauncher(options) {
         await stop(true);
         return 'GUARD_PROFILE_UNVERIFIED';
       }
+      afterHooksAtAdmission = admission.hasAfterHooks?.(binding) === true;
     } catch {
       await stop(true);
       opening = null;

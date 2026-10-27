@@ -131,6 +131,7 @@ function createClaudeHookApp(options) {
         sender: 'unverified',
         effect: 'unknown',
         afterHooks: false,
+        afterHooksAtAdmission: false,
         entries: [],
       },
     };

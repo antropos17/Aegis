@@ -209,7 +209,8 @@ describe('Observatory localization', () => {
       'Claimed provider result: tool failed',
       'Provider result unknown',
       'After-result hooks were verified in the selected profile; delivery remains unknown.',
-      'After-result hooks were not verified as configured for this session.',
+      'After-result hooks are not currently verified; delivery remains unknown.',
+      'After-result hooks were verified at admission; the profile is not currently verified.',
     ];
     const pt = translator('pt');
     for (const label of labels) {
