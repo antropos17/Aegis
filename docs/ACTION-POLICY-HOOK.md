@@ -57,7 +57,12 @@ by the provider. This does not change schema-1 matching.
 
 The profile is intentionally narrow: `pwd`, `ls`, `git status`, `git status
 --short`, `git diff --stat`, and `cat` followed by one plain relative basename
-delegate to the provider's confirmation (`ask`). The explicit filenames `.env`,
+delegate to the provider (`ask`). The exact commands `npm test` and `npm run lint`
+also delegate to the provider; no flags or other npm scripts are supported. The
+fixed provider-facing reason warns that project scripts may execute arbitrary
+actions not separately checked by this Bash hook. Configuration and PATH-selected
+programs are unbound, so the operator must inspect them before deciding.
+The explicit filenames `.env`,
 `.env` with any dot-prefixed basename suffix, `id_rsa`, `id_ed25519`,
 `credentials` and `credentials.json`
 are denied case-insensitively. Recognized `rm`, `git reset --hard`, and `git
@@ -67,14 +72,15 @@ of at most 600000 ms are accepted alongside `command`; the command spelling is
 exact, with a single space where shown. Fixed provider output explains the rule
 category without exposing arguments or paths.
 
-`ask` is a provider prompt, not an AEGIS approval or an automatic allow. A plain
+`ask` delegates to the provider; it is not an AEGIS approval or an automatic allow.
+Whether the provider presents a prompt depends on its configuration. A plain
 basename can refer to a symlink or other sensitive file, and PATH, aliases, shell
 functions, environment, Git configuration, and executable bytes are not bound.
 An operator must inspect what the provider proposes before approving it. The
 filename list is finite, not general secret discovery. A missing, unstartable or
 timed-out hook may bypass the decision; selecting this profile is not evidence of
-blocking or of an observed action outcome. This initial profile does not support
-editing, tests, pipelines, quoting or other general project workflows.
+blocking or of an observed action outcome. This profile does not support editing,
+additional test commands, pipelines, quoting or other general project workflows.
 
 Add a command hook to the selected Claude configuration only when choosing to
 enable it. Preserve existing settings and use actual absolute paths:

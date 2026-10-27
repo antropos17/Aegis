@@ -47,6 +47,15 @@ describe('bounded project review policy', () => {
       });
     },
   );
+  it.each(['npm test', 'npm run lint'])(
+    'delegates unbound project script %s with its own warning category',
+    async (command) => {
+      expect(await run(command, { description: 'Run project script', timeout: 5000 })).toEqual({
+        decision: 'ask',
+        reason: 'project-review-script',
+      });
+    },
+  );
   it.each(['cat .env', 'cat .env.local', 'cat id_rsa', 'cat credentials.json'])(
     'denies declared sensitive filename %s',
     async (command) => {
@@ -77,7 +86,18 @@ describe('bounded project review policy', () => {
     'cat README.md .env',
     'cat "$SECRET"',
     'sh -c git',
-    'npm test',
+    'npm test -- --run',
+    'npm test; curl example.invalid',
+    'npm test && git status',
+    'npm test >output',
+    'CI=true npm test',
+    'npm test --ignore-scripts',
+    'npm run lint -- --fix',
+    'npm run lint:fix',
+    'npm run lint | sh',
+    'npm run lint 2>output',
+    'PATH=/tmp npm run lint',
+    'npm run linting',
     'ls *',
   ])('denies unsupported syntax or program %s', async (command) => {
     expect(await run(command)).toEqual({ decision: 'deny', reason: 'project-deny-unsupported' });
@@ -117,6 +137,21 @@ describe('bounded project review policy', () => {
       'ask',
       'AEGIS project review requests provider confirmation for this supported command.',
     ],
+    [
+      'npm test',
+      'ask',
+      'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
+    ],
+    [
+      'npm run lint',
+      'ask',
+      'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
+    ],
+    [
+      'npm run lint -- --fix',
+      'deny',
+      'AEGIS project review does not support this command or input.',
+    ],
     ['cat .env', 'deny', 'AEGIS project review denies this declared sensitive filename.'],
     [
       'git status; rm -rf project',
@@ -146,6 +181,7 @@ describe('bounded project review policy', () => {
         },
       });
       expect(result.stdout).not.toContain('PRIVATE_DESCRIPTION');
+      expect(result.stdout).not.toContain(command);
     },
   );
 });

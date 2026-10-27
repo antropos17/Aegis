@@ -94,3 +94,14 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
   expect(screen.queryByText('ALLOW: Declared sensitive filename · Effect unknown')).toBeNull();
   expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
 });
+
+it('explains the selected launch route and its unverified failure boundary', () => {
+  render(ClaudeHookProfile, { host: null, preview: true });
+  expect(screen.getByText(/copy the folder path from the Explorer address bar/)).toBeVisible();
+  expect(screen.getByText(/Claude behavior when a hook is missing/)).toHaveTextContent(
+    'has not been qualified',
+  );
+  expect(screen.getByText(/Other tools and launches without the profile/)).toBeVisible();
+  expect(screen.getByText(/claude --settings \$settings/)).toBeVisible();
+  expect(screen.getByText('This direct route does not send decision reports to AEGIS.')).toBeVisible();
+});

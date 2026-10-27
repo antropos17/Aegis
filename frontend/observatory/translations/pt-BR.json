@@ -2139,7 +2139,7 @@
   "This session has no owned installation to remove.": "Esta sessão não possui uma instalação própria para remover.",
   "The review expired before confirmation. Review the current change again.": "A revisão expirou antes da confirmação. Revise novamente a alteração atual.",
   "The setup session ended. Retained profile files need a separate recovery review.": "A sessão de configuração terminou. Os arquivos retidos do perfil precisam de uma revisão separada de recuperação.",
-  "Select a valid AEGIS schema-1 Bash policy.": "Selecione uma política Bash válida do AEGIS com esquema 1.",
+  "Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.": "Selecione uma política Bash válida do AEGIS que use o esquema 1 ou o esquema 2 compatível.",
   "A selected path cannot be represented safely in this hook command.": "Um caminho selecionado não pode ser representado com segurança neste comando de hook.",
   "The retained backup limit was reached. Review the existing profile files before another setup.": "O limite de backups retidos foi atingido. Revise os arquivos existentes do perfil antes de outra configuração.",
   "The exact change is too large for this native review.": "A alteração exata é grande demais para esta revisão nativa.",
@@ -2179,7 +2179,6 @@
   "Project changes are unavailable. Review the folder in Monitoring settings.": "As mudanças no projeto estão indisponíveis. Revise a pasta nas configurações de Monitoramento.",
   "Project changes": "Mudanças no projeto",
   "Current project change coverage is unknown.": "A cobertura atual de mudanças no projeto é desconhecida.",
-  "Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.": "Selecione uma política Bash válida do AEGIS usando o esquema 1 ou o esquema 2 compatível.",
   "Broker command copied. Run it in PowerShell and compare the confirmation code.": "Comando do intermediário copiado. Execute-o no PowerShell e compare o código de confirmação.",
   "A reporting session is already active.": "Uma sessão de relatórios já está ativa.",
   "Prepare the separate Claude profile before starting a session.": "Prepare o perfil separado do Claude antes de iniciar uma sessão.",
@@ -2211,5 +2210,13 @@
   "Refresh setup status to see recent reports.": "Atualize o estado da configuração para ver relatórios recentes.",
   "Some reporting may have been lost or discarded; delivery remains unknown.": "Alguns relatórios podem ter sido perdidos ou descartados; a entrega permanece desconhecida.",
   "Effect unknown": "Efeito desconhecido",
-  "No reports received; this does not establish that no actions occurred.": "Nenhum relatório recebido; isso não comprova que nenhuma ação ocorreu."
+  "No reports received; this does not establish that no actions occurred.": "Nenhum relatório recebido; isso não comprova que nenhuma ação ocorreu.",
+  "Native setup files are unavailable or failed their integrity checks.": "Os arquivos de configuração nativos estão indisponíveis ou falharam nas verificações de integridade.",
+  "This creates a private draft and retained backups. Personal Claude settings are not edited.": "Isso cria um rascunho privado e mantém backups. As configurações pessoais do Claude não são alteradas.",
+  "Launch with this separate profile": "Iniciar com este perfil separado",
+  "After installing the profile, open its folder and copy the folder path from the Explorer address bar. In Windows PowerShell, run the command below, then paste the folder path without quotes when prompted. Press Enter on an empty prompt to cancel.": "Após instalar o perfil, abra sua pasta e copie o caminho da pasta na barra de endereços do Explorador. No Windows PowerShell, execute o comando abaixo e, quando solicitado, cole o caminho da pasta sem aspas. Pressione Enter sem inserir nada para cancelar.",
+  "This route requires Claude Code and applies the selected policy only to Bash requests in launches using this profile. Other tools and launches without the profile are outside its scope.": "Esta rota exige o Claude Code e aplica a política selecionada somente a solicitações Bash em execuções que usam este perfil. Outras ferramentas e execuções sem o perfil estão fora do seu escopo.",
+  "A configured profile does not verify blocking. Claude behavior when a hook is missing, cannot start, times out, or returns malformed output has not been qualified. The selected schema-1 policy matches the full Bash input and working directory exactly.": "Um perfil configurado não comprova o bloqueio. O comportamento do Claude quando um hook está ausente, não consegue iniciar, excede o tempo limite ou retorna uma saída malformada ainda não foi qualificado. A política selecionada de esquema 1 compara exatamente toda a entrada Bash e o diretório de trabalho.",
+  "A configured profile does not verify blocking. Claude behavior when a hook is missing, cannot start, times out, or returns malformed output has not been qualified. Schema-1 policies match the full Bash input and working directory exactly.": "Um perfil configurado não comprova o bloqueio. O comportamento do Claude quando um hook está ausente, não consegue iniciar, excede o tempo limite ou retorna uma saída malformada ainda não foi qualificado. As políticas de esquema 1 comparam exatamente toda a entrada Bash e o diretório de trabalho.",
+  "This direct route does not send decision reports to AEGIS.": "Esta rota direta não envia relatórios de decisões ao AEGIS."
 }

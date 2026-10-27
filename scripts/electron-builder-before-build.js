@@ -58,5 +58,14 @@ module.exports = function beforeBuild(context) {
     cwd: projectRoot,
     stdio: 'inherit',
   });
+  console.log('[before-build] preparing the portable Claude hook-review assets');
+  execFileSync(
+    process.execPath,
+    [path.join(__dirname, 'build-hook-review-assets.cjs'), '--replace'],
+    {
+      cwd: projectRoot,
+      stdio: 'inherit',
+    },
+  );
   return true;
 };

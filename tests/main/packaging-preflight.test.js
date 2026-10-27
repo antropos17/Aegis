@@ -27,7 +27,7 @@ describe('packaging production preflight', () => {
     const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
     const beforeBuild = require(hookPath);
     expect(beforeBuild({ platform: { name: 'windows' }, arch: 'x64' })).toBe(true);
-    expect(build).toHaveBeenCalledTimes(3);
+    expect(build).toHaveBeenCalledTimes(4);
     const [executable, args, options] = build.mock.calls[0];
     expect(executable).toBe(process.execPath);
     expect(args).toContain('build');
@@ -37,6 +37,10 @@ describe('packaging production preflight', () => {
     expect(build.mock.calls[1][1]).toEqual([path.join(projectRoot, 'scripts/build-sidecar.js')]);
     expect(build.mock.calls[2][1]).toEqual([
       path.join(projectRoot, 'scripts/build-etw-sidecar.js'),
+    ]);
+    expect(build.mock.calls[3][1]).toEqual([
+      path.join(projectRoot, 'scripts/build-hook-review-assets.cjs'),
+      '--replace',
     ]);
   });
 
@@ -50,6 +54,20 @@ describe('packaging production preflight', () => {
       });
     expect(() => require(hookPath)({ platform: { name: 'windows' }, arch: 'x64' })).toThrow(
       'ETW publish failed',
+    );
+  });
+
+  it('refuses Windows packaging when portable review assets cannot be prepared', () => {
+    const build = vi.spyOn(childProcess, 'execFileSync').mockReturnValue(Buffer.alloc(0));
+    build
+      .mockImplementationOnce(() => Buffer.alloc(0))
+      .mockImplementationOnce(() => Buffer.alloc(0))
+      .mockImplementationOnce(() => Buffer.alloc(0))
+      .mockImplementationOnce(() => {
+        throw new Error('review assets unavailable');
+      });
+    expect(() => require(hookPath)({ platform: { name: 'windows' }, arch: 'x64' })).toThrow(
+      'review assets unavailable',
     );
   });
 

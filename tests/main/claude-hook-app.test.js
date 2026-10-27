@@ -614,6 +614,58 @@ it('closes expired IO before a new targeted removal session without restoring ol
   expect(await fs.readFile(target, 'utf8')).toBe(original);
 });
 
+it('renews a cancelled draft after expiry only for a fresh review and confirmation', async () => {
+  vi.useFakeTimers();
+  state.approve = false;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'CANCELLED' });
+  expect(state.writes).toBe(0);
+  expect(state.backups).toHaveLength(0);
+  await vi.advanceTimersByTimeAsync(180000);
+  expect(state.closes).toBe(1);
+  expect(await service.handle('status', () => true)).toMatchObject({ canInstall: true });
+  state.approve = true;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  expect(state.ioCreates).toBe(2);
+  expect(state.dialogs).toHaveLength(2);
+  expect(state.writes).toBe(1);
+  expect(state.backups).toHaveLength(1);
+  expect(state.backups[0].bytes.toString()).toBe(original);
+});
+
+it('refuses to renew a cancelled draft if native release was not confirmed', async () => {
+  vi.useFakeTimers();
+  state.approve = false;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'CANCELLED' });
+  state.releaseUnknown = true;
+  await vi.advanceTimersByTimeAsync(180000);
+  state.approve = true;
+  expect(await service.handle('install', () => true)).toMatchObject({
+    code: 'SESSION_RELEASE_UNCONFIRMED',
+    canInstall: false,
+  });
+  expect(state.ioCreates).toBe(1);
+  expect(state.dialogs).toHaveLength(1);
+  expect(state.writes).toBe(0);
+  expect(await fs.readFile(target, 'utf8')).toBe(original);
+});
+
+it('does not overwrite a hook added to a cancelled draft before renewal', async () => {
+  vi.useFakeTimers();
+  state.approve = false;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'CANCELLED' });
+  await vi.advanceTimersByTimeAsync(180000);
+  const changed = JSON.stringify({
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'existing' }] }] },
+  });
+  await fs.writeFile(target, changed);
+  state.approve = true;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'CONFIGURED_UNOWNED' });
+  expect(state.dialogs).toHaveLength(1);
+  expect(state.writes).toBe(0);
+  expect(state.backups).toHaveLength(0);
+  expect(await fs.readFile(target, 'utf8')).toBe(changed);
+});
+
 it.each(['deleted', 'changed'])(
   'reports Unknown and blocks installation after expiry and %s',
   async (kind) => {
