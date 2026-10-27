@@ -681,12 +681,22 @@ function auditSecuritySettled() {
   try {
     const state = securityEvents?.getStats();
     const names = ['file-watch', 'file-handle', 'process', 'network', 'other'];
-    if (!state || state.replayPending !== false || state.pendingLoss !== 0 ||
-      state.unknownLoss !== false || state.markerDurable !== true ||
-      state.spill?.blocked !== false || state.spill?.files !== 0 ||
-      !state.sensors || names.some((name) => state.sensors[name]?.buffered !== 0)) return false;
+    if (
+      !state ||
+      state.replayPending !== false ||
+      state.pendingLoss !== 0 ||
+      state.unknownLoss !== false ||
+      state.markerDurable !== true ||
+      state.spill?.blocked !== false ||
+      state.spill?.files !== 0 ||
+      !state.sensors ||
+      names.some((name) => state.sensors[name]?.buffered !== 0)
+    )
+      return false;
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 async function captureAuditCustodyProof(rows) {
   if (!auditSecuritySettled()) return null;
@@ -695,14 +705,24 @@ async function captureAuditCustodyProof(rows) {
     if (!before) return null;
     const proof = await audit?.captureObservationProof?.(rows);
     const after = liveToolContext.auditRevision();
-    return auditSecuritySettled() && after && before.epoch === after.epoch &&
-      before.revision === after.revision ? proof ?? null : null;
-  } catch { return null; }
+    return auditSecuritySettled() &&
+      after &&
+      before.epoch === after.epoch &&
+      before.revision === after.revision
+      ? (proof ?? null)
+      : null;
+  } catch {
+    return null;
+  }
 }
 function auditCustodyRevision() {
   try {
-    return liveToolContext.auditRevision(auditSecuritySettled() && audit?.observationCustodyClear?.() === true);
-  } catch { return liveToolContext.auditRevision(false); }
+    return liveToolContext.auditRevision(
+      auditSecuritySettled() && audit?.observationCustodyClear?.() === true,
+    );
+  } catch {
+    return liveToolContext.auditRevision(false);
+  }
 }
 const liveToolContext = createLiveToolContext({
   getAgents: () =>

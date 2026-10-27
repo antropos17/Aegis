@@ -30,11 +30,20 @@ const rememberLookup = (row: RecordData, id: string): void => {
   Object.defineProperty(row, AUDIT_LOOKUP, { value: id, enumerable: false });
 };
 
-export interface AuditCustodyRevision { epoch: string; revision: number }
+export interface AuditCustodyRevision {
+  epoch: string;
+  revision: number;
+}
 const EPOCH = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 export function custodyRevision(value: unknown): AuditCustodyRevision | null {
-  if (!isRecord(value) || typeof value.epoch !== 'string' || !EPOCH.test(value.epoch) ||
-      !Number.isSafeInteger(value.revision) || (value.revision as number) < 0) return null;
+  if (
+    !isRecord(value) ||
+    typeof value.epoch !== 'string' ||
+    !EPOCH.test(value.epoch) ||
+    !Number.isSafeInteger(value.revision) ||
+    (value.revision as number) < 0
+  )
+    return null;
   return { epoch: value.epoch, revision: value.revision as number };
 }
 
@@ -44,8 +53,10 @@ function auditLookup(row: RecordData, current: AuditCustodyRevision | null): Rec
   delete copy.eventId;
   if (
     ['file-access', 'config-access'].includes(String(copy.type)) &&
-    typeof copy.auditLookupId === 'string' && UUID.test(copy.auditLookupId) &&
-    current !== null && custodyRevision(copy.auditCustodyRevision)?.epoch === current.epoch &&
+    typeof copy.auditLookupId === 'string' &&
+    UUID.test(copy.auditLookupId) &&
+    current !== null &&
+    custodyRevision(copy.auditCustodyRevision)?.epoch === current.epoch &&
     custodyRevision(copy.auditCustodyRevision)?.revision === current.revision
   ) {
     rememberLookup(copy, copy.auditLookupId);
@@ -53,8 +64,13 @@ function auditLookup(row: RecordData, current: AuditCustodyRevision | null): Rec
   }
   if (
     ['file-access', 'config-access'].includes(String(copy.type)) &&
-    typeof copy.auditRevokedLookupId === 'string' && UUID.test(copy.auditRevokedLookupId)
-  ) Object.defineProperty(copy, AUDIT_REVOKED_LOOKUP, { value: copy.auditRevokedLookupId, enumerable: false });
+    typeof copy.auditRevokedLookupId === 'string' &&
+    UUID.test(copy.auditRevokedLookupId)
+  )
+    Object.defineProperty(copy, AUDIT_REVOKED_LOOKUP, {
+      value: copy.auditRevokedLookupId,
+      enumerable: false,
+    });
   delete copy.auditLookupId;
   delete copy.auditRevokedLookupId;
   delete copy.auditCustodyRevision;
@@ -92,7 +108,10 @@ export function emptyAuditPage(before: string): AuditPage {
 }
 
 /** Admit a history array without inventing absent historical fields. @param value Wire reply @returns Rows @since 0.17.0 */
-export function admitAuditPage(value: unknown, current: AuditCustodyRevision | null = null): RecordData[] {
+export function admitAuditPage(
+  value: unknown,
+  current: AuditCustodyRevision | null = null,
+): RecordData[] {
   const rows = Array.isArray(value) ? Array.from(value) : null;
   if (!rows || !rows.every(isRecord)) throw new Error('Invalid audit page');
   return rows.map((row) => {
@@ -140,7 +159,9 @@ export function advanceAuditPage(
     const revoked = new Set(incoming.map((row) => Reflect.get(row, AUDIT_REVOKED_LOOKUP)));
     for (const row of previous.rows) if (revoked.has(lookupOf(row))) delete row.eventId;
   }
-  const checkedRows = withoutAmbiguousLookups(request.reset ? incoming : [...incoming, ...previous.rows]);
+  const checkedRows = withoutAmbiguousLookups(
+    request.reset ? incoming : [...incoming, ...previous.rows],
+  );
   return {
     loaded: true,
     rows: checkedRows,

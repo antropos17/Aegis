@@ -79,14 +79,19 @@
     if (catchup) custodyReady = true;
   }
   function startCustody(): () => void {
-    if (!host || typeof host.onAuditCustodyRevision !== 'function' ||
-        typeof host.getAuditCustodyRevision !== 'function') {
+    if (
+      !host ||
+      typeof host.onAuditCustodyRevision !== 'function' ||
+      typeof host.getAuditCustodyRevision !== 'function'
+    ) {
       custodyFailed = true;
       return () => {};
     }
     let active = true;
     let settleInitial!: () => void;
-    initialCustodySettled = new Promise<void>((resolve) => { settleInitial = resolve; });
+    initialCustodySettled = new Promise<void>((resolve) => {
+      settleInitial = resolve;
+    });
     let unsubscribe: unknown;
     let interval: ReturnType<typeof setInterval> | undefined;
     let deadline: ReturnType<typeof setTimeout> | undefined;
@@ -100,19 +105,27 @@
         acceptCustody(null, true);
         settleInitial();
       }, 2000);
-      void invoke(host, 'getAuditCustodyRevision').then(
-        (value) => { if (active) acceptCustody(value, true); },
-        () => { if (active) acceptCustody(null, true); },
-      ).finally(() => {
-        if (deadline) clearTimeout(deadline);
-        deadline = undefined;
-        inFlight = false;
-        settleInitial();
-      });
+      void invoke(host, 'getAuditCustodyRevision')
+        .then(
+          (value) => {
+            if (active) acceptCustody(value, true);
+          },
+          () => {
+            if (active) acceptCustody(null, true);
+          },
+        )
+        .finally(() => {
+          if (deadline) clearTimeout(deadline);
+          deadline = undefined;
+          inFlight = false;
+          settleInitial();
+        });
     };
     try {
       unsubscribe = Reflect.apply(host.onAuditCustodyRevision, host, [
-        (value: unknown) => { if (active) acceptCustody(value, false); },
+        (value: unknown) => {
+          if (active) acceptCustody(value, false);
+        },
       ]);
       if (typeof unsubscribe !== 'function') throw new Error('Invalid custody subscription');
       catchup();
@@ -245,7 +258,11 @@
       );
       await initialCustodySettled;
       if (!alive || ticket !== generation) return;
-      page = advanceAuditPage(page, admitAuditPage(reply, custodyReady && !custodyFailed ? knownCustody : null), request);
+      page = advanceAuditPage(
+        page,
+        admitAuditPage(reply, custodyReady && !custodyFailed ? knownCustody : null),
+        request,
+      );
       admissionRevision += 1;
       type = request.requestedType;
       pageRead = 'ready';

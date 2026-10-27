@@ -26,7 +26,8 @@ try {
   db = new DatabaseSync(workerData.databasePath, { readOnly: true });
   db.exec('PRAGMA cache_size = -2048; PRAGMA mmap_size = 0');
   const result = captureObservationProof(db, workerData.directory, workerData.targets);
-  const same = database === statFile(workerData.databasePath, true) &&
+  const same =
+    database === statFile(workerData.databasePath, true) &&
     wal === statFile(workerData.databasePath + '-wal', false);
   const bytes = Buffer.from(JSON.stringify(same ? result : null), 'utf8');
   if (bytes.length > workerData.resultBuffer.byteLength) parentPort.postMessage(0);
@@ -38,5 +39,9 @@ try {
 } catch {
   parentPort.postMessage(0);
 } finally {
-  try { db?.close(); } catch { /* an unavailable proof remains unavailable */ }
+  try {
+    db?.close();
+  } catch {
+    /* an unavailable proof remains unavailable */
+  }
 }

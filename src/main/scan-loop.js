@@ -163,7 +163,8 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
   // Give every ingress observation an identity before that admission.
   auditIdentities.delete(ev);
   try {
-    if (typeof ev.eventId !== 'string' || !FILE_EVENT_ID.test(ev.eventId)) ev.eventId = randomUUID();
+    if (typeof ev.eventId !== 'string' || !FILE_EVENT_ID.test(ev.eventId))
+      ev.eventId = randomUUID();
     const identity = projectAuditIdentity(deps.prepareFileObservation?.(ev));
     if (identity) auditIdentities.set(ev, identity);
   } catch {

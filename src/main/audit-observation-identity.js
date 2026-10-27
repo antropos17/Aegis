@@ -87,7 +87,9 @@ function rememberAuditOrigin(row, file, lineNo) {
  * @since 0.21.0-beta
  */
 function auditOriginFor(file, lineNo) {
-  return createHash('sha256').update(JSON.stringify([file, lineNo])).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify([file, lineNo]))
+    .digest('hex');
 }
 
 /** Get the private indexed origin of the same in-process row object.

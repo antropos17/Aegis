@@ -128,21 +128,43 @@ function createLiveToolContext(options) {
     if (expiryTimer) clearTimeout(expiryTimer);
     expiryTimer = null;
     revision = revision < Number.MAX_SAFE_INTEGER ? revision + 1 : NaN;
-    if (wasActive) try { onAuditRevision(auditRevision()); } catch { /* no renderer is required */ }
+    if (wasActive)
+      try {
+        onAuditRevision(auditRevision());
+      } catch {
+        /* no renderer is required */
+      }
   }
 
   function scheduleExpiry() {
     if (expiryTimer) clearTimeout(expiryTimer);
-    if (!auditTokens.size) { expiryTimer = null; return; }
+    if (!auditTokens.size) {
+      expiryTimer = null;
+      return;
+    }
     let delay = AGE_MS;
     for (const id of auditTokens.values()) {
       const sighting = sightings.get(id);
       const retained = events.get(id);
-      if (!sighting || !retained) { delay = 1; break; }
-      delay = Math.min(delay, AGE_MS - (monotonicNow() - sighting.monotonicAt),
-        AGE_MS - (now() - sighting.at), AGE_MS - (now() - retained.timestamp));
+      if (!sighting || !retained) {
+        delay = 1;
+        break;
+      }
+      delay = Math.min(
+        delay,
+        AGE_MS - (monotonicNow() - sighting.monotonicAt),
+        AGE_MS - (now() - sighting.at),
+        AGE_MS - (now() - retained.timestamp),
+      );
     }
-    expiryTimer = setTimeout(() => { expiryTimer = null; prune(); scheduleExpiry(); }, Math.max(1, delay + 1));
+    expiryTimer = setTimeout(
+      () => {
+        expiryTimer = null;
+        prune();
+        scheduleExpiry();
+      },
+      Math.max(1, delay + 1),
+    );
     expiryTimer.unref?.();
   }
 
@@ -159,8 +181,11 @@ function createLiveToolContext(options) {
     for (const [id, row] of sightings) {
       const retained = events.get(id);
       if (
-        !Number.isFinite(monotonic) || !Number.isFinite(row.monotonicAt) || monotonic < row.monotonicAt ||
-        monotonic - row.monotonicAt > AGE_MS || instant - row.at > AGE_MS ||
+        !Number.isFinite(monotonic) ||
+        !Number.isFinite(row.monotonicAt) ||
+        monotonic < row.monotonicAt ||
+        monotonic - row.monotonicAt > AGE_MS ||
+        instant - row.at > AGE_MS ||
         (retained && instant - retained.timestamp > AGE_MS)
       )
         forget(id);
@@ -250,7 +275,11 @@ function createLiveToolContext(options) {
     const identity = projectAuditIdentity(row.details?.auditIdentity);
     if (!identity || identity.epoch !== epoch) return null;
     let proof;
-    try { proof = pageProof === undefined ? auditProof() : pageProof; } catch { return null; }
+    try {
+      proof = pageProof === undefined ? auditProof() : pageProof;
+    } catch {
+      return null;
+    }
     if (!proof || typeof proof.unique !== 'function' || !proof.unique(row)) {
       if (auditTokens.has(identity.token)) invalidateAudit();
       return null;
@@ -269,8 +298,14 @@ function createLiveToolContext(options) {
     // if a previously opened Details view still holds that alias. A repeated
     // read of the same seq/hash is not a second observation.
     const origin = auditOrigin(row);
-    if (!origin || !Number.isSafeInteger(row.seq) || row.seq < 0 ||
-      typeof row.hash !== 'string' || !/^[a-f0-9]{64}$/.test(row.hash)) return null;
+    if (
+      !origin ||
+      !Number.isSafeInteger(row.seq) ||
+      row.seq < 0 ||
+      typeof row.hash !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(row.hash)
+    )
+      return null;
     const auditKey = `${origin}:${row.seq}:${row.hash}`;
     if (sighting.auditAmbiguous) {
       return sighting.auditKey ? { revoked: `audit:${identity.token}` } : null;
@@ -485,15 +520,22 @@ function createLiveToolContext(options) {
    * @param {unknown} id Event UUID. @returns {Promise<object>} Metadata-only reply. @since v0.21.0 */
   async function explain(id) {
     prune();
-    if (typeof id !== 'string' || !(UUID.test(id) || (id.startsWith('audit:') && UUID.test(id.slice(6)))))
+    if (
+      typeof id !== 'string' ||
+      !(UUID.test(id) || (id.startsWith('audit:') && UUID.test(id.slice(6))))
+    )
       return unavailable('context-unavailable');
     const retained = selected(id);
     if (!retained) return unavailable('context-unavailable');
     const auditRow = id.startsWith('audit:') ? auditRows.get(id.slice(6).toLowerCase()) : null;
     const validAudit = async () => {
       if (!auditRow) return !id.startsWith('audit:');
-      try { const proof = await auditProof([auditRow]); return !!proof && proof.unique(auditRow) === true; }
-      catch { return false; }
+      try {
+        const proof = await auditProof([auditRow]);
+        return !!proof && proof.unique(auditRow) === true;
+      } catch {
+        return false;
+      }
     };
     if (busy || now() < nextRead) return unavailable('source-unavailable');
     busy = true;
@@ -508,7 +550,11 @@ function createLiveToolContext(options) {
         if (auditRow) invalidateAudit();
         return unavailable('context-unavailable');
       }
-      work = resolve(retained).catch(() => unavailable('source-unavailable')).finally(() => { workFinished = true; });
+      work = resolve(retained)
+        .catch(() => unavailable('source-unavailable'))
+        .finally(() => {
+          workFinished = true;
+        });
       const result = await Promise.race([
         work,
         new Promise((resolve) => {
@@ -526,7 +572,10 @@ function createLiveToolContext(options) {
       return result;
     } finally {
       clearTimeout(timer);
-      if (work && !workFinished) void work.finally(() => { busy = false; });
+      if (work && !workFinished)
+        void work.finally(() => {
+          busy = false;
+        });
       else busy = false;
     }
   }

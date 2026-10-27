@@ -653,8 +653,14 @@ function getDeliveryStatus() {
 }
 
 function observationCustodyClear() {
-  return !!_logDir && _buffer.length === 0 && dropTracker.pendingCount() === 0 &&
-    dropTracker.totalDropped() === 0 && !_writeFailed && auditIndex.isReady();
+  return (
+    !!_logDir &&
+    _buffer.length === 0 &&
+    dropTracker.pendingCount() === 0 &&
+    dropTracker.totalDropped() === 0 &&
+    !_writeFailed &&
+    auditIndex.isReady()
+  );
 }
 
 /** Capture a private whole-index proof in an isolated, single-flight worker.
@@ -671,8 +677,13 @@ async function captureObservationProof(rows) {
   const directory = _logDir;
   const generation = _initGeneration;
   const proof = await proofRunner.capture({ databasePath: lease.databasePath, directory, targets });
-  return proof && lease.current() && generation === _initGeneration && directory === _logDir &&
-    observationCustodyClear() ? proof : null;
+  return proof &&
+    lease.current() &&
+    generation === _initGeneration &&
+    directory === _logDir &&
+    observationCustodyClear()
+    ? proof
+    : null;
 }
 
 /**

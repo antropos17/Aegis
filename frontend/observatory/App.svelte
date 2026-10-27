@@ -226,13 +226,20 @@
     null,
   );
   function revokeAuditSelection() {
-    if (detail && typeof detail.row.eventId === 'string' && detail.row.eventId.startsWith('audit:')) {
+    if (
+      detail &&
+      typeof detail.row.eventId === 'string' &&
+      detail.row.eventId.startsWith('audit:')
+    ) {
       const row = { ...detail.row };
       delete row.eventId;
       detail = { ...detail, row };
     }
-    if (evidenceRequest && typeof evidenceRequest.row.eventId === 'string' &&
-        evidenceRequest.row.eventId.startsWith('audit:')) {
+    if (
+      evidenceRequest &&
+      typeof evidenceRequest.row.eventId === 'string' &&
+      evidenceRequest.row.eventId.startsWith('audit:')
+    ) {
       const row = { ...evidenceRequest.row };
       delete row.eventId;
       evidenceRequest = { ...evidenceRequest, row };
