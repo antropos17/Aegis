@@ -3,7 +3,17 @@ import { createRequire } from 'node:module';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
-const { post, failureSummary } = require('../../scripts/qualification/packaged-claude-hook.cjs');
+const {
+  post,
+  failureSummary,
+  classifyOutput,
+} = require('../../scripts/qualification/packaged-claude-hook.cjs');
+
+it('classifies bounded stdout without retaining its content', () => {
+  expect(classifyOutput(Buffer.alloc(0))).toBe('empty');
+  expect(classifyOutput(Buffer.from([9, 10, 13, 32]))).toBe('ascii-whitespace');
+  expect(classifyOutput(Buffer.from('PRIVATE_CHILD_OUTPUT'))).toBe('other');
+});
 
 it('keeps malformed child output out of failure receipts', () => {
   let receipt;

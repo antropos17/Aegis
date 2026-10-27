@@ -178,6 +178,13 @@ function failureSummary(stage) {
   };
 }
 
+function classifyOutput(bytes) {
+  if (bytes.length === 0) return 'empty';
+  return bytes.every((value) => value === 32 || (value >= 9 && value <= 13))
+    ? 'ascii-whitespace'
+    : 'other';
+}
+
 async function run() {
   assert.equal(process.platform, 'win32');
   assert.equal(process.argv.length, 5);
@@ -374,6 +381,22 @@ async function run() {
         ['PostToolUseFailure', 'reported-failed'],
       ]) {
         before.tool_use_id = `fixture-${event}`;
+        if (event === 'PostToolUse') {
+          stage = 'PostToolUse-direct-control';
+          const control = await child(exe, [asar, '--action-policy-after-hook', policy], {
+            cwd: output,
+            env,
+            deadlineMs: 6000,
+            input: JSON.stringify({ ...before, hook_event_name: event }),
+          });
+          receipt.cases.push({
+            name: stage,
+            ...control.evidence,
+            stdoutClass: classifyOutput(control.result.stdout),
+          });
+          control.result.stdout.fill(0);
+          assert.equal(control.result.code, 0);
+        }
         stage = `${event}-pre`;
         const pre = await child(bash, ['--noprofile', '--norc', '-c', selected], {
           cwd: output,
@@ -407,7 +430,11 @@ async function run() {
             }),
           },
         );
-        receipt.cases.push({ name: stage, ...after.evidence });
+        receipt.cases.push({
+          name: stage,
+          ...after.evidence,
+          stdoutClass: classifyOutput(after.result.stdout),
+        });
         try {
           assert.equal(after.result.code, 0);
           assert.equal(after.result.stdoutBytes, 0);
@@ -474,7 +501,7 @@ async function run() {
   console.log('PASS: packaged hook and assets; source profile used scripted confirmation.');
 }
 
-module.exports = { assertArchivedProfileSourcesMatch, post, failureSummary };
+module.exports = { assertArchivedProfileSourcesMatch, post, failureSummary, classifyOutput };
 if (require.main === module)
   run().catch(async () => {
     Object.assign(receipt, failureSummary(stage));
