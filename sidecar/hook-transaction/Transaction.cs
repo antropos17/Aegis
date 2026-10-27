@@ -10,6 +10,7 @@ internal sealed class Transaction : IDisposable
     // This ORIGINAL witness survives consumed commit leases and fresh read leases.
     private TargetLease? witness;
     private CreateLease? creation;
+    private DeleteLease? deletion;
     private PrivateBackupStore? store;
     private bool readOnly;
     private readonly Dictionary<int, PrivateBackupStore.Reference> references = new();
@@ -17,10 +18,31 @@ internal sealed class Transaction : IDisposable
     internal object Dispatch(JsonElement request, int id)
     {
         string op = Wire.Text(request, "op", 16);
+        if (op == "open-delete")
+        {
+            Wire.Exact(request, "id", "op", "target");
+            if (witness is not null || creation is not null || deletion is not null) throw new InvalidDataException();
+            string destination = Wire.Text(request, "target", 240);
+            if (DeleteLease.Begin(destination, out deletion) != DeleteCode.Ready || deletion is null)
+                throw new InvalidDataException();
+            return new { id, ok = true, protocol = 1 };
+        }
+        if (deletion is not null)
+        {
+            if (op != "delete") throw new InvalidDataException();
+            Wire.Exact(request, "id", "op");
+            return deletion.Delete() switch
+            {
+                DeleteCode.Deleted => new { id, ok = true, outcome = "deleted" },
+                DeleteCode.Refused => new { id, ok = true, outcome = "refused" },
+                DeleteCode.Unknown => new { id, ok = true, outcome = "unknown" },
+                _ => throw new InvalidDataException()
+            };
+        }
         if (op == "open-create")
         {
             Wire.Exact(request, "id", "op", "target", "scope");
-            if (witness is not null || creation is not null) throw new InvalidDataException();
+            if (witness is not null || creation is not null || deletion is not null) throw new InvalidDataException();
             string destination = Wire.Text(request, "target", 240);
             string scope = Wire.Text(request, "scope", 240);
             if (CreateLease.Begin(destination, scope, out creation) != TargetCode.Ready || creation is null)
@@ -61,7 +83,7 @@ internal sealed class Transaction : IDisposable
         if (op == "open-read")
         {
             Wire.Exact(request, "id", "op", "target");
-            if (witness is not null) throw new InvalidDataException();
+            if (witness is not null || creation is not null || deletion is not null) throw new InvalidDataException();
             target = Wire.Text(request, "target", 240);
             if (TargetLease.Begin(target, out witness) != TargetCode.Ready || witness is null)
                 throw new InvalidDataException();
@@ -71,7 +93,7 @@ internal sealed class Transaction : IDisposable
         if (op == "open")
         {
             Wire.Exact(request, "id", "op", "target", "backupRoot");
-            if (witness is not null) throw new InvalidDataException();
+            if (witness is not null || creation is not null || deletion is not null) throw new InvalidDataException();
             target = Wire.Text(request, "target", 240);
             string root = Wire.Text(request, "backupRoot", 180);
             if (TargetLease.Begin(target, out witness) != TargetCode.Ready || witness is null ||
@@ -153,5 +175,5 @@ internal sealed class Transaction : IDisposable
         return lease;
     }
 
-    public void Dispose() { references.Clear(); store?.Dispose(); witness?.Dispose(); creation?.Dispose(); }
+    public void Dispose() { references.Clear(); store?.Dispose(); witness?.Dispose(); creation?.Dispose(); deletion?.Dispose(); }
 }

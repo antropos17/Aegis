@@ -132,7 +132,7 @@ internal static class Program
                 Console.ReadLine();
                 return 0;
             }
-            if (mode is "try-write" or "try-delete")
+            if (mode is "try-write" or "try-delete" or "try-replace")
             {
                 try
                 {
@@ -142,10 +142,12 @@ internal static class Program
                             FileShare.ReadWrite | FileShare.Delete);
                         Console.WriteLine("unexpected-open");
                     }
+                    else if (mode == "try-replace") { File.Move(Path.Combine(root, "delete-replacement.txt"), path, true); Console.WriteLine("unexpected-replace"); }
                     else { File.Delete(path); Console.WriteLine("unexpected-delete"); }
                     return 1;
                 }
-                catch (IOException) { Console.WriteLine("refused"); return 0; }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                { Console.WriteLine("refused"); return 0; }
             }
             return 2;
         }
