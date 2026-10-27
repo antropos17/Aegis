@@ -39,23 +39,27 @@ async function digest(file) {
   return hash.digest('hex');
 }
 
-/** Compare the profile sources in an actual archive against the selected checkout.
+/** Compare the selected hook and Guard source closure in an actual archive.
  * @param {string} archive Candidate app.asar. @param {string} sourceRoot Checkout root.
  * @returns {Promise<void>} Resolves only when every selected source matches.
  * @since v0.21.0 */
 async function assertArchivedProfileSourcesMatch(archive, sourceRoot) {
   const sourceFiles = (await fs.readdir(path.join(sourceRoot, 'src/main')))
-    .filter((name) => /^claude-hook.*\.js$/.test(name))
+    .filter((name) => /^claude-(?:hook|guard).*\.js$/.test(name))
     .concat(
       'action-policy.js',
       'action-policy-hook.js',
       'command-hook-input.js',
       'claude-guard-report.js',
       'claude-guard-receiver.js',
+      'claude-guard-admission.js',
+      'claude-guard-launch.js',
+      'claude-guard-broker.js',
+      'owned-gui-profile.js',
       'cli.js',
       'main.js',
     );
-  for (const name of sourceFiles) {
+  for (const name of new Set(sourceFiles)) {
     const source = path.join('src', 'main', name);
     assert.deepEqual(
       extractFile(archive, source),

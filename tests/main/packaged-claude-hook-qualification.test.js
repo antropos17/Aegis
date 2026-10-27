@@ -1,6 +1,9 @@
 import { expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 
 const require = createRequire(import.meta.url);
 const {
@@ -8,7 +11,63 @@ const {
   failureSummary,
   classifyOutput,
   fixtureEnvironment,
+  assertArchivedProfileSourcesMatch,
 } = require('../../scripts/qualification/packaged-claude-hook.cjs');
+const { createPackage } = require('@electron/asar');
+
+it('compares packaged Guard, hook, entry and shared sources against the selected checkout', async () => {
+  const directory = await fs.mkdtemp(path.join(tmpdir(), 'aegis-package-source-'));
+  try {
+    const original = path.resolve('src/main');
+    const source = path.join(directory, 'source', 'src', 'main');
+    const packed = path.join(directory, 'packed', 'src', 'main');
+    await fs.mkdir(source, { recursive: true });
+    await fs.mkdir(packed, { recursive: true });
+    const names = (await fs.readdir(original)).filter((name) =>
+      /^claude-(?:hook|guard).*\.js$/.test(name),
+    );
+    names.push(
+      'action-policy.js',
+      'action-policy-hook.js',
+      'command-hook-input.js',
+      'owned-gui-profile.js',
+      'cli.js',
+      'main.js',
+    );
+    for (const name of names) {
+      await fs.copyFile(path.join(original, name), path.join(source, name));
+      await fs.copyFile(path.join(original, name), path.join(packed, name));
+    }
+    const archive = path.join(directory, 'fixture.asar');
+    await createPackage(path.join(directory, 'packed'), archive);
+    await expect(
+      assertArchivedProfileSourcesMatch(archive, path.join(directory, 'source')),
+    ).resolves.toBeUndefined();
+    for (const name of [
+      'claude-guard-admission.js',
+      'claude-guard-launch.js',
+      'claude-guard-broker.js',
+      'claude-guard-receiver.js',
+      'claude-guard-report.js',
+      'owned-gui-profile.js',
+      'action-policy.js',
+    ]) {
+      await fs.appendFile(path.join(source, name), '\n// fixture mismatch\n');
+      await expect(
+        assertArchivedProfileSourcesMatch(archive, path.join(directory, 'source')),
+      ).rejects.toThrow();
+      await fs.copyFile(path.join(original, name), path.join(source, name));
+    }
+    await fs.rm(path.join(packed, 'claude-guard-admission.js'));
+    const missing = path.join(directory, 'missing.asar');
+    await createPackage(path.join(directory, 'packed'), missing);
+    await expect(
+      assertArchivedProfileSourcesMatch(missing, path.join(directory, 'source')),
+    ).rejects.toThrow();
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
 
 it('removes inherited Guard credentials from every fixture child base environment', () => {
   const inherited = {
