@@ -11,6 +11,8 @@ const ordinaryCommands = new Set([
   'git status',
   'git status --short',
   'git diff --stat',
+  'npm test',
+  'npm run lint',
 ]);
 const sensitiveName = /^(?:\.env(?:\.[a-z0-9_.-]*)?|id_(?:rsa|ed25519)|credentials(?:\.json)?)$/i;
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);

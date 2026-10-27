@@ -38,15 +38,21 @@ afterEach(() => {
 });
 
 describe('bounded project review policy', () => {
-  it.each(['pwd', 'ls', 'git status', 'git status --short', 'git diff --stat', 'cat README.md'])(
-    'delegates ordinary command %s to the provider',
-    async (command) => {
-      expect(await run(command, { description: 'Read project', timeout: 5000 })).toEqual({
-        decision: 'ask',
-        reason: 'project-review-ordinary',
-      });
-    },
-  );
+  it.each([
+    'pwd',
+    'ls',
+    'git status',
+    'git status --short',
+    'git diff --stat',
+    'cat README.md',
+    'npm test',
+    'npm run lint',
+  ])('delegates ordinary command %s to the provider', async (command) => {
+    expect(await run(command, { description: 'Read project', timeout: 5000 })).toEqual({
+      decision: 'ask',
+      reason: 'project-review-ordinary',
+    });
+  });
   it.each(['cat .env', 'cat .env.local', 'cat id_rsa', 'cat credentials.json'])(
     'denies declared sensitive filename %s',
     async (command) => {
@@ -77,7 +83,18 @@ describe('bounded project review policy', () => {
     'cat README.md .env',
     'cat "$SECRET"',
     'sh -c git',
-    'npm test',
+    'npm test -- --run',
+    'npm test; curl example.invalid',
+    'npm test && git status',
+    'npm test >output',
+    'CI=true npm test',
+    'npm test --ignore-scripts',
+    'npm run lint -- --fix',
+    'npm run lint:fix',
+    'npm run lint | sh',
+    'npm run lint 2>output',
+    'PATH=/tmp npm run lint',
+    'npm run linting',
     'ls *',
   ])('denies unsupported syntax or program %s', async (command) => {
     expect(await run(command)).toEqual({ decision: 'deny', reason: 'project-deny-unsupported' });
@@ -116,6 +133,16 @@ describe('bounded project review policy', () => {
       'git status --short',
       'ask',
       'AEGIS project review requests provider confirmation for this supported command.',
+    ],
+    [
+      'npm test',
+      'ask',
+      'AEGIS project review requests provider confirmation for this supported command.',
+    ],
+    [
+      'npm run lint -- --fix',
+      'deny',
+      'AEGIS project review does not support this command or input.',
     ],
     ['cat .env', 'deny', 'AEGIS project review denies this declared sensitive filename.'],
     [

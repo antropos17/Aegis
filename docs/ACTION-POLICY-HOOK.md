@@ -54,7 +54,11 @@ by the provider. This does not change schema-1 matching.
 
 The profile is intentionally narrow: `pwd`, `ls`, `git status`, `git status
 --short`, `git diff --stat`, and `cat` followed by one plain relative basename
-delegate to the provider's confirmation (`ask`). The explicit filenames `.env`,
+delegate to the provider's confirmation (`ask`). The exact commands `npm test`
+and `npm run lint` also delegate to the provider; no flags or other npm scripts
+are supported. These commands may execute arbitrary project scripts, configuration,
+and PATH-selected programs, so the operator must inspect them before deciding.
+The explicit filenames `.env`,
 `.env` with any dot-prefixed basename suffix, `id_rsa`, `id_ed25519`,
 `credentials` and `credentials.json`
 are denied case-insensitively. Recognized `rm`, `git reset --hard`, and `git
@@ -70,8 +74,8 @@ functions, environment, Git configuration, and executable bytes are not bound.
 An operator must inspect what the provider proposes before approving it. The
 filename list is finite, not general secret discovery. A missing, unstartable or
 timed-out hook may bypass the decision; selecting this profile is not evidence of
-blocking or of an observed action outcome. This initial profile does not support
-editing, tests, pipelines, quoting or other general project workflows.
+blocking or of an observed action outcome. This profile does not support editing,
+additional test commands, pipelines, quoting or other general project workflows.
 
 Add a command hook to the selected Claude configuration only when choosing to
 enable it. Preserve existing settings and use actual absolute paths:
