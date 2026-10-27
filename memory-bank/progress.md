@@ -4185,3 +4185,33 @@ renewal; previously dispatched unknown outcomes require reconciliation. Acceptan
 adds retention-boundary and outage/recovery target-outcome cases. Source/process
 policy baseline: `a83ad2208665c209d3be0ff6638fd27b2657da6d`. Implementation and
 provider qualification remain open.
+
+## Guard delivery rules and contribution entry points — 2026-10-27
+
+Source and process baseline: `5bd2e3aece037ea74cf8a6be09a1e3e0604df8df`.
+Revision 8 keeps G1-A first and makes the install/launch/decision/effect/result/
+removal journey the immediate product contract. English technical work now
+applies explicitly to project instructions, skill routing and all twelve
+repository agent definitions. No model or delegation permission changed.
+
+The review scanned 325 tracked Markdown files for language and instruction drift,
+read all fourteen catalog skills and twelve agent definitions, and inspected the
+active instruction owners. This was a process review, not requalification of
+every historical security claim. The June master plan is marked superseded;
+Observatory verification follows affected behavior instead of requiring every
+build/browser check for each visual edit. Packaging guidance now matches the
+actual renderer/native build hook. One Russian historical report was translated
+without changing its dated results; literal reference filenames remain intact.
+
+CONTRIBUTING and the public entry points identify bounded Guard contributions.
+The plan requires a voluntary user trial before broad integration expansion and
+keeps owner-pending work incomplete. No outreach, issue campaign, workflow edit,
+provider/VM run or new product acceptance is included.
+
+Local evidence: whitespace/diff check, TOML parsing with unchanged model fields,
+catalog/frontmatter and added-link validation passed. The fourteen skills were
+synchronized and checked in the owned task checkout only; the older dirty primary
+checkout and its installed skills were preserved. Final required verification
+belongs to the current PR's hosted CI; no duplicate local runtime suite ran.
+Next implementation: G1-A from current origin/master, with a task-specific delta
+check and existing evidence, rather than another broad planning review.

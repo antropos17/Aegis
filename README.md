@@ -162,6 +162,12 @@ acceptance remain open. [Administrative contract](docs/roadmap/enforcement-e2/pr
 
 ## Current development
 
+The immediate target is a usable Windows Claude Guard: install, launch the
+supported route, allow ordinary work, block declared dangerous attempts and
+inspect the result. This is an active delivery target; full installed-route
+acceptance remains open. See [the execution order](docs/roadmap/completion-plan.md#7-execution-order)
+and [current evidence and gaps](docs/roadmap/guard-delivery-review-20261027.md).
+
 The [completion plan](docs/roadmap/completion-plan.md) tracks the current work and
 its acceptance boundaries. [Source changes](CHANGELOG.md) and the
 [development context](docs/development/current-context.md) identify the active
@@ -219,6 +225,11 @@ not establish complete capture or attribution of every worker.
 <a id="development-and-roadmap"></a>
 
 ## Contribute
+
+Help complete the Guard journey through setup documentation, reproducible
+failures, meaningful regression cases and decision feedback. The
+[contribution guide](CONTRIBUTING.md#current-product-priority) gives bounded
+starting points and their acceptance conditions.
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md), the
 [current development context](docs/development/current-context.md) and

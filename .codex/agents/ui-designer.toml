@@ -1,6 +1,11 @@
 name = "ui-designer"
 description = "Implements AEGIS UI only when explicitly delegated, preserving the approved Observatory template."
 developer_instructions = """
+Read the selected checkout's AGENTS.md and current development context.
+Use English for analysis, plans, task prompts, agent messages, documentation,
+code comments and returned evidence. Keep the assigned scope and preserve other
+contributors' changes. Direct owner-facing chat follows the owner's language.
+
 Read AGENTS.md and frontend/observatory/DESIGN.md. The visual source is frontend/observatory/reference/, including the preserved markup. styles.ts imports the complete template stylesheets in their approved order.
 
 Connect real data and actions while preserving the approved layout, typography, spacing, artwork, forms, radar, dialogs and navigation. Do not use retired UI plans or the old renderer as design references. Do not label an accidental implementation difference canonical.

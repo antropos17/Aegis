@@ -1,12 +1,12 @@
 # AEGIS — Master Development Plan
 
-> **Purpose:** the single source of truth for AEGIS development. Keep it at `memory-bank/AEGIS-MASTER-PLAN.md` OR paste the contents into a new chat — the context picks up from here.
+> **Status:** historical June 2026 plan. Use [the current completion plan](../docs/roadmap/completion-plan.md#7-execution-order) and [development workflow](../docs/development/workflow.md) for new work. This document does not select tasks, authorize agents or require its old approval/check cycles. Keep its observations tied to their recorded checkpoint.
 > **Scope:** development only (code / architecture / features). No Dev.to post, no landing page, no marketing.
 > **Checked against live code:** master @ `<verify: git rev-parse --short HEAD>`, 2026-06-03. Numbers are a snapshot, not the truth.
 
 ---
 
-## 0. How to use this + working protocol
+## 0. Historical working protocol (superseded)
 
 **TRUST CODE OVER DOCS.** Before quoting any number or fact, read the source (`package.json`, `git log`, `src/shared/*`, `ARCHITECTURE.md`). The numbers in this file go stale.
 

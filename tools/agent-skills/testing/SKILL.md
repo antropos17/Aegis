@@ -24,6 +24,13 @@ the first failure and explain the relevant change before retrying. Consolidating
 duplicate tests requires identifying equivalent retained coverage and unique
 boundary risk; speed alone is not a reason to delete coverage or weaken checks.
 
+For Guard changes, distinguish a policy's decision from the host's enforcement
+and the action's actual effect. Pair an allowed ordinary case with a forbidden
+attempt and an independent effect check. Cover relevant malformed, unavailable
+or timed-out hooks without assuming that a hook process failure blocks the host.
+Reuse the existing package/provider harnesses; add a new harness only for a
+named missing boundary. Mock/replay success does not qualify a live integration.
+
 If the checkout provides `dev:context`, use its module inventory to locate direct test imports and effective typecheck scope. Confirm test selection against the actual callers: no direct import match means unknown, not untested. `coverage.include` is instrumentation scope and does not establish execution or assertions. In JS, inspect `checkJs` and per-file `@ts-check`/`@ts-nocheck`; a successful solution-file `tsc` invocation may check nothing.
 
 During iteration, run affected behavioral tests first. Before merging, complete the current required gates once for the final inputs; repeat when changed inputs, failures or unresolved risks warrant it. Native Windows/Electron paths need matching runtime evidence. For Observatory use the active `frontend:test:electron` harness when the change warrants it; historical demo screenshot scripts do not exercise the production bridge.

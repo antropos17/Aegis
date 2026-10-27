@@ -52,6 +52,11 @@ Root [AGENTS.md](../../AGENTS.md), [coding standards](../../CODING_STANDARDS.md)
 and the [development workflow](../../docs/development/workflow.md) own shared
 rules. Skills contain task-specific decisions and consult those files in the
 selected checkout. They do not grant delegation, publication or extra access.
+The English working-language rule in `AGENTS.md` applies to every skill,
+including prompts and delegated results. Implementation skills follow the
+current completion-plan queue and delivery loop; a skill does not add another
+baseline audit or full local suite. Read-only audit skills remain available
+for explicitly scoped questions and do not become routine implementation gates.
 
 ## Client metadata and validation
 

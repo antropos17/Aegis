@@ -14,6 +14,11 @@ For a preserved checkout, resolve current process-policy guidance before choosin
 checks or synchronizing skills; follow the policy-freshness section of current
 `docs/development/current-context.md`. Keep source and policy revisions distinct.
 
+For ongoing Guard delivery, use completion-plan section 7 and inspect only the
+delta relevant to the selected consumer. A broad architecture inventory or HOL
+comparison is not a prerequisite for each implementation task. Follow the
+English working-language rule in the current AGENTS.md for technical work.
+
 For a source question, follow imports and actual callers from the configured
 entrypoint. In main, inspect platform/index.js for OS dispatch and preload.js
 with the handler and renderer consumer for IPC. Use rule-loader.js and its

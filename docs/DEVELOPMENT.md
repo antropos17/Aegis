@@ -174,14 +174,20 @@ npm run frontend:test          # Built-artifact browser checks
 npm run frontend:test:electron # Disposable-profile Electron smoke
 ```
 
-For a local installer, run these commands in order:
+For a local package, run:
 
 ```bash
-npm run build:renderer
 npm run build
 ```
 
-`build`/`dist` package the existing renderer output; they do not rebuild it. On Windows the packaging hook compiles the process-snapshot sidecar. Close a source-run AEGIS instance before packaging if it is holding that sidecar executable. Release CI runs the renderer build explicitly before packaging.
+The packaging hook rebuilds the production renderer and, on Windows, the process,
+resource and ETW helpers. A separate renderer build is unnecessary just to
+package. Use `npm run build:renderer` for a renderer-only check. Windows packaging
+needs the .NET SDK described in the development workflow; Guard setup assets
+still have the separate preparation gap recorded in the completion plan.
+If a source-run instance holds a helper executable, resolve that known lock
+before packaging; do not stop unrelated applications. Release CI's additional
+renderer build is an identified duplication pending its authorized workflow fix.
 
 ---
 
