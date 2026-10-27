@@ -53,6 +53,16 @@ describe('Observatory localization', () => {
     );
   });
 
+  it('translates the dynamically selected invalid policy outcome', () => {
+    expect(
+      translator('pt')(
+        'Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.',
+      ),
+    ).toBe(
+      'Selecione uma política Bash válida do AEGIS que use o esquema 1 ou o esquema 2 compatível.',
+    );
+  });
+
   it('translates the closed tool-context display vocabulary and timing templates', () => {
     const candidate = {
       source: 'claude-code',
