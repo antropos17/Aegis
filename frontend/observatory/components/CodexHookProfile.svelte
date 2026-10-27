@@ -62,6 +62,7 @@
   let capabilitiesRevision = $state(-1);
   let pending = $state<Operation | null>(null);
   let feedback = $state('');
+  let feedbackRevision = $state(-1);
   let failure = $state(false);
   let custody: Custody | null = null;
   let custodyView = $state({
@@ -82,6 +83,7 @@
       };
   };
   const available = $derived(!preview && typeof host?.reviewCodexHookProfile === 'function');
+  const visibleFeedback = $derived(feedbackRevision === custodyView.revision ? feedback : '');
   let alive = true;
   let generation = 0;
   $effect(() => {
@@ -148,6 +150,8 @@
     }
     pending = action;
     capabilities = none();
+    feedback = '';
+    failure = false;
     try {
       const raw = record(await invoke(requestHost, 'reviewCodexHookProfile', action));
       const code = raw.code;
@@ -181,6 +185,7 @@
         (requestCustody.outstanding || requestCustody.revision !== requestRevision)
       ) {
         feedback = messages.BUSY;
+        feedbackRevision = requestCustody.revision;
         failure = false;
         return;
       }
@@ -203,6 +208,7 @@
           : ['status', 'open-profile'].includes(action) && code === 'REMOVED'
             ? 'Last verified setup result was removal; the current profile has not been rechecked.'
             : messages[code];
+      feedbackRevision = requestRevision + (mutation ? 1 : 0);
       failure = !['IDLE', 'BUSY', 'CANCELLED', 'INSTALLED', 'REMOVED', 'LAUNCH_READY'].includes(
         code,
       );
@@ -215,6 +221,7 @@
         }
         capabilities = none();
         feedback = messages.OPERATION_FAILED;
+        feedbackRevision = requestCustody.revision + (mutation ? 1 : 0);
         failure = true;
       }
     } finally {
@@ -322,7 +329,7 @@
           'A previous profile operation is still running or has just finished. Refresh setup status again.',
         )}
       </p>{/if}
-    {#if feedback}<p role={failure ? 'alert' : 'status'}>{$t(feedback)}</p>{/if}
+    {#if visibleFeedback}<p role={failure ? 'alert' : 'status'}>{$t(visibleFeedback)}</p>{/if}
     {#if preview}<p class="muted">
         {$t('Profile changes are disabled in this simulated preview.')}
       </p>{:else if !available}<p class="muted">

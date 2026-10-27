@@ -525,3 +525,63 @@ it('latches a retained code even when the host response is unsuccessful', async 
   expect(launchButton()).toBeDisabled();
   expect(view.container.textContent).not.toContain('PRIVATE_ERROR');
 });
+
+it.each([
+  [
+    'Choose Codex policy and review install',
+    'INSTALLED',
+    'Separate Codex hook profile configured. Provider behavior is not verified.',
+  ],
+  [
+    'Review Codex hook removal',
+    'REMOVED',
+    'The reviewed hook was removed from the separate profile.',
+  ],
+  [
+    'Review Codex terminal command',
+    'LAUNCH_READY',
+    'Reviewed terminal command copied. Run it from the exact policy folder.',
+  ],
+] as const)(
+  'does not leave stale %s success feedback after a second panel changes the profile',
+  async (button, code, message) => {
+    const removal = deferred();
+    const ready = reply('IDLE', { canInstall: true, canRemove: true, canOpen: true });
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce(ready)
+      .mockResolvedValueOnce(ready)
+      .mockResolvedValueOnce({
+        ...reply(code, { canInstall: true, canRemove: true, canOpen: true }),
+        detail: 'PRIVATE_PATH',
+      })
+      .mockResolvedValueOnce(ready)
+      .mockImplementationOnce(() => removal.promise);
+    const host = { reviewCodexHookProfile: review } as Host;
+    const a = render(CodexHookProfile, { host });
+    const b = render(CodexHookProfile, { host });
+    const first = within(a.container);
+    const second = within(b.container);
+    await waitFor(() => expect(first.getByRole('button', { name: button })).toBeEnabled());
+    await fireEvent.click(first.getByRole('button', { name: button }));
+    expect(await first.findByText(message)).toBeVisible();
+    await fireEvent.click(second.getByRole('button', { name: 'Refresh setup status' }));
+    await waitFor(() =>
+      expect(second.getByRole('button', { name: 'Review Codex hook removal' })).toBeEnabled(),
+    );
+    await fireEvent.click(second.getByRole('button', { name: 'Review Codex hook removal' }));
+    expect(
+      first.getByText(
+        'A previous profile operation is still running or has just finished. Refresh setup status again.',
+      ),
+    ).toBeVisible();
+    removal.resolve(reply('REMOVED', { canInstall: true }));
+    await waitFor(() =>
+      expect(
+        second.getByText('The reviewed hook was removed from the separate profile.'),
+      ).toBeVisible(),
+    );
+    expect(first.queryByText(message)).toBeNull();
+    expect(a.container.textContent).not.toContain('PRIVATE_PATH');
+  },
+);
