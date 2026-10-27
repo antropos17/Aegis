@@ -2,13 +2,79 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const { performance } = require('node:perf_hooks');
-const { spawn } = require('node:child_process');
+const { spawn, execFileSync } = require('node:child_process');
 const {
   uniformCRLFCheckout,
   bindSourceToBlob,
+  quoteFixturePath,
   settleOwnedProcesses,
 } = require('./packaged-guard-terminal.cjs');
+
+test(
+  'PowerShell parser preserves safe path metacharacters and rejects alternate quote hazards',
+  {
+    skip: process.platform !== 'win32',
+  },
+  () => {
+    for (const char of [
+      '\u2018',
+      '\u2019',
+      '\u201a',
+      '\u201b',
+      '\u201c',
+      '\u201d',
+      '\u201e',
+      '\u201f',
+      '\u2028',
+      '\u0000',
+    ])
+      assert.throws(
+        () => quoteFixturePath('C:\\fixture\\bad' + char + 'path'),
+        /Unsupported qualification path/,
+      );
+    const expected = 'C:\\fixture\\space \' & $d `x ; | "quoted"\\';
+    const source = 'Test-Path -LiteralPath ' + quoteFixturePath(expected);
+    const parser = `
+$ProgressPreference = 'SilentlyContinue'
+$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadLine()))
+$tokens = $null; $errors = $null
+$tree = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
+$commands = @($tree.FindAll({param($n) $n -is [System.Management.Automation.Language.CommandAst]}, $true))
+if ($errors.Count -ne 0 -or $commands.Count -ne 1 -or $commands[0].CommandElements.Count -ne 3) { exit 2 }
+$e = $commands[0].CommandElements
+@{name=$e[0].Value; parameter=$e[1].ParameterName; value=$e[2].Value} | ConvertTo-Json -Compress
+`;
+    const powershell = path.join(
+      process.env.SystemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    );
+    const text = execFileSync(
+      powershell,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        Buffer.from(parser, 'utf16le').toString('base64'),
+      ],
+      {
+        input: Buffer.from(source, 'utf8').toString('base64') + '\n',
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true,
+      },
+    );
+    assert.deepEqual(JSON.parse(text), {
+      name: 'Test-Path',
+      parameter: 'LiteralPath',
+      value: expected,
+    });
+  },
+);
 
 test('accepts only a uniform LF-to-CRLF conversion of the exact Git blob', () => {
   const blob = Buffer.from('one\ntwo\n');

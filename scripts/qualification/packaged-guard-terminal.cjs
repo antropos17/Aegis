@@ -66,6 +66,19 @@ function bindSourceToBlob(archive, checkout, blob) {
   return { archiveNormalization: normalized(archive), checkoutNormalization: normalized(checkout) };
 }
 
+/** Quote one fixed path without PowerShell's alternate quote delimiters.
+ * @param {string} value Local qualification path.
+ * @returns {string} A single PowerShell string literal. @since v0.21.0 */
+function quoteFixturePath(value) {
+  if (
+    typeof value !== 'string' ||
+    !path.isAbsolute(value) ||
+    /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u2018-\u201f]/u.test(value)
+  )
+    throw Error('Unsupported qualification path');
+  return "'" + value.replaceAll("'", "''") + "'";
+}
+
 async function waitBounded(promise, ms) {
   if (!promise) return null;
   let timer;
@@ -192,6 +205,8 @@ async function run() {
   assert.equal(process.argv.length, 4);
   assert(exeArg && path.isAbsolute(exeArg) && output);
   const executable = path.resolve(exeArg);
+  quoteFixturePath(executable);
+  quoteFixturePath(output);
   const asar = path.join(path.dirname(executable), 'resources', 'app.asar');
   assert.equal(
     path.basename(executable).toLowerCase(),
@@ -394,8 +409,7 @@ async function run() {
     const gate = path.join(output, 'terminal-gate');
     const ready = path.join(output, 'observer-ready');
     witnessFile = path.join(output, 'process-witness.json');
-    const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
-    const gatedCommand = `$deadline=[DateTime]::UtcNow.AddSeconds(15); while (-not (Test-Path -LiteralPath ${quote(gate)})) { if ([DateTime]::UtcNow -gt $deadline) { exit 2 }; Start-Sleep -Milliseconds 20 }; ${clipboard}; $deadline=[DateTime]::UtcNow.AddSeconds(70); while (-not (Test-Path -LiteralPath ${quote(witnessFile)}) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 20 }`;
+    const gatedCommand = `$deadline=[DateTime]::UtcNow.AddSeconds(15); while (-not (Test-Path -LiteralPath ${quoteFixturePath(gate)})) { if ([DateTime]::UtcNow -gt $deadline) { exit 2 }; Start-Sleep -Milliseconds 20 }; ${clipboard}; $deadline=[DateTime]::UtcNow.AddSeconds(70); while (-not (Test-Path -LiteralPath ${quoteFixturePath(witnessFile)}) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 20 }`;
     shellResult = new Promise((resolve) => {
       shell = spawn(powershell, ['-NoProfile', '-Command', gatedCommand], {
         cwd: output,
@@ -513,7 +527,7 @@ async function run() {
   console.log('PASS: packaged broker and disposable receiver; scripted admission.');
 }
 
-module.exports = { uniformCRLFCheckout, bindSourceToBlob, settleOwnedProcesses };
+module.exports = { uniformCRLFCheckout, bindSourceToBlob, quoteFixturePath, settleOwnedProcesses };
 if (require.main === module)
   run().catch(async (error) => {
     receipt.complete = false;
