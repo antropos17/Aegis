@@ -130,8 +130,10 @@ function matchesSchema(schema, value) {
 }
 
 /** Check the operator's complete accepted tools and exact one-use grants.
- * @param {object} value Private manifest. @returns {boolean} Supported manifest. @since v0.15.1 */
-function validManifest(value) {
+ * @param {object} value Private manifest.
+ * @param {object} options Explicit review-route validation options.
+ * @returns {boolean} Supported manifest. @since v0.15.1 */
+function validManifest(value, { allowDistinctReviewedGrants = false } = {}) {
   if (
     !object(value) ||
     ![1, 2, 3, 4, 5].includes(value.schemaVersion) ||
@@ -202,9 +204,10 @@ function validManifest(value) {
     const tool = value.tools.find((item) => item.name === grant.tool);
     return (
       matchesSchema(tool.inputSchema, grant.arguments) &&
-      !value.grants
-        .slice(0, index)
-        .some((prior) => prior.tool === grant.tool && equal(prior.arguments, grant.arguments))
+      ((allowDistinctReviewedGrants && durable) ||
+        !value.grants
+          .slice(0, index)
+          .some((prior) => prior.tool === grant.tool && equal(prior.arguments, grant.arguments)))
     );
   });
 }
