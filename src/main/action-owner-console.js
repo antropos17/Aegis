@@ -19,7 +19,18 @@ async function createOwnerConsole({
   heartbeatMs = 2500,
   healthMs = 3000,
   now = () => performance.now(),
+  profileEnvironment,
 }) {
+  const scopedProfileEnvironment = profileEnvironment
+    ? Object.freeze(
+        Object.fromEntries(
+          ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP'].map((key) => [
+            key,
+            profileEnvironment[key],
+          ]),
+        ),
+      )
+    : undefined;
   const startupAt = now();
   const within = (started, limit) => {
     const elapsed = now() - started;
@@ -213,6 +224,7 @@ async function createOwnerConsole({
     return () => events.removeListener('lost', abort);
   };
   const adapter = {
+    profileEnvironment: scopedProfileEnvironment,
     isTerminalAvailable: () => {
       if (available && !closing && !within(lastHeartbeatAt, heartbeatMs)) fail();
       return available && !closed;

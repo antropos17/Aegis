@@ -14,7 +14,7 @@ internal sealed class WorkerHost : IDisposable
     private WorkerHost(AnonymousPipeServerStream input,AnonymousPipeServerStream output,NativeLaunch.Child process,PeerIdentity.ProcessIdentity identity)
     { Input=input; Output=output; Process=process; this.identity=identity; }
 
-    internal static WorkerHost Start(string executable,SafeFileHandle job,IntPtr consoleIn,IntPtr consoleErr,PeerIdentity.PinnedImage image)
+    internal static WorkerHost Start(string executable,SafeFileHandle job,IntPtr consoleIn,IntPtr consoleErr,PeerIdentity.PinnedImage image,ProfileIsolation profile)
     {
         var input=new AnonymousPipeServerStream(PipeDirection.Out,HandleInheritability.Inheritable);
         var output=new AnonymousPipeServerStream(PipeDirection.In,HandleInheritability.Inheritable);
@@ -26,6 +26,7 @@ internal sealed class WorkerHost : IDisposable
             IntPtr childOutput=new IntPtr(Int64.Parse(output.GetClientHandleAsString()));
             var env=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
             foreach(string name in new[]{"SystemRoot","WINDIR","TEMP","TMP"}) { string value=Environment.GetEnvironmentVariable(name); if(!String.IsNullOrEmpty(value)) env[name]=value; }
+            if(profile!=null) { env["TEMP"]=profile.Temp; env["TMP"]=profile.Temp; env["AEGIS_OWNER_PROFILE_DISCLOSURE"]=profile.Disclosure; }
             env["AEGIS_OWNER_CONSOLE_IN"]=consoleInput.ToInt64().ToString();
             child=NativeLaunch.Start(executable,new[]{"--worker"},env,job,new[]{childInput,childOutput,consoleInput,consoleError},childInput,childOutput,consoleError,
                 delegate(IntPtr handle,uint pid) { held=PeerIdentity.ProcessIdentity.CaptureLaunched(handle,image); });

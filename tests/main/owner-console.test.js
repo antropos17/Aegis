@@ -9,6 +9,8 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { createOwnerConsole } = require('../../src/main/action-owner-console');
+const { selectedProfileEnvironment } = require('../../src/main/action-owner-console-cli');
+const { selectedDeleteEnvironment } = require('../../src/main/action-delete-windows');
 const broker = require('../../src/main/action-mcp-review');
 const deletion = require('../../src/main/action-delete-file');
 const adapters = [];
@@ -116,6 +118,141 @@ function expectDeletePreview(preview, operation) {
 }
 
 const HEARTBEAT = '1234567890abcdef1234567890abcdef';
+
+function profileBootstrap(root = 'X:\\AEGIS\\Profile') {
+  return {
+    profileRoot: root,
+    profileEnvironment: {
+      APPDATA: `${root}\\appdata`,
+      LOCALAPPDATA: `${root}\\localappdata`,
+      USERPROFILE: `${root}\\userprofile`,
+      HOME: `${root}\\home`,
+      TEMP: `${root}\\temp`,
+      TMP: `${root}\\temp`,
+      EXTRA_INJECTION: 'PRIVATE_PROFILE_CANARY',
+    },
+  };
+}
+
+it('leaves the profile environment absent when no root is explicitly selected', () => {
+  expect(selectedProfileEnvironment({})).toBeUndefined();
+  expect(
+    selectedProfileEnvironment({ profileEnvironment: profileBootstrap().profileEnvironment }),
+  ).toBeUndefined();
+});
+
+it('selects an immutable exact six-key profile environment and removes unrelated fields', () => {
+  const bootstrap = profileBootstrap();
+  const selected = selectedProfileEnvironment(bootstrap);
+  const { EXTRA_INJECTION, ...expected } = bootstrap.profileEnvironment;
+  expect(EXTRA_INJECTION).toBe('PRIVATE_PROFILE_CANARY');
+  expect(selected).toEqual(expected);
+  expect(Object.isFrozen(selected)).toBe(true);
+  expect(JSON.stringify(selected)).not.toContain('PRIVATE_PROFILE_CANARY');
+});
+
+it('selects only six profile paths while retaining the trusted helper environment', () => {
+  const base = { DOTNET_ROOT: 'X:\\runtime', DOTNET_ROLL_FORWARD: 'Disable', TEMP: 'X:\\old' };
+  const profile = {
+    ...profileBootstrap().profileEnvironment,
+    NODE_OPTIONS: '--require PRIVATE_INJECTION',
+    DOTNET_STARTUP_HOOKS: 'X:\\PRIVATE_INJECTION.dll',
+  };
+  const expected = Object.fromEntries(
+    ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP'].map((key) => [
+      key,
+      profile[key],
+    ]),
+  );
+  expect(selectedDeleteEnvironment(base, profile)).toEqual({ ...base, ...expected });
+  expect(base).toEqual({
+    DOTNET_ROOT: 'X:\\runtime',
+    DOTNET_ROLL_FORWARD: 'Disable',
+    TEMP: 'X:\\old',
+  });
+  expect(JSON.stringify(selectedDeleteEnvironment(base, profile))).not.toContain(
+    'PRIVATE_INJECTION',
+  );
+});
+
+it('keeps the trusted helper environment unchanged when no profile is selected', () => {
+  const base = { DOTNET_ROOT: 'X:\\runtime', TEMP: 'X:\\original' };
+  expect(selectedDeleteEnvironment(base)).toEqual(base);
+});
+
+it.each([
+  [
+    'missing',
+    (profile) => {
+      delete profile.APPDATA;
+    },
+  ],
+  [
+    'relative',
+    (profile) => {
+      profile.HOME = 'relative\\home';
+    },
+  ],
+  [
+    'embedded NUL',
+    (profile) => {
+      profile.TMP = 'X:\\fixture\\bad\0path';
+    },
+  ],
+])('refuses a %s selected helper path', (_kind, mutate) => {
+  const profile = profileBootstrap().profileEnvironment;
+  mutate(profile);
+  expect(() => selectedDeleteEnvironment({ DOTNET_ROOT: 'X:\\runtime' }, profile)).toThrow();
+});
+
+it.each([
+  [
+    'mismatched child',
+    (b) => {
+      b.profileEnvironment.TEMP = 'X:\\other\\temp';
+    },
+  ],
+  [
+    'missing child',
+    (b) => {
+      delete b.profileEnvironment.HOME;
+    },
+  ],
+  [
+    'drive root',
+    (b) => {
+      b.profileRoot = 'X:\\';
+    },
+  ],
+  [
+    'relative root',
+    (b) => {
+      b.profileRoot = 'relative\\root';
+    },
+  ],
+  [
+    'noncanonical traversal',
+    (b) => {
+      b.profileRoot = 'X:\\AEGIS\\..\\Profile';
+    },
+  ],
+  [
+    'UNC root',
+    (b) => {
+      b.profileRoot = '\\\\server\\share\\Profile';
+    },
+  ],
+  [
+    'device root',
+    (b) => {
+      b.profileRoot = '\\\\?\\X:\\AEGIS\\Profile';
+    },
+  ],
+])('rejects %s without falling back', (_kind, mutate) => {
+  const bootstrap = profileBootstrap();
+  mutate(bootstrap);
+  expect(selectedProfileEnvironment(bootstrap)).toBe(false);
+});
 
 it('answers a fresh heartbeat while idle', async () => {
   const { f, adapter } = await open();
@@ -514,6 +651,7 @@ it('rejects an oversized preview without sending a request', async () => {
 
 it.each([
   'approve',
+  'approve-profile',
   'cancel',
   'peer-loss',
   'console-loss',
@@ -545,11 +683,25 @@ it.each([
         rules: [{ operation, decision: 'allow' }],
       }),
     );
+    const selectedProfile = Object.fromEntries(
+      ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP'].map((key) => [
+        key,
+        path.join(root, `profile-${key}`),
+      ]),
+    );
     let tick = 0;
     const { f, adapter } = await open(verifier(), {
       healthMs: mode === 'health-late' ? 1000 : 100,
       heartbeatMs: 100000,
       now: () => tick,
+      ...(mode === 'approve-profile'
+        ? {
+            profileEnvironment: {
+              ...selectedProfile,
+              INJECTION_CANARY: 'PRIVATE_INJECTION_CANARY',
+            },
+          }
+        : {}),
     });
     const host = new EventEmitter();
     const output = [];
@@ -573,9 +725,10 @@ it.each([
       fs.unlinkSync(target);
       return 'deleted';
     });
+    const openWindowsDelete = vi.fn(async () => ({ commit, close: async () => true }));
     deletion._setDeleteDepsForTest({
       platform: 'win32',
-      openWindowsDelete: async () => ({ commit, close: async () => true }),
+      openWindowsDelete,
     });
     const done = broker.handleActionMcpReview(
       ['--action-mcp-delete-review', policy, requestPath, endpointPath],
@@ -618,24 +771,27 @@ it.each([
       const { challenge, preview } = await request(f);
       expectDeletePreview(preview, operation);
       expect(fs.existsSync(target)).toBe(true);
-      if (mode === 'approve' || mode.startsWith('health-')) {
+      expect(openWindowsDelete).toHaveBeenCalledExactlyOnceWith(target, {
+        profileEnvironment: mode === 'approve-profile' ? selectedProfile : undefined,
+      });
+      expect(JSON.stringify(openWindowsDelete.mock.calls)).not.toContain(
+        'PRIVATE_INJECTION_CANARY',
+      );
+      if (mode.startsWith('approve') || mode.startsWith('health-')) {
         f.send(`A ${challenge}`);
         const nonce = await healthRequest(f);
         expect(commit).not.toHaveBeenCalled();
-        if (mode === 'approve') f.send(`Y ${nonce}`);
+        if (mode.startsWith('approve')) f.send(`Y ${nonce}`);
         else if (mode === 'health-stale-guard') {
           f.send(`Y ${nonce}`);
           tick = 1500;
-        }
-        else if (mode === 'health-selection-mutation') {
+        } else if (mode === 'health-selection-mutation') {
           fs.appendFileSync(requestPath, ' ');
           f.send(`Y ${nonce}`);
-        }
-        else if (mode === 'health-late') {
+        } else if (mode === 'health-late') {
           tick = 1001;
           f.send(`Y ${nonce}`);
-        }
-        else if (mode === 'health-wrong') f.send('Y ffffffffffffffffffffffffffffffff');
+        } else if (mode === 'health-wrong') f.send('Y ffffffffffffffffffffffffffffffff');
         else if (mode === 'health-loss') f.child.stdout.emit('close');
         else if (mode === 'health-cancel') {
           peer.write(
@@ -647,7 +803,7 @@ it.each([
           expect(reply.result.isError).toBe(true);
           expect(commit).not.toHaveBeenCalled();
           expect(fs.readFileSync(target, 'utf8')).toBe('selected sentinel');
-        } else if (mode !== 'approve') {
+        } else if (!mode.startsWith('approve')) {
           await done;
           f.child.stdout.emit('data', frame(`Y ${nonce}`));
           expect(commit).not.toHaveBeenCalled();
@@ -663,6 +819,16 @@ it.each([
           expect(fs.existsSync(target)).toBe(false);
           for (const privateValue of [root, target, endpoint.token, 'PRIVATE']) {
             expect(JSON.stringify(reply) + output.join('')).not.toContain(privateValue);
+          }
+          if (mode === 'approve-profile') {
+            for (const value of Object.values(selectedProfile)) {
+              expect(JSON.stringify(reply) + output.join('') + f.received.join('')).not.toContain(
+                value,
+              );
+            }
+            expect(JSON.stringify(reply) + output.join('') + f.received.join('')).not.toContain(
+              'PRIVATE_INJECTION_CANARY',
+            );
           }
         }
       } else {

@@ -210,6 +210,7 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     if (windows) {
       nativeSession = await (testDeps?.openWindowsDelete ?? openWindowsDelete)(
         first.operation.path,
+        { profileEnvironment: ownerTerminal.profileEnvironment },
       );
     }
     const before = await bounded(() => inspectTarget(first.operation.path), controller.signal);

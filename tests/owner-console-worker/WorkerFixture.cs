@@ -59,6 +59,8 @@ internal static class WorkerFixture
                     throw new Exception("fixture release timeout");
                 };
 #endif
+                if (args[1] == "disclosure")
+                    return ConsoleWorker.Run(input,error,Console.OpenStandardInput(),Console.OpenStandardOutput(),CreateDisclosure());
                 return ConsoleWorker.Run(input,error,Console.OpenStandardInput(),Console.OpenStandardOutput());
             }
             if (args[0] == "fixture") { Fixture(args[1]); return 0; }
@@ -135,6 +137,26 @@ internal static class WorkerFixture
                     Coord next=new Coord(); next.x=0; next.y=(short)(before.cursor.y+1);
                     Need(ReadAt(error,next,6)=="second","second preview line begins at column zero");
                 }
+                if (scenario == "disclosure")
+                {
+                    string[] lines=DisclosureLines();
+                    string disclosure=CreateDisclosure();
+                    Need(disclosure==String.Join("\r\n",lines)+"\r\n","exact escaped disclosure");
+                    string hostile="\u001b\r\n\"\\";
+                    string escaped=(string)typeof(ProfileIsolation).GetMethod("Escape",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic).Invoke(null,new object[]{hostile});
+                    Need(escaped==@"\u001b\u000d\u000a"+"\\\""+@"\\","control and quote escaping");
+                    foreach(char c in disclosure) Need(c=='\r' || c=='\n' || (c>=0x20 && c<=0x7e),"disclosure control injection");
+                    for(int i=0;i<lines.Length;i++)
+                    {
+                        Coord position=new Coord(); position.x=(short)(i==0?before.cursor.x:0); position.y=(short)(before.cursor.y+i);
+                        Need(ReadAt(error,position,lines[i].Length)==lines[i],"disclosure line "+i);
+                    }
+                    Coord operation=new Coord(); operation.x=0; operation.y=(short)(before.cursor.y+lines.Length);
+                    Need(ReadAt(error,operation,"escaped preview".Length)=="escaped preview","preview follows disclosure");
+                    Coord prompt=new Coord(); prompt.x=0; prompt.y=(short)(operation.y+1);
+                    string challengePrompt="Type DELETE "+Challenge;
+                    Need(ReadAt(error,prompt,challengePrompt.Length)==challengePrompt,"challenge follows preview");
+                }
                 Thread.Sleep(100);
                 if (scenario == "probe-during") Probe(write,read,Probe1);
                 if (scenario == "probe-interleaved")
@@ -177,6 +199,28 @@ internal static class WorkerFixture
         char[] chars=new char[length]; uint count;
         Need(ReadConsoleOutputCharacter(error,chars,(uint)length,location,out count) && count==length,"read console output");
         return new string(chars);
+    }
+    private static string CreateDisclosure()
+    {
+        using(ProfileIsolation profile=new ProfileIsolation())
+        {
+            // Set a synthetic root only to exercise the pure display formatter;
+            // this fixture does not open or alter a profile directory.
+            typeof(ProfileIsolation).GetProperty("Root",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)
+                .GetSetMethod(true).Invoke(profile,new object[]{"X:\\fixture-%USERPROFILE%-\u0394"});
+            return profile.Disclosure;
+        }
+    }
+    private static string[] DisclosureLines()
+    {
+        return new[]{
+            @"Selected profile root: X:\\fixture-%USERPROFILE%-\u0394",
+            @"APPDATA: X:\\fixture-%USERPROFILE%-\u0394\\appdata",
+            @"LOCALAPPDATA: X:\\fixture-%USERPROFILE%-\u0394\\localappdata",
+            @"USERPROFILE: X:\\fixture-%USERPROFILE%-\u0394\\userprofile",
+            @"HOME: X:\\fixture-%USERPROFILE%-\u0394\\home",
+            @"TEMP and TMP: X:\\fixture-%USERPROFILE%-\u0394\\temp"
+        };
     }
     private static void Inject(IntPtr input,string value)
     {

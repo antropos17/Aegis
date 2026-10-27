@@ -165,6 +165,7 @@ function main() {
         'Program.cs',
         'NativeLaunch.cs',
         'PrivatePipe.cs',
+        'ProfileIsolation.cs',
         'PeerIdentity.cs',
         'ConsoleWorker.cs',
         'Wire.cs',

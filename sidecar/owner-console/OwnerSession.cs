@@ -22,7 +22,7 @@ internal static class OwnerSession
         if(!messages.TryAdd(new Message { Value=null,Worker=worker },100)) Interlocked.Exchange(ref state.Failed,1);
     }
 
-    internal static void Run(NamedPipeServerStream pipe,WorkerHost worker,NativeLaunch.Child electron,PeerIdentity.ProcessIdentity verifier)
+    internal static void Run(NamedPipeServerStream pipe,WorkerHost worker,NativeLaunch.Child electron,PeerIdentity.ProcessIdentity verifier,ProfileIsolation profile)
     {
         var messages=new BlockingCollection<Message>(8);
         var state=new State();
@@ -49,6 +49,7 @@ internal static class OwnerSession
                     probe=null; lastProbe=lifetime.ElapsedMilliseconds;
                     if(probeForGuard) {
                         if(guard==null || lifetime.ElapsedMilliseconds-guardStarted>=3000) throw new InvalidDataException();
+                        if(profile!=null)profile.Validate();
                         OwnerWire.Write(pipe,"Y "+guard,1000); guard=null;
                     }
                     continue;
@@ -62,6 +63,7 @@ internal static class OwnerSession
                 if(parts[0]!="A") return;
             } else {
                 if(parts.Length==2 && parts[0]=="G" && OwnerWire.IsChallenge(parts[1]) && approved && !guardUsed && guard==null) {
+                    if(profile!=null)profile.Validate();
                     guard=parts[1]; guardUsed=true; guardStarted=lifetime.ElapsedMilliseconds; continue;
                 }
                 if(parts.Length==1 && parts[0]=="S") {
@@ -73,6 +75,7 @@ internal static class OwnerSession
                     OwnerWire.Write(pipe,"K "+challenge,1000); return;
                 }
                 if(parts.Length!=3 || parts[0]!="R" || challenge!=null || !OwnerWire.IsChallenge(parts[1]) || !OwnerWire.ValidPreview(parts[2])) throw new InvalidDataException();
+                if(profile!=null)profile.Validate();
                 challenge=parts[1]; OwnerWire.Write(worker.Input,message.Value,5000);
             }
         }

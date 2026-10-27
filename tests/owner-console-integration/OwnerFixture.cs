@@ -44,6 +44,11 @@ internal static class OwnerFixture
         foreach(string key in new[]{"NODE_OPTIONS","NODE_DEBUG","NODE_DEBUG_NATIVE","DOTNET_STARTUP_HOOKS","COREHOST_TRACE","NODE_V8_COVERAGE","AEGIS_TEST_CANARY"}) Environment.SetEnvironmentVariable(key,"PRIVATE_ENV_CANARY");
         string exe=Path.Combine(Root,"install","resources","sidecar","aegis-owner-console.exe");
         string command=Q(exe)+" --action-mcp-delete-review "+Q("policy path "+scenario+"\\")+" "+Q("request path")+" "+Q("endpoint path");
+        if(scenario=="profile" || scenario=="profile-missing") {
+            string profile=Path.Combine(Root,"profiles",scenario); Directory.CreateDirectory(profile);
+            foreach(string name in new[]{"appdata","localappdata","userprofile","home","temp"}) if(scenario!="profile-missing" || name!="temp")Directory.CreateDirectory(Path.Combine(profile,name));
+            command=Q(exe)+" --profile-root "+Q(profile)+" --action-mcp-delete-review "+Q("policy path "+scenario+"\\")+" "+Q("request path")+" "+Q("endpoint path");
+        }
         if(scenario=="redirected-stdin" || scenario=="redirected-stderr") {
             var start=new ProcessStartInfo(exe,"--action-mcp-delete-review "+Q("policy path\\")+" "+Q("request path")+" "+Q("endpoint path"));
             start.UseShellExecute=false; start.RedirectStandardInput=scenario=="redirected-stdin"; start.RedirectStandardError=scenario=="redirected-stderr";
@@ -61,7 +66,7 @@ internal static class OwnerFixture
                 descendant=OpenProcess(0x00101000,false,pid); Need(descendant!=IntPtr.Zero && WaitForSingleObject(descendant,0)==258,"live descendant");
                 File.WriteAllText(Path.Combine(Root,scenario+".release"),"continue");
             }
-            if(scenario=="approve" || scenario=="after" || scenario=="output-loss") {
+            if(scenario=="approve" || scenario=="profile" || scenario=="after" || scenario=="output-loss") {
                 bool shown=false;
                 for(int i=0;i<400;i++){ BufferInfo now; Need(GetConsoleScreenBufferInfo(error,out now),"console"); if(now.cursor.x!=before.cursor.x || now.cursor.y!=before.cursor.y){shown=true;break;} if(WaitForSingleObject(p.process,0)==0)break; Thread.Sleep(20); }
                 Need(shown,"prompt not shown"); Thread.Sleep(100);
@@ -71,10 +76,11 @@ internal static class OwnerFixture
             if(scenario=="idle") {WaitPhase(scenario,"READY");Inject(input,"x");}
             if(WaitForSingleObject(p.process,12000)!=0){TerminateProcess(p.process,2);throw new Exception("owner timeout");}
             uint code; Need(GetExitCodeProcess(p.process,out code),"owner exit");
-            string failure=Path.Combine(Root,scenario+".failure"); Need(code==((scenario=="early" || scenario=="wrong-secret")?2:0),File.Exists(failure)?File.ReadAllText(failure):"owner exit "+code);
+            string failure=Path.Combine(Root,scenario+".failure"); Need(code==((scenario=="early" || scenario=="wrong-secret" || scenario=="profile-missing")?2:0),File.Exists(failure)?File.ReadAllText(failure):"owner exit "+code);
             if(scenario=="stuck-descendant") Need(WaitForSingleObject(descendant,0)==0,"descendant still alive at successful owner exit");
             if(scenario=="early") File.WriteAllText(Path.Combine(Root,scenario+".result"),"PASS early refused before synthetic Electron launch");
             if(scenario=="wrong-secret") { Need(!File.Exists(Path.Combine(Root,scenario+".phase")),"unauthenticated verifier reached ready"); File.WriteAllText(Path.Combine(Root,scenario+".result"),"PASS wrong secret refused before ready"); }
+            if(scenario=="profile-missing") { Need(!File.Exists(Path.Combine(Root,scenario+".phase")),"invalid profile reached Electron"); File.WriteAllText(Path.Combine(Root,scenario+".result"),"PASS missing profile child refused before launch"); }
         } finally {if(descendant!=IntPtr.Zero)CloseHandle(descendant);CloseHandle(p.process);}
     }
     private static void WaitPhase(string scenario,string phase) {string path=Path.Combine(Root,scenario+".phase");for(int i=0;i<300;i++){if(File.Exists(path)&&File.ReadAllText(path)==phase)return;Thread.Sleep(20);}throw new Exception("phase timeout "+phase);}

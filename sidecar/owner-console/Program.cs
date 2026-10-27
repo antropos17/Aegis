@@ -19,12 +19,20 @@ internal static class Program
             if(args.Length==1 && args[0]=="--worker") {
                 string value=Environment.GetEnvironmentVariable("AEGIS_OWNER_CONSOLE_IN");
                 Environment.SetEnvironmentVariable("AEGIS_OWNER_CONSOLE_IN",null);
+                string disclosure=Environment.GetEnvironmentVariable("AEGIS_OWNER_PROFILE_DISCLOSURE");
+                Environment.SetEnvironmentVariable("AEGIS_OWNER_PROFILE_DISCLOSURE",null);
+                if(disclosure!=null && (disclosure.Length>8192 || !ValidDisclosure(disclosure))) return 2;
                 long handle; if(!Int64.TryParse(value,out handle) || handle<=0) return 2;
-                return ConsoleWorker.Run(new IntPtr(handle),GetStdHandle(-12),Console.OpenStandardInput(),Console.OpenStandardOutput());
+                return ConsoleWorker.Run(new IntPtr(handle),GetStdHandle(-12),Console.OpenStandardInput(),Console.OpenStandardOutput(),disclosure);
             }
             if(args.Length==1 && args[0]=="--verify") return Verify();
+            if(args.Length>=2 && args[0]=="--profile-root") {
+                string[] selected=new string[args.Length-2]; Array.Copy(args,2,selected,0,selected.Length);
+                if(!Allowed(selected)) return 2;
+                using(var profile=ProfileIsolation.Open(args[1])) return Launch(selected,profile);
+            }
             if(!Allowed(args)) return 2;
-            return Launch(args);
+            return Launch(args,null);
         } catch { return 2; }
     }
 
@@ -41,7 +49,9 @@ internal static class Program
     private static string NativePath() { return Process.GetCurrentProcess().MainModule.FileName; }
     private static string ElectronPath() { return Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"..","..",ElectronName)); }
 
-    private static int Launch(string[] args)
+    private static bool ValidDisclosure(string value) { foreach(char c in value) if(c!='\r' && c!='\n' && (c<0x20 || c>0x7e)) return false; return true; }
+
+    private static int Launch(string[] args,ProfileIsolation profile)
     {
         IntPtr input=GetStdHandle(-10), error=GetStdHandle(-12), output=GetStdHandle(-11); uint mode;
         if(!GetConsoleMode(input,out mode) || !GetConsoleMode(error,out mode)) return 2;
@@ -57,17 +67,23 @@ internal static class Program
             IntPtr inCopy=IntPtr.Zero,outCopy=IntPtr.Zero,errCopy=IntPtr.Zero;
             byte[] secret=null; int result=2;
             try {
-                worker=WorkerHost.Start(native,job,input,error,nativeImage);
+                if(profile!=null)profile.Validate();
+                worker=WorkerHost.Start(native,job,input,error,nativeImage,profile);
                 string name="aegis-owner-"+Guid.NewGuid().ToString("N"); secret=OwnerWire.Random(32);
                 using(var pipe=PrivatePipe.Create(name)) {
                     var env=NativeLaunch.MinimalEnvironment();
+                    if(profile!=null) {
+                        profile.Validate();
+                        env["AEGIS_OWNER_PROFILE_ROOT"]=profile.Root; env["APPDATA"]=profile.AppData; env["LOCALAPPDATA"]=profile.LocalAppData;
+                        env["USERPROFILE"]=profile.UserProfile; env["HOME"]=profile.Home; env["TEMP"]=profile.Temp; env["TMP"]=profile.Temp;
+                    }
                     env["ELECTRON_RUN_AS_NODE"]="1";
                     env[PipeVariable]=name; env[SecretVariable]=Convert.ToBase64String(secret);
                     try {
                         inCopy=NativeLaunch.InheritableDuplicate(input); outCopy=NativeLaunch.InheritableDuplicate(output); errCopy=NativeLaunch.InheritableDuplicate(error);
                         string[] appArguments=new string[args.Length+1]; appArguments[0]=main; Array.Copy(args,0,appArguments,1,args.Length);
                         child=NativeLaunch.Start(electron,appArguments,env,job,new[]{inCopy,outCopy,errCopy},inCopy,outCopy,errCopy,
-                            delegate(IntPtr handle,uint pid){electronIdentity=PeerIdentity.ProcessIdentity.CaptureLaunched(handle,electronImage);});
+                            delegate(IntPtr handle,uint pid){ if(profile!=null)profile.Validate(); electronIdentity=PeerIdentity.ProcessIdentity.CaptureLaunched(handle,electronImage); });
                     } finally { env.Remove(PipeVariable); env.Remove(SecretVariable); }
                     IAsyncResult pending=pipe.BeginWaitForConnection(null,null);
                     using(var wait=pending.AsyncWaitHandle) {
@@ -78,7 +94,7 @@ internal static class Program
                     verifier=PeerIdentity.VerifyPipePeer(pipe.SafePipeHandle.DangerousGetHandle(),false,electronIdentity,nativeImage,job.DangerousGetHandle());
                     OwnerAuthentication.Server(pipe,secret); Array.Clear(secret,0,secret.Length);
                     if(!verifier.IsLive() || !electronIdentity.IsLive() || worker.Process.Exited) throw new InvalidOperationException("peer unavailable");
-                    OwnerSession.Run(pipe,worker,child,verifier);
+                        OwnerSession.Run(pipe,worker,child,verifier,profile);
                     if(!worker.Stop()) throw new InvalidOperationException("worker termination unconfirmed");
                     child.Wait(5000);
                     result=child.Exited ? (int)child.ExitCode : 2;

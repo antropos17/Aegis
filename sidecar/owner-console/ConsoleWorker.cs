@@ -61,6 +61,9 @@ internal static class ConsoleWorker
     }
 
     internal static int Run(IntPtr consoleIn, IntPtr consoleErr, Stream controlIn, Stream controlOut)
+    { return Run(consoleIn,consoleErr,controlIn,controlOut,null); }
+
+    internal static int Run(IntPtr consoleIn, IntPtr consoleErr, Stream controlIn, Stream controlOut,string profileDisclosure)
     {
         Control state = new Control();
         string challenge = null;
@@ -105,7 +108,7 @@ internal static class ConsoleWorker
                         Send(controlOut, "U " + challenge);
                         return 2;
                     }
-                    string prompt = request.Preview.Replace("\n", "\r\n") + "\r\nType DELETE " + challenge + " and press Enter (input is not echoed): ";
+                    string prompt = (profileDisclosure ?? "") + request.Preview.Replace("\n", "\r\n") + "\r\nType DELETE " + challenge + " and press Enter (input is not echoed): ";
                     uint written;
 #if OWNER_CONSOLE_TEST
                     if (BeforeWriteForTest != null) BeforeWriteForTest();

@@ -24,6 +24,13 @@ internal static class FakeElectron
         try {
             Need(args.Length==5 && args[0]==Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"resources","app.asar","src","main","main.js") && args[1]=="--action-mcp-delete-review" && scenario!="invalid" && args[3]=="request path" && args[4]=="endpoint path" && Environment.GetEnvironmentVariable("ELECTRON_RUN_AS_NODE")=="1","launcher argument quoting and node entrypoint");
             foreach(string key in new[]{"NODE_OPTIONS","NODE_DEBUG","NODE_DEBUG_NATIVE","DOTNET_STARTUP_HOOKS","COREHOST_TRACE","NODE_V8_COVERAGE","AEGIS_TEST_CANARY","PATH"}) Need(Environment.GetEnvironmentVariable(key)==null,"environment whitelist "+key);
+            if(scenario=="profile") {
+                string root=Path.Combine(dir,"profiles",scenario);
+                Need(Environment.GetEnvironmentVariable("AEGIS_OWNER_PROFILE_ROOT")==root && Environment.GetEnvironmentVariable("APPDATA")==Path.Combine(root,"appdata") &&
+                    Environment.GetEnvironmentVariable("LOCALAPPDATA")==Path.Combine(root,"localappdata") && Environment.GetEnvironmentVariable("USERPROFILE")==Path.Combine(root,"userprofile") &&
+                    Environment.GetEnvironmentVariable("HOME")==Path.Combine(root,"home") && Environment.GetEnvironmentVariable("TEMP")==Path.Combine(root,"temp") && Environment.GetEnvironmentVariable("TMP")==Path.Combine(root,"temp"),"profile environment");
+            } else Need(Environment.GetEnvironmentVariable("AEGIS_OWNER_PROFILE_ROOT")==null && Environment.GetEnvironmentVariable("APPDATA")==null && Environment.GetEnvironmentVariable("USERPROFILE")==null,"default profile environment");
+            Environment.SetEnvironmentVariable("AEGIS_OWNER_PROFILE_ROOT",null);
             string pipe=Environment.GetEnvironmentVariable("AEGIS_OWNER_PIPE"), secret=Environment.GetEnvironmentVariable("AEGIS_OWNER_SECRET");
             Environment.SetEnvironmentVariable("AEGIS_OWNER_PIPE",null); Environment.SetEnvironmentVariable("AEGIS_OWNER_SECRET",null);
             if(scenario=="wrong-secret") secret=Convert.ToBase64String(new byte[32]);
@@ -53,7 +60,7 @@ internal static class FakeElectron
                     Need(verifier.WaitForExit(6000) && verifier.ExitCode==2,"invalid or absent heartbeat acknowledgement");
                     File.WriteAllText(Path.Combine(dir,scenario+".result"),"PASS "+scenario+" failed closed"); return 0;
                 }
-                if(scenario=="approve" || scenario=="after" || scenario=="cancel" || scenario=="cancel-wait" || scenario=="output-loss") {
+                if(scenario=="approve" || scenario=="profile" || scenario=="after" || scenario=="cancel" || scenario=="cancel-wait" || scenario=="output-loss") {
                     string preview=File.ReadAllText(Path.Combine(dir,"actual-preview.b64"));
                     OwnerWire.Write(write,"R "+Challenge+" "+preview,5000);
                     if(scenario=="output-loss") { verifier.StandardOutput.Close(); bool exited=verifier.WaitForExit(8000); Need(exited && verifier.ExitCode==2,"output loss exited="+exited+(exited?" code="+verifier.ExitCode:"")); }
@@ -61,11 +68,11 @@ internal static class FakeElectron
                     else {
                         Need(ReadReply(read,write,8000)=="A "+Challenge,"approval");
                         if(scenario=="after") { File.WriteAllText(Path.Combine(dir,scenario+".phase"),"APPROVED"); Need(ReadReply(read,write,5000)=="V "+Challenge,"post-approval revocation"); }
-                        else if(scenario=="approve") { string guard="fedcba9876543210fedcba9876543210"; OwnerWire.Write(write,"G "+guard,1000); Need(ReadReply(read,write,3000)=="Y "+guard,"fresh precommit check"); }
+                        else if(scenario=="approve" || scenario=="profile") { string guard="fedcba9876543210fedcba9876543210"; OwnerWire.Write(write,"G "+guard,1000); Need(ReadReply(read,write,3000)=="Y "+guard,"fresh precommit check"); }
                     }
                 }
                 if(scenario=="idle") Need(ReadReply(read,write,5000)=="L","idle revocation");
-                if(scenario=="approve" || scenario=="shutdown" || scenario=="stuck-descendant") { OwnerWire.Write(write,"S",5000); Need(ReadReply(read,write,5000)=="B","shutdown acknowledgment"); }
+                if(scenario=="approve" || scenario=="profile" || scenario=="shutdown" || scenario=="stuck-descendant") { OwnerWire.Write(write,"S",5000); Need(ReadReply(read,write,5000)=="B","shutdown acknowledgment"); }
                 Need(verifier.WaitForExit(5000) && verifier.ExitCode==((scenario=="idle" || scenario=="after" || scenario=="output-loss")?2:0),"verifier exit");
             }
             File.WriteAllText(Path.Combine(dir,scenario+".result"),"PASS "+scenario+" full native launch/bootstrap/shutdown"); return 0;

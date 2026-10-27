@@ -25,6 +25,28 @@ The launcher runs one review attempt per session, so start a new session for a
 further attempt. The response is not echoed. The optional `--observe` argument
 works as on the source route.
 
+To choose explicit profile paths, place `--profile-root <absolute-directory>`
+before the review flag. The root must already contain directories named
+`appdata`, `localappdata`, `userprofile`, `home`, and `temp`. The launcher checks
+and retains the directory identities, refuses links and junctions, and shows the
+selected root and mappings in the review. Invalid selections are refused; the
+launcher does not substitute the account profile. This selects environment paths
+for the launched route and delete helper; it is not a filesystem sandbox and does
+not prevent Windows known-folder APIs or same-account code from accessing other
+locations. Without `--profile-root`, the launcher does not claim profile isolation.
+
+For example, with those five directories already created under a private scratch
+root, start the launcher from PowerShell using your actual installation and paths:
+
+```powershell
+& 'C:\path\to\AEGIS\resources\sidecar\aegis-owner-console.exe' --profile-root 'X:\private\profile-root' --action-mcp-delete-review 'X:\private\policy.json' 'X:\private\request.json' 'X:\private\newendpoint.json'
+```
+
+The launcher itself is a .NET Framework executable: its runtime initializes before
+the launcher can construct the restricted child environment. Start it from a
+trusted environment; inherited CLR profiling or runtime settings can affect that
+initialization.
+
 The launcher checks the original handles before starting the packaged app and
 uses a bounded, authenticated local channel to a supervised console worker. A
 console response is not human authentication: a local process may automate a

@@ -25,6 +25,41 @@ async function terminateAndWait(child) {
   });
 }
 
+function selectedProfileEnvironment(bootstrap) {
+  if (bootstrap.profileRoot === undefined) return undefined;
+  const root = bootstrap.profileRoot;
+  if (
+    typeof root !== 'string' ||
+    !/^[a-z]:\\/i.test(root) ||
+    root.length > 1024 ||
+    path.win32.parse(root).root.toLowerCase() === root.toLowerCase() ||
+    path.win32.normalize(root) !== root ||
+    /[<>:"|?*]/.test(root.slice(2)) ||
+    [...root].some((character) => character.charCodeAt(0) < 32) ||
+    root
+      .slice(3)
+      .split('\\')
+      .some((part) => !part || /[. ]$/.test(part))
+  )
+    return false;
+  const mappings = {
+    APPDATA: 'appdata',
+    LOCALAPPDATA: 'localappdata',
+    USERPROFILE: 'userprofile',
+    HOME: 'home',
+    TEMP: 'temp',
+    TMP: 'temp',
+  };
+  const profileEnvironment = {};
+  for (const [key, leaf] of Object.entries(mappings)) {
+    const expected = path.win32.join(root, leaf);
+    const actual = bootstrap.profileEnvironment?.[key];
+    if (typeof actual !== 'string' || actual.toLowerCase() !== expected.toLowerCase()) return false;
+    profileEnvironment[key] = actual;
+  }
+  return Object.freeze(profileEnvironment);
+}
+
 /** Run only the selected-delete broker after the packaged verifier authenticates its owner. */
 async function runOwnerConsoleReview(args, bootstrap) {
   if (
@@ -38,6 +73,8 @@ async function runOwnerConsoleReview(args, bootstrap) {
     Buffer.from(bootstrap.secret, 'base64').toString('base64') !== bootstrap.secret
   )
     return 2;
+  const profileEnvironment = selectedProfileEnvironment(bootstrap);
+  if (profileEnvironment === false) return 2;
   const environment = {
     AEGIS_OWNER_PIPE: bootstrap.pipe,
     AEGIS_OWNER_SECRET: bootstrap.secret,
@@ -61,7 +98,7 @@ async function runOwnerConsoleReview(args, bootstrap) {
     delete environment.AEGIS_OWNER_SECRET;
     bootstrap.pipe = undefined;
     bootstrap.secret = undefined;
-    terminal = await createOwnerConsole({ child });
+    terminal = await createOwnerConsole({ child, profileEnvironment });
     if (!terminal) return 2;
     const run = (selected, options) =>
       require('./action-mcp-review').handleActionMcpReview(selected, { ...options, terminal });
@@ -81,4 +118,4 @@ async function runOwnerConsoleReview(args, bootstrap) {
   }
 }
 
-module.exports = { runOwnerConsoleReview };
+module.exports = { runOwnerConsoleReview, selectedProfileEnvironment };
