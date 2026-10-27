@@ -85,7 +85,7 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
   );
   expect(screen.getByText('DENY: Declared sensitive filename · Effect unknown')).toBeVisible();
   expect(
-    screen.getByText('Some reporting was lost or discarded; delivery remains unknown.'),
+    screen.getByText('Some reporting may have been lost or discarded; delivery remains unknown.'),
   ).toBeVisible();
   expect(screen.queryByText('PRIVATE_COMMAND')).toBeNull();
   expect(screen.queryByText('PRIVATE_TOKEN')).toBeNull();

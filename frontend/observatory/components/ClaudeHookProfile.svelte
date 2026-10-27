@@ -237,7 +237,7 @@
       )}
     </p>
     {#if guardSession.lossDetected}<p role="alert">
-        {$t('Some reporting was lost or discarded; delivery remains unknown.')}
+        {$t('Some reporting may have been lost or discarded; delivery remains unknown.')}
       </p>{/if}
     {#if guardSession.entries.length}
       <ul>

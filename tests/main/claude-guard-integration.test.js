@@ -2,6 +2,7 @@ import { afterEach, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { EventEmitter } from 'node:events';
 import { request } from 'node:http';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,10 +11,12 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
+const broker = require('../../src/main/claude-guard-broker');
 const directories = [];
 let receiver;
 
 afterEach(async () => {
+  broker._resetForTest();
   if (receiver) await receiver.close();
   receiver = null;
   for (const directory of directories.splice(0))
@@ -151,33 +154,51 @@ it('connects explicit desktop session selection to the real hook CLI and redacte
     expect(clipboard).not.toContain(secret);
     const address = clipboard.match(/--claude-guard-session (\d+) '([a-f0-9]{32})'/);
     expect(address).not.toBeNull();
-    const grant = await claim(Number(address[1]), address[2]);
-    expect(dialogs[2].detail).toContain('Code: 123456');
-    const child = spawn(process.execPath, ['src/main/main.js', '--action-policy-hook', policy], {
-      env: {
-        ...process.env,
-        AEGIS_CLAUDE_GUARD_PORT: address[1],
-        AEGIS_CLAUDE_GUARD_SESSION: address[2],
-        AEGIS_CLAUDE_GUARD_CAPABILITY: grant.token,
-      },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
     let output = '';
-    child.stdout.on('data', (chunk) => (output += chunk));
-    child.stdin.end(
-      JSON.stringify({
-        hook_event_name: 'PreToolUse',
-        session_id: 'private-session',
-        tool_use_id: 'private-tool',
-        tool_name: 'Bash',
-        cwd: directory,
-        tool_input: { command: 'cat .env.production.local', description: 'PRIVATE_DESCRIPTION' },
-      }),
+    let inheritedToken = '';
+    broker._setDepsForTest({
+      terminal: () => true,
+      readKey: async () => secret,
+      randomInt: () => 123456,
+      signals: new EventEmitter(),
+      spawn: (executable, args, options) => {
+        expect(executable).toBe(program);
+        expect(args).toEqual(['--settings', path.join(profile, 'settings.json')]);
+        expect(options.cwd).toBe(directory);
+        expect(options.shell).toBe(false);
+        inheritedToken = options.env.AEGIS_CLAUDE_GUARD_CAPABILITY;
+        const child = spawn(
+          process.execPath,
+          ['src/main/main.js', '--action-policy-hook', policy],
+          {
+            env: options.env,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          },
+        );
+        child.stdout.on('data', (chunk) => (output += chunk));
+        child.stdin.end(
+          JSON.stringify({
+            hook_event_name: 'PreToolUse',
+            session_id: 'private-session',
+            tool_use_id: 'private-tool',
+            tool_name: 'Bash',
+            cwd: directory,
+            tool_input: {
+              command: 'cat .env.production.local',
+              description: 'PRIVATE_DESCRIPTION',
+            },
+          }),
+        );
+        return child;
+      },
+    });
+    const messages = [];
+    const code = await broker.handleClaudeGuardSession(
+      ['--claude-guard-session', address[1], address[2]],
+      (message) => messages.push(message),
     );
-    const timer = setTimeout(() => child.kill(), 6000);
-    const [code] = await once(child, 'close');
-    clearTimeout(timer);
     expect(code).toBe(0);
+    expect(dialogs[2].detail).toContain('Code: 123456');
     expect(JSON.parse(output).hookSpecificOutput.permissionDecision).toBe('deny');
     const status = await app.handle('status', () => true);
     expect(status.guardSession.entries).toEqual([
@@ -189,8 +210,10 @@ it('connects explicit desktop session selection to the real hook CLI and redacte
       delivery: 'unknown',
     });
     expect(JSON.stringify(status)).not.toContain(directory);
-    expect(JSON.stringify(status)).not.toContain(grant.token);
+    expect(JSON.stringify(status)).not.toContain(inheritedToken);
     expect(JSON.stringify(status)).not.toContain(secret);
+    expect(JSON.stringify(messages)).not.toContain(secret);
+    expect(JSON.stringify(messages)).not.toContain(inheritedToken);
   } finally {
     await app.close();
   }
