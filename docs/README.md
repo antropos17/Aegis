@@ -1,8 +1,9 @@
 # AEGIS documentation
 
 The [project overview](../README.md) explains installation, capabilities and limits.
-Documentation here describes the current source tree. For an installed build,
-check its [release tag](https://github.com/antropos17/Aegis/releases).
+Guides describe source features; dated plans and qualification records retain their
+original revision and evidence. For an installed build, check its
+[release tag](https://github.com/antropos17/Aegis/releases).
 
 Start with the [full capability guide](CAPABILITIES.md) for desktop monitoring,
 local reviews, token accounting, selected actions, MCP gateways and experimental
