@@ -3,10 +3,10 @@
 const { workerData, parentPort } = require('node:worker_threads');
 const fs = require('node:fs');
 
-function statFile(filename, required, limit) {
+function statFile(filename, required) {
   try {
     const stat = fs.lstatSync(filename, { bigint: true });
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > BigInt(limit)) throw Error('unavailable');
+    if (!stat.isFile() || stat.isSymbolicLink()) throw Error('unavailable');
     return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(':');
   } catch (error) {
     if (!required && error?.code === 'ENOENT') return null;
@@ -20,13 +20,14 @@ let db;
 try {
   const { DatabaseSync } = require('node:sqlite');
   const { captureObservationProof } = require('./audit-index-observation-proof');
-  const database = statFile(workerData.databasePath, true, 64 * 1024 * 1024);
-  const wal = statFile(workerData.databasePath + '-wal', false, 16 * 1024 * 1024);
-  statFile(workerData.databasePath + '-shm', false, 16 * 1024 * 1024);
+  const database = statFile(workerData.databasePath, true);
+  const wal = statFile(workerData.databasePath + '-wal', false);
+  statFile(workerData.databasePath + '-shm', false);
   db = new DatabaseSync(workerData.databasePath, { readOnly: true });
-  const result = captureObservationProof(db, workerData.directory);
-  const same = database === statFile(workerData.databasePath, true, 64 * 1024 * 1024) &&
-    wal === statFile(workerData.databasePath + '-wal', false, 16 * 1024 * 1024);
+  db.exec('PRAGMA cache_size = -2048; PRAGMA mmap_size = 0');
+  const result = captureObservationProof(db, workerData.directory, workerData.targets);
+  const same = database === statFile(workerData.databasePath, true) &&
+    wal === statFile(workerData.databasePath + '-wal', false);
   const bytes = Buffer.from(JSON.stringify(same ? result : null), 'utf8');
   if (bytes.length > workerData.resultBuffer.byteLength) parentPort.postMessage(0);
   else {

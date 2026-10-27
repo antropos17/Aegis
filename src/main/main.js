@@ -688,16 +688,21 @@ function auditSecuritySettled() {
     return true;
   } catch { return false; }
 }
-async function captureAuditCustodyProof() {
+async function captureAuditCustodyProof(rows) {
   if (!auditSecuritySettled()) return null;
   try {
     const before = liveToolContext.auditRevision();
     if (!before) return null;
-    const proof = await audit?.captureObservationProof?.();
+    const proof = await audit?.captureObservationProof?.(rows);
     const after = liveToolContext.auditRevision();
     return auditSecuritySettled() && after && before.epoch === after.epoch &&
       before.revision === after.revision ? proof ?? null : null;
   } catch { return null; }
+}
+function auditCustodyRevision() {
+  try {
+    return liveToolContext.auditRevision(auditSecuritySettled() && audit?.observationCustodyClear?.() === true);
+  } catch { return liveToolContext.auditRevision(false); }
 }
 const liveToolContext = createLiveToolContext({
   getAgents: () =>
@@ -1472,7 +1477,7 @@ app.whenReady().then(() => {
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
     auditToolContextLookup: (row, proof) => liveToolContext.auditLookup(row, proof),
     captureAuditCustodyProof,
-    auditCustodyRevision: () => liveToolContext.auditRevision(),
+    auditCustodyRevision,
     controlFileReads: (request) => etwFile.control(request),
     updates,
     getWindow: () => mainWindow,

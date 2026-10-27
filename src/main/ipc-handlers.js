@@ -590,7 +590,7 @@ ${findingsHtml}${recsHtml}
     );
     if (!Array.isArray(rows)) return rows;
     let proof = null;
-    try { proof = await deps.captureAuditCustodyProof?.() ?? null; } catch { /* history remains available */ }
+    try { proof = await deps.captureAuditCustodyProof?.(rows) ?? null; } catch { /* history remains available */ }
     if (!stillOwned(event, window)) return { success: false, error: 'Renderer request denied' };
     return rows.map((row) => {
       if (!row || typeof row !== 'object' || Array.isArray(row)) return row;

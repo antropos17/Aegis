@@ -576,20 +576,23 @@ it('preserves the producer UUID spelling on the ordinary live event', async () =
   expect((await service.explain(original)).toolContext.strength).toBe('inferred');
 });
 
-it('revokes both live and audit lookup when the same UUID is observed again before dedup', async () => {
+it('revokes an ambiguous audit lookup while preserving the first ordinary live event', async () => {
+  let instant = start + 3000;
+  const guarded = createLiveToolContext({ home, getAgents: () => agents, now: () => instant, observeProcesses: async () => null });
   const event = auditEvent();
-  prepareFor(service, event);
-  service.record(event);
+  prepareFor(guarded, event);
+  guarded.record(event);
   const row = auditRowFor(event);
-  const token = service.auditLookup(row);
+  const token = guarded.auditLookup(row);
+  expect((await guarded.explain(event.eventId)).toolContext.strength).toBe('inferred');
   const duplicate = auditEvent(event.eventId.toUpperCase());
-  prepareFor(service, duplicate);
-  expect(service.auditLookup(row)).toBeNull();
-  expect(service.auditLookup(auditRowFor(duplicate))).toBeNull();
-  expect((await service.explain(token)).toolContext.reasons).toContain('context-unavailable');
-  expect((await service.explain(event.eventId)).toolContext.reasons).toContain(
-    'context-unavailable',
-  );
+  prepareFor(guarded, duplicate);
+  guarded.record(duplicate);
+  expect(guarded.auditLookup(row)).toBeNull();
+  expect(guarded.auditLookup(auditRowFor(duplicate))).toBeNull();
+  expect((await guarded.explain(token)).toolContext.reasons).toContain('context-unavailable');
+  instant += 1001;
+  expect((await guarded.explain(event.eventId)).toolContext.strength).toBe('inferred');
 });
 
 it('refuses a lookup token claimed by a pre-dedup observation even without its live record', async () => {
@@ -637,6 +640,20 @@ it('pushes a custody revision when a duplicate ingress revokes an issued audit a
   const before = guarded.auditRevision();
   prepareFor(guarded, auditEvent(event.eventId));
   expect(notify).toHaveBeenCalledWith({ epoch: before.epoch, revision: before.revision + 1 });
+  expect((await guarded.explain(alias)).toolContext.reasons).toContain('context-unavailable');
+});
+
+it('revokes an open audit alias when a revision catch-up observes an unready index', async () => {
+  const notify = vi.fn();
+  const guarded = createLiveToolContext({ home, getAgents: () => agents, now: () => start + 3000, onAuditRevision: notify });
+  const event = auditEvent();
+  prepareFor(guarded, event);
+  guarded.record(event);
+  const alias = guarded.auditLookup(auditRowFor(event));
+  const before = guarded.auditRevision();
+  const after = guarded.auditRevision(false);
+  expect(after).toEqual({ epoch: before.epoch, revision: before.revision + 1 });
+  expect(notify).toHaveBeenCalledWith(after);
   expect((await guarded.explain(alias)).toolContext.reasons).toContain('context-unavailable');
 });
 

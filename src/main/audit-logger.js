@@ -22,7 +22,7 @@ const indexRebuild = require('./audit-index-rebuild');
 const counterSeed = require('./audit-counter-seed');
 const { projectToolContext } = require('./tool-context-record');
 const { projectAuditIdentity, readAuditIdentity } = require('./audit-observation-identity');
-const { createProofRunner } = require('./audit-observation-proof-runner');
+const { createProofRunner, createProofTargets } = require('./audit-observation-proof-runner');
 const { types } = require('node:util');
 const proofRunner = createProofRunner();
 let _counterTask = null;
@@ -661,13 +661,16 @@ function observationCustodyClear() {
  * @returns {Promise<object|null>} Private proof or unavailable.
  * @since 0.21.0-beta
  */
-async function captureObservationProof() {
+async function captureObservationProof(rows) {
   if (!observationCustodyClear()) return null;
+  const targets = createProofTargets(rows);
+  if (!targets) return null;
+  if (targets.length === 0) return Object.freeze({ unique: () => false });
   const lease = auditIndex.observationProofLease();
   if (!lease) return null;
   const directory = _logDir;
   const generation = _initGeneration;
-  const proof = await proofRunner.capture({ databasePath: lease.databasePath, directory });
+  const proof = await proofRunner.capture({ databasePath: lease.databasePath, directory, targets });
   return proof && lease.current() && generation === _initGeneration && directory === _logDir &&
     observationCustodyClear() ? proof : null;
 }
@@ -1078,6 +1081,7 @@ module.exports = {
   shutdown,
   getStats,
   getDeliveryStatus,
+  observationCustodyClear,
   captureObservationProof,
   exportAll,
   prepareExport,

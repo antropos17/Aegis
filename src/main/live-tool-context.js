@@ -116,7 +116,8 @@ function createLiveToolContext(options) {
   let revision = 0;
   let expiryTimer = null;
 
-  function auditRevision() {
+  function auditRevision(ready = true) {
+    if (!ready) invalidateAudit();
     return Number.isSafeInteger(revision) ? { epoch, revision } : null;
   }
 
@@ -187,7 +188,6 @@ function createLiveToolContext(options) {
     if (existing) {
       existing.ambiguous = true;
       if (auditTokens.has(existing.token)) invalidateAudit();
-      events.delete(id);
     }
     const token = nextToken();
     const identity = Object.freeze({ eventId: id, epoch, token });
@@ -492,7 +492,7 @@ function createLiveToolContext(options) {
     const auditRow = id.startsWith('audit:') ? auditRows.get(id.slice(6).toLowerCase()) : null;
     const validAudit = async () => {
       if (!auditRow) return !id.startsWith('audit:');
-      try { const proof = await auditProof(); return !!proof && proof.unique(auditRow) === true; }
+      try { const proof = await auditProof([auditRow]); return !!proof && proof.unique(auditRow) === true; }
       catch { return false; }
     };
     if (busy || now() < nextRead) return unavailable('source-unavailable');

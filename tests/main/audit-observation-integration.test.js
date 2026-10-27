@@ -92,7 +92,7 @@ it('binds the exact sensitive ingress to its durable row while a distinct dedupe
   expect(saved[1].details.auditIdentity.eventId).toBe(second.eventId);
   expect(saved[0].details.deliveryId).not.toBe(first.eventId);
   expect(saved[0].details.deliveryId).not.toBe(saved[1].details.deliveryId);
-  const proof = await audit.captureObservationProof();
+  const proof = await audit.captureObservationProof(saved);
   expect(custody.auditLookup(saved[0], proof)).toBe('audit:' + saved[0].details.auditIdentity.token);
   expect(custody.auditLookup(saved[1], proof)).toBeNull();
   expect(createLiveToolContext({ getAgents: () => [] }).auditLookup(saved[0], proof)).toBeNull();
@@ -106,7 +106,7 @@ it.each([
   const accepted = scanLoop.dedupFileEvent(event('55555555-5555-4555-8555-555555555555'));
   custody.record(accepted);
   const original = rows()[0];
-  expect((await audit.captureObservationProof()).unique(original)).toBe(true);
+  expect((await audit.captureObservationProof([original])).unique(original)).toBe(true);
   const duplicate = structuredClone(original);
   duplicate.details.auditIdentity.token = token;
   const name = 'aegis-audit-2000-01-01.json';
@@ -116,7 +116,7 @@ it.each([
   const stat = fs.statSync(target);
   auditIndex.writeBatch({ file: name, fileDate: '2000-01-01', firstLineNo: 0,
     lines: [line], indexedBytes: stat.size, sizeBytes: stat.size, mtimeMs: stat.mtimeMs });
-  const proof = await audit.captureObservationProof();
+  const proof = await audit.captureObservationProof([original]);
   if (malformed) expect(proof).toBeNull();
   else expect(proof.unique(original)).toBe(false);
   expect(custody.auditLookup(original, proof)).toBeNull();
@@ -129,7 +129,7 @@ it('distinguishes equal seq/hash rows in different files while repeated reads of
   const same = audit.getEntriesBefore('2099-12-31T23:59:59.999Z', 100)[0];
   expect(auditOrigin(first)).toBeTruthy();
   expect(auditOrigin(same)).toBe(auditOrigin(first));
-  const initialProof = await audit.captureObservationProof();
+  const initialProof = await audit.captureObservationProof([first, same]);
   expect(initialProof).not.toBeNull();
   expect(initialProof.unique(first)).toBe(true);
   expect(initialProof.unique(same)).toBe(true);
@@ -162,7 +162,7 @@ it('distinguishes equal seq/hash rows in different files while repeated reads of
   expect(duplicates[0].seq).toBe(duplicates[1].seq);
   expect(duplicates[0].hash).toBe(duplicates[1].hash);
   expect(auditOrigin(duplicates[0])).not.toBe(auditOrigin(duplicates[1]));
-  const duplicateProof = await audit.captureObservationProof();
+  const duplicateProof = await audit.captureObservationProof(duplicates);
   expect(duplicateProof).not.toBeNull();
   expect(duplicateProof.unique(duplicates[0])).toBe(false);
   expect(duplicateProof.unique(duplicates[1])).toBe(false);
@@ -175,7 +175,7 @@ it('fails closed for JSONL fallback rows without inventing a physical origin', a
   const accepted = scanLoop.dedupFileEvent(event('44444444-4444-4444-8444-444444444444'));
   custody.record(accepted);
   const indexed = rows()[0];
-  const proof = await audit.captureObservationProof();
+  const proof = await audit.captureObservationProof([indexed]);
   expect(custody.auditLookup(indexed, proof)).toBe('audit:' + indexed.details.auditIdentity.token);
   audit.shutdown();
   audit.init({ userDataPath: root, loadSqlite: () => null });
@@ -185,29 +185,67 @@ it('fails closed for JSONL fallback rows without inventing a physical origin', a
   expect(fallback.details.auditIdentity).toEqual(indexed.details.auditIdentity);
   expect(auditOrigin(fallback)).toBeNull();
   expect(custody.auditLookup(fallback, proof)).toBeNull();
-  expect(await audit.captureObservationProof()).toBeNull();
+  expect(await audit.captureObservationProof([fallback])).toBeNull();
 });
 
 it('refuses uniqueness proof when the canonical log changes outside its ready index', async () => {
   const accepted = scanLoop.dedupFileEvent(event('55555555-5555-4555-8555-555555555555'));
   custody.record(accepted);
   const indexed = rows()[0];
-  expect((await audit.captureObservationProof())?.unique(indexed)).toBe(true);
+  expect((await audit.captureObservationProof([indexed]))?.unique(indexed)).toBe(true);
   const name = fs.readdirSync(audit.getLogDir()).find((item) => item.endsWith('.json'));
   const target = path.join(audit.getLogDir(), name);
   fs.appendFileSync(target, '{"partial":');
   expect(audit.getStats().index.state).toBe('ready');
-  expect(await audit.captureObservationProof()).toBeNull();
+  expect(await audit.captureObservationProof([indexed])).toBeNull();
 });
 
 it('refuses uniqueness proof when indexed raw data disagrees with canonical bytes', async () => {
   const accepted = scanLoop.dedupFileEvent(event('66666666-6666-4666-8666-666666666666'));
   custody.record(accepted);
   const indexed = rows()[0];
-  expect((await audit.captureObservationProof())?.unique(indexed)).toBe(true);
+  expect((await audit.captureObservationProof([indexed]))?.unique(indexed)).toBe(true);
   const db = auditIndex._dbForTest();
   db.prepare('UPDATE audit_events SET raw = ?').run('{"type":"file-access"}');
-  expect(await audit.captureObservationProof()).toBeNull();
+  expect(await audit.captureObservationProof([indexed])).toBeNull();
+});
+
+it('streams more than 20,000 rows and four MiB with bounded requested targets', async () => {
+  const accepted = scanLoop.dedupFileEvent(event('77777777-7777-4777-8777-777777777777'));
+  custody.record(accepted);
+  const indexed = rows()[0];
+  const lines = Array.from({ length: 20000 }, (_, i) => JSON.stringify({
+    type: 'ordinary', timestamp: '2000-01-01T00:00:00.000Z', details: { i, text: 'é' + 'x'.repeat(250) },
+  }));
+  const name = 'aegis-audit-2000-01-01.json';
+  const target = path.join(audit.getLogDir(), name);
+  fs.writeFileSync(target, ' \r\n' + lines.join('\r\n') + '\r\n\n');
+  const stat = fs.statSync(target);
+  expect(stat.size).toBeGreaterThan(4 * 1024 * 1024);
+  auditIndex.writeBatch({ file: name, fileDate: '2000-01-01', firstLineNo: 0,
+    lines, indexedBytes: stat.size, sizeBytes: stat.size, mtimeMs: stat.mtimeMs });
+  const started = performance.now();
+  const proof = await audit.captureObservationProof([indexed]);
+  const elapsed = Math.round(performance.now() - started);
+  expect(proof?.unique(indexed)).toBe(true);
+  expect(await audit.captureObservationProof(Array(101).fill(indexed))).toBeNull();
+  console.log(`streaming proof: ${lines.length + 1} rows, ${stat.size} bytes, ${elapsed} ms`);
+}, 15000);
+
+it.each(['invalid UTF-8', 'oversized line'])('fails unavailable for %s anywhere in history', async (kind) => {
+  const accepted = scanLoop.dedupFileEvent(event('88888888-8888-4888-8888-888888888888'));
+  custody.record(accepted);
+  const indexed = rows()[0];
+  const name = 'aegis-audit-2000-01-01.json';
+  const target = path.join(audit.getLogDir(), name);
+  const line = JSON.stringify({ type: 'ordinary', details: { text: kind === 'oversized line' ? 'x'.repeat(65536) : 'z' } });
+  const bytes = Buffer.from(line + '\n');
+  if (kind === 'invalid UTF-8') bytes[bytes.indexOf(Buffer.from('z'))] = 0xff;
+  fs.writeFileSync(target, bytes);
+  const stat = fs.statSync(target);
+  auditIndex.writeBatch({ file: name, fileDate: '2000-01-01', firstLineNo: 0,
+    lines: [line], indexedBytes: stat.size, sizeBytes: stat.size, mtimeMs: stat.mtimeMs });
+  expect(await audit.captureObservationProof([indexed])).toBeNull();
 });
 
 it('revokes both rows when a second sensitive observation reuses an ID before dedup', async () => {
@@ -220,7 +258,7 @@ it('revokes both rows when a second sensitive observation reuses an ID before de
   expect(saved).toHaveLength(2);
   expect(saved[0].details.auditIdentity.eventId).toBe(saved[1].details.auditIdentity.eventId);
   expect(saved[0].details.auditIdentity.token).not.toBe(saved[1].details.auditIdentity.token);
-  const proof = await audit.captureObservationProof();
+  const proof = await audit.captureObservationProof(saved);
   expect(custody.auditLookup(saved[0], proof)).toBeNull();
   expect(custody.auditLookup(saved[1], proof)).toBeNull();
 });

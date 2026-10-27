@@ -5,21 +5,36 @@ const { Worker } = require('node:worker_threads');
 const { createHash } = require('node:crypto');
 const { readAuditIdentity, auditOrigin } = require('./audit-observation-identity');
 
-const MAX_ROWS = 2048;
+const MAX_ROWS = 100;
 const DEADLINE_MS = 3000;
-const RESPONSE_BYTES = 640 * 1024;
+const RESPONSE_BYTES = 32 * 1024;
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const keys = (value, expected) => value && typeof value === 'object' && !Array.isArray(value) &&
   Object.keys(value).length === expected.length && expected.every((key) => Object.hasOwn(value, key));
 
-function proofFrom(value) {
+function createProofTargets(rows) {
+  if (!Array.isArray(rows) || rows.length > MAX_ROWS) return null;
+  const targets = new Map();
+  try {
+    for (const row of rows) {
+      const identity = readAuditIdentity(row?.details);
+      if (!identity || !auditOrigin(row)) continue;
+      const key = hash(JSON.stringify(identity));
+      targets.set(key, { key, pair: hash(JSON.stringify([identity.epoch, identity.eventId])) });
+    }
+    return [...targets.values()];
+  } catch { return null; }
+}
+
+function proofFrom(value, allowed) {
   if (!keys(value, ['schemaVersion', 'rows']) || value.schemaVersion !== 1 ||
       !Array.isArray(value.rows) || value.rows.length > MAX_ROWS) return null;
   const rows = new Map();
   for (const item of value.rows) {
     if (!keys(item, ['key', 'origin', 'content', 'count']) ||
         !['key', 'origin', 'content'].every((field) => typeof item[field] === 'string' && /^[a-f0-9]{64}$/.test(item[field])) ||
-        !Number.isSafeInteger(item.count) || item.count < 1 || item.count > MAX_ROWS || rows.has(item.key))
+        !Number.isSafeInteger(item.count) || item.count < 1 || item.count > 2 ||
+        !allowed.has(item.key) || rows.has(item.key))
       return null;
     rows.set(item.key, { origin: item.origin, content: item.content, count: item.count });
   }
@@ -52,6 +67,8 @@ function createProofRunner(options = {}) {
   return Object.freeze({
     capture(workerData) {
       if (active) return Promise.resolve(null);
+      if (!Array.isArray(workerData.targets) || workerData.targets.length > MAX_ROWS) return Promise.resolve(null);
+      const allowed = new Set(workerData.targets.map((target) => target.key));
       let worker;
       const response = new SharedArrayBuffer(RESPONSE_BYTES);
       try { worker = factory({ ...workerData, resultBuffer: response }); } catch { return Promise.resolve(null); }
@@ -86,7 +103,7 @@ function createProofRunner(options = {}) {
           if (!settled && !invalid && received && code === 0) {
             try {
               const text = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(response, 0, value));
-              proof = proofFrom(JSON.parse(text));
+              proof = proofFrom(JSON.parse(text), allowed);
             } catch { /* unavailable */ }
           }
           new Uint8Array(response).fill(0);
@@ -98,4 +115,4 @@ function createProofRunner(options = {}) {
   });
 }
 
-module.exports = { createProofRunner, DEADLINE_MS };
+module.exports = { createProofRunner, createProofTargets, DEADLINE_MS };

@@ -517,8 +517,12 @@ it.each(['missing subscription', 'malformed subscription', 'malformed catchup', 
   },
 );
 
-it.each(['advanced', 'simple'] as const)(
-  'revokes a completed %s Details explanation on an independent custody push', async (mode) => {
+it.each([
+  { mode: 'advanced', delivery: 'push' }, { mode: 'simple', delivery: 'push' },
+  { mode: 'advanced', delivery: 'poll' }, { mode: 'simple', delivery: 'poll' },
+] as const)(
+  'revokes a completed $mode Details explanation on custody $delivery', async ({ mode, delivery }) => {
+    let currentRevision = custody;
     let push!: (value: unknown) => void;
     const result = {
       success: true, availability: 'available', toolContext: {
@@ -536,7 +540,7 @@ it.each(['advanced', 'simple'] as const)(
       getStats: async () => ({}), getResourceUsage: async () => ({}), getFalsePositives: async () => [],
       getSettings: async () => ({}), getAppVersion: async () => 'test',
       onAuditCustodyRevision: (cb: (value: unknown) => void) => { push = cb; return () => {}; },
-      getAuditCustodyRevision: async () => custody, getAuditStats: async () => ({}),
+      getAuditCustodyRevision: vi.fn(async () => currentRevision), getAuditStats: async () => ({}),
       getAuditEntriesBefore: async () => [row('selected', true)],
       explainToolContext: vi.fn(async () => result),
     };
@@ -559,8 +563,10 @@ it.each(['advanced', 'simple'] as const)(
       const details = await screen.findByRole('dialog');
       await fireEvent.click(within(details).getByRole('button', { name: 'Explain from local history' }));
       expect(await within(details).findByText('Claude Code \u00b7 Read')).toBeVisible();
-      await act(() => push({ ...custody, revision: 2 }));
-      await waitFor(() => expect(within(details).queryByText('Claude Code \u00b7 Read')).toBeNull());
+      currentRevision = { ...custody, revision: 2 };
+      if (delivery === 'push') await act(() => push(currentRevision));
+      else await waitFor(() => expect(host.getAuditCustodyRevision.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 2500 });
+      await waitFor(() => expect(within(details).queryByText('Claude Code \u00b7 Read')).toBeNull(), { timeout: 2500 });
       expect(within(details).queryByRole('button', { name: 'Explain from local history' })).toBeNull();
       expect(view.container.textContent).not.toContain(token);
       expect(view.container.textContent).not.toContain(custody.epoch);

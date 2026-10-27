@@ -88,9 +88,11 @@ reader only exposes a lookup when UUID, epoch, token and the retained file metad
 match. A private `audit:` locator is issued only after a bounded worker compares
 the complete retained audit files with the ready index and finds exactly one
 physical row for the tuple. The proof is repeated before and after a local-history
-read. It accepts at most 32 files, 2,048 rows and 4 MiB, and returns unavailable
-on malformed, partial, stale or larger histories. The worker has a three-second
-response deadline; a stalled worker holds the single worker slot until it exits.
+read. It streams every indexed canonical line using fixed-size buffers, with at
+most 32 audit files and 100 requested observations. Malformed, partial or stale
+history makes the proof unavailable. A full scan can exceed the three-second
+response deadline on larger or slower histories; a stalled worker holds the
+single worker slot until it exits.
 Filesystem operations themselves are not guaranteed to terminate. The private
 indexed file and line identify a row but do not authenticate the audit file.
 History remains readable during index rebuild or JSONL fallback, without a live

@@ -19,11 +19,11 @@ it('keeps a timed-out worker locked until actual exit and rejects unbounded repl
   const runner = createProofRunner({ deadlineMs: 30, workerFactory: () => {
     const worker = new FakeWorker(); workers.push(worker); return worker;
   } });
-  expect(await runner.capture({})).toBeNull();
-  expect(await runner.capture({})).toBeNull();
+  expect(await runner.capture({ targets: [] })).toBeNull();
+  expect(await runner.capture({ targets: [] })).toBeNull();
   expect(workers).toHaveLength(1);
   workers[0].emit('exit', 0);
-  const next = runner.capture({});
+  const next = runner.capture({ targets: [] });
   workers[1].emit('message', 640 * 1024 + 1);
   workers[1].emit('exit', 0);
   expect(await next).toBeNull();
@@ -42,7 +42,7 @@ it.skipIf(process.platform !== 'win32')('returns on deadline while a real worker
     return worker;
   } });
   try {
-    const pending = runner.capture({});
+    const pending = runner.capture({ targets: [] });
     await connected;
     await once(worker, 'message');
     let responsive = false;
@@ -52,7 +52,7 @@ it.skipIf(process.platform !== 'win32')('returns on deadline while a real worker
     expect(created).toBe(1);
     const exited = worker.threadId === -1;
     if (!exited) {
-      expect(await runner.capture({})).toBeNull();
+      expect(await runner.capture({ targets: [] })).toBeNull();
       expect(created).toBe(1);
       const exit = once(worker, 'exit');
       socket.end('x');
