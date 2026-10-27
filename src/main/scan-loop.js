@@ -1006,7 +1006,7 @@ async function doProcessScan() {
     deps.onAgentsObserved?.();
     // This pass owns the raw process map and the identity stamps. Never publish
     // a cached birth/context as authority during a failed/outage pass.
-    deps.onProcessScanCommitted?.({
+    const populationCurrent = deps.onProcessScanCommitted?.({
       agents,
       processMap: result.processMap,
       reliable: result.reliable === true,
@@ -1023,6 +1023,7 @@ async function doProcessScan() {
     // Single batched IPC — renderer updates all stores at once
     sendToRenderer('scan-batch', {
       agents,
+      populationCurrent: populationCurrent === true,
       stats: getStats(),
       resourceUsage: getResourceUsage(),
       anomalyScores: scores,

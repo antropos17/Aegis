@@ -27,6 +27,7 @@ it('shows current unavailable watch groups safely without changing project cover
       { id: 'project-dir', state: 'errored' },
     ],
   };
+  input.telemetry.projectCoverageState = 'observed';
   const view = render(CoveragePanel, input);
   const groups = screen.getByRole('region', { name: 'Unavailable file watch groups' });
   expect(groups).toHaveTextContent('Credential directories');
@@ -56,6 +57,7 @@ it('shows current unavailable watch groups safely without changing project cover
 it('never shows retained project readiness as current for stale, not-ready or offline telemetry', async () => {
   const input = props();
   record(input.telemetry.stats.appHealth).watchPlan = { projectState: 'observed' };
+  input.telemetry.projectCoverageState = 'observed';
   const view = render(CoveragePanel, input);
   const project = screen.getByRole('region', { name: 'Project changes' });
   expect(within(project).getByText('Observed', { exact: true })).toBeVisible();
@@ -74,6 +76,7 @@ it('explains absent project coverage beside healthy sensors and opens only exist
     projectState: 'not-observed',
     state: 'HEALTHY',
   };
+  input.telemetry.projectCoverageState = 'not-observed';
   const openProjectSettings = vi.fn();
   const view = render(CoveragePanel, { ...input, openProjectSettings });
   const project = screen.getByRole('region', { name: 'Project changes' });
@@ -83,6 +86,7 @@ it('explains absent project coverage beside healthy sensors and opens only exist
   expect(openProjectSettings).toHaveBeenCalledOnce();
   expect(input.navigate).not.toHaveBeenCalled();
   input.telemetry.stats.monitoringPaused = true;
+  input.telemetry.monitoringPauseConfirmed = true;
   record(input.telemetry.stats.appHealth).watchPlan = { projectState: 'observed' };
   await view.rerender({ telemetry: structuredClone(input.telemetry) });
   expect(project).toHaveTextContent('Paused');
@@ -112,10 +116,11 @@ it('shows current coverage while Overview is paused, including a later outage, a
   });
   render(App, { host });
   await waitFor(() => expect(callbacks.has('onScanBatch')).toBe(true));
-  callbacks.get('onScanBatch')?.(initial);
+  callbacks.get('onScanBatch')?.({ ...initial, populationCurrent: true });
   await tick();
   await fireEvent.click(screen.getByRole('button', { name: 'Pause view' }));
   const current = coverageFixture();
+  current.stats.monitoringPopulationRevision = '1';
   Object.assign(record(current.stats.nativeSensor), {
     lossCount: 29,
     providerState: 'FAILED',
@@ -125,7 +130,7 @@ it('shows current coverage while Overview is paused, including a later outage, a
   current.agents = [
     { ...current.agents[0], agent: 'Synthetic latest Codex', pid: 43, instanceId: '43:999' },
   ];
-  callbacks.get('onScanBatch')?.(current);
+  callbacks.get('onScanBatch')?.({ ...current, populationCurrent: true });
   await tick();
   const navigation = screen.getByRole('navigation', { name: 'Main navigation' });
   await fireEvent.click(within(navigation).getByRole('button', { name: 'Coverage' }));
