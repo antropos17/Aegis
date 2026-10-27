@@ -57,6 +57,19 @@ The review does not resolve filesystem targets or establish argument provenance;
 both remain unknown.
 Ordinary preauthorized gateway modes remain separate and do not gain a prompt.
 
+The review route reports fixed, redacted attempt outcomes to its private terminal.
+An attempt ID is generated for one eligible call; it is not a stable operation ID.
+“Upstream response accepted; effect unverified” means the gateway accepted a
+checked response, not that the downstream client received it or an effect was
+verified. “Dispatch attempted; outcome unknown” also covers cancellation or an
+invalid or missing response after the gateway attempted the request. “Not
+dispatched by this gateway” is reported only after cleanup and complete evidence
+show an eligible attempt ended before the dispatch point. Early rejected requests
+may have no attempt ID. Incomplete evidence or a terminal write failure can leave
+outcomes unknown; an abrupt process or terminal loss can prevent final output.
+The gateway does not retry automatically. A fresh approval does not prevent a
+duplicate effect; idempotency and reconciliation are unsupported.
+
 For example, a version 2 manifest may select two separate one-attempt grants for
 the same exact call on this review route. Supply actual current validity times
 and a reviewed tool definition; each ID must be unique in the selected store:

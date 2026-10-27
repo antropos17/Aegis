@@ -15,10 +15,12 @@ const dirs = [];
 const peers = [];
 const hosts = [];
 const done = [];
+let privateOutput;
 
 function setupTerminal() {
   const input = Object.assign(new EventEmitter(), { isTTY: true, resume: vi.fn(), pause: vi.fn() });
   const output = Object.assign(new EventEmitter(), { isTTY: true });
+  privateOutput = output;
   const host = new EventEmitter();
   let preview = '';
   output.write = (value, cb) => {
@@ -56,6 +58,7 @@ async function start(createGateway, fixture) {
     available: () => true,
     process: host,
     output,
+    evidenceOutput: privateOutput,
     watchTerminal: noWatch,
     monitorInput: noWatch,
     createGateway,
@@ -77,7 +80,7 @@ async function start(createGateway, fixture) {
   return { host, result, written, endpoint: JSON.parse(fs.readFileSync(endpointPath, 'utf8')) };
 }
 
-function gatewayFixture() {
+function gatewayFixture(mode = 'normal') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-gateway-real-review-'));
   dirs.push(root);
   const files = Object.fromEntries(
@@ -126,7 +129,7 @@ function gatewayFixture() {
     rules: [{ action, decision: 'allow' }],
   });
   save(files.request, { schemaVersion: 1, action });
-  save(files.config, { ...files, tool, mode: 'normal' });
+  save(files.config, { ...files, tool, mode });
   save(files.secrets, { schemaVersion: 1, values: ['Synthetic_Protected_847'] });
   save(files.disclosure, { schemaVersion: 1, tools: [{ name: 'record', paths: ['/recipient'] }] });
   const time = Date.now();
@@ -178,6 +181,7 @@ afterEach(async () => {
   await Promise.all(done.splice(0));
   broker._resetForTest();
   terminal._resetForTest();
+  privateOutput = undefined;
   for (const dir of dirs.splice(0)) {
     expect(path.dirname(dir)).toBe(path.resolve(os.tmpdir()));
     expect(fs.lstatSync(dir).isSymbolicLink()).toBe(false);
@@ -191,6 +195,7 @@ it('prompts once on a private owner terminal and keeps its preview off MCP and r
   const gateway = {
     close: vi.fn(),
     finish: vi.fn(async () => true),
+    finishEvidence: async () => ({ enabled: true, emitted: 0, lost: 0, pending: 0, sealed: true }),
     receive: async (message) => {
       const approved = await review('Current: SAFE_PRIVATE_VALUE\nBaseline: none', {
         signal: new AbortController().signal,
@@ -269,6 +274,132 @@ it('reviews two real gateway calls in the owner terminal and forwards only appro
   expect(() => process.kill(pid, 0)).toThrow();
 }, 20000);
 
+it.each(['normal', 'invalid-result', 'hang'])(
+  'reports the bounded outcome for a real upstream effect with %s response behavior',
+  async (mode) => {
+    const fixture = gatewayFixture(mode);
+    const tty = setupTerminal();
+    const owner = await start(undefined, fixture);
+    const peer = await connect(owner.endpoint);
+    let wire = '';
+    peer.on('data', (chunk) => {
+      wire += chunk.toString();
+    });
+    const send = (id, method, params) =>
+      peer.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    send(1, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: {} });
+    await vi.waitFor(() => expect(wire).toContain('"id":1'), { timeout: 8000 });
+    peer.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n');
+    send(2, 'tools/call', { name: 'record', arguments: { recipient: 'north' } });
+    await vi.waitFor(() => expect(tty.preview()).toContain('"recipient": "north"'), {
+      timeout: 8000,
+    });
+    const beforeStatus = tty.preview().length;
+    tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
+    await vi.waitFor(() => expect(fs.existsSync(fixture.effects)).toBe(true), { timeout: 8000 });
+    expect(fs.readFileSync(fixture.effects, 'utf8')).toContain('north');
+    if (mode === 'hang') peer.destroy();
+    if (mode === 'normal') {
+      await vi.waitFor(() => expect(wire).toContain('"id":2'), { timeout: 8000 });
+      peer.end();
+    }
+    await owner.result;
+    const status = tty.preview().slice(beforeStatus);
+    expect(status).toMatch(
+      mode === 'normal'
+        ? /response accepted.*effect unverified/i
+        : /dispatch attempted.*outcome unknown/i,
+    );
+    expect(status).toMatch(/attempt/i);
+    expect(status).not.toContain('north');
+    expect(status).not.toContain('Synthetic_Protected_847');
+    expect(status).not.toContain('PRIVATE_UNCHECKED');
+    expect(status).not.toContain('11111111111111111111111111111111');
+    expect(status).not.toContain(fixture.root);
+    expect(owner.written.join('')).not.toMatch(/outcome unknown|effect unverified/i);
+    expect(wire).not.toMatch(/outcome unknown|effect unverified/i);
+  },
+  20000,
+);
+
+it('reports an owner-declined consumed attempt as not dispatched only after cleanup', async () => {
+  const fixture = gatewayFixture();
+  const tty = setupTerminal();
+  const owner = await start(undefined, fixture);
+  const peer = await connect(owner.endpoint);
+  let wire = '';
+  peer.on('data', (chunk) => {
+    wire += chunk.toString();
+  });
+  peer.write(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: {} },
+    }) + '\n',
+  );
+  await vi.waitFor(() => expect(wire).toContain('"id":1'), { timeout: 8000 });
+  peer.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n');
+  peer.write(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'record', arguments: { recipient: 'north' } },
+    }) + '\n',
+  );
+  await vi.waitFor(() => expect(tty.preview()).toContain('"recipient": "north"'), {
+    timeout: 8000,
+  });
+  const beforeStatus = tty.preview().length;
+  tty.input.emit('data', Buffer.from('NO\n'));
+  await vi.waitFor(() => expect(wire).toContain('"id":2'), { timeout: 8000 });
+  expect(fs.existsSync(fixture.effects)).toBe(false);
+  peer.end();
+  expect(await owner.result).toBe(0);
+  const status = tty.preview().slice(beforeStatus);
+  expect(status).toMatch(/not dispatched by this gateway/i);
+  expect(status).not.toContain('north');
+}, 20000);
+
+it('reports cancellation during owner review without a dispatched effect', async () => {
+  const fixture = gatewayFixture();
+  const tty = setupTerminal();
+  const owner = await start(undefined, fixture);
+  const peer = await connect(owner.endpoint);
+  let wire = '';
+  peer.on('data', (chunk) => {
+    wire += chunk.toString();
+  });
+  peer.write(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: {} },
+    }) + '\n',
+  );
+  await vi.waitFor(() => expect(wire).toContain('"id":1'), { timeout: 8000 });
+  peer.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n');
+  peer.write(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'record', arguments: { recipient: 'north' } },
+    }) + '\n',
+  );
+  await vi.waitFor(() => expect(tty.preview()).toContain('"recipient": "north"'), {
+    timeout: 8000,
+  });
+  const beforeStatus = tty.preview().length;
+  peer.destroy();
+  await owner.result;
+  expect(fs.existsSync(fixture.effects)).toBe(false);
+  expect(tty.preview().slice(beforeStatus)).toMatch(/not dispatched by this gateway/i);
+}, 20000);
+
 it('rejects terminal controls and oversized previews without accepting buffered responses', async () => {
   const tty = setupTerminal();
   expect(await terminal.confirmInTerminal('bad\x1b[31m', { kind: 'mcp-call' })).toBe(false);
@@ -281,6 +412,7 @@ it('rejects a wrong bearer without starting a gateway and still accepts the sele
   const createGateway = vi.fn(() => ({
     close: vi.fn(),
     finish: async () => true,
+    finishEvidence: async () => ({ enabled: true, emitted: 0, lost: 0, pending: 0, sealed: true }),
     receive: async (message) => ({ jsonrpc: '2.0', id: message.id, result: {} }),
   }));
   const owner = await start(createGateway);
@@ -306,6 +438,7 @@ it('aborts a waiting terminal review when its sole client disconnects', async ()
   const gateway = {
     close: vi.fn(() => controller.abort()),
     finish: async () => true,
+    finishEvidence: async () => ({ enabled: true, emitted: 0, lost: 0, pending: 0, sealed: true }),
     receive: async (message) => {
       const approved = await review('Current: safe', { signal: controller.signal });
       aborted = !approved && controller.signal.aborted;
@@ -324,6 +457,41 @@ it('aborts a waiting terminal review when its sole client disconnects', async ()
   expect(aborted).toBe(true);
   tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
 });
+
+it('returns unavailable when the private outcome writer stalls after an approved attempt', async () => {
+  const tty = setupTerminal();
+  const writePrompt = tty.output.write;
+  tty.output.write = (text, callback) => {
+    if (text.includes('AEGIS gateway outcomes')) return true;
+    return writePrompt(text, callback);
+  };
+  const attempt = '11111111-1111-4111-8111-111111111111';
+  let review, onEvidence;
+  const gateway = {
+    close: vi.fn(),
+    finish: async () => true,
+    finishEvidence: async () => ({ enabled: true, emitted: 2, lost: 0, pending: 0, sealed: true }),
+    receive: async (message) => {
+      const approved = await review('Current: safe', { signal: new AbortController().signal });
+      if (approved) {
+        onEvidence({ schemaVersion: 1, seq: 0, operationId: attempt, code: 'dispatch' });
+        onEvidence({ schemaVersion: 1, seq: 1, operationId: attempt, code: 'completed' });
+      }
+      return { jsonrpc: '2.0', id: message.id, result: { approved } };
+    },
+  };
+  const owner = await start((options) => {
+    review = options.reviewCall;
+    onEvidence = options.onEvidence;
+    return gateway;
+  });
+  const peer = await connect(owner.endpoint);
+  peer.write('{"jsonrpc":"2.0","id":1,"method":"call"}\n');
+  await vi.waitFor(() => expect(tty.preview()).toContain('Current: safe'));
+  tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
+  expect(await owner.result).toBe(2);
+  expect(gateway.close).toHaveBeenCalled();
+}, 10000);
 
 it('refuses invalid setup and never opens a listener', async () => {
   broker._setDepsForTest({
