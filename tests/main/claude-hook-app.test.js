@@ -340,6 +340,9 @@ it.skipIf(process.platform !== 'win32')(
     expect(state.dialogs[0]).toMatchObject({ defaultId: 0, cancelId: 0 });
     expect(state.dialogs[0].detail).toContain(policyTarget);
     expect(state.dialogs[0].detail).toContain(policySource.toString());
+    expect(state.dialogs[0].detail).toContain(
+      'narrow filename check denies .env variants, credentials and credentials.json, id_rsa and id_ed25519',
+    );
     expect(await fs.readFile(target, 'utf8')).toContain(policyTarget.replaceAll('\\', '/'));
     for (const secret of [selected, policyTarget, 'aegis-windows-project-review-v1'])
       expect(JSON.stringify(result)).not.toContain(secret);

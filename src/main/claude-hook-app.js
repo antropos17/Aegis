@@ -449,7 +449,7 @@ function createClaudeHookApp(options) {
       const detail =
         profileReviewText(prepared.review, target, observedRemoval) +
         (policyBytes
-          ? `\n\nNew project policy destination:\n${policyPath}\n\nExact policy:\n${policyBytes.toString('utf8')}\nThe working directory must match exactly. Provider confirmation is requested for pwd, ls, git status, git status --short, git diff --stat, bounded single-name cat, npm test, npm run lint, and git apply -- NAME.patch or NAME.diff. Sensitive .env, credentials.json and SSH key names, declared destructive commands and unsupported inputs are denied. There is no automatic allow. Script effects, patch content and executable identity are not verified.`
+          ? `\n\nNew project policy destination:\n${policyPath}\n\nExact policy:\n${policyBytes.toString('utf8')}\nThe working directory must match exactly. Provider confirmation is requested for pwd, ls, git status, git status --short, git diff --stat, bounded single-name cat, npm test, npm run lint, and git apply -- NAME.patch or NAME.diff. The narrow filename check denies .env variants, credentials and credentials.json, id_rsa and id_ed25519. Declared destructive commands and unsupported inputs are denied. There is no automatic allow. Script effects, patch content and executable identity are not verified.`
           : '');
       if (Buffer.byteLength(detail) > 8192) throw Error('preview-too-large');
       const answer = await dialog.showMessageBox(window, {
