@@ -442,9 +442,36 @@ describe('scan-loop', () => {
   // ── dedupFileEvent (F-E03: instanceId-scoped, not display-name) ──
 
   describe('dedupFileEvent', () => {
+    it('does not trust or delete a non-configurable forged optional audit identity', () => {
+      const { createLiveToolContext } = require_('../../src/main/live-tool-context');
+      const live = createLiveToolContext({ getAgents: () => [], now: Date.now, auditProof: () => ({ unique: () => true }) });
+      const push = vi.fn();
+      scanLoop.init(makeDeps({ securityEvents: { push }, prepareFileObservation: live.prepare }));
+      const event = { eventId: 'aaaaaaaa-1111-4111-8111-111111111111',
+        agent: 'Claude Code', instanceId: '42:1', pid: 42, timestamp: Date.now(),
+        file: path.resolve(os.tmpdir(), 'sensitive-fixture'), action: 'read', sensitive: true };
+      Object.defineProperty(event, 'auditIdentity', { value: { eventId: 'forged' }, configurable: false });
+      expect(scanLoop.dedupFileEvent(event)).toBe(event);
+      expect(() => live.record(event)).not.toThrow();
+      expect(push).toHaveBeenCalledOnce();
+      expect(push.mock.calls[0][0].details.auditIdentity.eventId).toBe(event.eventId);
+      expect(push.mock.calls[0][0].details.auditIdentity).not.toEqual(event.auditIdentity);
+    });
+
+    it('admits the sensitive event without identity when custody preparation throws', () => {
+      const push = vi.fn();
+      scanLoop.init(makeDeps({ securityEvents: { push }, prepareFileObservation: () => { throw Error('unavailable'); } }));
+      const event = { agent: 'Claude Code', instanceId: '42:1', pid: 42, timestamp: Date.now(),
+        file: path.resolve(os.tmpdir(), 'sensitive-fixture'), action: 'read', sensitive: true };
+      Object.defineProperty(event, 'auditIdentity', { value: { eventId: 'forged' }, configurable: false });
+      expect(scanLoop.dedupFileEvent(event)).toBe(event);
+      expect(push).toHaveBeenCalledOnce();
+      expect(push.mock.calls[0][0].details).not.toHaveProperty('auditIdentity');
+    });
+
     it('admits sensitive identities before dedup and revokes a duplicated UUID', async () => {
       const { createLiveToolContext } = require_('../../src/main/live-tool-context');
-      const live = createLiveToolContext({ getAgents: () => [], now: Date.now });
+      const live = createLiveToolContext({ getAgents: () => [], now: Date.now, auditProof: () => ({ unique: () => true }) });
       const push = vi.fn();
       scanLoop.init(makeDeps({ securityEvents: { push }, prepareFileObservation: live.prepare }));
       const first = {
@@ -460,14 +487,16 @@ describe('scan-loop', () => {
       expect(scanLoop.dedupFileEvent(first)).toBe(first);
       live.record(first);
       const initial = push.mock.calls[0][0];
-      const row = {
+      const row = require_('../../src/main/audit-observation-identity').rememberAuditOrigin({
         type: initial.type,
         pid: initial.details.pid,
         instanceId: initial.details.instanceId,
         action: initial.details.action,
         path: initial.details.path,
+        seq: 1,
+        hash: 'a'.repeat(64),
         details: { auditIdentity: initial.details.auditIdentity },
-      };
+      }, 'aegis-audit-2026-10-27.json', 1);
       const token = live.auditLookup(row);
       expect(token).toBeTypeOf('string');
       const duplicate = { ...first, eventId: first.eventId.toUpperCase() };
@@ -480,7 +509,7 @@ describe('scan-loop', () => {
 
     it('gives identical sensitive observations distinct IDs before one is deduped', () => {
       const { createLiveToolContext } = require_('../../src/main/live-tool-context');
-      const live = createLiveToolContext({ getAgents: () => [], now: Date.now });
+      const live = createLiveToolContext({ getAgents: () => [], now: Date.now, auditProof: () => ({ unique: () => true }) });
       const push = vi.fn();
       scanLoop.init(makeDeps({ securityEvents: { push }, prepareFileObservation: live.prepare }));
       const first = {
@@ -500,14 +529,16 @@ describe('scan-loop', () => {
       const ids = push.mock.calls.map(([record]) => record.details.auditIdentity.eventId);
       expect(ids[0]).not.toBe(ids[1]);
       expect(ids).toEqual([first.eventId, second.eventId]);
-      const rows = push.mock.calls.map(([record]) => ({
+      const rows = push.mock.calls.map(([record], index) => require_('../../src/main/audit-observation-identity').rememberAuditOrigin({
         type: record.type,
         pid: record.details.pid,
         instanceId: record.details.instanceId,
         action: record.details.action,
         path: record.details.path,
+        seq: 1,
+        hash: 'a'.repeat(64),
         details: { auditIdentity: record.details.auditIdentity },
-      }));
+      }, 'aegis-audit-2026-10-27.json', index));
       expect(live.auditLookup(rows[0])).toBeTypeOf('string');
       expect(live.auditLookup(rows[1])).toBeNull();
     });

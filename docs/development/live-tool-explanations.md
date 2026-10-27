@@ -85,10 +85,28 @@ are locators, not authentication or proof against same-account tampering. Duplic
 observation UUIDs revoke the retained lookup while known; bounded eviction can
 remove old sightings, but a reappearance receives a different token. The audit
 reader only exposes a lookup when UUID, epoch, token and the retained file metadata
-match. It suppresses duplicated lookups across currently loaded pages. Restarted,
-legacy, expired, evicted, malformed and unaccepted observations remain unavailable;
-an in-flight explanation is discarded if its custody changes before completion.
-The separately generated security-pipeline `deliveryId` remains unchanged.
+match. A private `audit:` locator is issued only after a bounded worker compares
+the complete retained audit files with the ready index and finds exactly one
+physical row for the tuple. The proof is repeated before and after a local-history
+read. It accepts at most 32 files, 2,048 rows and 4 MiB, and returns unavailable
+on malformed, partial, stale or larger histories. The worker has a three-second
+response deadline; a stalled worker holds the single worker slot until it exits.
+Filesystem operations themselves are not guaranteed to terminate. The private
+indexed file and line identify a row but do not authenticate the audit file.
+History remains readable during index rebuild or JSONL fallback, without a live
+lookup. Pending delivery, replay, spills or prior loss can also make the lookup
+unavailable.
+
+File admission and audit delivery changes revoke issued audit locators, so frequent
+activity can interrupt an explanation until the system is quiet and the history
+is refreshed. The renderer subscribes to custody revisions and checks for missed
+updates once per second; a failed or stalled check revokes the displayed lookup.
+After a missed push a previously displayed result can remain visible until the next
+check or its two-second timeout. A monotonic 15-minute custody limit remains
+effective if the wall clock moves backward. Restarted, legacy, expired, evicted,
+malformed and unaccepted observations remain unavailable; an in-flight explanation
+is discarded if its custody changes. The separately generated security-pipeline
+`deliveryId` remains unchanged.
 
 W4.2's application path is distinct from W4.3 association qualification and W4.4
 the installed genuine-agent end-to-end acceptance. Fixtures and an Electron

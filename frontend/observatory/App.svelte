@@ -225,6 +225,19 @@
   let evidenceRequest = $state.raw<{ title: string; row: RecordData; agents: RecordData[] } | null>(
     null,
   );
+  function revokeAuditSelection() {
+    if (detail && typeof detail.row.eventId === 'string' && detail.row.eventId.startsWith('audit:')) {
+      const row = { ...detail.row };
+      delete row.eventId;
+      detail = { ...detail, row };
+    }
+    if (evidenceRequest && typeof evidenceRequest.row.eventId === 'string' &&
+        evidenceRequest.row.eventId.startsWith('audit:')) {
+      const row = { ...evidenceRequest.row };
+      delete row.eventId;
+      evidenceRequest = { ...evidenceRequest, row };
+    }
+  }
   let evidenceReturnFocus: HTMLElement | null = null;
   let exceptionStatusRevision = $state(0);
   async function refreshExceptionStatus() {
@@ -250,9 +263,20 @@
   async function captureEvidence(title: string, row: RecordData, agents?: RecordData[]) {
     evidenceReturnFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const capturedRow = structuredClone($state.snapshot(row));
+    const selectedEventId = typeof row.eventId === 'string' ? row.eventId : null;
+    if (selectedEventId?.startsWith('audit:')) {
+      // Keep the evidence snapshot while allowing an audit lookup to be revoked
+      // if a later history page makes the originating selection ambiguous.
+      Object.defineProperty(capturedRow, 'eventId', {
+        enumerable: true,
+        configurable: true,
+        get: () => (row.eventId === selectedEventId ? selectedEventId : undefined),
+      });
+    }
     evidenceRequest = {
       title,
-      row: structuredClone($state.snapshot(row)),
+      row: capturedRow,
       agents: structuredClone(
         $state.snapshot(agents ?? (instances(displayTelemetry) as unknown as RecordData[])),
       ),
@@ -859,6 +883,7 @@
               <Reports
                 {host}
                 audit
+                onAuditCustodyInvalidated={revokeAuditSelection}
                 {inspect}
                 telemetry={displayTelemetry}
                 {navigate}

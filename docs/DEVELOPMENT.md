@@ -157,7 +157,7 @@ performing file I/O, spawning processes, or writing to disk.
 
 ## Observatory data flow
 
-OS sensors → main process → preload.js → runtime/host.ts → App.svelte and workspace components. The host adapter owns seven telemetry subscriptions, freshness, revision-guarded initial reads and teardown. Settings, Rules and App own the remaining update, rules, theme and desktop-navigation subscriptions. All 55 invoke and 11 push methods are mapped in [the integration record](../OBSERVATORY-INTEGRATION.md).
+OS sensors → main process → preload.js → runtime/host.ts → App.svelte and workspace components. The host adapter owns seven telemetry subscriptions, freshness, revision-guarded initial reads and teardown. Settings, Rules, App and Audit own the remaining update, rules, theme, desktop-navigation and custody subscriptions. The preload exposes 56 invoke and 12 push methods; the integration record describes the existing Observatory wiring.
 
 The scan batch carries anomalyScoresByInstance. Risk enrichment remains a shared pure computation. Instance identity is never inferred from name or PID. Process commands carry both pid and instanceId and are revalidated in main. Project permission keys persist by agent/cwd/parent context and are deliberately separate from process lifetime IDs.
 

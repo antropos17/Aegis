@@ -80,6 +80,12 @@ contextBridge.exposeInMainWorld('aegis', {
   exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
   importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
+  getAuditCustodyRevision: () => ipcRenderer.invoke('audit:custody-revision'),
+  onAuditCustodyRevision: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('audit:custody-revision', handler);
+    return () => ipcRenderer.removeListener('audit:custody-revision', handler);
+  },
   reviewAuditIntegrity: (date) => ipcRenderer.invoke('audit:review-integrity', date),
   getAuditEntriesBefore: (beforeTs, limit, types, boundaryOffset) =>
     ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit, types, boundaryOffset),

@@ -2,6 +2,7 @@
 
 const { normalizeAuditEntry } = require('./audit-normalize');
 const { MARKER_TYPE } = require('./audit-drop-tracker');
+const { rememberAuditOrigin } = require('./audit-observation-identity');
 
 // At most one statement per validated filter length, per connection. Closed connections
 // are not retained by this cache. Values are always bound, including event type names.
@@ -34,14 +35,16 @@ function queryBefore(db, beforeTs, limit, types, boundaryOffset) {
       ? ` AND type IN (${values.map(() => '?').join(',')})
           AND (type != '' OR json_type(raw, '$.type') = 'text')`
       : '';
-    stmt = db.prepare(`SELECT raw FROM audit_events
+    stmt = db.prepare(`SELECT raw, file, line_no FROM audit_events
       WHERE timestamp != '' AND timestamp ${inclusive ? '<=' : '<'} ? AND type != ?${filter}
       ORDER BY timestamp DESC, file DESC, line_no DESC LIMIT ? OFFSET ?`);
     cache.set(cacheKey, stmt);
   }
   return stmt
     .all(beforeTs, MARKER_TYPE, ...values, limit, boundaryOffset ?? 0)
-    .map(({ raw }) => normalizeAuditEntry(JSON.parse(raw)))
+    .map(({ raw, file, line_no: lineNo }) =>
+      rememberAuditOrigin(normalizeAuditEntry(JSON.parse(raw)), file, lineNo),
+    )
     .reverse();
 }
 
