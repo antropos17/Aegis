@@ -194,6 +194,7 @@ describe('Observatory localization', () => {
       'Hook adapter failure',
       'Supported command requires provider confirmation',
       'Project script can run unchecked actions; provider confirmation required',
+      'Patch contents, written paths and executable are unverified; provider confirmation required',
       'Declared sensitive filename',
       'Declared destructive command',
       'Unsupported command or input',

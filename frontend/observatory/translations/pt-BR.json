@@ -2191,6 +2191,7 @@
   "Hook adapter failure": "Falha do adaptador do hook",
   "Supported command requires provider confirmation": "O comando compatível exige confirmação do provedor",
   "Project script can run unchecked actions; provider confirmation required": "O script do projeto pode executar ações não verificadas; é necessária a confirmação do provedor",
+  "Patch contents, written paths and executable are unverified; provider confirmation required": "O conteúdo do patch, os caminhos gravados e o executável não foram verificados; é necessária a confirmação do provedor",
   "Declared sensitive filename": "Nome de arquivo sensível declarado",
   "Declared destructive command": "Comando destrutivo declarado",
   "Unsupported command or input": "Comando ou entrada sem suporte",

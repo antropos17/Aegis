@@ -75,6 +75,8 @@
     'project-review-ordinary': 'Supported command requires provider confirmation',
     'project-review-script':
       'Project script can run unchecked actions; provider confirmation required',
+    'project-review-edit':
+      'Patch contents, written paths and executable are unverified; provider confirmation required',
     'project-deny-sensitive': 'Declared sensitive filename',
     'project-deny-destructive': 'Declared destructive command',
     'project-deny-unsupported': 'Unsupported command or input',
@@ -93,6 +95,7 @@
     'adapter-failure': ['deny'],
     'project-review-ordinary': ['ask'],
     'project-review-script': ['ask'],
+    'project-review-edit': ['ask'],
     'project-deny-sensitive': ['deny'],
     'project-deny-destructive': ['deny'],
     'project-deny-unsupported': ['deny'],
