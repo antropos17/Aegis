@@ -133,6 +133,18 @@ it('refuses a profile that changes during capture', async () => {
   f.admission.close();
 });
 
+it('revokes the binding after drift, even if the profile is later restored', async () => {
+  const f = fixture();
+  const binding = await f.admission.capture(f.directory);
+  expect(binding).not.toBeNull();
+  f.setEntries([]);
+  expect(await f.admission.verify(binding)).toBe(false);
+  f.setEntries([f.entry]);
+  expect(await f.admission.verify(binding)).toBe(false);
+  expect(await f.admission.capture(f.directory)).not.toBeNull();
+  f.admission.close();
+});
+
 it('refuses in-flight verification after closure', async () => {
   const f = fixture();
   const binding = await f.admission.capture(f.directory);
@@ -148,4 +160,23 @@ it('refuses in-flight verification after closure', async () => {
   f.admission.close();
   await unblock();
   expect(await checking).toBe(false);
+});
+
+it('revokes both concurrent verification attempts', async () => {
+  const f = fixture();
+  const binding = await f.admission.capture(f.directory);
+  let unblock;
+  const prior = f.io.readTarget.getMockImplementation();
+  f.io.readTarget.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        unblock = async () => resolve(await prior());
+      }),
+  );
+  const first = f.admission.verify(binding);
+  expect(await f.admission.verify(binding)).toBe(false);
+  await unblock();
+  expect(await first).toBe(false);
+  expect(await f.admission.verify(binding)).toBe(false);
+  f.admission.close();
 });

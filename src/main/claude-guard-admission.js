@@ -138,9 +138,14 @@ function createClaudeGuardAdmission({ io, target, executable, appPath }) {
     }
   }
   async function verify(binding) {
-    if (closed || busy || !state || state.binding !== binding) return false;
+    if (closed || !state || state.binding !== binding) return false;
+    if (busy) {
+      release(binding);
+      return false;
+    }
     busy = true;
     const expected = state;
+    let accepted = false;
     let before, after, policy;
     try {
       before = await readTarget(io);
@@ -156,18 +161,19 @@ function createClaudeGuardAdmission({ io, target, executable, appPath }) {
       )
         return false;
       after = await readTarget(io);
-      return (
+      accepted =
         !closed &&
         state === expected &&
         after.identity === expected.profile.identity &&
-        after.bytes.equals(expected.profile.bytes)
-      );
+        after.bytes.equals(expected.profile.bytes);
+      return accepted;
     } catch {
       return false;
     } finally {
       before?.bytes.fill(0);
       after?.bytes.fill(0);
       policy?.bytes.fill(0);
+      if (!accepted && state === expected) release(binding);
       busy = false;
     }
   }
