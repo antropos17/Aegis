@@ -9,6 +9,8 @@ import { spawnSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const { inventoryProfile, inventoryProject } = require('../../src/main/agent-inventory');
 const { getInventoryProfile } = require('../../src/main/inventory-profiles');
+const { createSnapshot, acceptSnapshot } = require('../../src/main/inventory-snapshot');
+const { compareSnapshots } = require('../../src/main/inventory-snapshot-diff');
 const main = path.resolve(import.meta.dirname, '../../src/main/main.js');
 let fixture;
 let root;
@@ -57,7 +59,7 @@ describe('explicit inventory profiles', () => {
       schemaVersion: 3,
       mode: 'profile-inventory',
       complete: true,
-      adapter: { id: 'user-home', version: 3 },
+      adapter: { id: 'user-home', version: 4 },
       assessment: 'not-performed',
     });
     expect(report.components.map((entry) => entry.path)).toEqual([
@@ -215,20 +217,21 @@ describe('explicit inventory profiles', () => {
     );
   });
 
-  it('fingerprints only the declared default Gemini instructions for each selected layout', async () => {
+  it('fingerprints default and selected-settings Gemini instruction candidates in each layout', async () => {
     const projectText = 'PRIVATE_PROJECT_INSTRUCTIONS\n';
     const userText = 'PRIVATE_USER_INSTRUCTIONS\n';
     put('GEMINI.md', projectText);
     put('.gemini/GEMINI.md', userText);
     put('.gemini/settings.json', '{"context":{"fileName":"custom.md"}}');
+    put('custom.md', 'PRIVATE_PROJECT_CONFIGURED_INSTRUCTIONS');
     put('.gemini/custom.md', 'PRIVATE_CONFIGURED_INSTRUCTIONS');
     put('.gemini/oauth_creds.json', 'PRIVATE_OAUTH');
     put('.gemini/history/session.json', 'PRIVATE_HISTORY');
     const open = vi.spyOn(fs.promises, 'open');
     for (const [id, directory, version, instructionPath, scope, content] of [
-      ['project', root, 3, 'GEMINI.md', 'project', projectText],
-      ['user-home', root, 3, '.gemini/GEMINI.md', 'user', userText],
-      ['gemini-user', path.join(root, '.gemini'), 2, 'GEMINI.md', 'user', userText],
+      ['project', root, 4, 'GEMINI.md', 'project', projectText],
+      ['user-home', root, 4, '.gemini/GEMINI.md', 'user', userText],
+      ['gemini-user', path.join(root, '.gemini'), 3, 'GEMINI.md', 'user', userText],
     ]) {
       const report =
         id === 'project'
@@ -240,8 +243,13 @@ describe('explicit inventory profiles', () => {
         scope: { configurationPrecedence: 'not-resolved' },
       });
       expect(report.scope.instructions).toContain(instructionPath);
+      const candidate = id === 'user-home' ? '.gemini/custom.md' : 'custom.md';
       expect(report.components.map((entry) => entry.path)).toEqual(
-        [instructionPath, id === 'gemini-user' ? 'settings.json' : '.gemini/settings.json'].sort(),
+        [
+          candidate,
+          instructionPath,
+          id === 'gemini-user' ? 'settings.json' : '.gemini/settings.json',
+        ].sort(),
       );
       expect(report.components.find((entry) => entry.path === instructionPath)).toMatchObject({
         kind: 'instruction',
@@ -255,14 +263,116 @@ describe('explicit inventory profiles', () => {
           packageIdentity: 'not-resolved',
         },
       });
-      expect(JSON.stringify(report)).not.toMatch(/PRIVATE|custom\.md/);
+      expect(report.components.find((entry) => entry.path === candidate)).toMatchObject({
+        kind: 'instruction',
+        provenance: { agent: 'gemini-cli', scope },
+      });
+      expect(JSON.stringify(report)).not.toMatch(/PRIVATE/);
     }
     const projectConfig = await inventoryProfile('gemini-project', path.join(root, '.gemini'));
     expect(projectConfig.components.map((entry) => entry.path)).toEqual(['settings.json']);
     expect(projectConfig.scope.instructions).toEqual([]);
     expect(open.mock.calls.map(([name]) => String(name))).not.toEqual(
-      expect.arrayContaining([expect.stringMatching(/custom\.md|oauth_creds|history/)]),
+      expect.arrayContaining([expect.stringMatching(/oauth_creds|history/)]),
     );
+  });
+
+  it('deduplicates the configured default and observes bounded arrays', async () => {
+    put(
+      'settings.json',
+      JSON.stringify({ context: { fileName: ['GEMINI.md', 'TEAM.md', 'notes.txt'] } }),
+    );
+    put('GEMINI.md', 'default');
+    put('TEAM.md', 'team');
+    put('notes.txt', 'notes');
+    const report = await inventoryProfile('gemini-user', root);
+    expect(report.complete).toBe(true);
+    expect(report.components.map((entry) => entry.path)).toEqual([
+      'GEMINI.md',
+      'TEAM.md',
+      'notes.txt',
+      'settings.json',
+    ]);
+    expect(report.limits.geminiInstructionCandidates).toBe(8);
+  });
+
+  it.each([
+    [null, 'gemini-instruction-invalid-shape'],
+    [['safe.md', 7], 'gemini-instruction-invalid-shape'],
+    ['../PRIVATE.md', 'gemini-instruction-unsupported-name'],
+    ['C:\\PRIVATE.md', 'gemini-instruction-unsupported-name'],
+    ['notes.md:stream', 'gemini-instruction-unsupported-name'],
+    ['con.md', 'gemini-instruction-unsupported-name'],
+    ['tool.js', 'gemini-instruction-unsupported-name'],
+    [['one.md', 'ONE.md'], 'gemini-instruction-duplicate-name'],
+    [Array.from({ length: 9 }, (_, i) => `file${i}.md`), 'gemini-instruction-count-limit'],
+  ])(
+    'records a coverage gap for unsupported or excessive declared names',
+    async (fileName, reason) => {
+      put('settings.json', JSON.stringify({ context: { fileName } }));
+      const report = await inventoryProfile('gemini-user', root);
+      expect(report.complete).toBe(false);
+      expect(report.issues).toContainEqual({ path: 'settings.json', reason });
+      expect(JSON.stringify(report)).not.toContain('PRIVATE');
+    },
+  );
+
+  it('reports missing and colliding declared candidates without treating them as successful reads', async () => {
+    put(
+      '.gemini/settings.json',
+      JSON.stringify({ context: { fileName: ['missing.md', 'CLAUDE.md'] } }),
+    );
+    put('CLAUDE.md', 'claude instructions');
+    const report = await inventoryProject(root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toContainEqual({
+      path: '.gemini/settings.json',
+      reason: 'gemini-instruction-unavailable',
+    });
+    expect(report.issues).toContainEqual({
+      path: '.gemini/settings.json',
+      reason: 'gemini-instruction-collision',
+    });
+    expect(report.components.filter((entry) => entry.path === 'CLAUDE.md')).toHaveLength(1);
+    expect(report.components.find((entry) => entry.path === 'CLAUDE.md').provenance.agent).toBe(
+      'claude-code',
+    );
+  });
+
+  it('skips linked configured candidates and never reads their target', async () => {
+    put('settings.json', JSON.stringify({ context: { fileName: 'linked.md' } }));
+    const outside = path.join(fixture, 'outside');
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, 'PRIVATE'), 'private');
+    const link = path.join(root, 'linked.md');
+    fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+    links.push(link);
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await inventoryProfile('gemini-user', root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toContainEqual({ path: 'linked.md', reason: 'link-skipped' });
+    expect(open.mock.calls.map(([name]) => String(name))).not.toContain(
+      path.join(outside, 'PRIVATE'),
+    );
+  });
+
+  it('requires a new review across adapter versions and compares later settings changes as content', async () => {
+    put('settings.json', JSON.stringify({ context: { fileName: 'first.md' } }));
+    put('first.md', 'first');
+    put('second.md', 'second');
+    const report = await inventoryProfile('gemini-user', root);
+    const rootHash = 'a'.repeat(64);
+    const first = createSnapshot(report, rootHash);
+    const old = structuredClone(report);
+    old.adapter.version = 2;
+    expect(compareSnapshots(createSnapshot(old, rootHash), first).status).toBe('incompatible');
+    const accepted = acceptSnapshot(first, first.digest, first);
+    put('settings.json', JSON.stringify({ context: { fileName: 'second.md' } }));
+    const next = createSnapshot(await inventoryProfile('gemini-user', root), rootHash);
+    const result = compareSnapshots(accepted, next);
+    expect(result.status).toBe('review-required');
+    expect(result.changes.components.added).toEqual(['second.md']);
+    expect(result.changes.components.removed).toEqual(['first.md']);
   });
 
   it('keeps Windows Gemini system defaults and overrides distinct without merging them', async () => {

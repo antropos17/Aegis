@@ -1,6 +1,6 @@
 'use strict';
 
-/** @file Explicit directory layouts; never infer a home, expand env, or follow config references. */
+/** @file Explicit directory layouts; never infer a home or expand environment paths. */
 const config = (path, agent, scope, kind, format, sections, extra = {}) => ({
   path,
   agent,
@@ -33,8 +33,9 @@ const namedCodex = (directory, scope) => ({
 
 const PROFILES = {
   project: {
-    adapterVersion: 3,
+    adapterVersion: 4,
     referenceDate: '2026-09-26',
+    geminiInstructions: { settings: '.gemini/settings.json', directory: '', scope: 'project' },
     configs: [
       mcp('.mcp.json', 'shared', 'project'),
       mcp('.cursor/mcp.json', 'cursor', 'project'),
@@ -55,8 +56,9 @@ const PROFILES = {
     skillRoots: skills('project'),
   },
   'user-home': {
-    adapterVersion: 3,
+    adapterVersion: 4,
     referenceDate: '2026-09-26',
+    geminiInstructions: { settings: '.gemini/settings.json', directory: '.gemini', scope: 'user' },
     configs: [
       { ...mcp('.claude.json', 'claude-code', 'user-and-project-local'), localProjects: true },
       hooks('.claude/settings.json', 'claude-code', 'user'),
@@ -101,8 +103,9 @@ const PROFILES = {
     configs: [config('mcp.json', 'vscode', 'user-profile', 'mcp', 'jsonc', ['servers'])],
   },
   'gemini-user': {
-    adapterVersion: 2,
+    adapterVersion: 3,
     referenceDate: '2026-09-26',
+    geminiInstructions: { settings: 'settings.json', directory: '', scope: 'user' },
     configs: [geminiSettings('settings.json', 'user')],
     instructions: [location('GEMINI.md', 'gemini-cli', 'user')],
   },

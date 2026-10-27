@@ -86,14 +86,13 @@ function analyzeFile(name, data, entry, catalog, adapter) {
     return { mode: 'javascript-command-ast', ...analyzeJavaScript(text, name, catalog) };
   if (/\.py$/i.test(base))
     return { mode: 'python-command-syntax', ...analyzePython(text, name, catalog) };
-  if (
-    /\.(?:sh|bash|zsh|ps1)$/i.test(base) ||
-    /^#![^\r\n]*(?:\/(?:ba|da|z)?sh|\benv\s+(?:ba|da|z)?sh)\b/.test(text)
-  )
+  const shellShebang = /^#![^\r\n]*(?:\/(?:ba|da|z)?sh|\benv\s+(?:ba|da|z)?sh)\b/.test(text);
+  if (/\.(?:sh|bash|zsh|ps1)$/i.test(base) || (shellShebang && !entry.configuredInstruction))
     return { mode: 'literal-shell', ...commandFile(text, false) };
   if (entry.kind === 'instruction' || /\.(?:md|mdx|txt)$/i.test(base) || base === '.cursorrules') {
     const commands = commandFile(text, true);
     const instructions = analyzeInstructions(text);
+    const shell = entry.configuredInstruction && shellShebang ? commandFile(text, false) : null;
     const claudeSkill =
       base === 'SKILL.md' &&
       (/(?:^|\/)\.claude\/skills\/[^/]+\/SKILL\.md$/.test(name) ||
@@ -102,9 +101,21 @@ function analyzeFile(name, data, entry, catalog, adapter) {
         : { findings: [], issues: [] };
     return {
       mode: 'instruction-patterns-and-code',
-      findings: [...commands.findings, ...instructions.findings, ...claudeSkill.findings],
-      issues: [...new Set([...commands.issues, ...instructions.issues, ...claudeSkill.issues])],
-      commands: commands.commands,
+      findings: [
+        ...commands.findings,
+        ...instructions.findings,
+        ...claudeSkill.findings,
+        ...(shell?.findings ?? []),
+      ],
+      issues: [
+        ...new Set([
+          ...commands.issues,
+          ...instructions.issues,
+          ...claudeSkill.issues,
+          ...(shell?.issues ?? []),
+        ]),
+      ],
+      commands: commands.commands + (shell?.commands ?? 0),
     };
   }
   return { mode: 'unsupported', findings: [], issues: ['file-type-not-analyzed'], commands: 0 };

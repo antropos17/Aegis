@@ -58,16 +58,24 @@ effective policy after configuration layers, extensions, environment variables
 and launch arguments are combined. The Windows system adapter does not merge
 defaults and overrides or inspect either override environment variable.
 
-Default Gemini instructions are observed only at `GEMINI.md` in a selected
+Default Gemini instructions are observed at `GEMINI.md` in a selected
 `project` root, `.gemini/GEMINI.md` in a selected `user-home` root, and `GEMINI.md`
 in a selected `gemini-user` root. These files receive byte hashes and declared
 provenance; their text is not returned. The `gemini-project` adapter selects a
 project's `.gemini` settings directory, so it does not include the sibling
-project-root `GEMINI.md`. These candidate observations do not establish the
-effective context sent to a model. AEGIS does not resolve ancestor, workspace,
-descendant or just-in-time context files, `@` imports, extension-provided context,
-or custom `context.fileName` values from settings. Static review applies its existing
-bounded instruction patterns to these selected files and reports semantic gaps.
+project-root `GEMINI.md`. For these three selected layouts, AEGIS also observes
+up to eight explicit `context.fileName` basenames from that layout's selected
+settings file at the corresponding instruction directory. Supported names are
+bounded ASCII `.md` or `.txt` basenames; paths, Windows device names, collisions,
+duplicate names and other values are reported as coverage gaps. Missing,
+unreadable, linked or otherwise unavailable candidates also make the scan
+incomplete. Observed filenames, hashes and provenance are returned; file contents
+and other configuration values are not. These candidates do not establish the
+effective context sent to a model. AEGIS does not resolve configuration layers,
+ancestor, workspace, descendant or just-in-time context files, `@` imports, or
+extension-provided context. Static review applies its existing bounded instruction
+patterns to these selected files and reports semantic gaps. Adapter versions for
+the three affected layouts changed, so prior accepted snapshots require a new review.
 
 ## OS and version matrix
 
