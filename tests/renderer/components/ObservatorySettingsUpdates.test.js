@@ -40,6 +40,49 @@ it('preserves a pushed update when the initial status snapshot arrives late', as
   expect(screen.queryByText(/Update could not be completed/)).toBeNull();
 });
 
+it('preserves a pushed update when the initial status read rejects late', async () => {
+  let rejectSeed;
+  let push;
+  const mounted = mountSettings({
+    getSettings: async () => ({}),
+    getUpdateStatus: () =>
+      new Promise((_, reject) => {
+        rejectSeed = reject;
+      }),
+    onUpdateStatus: (callback) => {
+      push = callback;
+      return () => {};
+    },
+  });
+  await desktop();
+  push(status('ready'));
+  expect(await screen.findByText(/Update ready to install/)).toBeVisible();
+  rejectSeed(new Error('read failed'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await tick();
+  expect(screen.getByText(/Update ready to install/)).toBeVisible();
+  expect(screen.queryByText(/Could not read update status/)).toBeNull();
+  mounted.unmount();
+});
+
+it('reports an initial status read failure and allows retrying the check', async () => {
+  const checkForUpdates = vi.fn(async () => status('checking'));
+  mountSettings({
+    getSettings: async () => ({}),
+    getUpdateStatus: async () => {
+      throw new Error('read failed');
+    },
+    checkForUpdates,
+  });
+  await desktop();
+  expect(
+    await screen.findByText(/Could not read update status. Try checking again./),
+  ).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
+  expect(checkForUpdates).toHaveBeenCalledExactlyOnceWith();
+  expect(await screen.findByText(/Checking for updates/)).toBeVisible();
+});
+
 it('disposes the subscription while an initial update read is still pending', async () => {
   let resolveSeed;
   const unsubscribe = vi.fn();

@@ -258,7 +258,7 @@
         if (alive && revision === 0) updates = record(value);
       })
       .catch(() => {
-        if (alive)
+        if (alive && revision === 0)
           updates = { status: 'error', error: 'Could not read update status. Try checking again.' };
       });
     return () => {
