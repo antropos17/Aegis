@@ -690,6 +690,7 @@ async function doProcessScan() {
   // Early-return BEFORE updateScanStatus(true): a blocked re-entrant call must not
   // bump activeScanCount, whose only decrement lives in the finally below.
   if (processScanRunning) {
+    deps.onLivePopulationScanSkipped?.();
     skippedProcessTicks++;
     lastSkippedAt = Date.now();
     // The in-flight scan may remain pending, so publish the cadence change now.

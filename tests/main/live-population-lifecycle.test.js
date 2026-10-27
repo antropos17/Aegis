@@ -1,7 +1,9 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRequire } from 'node:module';
 import { installShims, createHarness, CLAUDE } from './helpers/health-umbrella-harness.js';
 
 const shims = installShims();
+const require_ = createRequire(import.meta.url);
 let h, hooks, detachPower;
 
 beforeEach(() => {
@@ -14,6 +16,7 @@ beforeEach(() => {
     ...h.deps,
     beginLivePopulationScan: hooks.begin,
     onLivePopulationIntervalsStopped: hooks.lifecycleChange,
+    onLivePopulationScanSkipped: hooks.lifecycleChange,
     onProcessScanCommitted: hooks.committed,
     onProcessObservationUnavailable: hooks.unavailable,
   });
@@ -107,6 +110,42 @@ describe('live population custody through real process scans', () => {
     expect(hooks.witness()).not.toBe(previous);
   });
 
+  it('revokes a committed population when a stalled token read causes a scheduled scan to be skipped', async () => {
+    h.installSnapshotLeaf('HEALTHY', 'sidecar');
+    let finish;
+    const tokenFeed = require_('../../src/main/token-feed.js');
+    const feed = vi.spyOn(tokenFeed, 'readUsageByPid')
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+      .mockResolvedValue([]);
+    try {
+      h.scanLoop.startScanIntervals(5000);
+      await h.advance(5000);
+      expect(feed).toHaveBeenCalledOnce();
+      expect(finish).toBeTypeOf('function');
+      const committed = hooks.witness();
+      expect(committed).toBeTypeOf('string');
+      expect(h.sessionTracker.activeCount()).toBe(1);
+
+      await h.advance(5000);
+      expect(h.scanLoop.getScanCadence().skippedProcessTicks).toBe(1);
+      expect(hooks.witness()).toBeNull();
+      expect(h.sessionTracker.activeCount()).toBe(1);
+      expect(h.auditTypes()).not.toContain('agent-exit');
+
+      finish([]);
+      await h.flush();
+      expect(hooks.witness()).toBeNull();
+      await h.advance(5000);
+      expect(hooks.witness()).toBeTypeOf('string');
+      expect(hooks.witness()).not.toBe(committed);
+      expect(h.sessionTracker.activeCount()).toBe(1);
+      expect(h.auditTypes()).not.toContain('agent-exit');
+    } finally {
+      if (finish) finish([]);
+      feed.mockRestore();
+    }
+  });
+
   it.each(['suspend-resume', 'orphan-resume'])(
     'does not admit a population when %s straddles the provider await',
     async (transition) => {
@@ -142,6 +181,24 @@ describe('live population custody through real process scans', () => {
     setSnapshot('HEALTHY', 'sidecar');
     await h.tickProcess();
     expect(hooks.witness()).toBeTypeOf('string');
+    expect(h.auditTypes()).not.toContain('agent-exit');
+  });
+
+  it.each(['EPERM', 'EIO'])('withholds the prior population on provider %s and restores only on a healthy scan', async (code) => {
+    await h.tickProcess();
+    const first = hooks.witness();
+    expect(first).toBeTypeOf('string');
+    h.listProcesses.mockRejectedValueOnce(Object.assign(new Error('fixture provider failure'), { code }));
+    await h.tickProcess();
+    expect(h.scanner.getProcessCapabilities().populationReliable).toBe(false);
+    expect(hooks.witness()).toBeNull();
+    expect(h.sessionTracker.activeCount()).toBe(1);
+    expect(h.auditTypes()).not.toContain('agent-exit');
+    await h.tickProcess();
+    expect(h.scanner.getProcessCapabilities().populationReliable).toBe(true);
+    expect(hooks.witness()).toBeTypeOf('string');
+    expect(hooks.witness()).not.toBe(first);
+    expect(h.sessionTracker.activeCount()).toBe(1);
     expect(h.auditTypes()).not.toContain('agent-exit');
   });
 });

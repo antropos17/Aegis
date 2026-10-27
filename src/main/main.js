@@ -1289,6 +1289,7 @@ function initDeferredSubsystems(userData) {
     securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
     beginLivePopulationScan,
+    onLivePopulationScanSkipped: noteLiveLifecycleChange,
     onLivePopulationIntervalsStopped: noteLiveLifecycleChange,
     onProcessScanCommitted: onLiveProcessScanCommitted,
     onProcessObservationUnavailable: onLiveProcessObservationUnavailable,
