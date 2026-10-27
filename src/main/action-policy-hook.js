@@ -8,6 +8,24 @@ const REASONS = Object.freeze({
   ask: 'AEGIS policy requires confirmation of this tool request.',
   deny: 'AEGIS policy does not allow this tool request.',
 });
+const PROJECT_REASONS = Object.freeze({
+  'project-review-ordinary': [
+    'ask',
+    'AEGIS project review requests provider confirmation for this supported command.',
+  ],
+  'project-deny-sensitive': [
+    'deny',
+    'AEGIS project review denies this declared sensitive filename.',
+  ],
+  'project-deny-destructive': [
+    'deny',
+    'AEGIS project review denies this declared destructive command.',
+  ],
+  'project-deny-unsupported': [
+    'deny',
+    'AEGIS project review does not support this command or input.',
+  ],
+});
 let testDeps = null;
 
 /**
@@ -52,17 +70,24 @@ function handleActionPolicyHook(args, write) {
     evaluate,
     normalize(result) {
       if (!result || !Object.hasOwn(REASONS, result.decision)) return undefined;
-      return { decision: result.decision, code: 0 };
+      const reason = Object.hasOwn(PROJECT_REASONS, result.reason)
+        ? PROJECT_REASONS[result.reason]
+        : null;
+      return {
+        decision: result.decision,
+        code: 0,
+        message: reason && reason[0] === result.decision ? reason[1] : undefined,
+      };
     },
     respond,
   });
-  function respond({ decision = 'deny', code = 2 } = {}) {
+  function respond({ decision = 'deny', code = 2, message } = {}) {
     write(
       JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
           permissionDecision: decision,
-          permissionDecisionReason: REASONS[decision],
+          permissionDecisionReason: message || REASONS[decision],
         },
       }),
     );

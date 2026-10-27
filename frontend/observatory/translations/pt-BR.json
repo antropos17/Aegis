@@ -2139,7 +2139,7 @@
   "This session has no owned installation to remove.": "Esta sessão não possui uma instalação própria para remover.",
   "The review expired before confirmation. Review the current change again.": "A revisão expirou antes da confirmação. Revise novamente a alteração atual.",
   "The setup session ended. Retained profile files need a separate recovery review.": "A sessão de configuração terminou. Os arquivos retidos do perfil precisam de uma revisão separada de recuperação.",
-  "Select a valid AEGIS schema-1 Bash policy.": "Selecione uma política Bash válida do AEGIS com esquema 1.",
+  "Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.": "Selecione uma política Bash válida do AEGIS que use o esquema 1 ou o esquema 2 compatível.",
   "A selected path cannot be represented safely in this hook command.": "Um caminho selecionado não pode ser representado com segurança neste comando de hook.",
   "The retained backup limit was reached. Review the existing profile files before another setup.": "O limite de backups retidos foi atingido. Revise os arquivos existentes do perfil antes de outra configuração.",
   "The exact change is too large for this native review.": "A alteração exata é grande demais para esta revisão nativa.",

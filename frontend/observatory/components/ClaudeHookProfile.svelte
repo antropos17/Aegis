@@ -31,7 +31,7 @@
       'Previous setup approvals expired. Start a fresh review of the current separate profile.',
     SESSION_RELEASE_UNCONFIRMED:
       'The previous native session has not confirmed shutdown. Another write is unavailable.',
-    INVALID_POLICY: 'Select a valid AEGIS schema-1 Bash policy.',
+    INVALID_POLICY: 'Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.',
     UNSUPPORTED_PATH: 'A selected path cannot be represented safely in this hook command.',
     RETENTION_LIMIT:
       'The retained backup limit was reached. Review the existing profile files before another setup.',
