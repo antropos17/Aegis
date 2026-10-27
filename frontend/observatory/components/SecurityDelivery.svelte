@@ -2,14 +2,60 @@
   import { t } from '../runtime/i18n';
   import type { Telemetry } from '../runtime/host';
   import { securityDelivery } from '../runtime/security-delivery';
+  import {
+    deliveryRateMatches,
+    RATE_BUCKETS,
+    type DeliveryRateState,
+  } from '../runtime/security-delivery-rate';
 
-  let { telemetry, now }: { telemetry: Telemetry; now: number } = $props();
+  let {
+    telemetry,
+    now,
+    rateState = null,
+  }: { telemetry: Telemetry; now: number; rateState?: DeliveryRateState | null } = $props();
   let delivery = $derived(securityDelivery(telemetry, Math.max(now, Date.now())));
+  let rateMatches = $derived(deliveryRateMatches(rateState, telemetry, Math.max(now, Date.now())));
+  const rateLabels = {
+    'file-watch': 'File watcher',
+    'file-handle': 'File handle scan',
+    process: 'Process',
+    network: 'Network',
+    other: 'Other',
+  };
 </script>
 
 <section class="delivery" aria-labelledby="security-delivery-heading">
   <h4 id="security-delivery-heading">{$t('Security event delivery')}</h4>
   <p>{$t('Audit-lane report. It does not measure sensor coverage or detection completeness.')}</p>
+  <section class="rates" aria-labelledby="security-delivery-rates">
+    <h5 id="security-delivery-rates">
+      {$t('Accepted audit-lane records per second between samples')}
+    </h5>
+    <p>
+      {$t(
+        'These rates are not total sensor activity or completeness. Zero does not mean no activity.',
+      )}
+    </p>
+    {#if rateMatches && rateState?.rates && rateState.intervalMs !== null}
+      <p>
+        {$t('Sample interval: {seconds} seconds. Source freshness is unknown.', {
+          seconds: (rateState.intervalMs / 1000).toFixed(2),
+        })}
+      </p>
+      <dl>
+        {#each RATE_BUCKETS as bucket (bucket)}
+          <div>
+            <dt>{$t(rateLabels[bucket])}</dt>
+            <dd>{rateState.rates[bucket].toFixed(2)}</dd>
+          </div>
+        {/each}
+      </dl>
+    {:else}
+      <p role="status">
+        {$t('Admission rates unavailable; two valid producer samples are required.')}
+      </p>
+    {/if}
+  </section>
   {#if delivery.available}
     <p class="freshness">{$t('Last received report; source freshness is unknown.')}</p>
     <dl>
@@ -85,6 +131,16 @@
     margin: 0;
     font-size: calc(12px * var(--ui-scale));
     font-weight: 650;
+  }
+  h5 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .rates {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
   }
   p {
     color: var(--muted);

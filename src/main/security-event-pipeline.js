@@ -25,6 +25,9 @@ function createSecurityBatcher(options) {
   const capacity = options.capacity ?? 512;
   const byteCapacity = options.byteCapacity ?? 1024 * 1024;
   const now = options.now ?? Date.now;
+  const sampleClock = options.sampleClock ?? (() => performance.now());
+  const generationFactory = options.sampleGeneration ?? randomUUID;
+  const sampleGeneration = typeof generationFactory === 'function' ? generationFactory() : null;
   if (
     !Number.isSafeInteger(capacity) ||
     capacity < 1 ||
@@ -32,7 +35,10 @@ function createSecurityBatcher(options) {
     !Number.isSafeInteger(byteCapacity) ||
     byteCapacity < 1024 ||
     byteCapacity > 1024 * 1024 ||
-    typeof options.consume !== 'function'
+    typeof options.consume !== 'function' ||
+    typeof sampleClock !== 'function' ||
+    typeof sampleGeneration !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(sampleGeneration)
   )
     throw new Error('invalid-pipeline-options');
   const sensors = Object.fromEntries(
@@ -63,6 +69,16 @@ function createSecurityBatcher(options) {
   let inflightAcknowledged = false;
   let corruptionCheckpoint = null;
   let store = null;
+  function sampleClockValue() {
+    try {
+      const raw = sampleClock();
+      if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return null;
+      const value = Math.floor(raw);
+      return Number.isSafeInteger(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
   function saveLedger() {
     markerDurable = store.saveLoss({
       pending: [...losses.values()],
@@ -338,6 +354,8 @@ function createSecurityBatcher(options) {
       closed = true;
     },
     getStats: () => ({
+      sampleGeneration,
+      sampleMonotonicMs: sampleClockValue(),
       sensors: structuredClone(sensors),
       spill: store.stats(),
       pendingLoss: [...losses.values(), ...inflight].reduce((sum, item) => sum + item.count, 0),

@@ -7,6 +7,7 @@
   import { fieldLabel } from '../runtime/detail-fields';
   import Icon from './Icon.svelte';
   import SecurityDelivery from './SecurityDelivery.svelte';
+  import type { DeliveryRateState } from '../runtime/security-delivery-rate';
   const sensorPresentation: Record<string, { title: string; description: string; icon: string }> = {
     process: {
       title: 'Agent processes',
@@ -96,7 +97,10 @@
         return 'Unavailable';
     }
   }
-  let { telemetry }: { telemetry: Telemetry } = $props();
+  let {
+    telemetry,
+    deliveryRate = null,
+  }: { telemetry: Telemetry; deliveryRate?: DeliveryRateState | null } = $props();
   let health = $derived(record(telemetry.stats.appHealth));
   let skippedProcessTicks = $derived(
     measured(record(telemetry.stats.scanCadence).skippedProcessTicks),
@@ -234,7 +238,7 @@
       <p>{$t('Running WSL state is unknown.')}</p>
     {/if}
   </section>
-  <SecurityDelivery {telemetry} {now} />
+  <SecurityDelivery {telemetry} {now} rateState={deliveryRate} />
   <div class="sensor-grid">
     {#each sensors as sensor (sensor.id)}
       {@const presentation = sensorPresentation[sensor.id] ?? {
