@@ -14,6 +14,7 @@ const scanner = require('./process-scanner');
 const analysis = require('./ai-analysis');
 const exporter = require('./exports');
 const audit = require('./audit-logger');
+const { createAuditIntegrityReview } = require('./audit-integrity-review');
 const { killProcess, suspendProcess, resumeProcess, getParentProcessMap } = require('./platform');
 const { writeAuditExport } = require('./audit-export-stream');
 const { getAllRules, reloadRules } = require('./rule-loader');
@@ -37,6 +38,7 @@ const { createQuitAppHandler } = require('./app-quit');
 
 let deps = {};
 let analysisConfirmationPending = false;
+const reviewAuditIntegrity = createAuditIntegrityReview({ getLogDir: () => audit.getLogDir() });
 
 /**
  * Keep known input validation actionable without exposing native write failures.
@@ -553,6 +555,12 @@ ${findingsHtml}${recsHtml}
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
       return { success: false, error: 'Renderer request denied' };
     return audit.getStats();
+  });
+  ipcMain.handle('audit:review-integrity', async (event, date) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
+    const result = await reviewAuditIntegrity(date);
+    return stillOwned(event, window) ? result : denied();
   });
   ipcMain.handle('get-audit-entries-before', (event, beforeTs, limit, types, boundaryOffset) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))

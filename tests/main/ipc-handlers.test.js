@@ -1033,6 +1033,7 @@ describe('ipc-handlers', () => {
     const event = alter(renderer);
     const denied = { success: false, error: 'Renderer request denied' };
     expect(await getHandler('get-audit-stats')(event)).toEqual(denied);
+    expect(await getHandler('audit:review-integrity')(event, '2026-10-27')).toEqual(denied);
     expect(await getHandler('get-audit-entries-before')(event, '2026-09-01', 25, [])).toEqual(
       denied,
     );
@@ -1470,6 +1471,7 @@ describe('ipc-handlers', () => {
     expect(registeredChannels).toContain('export-agent-database');
     expect(registeredChannels).toContain('import-agent-database');
     expect(registeredChannels).toContain('get-audit-stats');
+    expect(registeredChannels).toContain('audit:review-integrity');
     expect(registeredChannels).toContain('get-audit-entries-before');
     expect(registeredChannels).toContain('open-audit-log-dir');
     expect(registeredChannels).toContain('export-full-audit');
