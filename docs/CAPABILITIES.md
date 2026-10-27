@@ -1,6 +1,10 @@
 # AEGIS capabilities
 
-Source review: 16 October 2026, [revision `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
+The main source review used the 16 October 2026
+[revision `6001f2c`](https://github.com/antropos17/Aegis/tree/6001f2c295e42392967a845760c8fce14461b35a).
+Later source work and acceptance boundaries are tracked in the
+[completion plan](roadmap/completion-plan.md); the tables below retain the
+scope of the reviewed entry points unless a later qualification is linked.
 At that 16 October checkpoint, the published Windows installer was
 [0.19.2-beta](releases/0.19.2-beta.md), dated 6 October. See
 [GitHub Releases](https://github.com/antropos17/Aegis/releases) for current
@@ -28,7 +32,7 @@ routes do not imply cross-platform isolation.
 | --- | --- | --- |
 | Agent recognition | 112 agents and 265 process-name signatures; parent/child and IDE-host evidence; editable agent catalog | Signatures and parent evidence can miss or misclassify activity; recognition is not a trust decision. |
 | Instance radar | Separate stamped process instances, host/application grouping, selection, filters and activity details | A missing identity witness stays unavailable; radar positions are a visualization. |
-| File activity | Configured sensitive-directory watchers and Windows handle/Restart Manager observations | A watcher event can be unattributed; polling and native observations have distinct evidence strength. |
+| File activity | Configured sensitive-directory watchers, Windows handle/Restart Manager observations and explicitly started experimental Windows file-read capture | A watcher event can be unattributed; read paths remain candidates, and read observations do not change risk scoring or audit history. [Setup and qualification](development/ordinary-file-reads.md). |
 | TCP endpoints | Connections for detected agent PIDs, forward-confirmed reverse DNS and endpoint verdicts | Endpoints do not expose encrypted payloads or establish the purpose of a connection. |
 | Resource charts | Process CPU/RAM and complete available NVIDIA VRAM samples, Statistics and per-agent history | NVIDIA CLI admission uses default driver paths; missing or partial per-PID totals stay missing. WDDM can report unavailable process memory; VRAM allocation does not measure inference. |
 | Token accounting | Measured Claude Code input/output/cache subtotals from matching local session data, durable deduplication and estimated costs | Requires a readable matching transcript and start-time witness; other agents can show estimates. Collection can lag or be incomplete. See [token accounting](TOKEN-ACCOUNTING.md). |
@@ -70,7 +74,7 @@ decisions; they do not authenticate a publisher.
 | --- | --- | --- |
 | Detection rules | 73 sensitive-path rules across 8 categories; editable YAML and schema validation | File classification is separate from attribution and prevention. |
 | Baselines and risk | Rolling session baselines, time-decayed scoring and anomaly evidence | Scores support review; no general detection or false-positive rate is established. |
-| Sequence correlations | Ordered evidence with bounded state, relation/attribution checks and a mutation gate | Correlation does not prove exfiltration or causality. See [sequence evidence](SEQUENCE-EVIDENCE.md). |
+| Sequence correlations | Ordered evidence with bounded state, relation/attribution checks and behavioral regression coverage | Correlation does not prove exfiltration or causality. See [sequence evidence](SEQUENCE-EVIDENCE.md). |
 | Audit history | Daily hash-chained JSONL, 30-day retention and a rebuildable SQLite query index | Local chains require a trusted comparison state and cannot establish completeness. See [audit counters](AUDIT-COUNTERS.md). |
 | Reports and export | JSON, CSV, HTML and diagnostic ZIP; captured selection and coverage stay visible | Paths/endpoints remain sensitive; settings copies omit the configured API key. |
 | Optional AI analysis | Native confirmation before sending activity metadata to Anthropic using the configured key | Separate from offline review; external service charges and data disclosure apply. |
@@ -158,9 +162,10 @@ protected production session.
 ## Verification and remaining work
 
 The [required CI workflow](../.github/workflows/ci.yml) checks build, formatting,
-lint, TypeScript/Svelte, tests with coverage, witness/sequence mutation gates,
-derived counts and production dependencies. Use [development verification](development/workflow.md)
-for local commands. Passing CI does not replace target-platform evidence.
+lint, TypeScript/Svelte, tests with coverage, derived counts and production
+dependencies. Mutation campaigns are not part of routine CI. Use [development
+verification](development/workflow.md) for local commands. Passing CI does not
+replace target-platform evidence.
 
 The [roadmap](../ROADMAP.md), [protection plan](roadmap/ai-agent-protection.md) and
 linked dated receipts retain remaining discovery, native-platform, ETW, provider

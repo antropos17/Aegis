@@ -55,7 +55,7 @@ install 0.15.0-alpha or newer manually before using signed in-app updates.
 
 ### From source
 
-Requires Node.js 24.16.0 or later in the 24.x line. Source uses Electron 44 and
+Requires Node.js 24.16.0 or later in the 24.x line. Source uses Electron 45 and
 64-bit platforms; macOS requires version 13 or later. Windows 10/11 is primary;
 macOS/Linux remain experimental.
 
@@ -162,10 +162,20 @@ acceptance remain open. [Administrative contract](docs/roadmap/enforcement-e2/pr
 
 ## Current development
 
-Snapshot: 18 October 2026, merged through [#975](https://github.com/antropos17/Aegis/pull/975)
-at [master `96b63b16`](https://github.com/antropos17/Aegis/tree/96b63b165ac932e9615815f93c587765e6bde1b8).
-[Source changes](CHANGELOG.md).
-Each evidence record identifies its own tested revision and package.
+The [completion plan](docs/roadmap/completion-plan.md) tracks the current work and
+its acceptance boundaries. [Source changes](CHANGELOG.md) and the
+[development context](docs/development/current-context.md) identify the active
+checkout and evidence. Each qualification record names its own tested revision
+and package; a source change does not update a published installer.
+
+Recent Observatory work improves keyboard navigation, focus, localization and
+the clarity of observation and settings states in [#1127](https://github.com/antropos17/Aegis/pull/1127)
+and [#1128](https://github.com/antropos17/Aegis/pull/1128). These source changes
+do not establish installed-application or native-sensor acceptance.
+
+The following is a historical snapshot from 18 October 2026, through
+[#975](https://github.com/antropos17/Aegis/pull/975) at
+[`96b63b16`](https://github.com/antropos17/Aegis/tree/96b63b165ac932e9615815f93c587765e6bde1b8).
 
 | Area | Merged work |
 | --- | --- |
@@ -175,8 +185,9 @@ Each evidence record identifies its own tested revision and package.
 | Diagnostic ETW | [#966](https://github.com/antropos17/Aegis/pull/966)–[#973](https://github.com/antropos17/Aegis/pull/973) test scoped reads and recovery after helper, main and custodian loss. [Recovery limits](docs/roadmap/etw-durable-recovery.md) |
 | Genuine agent read | [#975](https://github.com/antropos17/Aegis/pull/975) verifies installed Claude Code reading a synthetic .env after a preparatory README read, with a visible read, issuer and potential risk. [Live record](docs/recon/evidence/agent-sensitive-read.json) |
 
-**Pending:** [#974](https://github.com/antropos17/Aegis/pull/974) remains draft until
-an actual Windows restart and post-restart capture pass.
+[#974](https://github.com/antropos17/Aegis/pull/974) was closed without merging.
+Its preflight did not establish an actual Windows restart and post-restart capture;
+see the current [Windows recovery admission](docs/roadmap/windows-recovery-admission.md).
 
 [#976](https://github.com/antropos17/Aegis/pull/976) prepares detected threads
 before the first scoped read. Its [live qualification](docs/recon/evidence/agent-first-read-preparation.json)
@@ -225,8 +236,9 @@ renderer and shared types use TypeScript. Exact versions and scripts are in
 Use an isolated branch, preserve existing work and describe actual validation in
 your PR. `npm test` runs the configured suite; `npm run counts:check` checks
 maintained declarations. CI also runs builds, lint, type checks, dependency audit
-and the identity/sequence mutation gates. Native and provider scenarios need their
-own matching evidence. [Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md).
+and derived counts. Mutation campaigns are not part of routine CI. Native and
+provider scenarios need their own matching evidence. [Architecture](ARCHITECTURE.md)
+· [Roadmap](ROADMAP.md).
 
 <a id="contributors"></a>
 <a id="support-and-license"></a>

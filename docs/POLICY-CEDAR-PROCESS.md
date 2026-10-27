@@ -239,7 +239,8 @@ This source comparison supports reusing the unchanged historical implementation
 observations; it does not turn the old native receipts into current-runtime
 qualification.
 
-Master now declares Electron 44.8.0 and js-yaml 5.5.0. The R4 native and ASAR
+At that integration checkpoint, master declared Electron 44.8.0 and js-yaml
+5.5.0. The R4 native and ASAR
 observations above used Electron 44.7.2 / embedded Node 24.21.0 and Cedar 4.13.0;
 they remain historical evidence for those retained fixture layouts. No native
 matrix or ASAR qualification on Electron 44.8.0 is claimed by this integration.

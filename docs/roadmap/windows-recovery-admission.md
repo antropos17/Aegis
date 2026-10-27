@@ -35,7 +35,8 @@ Its runtime/package sweep is bound to `3547b5195a695293549f4c35ce4d14744fcca3e1`
 preparation/refusal/cancellation use harness
 `212fbe85ae7d12f0aff91ed63cf1aed643d16364`. Those are distinct bindings.
 Preparation was cancelled; no actual reboot or reboot defect was reproduced.
-The 32-scenario preflight PASS cannot qualify the later ordinary package.
+The 32-scenario preflight PASS cannot qualify the later ordinary package. PR #974
+was subsequently closed without merging; restart recovery remains unqualified.
 
 ## Recovery admission matrix
 
