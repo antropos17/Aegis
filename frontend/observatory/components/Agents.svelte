@@ -128,7 +128,7 @@
               >{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
             >{#if advanced}<td
                 >{a.tokens?.toLocaleString() ?? '—'}{#if a.tokens !== null && a.estimated}<small
-                    class="evidence-note">{$t('Estimated')}</small
+                    class="evidence-note estimated-note">{$t('Estimated')}</small
                   >{/if}</td
               ><td>{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td><td>{a.files}</td><td
                 >{networkStatus === 'unavailable' ? '—' : a.network}
@@ -239,5 +239,8 @@
     display: block;
     color: var(--muted);
     white-space: normal;
+  }
+  .estimated-note {
+    white-space: nowrap;
   }
 </style>

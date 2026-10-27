@@ -785,6 +785,56 @@ Acceptance: qualification scripts and records per agent and version; tests for
 install, removal, tamper detection and the hook-versus-OS mismatch signal;
 `consistency-reviewer` pass on all UI text.
 
+#### W6.1 — MCP approval target identity and argument changes
+
+Pending follow-up added on 2026-10-27 from QuanTradin's r/mcp feedback on
+"One MCP tool, two target paths": show the resolved target and highlight changed
+arguments relative to the last approved call. This extends W6's existing MCP
+route; implementation and qualification remain open.
+
+At the post's beta revision `274d65711ac858c9d309c73f1f7c9c4e52872ed1`,
+the gateway matches the tool name and JSON argument values directly. It does
+not resolve filesystem paths inside tool arguments. Exact argument matching
+alone does not establish the identity of the file reached by a path.
+
+- For explicitly supported file tools, define which arguments represent paths
+  and resolve them in the executing tool server's filesystem context, including
+  its working directory, platform and remote/container namespace when applicable.
+  Show both the submitted path and the resolved absolute target, accounting for
+  `..`, symlinks and Windows junctions. Do not infer path semantics from arbitrary
+  strings or present a gateway-local resolution as the server's target. Unknown
+  or unavailable resolution is explicit; routes requiring verified targets deny
+  when that evidence is unavailable. For a new file, specify how the existing
+  parent and intended leaf are bound before claiming target verification.
+- Keep the exact original tool/argument binding and one-use semantics. Bind the
+  reviewed target identity and execution context to that same approval; define
+  its serialization and any digest inputs explicitly. A changed request, target
+  or context invalidates the approval. Do not silently normalize changed
+  arguments into an existing approval or rewrite the forwarded payload.
+- In the approval preview, highlight added, removed and changed argument fields
+  against the last owner-approved call for the same tool, catalog/schema and
+  selected route/session. Include path and content changes; keep the full current
+  payload available for review with applicable secret masking. Identify the
+  comparison baseline, show when none exists, and require fresh approval even
+  for an unchanged diff. Keep raw content and comparison history out of audit,
+  telemetry and exports unless the existing explicit data contract permits them.
+- Revalidate the reviewed target at execution in the tool server. Address the
+  approval-to-write race with a supported handle-relative or equivalent operation
+  that binds the write to the verified target; another path lookup alone does
+  not prove that binding. A changed link, junction or parent must not redirect an
+  approved operation. Record unsupported routes and remaining race limits before
+  making a prevention claim.
+
+Acceptance: behavioral cases cover scratch versus configuration targets,
+different paths reaching the same target through `..`, symlinks and junctions,
+relative paths with changed working directories, missing/new targets, unavailable
+server resolution, link/parent replacement after approval, changed content and
+one-use replay. UI cases cover added/removed/changed fields and the missing
+baseline. An independent filesystem outcome proves that a substituted target
+is untouched and an approved write still succeeds on each qualified route and
+platform. Fixture evidence and native execution evidence remain separately
+identified; these criteria do not authorize a new VM run or mutation campaign.
+
 ### W7 — Protected Session to acceptance review
 
 Owner: `windows-sensor-engineer`. Runs as its own sequence whenever the Windows
