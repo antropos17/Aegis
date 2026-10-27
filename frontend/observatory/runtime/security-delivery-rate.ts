@@ -4,6 +4,7 @@ import { DELIVERY_FRESHNESS_MS, securityDelivery } from './security-delivery';
 export const RATE_BUCKETS = ['file-watch', 'file-handle', 'process', 'network', 'other'] as const;
 type Bucket = (typeof RATE_BUCKETS)[number];
 type Values = Record<Bucket, number>;
+const MAX_RETIRED_GENERATIONS = 32;
 export type DeliveryRateState = {
   generation: string;
   sampleMs: number;
@@ -12,6 +13,7 @@ export type DeliveryRateState = {
   rates: Values | null;
   intervalMs: number | null;
   invalidated: boolean;
+  retiredGenerations: string[];
 };
 
 function invalidate(previous: DeliveryRateState | null): DeliveryRateState | null {
@@ -62,8 +64,17 @@ export function advanceDeliveryRate(
     rates: null,
     intervalMs: null,
     invalidated: false,
+    retiredGenerations: previous?.retiredGenerations ?? [],
   };
-  if (!previous || previous.generation !== generation) return sample;
+  if (!previous) return sample;
+  if (previous.generation !== generation) {
+    if (
+      previous.retiredGenerations.includes(generation) ||
+      previous.retiredGenerations.length >= MAX_RETIRED_GENERATIONS
+    )
+      return invalidate(previous);
+    return { ...sample, retiredGenerations: [...previous.retiredGenerations, previous.generation] };
+  }
   if (sampleMs < previous.sampleMs || telemetry.statsAt < previous.receivedAt)
     return invalidate(previous);
   if (sampleMs === previous.sampleMs) {

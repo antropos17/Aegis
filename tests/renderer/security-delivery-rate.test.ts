@@ -144,4 +144,27 @@ describe('security audit-lane admission rates', () => {
     state = advanceDeliveryRate(state, sample(6000, 7, 15_000), 15_000);
     expect(state?.rates?.network).toBe(1);
   });
+  it('does not revive retired generations from replayed sample pairs', () => {
+    let state = advanceDeliveryRate(null, sample(1000, 5, 10_000), 10_000);
+    state = advanceDeliveryRate(state, sample(2000, 6, 11_000), 11_000);
+    expect(state?.rates?.network).toBe(1);
+    state = advanceDeliveryRate(state, sample(1000, 1, 12_000, OTHER_ID), 12_000);
+    state = advanceDeliveryRate(state, sample(2000, 2, 13_000, OTHER_ID), 13_000);
+    expect(state?.rates?.network).toBe(1);
+    state = advanceDeliveryRate(state, sample(1000, 5, 14_000), 14_000);
+    expect(state?.rates).toBeNull();
+    state = advanceDeliveryRate(state, sample(2000, 6, 15_000), 15_000);
+    expect(state?.rates).toBeNull();
+  });
+  it('fails closed when the bounded generation history is exhausted', () => {
+    let state = advanceDeliveryRate(null, sample(1, 1, 10_000), 10_000);
+    for (let i = 0; i < 32; i++) {
+      const id = `33333333-3333-4333-8333-${i.toString(16).padStart(12, '0')}`;
+      state = advanceDeliveryRate(state, sample(1, 1, 10_001 + i, id), 10_001 + i);
+    }
+    expect(state?.retiredGenerations).toHaveLength(32);
+    const next = sample(1, 1, 20_000, '44444444-4444-4444-8444-444444444444');
+    expect(advanceDeliveryRate(state, next, 20_000)?.rates).toBeNull();
+    expect(advanceDeliveryRate(state, next, 20_000)?.generation).toBe(state?.generation);
+  });
 });
