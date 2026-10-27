@@ -15,22 +15,43 @@ const INACTIVE = Object.freeze({
 });
 
 function quotePowerShell(value) {
-  // eslint-disable-next-line no-control-regex -- Controls cannot enter a copied terminal command.
-  if (typeof value !== 'string' || !path.isAbsolute(value) || /[\u0000-\u001f\u007f]/.test(value))
-    throw Error('unsupported-launch-path');
   return "'" + value.replaceAll("'", "''") + "'";
 }
 
 function localLaunchPath(value, basename) {
   if (typeof value !== 'string' || value.length > 4096 || !/^[A-Za-z]:[\\/]/.test(value))
     return false;
-  // eslint-disable-next-line no-control-regex -- Refuse device syntax and terminal controls.
-  if (/[\x00-\x1f\x7f"<>|?*]/.test(value) || value.slice(2).includes(':')) return false;
+  if (/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}"<>|?*]/u.test(value) || value.slice(2).includes(':')) return false;
   return (
     path.win32.isAbsolute(value) &&
     path.win32.normalize(value) === value &&
     (!basename || path.win32.basename(value).toLowerCase() === basename)
   );
+}
+
+/** Construct the reviewed PowerShell broker command without embedding a secret.
+ * @param {string} executable Fixed application executable path.
+ * @param {string} appPath Fixed application archive or source path.
+ * @param {number} port Local listener port.
+ * @param {string} sessionId Public session reference.
+ * @returns {string} One synchronous, literal PowerShell command. @since v0.21.0 */
+function buildClaudeGuardCommand(executable, appPath, port, sessionId) {
+  if (
+    !localLaunchPath(executable) ||
+    !localLaunchPath(appPath) ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535 ||
+    typeof sessionId !== 'string' ||
+    !/^[a-f0-9]{32}$/.test(sessionId)
+  )
+    throw Error('unsupported-launch-command');
+  // Start-Process joins ArgumentList into a Windows native command line. Quote
+  // the archive as one argument and double terminal backslashes before the
+  // closing quote according to the Windows argv parsing convention.
+  const nativeArgument = '"' + appPath.replace(/\\+$/, (value) => value + value) + '"';
+  const argumentsText = `${nativeArgument} --claude-guard-session ${port} ${sessionId}`;
+  return `Start-Process -FilePath ${quotePowerShell(executable)} -ArgumentList ${quotePowerShell(argumentsText)} -NoNewWindow -Wait`;
 }
 
 function sameObject(first, next, file) {
@@ -366,7 +387,7 @@ function createClaudeGuardLauncher(options) {
         !/^[a-f0-9]{24}$/.test(next.launchKey)
       )
         throw Error('invalid-guard-session');
-      const command = `& ${quotePowerShell(executable)} ${quotePowerShell(appPath)} --claude-guard-session ${next.port} '${next.sessionId}'`;
+      const command = buildClaudeGuardCommand(executable, appPath, next.port, next.sessionId);
       clipboard.writeText(command);
       const keyReview = await dialog.showMessageBox(window, {
         type: 'question',
@@ -423,4 +444,4 @@ function createClaudeGuardLauncher(options) {
   });
 }
 
-module.exports = { createClaudeGuardLauncher };
+module.exports = { createClaudeGuardLauncher, buildClaudeGuardCommand };

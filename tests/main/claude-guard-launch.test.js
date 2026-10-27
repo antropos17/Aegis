@@ -5,8 +5,51 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { createClaudeGuardLauncher } = require('../../src/main/claude-guard-launch');
+const {
+  createClaudeGuardLauncher,
+  buildClaudeGuardCommand,
+} = require('../../src/main/claude-guard-launch');
 const directories = [];
+
+it('builds one synchronous PowerShell command with a single quoted native archive argument', () => {
+  const command = buildClaudeGuardCommand(
+    'C:\\Program Files\\AEGIS.exe',
+    'C:\\App Folder\\app.asar',
+    1234,
+    'b'.repeat(32),
+  );
+  expect(command).toBe(
+    `Start-Process -FilePath 'C:\\Program Files\\AEGIS.exe' -ArgumentList '"C:\\App Folder\\app.asar" --claude-guard-session 1234 ${'b'.repeat(32)}' -NoNewWindow -Wait`,
+  );
+});
+
+it('quotes apostrophes, ampersands and terminal backslashes without exposing a launch key', () => {
+  const command = buildClaudeGuardCommand(
+    "C:\\Owner's & Tools\\AEGIS.exe",
+    "C:\\Owner's & Project\\",
+    65535,
+    'a'.repeat(32),
+  );
+  expect(command).toBe(
+    `Start-Process -FilePath 'C:\\Owner''s & Tools\\AEGIS.exe' -ArgumentList '"C:\\Owner''s & Project\\\\" --claude-guard-session 65535 ${'a'.repeat(32)}' -NoNewWindow -Wait`,
+  );
+  expect(command).not.toContain('launchKey');
+  expect(command).not.toContain('capability');
+});
+
+it.each([
+  ['relative', 'C:\\app.asar', 1234, 'a'.repeat(32)],
+  ['C:\\Bad"Name\\app.exe', 'C:\\app.asar', 1234, 'a'.repeat(32)],
+  ['C:\\app.exe', 'C:\\line\nfeed', 1234, 'a'.repeat(32)],
+  ['C:\\app.exe', 'C:\\hidden\u0085control', 1234, 'a'.repeat(32)],
+  ['\\\\server\\share\\app.exe', 'C:\\app.asar', 1234, 'a'.repeat(32)],
+  ['C:\\app.exe', 'C:\\app.asar', 0, 'a'.repeat(32)],
+  ['C:\\app.exe', 'C:\\app.asar', 1234, 'a'.repeat(31)],
+])('rejects unsafe or invalid copied launch arguments', (executable, appPath, port, sessionId) => {
+  expect(() => buildClaudeGuardCommand(executable, appPath, port, sessionId)).toThrow(
+    'unsupported-launch-command',
+  );
+});
 
 afterEach(() => {
   for (const directory of directories.splice(0))
