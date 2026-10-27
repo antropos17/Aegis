@@ -24,7 +24,7 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     IDLE: 'Setup has not been reviewed.',
     UNAVAILABLE: 'Packaged Windows setup files are unavailable.',
     BUSY: 'Another profile review is in progress.',
-    CANCELLED: 'Review cancelled. The hook was not changed.',
+    CANCELLED: 'Review cancelled.',
     INSTALLED: 'Separate Gemini profile configured. Provider behavior is not verified.',
     REMOVED: 'The reviewed hook was removed from the separate profile.',
     INVALID_POLICY: 'Select a valid Gemini exact-deny policy of at most 4096 bytes.',
@@ -43,11 +43,19 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     RETAINED_UNKNOWN: 'The write or native helper shutdown is uncertain. Review retained files.',
     OPERATION_FAILED: 'Profile review could not complete. Retained files are preserved.',
   };
-  let profileState = $state({ canInstall: false, canRemove: false, canOpen: false });
+  type ProfileState = { canInstall: boolean; canRemove: boolean; canOpen: boolean };
+  let profileState = $state<ProfileState | null>(null);
+  let stateHost = $state.raw<Host | null>(null);
+  let statePreview = $state(false);
   let pending = $state<Operation | null>(null);
   let feedback = $state('');
   let failure = $state(false);
+  let uncertainOperation = $state(false);
+  let retainedUncertainty = $state(false);
   const available = $derived(!preview && typeof host?.reviewGeminiHookProfile === 'function');
+  const current = $derived(
+    profileState !== null && stateHost === host && statePreview === preview && available,
+  );
   let alive = true;
   onMount(() => {
     if (available) void perform('status');
@@ -57,23 +65,50 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
   });
   async function perform(action: Operation) {
     if (!available || pending) return;
+    const requestedHost = host;
+    const requestedPreview = preview;
     pending = action;
+    if (action === 'install' || action === 'remove') uncertainOperation = true;
+    profileState = null;
     try {
-      const result = record(confirmed(await invoke(host, 'reviewGeminiHookProfile', action)));
-      if (!alive) return;
-      const code = typeof result.code === 'string' ? result.code : 'OPERATION_FAILED';
+      const result = record(
+        confirmed(await invoke(requestedHost, 'reviewGeminiHookProfile', action)),
+      );
+      if (!alive || host !== requestedHost || preview !== requestedPreview) return;
+      if (result.code === 'RETAINED_UNKNOWN') retainedUncertainty = true;
+      if (
+        typeof result.code !== 'string' ||
+        !Object.hasOwn(messages, result.code) ||
+        typeof result.available !== 'boolean' ||
+        typeof result.canInstall !== 'boolean' ||
+        typeof result.canRemove !== 'boolean' ||
+        typeof result.canOpen !== 'boolean' ||
+        (!result.available && (result.canInstall || result.canRemove)) ||
+        (result.canRemove && !result.canOpen) ||
+        (result.code === 'RETAINED_UNKNOWN' && (result.canInstall || result.canRemove))
+      )
+        throw new Error('invalid profile status');
+      const code = result.code;
+      const failed = !['IDLE', 'BUSY', 'CANCELLED', 'INSTALLED', 'REMOVED'].includes(code);
       profileState = {
-        canInstall: result.canInstall === true,
-        canRemove: result.canRemove === true,
-        canOpen: result.canOpen === true,
+        canInstall: result.canInstall && !failed && code !== 'BUSY' && !retainedUncertainty,
+        canRemove: result.canRemove && !failed && code !== 'BUSY' && !retainedUncertainty,
+        canOpen: result.canOpen,
       };
-      feedback = messages[code] || messages.OPERATION_FAILED;
-      failure = !['IDLE', 'BUSY', 'CANCELLED', 'INSTALLED', 'REMOVED'].includes(code);
+      stateHost = requestedHost;
+      statePreview = requestedPreview;
+      feedback = messages[code];
+      failure = failed;
+      if (action === 'install' || action === 'remove')
+        uncertainOperation = !['INSTALLED', 'REMOVED', 'CANCELLED'].includes(code);
     } catch {
-      if (alive) {
-        feedback = messages.OPERATION_FAILED;
-        failure = true;
-      }
+      if (
+        alive &&
+        host === requestedHost &&
+        preview === requestedPreview &&
+        (action === 'install' || action === 'remove')
+      )
+        uncertainOperation = true;
     } finally {
       if (alive) pending = null;
     }
@@ -113,7 +148,7 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
     <div class="profile-actions">
       <button
         class="button"
-        disabled={!available || pending !== null || !profileState.canInstall}
+        disabled={!current || pending !== null || !profileState?.canInstall}
         aria-busy={pending === 'install'}
         onclick={() => perform('install')}
       >
@@ -125,7 +160,7 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
       </button>
       <button
         class="button"
-        disabled={!available || pending !== null || !profileState.canRemove}
+        disabled={!current || pending !== null || !profileState?.canRemove}
         aria-busy={pending === 'remove'}
         onclick={() => perform('remove')}
       >
@@ -133,7 +168,7 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
       </button>
       <button
         class="button"
-        disabled={!available || pending !== null || !profileState.canOpen}
+        disabled={!current || pending !== null || !profileState?.canOpen}
         onclick={() => perform('open-profile')}>{$t('Open profile folder')}</button
       >
       <button
@@ -142,9 +177,25 @@ if (-not [string]::IsNullOrWhiteSpace($folder)) {
         onclick={() => perform('status')}>{$t('Refresh setup status')}</button
       >
     </div>
-    {#if feedback}<p class={{ warning: failure }} role={failure ? 'alert' : 'status'}>
+    {#if !current && pending === null}
+      <p class="warning" role="alert">
+        {$t('Setup status is unavailable. Refresh setup status before changing the profile.')}
+      </p>
+    {/if}
+    {#if uncertainOperation}
+      <p class="warning">
+        {$t('The last operation may have taken effect. Review retained files.')}
+      </p>
+    {/if}
+    {#if retainedUncertainty}
+      <p class="warning">{$t('An uncertain result is retained. Another write is unavailable.')}</p>
+    {/if}
+    {#if feedback}
+      <p class={{ warning: failure }} role={failure ? 'alert' : 'status'}>
+        {$t('Last reported outcome (may be out of date):')}
         {$t(feedback)}
-      </p>{/if}
+      </p>
+    {/if}
     <h3>{$t('Launch Gemini with the separate home')}</h3>
     <p>
       {$t(
