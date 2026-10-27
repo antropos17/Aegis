@@ -68,7 +68,9 @@ show an eligible attempt ended before the dispatch point. Early rejected request
 may have no attempt ID. Incomplete evidence or a terminal write failure can leave
 outcomes unknown; an abrupt process or terminal loss can prevent final output.
 The gateway does not retry automatically. A fresh approval does not prevent a
-duplicate effect; idempotency and reconciliation are unsupported.
+duplicate effect; idempotency and reconciliation are unsupported. Every reviewed
+call prompt states this risk before the owner can approve, including after a
+gateway restart when earlier outcomes may not be available in the terminal.
 
 For example, a version 2 manifest may select two separate one-attempt grants for
 the same exact call on this review route. Supply actual current validity times
