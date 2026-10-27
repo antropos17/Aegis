@@ -20,12 +20,14 @@ it('offers an explicit snapshot-gated launch and reports review-required without
       success: true,
       code: 'READY',
       canOpen: true,
+      available: true,
       guardSession: snapshot(),
     })
     .mockResolvedValueOnce({
       success: true,
       code: 'GUARD_SNAPSHOT_REVIEW_REQUIRED',
       canOpen: true,
+      available: true,
     });
   render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
   await screen.findByText('Prepared setup files are available for native review.');
@@ -112,6 +114,7 @@ it('offers a fresh removal review after restart without sending paths, history o
       canRemove: false,
       canReviewExisting: true,
       canOpen: true,
+      available: true,
     })
     .mockResolvedValueOnce({ success: true, code: 'OBSERVED_REMOVED', canInstall: true });
   render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
@@ -162,12 +165,14 @@ it.each(['ended', 'expired'])(
         success: true,
         code: 'READY',
         canOpen: true,
+        available: true,
         guardSession: snapshot('active', { entries: [entry] }),
       })
       .mockResolvedValueOnce({
         success: true,
         code: 'READY',
         canOpen: true,
+        available: true,
         guardSession: snapshot(status),
       });
     render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
@@ -202,6 +207,7 @@ it('keeps the prior report historical after a failed refresh and allows an idemp
       success: true,
       code: 'READY',
       canOpen: true,
+      available: true,
       guardSession: snapshot('active', { entries: [entry], afterHooks: true }),
     })
     .mockRejectedValueOnce(Error('PRIVATE_ERROR'))
@@ -209,6 +215,7 @@ it('keeps the prior report historical after a failed refresh and allows an idemp
       success: true,
       code: 'GUARD_STOPPED',
       canOpen: true,
+      available: true,
       guardSession: snapshot('ended', { entries: [entry] }),
     });
   const { container } = render(ClaudeHookProfile, {
@@ -243,12 +250,14 @@ it('preserves earlier reports without treating a malformed refresh as inactive',
       success: true,
       code: 'READY',
       canOpen: true,
+      available: true,
       guardSession: snapshot('active', { entries: [entry] }),
     })
     .mockResolvedValueOnce({
       success: true,
       code: 'READY',
       canOpen: true,
+      available: true,
       guardSession: { status: 'PRIVATE_UNRECOGNIZED' },
     });
   const { container } = render(ClaudeHookProfile, {
@@ -277,6 +286,7 @@ it('does not offer new admission when native release is unconfirmed', async () =
     success: true,
     code: 'GUARD_RELEASE_UNCONFIRMED',
     canOpen: true,
+    available: true,
     guardSession: snapshot('refused'),
   });
   render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
@@ -288,6 +298,184 @@ it('does not offer new admission when native release is unconfirmed', async () =
   ).toBeVisible();
   expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
+});
+
+it('allows a safe stop after an initially malformed status', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'READY',
+      canOpen: true,
+      available: true,
+      guardSession: { status: 'PRIVATE_STATE' },
+    })
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_STOPPED',
+      canOpen: true,
+      available: true,
+      guardSession: snapshot('ended'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText('Prepared setup files are available for native review.');
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop reporting' }));
+  expect(await screen.findByText(/Reporting session ended/)).toBeVisible();
+  expect(review.mock.calls).toEqual([['status'], ['guard-stop']]);
+});
+
+it('allows a safe stop if a previously inactive session becomes unknown', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'READY',
+      canOpen: true,
+      available: true,
+      guardSession: snapshot(),
+    })
+    .mockRejectedValueOnce(Error('private'))
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'GUARD_STOPPED',
+      canOpen: true,
+      available: true,
+      guardSession: snapshot('ended'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(/No reporting session/);
+  expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeDisabled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh setup status' }));
+  await screen.findByText(
+    'Reporting session status is unavailable. Refresh setup status to try again.',
+  );
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop reporting' }));
+  expect(await screen.findByText(/Reporting session ended/)).toBeVisible();
+  expect(review.mock.calls).toEqual([['status'], ['status'], ['guard-stop']]);
+});
+
+it.each([
+  'WRITE_UNCERTAIN',
+  'READBACK_FAILED',
+  'POLICY_CREATE_UNCERTAIN',
+  'POLICY_UNADOPTED',
+  'RETAINED_UNKNOWN',
+  'SESSION_RELEASE_UNCONFIRMED',
+  'GUARD_RELEASE_UNCONFIRMED',
+])('does not offer a new admission for retained outcome %s', async (code) => {
+  const review = vi
+    .fn()
+    .mockResolvedValue({
+      success: true,
+      code,
+      canOpen: true,
+      available: true,
+      guardSession: snapshot(),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(/No reporting session/);
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  expect(
+    screen.getByRole('button', { name: 'Prepare with accepted project snapshot' }),
+  ).toBeDisabled();
+});
+
+it.each([
+  ['UNAVAILABLE', false],
+  ['BUSY', true],
+  ['READY', false],
+  ['READY', undefined],
+])(
+  'requires ready service after %s with readiness %# and recovers on refresh',
+  async (code, available) => {
+    const review = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        code,
+        available,
+        canOpen: true,
+        guardSession: snapshot(),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        code: 'READY',
+        available: true,
+        canOpen: true,
+        guardSession: snapshot(),
+      });
+    render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+    await screen.findByText(
+      code === 'UNAVAILABLE'
+        ? 'Native setup files are unavailable or failed their integrity checks.'
+        : code === 'BUSY'
+          ? 'Another profile review is still in progress.'
+          : 'Prepared setup files are available for native review.',
+    );
+    await screen.findByText(
+      'Session preparation is unavailable until setup status is ready. Refresh to retry.',
+    );
+    expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Prepare with accepted project snapshot' }),
+    ).toBeDisabled();
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh setup status' }));
+    expect(await screen.findByRole('button', { name: 'Prepare terminal session' })).toBeEnabled();
+  },
+);
+
+it('keeps Stop available for an active snapshot even when the service is not ready', async () => {
+  const review = vi
+    .fn()
+    .mockResolvedValue({
+      success: true,
+      code: 'UNAVAILABLE',
+      available: false,
+      canOpen: true,
+      guardSession: snapshot('active'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(
+    'Session preparation is unavailable until setup status is ready. Refresh to retry.',
+  );
+  expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeEnabled();
+});
+
+it('retains the historical loss warning with earlier reports after an empty new snapshot', async () => {
+  const entry = { decision: 'deny', reason: 'generic', outcome: 'unknown' };
+  const review = vi
+    .fn()
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'READY',
+      canOpen: true,
+      available: true,
+      guardSession: snapshot('active', { lossDetected: true, entries: [entry] }),
+    })
+    .mockResolvedValueOnce({
+      success: true,
+      code: 'READY',
+      canOpen: true,
+      available: true,
+      guardSession: snapshot('ended'),
+    });
+  render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
+  await screen.findByText(
+    'Some reporting may have been lost or discarded; delivery remains unknown.',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: 'Refresh setup status' }));
+  expect(
+    await screen.findByText(
+      'The retained historical reports may have lost or discarded entries; delivery remains unknown.',
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByText('Some reporting may have been lost or discarded; delivery remains unknown.'),
+  ).toBeNull();
+  expect(screen.getByText(/DENY: Selected policy decision/)).toHaveTextContent('Effect unknown');
 });
 
 it.each([
@@ -303,11 +491,18 @@ it.each([
   async (guardSession) => {
     const review = vi
       .fn()
-      .mockResolvedValueOnce({ success: true, code: 'READY', canOpen: true, guardSession })
       .mockResolvedValueOnce({
         success: true,
         code: 'READY',
         canOpen: true,
+        available: true,
+        guardSession,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        code: 'READY',
+        canOpen: true,
+        available: true,
         guardSession: snapshot(),
       });
     const { container } = render(ClaudeHookProfile, {
@@ -339,6 +534,7 @@ it('serializes a pending admission with refresh and applies only the admitted re
       success: true,
       code: 'READY',
       canOpen: true,
+      available: true,
       guardSession: snapshot(),
     })
     .mockImplementationOnce(
@@ -354,7 +550,13 @@ it('serializes a pending admission with refresh and applies only the admitted re
   expect(screen.getByRole('button', { name: 'Refresh setup status' })).toBeDisabled();
   await fireEvent.click(screen.getByRole('button', { name: 'Refresh setup status' }));
   expect(review.mock.calls).toEqual([['status'], ['guard-start']]);
-  finish({ success: true, code: 'GUARD_READY', canOpen: true, guardSession: snapshot('waiting') });
+  finish({
+    success: true,
+    code: 'GUARD_READY',
+    canOpen: true,
+    available: true,
+    guardSession: snapshot('waiting'),
+  });
   expect(await screen.findByText(/Waiting for the terminal broker/)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Prepare terminal session' })).toBeDisabled();
 });
@@ -367,6 +569,7 @@ it('does not allow a pending refresh to race a session mutation', async () => {
       success: true,
       code: 'READY',
       canOpen: true,
+      available: true,
       guardSession: snapshot('active'),
     })
     .mockImplementationOnce(
@@ -381,7 +584,13 @@ it('does not allow a pending refresh to race a session mutation', async () => {
   expect(screen.getByRole('button', { name: 'Stop reporting' })).toBeDisabled();
   await fireEvent.click(screen.getByRole('button', { name: 'Stop reporting' }));
   expect(review.mock.calls).toEqual([['status'], ['status']]);
-  finish({ success: true, code: 'READY', canOpen: true, guardSession: snapshot('ended') });
+  finish({
+    success: true,
+    code: 'READY',
+    canOpen: true,
+    available: true,
+    guardSession: snapshot('ended'),
+  });
   expect(await screen.findByText(/Reporting session ended/)).toBeVisible();
 });
 
@@ -399,11 +608,18 @@ it('does not apply an old pending refresh to a remounted profile', async () => {
     success: true,
     code: 'READY',
     canOpen: true,
+    available: true,
     guardSession: snapshot('ended'),
   });
   render(ClaudeHookProfile, { host: { reviewClaudeHookProfile: review } as Host });
   await screen.findByText(/Reporting session ended/);
-  finish({ success: true, code: 'READY', canOpen: true, guardSession: snapshot('active') });
+  finish({
+    success: true,
+    code: 'READY',
+    canOpen: true,
+    available: true,
+    guardSession: snapshot('active'),
+  });
   expect(screen.queryByText(/Session listening/)).toBeNull();
   expect(screen.getByText(/Reporting session ended/)).toBeVisible();
 });
@@ -417,6 +633,7 @@ it('translates historical and unavailable session status in Portuguese', async (
         success: true,
         code: 'READY',
         canOpen: true,
+        available: true,
         guardSession: snapshot('active'),
       })
       .mockRejectedValueOnce(Error('private'));
@@ -442,6 +659,7 @@ it('shows only fixed reported decisions and keeps sender, delivery and effect un
     success: true,
     code: 'READY',
     canOpen: true,
+    available: true,
     guardSession: {
       ...snapshot('active'),
       status: 'active',

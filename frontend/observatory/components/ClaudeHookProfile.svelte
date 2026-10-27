@@ -144,6 +144,7 @@
     canRemove: false,
     canReviewExisting: false,
     canOpen: false,
+    serviceReady: false,
   });
   let pending = $state<Operation | null>(null);
   let failed = $state(false);
@@ -160,8 +161,20 @@
   let guardSession = $state<GuardSnapshot | null>(null);
   let guardStatusKnown = $state(false);
   let retainedReports = $state(false);
+  let retainedReportLoss = $state(false);
   let alive = true;
   let available = $derived(!preview && typeof host?.reviewClaudeHookProfile === 'function');
+  let guardAdmissionBlocked = $derived(
+    [
+      'WRITE_UNCERTAIN',
+      'READBACK_FAILED',
+      'POLICY_CREATE_UNCERTAIN',
+      'POLICY_UNADOPTED',
+      'SESSION_RELEASE_UNCONFIRMED',
+      'GUARD_RELEASE_UNCONFIRMED',
+      'RETAINED_UNKNOWN',
+    ].includes(profileState.code),
+  );
   onDestroy(() => {
     alive = false;
   });
@@ -183,6 +196,10 @@
         canRemove: value.canRemove === true,
         canReviewExisting: value.canReviewExisting === true,
         canOpen: value.canOpen === true,
+        serviceReady:
+          value.available === true &&
+          !['BUSY', 'UNAVAILABLE'].includes(code) &&
+          Object.hasOwn(messages, code),
       };
       const session = record(value.guardSession);
       if (
@@ -215,7 +232,11 @@
             : [];
         });
         const previous = guardSession?.entries ?? [];
+        const previousLoss = retainedReports
+          ? retainedReportLoss
+          : guardSession?.lossDetected === true;
         retainedReports = entries.length === 0 && previous.length > 0;
+        retainedReportLoss = retainedReports && previousLoss;
         guardSession = {
           status: session.status,
           available: session.available,
@@ -353,6 +374,8 @@
         disabled={!available ||
           pending !== null ||
           !profileState.canOpen ||
+          !profileState.serviceReady ||
+          guardAdmissionBlocked ||
           !guardStatusKnown ||
           !guardSession ||
           ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
@@ -363,6 +386,8 @@
         disabled={!available ||
           pending !== null ||
           !profileState.canOpen ||
+          !profileState.serviceReady ||
+          guardAdmissionBlocked ||
           !guardStatusKnown ||
           !guardSession ||
           ['waiting', 'awaiting-confirmation', 'active'].includes(guardSession.status)}
@@ -373,11 +398,14 @@
         class="button"
         disabled={!available ||
           pending !== null ||
-          (!['waiting', 'awaiting-confirmation', 'active'].includes(guardSession?.status ?? '') &&
-            profileState.code !== 'GUARD_RELEASE_UNCONFIRMED')}
+          (guardStatusKnown &&
+            !['waiting', 'awaiting-confirmation', 'active'].includes(guardSession?.status ?? ''))}
         onclick={() => perform('guard-stop')}>{$t('Stop reporting')}</button
       >
     </div>
+    {#if available && pending === null && !profileState.serviceReady}<p class="muted">
+        {$t('Session preparation is unavailable until setup status is ready. Refresh to retry.')}
+      </p>{/if}
     <p class="muted">
       {$t(
         'The ordinary terminal session does not check a project snapshot. The snapshot-checked option compares recognized project inventory only; acceptance is local, not authenticated, and the project can change after the check. Use Local security to review and explicitly accept a complete snapshot first.',
@@ -409,6 +437,11 @@
     {/if}
     {#if guardSession?.lossDetected}<p role="alert">
         {$t('Some reporting may have been lost or discarded; delivery remains unknown.')}
+      </p>{/if}
+    {#if retainedReports && retainedReportLoss}<p role="alert">
+        {$t(
+          'The retained historical reports may have lost or discarded entries; delivery remains unknown.',
+        )}
       </p>{/if}
     {#if guardSession?.entries.length}
       {#if retainedReports || !guardStatusKnown}<p class="muted">
