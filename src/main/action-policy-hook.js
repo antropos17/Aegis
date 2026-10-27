@@ -17,6 +17,10 @@ const PROJECT_REASONS = Object.freeze({
     'ask',
     'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
   ],
+  'project-review-edit': [
+    'ask',
+    'AEGIS requests provider confirmation. Patch contents, paths written, and the executable are unverified; edits and external programs may cause actions not separately checked by this Bash hook.',
+  ],
   'project-deny-sensitive': [
     'deny',
     'AEGIS project review denies this declared sensitive filename.',

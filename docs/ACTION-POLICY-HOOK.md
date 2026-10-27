@@ -62,6 +62,14 @@ also delegate to the provider; no flags or other npm scripts are supported. The
 fixed provider-facing reason warns that project scripts may execute arbitrary
 actions not separately checked by this Bash hook. Configuration and PATH-selected
 programs are unbound, so the operator must inspect them before deciding.
+The exact form `git apply -- <name>.patch` or `git apply -- <name>.diff` also
+requests provider confirmation. The name starts with an ASCII letter or digit,
+contains at most 64 ASCII letters, digits, underscores or hyphens before its
+lowercase extension, and cannot be a Windows device name. Flags, directories,
+quoting, redirection, chaining and other patch forms remain unsupported. The
+hook does not read the patch, inspect its contents or bind the paths it writes.
+The provider-facing reason states these limits and the unverified executable;
+edits and external programs can cause actions not separately checked by this hook.
 The explicit filenames `.env`,
 `.env` with any dot-prefixed basename suffix, `id_rsa`, `id_ed25519`,
 `credentials` and `credentials.json`
@@ -79,8 +87,9 @@ functions, environment, Git configuration, and executable bytes are not bound.
 An operator must inspect what the provider proposes before approving it. The
 filename list is finite, not general secret discovery. A missing, unstartable or
 timed-out hook may bypass the decision; selecting this profile is not evidence of
-blocking or of an observed action outcome. This profile does not support editing,
-additional test commands, pipelines, quoting or other general project workflows.
+blocking or of an observed action outcome. The patch form does not provide general
+editing support. Additional test commands, pipelines, quoting and other general
+project workflows remain unsupported.
 
 Add a command hook to the selected Claude configuration only when choosing to
 enable it. Preserve existing settings and use actual absolute paths:

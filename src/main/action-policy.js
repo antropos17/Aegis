@@ -41,6 +41,9 @@ function evaluateProjectProfile(input) {
   const command = input.command;
   if (scriptCommands.has(command)) return { decision: 'ask', reason: 'project-review-script' };
   if (ordinaryCommands.has(command)) return { decision: 'ask', reason: 'project-review-ordinary' };
+  const patch = /^git apply -- ([A-Za-z0-9][A-Za-z0-9_-]{0,63})\.(?:patch|diff)$/.exec(command);
+  if (patch && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(patch[1]))
+    return { decision: 'ask', reason: 'project-review-edit' };
   const read = /^cat ([A-Za-z0-9_.-]+)$/.exec(command);
   if (read && read[1] !== '.' && read[1] !== '..' && !read[1].startsWith('-'))
     return sensitiveName.test(read[1])
