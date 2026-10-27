@@ -50,6 +50,11 @@ and private framing. Real local pipes and an ordinary child process exercise
 reservation overlap, both required replies, peer exit and rejection. Identity
 checks and native trace operations are controlled seams; no elevation, ETW
 session or qualification guest is started.
+The reader-pacing fixture compiles the actual read-loop pacing helper with a
+managed monotonic clock. Modeled I/O, rounded and early wakes, and a stalled read
+check that relative sleeps do not accumulate against the unchanged twelve-second
+command budget. These cases preserve 160 reads and the nominal 3.2-second handle
+observation window; they do not execute native reads or qualify guest timing.
 The runner records source HEAD/tree, lock/compiler hashes, Node/platform,
 free space, command exits, duration, test totals and a raw-report hash. Source must
 remain clean at completion. Assertion results must cover every selected suite;

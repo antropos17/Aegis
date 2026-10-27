@@ -109,6 +109,17 @@ internal static class EtwReadProcess
               stage=="completed" && reads==160))throw new ArgumentException();
         return "AEGIS_READ_PROGRESS/1 "+command+" "+stage+" "+reads.ToString(CultureInfo.InvariantCulture);
     }
+    internal static void PaceRead(int completedReads,Func<long> elapsedMilliseconds,Action<int> pause)
+    {
+        // Read work and late scheduler wakes already consume the observation window.
+        long target=completedReads*20L;
+        long remaining=target-elapsedMilliseconds();
+        while(remaining>0)
+        {
+            pause((int)remaining);
+            remaining=target-elapsedMilliseconds();
+        }
+    }
     private static int Read(string path, bool asynchronous, int count, bool paced,Action<string,int> progress=null)
     {
         int pending=0;
@@ -121,6 +132,9 @@ internal static class EtwReadProcess
             if(file.IsInvalid)throw new IOException();
             if(progress!=null)progress("opened",0);
             var buffer=new byte[4096];
+            var pacing=Stopwatch.StartNew();
+            Func<long> elapsedMilliseconds=()=>pacing.ElapsedMilliseconds;
+            Action<int> pause=Thread.Sleep;
             for(int i=0;i<count;i++)
             {
                 uint read;
@@ -139,7 +153,7 @@ internal static class EtwReadProcess
                     if(!SetFilePointerEx(file,0,out position,0)||!ReadFile(file,buffer,4096,out read,IntPtr.Zero)||read!=4096)throw new IOException();
                 }
                 if(progress!=null && (i+1)%32==0)progress("reading",i+1);
-                if(paced)Thread.Sleep(20);
+                if(paced)PaceRead(i+1,elapsedMilliseconds,pause);
             }
         }
         } finally { if(aligned!=IntPtr.Zero)VirtualFree(aligned,UIntPtr.Zero,0x8000); }

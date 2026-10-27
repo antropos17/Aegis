@@ -46,6 +46,17 @@ the second broker acknowledgment and original-process handle deposit. These
 normal-token controls substitute authentication and native trace operations; they
 do not qualify elevated capture, recovery or the complete live event chain.
 
+Run [40461665758](https://github.com/antropos17/Aegis/actions/runs/40461665758)
+at `a5bd902a` passed capture/issuer preparation, then refused the synchronous
+reader response at the unchanged twelve-second deadline. Its retained progress
+records an opened file and 96 reads at 12.228 seconds, followed by all 160 reads
+at 14.770 seconds and normal exit during cleanup. This establishes late work,
+with no accepted native-read proof or restart. The old loop added a relative
+twenty-millisecond sleep after every read; those waits accumulated with I/O and
+scheduler delays. The receipt does not separate their respective costs. The
+absolute pacing described below removes this avoidable accumulation without
+relaxing the deadline or accepting late completion.
+
 Broker startup also keeps the existing 120-second total cap through preparation
 and both peer hellos. Each authenticated peer connection then receives its own
 linked eight-second budget. The former shared eight-second timer included
@@ -323,6 +334,16 @@ metadata snapshot captured before cleanup. Cleanup still requires exit zero and
 drained child streams within one ten-second deadline. These local transport
 controls do not identify the cause of an earlier guest refusal or prove native
 read, alert or risk acceptance.
+
+The maintained reader paces all 160 reads against absolute monotonic targets,
+starting after its owned file opens. Each target is twenty milliseconds after
+the preceding target; read work and scheduler delay consume that interval rather
+than adding another full sleep. The terminal target retains the nominal
+3.2-second handle observation window. The twelve-second response limit, real
+read count, async pending-I/O witness and event/custody oracles remain unchanged.
+Managed clock cases cover accumulated delays without claiming measured guest
+timing. Slow native I/O or scheduling can still exhaust the command deadline;
+late completion remains a diagnostic failure and cannot establish acceptance.
 
 The probe requires the actual object event UUID to reach audit custody, the
 sensitive alert journal, the separate object baseline, preload delivery and a
