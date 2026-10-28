@@ -171,4 +171,67 @@ const vm = require('node:vm');
   if ($LASTEXITCODE -ne 0) { throw 'Portable asset preflight fixture failed' }
   $assetChecks = 'PASS'
 }
-@{ status='PASS'; rejectedInputs=$cases.Count; validArtifact='PASS'; personalHostRefusal=$refusal; assetPreflight=$assetChecks; installerExecuted=$false } | ConvertTo-Json | Tee-Object -FilePath (Join-Path $root 'checks.json')
+$g1Control = 'not-selected'
+if ($G1ACandidate) {
+  $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'AssertG1ReleaseSelection' }, $true)
+  if (!$definition) { throw 'G1 asset selection missing' }
+  . ([scriptblock]::Create($definition.Extent.Text))
+  $release = @{
+    id=123; draft=$true; prerelease=$false; tag_name='qualification-fb16-delivery-20261028'; target_commitish='fb16bc01389ba203b0f99c632f9719bc7dadaf0d'; published_at=$null
+    assets=@(
+      @{id=456; name='AEGIS.-.AI.Monitoring.Threat.Detection.Setup.0.21.0-beta.exe'; size=188066953; state='uploaded'; url='https://api.github.com/repos/antropos17/Aegis/releases/assets/456'; digest='sha256:5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952'},
+      @{id=789; name='candidate-identity.json'; size=2325; state='uploaded'; url='https://api.github.com/repos/antropos17/Aegis/releases/assets/789'; digest='sha256:9e98ab68ec362e52da79bae79d3ba93266e6e02b3a5395a8308b5c7d6eb8b606'}
+    )
+  }
+  $selected=@(AssertG1ReleaseSelection $release '123' '456' '789')
+  if ($selected.Count -ne 2 -or $selected[0].sha256 -cne '5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952' -or $selected[0].relative -cne 'candidate/AEGIS - AI Monitoring & Threat Detection Setup 0.21.0-beta.exe' -or $selected[1].sha256 -cne '9e98ab68ec362e52da79bae79d3ba93266e6e02b3a5395a8308b5c7d6eb8b606') { throw 'G1 independent asset pins changed' }
+  foreach ($bad in @('published','other-release','target','tag','publication','boolean','size','name','digest','url','duplicate','missing','numeric')) {
+    $copy=$release | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+    $installerId='456'
+    switch ($bad) {
+      published { $copy.draft=$false }
+      other-release { $copy.id=124 }
+      target { $copy.target_commitish='master' }
+      tag { $copy.tag_name='other-tag' }
+      publication { $copy.published_at='2026-10-28T00:00:00Z' }
+      boolean { $copy.draft='true' }
+      size { $copy.assets[0].size=188066954 }
+      name { $copy.assets[0].name='other.exe' }
+      digest { $copy.assets[0].digest='sha256:'+('0'*64) }
+      url { $copy.assets[0].url='https://api.github.com/repos/other/repo/releases/assets/456' }
+      duplicate { $copy.assets=@($copy.assets[0],$copy.assets[0],$copy.assets[1]) }
+      missing { $copy.assets=@($copy.assets[1]) }
+      numeric { $installerId='../456' }
+    }
+    $caught=$false
+    try { AssertG1ReleaseSelection $copy '123' $installerId '789' | Out-Null } catch { $caught=$true }
+    if (!$caught) { throw ('G1 asset selection admitted '+$bad) }
+  }
+  # Execute only the existing lifecycle control slice with inert functions.
+  # No production host main, environment spoof, installer or application runs.
+  $text=[IO.File]::ReadAllText($source)
+  $start=$text.IndexOf("  if (`$Scenario -eq 'fresh') { Install `$candidate")
+  $end=$text.IndexOf("  Sample 'complete'",$start)
+  if ($start -lt 0 -or $end -le $start) { throw 'Lifecycle control slice missing' }
+  $control=[scriptblock]::Create($text.Substring($start,$end-$start))
+  function Install($File,$Version) { $script:calls.Add('install:'+ $File); if ($script:failInstall) { throw 'inert-install-failure' } }
+  function ProfileCheck($Phase,$Version) { $script:calls.Add('profile:'+ $Phase) }
+  function Uninstall($Phase) { $script:calls.Add('uninstall:'+ $Phase) }
+  function Payload { @{path='fixture';sha256='unchanged'} }
+  foreach ($example in @(
+    @{g1=$true;scenario='fresh';expected='install:candidate,profile:fresh,uninstall:first-uninstall'},
+    @{g1=$false;scenario='fresh';expected='install:candidate,profile:fresh,uninstall:first-uninstall,install:candidate,profile:reinstall,uninstall:final-uninstall'},
+    @{g1=$false;scenario='upgrade';expected='install:previous,profile:baseline,install:candidate,profile:upgrade,uninstall:first-uninstall,install:candidate,profile:reinstall,uninstall:final-uninstall'}
+  )) {
+    $script:calls=[Collections.Generic.List[string]]::new(); $script:failInstall=$false
+    $G1ACandidate=$example.g1; $Scenario=$example.scenario; $candidate='candidate'; $previous='previous'; $result=@{limits=@()}
+    . $control
+    if (($script:calls -join ',') -cne $example.expected) { throw 'Lifecycle invocation counts changed' }
+  }
+  $script:calls=[Collections.Generic.List[string]]::new(); $script:failInstall=$true; $G1ACandidate=$true; $Scenario='fresh'
+  $caught=$false
+  try { . $control } catch { if ($_.Exception.Message -ne 'inert-install-failure') { throw }; $caught=$true }
+  if (!$caught -or ($script:calls -join ',') -cne 'install:candidate') { throw 'Failed G1 install did not stop before profile/uninstall' }
+  $g1Control='PASS'
+}
+@{ status='PASS'; rejectedInputs=$cases.Count; validArtifact='PASS'; personalHostRefusal=$refusal; assetPreflight=$assetChecks; g1Control=$g1Control; installerExecuted=$false } | ConvertTo-Json | Tee-Object -FilePath (Join-Path $root 'checks.json')

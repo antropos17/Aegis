@@ -1,0 +1,137 @@
+name: Qualify the reviewed G1 Windows installer
+on:
+  pull_request:
+    paths:
+      - .github/workflows/windows-g1-installer.yml
+      - scripts/qualification/windows-installer-lifecycle.ps1
+      - scripts/qualification/test-windows-candidate-021.ps1
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  G1_RELEASE_ID: '427129878'
+  G1_INSTALLER_ID: '686175424'
+  G1_IDENTITY_ID: '686175426'
+jobs:
+  delivery-read:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.21.0'
+      - name: Prove read-only token delivery without executing candidate bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {writeFile} from 'node:fs/promises';
+          const api='https://api.github.com/repos/antropos17/Aegis';
+          const ids=[process.env.G1_RELEASE_ID,process.env.G1_INSTALLER_ID,process.env.G1_IDENTITY_ID];
+          for(const id of ids)assert(/^[1-9][0-9]{0,18}$/.test(id));
+          async function read(url,limit,accept,hashOnly=false){
+            const signal=AbortSignal.timeout(120000);
+            let response=await fetch(url,{redirect:'manual',signal,headers:{Accept:accept,Authorization:'Bearer '+process.env.GH_TOKEN,'User-Agent':'AEGIS-G1-qualification'}});
+            if(hashOnly&&[301,302,303,307,308].includes(response.status)){
+              const target=new URL(response.headers.get('location'));
+              assert.equal(target.protocol,'https:');assert.equal(target.hostname,'release-assets.githubusercontent.com');assert.equal(target.username,'');assert.equal(target.password,'');
+              await response.body?.cancel();
+              response=await fetch(target,{redirect:'error',signal});
+            }
+            assert.equal(response.status,200,'Read-only candidate delivery refused');
+            const length=response.headers.get('content-length');if(length!==null)assert(Number(length)<=limit);
+            const hash=createHash('sha256'),chunks=[];let bytes=0;
+            for await(const chunk of response.body){bytes+=chunk.length;assert(bytes<=limit,'Delivery byte budget exceeded');hash.update(chunk);if(!hashOnly)chunks.push(chunk);}
+            if(hashOnly){assert.equal(bytes,limit);return hash.digest('hex');}
+            return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          }
+          try{
+            const release=await read(api+'/releases/'+ids[0],65536,'application/vnd.github+json');
+            assert.equal(String(release.id),ids[0]);assert.equal(release.draft,true);assert.equal(release.prerelease,false);assert.equal(release.published_at,null);
+            assert.equal(release.tag_name,'qualification-fb16-delivery-20261028');assert.equal(release.target_commitish,'fb16bc01389ba203b0f99c632f9719bc7dadaf0d');
+            const expected=[
+              [ids[1],'AEGIS.-.AI.Monitoring.Threat.Detection.Setup.0.21.0-beta.exe',188066953,'5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952'],
+              [ids[2],'candidate-identity.json',2325,'9e98ab68ec362e52da79bae79d3ba93266e6e02b3a5395a8308b5c7d6eb8b606'],
+            ];
+            assert.notEqual(ids[1],ids[2]);
+            for(const [id,name,size,pin] of expected){
+              const assets=release.assets.filter(asset=>String(asset.id)===id);assert.equal(assets.length,1);
+              const asset=assets[0];assert.equal(asset.name,name);assert.equal(asset.size,size);assert.equal(asset.state,'uploaded');assert.equal(asset.url,api+'/releases/assets/'+id);assert.equal(asset.digest,'sha256:'+pin);
+              assert.equal(await read(api+'/releases/assets/'+id,size,'application/octet-stream',true),pin);
+            }
+            await writeFile('g1-delivery-read.json',JSON.stringify({status:'PASS',source:'fb16bc01389ba203b0f99c632f9719bc7dadaf0d',candidateExecuted:false,installerAttempted:false,tokenScope:'contents:read'}),{flag:'wx'});
+            console.log('PASS: fixed private candidate bytes readable with contents:read; no execution.');
+          }catch{console.error('G1 read-only delivery failed; installer remains unattempted.');process.exitCode=1;}
+          NODE
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: g1-delivery-read-${{ github.run_id }}-${{ github.run_attempt }}
+          path: g1-delivery-read.json
+          if-no-files-found: error
+          retention-days: 7
+  g1:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      HUSKY: '0'
+      CI: 'true'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      npm_config_logs_max: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require one clean native x64 hosted attempt
+        run: |
+          if ($env:GITHUB_REPOSITORY -cne 'antropos17/Aegis' -or $env:GITHUB_RUN_ATTEMPT -cne '1' -or $env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:RUNNER_OS -cne 'Windows' -or $env:RUNNER_ARCH -cne 'X64') { throw 'G1 hosted attempt refused' }
+          if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'X64' -or [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -ne 'X64') { throw 'G1 native x64 OS and driver required' }
+          if ((git rev-parse HEAD) -cne $env:GITHUB_SHA -or (git status --porcelain)) { throw 'G1 driver source mismatch' }
+          $root = Join-Path $env:RUNNER_TEMP ('aegis-g1-driver-' + $env:GITHUB_RUN_ID)
+          if (Test-Path -LiteralPath $root) { throw 'G1 fresh scratch required' }
+          if ((Get-PSDrive -Name ((Split-Path -Qualifier $root).TrimEnd(':'))).Free -lt 8GB) { throw 'G1 driver storage reserve unavailable' }
+          New-Item -ItemType Directory -Path $root | Out-Null
+          @(
+            ('TEMP=' + $root), ('TMP=' + $root)
+            ('npm_config_cache=' + (Join-Path $root 'npm'))
+            ('NODE_COMPILE_CACHE=' + (Join-Path $root 'node-cache'))
+            ('AEGIS_G1_INPUT=' + (Join-Path $env:RUNNER_TEMP 'aegis-g1-input'))
+            ('AEGIS_INSTALLER_QA=' + (Join-Path $env:RUNNER_TEMP 'aegis-g1-fresh'))
+          ) | Add-Content -LiteralPath $env:GITHUB_ENV
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.21.0'
+      - name: Install locked driver dependencies without application downloads
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+      - name: Stage only the reviewed private draft assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tokens=$null; $errors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/qualification/windows-installer-lifecycle.ps1'),[ref]$tokens,[ref]$errors)
+          if ($errors.Count) { throw 'G1 source parse failed' }
+          foreach ($name in @('GetG1ACandidate','AssertG1ReleaseSelection','ReceiveG1Candidate')) {
+            $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$true)
+            if (!$function) { throw 'G1 source definition missing' }
+            . ([scriptblock]::Create($function.Extent.Text))
+          }
+          ReceiveG1Candidate $env:G1_RELEASE_ID $env:G1_INSTALLER_ID $env:G1_IDENTITY_ID $env:AEGIS_G1_INPUT $env:GH_TOKEN
+      - name: Qualify exactly one fresh installation and uninstall
+        run: ./scripts/qualification/windows-installer-lifecycle.ps1 -Scenario fresh -QaRoot $env:AEGIS_INSTALLER_QA -CandidateDirectory $env:AEGIS_G1_INPUT -ExpectedArchitecture X64 -Mode silent -G1ACandidate
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always() && env.AEGIS_INSTALLER_QA != ''
+        with:
+          name: g1-fresh-installer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.AEGIS_INSTALLER_QA }}/evidence/
+          if-no-files-found: warn
+          retention-days: 7
