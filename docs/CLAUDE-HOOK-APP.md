@@ -12,6 +12,18 @@ and reinstall it to review the redirected route.
 The profile is used only by a Claude launch explicitly selecting `--settings`.
 Configuration presence does not establish provider observation or blocking.
 
+New Windows installations generate all three hook commands with one canonical
+`--user-data-dir` argument pointing to a fresh `native-<server-token>` directory
+inside the separate profile. The existing native confirmation shows that exact
+path and explains Electron's native state/cache writes and retention. Preview
+does not create this directory. Confirmed installation reserves it exclusively;
+an existing directory or link is refused. Created native data remains after
+failed installation and hook removal, and reinstall selects a new path. Native
+identity checks detect observed replacement; they do not provide filesystem
+isolation or eliminate changes after verification. Exact older commands remain
+recognized for removal and admission. The dated package receipts below qualify
+their recorded candidate bytes, not this new command generation.
+
 ## Paths and authority
 
 The sole target is `app.getPath('userData')/claude-hook-profile/settings.json`.
@@ -155,7 +167,7 @@ refuses another setup. Each native store also retains its existing eight-record,
 The reproducible disposable-profile qualification uses:
 
 ```powershell
-node scripts/qualification/claude-hook-app.cjs X:/tmp/new-owned-profile-receipt
+node scripts/qualification/claude-hook-app.cjs X:/AEGIS-evidence/example/new-owned-profile-receipt
 ```
 
 It exercises real Windows IO with scripted dialog callbacks: installation setup,
@@ -179,7 +191,7 @@ The same qualification script also has an opt-in `--claude` mode. This runs one
 paid provider session and requires explicit authorization for that attempt:
 
 ```powershell
-node scripts/qualification/claude-hook-app.cjs X:/tmp/fresh-owned-claude --claude X:/tmp/owned-shell-preflight/receipt.json
+node scripts/qualification/claude-hook-app.cjs X:/AEGIS-evidence/example/fresh-owned-claude --claude X:/AEGIS-evidence/example/owned-shell-preflight/receipt.json
 ```
 
 The shell receipt must identify an already tested Git Bash executable, its

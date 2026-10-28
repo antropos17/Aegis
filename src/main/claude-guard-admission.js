@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { scanJson } = require('./claude-hook-json');
 const { planObservedRemoval } = require('./claude-hook-app-removal');
-const { profileCommand } = require('./claude-hook-app-profile');
+const { parseProfileCommand, nativeProfileIdentity } = require('./claude-hook-app-profile');
 const { readActionFile, parseActionJson, validActionPolicy } = require('./action-policy');
 
 function policyFromProfile(bytes, selection) {
@@ -34,10 +34,9 @@ function policyFromProfile(bytes, selection) {
     }
     const command = entries.items[0].members.get('hooks')?.items[0]?.members.get('command')?.value;
     if (typeof command !== 'string') throw Error('profile-refused');
-    const match = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command);
-    if (!match || profileCommand(selection.executable, selection.appPath, match[1]) !== command)
-      throw Error('profile-refused');
-    return { policyPath: match[1], afterHooks: plan.afterHooksSuppressed === true };
+    const binding = parseProfileCommand(command, selection);
+    if (!binding) throw Error('profile-refused');
+    return { ...binding, afterHooks: plan.afterHooksSuppressed === true };
   } finally {
     source.bytes.fill(0);
   }
@@ -131,13 +130,15 @@ function createClaudeGuardAdmission({ io, target, executable, appPath }) {
     let profile, after, policy;
     try {
       profile = await readTarget(io);
-      const { policyPath, afterHooks } = policyFromProfile(profile.bytes, selection);
+      const { policyPath, afterHooks, nativePath } = policyFromProfile(profile.bytes, selection);
+      const nativeIdentity = nativePath ? await nativeProfileIdentity(nativePath) : null;
       policy = await readPolicyBinding(policyPath, cwd);
       after = await readTarget(io);
       if (closed || after.identity !== profile.identity || !after.bytes.equals(profile.bytes))
         return null;
       const binding = Object.freeze({});
-      state = { binding, profile, policy, policyPath, cwd, afterHooks };
+      if (nativePath && (await nativeProfileIdentity(nativePath)) !== nativeIdentity) return null;
+      state = { binding, profile, policy, policyPath, cwd, afterHooks, nativePath, nativeIdentity };
       profile = null;
       policy = null;
       return binding;
@@ -168,6 +169,11 @@ function createClaudeGuardAdmission({ io, target, executable, appPath }) {
       )
         return false;
       policy = await readPolicyBinding(expected.policyPath, expected.cwd);
+      if (
+        expected.nativePath &&
+        (await nativeProfileIdentity(expected.nativePath)) !== expected.nativeIdentity
+      )
+        return false;
       if (
         !samePolicyIdentity(policy.identity, expected.policy.identity) ||
         !policy.bytes.equals(expected.policy.bytes)

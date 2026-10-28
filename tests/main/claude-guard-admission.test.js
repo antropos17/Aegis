@@ -295,3 +295,30 @@ it.each(['legacy', 'redirected', 'mixed', 'extra-shell'])(
     f.admission.close();
   },
 );
+
+it('binds native-profile identity after restart without adopting foreign or missing directories', async () => {
+  const { mkdirSync } = require('node:fs');
+  const f = fixture();
+  const native = path.join(f.directory, 'native-' + 'b'.repeat(32));
+  mkdirSync(native);
+  const nextEntry = (nativePath) => ({
+    ...f.entry,
+    hooks: [
+      {
+        ...f.entry.hooks[0],
+        command: f.entry.hooks[0].command + ` '--user-data-dir=${nativePath}'`,
+      },
+    ],
+  });
+  f.setEntries([nextEntry(native)]);
+  const binding = await f.admission.capture(f.directory);
+  expect(binding).not.toBeNull();
+  expect(await f.admission.verify(binding)).toBe(true);
+  renameSync(native, native + '-retained');
+  mkdirSync(native);
+  expect(await f.admission.verify(binding)).toBe(false);
+  f.setEntries([nextEntry(path.join(f.directory, 'foreign', path.basename(native)))]);
+  expect(await f.admission.capture(f.directory)).toBeNull();
+  f.setEntries([nextEntry(path.join(f.directory, 'native-' + 'c'.repeat(32)))]);
+  expect(await f.admission.capture(f.directory)).toBeNull();
+});
