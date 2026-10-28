@@ -58,6 +58,75 @@ function GetG1ACandidate {
     assetsSha256='e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59'
   }
 }
+# The manual G1 lane extracts only these definitions, never this script's main.
+function AssertG1ReleaseSelection($Release, [string]$ReleaseId, [string]$InstallerId, [string]$IdentityId) {
+  foreach ($id in @($ReleaseId,$InstallerId,$IdentityId)) { if ($id -cnotmatch '^[1-9][0-9]{0,18}$') { throw 'G1 numeric asset selection refused' } }
+  if ($InstallerId -eq $IdentityId -or "$($Release.id)" -cne $ReleaseId -or $Release.draft -isnot [bool] -or $Release.draft -cne $true -or $Release.prerelease -isnot [bool] -or $Release.prerelease -cne $false -or $Release.tag_name -cne 'qualification-fb16-delivery-20261028' -or $Release.target_commitish -cne 'fb16bc01389ba203b0f99c632f9719bc7dadaf0d' -or $null -ne $Release.published_at) { throw 'G1 draft release refused' }
+  $pin = GetG1ACandidate
+  $selected = @()
+  foreach ($entry in @(
+    @{ id=$InstallerId; name='AEGIS.-.AI.Monitoring.Threat.Detection.Setup.0.21.0-beta.exe'; bytes=$pin.bytes; sha256=$pin.sha256; relative=('candidate/'+$pin.filename) },
+    @{ id=$IdentityId; name='candidate-identity.json'; bytes=2325; sha256='9e98ab68ec362e52da79bae79d3ba93266e6e02b3a5395a8308b5c7d6eb8b606'; relative='candidate-identity.json' }
+  )) {
+    $assets = @($Release.assets | Where-Object { "$($_.id)" -ceq $entry.id })
+    $url = 'https://api.github.com/repos/antropos17/Aegis/releases/assets/'+$entry.id
+    if ($assets.Count -ne 1 -or $assets[0].name -cne $entry.name -or $assets[0].size -ne $entry.bytes -or $assets[0].state -cne 'uploaded' -or $assets[0].url -cne $url -or $assets[0].digest -cne ('sha256:'+$entry.sha256)) { throw 'G1 release asset metadata refused' }
+    $selected += $entry
+  }
+  return $selected
+}
+
+function ReceiveG1Candidate([string]$ReleaseId, [string]$InstallerId, [string]$IdentityId, [string]$StageRoot, [string]$Token) {
+  if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:RUNNER_OS -cne 'Windows' -or $env:RUNNER_ARCH -cne 'X64' -or $env:GITHUB_REPOSITORY -cne 'antropos17/Aegis' -or $env:GITHUB_RUN_ATTEMPT -cne '1' -or !$Token) { throw 'G1 transport host refused' }
+  foreach ($id in @($ReleaseId,$InstallerId,$IdentityId)) { if ($id -cnotmatch '^[1-9][0-9]{0,18}$') { throw 'G1 numeric asset selection refused' } }
+  $destination = [IO.Path]::GetFullPath($StageRoot)
+  $prefix = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')+'\'
+  if (!$destination.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $destination)) { throw 'G1 fresh staging refused' }
+  $ancestor = Get-Item -LiteralPath (Split-Path -Parent $destination)
+  while ($null -ne $ancestor) { if ($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'G1 linked staging refused' }; $ancestor=$ancestor.Parent }
+  $handler = [Net.Http.HttpClientHandler]::new(); $handler.AllowAutoRedirect=$false
+  $client = [Net.Http.HttpClient]::new($handler); $client.Timeout=[TimeSpan]::FromSeconds(120)
+  function ReadG1Response([string]$Url, [string]$Accept, [long]$Limit, [string]$File) {
+    $cancel=[Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(120))
+    $request=$null; $response=$null; $stream=$null; $output=$null
+    try {
+      $request=[Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get,$Url)
+      [void]$request.Headers.TryAddWithoutValidation('Accept',$Accept)
+      [void]$request.Headers.TryAddWithoutValidation('User-Agent','AEGIS-G1-qualification')
+      [void]$request.Headers.TryAddWithoutValidation('Authorization','Bearer '+$Token)
+      $response=$client.SendAsync($request,[Net.Http.HttpCompletionOption]::ResponseHeadersRead,$cancel.Token).GetAwaiter().GetResult()
+      if ($File -and [int]$response.StatusCode -in @(301,302,303,307,308)) {
+        $redirect=$response.Headers.Location
+        if (!$redirect.IsAbsoluteUri -or $redirect.Scheme -cne 'https' -or $redirect.Host -cne 'release-assets.githubusercontent.com' -or $redirect.UserInfo) { throw 'G1 asset redirect refused' }
+        $response.Dispose(); $request.Dispose()
+        # A separate request deliberately carries no Authorization header.
+        $request=[Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get,$redirect)
+        $response=$client.SendAsync($request,[Net.Http.HttpCompletionOption]::ResponseHeadersRead,$cancel.Token).GetAwaiter().GetResult()
+      }
+      if ([int]$response.StatusCode -ne 200 -or ($null -ne $response.Content.Headers.ContentLength -and $response.Content.Headers.ContentLength -gt $Limit)) { throw 'G1 asset HTTP refused' }
+      $stream=$response.Content.ReadAsStreamAsync($cancel.Token).GetAwaiter().GetResult()
+      $output=if ($File) { [IO.File]::Open($File,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None) } else { [IO.MemoryStream]::new() }
+      $buffer=[byte[]]::new(65536); [long]$bytes=0
+      while ($true) { $count=$stream.ReadAsync($buffer,0,$buffer.Length,$cancel.Token).GetAwaiter().GetResult(); if (!$count) { break }; if (($bytes+$count) -gt $Limit) { throw 'G1 asset byte budget exceeded' }; $output.Write($buffer,0,$count); $bytes+=$count }
+      if ($File) { if ($bytes -ne $Limit) { throw 'G1 asset incomplete' }; $output.Flush(); return }
+      return [Text.Encoding]::UTF8.GetString($output.ToArray())
+    } finally {
+      if ($output) { $output.Dispose() }; if ($stream) { $stream.Dispose() }; if ($response) { $response.Dispose() }; if ($request) { $request.Dispose() }; $cancel.Dispose()
+    }
+  }
+  try {
+    $api='https://api.github.com/repos/antropos17/Aegis'
+    $release=ReadG1Response ($api+'/releases/'+$ReleaseId) 'application/vnd.github+json' 65536 '' | ConvertFrom-Json
+    $assets=@(AssertG1ReleaseSelection $release $ReleaseId $InstallerId $IdentityId)
+    New-Item -ItemType Directory -Path $destination | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $destination 'candidate') | Out-Null
+    foreach ($asset in $assets) {
+      $file=Join-Path $destination $asset.relative
+      ReadG1Response ($api+'/releases/assets/'+$asset.id) 'application/octet-stream' $asset.bytes $file
+      if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne $asset.sha256) { throw 'G1 downloaded asset pin mismatch' }
+    }
+  } finally { $client.Dispose(); $handler.Dispose() }
+}
 if ($G1ACandidate) {
   if (-not $CandidateDirectory -or $ReleaseDirectory -or $Scenario -ne 'fresh' -or $Mode -ne 'silent' -or $ExpectedArchitecture -ne 'X64') { throw 'G1 candidate requires fresh, silent native x64 and an unpublished reviewed artifact' }
   $reviewedCandidate = GetG1ACandidate
@@ -286,10 +355,14 @@ try {
   else { Install $previous $previousVersion; ProfileCheck 'baseline' $previousVersion; Install $candidate $currentVersion; ProfileCheck 'upgrade' $currentVersion }
   $firstPayload = @(Payload); $result.candidatePayload = $firstPayload
   Uninstall 'first-uninstall'
-  Install $candidate $currentVersion; ProfileCheck 'reinstall' $currentVersion
-  $reinstalledPayload = @(Payload)
-  if (($firstPayload | ConvertTo-Json -Compress) -ne ($reinstalledPayload | ConvertTo-Json -Compress)) { throw 'Reinstalled payload bytes differ' }
-  Uninstall 'final-uninstall'
+  if ($G1ACandidate) {
+    $result.limits += 'G1 performs exactly one installation, one installed profile check and one uninstall; reinstall and upgrade are not qualified.'
+  } else {
+    Install $candidate $currentVersion; ProfileCheck 'reinstall' $currentVersion
+    $reinstalledPayload = @(Payload)
+    if (($firstPayload | ConvertTo-Json -Compress) -ne ($reinstalledPayload | ConvertTo-Json -Compress)) { throw 'Reinstalled payload bytes differ' }
+    Uninstall 'final-uninstall'
+  }
   Sample 'complete'
   $result.status='PASS'; $result.completedAt=[DateTime]::UtcNow.ToString('o'); SaveResult
 } catch {
