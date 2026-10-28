@@ -56,6 +56,40 @@ describe('bounded project review policy', () => {
       });
     },
   );
+  it.each([
+    'cat CON',
+    'cat con.txt',
+    'cat PRN',
+    'cat AUX.log',
+    'cat NUL.txt',
+    'cat nul.tar.gz',
+    'cat COM1',
+    'cat com9.log',
+    'cat LPT1',
+    'cat lpt9.txt',
+  ])('denies reserved Windows device basename %s without opening it', async (command) => {
+    expect(await run(command)).toEqual({ decision: 'deny', reason: 'project-deny-unsupported' });
+  });
+  it.each(['cat COM10.txt', 'cat CONSOLE.md', 'cat COM0.txt', 'cat LPT10.txt'])(
+    'retains provider confirmation for non-device basename %s',
+    async (command) => {
+      expect(await run(command)).toEqual({ decision: 'ask', reason: 'project-review-ordinary' });
+    },
+  );
+  it('preserves schema-1 exact-input decisions for a reserved-looking command', async () => {
+    expect(
+      await run(
+        'cat NUL.txt',
+        {},
+        {
+          schemaVersion: 1,
+          cwd: root,
+          defaultDecision: 'deny',
+          rules: [{ tool: 'Bash', input: { command: 'cat NUL.txt' }, decision: 'allow' }],
+        },
+      ),
+    ).toEqual({ decision: 'allow', reason: 'policy-allow' });
+  });
   it.each(['git apply -- change.patch', 'git apply -- CHANGE_123.diff'])(
     'delegates the bounded patch command %s to the provider',
     async (command) => {
@@ -201,6 +235,7 @@ describe('bounded project review policy', () => {
       'AEGIS project review does not support this command or input.',
     ],
     ['cat .env', 'deny', 'AEGIS project review denies this declared sensitive filename.'],
+    ['cat NUL.txt', 'deny', 'AEGIS project review does not support this command or input.'],
     [
       'git status; rm -rf project',
       'deny',
@@ -217,6 +252,16 @@ describe('bounded project review policy', () => {
           input: encode(request(command, { description: 'PRIVATE_DESCRIPTION' })),
           encoding: 'utf8',
           timeout: 6000,
+          env: {
+            SystemRoot: process.env.SystemRoot,
+            windir: process.env.SystemRoot,
+            HOME: root,
+            USERPROFILE: root,
+            APPDATA: root,
+            LOCALAPPDATA: root,
+            TEMP: root,
+            TMP: root,
+          },
         },
       );
       expect(result.status).toBe(0);

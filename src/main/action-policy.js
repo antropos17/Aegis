@@ -13,6 +13,7 @@ const ordinaryCommands = new Set([
   'git diff --stat',
 ]);
 const scriptCommands = new Set(['npm test', 'npm run lint']);
+const reservedDeviceStem = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 const sensitiveName = /^(?:\.env(?:\.[a-z0-9_.-]*)?|id_(?:rsa|ed25519)|credentials(?:\.json)?)$/i;
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const deny = (reason) => ({ decision: 'deny', reason });
@@ -42,13 +43,15 @@ function evaluateProjectProfile(input) {
   if (scriptCommands.has(command)) return { decision: 'ask', reason: 'project-review-script' };
   if (ordinaryCommands.has(command)) return { decision: 'ask', reason: 'project-review-ordinary' };
   const patch = /^git apply -- ([A-Za-z0-9][A-Za-z0-9_-]{0,63})\.(?:patch|diff)$/.exec(command);
-  if (patch && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(patch[1]))
+  if (patch && !reservedDeviceStem.test(patch[1]))
     return { decision: 'ask', reason: 'project-review-edit' };
   const read = /^cat ([A-Za-z0-9_.-]+)$/.exec(command);
-  if (read && read[1] !== '.' && read[1] !== '..' && !read[1].startsWith('-'))
+  if (read && read[1] !== '.' && read[1] !== '..' && !read[1].startsWith('-')) {
+    if (reservedDeviceStem.test(read[1].split('.')[0])) return unsupported;
     return sensitiveName.test(read[1])
       ? deny('project-deny-sensitive')
       : { decision: 'ask', reason: 'project-review-ordinary' };
+  }
   if (/^(?:rm(?: [A-Za-z0-9_.-]+)+|git reset --hard|git clean -fd)$/.test(command))
     return deny('project-deny-destructive');
   return unsupported;
