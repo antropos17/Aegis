@@ -1193,3 +1193,102 @@ it.each([
     child.stderr.destroy();
   },
 );
+
+function previewNativePath() {
+  return /New native hook profile:\n([^\n]+)/.exec(state.dialogs.at(-1).detail)?.[1];
+}
+
+it('previews native storage without creating it before consent and preserves cancellation', async () => {
+  state.approve = false;
+  state.beforeConfirmation = async () => {
+    const native = previewNativePath();
+    expect(path.dirname(native)).toBe(path.dirname(target));
+    expect(path.basename(native)).toMatch(/^native-[0-9a-f]{32}$/);
+    await expect(fs.access(native)).rejects.toMatchObject({ code: 'ENOENT' });
+  };
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'CANCELLED' });
+  expect(
+    (await fs.readdir(path.dirname(target))).filter((name) => name.startsWith('native-')),
+  ).toEqual([]);
+  expect(state.writes).toBe(0);
+});
+
+it.each(['directory', 'link'])(
+  'refuses a preexisting native %s without adopting its data',
+  async (kind) => {
+    let native;
+    state.beforeConfirmation = async () => {
+      native = previewNativePath();
+      const occupied = kind === 'link' ? path.join(root, 'other-native-data') : native;
+      await fs.mkdir(occupied);
+      await fs.writeFile(path.join(occupied, 'Local State'), 'UNOWNED_NATIVE_CANARY');
+      if (kind === 'link') await fs.symlink(occupied, native, 'junction');
+    };
+    expect(await service.handle('install', () => true)).toMatchObject({ code: 'PLAN_REFUSED' });
+    expect(state.writes).toBe(0);
+    expect(await fs.readFile(path.join(native, 'Local State'), 'utf8')).toBe(
+      'UNOWNED_NATIVE_CANARY',
+    );
+  },
+);
+
+it('generates three canonical native-profile commands and preserves storage across removal/reinstall', async () => {
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  const first = previewNativePath();
+  const hooks = JSON.parse(await fs.readFile(target, 'utf8')).hooks;
+  const prefix = `"${options.executable.replaceAll('\\', '/')}" "${options.appPath.replaceAll('\\', '/')}"`;
+  const quotedPolicy = `"${policy.replaceAll('\\', '/')}"`;
+  expect(hooks.PreToolUse[0].hooks[0].command).toBe(
+    `${prefix} --action-policy-hook ${quotedPolicy} '--user-data-dir=${first}'`,
+  );
+  for (const event of ['PostToolUse', 'PostToolUseFailure'])
+    expect(hooks[event][0].hooks[0].command).toBe(
+      `${prefix} --action-policy-after-hook ${quotedPolicy} '--user-data-dir=${first}' > /dev/null`,
+    );
+  const { selectHookStartupArgs } = require('../../src/main/hook-startup-args');
+  expect(
+    selectHookStartupArgs([
+      options.executable,
+      options.appPath,
+      '--action-policy-hook',
+      policy,
+      `--user-data-dir=${first}`,
+    ]),
+  ).toEqual({ isHook: true, args: ['--action-policy-hook', policy] });
+  expect(state.dialogs[0].detail).toContain('Created native data is retained');
+  await fs.writeFile(path.join(first, 'Local State'), 'OWNED_NATIVE_CANARY');
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'REMOVED' });
+  expect(await fs.readFile(path.join(first, 'Local State'), 'utf8')).toBe('OWNED_NATIVE_CANARY');
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  const second = previewNativePath();
+  expect(second).not.toBe(first);
+  await service.close();
+  service = createClaudeHookApp(options);
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'OBSERVED_REMOVED' });
+  expect(await fs.readFile(path.join(first, 'Local State'), 'utf8')).toBe('OWNED_NATIVE_CANARY');
+  expect((await fs.stat(second)).isDirectory()).toBe(true);
+});
+
+it('retains native directories and reports unknown if their identity changes during commit', async () => {
+  state.beforeWrite = async () => {
+    const native = previewNativePath();
+    await fs.rename(native, native + '-retained');
+    await fs.mkdir(native);
+    await fs.writeFile(path.join(native, 'Local State'), 'REPLACEMENT_NATIVE_CANARY');
+  };
+  expect(await service.handle('install', () => true)).toMatchObject({
+    code: 'RETAINED_UNKNOWN',
+    canInstall: false,
+  });
+  const native = previewNativePath();
+  expect((await fs.stat(native + '-retained')).isDirectory()).toBe(true);
+  expect(await fs.readFile(path.join(native, 'Local State'), 'utf8')).toBe(
+    'REPLACEMENT_NATIVE_CANARY',
+  );
+});
+
+it('retains the newly created native directory after uncertain profile readback', async () => {
+  state.readbackFailure = true;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'READBACK_FAILED' });
+  expect((await fs.stat(previewNativePath())).isDirectory()).toBe(true);
+});

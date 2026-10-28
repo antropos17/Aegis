@@ -16,6 +16,9 @@ const {
   profileReviewText,
   profileDraftEligibility,
   profilePresence,
+  nativeProfilePath,
+  nativeProfileIdentity,
+  reserveNativeProfile,
 } = require('./claude-hook-app-profile');
 const CODES = new Set([
   'IDLE',
@@ -323,11 +326,19 @@ function createClaudeHookApp(options) {
     if (installing && configured) return reply('OWNED_INSTALL_EXISTS');
     if (action === 'remove' && !reviewable) return reply('NO_MATCHING_HOOK');
     const observedRemoval = action === 'remove' && (!ownedInstall || session?.ended);
+    // Review planId is allocated after command planning, so use the existing
+    // server UUID source for this private per-attempt path; no renderer token.
+    const nativePath =
+      installing && platform === 'win32'
+        ? nativeProfilePath(target, randomUUID().replaceAll('-', ''))
+        : undefined;
     let command,
       afterCommand,
       policyLease,
       policyBytes,
-      policyCreated = false;
+      policyCreated = false,
+      nativeCreated = false,
+      nativeIdentity;
     try {
       let policyPath, scope;
       if (action === 'install-project-policy') {
@@ -350,8 +361,8 @@ function createClaudeHookApp(options) {
             2,
           ) + '\n',
         );
-        command = profileCommand(executable, appPath, policyPath);
-        afterCommand = profileAfterCommand(executable, appPath, policyPath);
+        command = profileCommand(executable, appPath, policyPath, nativePath);
+        afterCommand = profileAfterCommand(executable, appPath, policyPath, nativePath);
       } else if (action === 'install') {
         const chosen = await dialog.showOpenDialog(window, {
           title: 'Select Claude Bash policy',
@@ -361,8 +372,8 @@ function createClaudeHookApp(options) {
         if (!owned()) return { success: false, error: 'Renderer request denied' };
         if (chosen.canceled || chosen.filePaths?.length !== 1) return reply('CANCELLED');
         if (!(await checkProfilePolicy(chosen.filePaths[0]))) return reply('INVALID_POLICY');
-        command = profileCommand(executable, appPath, chosen.filePaths[0]);
-        afterCommand = profileAfterCommand(executable, appPath, chosen.filePaths[0]);
+        command = profileCommand(executable, appPath, chosen.filePaths[0], nativePath);
+        afterCommand = profileAfterCommand(executable, appPath, chosen.filePaths[0], nativePath);
         if (!owned()) return { success: false, error: 'Renderer request denied' };
       }
       pendingSession = ensureSession(assets, action === 'remove');
@@ -453,6 +464,9 @@ function createClaudeHookApp(options) {
       }
       const detail =
         profileReviewText(prepared.review, target, observedRemoval) +
+        (nativePath
+          ? `\n\nNew native hook profile:\n${nativePath}\nThis fresh directory is created only after confirmation. Existing directories are never adopted. Electron may write native state and caches here when these hooks run. Created native data is retained on installation failure and hook removal; this is not filesystem isolation.`
+          : '') +
         (policyBytes
           ? `\n\nNew project policy destination:\n${policyPath}\n\nExact policy:\n${policyBytes.toString('utf8')}\nThe working directory must match exactly. Provider confirmation is requested for pwd, ls, git status, git status --short, git diff --stat, bounded single-name cat, npm test, npm run lint, and git apply -- NAME.patch or NAME.diff. The narrow filename check denies .env variants, credentials and credentials.json, id_rsa and id_ed25519. Declared destructive commands and unsupported inputs are denied. There is no automatic allow. Script effects, patch content and executable identity are not verified.`
           : '');
@@ -485,6 +499,22 @@ function createClaudeHookApp(options) {
       }
       applying = true;
       try {
+        if (nativePath) {
+          try {
+            nativeIdentity = await reserveNativeProfile(nativePath);
+            nativeCreated = true;
+          } catch (error) {
+            cancel();
+            if (error.code === 'EEXIST') return reply('PLAN_REFUSED');
+            retained = true;
+            return reply('RETAINED_UNKNOWN');
+          }
+          if (!owned() || current.ended) {
+            retained = true;
+            cancel();
+            return reply('RETAINED_UNKNOWN');
+          }
+        }
         if (policyLease) {
           let outcome;
           try {
@@ -513,9 +543,26 @@ function createClaudeHookApp(options) {
             return reply();
           }
         }
+        if (nativePath && (await nativeProfileIdentity(nativePath)) !== nativeIdentity) {
+          retained = true;
+          cancel();
+          return reply('RETAINED_UNKNOWN');
+        }
+        if (!owned() || current.ended) {
+          cancel();
+          if (nativeCreated) {
+            retained = true;
+            return reply('RETAINED_UNKNOWN');
+          }
+          return reply('SESSION_ENDED');
+        }
         const result = observedRemoval
           ? await prepared.confirm(true)
           : await current.review.confirm(owner, prepared.planId, true);
+        if (nativePath && (await nativeProfileIdentity(nativePath)) !== nativeIdentity) {
+          retained = true;
+          return retainResult({ code: 'RETAINED_UNKNOWN' });
+        }
         if (policyLease && !owned()) {
           retained = true;
           last = 'RETAINED_UNKNOWN';
@@ -543,7 +590,7 @@ function createClaudeHookApp(options) {
         }
         return retainResult(result);
       } catch (error) {
-        if (policyCreated) {
+        if (policyCreated || nativeCreated) {
           retained = true;
           last = 'RETAINED_UNKNOWN';
           return reply();
