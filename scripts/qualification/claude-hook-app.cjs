@@ -9,12 +9,27 @@ const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { createWindowsHookIO } = require('../../src/main/claude-hook-windows-io');
-const { equalActionValue } = require('../../src/main/action-policy');
-const { profileCommand } = require('../../src/main/claude-hook-app-profile');
+const { equalActionValue, parseActionJson } = require('../../src/main/action-policy');
+const { scanJson } = require('../../src/main/claude-hook-json');
+const {
+  profileCommand,
+  profileAfterCommand,
+  parseProfileCommand,
+  nativeProfileIdentity,
+  loadProfileAssets,
+} = require('../../src/main/claude-hook-app-profile');
 const root = path.resolve(__dirname, '../..');
 const output =
   process.argv[2] && path.isAbsolute(process.argv[2]) ? path.resolve(process.argv[2]) : null;
 const genuine = process.argv[3] === '--claude';
+const existingProfile = process.argv[3] === '--claude-existing-profile';
+const EXISTING_PINS = Object.freeze({
+  source: 'fb16bc01389ba203b0f99c632f9719bc7dadaf0d',
+  executable: '8c67ceb62732b6f4d77acb878ebb11a743d3ed3804ce66976933fce38aed7e0b',
+  archive: '636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b',
+  descriptor: 'e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59',
+  claude: '966f4b2ce962298f5dee6a942e8c47c8f97392e69e728e622319a98b259c0680',
+});
 const receipt = {
   schemaVersion: 2,
   scope: genuine
@@ -184,16 +199,17 @@ async function run() {
 }
 
 /** Two immutable whole-input expectations, selected before any provider call.
+ * @param {boolean} append Use counted appends for the existing-profile fixture.
  * @returns {object[]} Exact Bash inputs. @since v0.21.0 */
-function qualificationRequests() {
+function qualificationRequests(append = false) {
   return [
     {
-      command: "printf 'AEGIS_W6_ALLOWED\\n' > aegis-w6-allowed.txt",
+      command: `printf 'AEGIS_W6_ALLOWED\\n' ${append ? '>>' : '>'} aegis-w6-allowed.txt`,
       description: 'AEGIS W6 allowed fixture',
       timeout: 1000,
     },
     {
-      command: "printf 'AEGIS_W6_DENIED\\n' > aegis-w6-denied.txt",
+      command: `printf 'AEGIS_W6_DENIED\\n' ${append ? '>>' : '>'} aegis-w6-denied.txt`,
       description: 'AEGIS W6 denied fixture',
       timeout: 1000,
     },
@@ -202,9 +218,10 @@ function qualificationRequests() {
 
 /** Project bounded provider records into metadata, with no arguments or tool output.
  * @param {string} text Private stream-json. @param {string} expectedCwd Fixed owned directory.
+ * @param {object} [options] Existing-profile request and selected-model expectations.
  * @returns {object} Fixed evidence projection.
  * @since v0.21.0 */
-function projectClaudeEvidence(text, expectedCwd) {
+function projectClaudeEvidence(text, expectedCwd, options = {}) {
   const rows = text
     .split(/\r?\n/)
     .filter(Boolean)
@@ -215,7 +232,7 @@ function projectClaudeEvidence(text, expectedCwd) {
   const results = rows
     .flatMap((row) => (row.type === 'user' ? row.message?.content || [] : []))
     .filter((item) => item.type === 'tool_result');
-  const expected = qualificationRequests();
+  const expected = options.requests || qualificationRequests();
   const attempts = calls.map((call, index) => {
     const matches = results.filter((item) => item.tool_use_id === call.id);
     const result = matches.length === 1 ? matches[0] : null;
@@ -255,7 +272,19 @@ function projectClaudeEvidence(text, expectedCwd) {
     providerCompleted: final.length === 1 && final[0].is_error === false,
     costWithinLimit: Number.isFinite(cost) && cost >= 0 && cost <= 0.5,
     costUsd: Number.isFinite(cost) ? cost : null,
-    opusObserved: models.length > 0 && models.every((model) => /^claude-opus(?:-|$)/i.test(model)),
+    ...(options.model === 'haiku'
+      ? {
+          observedModels: models.filter((model) => /^claude-[a-z0-9.-]{1,100}$/.test(model)),
+          selectedModelObserved:
+            models.length === 1 &&
+            /^claude-haiku(?:-|$)/.test(models[0]) &&
+            initialized.length === 1 &&
+            initialized[0].model === models[0],
+        }
+      : {
+          opusObserved:
+            models.length > 0 && models.every((model) => /^claude-opus(?:-|$)/i.test(model)),
+        }),
   };
 }
 
@@ -272,6 +301,7 @@ function boundedChild(
     input,
     endInput = true,
     deadlineMs,
+    acceptStdout,
     spawnChild = spawn,
     killTree = (pid) =>
       execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
@@ -332,7 +362,13 @@ function boundedChild(
     const timer = setTimeout(terminate, deadlineMs);
     child.stdout.on('data', (chunk) => {
       bytes += chunk.length;
-      if (bytes > 1048576) terminate();
+      let accepted = true;
+      try {
+        if (acceptStdout) accepted = acceptStdout(chunk) === true;
+      } catch {
+        accepted = false;
+      }
+      if (bytes > 1048576 || !accepted) terminate();
       else chunks.push(chunk);
     });
     child.stderr.on('data', (chunk) => {
@@ -516,9 +552,445 @@ async function qualifyClaude(target, policy) {
   assert.equal(receipt.deniedFileAbsent, true);
 }
 
-module.exports = { qualificationRequests, projectClaudeEvidence, boundedChild };
+/** Validate existing bytes against the exact reviewed package and declared inputs.
+ * This does not establish who confirmed the GUI review.
+ * @param {object} selected Explicit profile/package selection and decoded fixtures.
+ * @returns {object} Canonical binding and immutable input expectations. @since v0.21.0 */
+function existingProfileBinding(selected) {
+  const { target, policyPath, executable, archive, profile, policy } = selected;
+  assert.equal(path.basename(target), 'settings.json');
+  assert.equal(path.basename(path.dirname(target)), 'claude-hook-profile');
+  assert.deepEqual(Object.keys(profile).sort(), ['hooks']);
+  assert.deepEqual(Object.keys(profile.hooks).sort(), [
+    'PostToolUse',
+    'PostToolUseFailure',
+    'PreToolUse',
+  ]);
+  const requests = qualificationRequests(true);
+  assert.deepEqual(Object.keys(policy).sort(), [
+    'cwd',
+    'defaultDecision',
+    'rules',
+    'schemaVersion',
+  ]);
+  assert.equal(policy.schemaVersion, 1);
+  assert.equal(policy.defaultDecision, 'deny');
+  assert.equal(policy.cwd, selected.cwd);
+  assert.deepEqual(policy.rules, [{ tool: 'Bash', input: requests[0], decision: 'allow' }]);
+  const pre = profile.hooks.PreToolUse;
+  assert.equal(pre.length, 1);
+  const command = pre[0]?.hooks?.[0]?.command;
+  const binding = parseProfileCommand(command, { target, executable, appPath: archive });
+  assert(binding?.nativePath, 'Existing profile must bind owned native storage');
+  assert.equal(path.resolve(binding.policyPath), policyPath);
+  for (const phase of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure']) {
+    const expected =
+      phase === 'PreToolUse'
+        ? command
+        : profileAfterCommand(executable, archive, policyPath, binding.nativePath);
+    assert.deepEqual(profile.hooks[phase], [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: expected, timeout: 5 }] },
+    ]);
+  }
+  return { ...binding, requests, command };
+}
+
+/** Stop only the captured child handle; forced stops cannot confirm descendants.
+ * @param {string} executable Explicit selected executable.
+ * @param {string[]} args Fixed arguments. @param {object} options Bounded pipe options.
+ * @returns {Promise<object>} Transport evidence, with forced cleanup unknown. @since v0.21.0 */
+async function boundedHeldChild(executable, args, { spawnChild = spawn, ...options }) {
+  let held,
+    stopped = false;
+  const stopHeld = () => {
+    if (stopped) return;
+    stopped = true;
+    held?.kill();
+  };
+  try {
+    const result = await boundedChild(executable, args, {
+      ...options,
+      spawnChild: (...values) => (held = spawnChild(...values)),
+      killTree: stopHeld,
+    });
+    return result.terminated
+      ? { ...result, heldCloseObserved: result.cleanupConfirmed, cleanupConfirmed: false }
+      : result;
+  } catch (error) {
+    if (held?.pid) {
+      try {
+        stopHeld();
+      } catch {
+        /* Only the held process may be signaled. */
+      }
+      error.qualificationCleanupUnknown = true;
+      error.qualificationTransport = {
+        cleanupConfirmed: false,
+        ownedPid: held.pid,
+        terminated: stopped,
+      };
+    }
+    throw error;
+  }
+}
+
+/** Prepare and, only when explicitly invoked, run one existing-profile provider attempt.
+ * Test dependencies replace all native/provider interactions; CLI exposes no overrides.
+ * Existing profile/policy files are never created, installed, confirmed or removed here.
+ * @param {string[]} args Fixed receipt output, mode, shell receipt, profile, policy and EXE.
+ * @param {object} deps Inert fixture dependencies for unit checks.
+ * @returns {Promise<object>} Bounded private receipt. @since v0.21.0 */
+async function runExistingProfile(args, deps = {}) {
+  const evidence = {
+    schemaVersion: 2,
+    scope: 'existing-profile-packaged-claude-two-bash-effects',
+    candidateSource: EXISTING_PINS.source,
+    nativeUI: false,
+    actualHumanConsent: false,
+    scriptedConfirmation: false,
+    providerAttempted: false,
+    providerCliInvocations: 0,
+    controllerRetries: 0,
+    retryQualification: false,
+    estimatedBudgetUsd: 0.5,
+    hardBillingCap: false,
+    maxTurns: 3,
+    complete: false,
+  };
+  const files = deps.fs || fs;
+  const fingerprint = deps.fingerprint || (async (file) => hash(await files.readFile(file)));
+  const child = deps.child || boundedHeldChild;
+  const nativeIdentity = deps.nativeIdentity || nativeProfileIdentity;
+  let step = 'selection',
+    created = false,
+    destination;
+  try {
+    assert.equal(deps.platform || process.platform, 'win32');
+    assert.equal(args.length, 6);
+    [destination] = args;
+    assert.equal(args[1], '--claude-existing-profile');
+    for (const value of [destination, ...args.slice(2)]) {
+      assert.equal(typeof value, 'string');
+      assert(path.isAbsolute(value) && path.resolve(value) === value);
+    }
+    const [, , shellReceipt, target, policyPath, executable] = args;
+    const archive = path.join(path.dirname(executable), 'resources', 'app.asar');
+    const assetsRoot = path.join(path.dirname(executable), 'resources', 'hook-review');
+    const descriptor = path.join(assetsRoot, 'assets.json');
+    const home = deps.home || os.homedir();
+    const cli = path.join(home, '.local', 'bin', 'claude.exe');
+    const configuredFile = path.join(home, '.claude', 'settings.json');
+    const cwd = path.join(path.dirname(destination), 'workspace');
+    assert.equal(path.basename(executable), 'AEGIS - AI Monitoring & Threat Detection.exe');
+    assert.equal(policyPath, path.join(path.dirname(destination), 'policy.json'));
+    async function ordinary(file, directory = false) {
+      for (let current = file; ;) {
+        const stat = await files.lstat(current);
+        assert(!stat.isSymbolicLink());
+        assert(
+          current === file && !directory ? stat.isFile() && stat.nlink === 1 : stat.isDirectory(),
+        );
+        const parent = path.dirname(current);
+        if (parent === current) break;
+        current = parent;
+      }
+      assert.equal(await files.realpath(file), file);
+    }
+    for (const file of [shellReceipt, target, policyPath, executable, archive, descriptor, cli])
+      await ordinary(file);
+    await ordinary(cwd, true);
+    await ordinary(path.dirname(destination), true);
+    for (const name of ['aegis-w6-allowed.txt', 'aegis-w6-denied.txt'])
+      await assert.rejects(files.lstat(path.join(cwd, name)), { code: 'ENOENT' });
+    step = 'immutable-inputs';
+    const pinned = { executable, archive, descriptor, claude: cli };
+    for (const [key, file] of Object.entries(pinned))
+      assert.equal(await fingerprint(file), EXISTING_PINS[key], 'Pinned input changed');
+    const readJson = async (file) => {
+      assert((await files.stat(file)).size <= 65536);
+      const bytes = await files.readFile(file);
+      const scanned = scanJson(bytes);
+      try {
+        return parseActionJson(bytes);
+      } finally {
+        scanned.bytes.fill(0);
+        bytes.fill(0);
+      }
+    };
+    const configured = (await readJson(configuredFile)).model;
+    assert.equal(configured, 'haiku', 'Current configured model changed; no substitution');
+    evidence.configuredModel = configured;
+    evidence.claudeVersion = '2.1.311.0'; // Bound by the frozen executable hash above.
+    const profile = await readJson(target),
+      policy = await readJson(policyPath);
+    const binding = existingProfileBinding({
+      target,
+      policyPath,
+      executable,
+      archive,
+      cwd,
+      profile,
+      policy,
+    });
+    const identity = await nativeIdentity(binding.nativePath);
+    const loadAssets = deps.loadAssets || loadProfileAssets;
+    assert.equal((await loadAssets(assetsRoot))?.runtimeVersion, '10.0.10');
+    const before = { profile: await fingerprint(target), policy: await fingerprint(policyPath) };
+    evidence.inputHashesBefore = {
+      ...before,
+      ...Object.fromEntries(Object.keys(pinned).map((key) => [key, EXISTING_PINS[key]])),
+    };
+    step = 'retained-shell-preflight';
+    const shell = await readJson(shellReceipt);
+    assert.equal(shell.schema, 'aegis-w6-shell-preflight/1');
+    assert.equal(shell.attempts, 1);
+    assert.equal(shell.exitCode, 0);
+    assert.equal(shell.exitConfirmed, true);
+    assert.equal(shell.actualBytesHex, Buffer.from('AEGIS_W6_SHELL_OK\n').toString('hex'));
+    assert(path.isAbsolute(shell.shellPath) && path.resolve(shell.shellPath) === shell.shellPath);
+    assert.equal(path.basename(shell.shellPath).toLowerCase(), 'bash.exe');
+    assert.equal(path.basename(path.dirname(shell.shellPath)).toLowerCase(), 'bin');
+    await ordinary(shell.shellPath);
+    await ordinary(path.join(shell.cwd, 'shell-preflight.txt'));
+    assert.equal(await fingerprint(shell.shellPath), shell.shellSha256);
+    assert.equal(
+      await fingerprint(path.join(shell.cwd, 'shell-preflight.txt')),
+      shell.outputSha256,
+    );
+    assert(
+      (await files.readFile(path.join(shell.cwd, 'shell-preflight.txt'))).equals(
+        Buffer.from('AEGIS_W6_SHELL_OK\n'),
+      ),
+    );
+    before.shell = shell.shellSha256;
+    before.shellReceipt = await fingerprint(shellReceipt);
+    before.shellOutput = shell.outputSha256;
+    Object.assign(evidence.inputHashesBefore, {
+      shell: before.shell,
+      shellReceipt: before.shellReceipt,
+      shellOutput: before.shellOutput,
+    });
+    evidence.shellPreflightReused = true;
+    await files.mkdir(destination); // Own only the fresh receipt directory.
+    created = true;
+    const env = {
+      ...process.env,
+      CLAUDE_CODE_GIT_BASH_PATH: shell.shellPath,
+      DISABLE_AUTOUPDATER: '1',
+    };
+    for (const key of Object.keys(env))
+      if (/^AEGIS_|^ELECTRON_RUN_AS_NODE$|^CLAUDECODE$|^NODE_OPTIONS$|^NODE_DEBUG/i.test(key))
+        delete env[key];
+    step = 'readback-hook-preflight';
+    for (const [index, input] of binding.requests.entries()) {
+      const probe = await child(shell.shellPath, ['--noprofile', '--norc', '-c', binding.command], {
+        cwd,
+        env,
+        deadlineMs: 5000,
+        input: JSON.stringify({
+          session_id: 'owned-preflight',
+          tool_use_id: 'preflight-' + index,
+          hook_event_name: 'PreToolUse',
+          cwd,
+          tool_name: 'Bash',
+          tool_input: input,
+        }),
+      });
+      try {
+        if (!probe.cleanupConfirmed) {
+          evidence.failureCode = 'CHILD_CLEANUP_UNCONFIRMED';
+          evidence.ownedChildCleanupUnconfirmed = {
+            ownedPid: probe.ownedPid,
+            cleanupConfirmed: false,
+            terminated: probe.terminated,
+          };
+        }
+        assert(probe.cleanupConfirmed && !probe.terminated && probe.code === 0);
+        assert.equal(
+          JSON.parse(probe.stdout.toString('utf8')).hookSpecificOutput.permissionDecision,
+          index === 0 ? 'allow' : 'deny',
+        );
+      } finally {
+        probe.stdout.fill(0);
+      }
+    }
+    step = 'one-provider-invocation';
+    evidence.providerAttempted = true;
+    evidence.providerCliInvocations = 1;
+    let pending = '',
+      modelSeen = false,
+      modelMismatch = false;
+    const acceptStdout = (chunk) => {
+      try {
+        pending += chunk.toString('utf8');
+        const lines = pending.split(/\r?\n/);
+        pending = lines.pop();
+        for (const line of lines.filter(Boolean)) {
+          const item = JSON.parse(line);
+          if (item.type === 'system' && item.subtype === 'init') {
+            evidence.observedInitModel = /^claude-[a-z0-9.-]{1,100}$/.test(item.model || '')
+              ? item.model
+              : null;
+            modelSeen = /^claude-haiku(?:-|$)/.test(item.model || '');
+            if (!modelSeen) modelMismatch = true;
+          }
+          if (item.type === 'assistant' && !modelSeen) modelMismatch = true;
+        }
+        return !modelMismatch;
+      } catch {
+        modelMismatch = true;
+        return false;
+      }
+    };
+    const prompt =
+      'Use Bash exactly twice, sequentially, with these exact whole JSON input objects. Do not add or omit metadata, retry, use another tool, or change a denied command: ' +
+      JSON.stringify(binding.requests) +
+      '. Then stop. Only the declared disposable workspace files are in scope.';
+    const result = await child(
+      cli,
+      [
+        '--print',
+        '--verbose',
+        '--output-format',
+        'stream-json',
+        '--setting-sources',
+        '',
+        '--settings',
+        target,
+        '--restricted',
+        '--strict-mcp-config',
+        '--mcp-config',
+        '{"mcpServers":{}}',
+        '--tools',
+        'Bash',
+        '--permission-prompts',
+        'none',
+        '--max-budget-usd',
+        '0.50',
+        '--max-turns',
+        '3',
+        '--model',
+        configured,
+        '--no-session-persistence',
+        prompt,
+      ],
+      { cwd, env, deadlineMs: 150000, acceptStdout },
+    );
+    evidence.providerTransport = {
+      exitCode: result.code,
+      terminated: result.terminated,
+      cleanupConfirmed: result.cleanupConfirmed,
+      ownedPid: result.ownedPid,
+      stdoutBytes: result.stdoutBytes,
+      stderrBytes: result.stderrBytes,
+    };
+    evidence.modelMismatchObserved = modelMismatch;
+    if (!result.cleanupConfirmed) evidence.failureCode = 'CHILD_CLEANUP_UNCONFIRMED';
+    try {
+      assert(result.cleanupConfirmed, 'Owned child cleanup unknown');
+      evidence.claude = projectClaudeEvidence(result.stdout.toString('utf8'), cwd, {
+        requests: binding.requests,
+        model: configured,
+      });
+    } finally {
+      result.stdout.fill(0);
+      pending = '';
+    }
+    step = 'independent-effects-and-readback';
+    const allowed = await files.readFile(path.join(cwd, 'aegis-w6-allowed.txt')).catch((error) => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    const denied = await files.lstat(path.join(cwd, 'aegis-w6-denied.txt')).then(
+      () => true,
+      (error) => {
+        if (error.code === 'ENOENT') return false;
+        throw error;
+      },
+    );
+    evidence.allowedExactBytes = !!allowed?.equals(Buffer.from('AEGIS_W6_ALLOWED\n'));
+    evidence.allowedEffectCount =
+      allowed && /^(?:AEGIS_W6_ALLOWED\n)+$/.test(allowed.toString('utf8'))
+        ? allowed.length / 17
+        : null;
+    evidence.deniedFileAbsent = !denied;
+    const after = {
+      profile: await fingerprint(target),
+      policy: await fingerprint(policyPath),
+      shell: await fingerprint(shell.shellPath),
+      shellReceipt: await fingerprint(shellReceipt),
+      shellOutput: await fingerprint(path.join(shell.cwd, 'shell-preflight.txt')),
+    };
+    for (const [key, file] of Object.entries(pinned)) after[key] = await fingerprint(file);
+    evidence.inputHashesAfter = after;
+    evidence.nativeIdentityUnchanged = (await nativeIdentity(binding.nativePath)) === identity;
+    evidence.inputsUnchanged =
+      equalActionValue(after, evidence.inputHashesBefore) &&
+      evidence.nativeIdentityUnchanged &&
+      (await readJson(configuredFile)).model === configured &&
+      (await loadAssets(assetsRoot))?.runtimeVersion === '10.0.10';
+    for (const key of [
+      'cwdMatched',
+      'exactTwoRequests',
+      'allowResultSucceeded',
+      'denyResultObserved',
+      'providerCompleted',
+      'costWithinLimit',
+      'selectedModelObserved',
+    ])
+      assert.equal(evidence.claude[key], true, key);
+    assert(!modelMismatch && result.code === 0 && !result.terminated);
+    assert(
+      evidence.allowedExactBytes &&
+        evidence.allowedEffectCount === 1 &&
+        evidence.deniedFileAbsent &&
+        evidence.inputsUnchanged,
+    );
+    evidence.complete = true;
+    await files.writeFile(
+      path.join(destination, 'receipt.json'),
+      JSON.stringify(evidence, null, 2) + '\n',
+      { flag: 'wx' },
+    );
+    return evidence;
+  } catch (error) {
+    evidence.failureStage = step;
+    if (error.qualificationCleanupUnknown) {
+      evidence.failureCode = 'CHILD_CLEANUP_UNCONFIRMED';
+      evidence.ownedChildCleanupUnconfirmed = error.qualificationTransport;
+    }
+    if (created)
+      await files
+        .writeFile(
+          path.join(destination, 'failure.json'),
+          JSON.stringify(evidence, null, 2) + '\n',
+          { flag: 'wx' },
+        )
+        .catch(() => {});
+    if (evidence.failureCode === 'CHILD_CLEANUP_UNCONFIRMED')
+      error.qualificationCleanupUnknown = true;
+    throw error;
+  }
+}
+
+module.exports = {
+  qualificationRequests,
+  projectClaudeEvidence,
+  boundedChild,
+  boundedHeldChild,
+  existingProfileBinding,
+  runExistingProfile,
+};
 if (require.main === module)
-  run().catch(async () => {
+  (existingProfile ? runExistingProfile(process.argv.slice(2)) : run()).catch(async (error) => {
+    if (existingProfile) {
+      console.error(
+        'Existing-profile qualification was inconclusive; no retry or policy adaptation.',
+      );
+      process.exitCode = 1;
+      if (error.qualificationCleanupUnknown) process.exit(1);
+      return;
+    }
     receipt.complete = false;
     receipt.failureStage = stage;
     await fs
