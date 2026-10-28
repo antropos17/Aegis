@@ -351,3 +351,33 @@ label. The separate
 native-read candidate `e456` failed its visibility precondition (expected true,
 observed false); its heading stage was not reached. That failure establishes no
 renderer, VM boot or cadence diagnosis and no native-read acceptance.
+
+### Current generated native-profile candidate, 2026-10-28
+
+One ordinary Windows x64 NSIS package was built from source
+`b35f39764c56b74a0799737561b69003e5e29e91`, without publication. Its identities are:
+
+| Artifact | Bytes | SHA-256 |
+| --- | --- | --- |
+| Installer | 188,066,691 | `51dd99793ebdd3f36ce3d52f654f8d4d99d5bd9230d44734f6889d5c2670ff48` |
+| `resources/app.asar` | 28,581,878 | `b7b6157dec7e402b0a3cda16832563b29eb1909c5ffb88c6987a83092822e4cd` |
+| `resources/hook-review/assets.json` | 27,766 | `40e1c92fb6a6529a8bef12b7791759588dd5820c15e41c28e39b196b10678b48` |
+
+One provider-free ten-case matrix passed. It executed the newly generated
+native-profile hook commands unchanged, alongside Node and direct controls:
+allow, deny, invalid request, held-open input, and correlated `PostToolUse` and
+`PostToolUseFailure` observations. The archive-matched source service used the
+packaged portable assets for real Windows IO with scripted setup/removal
+confirmation. Native admission closed with confirmed exit and stream cleanup;
+no case required forced termination. Candidate, policy and asset hashes stayed
+unchanged, and both tool-output markers remained absent.
+
+Separately, one offline installer extraction confirmed that all 199 selected
+files (the executable, ASAR and complete hook-review subtree) matched the unpacked
+candidate by relative file set, byte length and hash. The installer stayed
+unchanged; neither it nor the extracted application was executed by that check.
+The standalone `-G1ACandidate` installer runner binds these reviewed pins. Its
+existing workflow has no `g1a` dispatch input, and actual installation remains
+unrun. This evidence does not establish actual owner dialogs, provider action
+effects, clean-installed acceptance or full G1 acceptance; `launchAllowed`
+remains false.

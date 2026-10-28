@@ -52,10 +52,10 @@ if ($Pr1048Candidate -or $Master813804e2Candidate) {
 }
 function GetG1ACandidate {
   @{
-    sourceSha='8c394f0d1cc0723dfd38d27cd9895f743c5d41f6'; sourceTree='3312436522961da67c89daa8277b2a2c39e67216'
+    sourceSha='b35f39764c56b74a0799737561b69003e5e29e91'; sourceTree='eeb047f2d86937540322b46811bff8d24feb0fe7'
     version='0.21.0-beta'; filename='AEGIS - AI Monitoring & Threat Detection Setup 0.21.0-beta.exe'
-    bytes=188065597; sha256='485a1dd9f86f727e45fa732aff3afa3d773bf2d26892cd8f699e69385f9900f3'
-    assetsSha256='9adf27b8a0195cb3bddc410d950c4264ade271004ae1324ff78559deb593e8a8'
+    bytes=188066691; sha256='51dd99793ebdd3f36ce3d52f654f8d4d99d5bd9230d44734f6889d5c2670ff48'
+    assetsSha256='40e1c92fb6a6529a8bef12b7791759588dd5820c15e41c28e39b196b10678b48'
   }
 }
 if ($G1ACandidate) {
