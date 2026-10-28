@@ -377,10 +377,9 @@ files (the executable, ASAR and complete hook-review subtree) matched the unpack
 candidate by relative file set, byte length and hash. The installer stayed
 unchanged; neither it nor the extracted application was executed by that check.
 The standalone `-G1ACandidate` installer runner bound these pins at this checkpoint;
-the current binding advances to the candidate below. Its
-existing workflow has no `g1a` dispatch input, and actual installation remains
-unrun. This evidence does not establish actual owner dialogs, provider action
-effects, clean-installed acceptance or full G1 acceptance; `launchAllowed`
+the current binding advances to the candidate below. Installation of this earlier
+candidate was not run. This evidence does not establish actual owner dialogs,
+provider action effects, clean-installed acceptance or full G1 acceptance; `launchAllowed`
 remains false.
 
 ### Candidate after device-policy and Guard closure updates, 2026-10-28
@@ -408,6 +407,32 @@ to the unpacked candidate by relative file set, bytes and hash; the installer
 remained unchanged and was not executed. The standalone G1 candidate selector
 now binds the identities above. Build output reported Electron download progress
 despite cache reuse, so this record does not establish an offline build.
-Actual installation, owner dialogs, provider action effects, packaged interactive
-broker cleanup scenarios and full G1 acceptance remain unqualified. The existing
-workflow still has no `g1a` dispatch input; `launchAllowed` remains false.
+The subsequent clean installation receipt below adds its recorded scope. Owner
+dialogs, provider action effects, packaged interactive broker cleanup scenarios
+and full G1 acceptance remain unqualified; `launchAllowed` remains false.
+
+### Clean Windows installation, 2026-10-28 UTC
+
+[Hosted run 40764302602](https://github.com/antropos17/Aegis/actions/runs/40764302602),
+attempt 1, passed on Windows Server 2025 Datacenter build 26100 with native x64 OS
+and driver. Qualification source was `a65c7f5b5f781f374aac978c530cba5ac5510732`;
+the unchanged application candidate was
+`fb16bc01389ba203b0f99c632f9719bc7dadaf0d`. Its 188,066,953-byte installer had
+SHA-256 `5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952`.
+
+The receipt's five phases were `preflight`, `before-install-0.21.0-beta`,
+`installed-0.21.0-beta`, `first-uninstall` and `complete`: one silent current-user
+installation, one `fresh` installed-profile check and one uninstall. The packaged
+application launched, saved synthetic settings and relaunched with those settings
+and the sentinel retained; no renderer errors were recorded. Installed executable,
+ASAR and process-snapshot helper hashes matched the retained candidate. Portable
+asset validation matched the descriptor in the preceding table and runtime
+`10.0.10`. Uninstall removed the application, install directory, registration and
+shortcuts, retained settings and the sentinel, and left zero installed processes.
+
+The captured Monitoring screen showed `Starting AEGIS`,
+`Observation unavailable / stale` and `No reliable scan yet`. This receipt does
+not establish sensor health or reliable scanning. Actual Guard owner consent,
+installed hook IO, provider/tool effects, `Blocking verified`, reinstall, upgrade,
+Windows 11 and signing remain unqualified. This was the single authorized installer
+attempt; no retry or reinstall was performed, and full G1 acceptance remains open.
