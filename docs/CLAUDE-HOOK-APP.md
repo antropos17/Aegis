@@ -22,7 +22,7 @@ failed installation and hook removal, and reinstall selects a new path. Native
 identity checks detect observed replacement; they do not provide filesystem
 isolation or eliminate changes after verification. Exact older commands remain
 recognized for removal and admission. The dated package receipts below qualify
-their recorded candidate bytes, not this new command generation.
+only their exact recorded candidate bytes.
 
 ## Paths and authority
 
@@ -184,6 +184,176 @@ test launchers are intentionally refused by private IO. The installed-Claude
 source-run result below covers one version and command shell. Other versions,
 bypass behavior, historical backup restoration, the installed-package owner-review journey
 and full W6 acceptance remain open. `launchAllowed` remains false.
+
+### Preparing a real owner-dialog journey
+
+This is preparation, not another GUI or installer authorization. The current
+`fb16bc01389ba203b0f99c632f9719bc7dadaf0d` unpacked candidate can be reused for a
+packaged owner-dialog journey without installing it. Its clean installed receipt
+below came from a completed disposable hosted job; that desktop is not a retained
+target. A real installed owner-dialog journey needs a separately identified
+installed interactive target. Do not repeat the consumed installer attempt.
+
+The prepared local option uses the existing Windows 11 Home build 26200 x64
+desktop and the owner's physical input, with zero installers or VMs. The owner
+receives step-by-step guidance; they do not need to choose infrastructure. Before
+starting, agree the human operator, unchanged candidate executable and fresh owned
+suite. The earlier `GetCursorPos` failure remains unresolved; interactive-session
+metadata is not proof of automated input. Do not probe or substitute another
+automated input route.
+Before launching, require the recorded executable SHA-256
+`8c67ceb62732b6f4d77acb878ebb11a743d3ed3804ce66976933fce38aed7e0b`
+and ASAR SHA-256 `636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b`.
+
+Use the agreed suite layout: `gui-app-data/claude-hook-profile/settings.json`,
+`policy.json`, `workspace/` and a fresh `provider-receipt/`. The workspace is the
+policy's exact working directory; the provider receipt directory is not a project
+directory. Before launch, create only the fresh suite-owned GUI storage/home/temp
+directories and seed `gui-app-data/settings.json` with
+`notificationsEnabled: false`, `automaticUpdatesEnabled: false` and
+`autoStartWithWindows: false`. Do not overwrite an existing profile or copy secrets.
+From the checkout containing the existing-profile qualification mode, prepare
+the schema-1 policy using its inert exported request builder. Its only allow rule
+is `{ tool: 'Bash', input: qualificationRequests(true)[0], decision: 'allow' }`;
+use `defaultDecision: 'deny'` and the canonical `workspace` path as `cwd`. No
+declared command is executed by constructing this JSON. The allowed request
+appends one fixed `AEGIS_W6_ALLOWED` line to `aegis-w6-allowed.txt`; the separately
+declared denied request targets `aegis-w6-denied.txt`. Both markers must initially
+be absent. Preserve the resulting policy bytes/hash through setup and collection.
+
+The packaged GUI uses one canonical native argument, without an ASAR spacer or
+the separate `--aegis-owned-gui-profile` selector. Electron 45
+[applies this native override before application startup](https://github.com/electron/electron/blob/v45.0.0/shell/app/electron_main_delegate.cc#L230-L239).
+In PowerShell 7, prepare the child environment independently of the
+parent/Codex/provider:
+
+```powershell
+$ownedApplicationData = [IO.Path]::GetFullPath((Join-Path $suite 'gui-app-data'))
+$launch = [Diagnostics.ProcessStartInfo]::new()
+$launch.FileName = $candidate
+$launch.UseShellExecute = $false
+$launch.WorkingDirectory = Join-Path $suite 'workspace'
+$launch.ArgumentList.Add("--user-data-dir=$ownedApplicationData")
+$launch.Environment.Clear()
+foreach ($name in @('SystemRoot', 'windir', 'COMSPEC', 'PATHEXT', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramData')) {
+  $value = [Environment]::GetEnvironmentVariable($name)
+  if ($value) { $launch.Environment[$name] = $value }
+}
+$launch.Environment['PATH'] = Join-Path $launch.Environment['SystemRoot'] 'System32'
+$launch.Environment['USERPROFILE'] = Join-Path $suite 'gui-home'
+$launch.Environment['HOME'] = $launch.Environment['USERPROFILE']
+$launch.Environment['APPDATA'] = Join-Path $suite 'gui-appdata'
+$launch.Environment['LOCALAPPDATA'] = Join-Path $suite 'gui-localappdata'
+$launch.Environment['TEMP'] = Join-Path $suite 'gui-temp'
+$launch.Environment['TMP'] = $launch.Environment['TEMP']
+$launch.Environment['DOTNET_CLI_HOME'] = Join-Path $suite 'gui-dotnet-home'
+$launch.Environment['DOTNET_GENERATE_ASPNET_CERTIFICATE'] = 'false'
+$launch.Environment['DOTNET_SKIP_FIRST_TIME_EXPERIENCE'] = '1'
+$launch.Environment['DOTNET_CLI_TELEMETRY_OPTOUT'] = '1'
+$guiProcess = [Diagnostics.Process]::Start($launch)
+```
+
+Prepare the GUI directories and seed settings once, before the first authorized
+launch, using fresh ordinary suite-owned paths. The second launch reuses the same
+paths and child environment without reseeding settings. The Claude transcript
+adapter, home file watchers and IDE detector use `os.homedir()`, which
+[honors the child's `USERPROFILE` on Windows](https://nodejs.org/api/os.html#oshomedir).
+Application settings/logs/history use the selected user-data root. This is not an
+OS account or filesystem sandbox: desktop/process observations, Windows known
+folders and native dialog history are outside that storage boundary. Startup
+sets the process's application identity and registers a shortcut until quit;
+no application autostart/protocol setter is invoked. The seeded settings prevent
+automatic updates and app notifications. Do not use an inspector, Playwright
+launcher or scripted dialog callback; private IO refuses inspector launches.
+The separate provider child retains its normal authenticated environment and
+configured Haiku model. Never copy its credentials into the GUI environment.
+
+The bounded journey has two ordinary application launches, two policy-file
+selections, four native reviews and two committed hook changes:
+
+1. On the first launch, open **Action control → Separate Claude hook profile**.
+   Choose **Choose policy and review install**, selecting the agreed immutable
+   policy. In **Review Claude hook profile**, retain the exact target/fragments,
+   reviewed hook-target baseline and proposed native directory. This target is
+   `gui-app-data/claude-hook-profile/settings.json`, distinct from the GUI startup
+   seed `gui-app-data/settings.json`. Capture its baseline after preparation has
+   created the empty `{}\n` draft. The human chooses **Cancel**. Verify that this
+   hook target's bytes are unchanged and the proposed native directory is absent.
+   Preparation can already have created the draft and backup directories;
+   cancellation does not promise an empty filesystem.
+2. Start a fresh install review and select the same policy. Compare its current
+   target, three Bash hook changes and fresh native directory. The human chooses
+   **Install profile** before the 90-second review expires. Require **Separate
+   profile configured. Blocking is not verified.** and exact readback of the
+   displayed planned bytes: one
+   `PreToolUse`, `PostToolUse` and `PostToolUseFailure` hook, timeout five, the
+   selected policy, one identical native-directory argument in each command,
+   and the supported after-hook stdout redirection.
+3. Quit AEGIS normally and confirm application/native-helper exit before any
+   next launch. If separately authorized, the existing-profile provider
+   qualification belongs here with the application closed. Its authority and
+   effect receipt remain separate from the human's setup confirmation.
+4. Relaunch with the same owned directory. Choose **Review AEGIS hook removal**;
+   the restarted process requires a fresh review of current bytes. The human
+   chooses **Cancel** and verifies the reviewed hook-target digest is unchanged.
+   Start one fresh removal review, compare the exact current removal fragments,
+   and let the human choose **Remove hook**. Require **The recognized AEGIS hook
+   was removed after a fresh review. Unrelated settings were preserved.**, exact
+   planned readback, preserved unrelated bytes and no recognized AEGIS hooks.
+   Fresh removal does not promise historical rollback to the initial draft.
+5. Quit and confirm exit. Retain policy, private backups and the native directory;
+   hook removal does not delete them. Preserve the four review/result records
+   and file-integrity evidence within the owned workspace.
+
+Stop on unavailable input, expired review, integrity mismatch, uncertain write,
+unconfirmed cleanup or an unexpected dialog. Preserve the first result; do not
+retry, repair permissions, change policy or substitute another launcher. A human
+must actually review and operate the confirmation buttons to establish human
+consent. Chat approval or an automated callback cannot supply that observation.
+This journey alone establishes no provider/tool effect, reliable scanning or
+`Blocking verified` status.
+
+During step 3, separately authorized provider qualification uses the implemented
+existing-profile mode from the checkout root:
+
+```powershell
+node scripts/qualification/claude-hook-app.cjs `
+  (Join-Path $suite 'provider-receipt') --claude-existing-profile `
+  (Join-Path $suite 'shell-preflight/receipt.json') `
+  (Join-Path $suite 'gui-app-data/claude-hook-profile/settings.json') `
+  (Join-Path $suite 'policy.json') $candidate
+```
+
+All arguments must be absolute canonical paths. This mode reads the GUI-created
+profile and policy; it does not install, confirm or remove a profile and does not
+infer human consent from file presence. The app must already have exited. The
+paid child's working directory is `workspace`; its receipt directory stays
+separate. The mode requires exactly the current candidate's three canonical Bash
+hook commands with timeout five and their shared native-profile argument.
+
+There is no retained matching W6 shell receipt for this prepared run. Permission
+must include one future fixed Git Bash `printf 'AEGIS_W6_SHELL_OK\n'` preflight,
+using `--noprofile --norc`, a fresh `shell-preflight` directory, a five-second
+deadline and the existing `boundedHeldChild` cleanup boundary. Clear shell startup
+overrides such as `BASH_ENV`, `ENV` and `NODE_OPTIONS` only from that child's
+environment. Require exit zero, confirmed unforced cleanup, zero stderr and the
+exact 18 stdout bytes. Retain those bytes as `shell-preflight.txt` and an exclusive
+`receipt.json` with schema `aegis-w6-shell-preflight/1`, `attempts: 1`,
+`exitCode: 0`, `exitConfirmed: true`, exact `actualBytesHex`, canonical `cwd` and
+`shellPath`, and matching `shellSha256`/`outputSha256`. The collector rechecks the
+retained bytes and hashes; do not relabel another receipt's different challenge.
+
+The requested future count is one shell preflight, two JSON-only packaged hook
+preflights and one Haiku invocation with two predeclared Bash marker attempts.
+The JSON probes execute no declared commands. The paid invocation has a
+150-second deadline, five-second cleanup settlement, three agentic turns and a client-estimated
+USD 0.50 budget. This is not a hard billing cap. Haiku is requested and observed
+init/final model data is checked; detecting a mismatch does not prove that no
+effect occurred beforehand. Require exactly one allowed marker line and no denied
+marker; counts detect duplicate effects, they do not prevent them. On a failed
+prerequisite, mismatch or unknown result, retain evidence and stop without paid
+fallback, policy widening or retry. This remains a future authorization request,
+not a provider or human-consent receipt.
 
 ### Explicit installed-Claude qualification
 
