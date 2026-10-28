@@ -41,7 +41,7 @@ if ($G1ACandidate) {
   if (-not $definition) { throw 'Reviewed candidate selection missing' }
   . ([scriptblock]::Create($definition.Extent.Text))
   $reviewedCandidate = GetG1ACandidate
-  if ($reviewedCandidate.sourceSha -ne 'b35f39764c56b74a0799737561b69003e5e29e91' -or $reviewedCandidate.sourceTree -ne 'eeb047f2d86937540322b46811bff8d24feb0fe7' -or $reviewedCandidate.bytes -ne 188066691 -or $reviewedCandidate.sha256 -ne '51dd99793ebdd3f36ce3d52f654f8d4d99d5bd9230d44734f6889d5c2670ff48' -or $reviewedCandidate.assetsSha256 -ne '40e1c92fb6a6529a8bef12b7791759588dd5820c15e41c28e39b196b10678b48') { throw 'Frozen reviewed candidate identity changed' }
+  if ($reviewedCandidate.sourceSha -ne 'fb16bc01389ba203b0f99c632f9719bc7dadaf0d' -or $reviewedCandidate.sourceTree -ne '689e627b243df37e3a7044402c96c58003754ec7' -or $reviewedCandidate.bytes -ne 188066953 -or $reviewedCandidate.sha256 -ne '5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952' -or $reviewedCandidate.assetsSha256 -ne 'e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59') { throw 'Frozen reviewed candidate identity changed' }
   $candidateSource = $reviewedCandidate.sourceSha; $expectedTree = $reviewedCandidate.sourceTree
   # Tiny inert payload replaces only fixture pins, never production arguments.
   $reviewedCandidate = $reviewedCandidate.Clone()

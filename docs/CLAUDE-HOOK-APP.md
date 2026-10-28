@@ -376,8 +376,38 @@ Separately, one offline installer extraction confirmed that all 199 selected
 files (the executable, ASAR and complete hook-review subtree) matched the unpacked
 candidate by relative file set, byte length and hash. The installer stayed
 unchanged; neither it nor the extracted application was executed by that check.
-The standalone `-G1ACandidate` installer runner binds these reviewed pins. Its
+The standalone `-G1ACandidate` installer runner bound these pins at this checkpoint;
+the current binding advances to the candidate below. Its
 existing workflow has no `g1a` dispatch input, and actual installation remains
 unrun. This evidence does not establish actual owner dialogs, provider action
 effects, clean-installed acceptance or full G1 acceptance; `launchAllowed`
 remains false.
+
+### Candidate after device-policy and Guard closure updates, 2026-10-28
+
+One new ordinary Windows x64 NSIS build packages source
+`fb16bc01389ba203b0f99c632f9719bc7dadaf0d`, including the merged reserved-device
+policy and Guard reporting-loss/closure changes. No second build was attempted.
+
+| Artifact | Bytes | SHA-256 |
+| --- | --- | --- |
+| Installer | 188,066,953 | `5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952` |
+| `resources/app.asar` | 28,583,525 | `636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b` |
+| `resources/hook-review/assets.json` | 27,766 | `e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59` |
+
+One provider-free ten-case generated-command matrix passed with unchanged command
+strings, real packaged portable IO, scripted profile setup/removal confirmation,
+confirmed cleanup and no forced termination. Three separate schema-2 JSON-only
+hook API probes returned `ask` for an ordinary `README.md` read, `deny` with the
+unsupported-input reason for `NUL.txt`, and `deny` with the sensitive-filename
+reason for `credentials.json`. These probes executed no declared commands.
+Source, package, assets and policy inputs remained unchanged.
+
+One separate offline extraction again matched all 199 selected installer files
+to the unpacked candidate by relative file set, bytes and hash; the installer
+remained unchanged and was not executed. The standalone G1 candidate selector
+now binds the identities above. Build output reported Electron download progress
+despite cache reuse, so this record does not establish an offline build.
+Actual installation, owner dialogs, provider action effects, packaged interactive
+broker cleanup scenarios and full G1 acceptance remain unqualified. The existing
+workflow still has no `g1a` dispatch input; `launchAllowed` remains false.
