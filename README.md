@@ -9,7 +9,7 @@ Local AI-agent monitoring, security reviews and explicitly configured action con
 > **Windows beta:** see [published releases and installers](https://github.com/antropos17/Aegis/releases).
 > [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 >
-> **Current source version**: 0.21.0-beta <!-- x-release-please-version -->
+> **Current source version**: 0.22.0-beta <!-- x-release-please-version -->
 > Later source work is described below. Installed builds contain the features at their release tag.
 
 <a id="capabilities-at-a-glance"></a>

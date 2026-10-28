@@ -20,6 +20,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.22.0-beta (2026-10-28)
+
+## What's Changed
+* fix(build): pin Windows qualification and release .NET toolchains by @antropos17 in https://github.com/antropos17/Aegis/pull/1134
+* docs(plan): separate operation and approval identities by @antropos17 in https://github.com/antropos17/Aegis/pull/1135
+* fix(ci): initialize .NET paths through GITHUB_ENV by @antropos17 in https://github.com/antropos17/Aegis/pull/1136
+* docs(plan): track argument provenance and judgment errors by @antropos17 in https://github.com/antropos17/Aegis/pull/1138
+* test(installer): qualify frozen master candidate on isolated Windows by @antropos17 in https://github.com/antropos17/Aegis/pull/1139
+* docs(plan): define retry retention and safe outage recovery by @antropos17 in https://github.com/antropos17/Aegis/pull/1140
+* docs(plan): prioritize agent guard improvements by @antropos17 in https://github.com/antropos17/Aegis/pull/1141
+* docs(plan): stage shared guard policy across agents by @antropos17 in https://github.com/antropos17/Aegis/pull/1142
+* docs(plan): prioritize usable Guard delivery and product CI by @antropos17 in https://github.com/antropos17/Aegis/pull/1143
+* docs: align Guard delivery rules and contributor workflow by @antropos17 in https://github.com/antropos17/Aegis/pull/1144
+* feat: package portable Windows Claude Guard setup by @antropos17 in https://github.com/antropos17/Aegis/pull/1145
+* feat: add bounded Claude project review policy by @antropos17 in https://github.com/antropos17/Aegis/pull/1146
+* feat: report Claude Guard decisions through a bounded terminal session by @antropos17 in https://github.com/antropos17/Aegis/pull/1147
+* feat: show correlated Claude post-tool reports by @antropos17 in https://github.com/antropos17/Aegis/pull/1148
+* Add reviewed project policy creation for Claude Guard by @antropos17 in https://github.com/antropos17/Aegis/pull/1149
+* Package Linux procfs sensor and connect startup by @antropos17 in https://github.com/antropos17/Aegis/pull/1150
+* Inspect configured Gemini instruction candidates by @antropos17 in https://github.com/antropos17/Aegis/pull/1151
+* Add bounded local audit chain consistency check by @antropos17 in https://github.com/antropos17/Aegis/pull/1153
+* Scope observation cleanup to its active lease by @antropos17 in https://github.com/antropos17/Aegis/pull/1154
+* Retain process control request outcomes by @antropos17 in https://github.com/antropos17/Aegis/pull/1152
+* Add reviewed Gemini hook profile setup by @antropos17 in https://github.com/antropos17/Aegis/pull/1155
+* Show security-event delivery loss and backlog by @antropos17 in https://github.com/antropos17/Aegis/pull/1156
+* Gate Claude terminal launch on an accepted project snapshot by @antropos17 in https://github.com/antropos17/Aegis/pull/1157
+* Review dynamic MCP call argument changes by @antropos17 in https://github.com/antropos17/Aegis/pull/1158
+* Show bounded security audit admission rates by @antropos17 in https://github.com/antropos17/Aegis/pull/1159
+* Reject Claude peer drift without native inspection by @antropos17 in https://github.com/antropos17/Aegis/pull/1160
+* Show unavailable live explanation results accurately by @antropos17 in https://github.com/antropos17/Aegis/pull/1161
+* docs: define Guard retry and approval acceptance by @antropos17 in https://github.com/antropos17/Aegis/pull/1162
+* Connect audit rows to uniquely retained live observations by @antropos17 in https://github.com/antropos17/Aegis/pull/1163
+* Report reviewed MCP gateway outcomes to the owner by @antropos17 in https://github.com/antropos17/Aegis/pull/1164
+* Bind Windows selected-file deletion to reviewed handle by @antropos17 in https://github.com/antropos17/Aegis/pull/1165
+* Show Claude Guard session status as a checked snapshot by @antropos17 in https://github.com/antropos17/Aegis/pull/1166
+* Require a fresh process population for live explanations by @antropos17 in https://github.com/antropos17/Aegis/pull/1168
+* Avoid stale Gemini profile readiness by @antropos17 in https://github.com/antropos17/Aegis/pull/1170
+* Keep uncertain observations stoppable by @antropos17 in https://github.com/antropos17/Aegis/pull/1171
+* Keep file-read Stop available during stale telemetry by @antropos17 in https://github.com/antropos17/Aegis/pull/1172
+* Show confirmed monitoring pause without stale coverage by @antropos17 in https://github.com/antropos17/Aegis/pull/1173
+* Explain duplicate-effect risk at each MCP approval by @antropos17 in https://github.com/antropos17/Aegis/pull/1174
+* Test consumed MCP grant after withheld response by @antropos17 in https://github.com/antropos17/Aegis/pull/1175
+* Test MCP grant across gateway process replacement by @antropos17 in https://github.com/antropos17/Aegis/pull/1176
+* Qualify spent MCP grant after synthetic Windows crash by @antropos17 in https://github.com/antropos17/Aegis/pull/1177
+* fix(guard): keep direct hook startup out of the GUI by @antropos17 in https://github.com/antropos17/Aegis/pull/1178
+* feat(qualification): admit the reviewed current G1 installer by @antropos17 in https://github.com/antropos17/Aegis/pull/1179
+* fix(guard): bind Windows hooks to confirmed owned native profiles by @antropos17 in https://github.com/antropos17/Aegis/pull/1180
+* chore(qualification): bind G1 to the verified native-profile candidate by @antropos17 in https://github.com/antropos17/Aegis/pull/1181
+* fix(policy): refuse reserved Windows device reads by @antropos17 in https://github.com/antropos17/Aegis/pull/1182
+* fix(guard): retain receiver close-time reporting loss by @antropos17 in https://github.com/antropos17/Aegis/pull/1183
+* test(guard): keep late after reports out of restarted sessions by @antropos17 in https://github.com/antropos17/Aegis/pull/1184
+* fix(guard): preserve cleanup deadline after kill errors by @antropos17 in https://github.com/antropos17/Aegis/pull/1185
+* fix(guard): disclose unconfirmed reporting closure by @antropos17 in https://github.com/antropos17/Aegis/pull/1186
+* fix(guard): surface unknown child cleanup in reporting by @antropos17 in https://github.com/antropos17/Aegis/pull/1187
+* chore(qualification): bind G1 to the verified Guard closure candidate by @antropos17 in https://github.com/antropos17/Aegis/pull/1188
+* ci(g1): qualify one frozen installer on clean Windows x64 by @antropos17 in https://github.com/antropos17/Aegis/pull/1189
+* docs(g1): record one clean Windows installer receipt by @antropos17 in https://github.com/antropos17/Aegis/pull/1190
+* test(guard): prepare packaged existing-profile Claude qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/1191
+* docs(g1): prepare a bounded human Guard journey by @antropos17 in https://github.com/antropos17/Aegis/pull/1192
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.21.0-beta...aegis-v0.22.0-beta
+
 ## 0.21.0-beta (2026-10-27)
 
 ## What's Changed
