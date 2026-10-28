@@ -6,6 +6,29 @@
  */
 'use strict';
 
+// Capture the native owner's locator, session secret and optional profile root.
+// Remove bootstrap-only values before loading modules or starting descendants.
+let ownerConsoleBootstrap;
+if (
+  process.argv[2] === '--action-mcp-delete-review' &&
+  (process.env.AEGIS_OWNER_PIPE !== undefined || process.env.AEGIS_OWNER_SECRET !== undefined)
+) {
+  ownerConsoleBootstrap = {
+    pipe: process.env.AEGIS_OWNER_PIPE,
+    secret: process.env.AEGIS_OWNER_SECRET,
+    profileRoot: process.env.AEGIS_OWNER_PROFILE_ROOT,
+    profileEnvironment: Object.fromEntries(
+      ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP'].map((key) => [
+        key,
+        process.env[key],
+      ]),
+    ),
+  };
+  delete process.env.AEGIS_OWNER_PIPE;
+  delete process.env.AEGIS_OWNER_SECRET;
+  delete process.env.AEGIS_OWNER_PROFILE_ROOT;
+}
+
 // Storage configuration only; reject malformed selectors before CLI or settings.
 const ownedGuiProfile = require('./owned-gui-profile');
 if (ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1)))
@@ -56,7 +79,7 @@ const _cliFlags = new Set([
 ]);
 if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
-    .handleCLI()
+    .handleCLI(undefined, { ownerConsoleBootstrap })
     .then(async (code) => {
       if (
         !process.argv.slice(2).includes('--gemini-beforetool-hook') &&
