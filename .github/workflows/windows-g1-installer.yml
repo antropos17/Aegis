@@ -33,15 +33,20 @@ jobs:
           const api='https://api.github.com/repos/antropos17/Aegis';
           const ids=[process.env.G1_RELEASE_ID,process.env.G1_INSTALLER_ID,process.env.G1_IDENTITY_ID];
           for(const id of ids)assert(/^[1-9][0-9]{0,18}$/.test(id));
+          let stage='release-metadata',httpStatus=null;
           async function read(url,limit,accept,hashOnly=false){
+            httpStatus=null;
             const signal=AbortSignal.timeout(120000);
             let response=await fetch(url,{redirect:'manual',signal,headers:{Accept:accept,Authorization:'Bearer '+process.env.GH_TOKEN,'User-Agent':'AEGIS-G1-qualification'}});
+            httpStatus=response.status;
             if(hashOnly&&[301,302,303,307,308].includes(response.status)){
               const target=new URL(response.headers.get('location'));
               assert.equal(target.protocol,'https:');assert.equal(target.hostname,'release-assets.githubusercontent.com');assert.equal(target.username,'');assert.equal(target.password,'');
               await response.body?.cancel();
+              httpStatus=null;
               response=await fetch(target,{redirect:'error',signal});
             }
+            httpStatus=response.status;
             assert.equal(response.status,200,'Read-only candidate delivery refused');
             const length=response.headers.get('content-length');if(length!==null)assert(Number(length)<=limit);
             const hash=createHash('sha256'),chunks=[];let bytes=0;
@@ -49,8 +54,20 @@ jobs:
             if(hashOnly){assert.equal(bytes,limit);return hash.digest('hex');}
             return JSON.parse(Buffer.concat(chunks).toString('utf8'));
           }
+          async function assetMetadataStatus(id){
+            let response;
+            try{
+              response=await fetch(api+'/releases/assets/'+id,{redirect:'manual',signal:AbortSignal.timeout(10000),headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+process.env.GH_TOKEN,'User-Agent':'AEGIS-G1-qualification'}});
+              const length=response.headers.get('content-length');
+              if(length!==null&&Number(length)>65536){await response.body?.cancel();return response.status;}
+              let bytes=0;for await(const chunk of response.body){bytes+=chunk.length;if(bytes>65536)break;}
+              return response.status;
+            }catch{return response?.status??null;}
+            finally{await response?.body?.cancel().catch(()=>{});}
+          }
           try{
             const release=await read(api+'/releases/'+ids[0],65536,'application/vnd.github+json');
+            stage='release-binding';
             assert.equal(String(release.id),ids[0]);assert.equal(release.draft,true);assert.equal(release.prerelease,false);assert.equal(release.published_at,null);
             assert.equal(release.tag_name,'qualification-fb16-delivery-20261028');assert.equal(release.target_commitish,'fb16bc01389ba203b0f99c632f9719bc7dadaf0d');
             const expected=[
@@ -59,15 +76,27 @@ jobs:
             ];
             assert.notEqual(ids[1],ids[2]);
             for(const [id,name,size,pin] of expected){
+              stage='asset-metadata';
               const assets=release.assets.filter(asset=>String(asset.id)===id);assert.equal(assets.length,1);
               const asset=assets[0];assert.equal(asset.name,name);assert.equal(asset.size,size);assert.equal(asset.state,'uploaded');assert.equal(asset.url,api+'/releases/assets/'+id);assert.equal(asset.digest,'sha256:'+pin);
+              stage=id===ids[1]?'installer-bytes':'identity-bytes';
               assert.equal(await read(api+'/releases/assets/'+id,size,'application/octet-stream',true),pin);
             }
             await writeFile('g1-delivery-read.json',JSON.stringify({status:'PASS',source:'fb16bc01389ba203b0f99c632f9719bc7dadaf0d',candidateExecuted:false,installerAttempted:false,tokenScope:'contents:read'}),{flag:'wx'});
             console.log('PASS: fixed private candidate bytes readable with contents:read; no execution.');
-          }catch{console.error('G1 read-only delivery failed; installer remains unattempted.');process.exitCode=1;}
+          }catch{
+            let installerMetadataStatus=null,identityMetadataStatus=null;
+            if(stage==='release-metadata'){
+              installerMetadataStatus=await assetMetadataStatus(ids[1]);
+              identityMetadataStatus=await assetMetadataStatus(ids[2]);
+            }
+            const failure={status:'FAIL',stage,httpStatus,installerMetadataStatus,identityMetadataStatus,candidateExecuted:false,installerAttempted:false,tokenScope:'contents:read'};
+            await writeFile('g1-delivery-read.json',JSON.stringify(failure),{flag:'wx'});
+            console.error(JSON.stringify(failure));process.exitCode=1;
+          }
           NODE
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
           name: g1-delivery-read-${{ github.run_id }}-${{ github.run_attempt }}
           path: g1-delivery-read.json
