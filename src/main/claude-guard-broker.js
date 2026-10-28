@@ -334,7 +334,11 @@ function runChild(selected, port, session, write) {
         shell: false,
         windowsHide: false,
       });
-      child.once('error', () => finish(2));
+      child.once('error', () => {
+        // A failed kill also emits error; it does not confirm that the child closed.
+        // Preserve an admitted termination's existing cleanup deadline.
+        if (!terminating) finish(2);
+      });
       child.once('close', (code) => finish(!terminating && code === 0 ? 0 : 2));
       signals.once('SIGINT', stop);
       signals.once('SIGTERM', stop);
