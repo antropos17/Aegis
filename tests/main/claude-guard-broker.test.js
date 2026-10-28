@@ -335,6 +335,56 @@ describe('Claude Guard terminal broker', () => {
     expect(signals.listenerCount('SIGTERM')).toBe(0);
   });
 
+  it.each([
+    ['synchronous', false],
+    ['asynchronous', false],
+    ['asynchronous', true],
+  ])('retains cleanup uncertainty after a %s kill error (close=%s)', async (timing, closes) => {
+    const signals = new EventEmitter();
+    const child = new EventEmitter();
+    child.kill = vi.fn(() => {
+      const emitError = () => {
+        child.emit('error', Error('PRIVATE_KILL_ERROR'));
+        if (closes) setImmediate(() => child.emit('close', 0));
+      };
+      if (timing === 'synchronous') emitError();
+      else setImmediate(emitError);
+      return false;
+    });
+    const finishReport = vi.fn(async () => {});
+    const spawn = vi.fn(() => {
+      setImmediate(() => signals.emit('SIGTERM'));
+      return child;
+    });
+    broker._setDepsForTest({
+      terminal: () => true,
+      readKey: async () => KEY,
+      randomInt: () => 123,
+      randomBytes: () => Buffer.alloc(16, 0x12),
+      claim: async (_port, _session, code, nonce) => response({ code, nonce }),
+      startReport: async () => true,
+      finishReport,
+      cleanupMs: 50,
+      signals,
+      spawn,
+    });
+    expect(
+      await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (line) =>
+        output.push(line),
+      ),
+    ).toBe(2);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(child.kill).toHaveBeenCalledOnce();
+    expect(finishReport).toHaveBeenCalledOnce();
+    const warning = 'Claude child cleanup is unconfirmed; descendant cleanup is not verified.';
+    if (closes) expect(output).not.toContain(warning);
+    else expect(output).toContain(warning);
+    expect(output.join(' ')).not.toContain('PRIVATE_KILL_ERROR');
+    expect(output.join(' ')).not.toContain(TOKEN);
+    expect(signals.listenerCount('SIGINT')).toBe(0);
+    expect(signals.listenerCount('SIGTERM')).toBe(0);
+  });
+
   it.each(['0', '65536', '01', '123abc'])(
     'refuses invalid port %s before contact',
     async (value) => {
