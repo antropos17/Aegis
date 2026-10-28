@@ -554,6 +554,72 @@ it.skipIf(process.platform !== 'win32')(
   },
 );
 
+it.skipIf(process.platform !== 'win32').each([
+  [false, true, true],
+  [true, false, true],
+  [false, false, false],
+])(
+  'retains close-time loss without adopting late outcomes (%s, %s)',
+  async (priorLoss, finalLoss, expected) => {
+    const f = fixture();
+    expect(await f.launcher.start(() => true)).toBe('GUARD_READY');
+    const entry = { decision: 'ask', reason: 'project-review-ordinary' };
+    f.receiver.snapshot = () => ({
+      status: 'active',
+      available: true,
+      lossDetected: priorLoss,
+      effect: 'unknown',
+      entries: [entry],
+    });
+    f.receiver.close.mockResolvedValue({
+      status: 'ended',
+      available: false,
+      lossDetected: finalLoss,
+      effect: 'unknown',
+      entries: [{ ...entry, outcome: 'reported-completed' }],
+    });
+    expect(await f.launcher.stop()).toBe(true);
+    expect(f.launcher.snapshot()).toMatchObject({
+      status: 'ended',
+      available: false,
+      lossDetected: expected,
+      effect: 'unknown',
+      entries: [entry],
+    });
+    expect(f.launcher.snapshot().entries[0]).not.toHaveProperty('outcome');
+    await f.launcher.close();
+  },
+);
+
+it.skipIf(process.platform !== 'win32')(
+  'ignores close-time results after the cleanup deadline',
+  async () => {
+    const f = fixture();
+    expect(await f.launcher.start(() => true)).toBe('GUARD_READY');
+    const entry = { decision: 'ask', reason: 'generic' };
+    f.receiver.snapshot = () => ({
+      status: 'active',
+      available: true,
+      lossDetected: false,
+      entries: [entry],
+    });
+    let finishClose;
+    f.receiver.close.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishClose = resolve;
+        }),
+    );
+    expect(await f.launcher.stop()).toBe(false);
+    const beforeLate = structuredClone(f.launcher.snapshot());
+    expect(beforeLate).toMatchObject({ status: 'refused', lossDetected: true, entries: [entry] });
+    finishClose({ lossDetected: false, entries: [{ ...entry, outcome: 'reported-completed' }] });
+    await Promise.resolve();
+    expect(f.launcher.snapshot()).toEqual(beforeLate);
+    await f.launcher.close();
+  },
+);
+
 it.skipIf(process.platform !== 'win32')(
   'requires exact selection and native confirmation without copying the launch secret',
   async () => {
