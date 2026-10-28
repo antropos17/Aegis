@@ -463,7 +463,20 @@ async function runSession(args, write) {
     return 2;
   }
   const result = await runChild(selected, Number(args[1]), args[2], write);
-  await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token);
+  let acknowledged = false;
+  try {
+    acknowledged =
+      (await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token)) ===
+      true;
+  } catch {
+    // The child attempt already occurred; a reporting failure cannot imply otherwise.
+  }
+  if (!acknowledged) {
+    write(
+      'Claude Guard reporting closure is unconfirmed; action effects remain unknown. Do not repeat the attempt without a fresh review.',
+    );
+    return 2;
+  }
   return result;
 }
 

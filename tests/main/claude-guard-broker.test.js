@@ -165,6 +165,77 @@ describe('Claude Guard terminal broker', () => {
     expect(output.join(' ')).not.toContain(TOKEN);
   });
 
+  it.each(['rejected', 'timed-out'])(
+    'reports uncertain reporting closure after a successful child and %s finish acknowledgment',
+    async (kind) => {
+      await listen((request, reply) => {
+        let text = '';
+        request.on('data', (chunk) => {
+          text += chunk;
+        });
+        request.on('end', () => {
+          calls.push(request.url);
+          if (request.url.startsWith('/claim/'))
+            reply.end(JSON.stringify(response(JSON.parse(text))));
+          else if (request.url.startsWith('/start/')) {
+            reply.statusCode = 204;
+            reply.end();
+          } else if (kind === 'rejected') {
+            reply.statusCode = 503;
+            reply.end();
+          }
+          // An unanswered finish exercises the real bounded control-report deadline.
+        });
+      });
+      expect(
+        await broker.handleClaudeGuardSession(
+          ['--claude-guard-session', String(port), SESSION],
+          (line) => output.push(line),
+        ),
+      ).toBe(2);
+      expect(spawned).toHaveBeenCalledOnce();
+      expect(calls).toEqual(['/claim/' + SESSION, '/start/' + SESSION, '/finish/' + SESSION]);
+      expect(output).toContain(
+        'Claude Guard reporting closure is unconfirmed; action effects remain unknown. Do not repeat the attempt without a fresh review.',
+      );
+      expect(output.join(' ')).not.toContain('the session did not start');
+      expect(output.join(' ')).not.toContain(TOKEN);
+      expect(output.join(' ')).not.toContain(KEY);
+    },
+  );
+
+  it.each(['false', 'missing', 'exception'])(
+    'never retries a completed child after a %s finish result',
+    async (kind) => {
+      const finish = vi.fn(async () => {
+        if (kind === 'exception') throw Error('PRIVATE_FINISH_ERROR');
+        return kind === 'false' ? false : undefined;
+      });
+      broker._setDepsForTest({
+        terminal: () => true,
+        readKey: async () => KEY,
+        randomInt: () => 123,
+        randomBytes: () => Buffer.alloc(16, 0x12),
+        claim: async (_port, _session, code, nonce) => response({ code, nonce }),
+        startReport: async () => true,
+        finishReport: finish,
+        spawn: spawned,
+      });
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (line) =>
+          output.push(line),
+        ),
+      ).toBe(2);
+      expect(spawned).toHaveBeenCalledOnce();
+      expect(finish).toHaveBeenCalledOnce();
+      expect(output).toContain(
+        'Claude Guard reporting closure is unconfirmed; action effects remain unknown. Do not repeat the attempt without a fresh review.',
+      );
+      expect(output.join(' ')).not.toContain('PRIVATE_FINISH_ERROR');
+      expect(output.join(' ')).not.toContain('session was not confirmed');
+    },
+  );
+
   it.each(['wrong-proof', 'changed-path', 'extra-field', 'wrong-executable', 'invalid-token'])(
     'refuses untrusted endpoint response %s without starting a child',
     async (kind) => {
@@ -260,7 +331,7 @@ describe('Claude Guard terminal broker', () => {
       randomBytes: () => Buffer.alloc(16, 0x12),
       claim,
       startReport: async () => true,
-      finishReport: async () => {},
+      finishReport: async () => true,
       spawn: spawned,
     });
     expect(
@@ -304,7 +375,7 @@ describe('Claude Guard terminal broker', () => {
     const signals = new EventEmitter();
     const child = new EventEmitter();
     child.kill = vi.fn();
-    const finishReport = vi.fn(async () => {});
+    const finishReport = vi.fn(async () => true);
     const claim = async (_port, _session, code, nonce) => response({ code, nonce });
     spawned = vi.fn(() => {
       setImmediate(() => signals.emit('SIGTERM'));
@@ -351,7 +422,7 @@ describe('Claude Guard terminal broker', () => {
       else setImmediate(emitError);
       return false;
     });
-    const finishReport = vi.fn(async () => {});
+    const finishReport = vi.fn(async () => true);
     const spawn = vi.fn(() => {
       setImmediate(() => signals.emit('SIGTERM'));
       return child;
@@ -448,7 +519,7 @@ describe('Claude Guard terminal broker', () => {
         randomBytes: () => Buffer.alloc(16, 0x12),
         claim: async (_port, _session, code, nonce) => response({ code, nonce }),
         startReport: async () => true,
-        finishReport: vi.fn(async () => {}),
+        finishReport: vi.fn(async () => true),
         spawn: spawned,
       };
     });
