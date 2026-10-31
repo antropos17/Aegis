@@ -444,6 +444,51 @@ owner-dialog acceptance, reliable sensors, provider allow/deny effects, retry
 behavior, full G1 and `Blocking verified` remain open. `launchAllowed` remains
 false. Repeating any GUI or paid-provider attempt requires fresh authorization.
 
+### Second local owner journey, 2026-11-01 (Asia/Baku)
+
+A separately authorized second journey reused the unchanged unpacked `fb16bc01`
+candidate and Claude CLI `2.1.312.0`. Both ordinary GUI launches ended through
+normal quit with exit code zero; zero candidate processes remained. The initial
+install review returned the expired-approval status and left the `{}\n` draft
+unchanged. A fresh review and the owner's reported install confirmation produced
+bytes matching the captured native insertion, SHA-256
+`83725a251d90a3ef0113eac283c23a2e5fb0c17e2dcd105e5b681dda0d080dd9`.
+
+With AEGIS closed, the matching retained shell receipt was reused and two JSON-only
+packaged-hook preflights passed. One paid invocation used the frozen controller
+`5f91373d39e9108721298f4e3fe011cae1333d0e`, SHA-256
+`b6858e0b3edcf5599d0722e4894a804135e92346d6cfb4c0caa739684655d913`, with the same
+150-second deadline, three-turn limit and estimated USD 0.50 budget. Init reported
+`claude-haiku-5-5`. The CLI exited 1 with confirmed unforced cleanup, no observed
+tool attempts and both marker files absent. Its retained summary had
+`resultCount: 1`, `resultSubtype: success`, `providerReportedError: true`,
+`errorCount: 0` and `resultMetadataValid: false`. This invalid metadata leaves the
+provider result inconclusive; the underlying cause remains unknown. Reported cost
+zero does not establish the billed cost. No automatic retry was made, and the
+earlier failed receipt remains unchanged.
+
+The second GUI recognized the installed separate profile after restart. The
+owner reported confirming **Remove hook** promptly; the full native removal
+dialog was not captured. Application success and exact readback independently
+showed three empty hook arrays, with the same final profile digest as the first
+journey. Two DPAPI-protected backup records were retained and hashed without
+decryption; backup restoration was not qualified. The native directory was
+retained, and the full personal Claude settings digest stayed unchanged, including
+the configured Sonnet model. Provider collection does not establish human
+consent; the separate GUI
+observations above have their own limits.
+
+| Retained private receipt | SHA-256 |
+| --- | --- |
+| Second failed provider baseline | `df136a30dc726e78b14a7e5799c9f36d484c7ad6b7c5777c6aeab244bfa2fc3e` |
+| Second removal readback | `00f963cdcd955bdf8a446b6b4e6d71e17e6378b986a00b5588a8b4e9250f9d48` |
+| Second journey's final GUI lifetime | `24fd44d15e6d5bccab03818925512df295522e52c0baf9e5d97e4e29cc92108a` |
+
+No installer or VM ran in this journey. Installed owner-dialog acceptance,
+reliable sensors, provider allow/deny effects, retry behavior, full G1 and
+`Blocking verified` remain unqualified. Further live attempts require fresh
+authorization.
+
 ### Explicit installed-Claude qualification
 
 The same qualification script also has an opt-in `--claude` mode. This runs one
