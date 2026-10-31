@@ -11,6 +11,15 @@ remains open; the [current evidence and gaps](docs/roadmap/guard-delivery-review
 separate working slices from planned behavior. Codex and Gemini expansion follows
 that usable contract. A recognition signature does not add an enforced route.
 
+## Choose a task
+
+Start with [good first issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+for bounded newcomer tasks, or [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22)
+for larger contributions. Choose an issue with starting files, expected
+behavior, acceptance checks and platform needs. Read the issue's dependencies
+and active PRs before choosing it; comment with the part you intend to take.
+Maintainers coordinate overlapping changes and security-sensitive boundaries.
+
 Choose one useful contribution without learning every subsystem:
 
 | Contribution | Start here | A reviewable result |
@@ -18,6 +27,13 @@ Choose one useful contribution without learning every subsystem:
 | Setup instructions and reproducible failures | This guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
 | Guard regression cases | `src/main/action-policy.js`, `tests/main/action-policy.test.js`, existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
 | Decision and failure feedback | `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
+
+Documentation and inert regression fixtures can be useful without a Windows
+desktop or a provider account. Svelte changes need the rendered checks named
+in the UI instructions. A task involving Windows native dialogs, an installer
+or a paid agent session must state which acceptance remains for an authorized
+maintainer run; a local fixture cannot supply that evidence. Share synthetic,
+redacted examples rather than credentials, personal paths or private logs.
 
 Look at [open issues](https://github.com/antropos17/Aegis/issues) and active PRs
 before starting to avoid overlapping ownership. A small documentation correction
