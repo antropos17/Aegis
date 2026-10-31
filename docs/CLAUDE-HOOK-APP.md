@@ -179,15 +179,17 @@ picker. OS input was unavailable (`GetCursorPos`, access denied). A current offi
 input attempt on the recovery build also failed at navigation with the same
 error; its disposable target stayed byte-identical and the owned process was
 closed. No alternate input was attempted. The actual native confirmation
-journey remains unqualified. Main-process inspector-based
+journey was unqualified in that record. The later local unpacked-package journey
+is recorded below. Main-process inspector-based
 test launchers are intentionally refused by private IO. The installed-Claude
 source-run result below covers one version and command shell. Other versions,
 bypass behavior, historical backup restoration, the installed-package owner-review journey
 and full W6 acceptance remain open. `launchAllowed` remains false.
 
-### Preparing a real owner-dialog journey
+### Real owner-dialog journey procedure
 
-This is preparation, not another GUI or installer authorization. The current
+This procedure requires explicit GUI/provider authorization and does not grant
+another attempt. The unchanged
 `fb16bc01389ba203b0f99c632f9719bc7dadaf0d` unpacked candidate can be reused for a
 packaged owner-dialog journey without installing it. Its clean installed receipt
 below came from a completed disposable hosted job; that desktop is not a retained
@@ -209,7 +211,11 @@ Use the agreed suite layout: `gui-app-data/claude-hook-profile/settings.json`,
 `policy.json`, `workspace/` and a fresh `provider-receipt/`. The workspace is the
 policy's exact working directory; the provider receipt directory is not a project
 directory. Before launch, create only the fresh suite-owned GUI storage/home/temp
-directories and seed `gui-app-data/settings.json` with
+directories, including `gui-home/AppData/Roaming`, `gui-home/AppData/Local` and
+`gui-home/Desktop`. Align the child's `APPDATA` and `LOCALAPPDATA` with those nested
+paths. Creating sibling directories alone did not satisfy Electron's Windows
+known-folder lookup in the local attempt recorded below. Seed
+`gui-app-data/settings.json` with
 `notificationsEnabled: false`, `automaticUpdatesEnabled: false` and
 `autoStartWithWindows: false`. Do not overwrite an existing profile or copy secrets.
 From the checkout containing the existing-profile qualification mode, prepare
@@ -229,9 +235,17 @@ parent/Codex/provider:
 
 ```powershell
 $ownedApplicationData = [IO.Path]::GetFullPath((Join-Path $suite 'gui-app-data'))
+$ownedHome = [IO.Path]::GetFullPath((Join-Path $suite 'gui-home'))
+$ownedRoaming = Join-Path $ownedHome 'AppData/Roaming'
+$ownedLocal = Join-Path $ownedHome 'AppData/Local'
+foreach ($directory in @($ownedRoaming, $ownedLocal, (Join-Path $ownedHome 'Desktop'))) {
+  [IO.Directory]::CreateDirectory($directory) | Out-Null
+}
 $launch = [Diagnostics.ProcessStartInfo]::new()
 $launch.FileName = $candidate
 $launch.UseShellExecute = $false
+$launch.RedirectStandardOutput = $true
+$launch.RedirectStandardError = $true
 $launch.WorkingDirectory = Join-Path $suite 'workspace'
 $launch.ArgumentList.Add("--user-data-dir=$ownedApplicationData")
 $launch.Environment.Clear()
@@ -240,18 +254,28 @@ foreach ($name in @('SystemRoot', 'windir', 'COMSPEC', 'PATHEXT', 'ProgramFiles'
   if ($value) { $launch.Environment[$name] = $value }
 }
 $launch.Environment['PATH'] = Join-Path $launch.Environment['SystemRoot'] 'System32'
-$launch.Environment['USERPROFILE'] = Join-Path $suite 'gui-home'
+$launch.Environment['USERPROFILE'] = $ownedHome
 $launch.Environment['HOME'] = $launch.Environment['USERPROFILE']
-$launch.Environment['APPDATA'] = Join-Path $suite 'gui-appdata'
-$launch.Environment['LOCALAPPDATA'] = Join-Path $suite 'gui-localappdata'
+$launch.Environment['APPDATA'] = $ownedRoaming
+$launch.Environment['LOCALAPPDATA'] = $ownedLocal
 $launch.Environment['TEMP'] = Join-Path $suite 'gui-temp'
 $launch.Environment['TMP'] = $launch.Environment['TEMP']
 $launch.Environment['DOTNET_CLI_HOME'] = Join-Path $suite 'gui-dotnet-home'
 $launch.Environment['DOTNET_GENERATE_ASPNET_CERTIFICATE'] = 'false'
 $launch.Environment['DOTNET_SKIP_FIRST_TIME_EXPERIENCE'] = '1'
 $launch.Environment['DOTNET_CLI_TELEMETRY_OPTOUT'] = '1'
-$guiProcess = [Diagnostics.Process]::Start($launch)
+# Pass this configuration to a persistent supervisor that drains both pipes.
 ```
+
+This example prepares the child configuration; it does not start the application.
+Before an automated launch, provide a supervisor that remains alive until GUI
+exit and continuously drains both redirected streams, with retained output
+bounded to 2 MiB per stream. Continue draining after the retention cap or a log
+write failure, and record truncation/write failure. Inheriting a short-lived tool
+pipe caused repeated `EPIPE` startup dialogs in the first local attempt. Simply
+redirecting streams without draining them can also block the child. Preserve
+normal quit and confirm owned-process exit; the sample is not a standalone
+launch command.
 
 Prepare the GUI directories and seed settings once, before the first authorized
 launch, using fresh ordinary suite-owned paths. The second launch reuses the same
@@ -265,8 +289,9 @@ sets the process's application identity and registers a shortcut until quit;
 no application autostart/protocol setter is invoked. The seeded settings prevent
 automatic updates and app notifications. Do not use an inspector, Playwright
 launcher or scripted dialog callback; private IO refuses inspector launches.
-The separate provider child retains its normal authenticated environment and
-configured Haiku model. Never copy its credentials into the GUI environment.
+The separate provider child retains its normal authenticated environment. The
+bounded test explicitly requests Haiku without changing the personal configured
+model or settings. Never copy its credentials into the GUI environment.
 
 The bounded journey has two ordinary application launches, two policy-file
 selections, four native reviews and two committed hook changes:
@@ -331,8 +356,8 @@ paid child's working directory is `workspace`; its receipt directory stays
 separate. The mode requires exactly the current candidate's three canonical Bash
 hook commands with timeout five and their shared native-profile argument.
 
-There is no retained matching W6 shell receipt for this prepared run. Permission
-must include one future fixed Git Bash `printf 'AEGIS_W6_SHELL_OK\n'` preflight,
+For a newly authorized run, permission must include one fixed Git Bash
+`printf 'AEGIS_W6_SHELL_OK\n'` preflight,
 using `--noprofile --norc`, a fresh `shell-preflight` directory, a five-second
 deadline and the existing `boundedHeldChild` cleanup boundary. Clear shell startup
 overrides such as `BASH_ENV`, `ENV` and `NODE_OPTIONS` only from that child's
@@ -343,7 +368,7 @@ exact 18 stdout bytes. Retain those bytes as `shell-preflight.txt` and an exclus
 `shellPath`, and matching `shellSha256`/`outputSha256`. The collector rechecks the
 retained bytes and hashes; do not relabel another receipt's different challenge.
 
-The requested future count is one shell preflight, two JSON-only packaged hook
+The bounded count is one shell preflight, two JSON-only packaged hook
 preflights and one Haiku invocation with two predeclared Bash marker attempts.
 The JSON probes execute no declared commands. The paid invocation has a
 150-second deadline, five-second cleanup settlement, three agentic turns and a client-estimated
@@ -352,8 +377,72 @@ init/final model data is checked; detecting a mismatch does not prove that no
 effect occurred beforehand. Require exactly one allowed marker line and no denied
 marker; counts detect duplicate effects, they do not prevent them. On a failed
 prerequisite, mismatch or unknown result, retain evidence and stop without paid
-fallback, policy widening or retry. This remains a future authorization request,
-not a provider or human-consent receipt.
+fallback, policy widening or retry. This procedure alone supplies no provider or
+human-consent receipt. The consumed local attempt below is a separate record.
+
+### Local owner journey and failed Haiku baseline, 2026-11-01 (Asia/Baku)
+
+The unchanged unpacked Windows x64 candidate
+`fb16bc01389ba203b0f99c632f9719bc7dadaf0d` was exercised on the owner's Windows 11
+Home build 26200 desktop with guided physical input. Its executable and ASAR
+matched the pins above. No installer or VM was run for this journey. Four GUI
+launch attempts were consumed: two preparation failures, followed by two ordinary
+GUI lifetimes after separately authorized corrections. The first failure was
+`EPIPE` from an inherited short-lived console pipe; the second was
+`Failed to get 'appData' path` with the incomplete owned-home layout. Persistent
+bounded stream draining and the nested Roaming/Local/Desktop directories corrected
+those launch inputs. Both later lifetimes ended through normal quit with exit
+code zero and zero remaining owned processes.
+
+The native setup Cancel result left the prepared `{}\n` hook target unchanged
+and the proposed native directory absent. A fresh native install review and the
+owner's confirmation produced exactly the retained displayed insertion bytes:
+one Bash hook for each of `PreToolUse`, `PostToolUse` and `PostToolUseFailure`,
+with the selected immutable policy and shared native-directory argument. After
+restart, AEGIS recognized that profile. The removal cancellation result was
+observed in the UI and the target stayed byte-identical; the exact physical
+Cancel button press was not independently captured. The first removal
+confirmation expired after its 90-second review and changed no bytes. A fresh
+review and the owner's reported **Remove hook** confirmation produced the success
+UI and bytes matching the retained displayed removal spans. The fresh dialog's
+full text was not independently retained. All three hook arrays were empty afterward; unrelated
+bytes, private backups and the native directory were preserved. Personal Claude
+settings were unchanged.
+
+Between the two successful GUI lifetimes, one retained fixed 18-byte shell
+preflight and two JSON-only packaged-hook preflights passed. The JSON probes
+executed no declared tool commands. The existing-profile controller at
+`6ad179d72ce388dc64aa6cea6cc4526b463c57ec` (merged by
+[#1202](https://github.com/antropos17/Aegis/pull/1202)) then made its sole authorized
+Claude CLI `2.1.312.0` invocation with Haiku requested, a 150-second deadline,
+three-turn limit and client-estimated USD 0.50 budget. Init reported
+`claude-haiku-5-5`; the personal configured Sonnet model and full settings digest
+remained unchanged. The CLI exited 1 with confirmed unforced cleanup, zero
+observed `tool_use` attempts and both marker files absent. The reported cost was
+zero; this is not a billing guarantee.
+
+This provider baseline failed. The underlying cause remains unknown: the
+collector did not retain provider error fields or raw stdout, and no matching
+debug log was present for that attempt. A later diagnostic collector change does
+not recover those discarded details or change this failed receipt. No paid retry
+was made. Absent marker files and no observed tool attempts do not establish a
+successful deny, an allowed effect or provider fail-closed behavior.
+
+The retained private receipts have these SHA-256 digests; their contents and
+screenshots are not published because they contain host-specific details:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| Setup insertion readback | `ad1e38ba5309ccc3d3ff3175b1f640d919c0483b0b99e0b0c94f5a2e1f52f552` |
+| Final removal | `7101e857956b2e5b63d1b5b27d3fbb76a6596f47ca2ad9a0396601d91edd8e68` |
+| Failed provider baseline | `6965123a47da957aa60caecdbacf2c2b5420b84887f630a9f95e40361ae48b8c` |
+| Successful GUI lifetime 1 | `ba89a71eb0cde3e1b2c0bda4019c039832046499dc3d8b970351aa76f516917f` |
+| Successful GUI lifetime 2 | `7298814c8dcbf1814a63fd30e952cb625207eee96be054a112c79f5fc8c45059` |
+
+This adds local unpacked-package native setup/removal evidence only. Installed
+owner-dialog acceptance, reliable sensors, provider allow/deny effects, retry
+behavior, full G1 and `Blocking verified` remain open. `launchAllowed` remains
+false. Repeating any GUI or paid-provider attempt requires fresh authorization.
 
 ### Explicit installed-Claude qualification
 
@@ -577,8 +666,9 @@ to the unpacked candidate by relative file set, bytes and hash; the installer
 remained unchanged and was not executed. The standalone G1 candidate selector
 now binds the identities above. Build output reported Electron download progress
 despite cache reuse, so this record does not establish an offline build.
-The subsequent clean installation receipt below adds its recorded scope. Owner
-dialogs, provider action effects, packaged interactive broker cleanup scenarios
+The subsequent clean installation receipt below adds its recorded scope. The
+local unpacked owner journey above adds its separately recorded scope. Installed
+owner dialogs, provider action effects, packaged interactive broker cleanup scenarios
 and full G1 acceptance remain unqualified; `launchAllowed` remains false.
 
 ### Clean Windows installation, 2026-10-28 UTC
