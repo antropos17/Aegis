@@ -253,8 +253,27 @@ function projectClaudeEvidence(text, expectedCwd, options = {}) {
     };
   });
   const final = rows.filter((row) => row.type === 'result');
-  const cost = final[0]?.total_cost_usd;
-  const models = Object.keys(final[0]?.modelUsage || {});
+  const result = final.length === 1 ? final[0] : null;
+  // SDKResultMessage diagnostics are fixed metadata; error text is never retained.
+  const knownSubtypes = [
+    'success',
+    'error_max_turns',
+    'error_during_execution',
+    'error_max_budget_usd',
+    'error_max_structured_output_retries',
+  ];
+  const resultSubtype = knownSubtypes.includes(result?.subtype) ? result.subtype : 'unknown';
+  const providerReportedError = typeof result?.is_error === 'boolean' ? result.is_error : null;
+  const errors = result?.errors;
+  const validErrors = Array.isArray(errors) && errors.every((item) => typeof item === 'string');
+  const noSuccessErrors = resultSubtype === 'success' && errors === undefined;
+  const resultMetadataValid =
+    resultSubtype !== 'unknown' &&
+    (resultSubtype === 'success'
+      ? providerReportedError === false && (noSuccessErrors || (validErrors && errors.length === 0))
+      : providerReportedError === true && validErrors);
+  const cost = result?.total_cost_usd;
+  const models = Object.keys(result?.modelUsage || {});
   const initialized = rows.filter((row) => row.type === 'system' && row.subtype === 'init');
   return {
     cwdMatched:
@@ -271,7 +290,14 @@ function projectClaudeEvidence(text, expectedCwd, options = {}) {
       attempts.length === 2 && !attempts[0].resultIsError && attempts[0].uniqueResult,
     denyResultObserved:
       attempts.length === 2 && attempts[1].resultIsError && attempts[1].explicitPolicyDenial,
-    providerCompleted: final.length === 1 && final[0].is_error === false,
+    resultCount: Math.min(final.length, 16),
+    resultCountCapped: final.length > 16,
+    resultSubtype,
+    providerReportedError,
+    errorCount: validErrors ? Math.min(errors.length, 16) : noSuccessErrors ? 0 : null,
+    errorCountCapped: validErrors ? errors.length > 16 : noSuccessErrors ? false : null,
+    resultMetadataValid,
+    providerCompleted: resultMetadataValid && resultSubtype === 'success',
     costWithinLimit: Number.isFinite(cost) && cost >= 0 && cost <= 0.5,
     costUsd: Number.isFinite(cost) ? cost : null,
     ...(options.model === 'haiku'
