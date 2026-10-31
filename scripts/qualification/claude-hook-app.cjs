@@ -28,8 +28,10 @@ const EXISTING_PINS = Object.freeze({
   executable: '8c67ceb62732b6f4d77acb878ebb11a743d3ed3804ce66976933fce38aed7e0b',
   archive: '636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b',
   descriptor: 'e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59',
-  claude: '6099672ebe5dcb518b67d1d32dde1e3360bc6bee1daee7f8d28a69c49acc7c865',
+  claude: '6099672ebe5dcb518b67d1d32dde1e3360bc6bee1dae7f8d28a69c49acc7c865',
 });
+for (const key of ['executable', 'archive', 'descriptor', 'claude'])
+  assert.match(EXISTING_PINS[key], /^[0-9a-f]{64}$/, `Invalid frozen SHA-256: ${key}`);
 const receipt = {
   schemaVersion: 2,
   scope: genuine
