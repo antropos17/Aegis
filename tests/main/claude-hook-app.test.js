@@ -1019,6 +1019,7 @@ function genuineRecords() {
     },
     {
       type: 'result',
+      subtype: 'success',
       is_error: false,
       total_cost_usd: 0.12,
       modelUsage: { 'claude-opus-4-6': {} },
@@ -1035,6 +1036,13 @@ it('genuine qualification requires both exact whole inputs and explicit denied t
     exactTwoRequests: true,
     allowResultSucceeded: true,
     denyResultObserved: true,
+    resultCount: 1,
+    resultCountCapped: false,
+    resultSubtype: 'success',
+    providerReportedError: false,
+    errorCount: 0,
+    errorCountCapped: false,
+    resultMetadataValid: true,
     providerCompleted: true,
     costWithinLimit: true,
     opusObserved: true,
@@ -1086,6 +1094,107 @@ it('genuine qualification refuses retries, duplicate results, unpriced output an
   const wrongCwd = genuineRecords();
   wrongCwd[5].cwd = 'X:\\other-fixture';
   expect(projectRecords(wrongCwd).cwdMatched).toBe(false);
+});
+
+it.each([
+  'error_max_turns',
+  'error_during_execution',
+  'error_max_budget_usd',
+  'error_max_structured_output_retries',
+])(
+  'genuine qualification retains fixed %s result metadata without private error text',
+  (subtype) => {
+    const rows = genuineRecords();
+    Object.assign(rows[4], {
+      subtype,
+      is_error: true,
+      errors: Array(20).fill('PRIVATE_ERROR_CANARY token=secret account@example.com X:/private'),
+      result: 'PRIVATE_FINAL_CANARY',
+      session_id: 'PRIVATE_SESSION_CANARY',
+      api_error_status: 'PRIVATE_STATUS_CANARY',
+    });
+    const projected = projectRecords(rows);
+    expect(projected).toMatchObject({
+      resultCount: 1,
+      resultCountCapped: false,
+      resultSubtype: subtype,
+      providerReportedError: true,
+      errorCount: 16,
+      errorCountCapped: true,
+      resultMetadataValid: true,
+      providerCompleted: false,
+    });
+    expect(JSON.stringify(projected)).not.toContain('PRIVATE_');
+  },
+);
+
+it.each([
+  ['unknown subtype', { subtype: 'PRIVATE_SUBTYPE_CANARY' }],
+  ['missing subtype', { subtype: undefined }],
+  ['non-string subtype', { subtype: { private: 'PRIVATE_SUBTYPE_CANARY' } }],
+  ['non-boolean error', { is_error: 'PRIVATE_ERROR_FLAG_CANARY' }],
+  ['missing error flag', { is_error: undefined }],
+  ['non-array errors', { errors: 'PRIVATE_ERROR_CANARY' }],
+  ['non-string errors', { errors: [{ private: 'PRIVATE_ERROR_CANARY' }] }],
+  ['contradictory success', { errors: ['PRIVATE_ERROR_CANARY'] }],
+  ['contradictory error', { subtype: 'error_during_execution', errors: [] }],
+  ['missing errors', { subtype: 'error_during_execution', is_error: true }],
+])('genuine qualification refuses malformed final metadata: %s', (_name, change) => {
+  const rows = genuineRecords();
+  Object.assign(rows[4], change);
+  const projected = projectRecords(rows);
+  expect(projected).toMatchObject({ resultMetadataValid: false, providerCompleted: false });
+  if (Object.hasOwn(change, 'subtype') && !String(change.subtype).startsWith('error_'))
+    expect(projected.resultSubtype).toBe('unknown');
+  if (Object.hasOwn(change, 'is_error') && typeof change.is_error !== 'boolean')
+    expect(projected.providerReportedError).toBeNull();
+  if (Object.hasOwn(change, 'errors') && !Array.isArray(change.errors))
+    expect(projected.errorCount).toBeNull();
+  expect(JSON.stringify(projected)).not.toContain('PRIVATE_');
+});
+
+it.each([0, 2, 20])(
+  'genuine qualification keeps %i final results ambiguous without adopting the first cost or model',
+  (count) => {
+    const rows = genuineRecords();
+    const result = rows.splice(4, 1)[0];
+    rows.push(...Array(count).fill(result));
+    const projected = projectRecords(rows);
+    expect(projected).toMatchObject({
+      resultCount: Math.min(count, 16),
+      resultCountCapped: count > 16,
+      resultSubtype: 'unknown',
+      providerReportedError: null,
+      errorCount: null,
+      errorCountCapped: null,
+      resultMetadataValid: false,
+      providerCompleted: false,
+      costWithinLimit: false,
+      costUsd: null,
+      opusObserved: false,
+    });
+  },
+);
+
+it('genuine qualification does not infer a provider error from assistant text', () => {
+  const rows = [
+    {
+      type: 'assistant',
+      message: {
+        content: [{ type: 'text', text: 'PRIVATE_ASSISTANT_CANARY authentication_failed' }],
+      },
+    },
+  ];
+  expect(projectRecords(rows)).toMatchObject({
+    attempts: [],
+    resultCount: 0,
+    resultSubtype: 'unknown',
+    providerReportedError: null,
+    errorCount: null,
+    resultMetadataValid: false,
+    providerCompleted: false,
+  });
+  expect(JSON.stringify(projectRecords(rows))).not.toContain('PRIVATE_');
 });
 
 function controlledChild() {
@@ -1439,7 +1548,7 @@ async function existingFixture() {
       args.slice(args.indexOf('--max-budget-usd'), args.indexOf('--max-budget-usd') + 2),
     ).toEqual(['--max-budget-usd', '0.50']);
     expect(call.env.DISABLE_AUTOUPDATER).toBe('1');
-    const rows = genuineRecords();
+    let rows = genuineRecords();
     rows[0].message.content[0].input = requests[0];
     rows[2].message.content[0].input = requests[1];
     rows[4].modelUsage = { [fixture.model]: {} };
@@ -1447,16 +1556,36 @@ async function existingFixture() {
     init.model = fixture.model;
     init.cwd = cwd;
     rows.unshift(init);
+    if (fixture.providerError)
+      rows = [
+        init,
+        {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'PRIVATE_ASSISTANT_CANARY' }] },
+        },
+        {
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['PRIVATE_PROVIDER_ERROR_CANARY account@example.com token=secret X:/private'],
+          result: 'PRIVATE_PROVIDER_RESULT_CANARY',
+          session_id: 'PRIVATE_SESSION_CANARY',
+          total_cost_usd: 0,
+          modelUsage: {},
+        },
+      ];
     const bytes = Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+    fixture.providerStdout = bytes;
     const accepted = call.acceptStdout(bytes);
-    await fs.writeFile(
-      path.join(cwd, 'aegis-w6-allowed.txt'),
-      'AEGIS_W6_ALLOWED\n'.repeat(fixture.effectCount),
-    );
+    if (!fixture.providerError)
+      await fs.writeFile(
+        path.join(cwd, 'aegis-w6-allowed.txt'),
+        'AEGIS_W6_ALLOWED\n'.repeat(fixture.effectCount),
+      );
     if (fixture.mutateProfile) await fs.appendFile(selectedTarget, ' ');
     if (fixture.mutateConfigured) await fs.writeFile(configured, '{"model":"opus"}');
     return {
-      code: accepted ? 0 : 2,
+      code: fixture.providerError ? 1 : accepted ? 0 : 2,
       cleanupConfirmed: fixture.cleanup,
       terminated: !accepted,
       stdout: bytes,
@@ -1609,6 +1738,46 @@ it('existing-profile preparation records model substitution and never starts a s
     providerCliInvocations: 1,
   });
   expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+});
+
+it('existing-profile preparation retains bounded provider failure metadata and clears private stream bytes', async () => {
+  const fixture = await existingFixture();
+  fixture.providerError = true;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const text = await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8');
+  expect(JSON.parse(text)).toMatchObject({
+    complete: false,
+    providerCliInvocations: 1,
+    controllerRetries: 0,
+    failureStage: 'independent-effects-and-readback',
+    providerTransport: { exitCode: 1, cleanupConfirmed: true, terminated: false },
+    claude: {
+      attempts: [],
+      resultCount: 1,
+      resultCountCapped: false,
+      resultSubtype: 'error_during_execution',
+      providerReportedError: true,
+      errorCount: 1,
+      errorCountCapped: false,
+      resultMetadataValid: true,
+      providerCompleted: false,
+      observedModels: [],
+      selectedModelObserved: false,
+    },
+    inputsUnchanged: true,
+    deniedFileAbsent: true,
+  });
+  expect(text).not.toContain('PRIVATE_');
+  expect(text).not.toContain('account@example.com');
+  expect(text).not.toContain('token=secret');
+  expect(fixture.providerStdout.every((byte) => byte === 0)).toBe(true);
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+  await expect(fs.stat(path.join(fixture.cwd, 'aegis-w6-allowed.txt'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(fs.stat(path.join(fixture.cwd, 'aegis-w6-denied.txt'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
 });
 
 it('existing-profile preparation preserves unknown child cleanup without claiming a stopped tree', async () => {
