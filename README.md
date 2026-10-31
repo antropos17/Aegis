@@ -16,13 +16,21 @@ explicit setup; its complete allow/deny behavior is still being qualified, and a
 configured profile does not establish `Blocking verified`. Each published
 installer contains the features at its release tag.
 
-[Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
+[Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute) · [Help](#community-and-license)
 
 > **Windows beta:** see [published releases and installers](https://github.com/antropos17/Aegis/releases).
 > [Verify the installer](docs/RELEASE-VERIFICATION.md) · [Beta readiness](docs/BETA-READINESS.md)
 >
 > **Current source version**: 0.21.0-beta <!-- x-release-please-version -->
 > Later source work is described below. Installed builds contain the features at their release tag.
+
+## Start here
+
+| Your next step | Where to go |
+| --- | --- |
+| Explore the interface | [View screenshots](docs/screenshots/README.md) without installing, or [run the browser preview](#browser-preview) from source. Both use simulated data. |
+| Use the Windows desktop app | [Choose a published release](https://github.com/antropos17/Aegis/releases) and [verify its installer](docs/RELEASE-VERIFICATION.md), then follow [the desktop workflows](#use-aegis). |
+| Help improve AEGIS | [Find a contribution by skill](CONTRIBUTING.md#choose-a-task), check [active PRs](https://github.com/antropos17/Aegis/pulls) for overlap, or [ask a question](https://github.com/antropos17/Aegis/discussions). |
 
 <a id="capabilities-at-a-glance"></a>
 <a id="what-aegis-observes"></a>
@@ -86,6 +94,8 @@ The [development workflow](docs/development/workflow.md) covers helper builds an
 <a id="try-without-ai-agents"></a>
 
 ### Browser preview
+
+From a source checkout after `npm ci`, run:
 
 ```bash
 npm run dev
@@ -270,8 +280,15 @@ provider scenarios need their own matching evidence. [Architecture](ARCHITECTURE
 
 ## Community and license
 
+For setup questions, start with the [FAQ](docs/FAQ.md) and
+[user guides](docs/README.md), then ask in Discussions. For a reproducible bug,
+use the bug-report form and include your AEGIS version, whether you use an
+installer/source/preview, your OS and the affected workspace. Remove private
+paths, file contents and credentials before sharing logs or screenshots.
+
 [Bug report](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
 · [Feature request](https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml)
+· [New agent submission](https://github.com/antropos17/Aegis/issues/new?template=03-new-agent.yml)
 · [Discussions](https://github.com/antropos17/Aegis/discussions)
 · [Private vulnerability report](https://github.com/antropos17/Aegis/security/advisories/new)
 
