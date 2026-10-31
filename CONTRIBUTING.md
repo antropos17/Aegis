@@ -1,6 +1,11 @@
 # Contributing to AEGIS
 
-AEGIS monitors local AI agents, reviews selected project files and checks explicitly configured actions. Contributions help make the observations, controls and their limits easier to understand. Start with the [documentation index](docs/README.md) for user guides and technical contracts.
+Contribute to [antropos17/Aegis](https://github.com/antropos17/Aegis), the open-source
+Windows desktop app for local AI agent monitoring, project security reviews and
+explicitly configured action controls. The Electron app uses JavaScript in its
+main process and Svelte/TypeScript in the interface. Contributions help make the
+observations, controls and their limits easier to understand. Start with the
+[documentation index](docs/README.md) for user guides and technical contracts.
 
 ## Current product priority
 
@@ -24,9 +29,9 @@ Choose one useful contribution without learning every subsystem:
 
 | Contribution | Start here | A reviewable result |
 | --- | --- | --- |
-| Setup instructions and reproducible failures | This guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
-| Guard regression cases | `src/main/action-policy.js`, `tests/main/action-policy.test.js`, existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
-| Decision and failure feedback | `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
+| Documentation: setup instructions and reproducible failures | [Newcomer documentation issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Adocumentation%20label%3A%22good%20first%20issue%22), this guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
+| JavaScript/Vitest: Guard regression cases | [Testing issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Atesting%20label%3A%22help%20wanted%22), `src/main/action-policy.js`, `tests/main/action-policy.test.js` and existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
+| Svelte/TypeScript: decision and failure feedback | [UI issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Aui%20label%3A%22help%20wanted%22), `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
 
 Documentation and inert regression fixtures can be useful without a Windows
 desktop or a provider account. Svelte changes need the rendered checks named
