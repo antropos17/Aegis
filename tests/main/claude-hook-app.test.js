@@ -1326,7 +1326,7 @@ async function existingFixture() {
     await fs.mkdir(folder, { recursive: true });
   for (const file of [executable, archive, cli, descriptor, shell])
     await fs.writeFile(file, 'INERT: never executed');
-  await fs.writeFile(configured, JSON.stringify({ model: 'haiku' }));
+  await fs.writeFile(configured, JSON.stringify({ model: 'sonnet' }));
   const requests = qualificationRequests(true);
   const profile = {
     hooks: Object.fromEntries(
@@ -1387,7 +1387,7 @@ async function existingFixture() {
     [executable, '8c67ceb62732b6f4d77acb878ebb11a743d3ed3804ce66976933fce38aed7e0b'],
     [archive, '636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b'],
     [descriptor, 'e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59'],
-    [cli, '966f4b2ce962298f5dee6a942e8c47c8f97392e69e728e622319a98b259c0680'],
+    [cli, '6099672ebe5dcb518b67d1d32dde1e3360bc6bee1daee7f8d28a69c49acc7c865'],
   ]);
   const fixture = {
     selected,
@@ -1454,6 +1454,7 @@ async function existingFixture() {
       'AEGIS_W6_ALLOWED\n'.repeat(fixture.effectCount),
     );
     if (fixture.mutateProfile) await fs.appendFile(selectedTarget, ' ');
+    if (fixture.mutateConfigured) await fs.writeFile(configured, '{"model":"opus"}');
     return {
       code: accepted ? 0 : 2,
       cleanupConfirmed: fixture.cleanup,
@@ -1486,9 +1487,10 @@ function equalInput(first, second) {
   return JSON.stringify(first) === JSON.stringify(second);
 }
 
-it('existing-profile preparation uses one mocked Haiku invocation and independent one/zero effects without claiming GUI consent', async () => {
+it('existing-profile preparation requests Haiku once while preserving configured Sonnet and independent one/zero effects', async () => {
   const fixture = await existingFixture();
   const original = await fs.readFile(fixture.selected.target);
+  const configured = await fs.readFile(fixture.configured);
   const receipt = await runExistingProfile(fixture.args, fixture.deps);
   expect(fixture.deps.child).toHaveBeenCalledTimes(3); // Two hook-only preflights, one mocked paid CLI.
   expect(receipt).toMatchObject({
@@ -1496,7 +1498,9 @@ it('existing-profile preparation uses one mocked Haiku invocation and independen
     nativeUI: false,
     actualHumanConsent: false,
     scriptedConfirmation: false,
-    configuredModel: 'haiku',
+    configuredModel: 'sonnet',
+    requestedModel: 'haiku',
+    claudeVersion: '2.1.312.0',
     providerCliInvocations: 1,
     controllerRetries: 0,
     retryQualification: false,
@@ -1514,6 +1518,7 @@ it('existing-profile preparation uses one mocked Haiku invocation and independen
   });
   expect(receipt.claude).not.toHaveProperty('opusObserved');
   expect(await fs.readFile(fixture.selected.target)).toEqual(original);
+  expect(await fs.readFile(fixture.configured)).toEqual(configured);
   expect(await fs.readFile(path.join(fixture.destination, 'receipt.json'), 'utf8')).not.toContain(
     'PRIVATE_RESULT_CANARY',
   );
@@ -1558,11 +1563,11 @@ it('existing-profile preparation refuses widened policy, legacy native binding a
   expect(fixture.deps.child).not.toHaveBeenCalled();
 });
 
-it('existing-profile preparation stops before a child on configured-model or retained-shell mismatch', async () => {
+it('existing-profile preparation stops before a child on invalid configured-model or retained-shell mismatch', async () => {
   const fixture = await existingFixture();
-  await fs.writeFile(fixture.configured, '{"model":"opus"}');
+  await fs.writeFile(fixture.configured, '{"model":null}');
   await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
-  await fs.writeFile(fixture.configured, '{"model":"haiku"}');
+  await fs.writeFile(fixture.configured, '{"model":"sonnet"}');
   const retained = path.join(path.dirname(fixture.shellReceipt), 'shell-preflight.txt');
   await fs.writeFile(retained, 'not the verified bytes');
   const forged = JSON.parse(await fs.readFile(fixture.shellReceipt, 'utf8'));
@@ -1631,6 +1636,23 @@ it('existing-profile preparation refuses input drift after the sole provider att
     await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
   );
   expect(failure.inputsUnchanged).toBe(false);
+});
+
+it('existing-profile preparation refuses configured-model drift after the sole provider attempt', async () => {
+  const fixture = await existingFixture();
+  fixture.mutateConfigured = true;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure).toMatchObject({
+    complete: false,
+    configuredModel: 'sonnet',
+    requestedModel: 'haiku',
+    inputsUnchanged: false,
+    providerCliInvocations: 1,
+  });
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
 });
 
 it('existing-profile preparation refuses changed frozen executable bytes before any child', async () => {

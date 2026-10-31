@@ -28,7 +28,7 @@ const EXISTING_PINS = Object.freeze({
   executable: '8c67ceb62732b6f4d77acb878ebb11a743d3ed3804ce66976933fce38aed7e0b',
   archive: '636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b',
   descriptor: 'e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59',
-  claude: '966f4b2ce962298f5dee6a942e8c47c8f97392e69e728e622319a98b259c0680',
+  claude: '6099672ebe5dcb518b67d1d32dde1e3360bc6bee1daee7f8d28a69c49acc7c865',
 });
 const receipt = {
   schemaVersion: 2,
@@ -718,9 +718,12 @@ async function runExistingProfile(args, deps = {}) {
       }
     };
     const configured = (await readJson(configuredFile)).model;
-    assert.equal(configured, 'haiku', 'Current configured model changed; no substitution');
+    assert.equal(typeof configured, 'string');
+    assert(configured.length > 0 && configured.length <= 200, 'Configured model is invalid');
+    const requestedModel = 'haiku'; // Explicit authorization applies only to this invocation.
     evidence.configuredModel = configured;
-    evidence.claudeVersion = '2.1.311.0'; // Bound by the frozen executable hash above.
+    evidence.requestedModel = requestedModel;
+    evidence.claudeVersion = '2.1.312.0'; // Bound by the frozen executable hash above.
     const profile = await readJson(target),
       policy = await readJson(policyPath);
     const binding = existingProfileBinding({
@@ -870,7 +873,7 @@ async function runExistingProfile(args, deps = {}) {
         '--max-turns',
         '3',
         '--model',
-        configured,
+        requestedModel,
         '--no-session-persistence',
         prompt,
       ],
@@ -890,7 +893,7 @@ async function runExistingProfile(args, deps = {}) {
       assert(result.cleanupConfirmed, 'Owned child cleanup unknown');
       evidence.claude = projectClaudeEvidence(result.stdout.toString('utf8'), cwd, {
         requests: binding.requests,
-        model: configured,
+        model: requestedModel,
       });
     } finally {
       result.stdout.fill(0);
