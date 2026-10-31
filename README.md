@@ -2,7 +2,19 @@
   <img src="docs/images/github-header.svg" width="720" alt="AEGIS — local AI agent monitoring">
 </p>
 
-Local AI-agent monitoring, security reviews and explicitly configured action controls.
+# AEGIS — AI agent monitoring for Windows
+
+AEGIS is an open-source Electron desktop app for reviewing local AI coding-agent
+activity. It brings process, file and network observations, Claude Code usage and
+project security reviews into one interface. Windows is the primary platform;
+macOS and Linux support remain experimental.
+
+Monitoring observes and records activity; it does not automatically block
+commands. Current [Claude Guard development](docs/CLAUDE-HOOK-APP.md) adds a
+separate Claude Code hook profile for selected Bash actions. That route requires
+explicit setup; its complete allow/deny behavior is still being qualified, and a
+configured profile does not establish `Blocking verified`. Each published
+installer contains the features at its release tag.
 
 [Install](#install) · [Use AEGIS](#use-aegis) · [FAQ](docs/FAQ.md) · [Current development](#current-development) · [Documentation](docs/README.md) · [Contribute](#contribute)
 
@@ -98,6 +110,7 @@ offers investigation, file checks and settings; a saved Simple choice is retaine
 | Inspect a Windows file read | **Events** → **Folder to monitor** → **Start file read monitoring**; [setup and limits](docs/development/ordinary-file-reads.md) |
 | Review a project, skill or profile | [**Local security**](docs/LOCAL-SECURITY-UI.md) |
 | Check a selected action against a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md) |
+| Review a separate Claude Code hook profile | **Action control → Separate Claude hook profile**; [setup, supported launch and removal](docs/CLAUDE-HOOK-APP.md) |
 | Configure selected-action MCP tools | [Terminal setup](docs/ACTION-MCP-CONFIG.md) |
 | Find other tools | **Start here** or **Commands** (Ctrl K); [workspace guide](docs/OBSERVATORY-GUIDED-WORKFLOWS.md) |
 
@@ -234,7 +247,10 @@ starting points and their acceptance conditions.
 Choose an [open good first issue](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
 for a small, scoped change, or browse [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22)
 for work that needs more context. The [task picker](CONTRIBUTING.md#choose-a-task)
-connects documentation, Svelte UI and JavaScript regression work to starting files.
+connects documentation, Svelte/TypeScript UI and JavaScript/Vitest regression work
+to starting files and focused issue queues. Read the issue's expected result and
+platform needs before starting; small contributions do not require provider
+credentials.
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md), the
 [current development context](docs/development/current-context.md) and
