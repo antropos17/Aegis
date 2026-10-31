@@ -402,7 +402,7 @@ with the selected immutable policy and shared native-directory argument. After
 restart, AEGIS recognized that profile. The removal cancellation result was
 observed in the UI and the target stayed byte-identical; the exact physical
 Cancel button press was not independently captured. The first removal
-confirmation expired after its 90-second review and changed no bytes. A fresh
+confirmation returned the expired-approval status and changed no bytes. A fresh
 review and the owner's reported **Remove hook** confirmation produced the success
 UI and bytes matching the retained displayed removal spans. The fresh dialog's
 full text was not independently retained. All three hook arrays were empty afterward; unrelated
