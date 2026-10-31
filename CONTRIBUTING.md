@@ -40,8 +40,10 @@ or a paid agent session must state which acceptance remains for an authorized
 maintainer run; a local fixture cannot supply that evidence. Share synthetic,
 redacted examples rather than credentials, personal paths or private logs.
 
-Look at [open issues](https://github.com/antropos17/Aegis/issues) and active PRs
-before starting to avoid overlapping ownership. A small documentation correction
+Need help choosing? Ask in [Discussions](https://github.com/antropos17/Aegis/discussions)
+with the part you want to improve, your platform and any check you cannot run.
+Check [active PRs](https://github.com/antropos17/Aegis/pulls) for overlapping work.
+A small documentation correction
 can go directly to a PR. For policy semantics, packaging, native boundaries or
 larger changes, first describe the concrete behavior and acceptance in an issue
 or draft PR so maintainers can coordinate the scope. Do not publish sensitive
@@ -55,6 +57,12 @@ acceptance still apply. Report unavailable environments honestly; maintainers
 can coordinate remaining checks without requiring contributor credentials.
 
 ## Development Setup
+
+You can inspect the [existing interface screenshots](docs/screenshots/README.md)
+before installing development tools. They show simulated source UI. To try that
+interface locally after cloning and installing dependencies, follow the
+[browser preview](README.md#browser-preview); it does not perform live monitoring
+or provider requests. Use the desktop setup below when your task needs Electron.
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
@@ -221,10 +229,13 @@ The full set is on the repository's [labels page](https://github.com/antropos17/
 
 Remove API keys, credentials and private paths from logs or exported settings before attaching them. Report vulnerabilities through the [private security channel](SECURITY.md#reporting-a-vulnerability).
 
-- Use GitHub Issues with a descriptive title
-- Include: OS version, Node.js version, Electron version, steps to reproduce, console output
-- For feature requests, describe the use case and the threat it addresses
-- For new agent requests, include: process name, vendor, known domains, category
+Search [existing issues](https://github.com/antropos17/Aegis/issues) before opening
+a new one. Choose the route that matches the report:
+
+- **Setup or usage question:** [Discussions](https://github.com/antropos17/Aegis/discussions), with the guide/step you tried and what happened.
+- **Reproducible bug:** [bug report](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml), with OS, AEGIS version or source commit, installer/source/preview, affected workspace, expected/actual behavior and redacted reproduction steps. Node.js version is relevant for source checkouts.
+- **Feature request:** [feature form](https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml), describing the user task and the missing behavior.
+- **New agent recognition:** [agent submission](https://github.com/antropos17/Aegis/issues/new?template=03-new-agent.yml), with process name, vendor, known domains and category. Recognition does not establish an enforced route.
 
 ## Code of Conduct
 
