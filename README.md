@@ -231,6 +231,11 @@ failures, meaningful regression cases and decision feedback. The
 [contribution guide](CONTRIBUTING.md#current-product-priority) gives bounded
 starting points and their acceptance conditions.
 
+Choose an [open good first issue](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+for a small, scoped change, or browse [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22)
+for work that needs more context. The [task picker](CONTRIBUTING.md#choose-a-task)
+connects documentation, Svelte UI and JavaScript regression work to starting files.
+
 Start with [CONTRIBUTING.md](CONTRIBUTING.md), the
 [current development context](docs/development/current-context.md) and
 [code conventions](CODING_STANDARDS.md). Main uses CommonJS JavaScript; the Svelte
