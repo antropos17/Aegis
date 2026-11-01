@@ -1,6 +1,6 @@
 {
   "name": "aegis",
-  "version": "0.21.0-beta",
+  "version": "0.22.0-beta",
   "description": "Windows-first desktop oversight for AI agents: live monitoring, local security reviews, token usage, audit reports and opt-in action policies/MCP gateways. Experimental Hyper-V guest execution; macOS/Linux experimental.",
   "main": "src/main/main.js",
   "scripts": {
