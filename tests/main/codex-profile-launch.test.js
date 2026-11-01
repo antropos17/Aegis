@@ -43,7 +43,8 @@ function fixture(hostIsAbsolute = path.isAbsolute) {
   const codexIdentity = 'fixture-identity';
   const codexSha256 = 'c'.repeat(64);
   const verifyCodexExecutable = vi.fn(async () => ({ codexPath, codexIdentity, codexSha256 }));
-  const templateCommand = hookCommand(executable, appPath, policyPath, powershell);
+  const nativePath = 'C:\\AEGIS\\codex-hook-profile\\native-' + 'a'.repeat(32);
+  const templateCommand = hookCommand(executable, appPath, policyPath, powershell, undefined, nativePath);
   const profile = Buffer.from(
     JSON.stringify({
       hooks: {
@@ -60,7 +61,7 @@ function fixture(hostIsAbsolute = path.isAbsolute) {
     '1234567890abcdef:1234567890abcdef1234567890abcdef',
     'fedcba0987654321:fedcba0987654321fedcba0987654321',
   ];
-  const command = hookCommand(executable, appPath, policyPath, powershell, hash(policy));
+  const command = hookCommand(executable, appPath, policyPath, powershell, hash(policy), nativePath);
   const token = encodeLaunch({
     profilePath,
     profileIdentity: ids[0],
@@ -102,6 +103,7 @@ function fixture(hostIsAbsolute = path.isAbsolute) {
     makeReadIO,
     command,
     options: {
+      verifyNativeStorage: vi.fn(async () => 'native-storage-identity'),
       executable,
       appPath,
       powershell,
@@ -212,6 +214,7 @@ it('emits only the validated fixed override through the bounded packaged CLI ent
         loadAssets: async () => ({}),
         makeReadIO: f.makeReadIO,
         verifyCodexExecutable: f.options.verifyCodexExecutable,
+        verifyNativeStorage: f.options.verifyNativeStorage,
       },
     ),
   ).toBe(0);
@@ -226,6 +229,25 @@ it('emits only the validated fixed override through the bounded packaged CLI ent
     ),
   ).toBe(2);
   expect(output).toHaveLength(1);
+});
+
+it('refuses a legacy profile without a separate native directory even when its digest matches', async () => {
+  const f = fixture();
+  f.files[0] = Buffer.from(JSON.stringify({ hooks: { PreToolUse: [{ matcher: '^Bash$', hooks: [{
+    type: 'command', timeout: 5,
+    command: hookCommand(f.options.executable, f.options.appPath, 'C:/Project/policy.json', f.options.powershell),
+  }] }] } }));
+  const binding = JSON.parse(Buffer.from(f.token, 'base64').toString());
+  binding.profileSha256 = hash(f.files[0]);
+  await expect(validatedOverride(encodeLaunch(binding), f.options)).rejects.toThrow('launch-unavailable');
+  expect(f.options.verifyCodexExecutable).not.toHaveBeenCalled();
+});
+
+it('refuses unavailable or redirected native storage before admitting Codex launch', async () => {
+  const f = fixture();
+  f.options.verifyNativeStorage.mockRejectedValue(Error('PRIVATE_NATIVE_PATH'));
+  await expect(validatedOverride(f.token, f.options)).rejects.toThrow('launch-unavailable');
+  expect(f.options.verifyCodexExecutable).not.toHaveBeenCalled();
 });
 
 it.skipIf(process.platform !== 'win32').each([true, false])(

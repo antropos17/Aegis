@@ -5,7 +5,13 @@ const fs = require('node:fs/promises');
 const { createHash, randomUUID } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { parseActionJson } = require('./action-policy');
-const { loadProfileAssets, profilePresence } = require('./claude-hook-app-profile');
+const {
+  loadProfileAssets,
+  profilePresence,
+  nativeProfilePath,
+  nativeProfileIdentity,
+  reserveNativeProfile,
+} = require('./claude-hook-app-profile');
 const {
   createWindowsHookIO,
   createWindowsHookReadIO,
@@ -77,7 +83,12 @@ async function verifyCodexExecutable(selected) {
     if (!equal(first, await handle.stat({ bigint: true }))) throw Error('CODEX_CHANGED');
     for (const [index, part] of parts.entries()) {
       const stat = await fs.lstat(part, { bigint: true });
-      if (stat.isSymbolicLink() || !equal(before[index], stat)) throw Error('CODEX_CHANGED');
+      // Sibling activity legitimately changes directory timestamps and size.
+      // Pin ancestor identity/type; keep all metadata checks on the executable.
+      const same = index
+        ? stat.isDirectory() && stat.dev === before[index].dev && stat.ino === before[index].ino
+        : equal(first, stat);
+      if (stat.isSymbolicLink() || !same) throw Error('CODEX_CHANGED');
     }
     if (canonical(await fs.realpath(codexPath)) !== canonical(codexPath))
       throw Error('CODEX_CHANGED');
@@ -283,6 +294,7 @@ function createCodexHookApp(options) {
     const assets = platform === 'win32' && packaged ? await getAssets() : null;
     if (!assets) return status('UNAVAILABLE');
     let command, policy, file, io, readIO, policyIO, policySnapshot, before, after, current;
+    let storagePath, storageIdentity;
     try {
       if (action === 'install') {
         const chosen = await dialog.showOpenDialog(getWindow(), {
@@ -294,7 +306,8 @@ function createCodexHookApp(options) {
         if (chosen.canceled || chosen.filePaths?.length !== 1) return status('CANCELLED');
         file = chosen.filePaths[0];
         try {
-          command = hookCommand(executable, appPath, file, powershell);
+          storagePath = nativeProfilePath(target, randomUUID().replaceAll('-', ''));
+          command = hookCommand(executable, appPath, file, powershell, undefined, storagePath);
         } catch {
           return status('UNSUPPORTED_PATH');
         }
@@ -343,9 +356,12 @@ function createCodexHookApp(options) {
       const detail =
         `AEGIS-owned Codex hooks:\n${target}\n\nComplete changes:\n${fragments.join('\n\n')}` +
         (command
-          ? `\nExact hook command:\n${command}\n\nDecoded command script:\n${hookScript(executable, appPath, file)}\n`
+          ? `\nExact hook command:\n${command}\n\nDecoded command script:\n${hookScript(executable, appPath, file, undefined, storagePath)}\n`
           : '') +
         (policy ? `\nSelected policy:\n${file}\n\nExact policy:\n${policy.content}` : '') +
+        (storagePath
+          ? `\n\nNew native hook profile:\n${storagePath}\nThis fresh directory is created only after confirmation. Existing directories are never adopted. Electron native data is retained on failure and hook removal; this is storage selection, not filesystem isolation.`
+          : '') +
         '\nA private backup is retained. Codex does not support PreToolUse ask; AEGIS emits deny for ask. Codex may skip untrusted hooks and managed settings may disable them. Hook failures or timeouts may continue the tool call; malformed responses can also fail without blocking. Other config layers remain active. PreToolUse does not cover write_stdin. No blocking is verified.';
       if (Buffer.byteLength(detail) > 8192) return status('PREVIEW_TOO_LARGE');
       const started = now();
@@ -368,6 +384,10 @@ function createCodexHookApp(options) {
       if (!Number.isFinite(finished) || finished < started || finished - started > 90000)
         return status('EXPIRED');
       if (answer.response !== 1) return status('CANCELLED');
+      if (storagePath) {
+        storageIdentity = await reserveNativeProfile(storagePath);
+        if (!owned() || closed) return denied();
+      }
       if (policy) {
         const again = await policyIO.readTarget();
         try {
@@ -444,6 +464,9 @@ function createCodexHookApp(options) {
           again.bytes?.fill(0);
         }
       }
+      if (storagePath && (await nativeProfileIdentity(storagePath)) !== storageIdentity)
+        return status('OPERATION_FAILED');
+      if (!owned() || closed) return denied();
       const committing = now();
       if (!Number.isFinite(committing) || committing < finished || committing - started > 90000)
         return status('EXPIRED');
@@ -517,8 +540,10 @@ function createCodexHookApp(options) {
       profile = await profileIO.readTarget();
       if (!Buffer.isBuffer(profile?.bytes) || typeof profile.identity !== 'string')
         throw Error('PROFILE_CHANGED');
-      const selected = readProfile(profile.bytes, { executable, appPath, powershell });
-      if (!selected) throw Error('PROFILE_CHANGED');
+      const selected = readProfile(profile.bytes, { executable, appPath, powershell, target });
+      if (!selected?.nativePath) throw Error('PROFILE_CHANGED');
+      await nativeProfileIdentity(selected.nativePath);
+      if (!owned() || closed) throw Error('CANCELLED');
       // A modified profile cannot nominate an arbitrary file for inspection.
       // The owner reselects the exact policy through a native file dialog.
       const choice = await dialog.showOpenDialog(getWindow(), {

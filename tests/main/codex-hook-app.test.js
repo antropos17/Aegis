@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const { createCodexHookApp, verifyCodexExecutable } = require('../../src/main/codex-hook-app');
-const { hookCommand } = require('../../src/main/codex-profile-model');
+const { hookCommand, readProfile } = require('../../src/main/codex-profile-model');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
 const executable = 'C:\\Program Files\\AEGIS & Watch\\AEGIS.exe';
 const appPath = 'C:\\Program Files\\AEGIS & Watch\\resources\\app.asar';
@@ -142,7 +142,8 @@ it('reviews the exact hook and selected policy, then installs and removes only t
     expect(JSON.stringify(response)).not.toContain(secret);
   expect(state.dialog).toMatchObject({ defaultId: 0, cancelId: 0 });
   expect(state.dialog.detail).toContain(
-    hookCommand(executable, appPath, selectedPolicyPath, powershell),
+    hookCommand(executable, appPath, selectedPolicyPath, powershell, undefined,
+      readProfile(await fs.readFile(target), { executable, appPath, powershell, target }).nativePath),
   );
   expect(state.dialog.detail).toContain('Decoded command script:');
   expect(state.dialog.detail).toContain('Hook failures or timeouts may continue');
@@ -150,6 +151,52 @@ it('reviews the exact hook and selected policy, then installs and removes only t
   expect((await call('remove')).code).toBe('REMOVED');
   expect(JSON.parse(await fs.readFile(target, 'utf8'))).toEqual({});
   expect(state.backups).toHaveLength(2);
+});
+
+it('creates native hook storage only after consent and retains it after removal', async () => {
+  let nativePath;
+  state.onReview = async () => {
+    nativePath = /New native hook profile:\n([^\n]+)/.exec(state.dialog.detail)?.[1];
+    expect(nativePath).toBeDefined();
+    await expect(fs.access(nativePath)).rejects.toMatchObject({ code: 'ENOENT' });
+  };
+  expect((await call('install')).code).toBe('INSTALLED');
+  state.onReview = null;
+  await fs.writeFile(path.join(nativePath, 'Local State'), 'OWNED_NATIVE_CANARY');
+  expect((await call('remove')).code).toBe('REMOVED');
+  expect(await fs.readFile(path.join(nativePath, 'Local State'), 'utf8')).toBe('OWNED_NATIVE_CANARY');
+});
+
+it('does not create native storage when review is cancelled', async () => {
+  state.approved = false;
+  expect((await call('install')).code).toBe('CANCELLED');
+  expect((await fs.readdir(path.dirname(target))).filter(name => name.startsWith('native-'))).toEqual([]);
+  expect(state.writes).toBe(0);
+});
+
+it('refuses a native directory replacement after the private backup without writing the hook', async () => {
+  let nativePath;
+  state.onReview = () => {
+    nativePath = /New native hook profile:\n([^\n]+)/.exec(state.dialog.detail)?.[1];
+  };
+  state.onRetain = async () => {
+    await fs.rename(nativePath, nativePath + '-retained');
+    await fs.mkdir(nativePath);
+  };
+  expect((await call('install')).code).toBe('OPERATION_FAILED');
+  expect(state.writes).toBe(0);
+});
+
+it('refuses a preexisting native directory without adopting its contents', async () => {
+  let nativePath;
+  state.onReview = async () => {
+    nativePath = /New native hook profile:\n([^\n]+)/.exec(state.dialog.detail)?.[1];
+    await fs.mkdir(nativePath);
+    await fs.writeFile(path.join(nativePath, 'Local State'), 'FOREIGN_NATIVE_CANARY');
+  };
+  expect((await call('install')).code).toBe('OPERATION_FAILED');
+  expect(state.writes).toBe(0);
+  expect(await fs.readFile(path.join(nativePath, 'Local State'), 'utf8')).toBe('FOREIGN_NATIVE_CANARY');
 });
 
 it('does not write the hook or retain a backup on cancellation', async () => {
@@ -249,6 +296,25 @@ it('refuses executable selection cancellation or replacement after review', asyn
     code: 'CODEX_CHANGED',
   });
 });
+
+it.runIf(process.platform === 'win32')(
+  'accepts unrelated sibling writes while pinning executable and ancestor identities',
+  async () => {
+    const binary = path.join(root, 'codex.exe');
+    await fs.writeFile(binary, 'fixture executable, never run');
+    const originalOpen = fs.open;
+    const intercept = vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+      const handle = await originalOpen(...args);
+      if (args[0] === binary) await fs.writeFile(path.join(root, 'unrelated.txt'), 'sibling');
+      return handle;
+    });
+    try {
+      expect((await verifyCodexExecutable(binary)).codexSha256).toBe(digest(Buffer.from('fixture executable, never run')));
+    } finally {
+      intercept.mockRestore();
+    }
+  },
+);
 
 it.runIf(process.platform === 'win32')(
   'observes a bounded real file and rejects invalid or linked paths',

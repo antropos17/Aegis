@@ -7,6 +7,16 @@ managed configuration, model, permission mode or hook trust. The profile is not
 directly discovered by Codex as an extra configuration layer: AEGIS validates its
 fixed entry and derives a one-session `--config hooks.PreToolUse=...` override.
 
+New installations also reserve a fresh `native-<token>` directory beside the
+owned hooks file, after the owner confirms its exact path. The generated hook
+passes that directory as Electron's `--user-data-dir`, including in the reviewed
+session override. Existing directories are never adopted during installation.
+Native data is retained on failure and hook removal. This selects native storage;
+it does not isolate filesystem access or prevent later same-user path changes.
+Legacy profiles remain removable, but must be removed and installed again before
+preparing a launch command with separate native storage. Launch revalidation
+refuses missing, noncanonical or redirected native directories.
+
 ## Owner workflow
 
 1. In the AEGIS action controls, choose an existing valid AEGIS Bash policy. The

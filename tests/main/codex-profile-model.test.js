@@ -72,6 +72,24 @@ it('rejects a non-system interpreter and changed commands', () => {
   ).toBeNull();
 });
 
+it('keeps native Electron storage bound to a canonical child of the selected profile', () => {
+  const target = path.resolve(os.tmpdir(), 'codex-owned-profile', 'hooks.json');
+  const nativePath = path.join(path.dirname(target), 'native-' + 'a'.repeat(32));
+  const command = hookCommand(executable, appPath, policy, powershell, undefined, nativePath);
+  const change = planProfileChange(Buffer.from('{}'), { ...options, target, action: 'install', command });
+  expect(change).not.toBeNull();
+  expect(readProfile(change.after, { ...options, target })).toEqual({
+    command, policy: policy.replaceAll('\\', '/'), nativePath,
+  });
+  expect(hookScript(executable, appPath, policy, undefined, nativePath)).toContain(
+    " '--user-data-dir=" + nativePath + "'",
+  );
+  const foreign = hookCommand(executable, appPath, policy, powershell, undefined,
+    path.join(os.tmpdir(), 'native-' + 'b'.repeat(32)));
+  expect(planProfileChange(Buffer.from('{}'), { ...options, target, action: 'install', command: foreign })).toBeNull();
+  expect(planProfileChange(change.after, { ...options, target, action: 'remove' })).not.toBeNull();
+});
+
 it.skipIf(process.platform !== 'win32')(
   'passes inherited stdin through the fixed command in cmd and Windows PowerShell',
   () => {
@@ -80,7 +98,7 @@ it.skipIf(process.platform !== 'win32')(
     try {
       writeFileSync(
         fixture,
-        "let s='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>process.stdout.write(JSON.stringify({payload:s,flag:process.argv[2]})));",
+        "let s='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>process.stdout.write(JSON.stringify({payload:s,args:process.argv.slice(2)})));",
         { flag: 'wx' },
       );
       const command = hookCommand(
@@ -88,6 +106,8 @@ it.skipIf(process.platform !== 'win32')(
         fixture,
         path.join(directory, 'policy.json'),
         powershell,
+        'a'.repeat(64),
+        path.join(directory, 'native-' + 'b'.repeat(32)),
       );
       for (const [program, args] of [
         [process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe', ['/d', '/s', '/c', command]],
@@ -102,7 +122,8 @@ it.skipIf(process.platform !== 'win32')(
         expect(result.status, result.stderr).toBe(0);
         expect(JSON.parse(result.stdout)).toEqual({
           payload: 'fixed-input',
-          flag: '--codex-pretool-hook',
+          args: ['--codex-pretool-hook', path.join(directory, 'policy.json').replaceAll('\\', '/'),
+            'a'.repeat(64), '--user-data-dir=' + path.join(directory, 'native-' + 'b'.repeat(32))],
         });
       }
       const unavailable = hookCommand(

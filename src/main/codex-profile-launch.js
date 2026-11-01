@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const { parse } = require('smol-toml');
 const { parseActionJson, validActionPolicy } = require('./action-policy');
 const { readProfile, hookCommand } = require('./codex-profile-model');
+const { nativeProfileIdentity } = require('./claude-hook-app-profile');
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fields = [
@@ -138,15 +139,25 @@ async function validatedOverride(token, options) {
       hash(policy.bytes) !== value.policySha256
     )
       throw Error('launch-unavailable');
-    const installed = readProfile(profile.bytes, { executable, appPath, powershell });
+    const installed = readProfile(profile.bytes, {
+      executable,
+      appPath,
+      powershell,
+      target: value.profilePath,
+    });
     const document = parseActionJson(policy.bytes);
     if (
-      !installed ||
+      !installed?.nativePath ||
       normalized(installed.policy) !== normalized(value.policyPath) ||
       !validActionPolicy(document) ||
       document.cwd !== value.cwd
     )
       throw Error('launch-unavailable');
+    try {
+      await (options.verifyNativeStorage || nativeProfileIdentity)(installed.nativePath);
+    } catch {
+      throw Error('launch-unavailable');
+    }
     for (const [index, first] of [profile, policy].entries()) {
       const again = await readers[index].readTarget();
       try {
@@ -157,7 +168,14 @@ async function validatedOverride(token, options) {
       }
     }
     const result = overrideFor(
-      hookCommand(executable, appPath, installed.policy, powershell, value.policySha256),
+      hookCommand(
+        executable,
+        appPath,
+        installed.policy,
+        powershell,
+        value.policySha256,
+        installed.nativePath,
+      ),
     );
     for (const io of readers) {
       await io.close();
@@ -300,6 +318,7 @@ async function handleLaunchOverride(args, write, deps = {}) {
       assets,
       makeReadIO: deps.makeReadIO || require('./claude-hook-windows-io').createWindowsHookReadIO,
       verifyCodexExecutable: deps.verifyCodexExecutable,
+      verifyNativeStorage: deps.verifyNativeStorage,
     });
     write(JSON.stringify(result));
     return 0;
