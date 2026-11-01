@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -177,6 +177,7 @@ describe('hook startup before GUI initialization', () => {
     const result = launch([source, '--version']);
     expect(result.status).toBe(0);
     expect(result.stderr).toBe('');
-    expect(result.stdout.trim()).toBe('0.21.0-beta');
+    const declared = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+    expect(result.stdout.trim()).toBe(declared.version);
   });
 });
