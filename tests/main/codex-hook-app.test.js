@@ -317,6 +317,38 @@ it.runIf(process.platform === 'win32')(
 );
 
 it.runIf(process.platform === 'win32')(
+  'rejects a replaced ancestor even when the executable is the same unchanged hard-linked file',
+  async () => {
+    const active = path.join(root, 'active');
+    const replacement = path.join(root, 'replacement');
+    await fs.mkdir(active);
+    await fs.mkdir(replacement);
+    const binary = path.join(active, 'codex.exe');
+    await fs.writeFile(binary, 'fixture executable, never run');
+    await fs.link(binary, path.join(replacement, 'codex.exe'));
+    const before = await fs.lstat(binary, { bigint: true });
+    const originalOpen = fs.open;
+    const intercept = vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+      if (args[0] === binary) {
+        // Replace after the initial path/metadata observation, before opening.
+        // Windows refuses renaming this ancestor while its child is open.
+        await fs.rename(active, path.join(root, 'retired'));
+        await fs.rename(replacement, active);
+        const after = await fs.lstat(binary, { bigint: true });
+        for (const key of ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'])
+          expect(after[key], `unchanged executable ${key}`).toBe(before[key]);
+      }
+      return originalOpen(...args);
+    });
+    try {
+      await expect(verifyCodexExecutable(binary)).rejects.toThrow('CODEX_CHANGED');
+    } finally {
+      intercept.mockRestore();
+    }
+  },
+);
+
+it.runIf(process.platform === 'win32')(
   'observes a bounded real file and rejects invalid or linked paths',
   async () => {
     const binary = path.join(root, 'codex.exe');
