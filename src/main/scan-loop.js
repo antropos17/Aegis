@@ -6,6 +6,7 @@
  */
 'use strict';
 
+const { randomUUID } = require('node:crypto');
 const sessionTracker = require('./session-tracker');
 const ideExtensionDetector = require('./ide-extension-detector');
 const resourceMonitor = require('./resource-monitor');
@@ -20,8 +21,10 @@ const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { projectToolContext, toolContextKey } = require('./tool-context-record');
 const { boundReadObjectKey } = require('../shared/bound-read-object');
+const { projectAuditIdentity } = require('./audit-observation-identity');
 const { identify } = require('./process-identity');
 const { STARTUP_MS, WARMUP_MS, warmupProcessSchedule } = require('./scan-schedule');
+const FILE_EVENT_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -46,6 +49,7 @@ let latestLocalModels = {
 // Suppress equivalent observations of one stamped instance within 30s; track repeats.
 // F-E03: never key on display name / PID / empty agent (cross-instance + unattributed collapse).
 const eventDedupMap = new Map();
+const auditIdentities = new WeakMap();
 // Conservative lower bound: a sweep cannot remove anything before this time is 60s old.
 let oldestEventDedupSentAt = Infinity;
 /** Dedup window for equivalent observations of one instance and path (ms). */
@@ -157,6 +161,17 @@ function updateScanStatus(entering) {
  */
 function dedupFileEvent(ev, sensor = 'file-watch', { auditAlreadyAdmitted = false } = {}) {
   if (ev.observationKind === 'bound-object-read' && !auditAlreadyAdmitted) return null;
+  // The security pipeline receives sensitive observations before display dedup.
+  // Give every ingress observation an identity before that admission.
+  auditIdentities.delete(ev);
+  try {
+    if (typeof ev.eventId !== 'string' || !FILE_EVENT_ID.test(ev.eventId))
+      ev.eventId = randomUUID();
+    const identity = projectAuditIdentity(deps.prepareFileObservation?.(ev));
+    if (identity) auditIdentities.set(ev, identity);
+  } catch {
+    // Live-custody failure must not prevent an audit admission.
+  }
   if (ev.toolContext !== undefined) ev.toolContext = projectToolContext(ev.toolContext);
   // Audit admission precedes live display/sequence dedup. Historical delivery
   // must not alter which observations the live sequence state machine consumes.
@@ -222,6 +237,7 @@ function dedupFileEvent(ev, sensor = 'file-watch', { auditAlreadyAdmitted = fals
 function logAuditForFile(ev, securityAdmission = false, sensor = 'file-watch') {
   const type =
     ev.reason && ev.reason.startsWith('AI agent config') ? 'config-access' : 'file-access';
+  const identity = auditIdentities.get(ev);
   const details = {
     agent: ev.agent,
     pid: ev.pid ?? null,
@@ -237,6 +253,7 @@ function logAuditForFile(ev, securityAdmission = false, sensor = 'file-watch') {
     // would break the hash chain. It does not: verifyChain rebuilds each record's
     // preimage from that record's own fields, so v0 and v1 lines coexist in one file.
     attribution: ev.attribution ?? null,
+    ...(identity ? { auditIdentity: identity } : {}),
     ...(ev.toolContext === undefined ? {} : { toolContext: projectToolContext(ev.toolContext) }),
   };
   if (ev.sensitive === true && deps.securityEvents) {
@@ -288,6 +305,7 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  deps.onLivePopulationIntervalsStopped?.();
   maxProcessGapMs = null;
   if (wslInventoryInterval) {
     clearInterval(wslInventoryInterval);
@@ -676,6 +694,7 @@ async function doProcessScan() {
   // Early-return BEFORE updateScanStatus(true): a blocked re-entrant call must not
   // bump activeScanCount, whose only decrement lives in the finally below.
   if (processScanRunning) {
+    deps.onLivePopulationScanSkipped?.();
     skippedProcessTicks++;
     lastSkippedAt = Date.now();
     // The in-flight scan may remain pending, so publish the cadence change now.
@@ -686,6 +705,7 @@ async function doProcessScan() {
   networkScopePending = true;
   networkScopeRevision++;
   const resourceGeneration = resourceScanGeneration;
+  const lifecycleGeneration = deps.beginLivePopulationScan?.();
   let networkIdentityReady = false;
   updateScanStatus(true);
   const t0 = performance.now();
@@ -990,12 +1010,14 @@ async function doProcessScan() {
     deps.onAgentsObserved?.();
     // This pass owns the raw process map and the identity stamps. Never publish
     // a cached birth/context as authority during a failed/outage pass.
-    deps.onProcessScanCommitted?.({
+    const populationCurrent = deps.onProcessScanCommitted?.({
       agents,
       processMap: result.processMap,
       reliable: result.reliable === true,
       identityDegraded,
       gapStraddled,
+      observationComplete: observed,
+      lifecycleGeneration,
       snapshotCurrent:
         resourceGeneration === resourceScanGeneration &&
         snapshotCurrent &&
@@ -1005,6 +1027,7 @@ async function doProcessScan() {
     // Single batched IPC — renderer updates all stores at once
     sendToRenderer('scan-batch', {
       agents,
+      populationCurrent: populationCurrent === true,
       stats: getStats(),
       resourceUsage: getResourceUsage(),
       anomalyScores: scores,

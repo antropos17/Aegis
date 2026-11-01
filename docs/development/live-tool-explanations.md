@@ -13,6 +13,13 @@ providers, alternate homes, WSL, subagents and remote histories remain outside
 this integration. A healthy current process snapshot, exact instance key,
 matching working directory and registry startup within that process's
 lifetime are prerequisites. A session shared by monitored instances is rejected.
+Context is unavailable while monitoring is paused, during a system-sleep gap,
+or until a fresh reliable process scan has completed identity enrichment and
+reconciliation. An in-flight explanation is discarded if a pause, resume,
+sleep, scan restart or new publication changes that observation generation.
+A scheduled process tick skipped behind a still-running scan also revokes the
+population until a later complete scan. This does not establish a wall-clock TTL
+or retract an explanation already displayed for a direct live event.
 The process snapshot and the selected and observed peer registries are checked
 again after reading. These are bounded observations, not an atomic snapshot;
 a change that is reversed between reads may go undetected.
@@ -74,6 +81,41 @@ text and raw argument values are neither returned nor logged. Owned buffers are
 cleared after parsing; this is not secure erasure of JavaScript strings or OS caches.
 An incomplete tail stays partial. Unknown, expired or restarted-process selections
 return an explicit unavailable result without modifying the observed event.
+
+File audit rows can offer the same on-demand explanation while their exact
+observation remains in live custody. Before sensitive admission and dedup, the
+main process associates each valid observation UUID with a random per-process
+UUID epoch and a separate UUID lookup token. The token uses the epoch's first
+four UUID groups and a strictly increasing 48-bit final group, starting at one;
+it stops issuing tokens at `ffffffffffff` rather than wrapping. These identifiers
+are locators, not authentication or proof against same-account tampering. Duplicate
+observation UUIDs revoke the retained lookup while known; bounded eviction can
+remove old sightings, but a reappearance receives a different token. The audit
+reader only exposes a lookup when UUID, epoch, token and the retained file metadata
+match. A private `audit:` locator is issued only after a bounded worker compares
+the complete retained audit files with the ready index and finds exactly one
+physical row for the tuple. The proof is repeated before and after a local-history
+read. It streams every indexed canonical line using fixed-size buffers, with at
+most 32 audit files and 100 requested observations. Malformed, partial or stale
+history makes the proof unavailable. A full scan can exceed the three-second
+response deadline on larger or slower histories; a stalled worker holds the
+single worker slot until it exits.
+Filesystem operations themselves are not guaranteed to terminate. The private
+indexed file and line identify a row but do not authenticate the audit file.
+History remains readable during index rebuild or JSONL fallback, without a live
+lookup. Pending delivery, replay, spills or prior loss can also make the lookup
+unavailable.
+
+File admission and audit delivery changes revoke issued audit locators, so frequent
+activity can interrupt an explanation until the system is quiet and the history
+is refreshed. The renderer subscribes to custody revisions and checks for missed
+updates once per second; a failed or stalled check revokes the displayed lookup.
+After a missed push a previously displayed result can remain visible until the next
+check or its two-second timeout. A monotonic 15-minute custody limit remains
+effective if the wall clock moves backward. Restarted, legacy, expired, evicted,
+malformed and unaccepted observations remain unavailable; an in-flight explanation
+is discarded if its custody changes. The separately generated security-pipeline
+`deliveryId` remains unchanged.
 
 W4.2's application path is distinct from W4.3 association qualification and W4.4
 the installed genuine-agent end-to-end acceptance. Fixtures and an Electron

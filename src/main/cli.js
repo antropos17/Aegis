@@ -16,6 +16,7 @@ Usage:  aegis [options]
 Options:
   --mcp-gateway-http <endpoint.json> <manifest.json> [grant-store] [--secret-policy <policy.json>]  Gate one explicit HTTP/HTTPS MCP session
   --mcp-gateway-stdio <policy.json> <request.json> <manifest.json> [grant-store] [--secret-policy <policy.json>]  Gate one selected MCP server with exact one-use tool grants
+  --mcp-gateway-stdio-review <policy> <request> <manifest> <endpoint> <grant-store> <disclosure-policy> <secret-policy>  Review each selected MCP call in this terminal
   --mcp-gateway-credential-tag <endpoint.json> <grant-store>  Prepare an HTTP(S) bearer tag in the selected grant store
   --mcp-gateway-stdio-route-tag <policy.json> <request.json> <grant-store>  Prepare a stdio launch tag in the selected grant store
   --action-mcp-config-json <mode> <paths...> [--observe <new-endpoint>]  Export MCP configuration; observation for selected/catalog owners
@@ -41,6 +42,8 @@ Options:
   --action-exec-appcontainer-import-confirm <policy.json> <request.json> <input-file>  Import one 64 KiB snapshot as input.bin before a confirmed isolated launch
   --action-appcontainer-workspaces  Privately list AEGIS-tracked AppContainer workspaces and current identity status
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
+  --action-policy-after-hook <policy.json>  Observe a reported Claude Bash result without changing it
+  --claude-guard-session <port> <session-id>  Start one explicitly reviewed Claude session
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
   --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
@@ -111,13 +114,22 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  // This mode never emits child output; invalid or mixed argv must stay nonzero.
+  if (args.includes('--gemini-beforetool-exit-code'))
+    return require('./gemini-beforetool-hook').handleGeminiBeforeToolExitCode(args);
   // A misplaced hook flag is still a hook invocation: emit only its fixed JSON deny.
   if (args.includes('--action-policy-hook'))
     return require('./action-policy-hook').handleActionPolicyHook(args, write);
+  if (args.includes('--action-policy-after-hook'))
+    return require('./action-policy-hook').handleActionPolicyAfterHook(args);
   if (args.includes('--gemini-beforetool-hook'))
     return require('./gemini-beforetool-hook').handleGeminiBeforeToolHook(args, write);
+  if (flag === '--claude-guard-session')
+    return require('./claude-guard-broker').handleClaudeGuardSession(args, write);
   if (['--mcp-gateway-stdio', '--mcp-gateway-http'].includes(flag))
     return require('./mcp-gateway-cli').handleMcpGatewayCLI(args);
+  if (flag === '--mcp-gateway-stdio-review')
+    return require('./mcp-gateway-review').handleGatewayMcpReview(args);
   if (flag === '--mcp-gateway-credential-tag')
     return require('./mcp-gateway-cli').handleMcpGatewayCredentialCLI(args, write);
   if (flag === '--mcp-gateway-stdio-route-tag')

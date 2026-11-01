@@ -4,6 +4,7 @@ const { EVIDENCE_CODES } = require('./attribution');
 const { projectToolContext, unavailableToolContext } = require('./tool-context-record');
 const { projectNativeObservation, unavailableNativeObservation } = require('./native-observation');
 const { projectBoundReadObject } = require('../shared/bound-read-object');
+const { readAuditIdentity } = require('./audit-observation-identity');
 
 const SENSORS = Object.freeze(['file-watch', 'file-handle', 'process', 'network', 'other']);
 const TYPES = new Set(['file-access', 'config-access', 'agent-enter', 'network-connection']);
@@ -88,6 +89,8 @@ function projectRecord(input) {
     }
     if (d.createTime100ns != null) extra.createTime100ns = text(d.createTime100ns, 32);
     if (Number.isSafeInteger(d.repeatCount) && d.repeatCount > 0) extra.repeatCount = d.repeatCount;
+    const projected = readAuditIdentity(d);
+    if (projected) extra.auditIdentity = projected;
   }
   const native = Object.getOwnPropertyDescriptor(d, 'nativeObservation');
   if (native) {
@@ -105,6 +108,9 @@ function projectRecord(input) {
     details,
     replayed: false,
   };
+  // A lookup hint must never displace the security event or existing evidence.
+  if (Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES && extra.auditIdentity)
+    delete extra.auditIdentity;
   if (
     Buffer.byteLength(JSON.stringify(record)) > MAX_RECORD_BYTES &&
     extra.nativeObservation !== undefined
@@ -140,6 +146,7 @@ function replayRecord(value) {
     'nativeObservation',
     'boundObject',
     'eventId',
+    'auditIdentity',
   ]) {
     if (value.details?.extra?.[key] !== undefined) {
       const projected = projectRecord({

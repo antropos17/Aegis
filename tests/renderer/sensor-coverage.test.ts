@@ -83,6 +83,7 @@ describe('closed runtime coverage projection', () => {
       const input = coverageFixture('windows');
       const health = record(input.stats.appHealth);
       health.watchPlan = { state: 'HEALTHY', projectState, path: 'PRIVATE_ROOT' };
+      input.projectCoverageState = projectState;
       record(health.sensors).byId = { 'fs-chokidar': { state: 'HEALTHY' } };
       const model = sensorCoverage(input);
       expect(model.project).toEqual({
@@ -99,6 +100,7 @@ describe('closed runtime coverage projection', () => {
     expect(sensorCoverage(input).project.state).toBe('Unknown');
     record(input.stats.appHealth).watchPlan = { projectState: '__proto__' };
     input.stats.monitoringPaused = true;
+    input.monitoringPauseConfirmed = true;
     expect(sensorCoverage(input).project).toEqual({
       state: 'Unknown',
       detail: projectCoverageDetails.unknown,
@@ -170,6 +172,16 @@ describe('closed runtime coverage projection', () => {
     expect(view.loss).toBe(3);
     expect(view.restarts).toBe(1);
     expect(view.lastRestartAt).toBeNull();
+  });
+  it('shows that procfs mode cannot observe directory paths', () => {
+    const input = coverageFixture();
+    Object.assign(record(input.stats.nativeSensor), {
+      mode: 'procfs',
+      pathScope: 'paths-unsupported',
+    });
+    const view = sensorCoverage(input);
+    expect(view.paths).toBe('Directory observation is unavailable in procfs mode');
+    expect(view.surfaces.every((surface) => surface.state === 'Coverage lost')).toBe(true);
   });
   it('preserves absent versus observed zero and missing versus unsupported native status', () => {
     const missing = sensorCoverage(emptyTelemetry());

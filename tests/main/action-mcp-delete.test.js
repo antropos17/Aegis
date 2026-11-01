@@ -11,6 +11,7 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const broker = require('../../src/main/action-mcp-review');
 const terminal = require('../../src/main/action-confirmation-terminal');
+const deletion = require('../../src/main/action-delete-file');
 const { DELETE_NAME } = require('../../src/main/action-mcp');
 const { observeActionRoute } = require('../../src/main/action-observation-client');
 const owners = [];
@@ -110,6 +111,8 @@ const deleteCall = (client, id, args = {}) =>
   client.call('tools/call', { name: DELETE_NAME, arguments: args }, id);
 
 beforeEach(() => {
+  // Existing route cases cover the path-based branch independently of packaged Windows assets.
+  deletion._setDeleteDepsForTest({ platform: 'linux' });
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mcp-delete-'));
   policyPath = path.join(directory, 'policy.json');
   requestPath = path.join(directory, 'request.json');
@@ -132,6 +135,7 @@ afterEach(async () => {
   }
   broker._resetForTest();
   terminal._resetForTest();
+  deletion._resetDeleteDepsForTest();
   vi.restoreAllMocks();
   vi.useRealTimers();
   expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));
@@ -176,6 +180,42 @@ it('publishes only the dedicated empty-argument tool and removes one reviewed re
     control: 'selected-file-only',
     outsideRouteCoverage: 'unknown',
   });
+});
+
+it('routes the selected MCP deletion through a reviewed Windows native session', async () => {
+  const events = [];
+  const commit = vi.fn(async () => {
+    events.push('commit');
+    fs.renameSync(target, path.join(directory, 'native-removed.txt'));
+    return 'deleted';
+  });
+  const close = vi.fn(async () => {
+    events.push('close');
+    return true;
+  });
+  const openWindowsDelete = vi.fn(async (filename) => {
+    events.push('open');
+    expect(filename).toBe(target);
+    return { commit, close };
+  });
+  deletion._setDeleteDepsForTest({ platform: 'win32', openWindowsDelete });
+  terminal.confirmInTerminal.mockImplementation(async () => {
+    events.push('confirm');
+    return true;
+  });
+  const unlink = vi.spyOn(fs.promises, 'unlink');
+  const { client } = await start();
+  const reply = await deleteCall(client, 10);
+  expect(reply.result.isError).toBe(false);
+  expect(reply.result.structuredContent).toMatchObject({
+    decision: 'allow',
+    operation: { state: 'deleted' },
+    control: 'selected-file-only',
+  });
+  expect(events).toEqual(['open', 'confirm', 'commit', 'close']);
+  expect(openWindowsDelete).toHaveBeenCalledOnce();
+  expect(unlink).not.toHaveBeenCalled();
+  expect(JSON.stringify(reply)).not.toContain(directory);
 });
 
 it('rejects client-selected paths and malformed arguments before review or unlink', async () => {

@@ -77,6 +77,30 @@ afterEach(() => {
 });
 
 describe('security event pipeline', () => {
+  it('samples a monotonic clock with a unique batcher generation without changing admission', () => {
+    let clock = 10.9;
+    const first = fixture({
+      sampleClock: () => clock,
+      sampleGeneration: () => '11111111-1111-4111-8111-111111111111',
+    });
+    const second = fixture({
+      sampleClock: () => 3,
+      sampleGeneration: () => '22222222-2222-4222-8222-222222222222',
+    });
+    const initial = first.pipeline.getStats();
+    expect(initial.sampleMonotonicMs).toBe(10);
+    expect(initial.sampleGeneration).toBe('11111111-1111-4111-8111-111111111111');
+    expect(second.pipeline.getStats().sampleGeneration).not.toBe(initial.sampleGeneration);
+    first.pipeline.push(file(1));
+    clock = 2110;
+    const later = first.pipeline.getStats();
+    expect(later.sampleMonotonicMs).toBe(2110);
+    expect(later.sampleGeneration).toBe(initial.sampleGeneration);
+    expect(later.sensors['file-watch'].accepted).toBe(1);
+    expect(JSON.parse(JSON.stringify(later)).sampleMonotonicMs).toBe(2110);
+    clock = Infinity;
+    expect(first.pipeline.getStats().sampleMonotonicMs).toBeNull();
+  });
   it('spills bounded batches and deletes them only after durable acknowledgement', () => {
     let acknowledge = false;
     const received = [];

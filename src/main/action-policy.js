@@ -4,6 +4,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { TextDecoder } = require('node:util');
 const LIMITS = Object.freeze({ bytes: 65536, depth: 8, nodes: 2048, rules: 32 });
+const PROJECT_PROFILE = 'aegis-windows-project-review-v1';
+const ordinaryCommands = new Set([
+  'pwd',
+  'ls',
+  'git status',
+  'git status --short',
+  'git diff --stat',
+]);
+const scriptCommands = new Set(['npm test', 'npm run lint']);
+const reservedDeviceStem = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+const sensitiveName = /^(?:\.env(?:\.[a-z0-9_.-]*)?|id_(?:rsa|ed25519)|credentials(?:\.json)?)$/i;
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const deny = (reason) => ({ decision: 'deny', reason });
 const validString = (v) => typeof v === 'string' && !/[\ud800-\udfff]/u.test(v);
@@ -17,6 +28,34 @@ const keys = (value, expected) =>
   object(value) &&
   Object.keys(value).length === expected.length &&
   expected.every((key) => Object.hasOwn(value, key));
+
+// This literal subset grants no automatic permission and resolves no executable or file.
+function evaluateProjectProfile(input) {
+  const unsupported = deny('project-deny-unsupported');
+  if (
+    Object.keys(input).some((key) => !['command', 'description', 'timeout'].includes(key)) ||
+    (Object.hasOwn(input, 'description') && typeof input.description !== 'string') ||
+    (Object.hasOwn(input, 'timeout') &&
+      (!Number.isSafeInteger(input.timeout) || input.timeout < 1 || input.timeout > 600000))
+  )
+    return unsupported;
+  const command = input.command;
+  if (scriptCommands.has(command)) return { decision: 'ask', reason: 'project-review-script' };
+  if (ordinaryCommands.has(command)) return { decision: 'ask', reason: 'project-review-ordinary' };
+  const patch = /^git apply -- ([A-Za-z0-9][A-Za-z0-9_-]{0,63})\.(?:patch|diff)$/.exec(command);
+  if (patch && !reservedDeviceStem.test(patch[1]))
+    return { decision: 'ask', reason: 'project-review-edit' };
+  const read = /^cat ([A-Za-z0-9_.-]+)$/.exec(command);
+  if (read && read[1] !== '.' && read[1] !== '..' && !read[1].startsWith('-')) {
+    if (reservedDeviceStem.test(read[1].split('.')[0])) return unsupported;
+    return sensitiveName.test(read[1])
+      ? deny('project-deny-sensitive')
+      : { decision: 'ask', reason: 'project-review-ordinary' };
+  }
+  if (/^(?:rm(?: [A-Za-z0-9_.-]+)+|git reset --hard|git clean -fd)$/.test(command))
+    return deny('project-deny-destructive');
+  return unsupported;
+}
 
 /**
  * Parse bounded private JSON without retaining its source bytes.
@@ -67,6 +106,13 @@ function equal(a, b) {
 /** Validate an already private schema-1 action policy without evaluating a request.
  * @param {unknown} policy Parsed private input. @returns {boolean} Valid closed policy. @since v0.21.0 */
 function validPolicy(policy) {
+  if (object(policy) && policy.schemaVersion === 2)
+    return (
+      keys(policy, ['schemaVersion', 'cwd', 'profile']) &&
+      typeof policy.cwd === 'string' &&
+      path.isAbsolute(policy.cwd) &&
+      policy.profile === PROJECT_PROFILE
+    );
   if (
     !keys(policy, ['schemaVersion', 'cwd', 'defaultDecision', 'rules']) ||
     policy.schemaVersion !== 1 ||
@@ -219,6 +265,7 @@ async function evaluateActionPolicy(policyPath, inputBuffer) {
     bytes.fill(0);
   }
   if (input.cwd !== policy.cwd) return deny('scope-mismatch');
+  if (policy.schemaVersion === 2) return evaluateProjectProfile(input.tool_input);
   const rule = policy.rules.find((candidate) => equal(candidate.input, input.tool_input));
   const decision = rule ? rule.decision : policy.defaultDecision;
   return { decision, reason: `policy-${decision}` };

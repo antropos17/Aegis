@@ -330,6 +330,33 @@ describe('ipc-handlers', () => {
     expect(await handler(event, 'status')).toEqual({ success: true, code: 'READY' });
     expect(handle).toHaveBeenCalledOnce();
   });
+  it('accepts only path-free Gemini profile operations from the current owned frame', async () => {
+    const handle = vi.fn(async (_action, owned) => ({ success: owned(), code: 'IDLE' }));
+    const { event } = registerOwnedRenderer({ geminiHookProfile: { handle } });
+    const handler = getHandler('gemini-hook:review');
+    expect(await handler({ ...event, senderFrame: {} }, 'install')).toMatchObject({
+      success: false,
+    });
+    expect(await handler(event, { action: 'install', path: 'PRIVATE' })).toMatchObject({
+      success: false,
+    });
+    expect(handle).not.toHaveBeenCalled();
+    expect(await handler(event, 'install')).toEqual({ success: true, code: 'IDLE' });
+  });
+  it('rechecks Gemini profile ownership after asynchronous native work', async () => {
+    let finish;
+    const handle = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { event, frame } = registerOwnedRenderer({ geminiHookProfile: { handle } });
+    const pending = getHandler('gemini-hook:review')(event, 'install');
+    frame.url = 'https://untrusted.example/';
+    finish({ success: true, code: 'INSTALLED' });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
   it('project selection accepts only closed owned actions and projects out private backend fields', async () => {
     const handle = vi.fn(async (_action, owned) => ({
       success: owned(),
@@ -1033,6 +1060,7 @@ describe('ipc-handlers', () => {
     const event = alter(renderer);
     const denied = { success: false, error: 'Renderer request denied' };
     expect(await getHandler('get-audit-stats')(event)).toEqual(denied);
+    expect(await getHandler('audit:review-integrity')(event, '2026-10-27')).toEqual(denied);
     expect(await getHandler('get-audit-entries-before')(event, '2026-09-01', 25, [])).toEqual(
       denied,
     );
@@ -1059,7 +1087,7 @@ describe('ipc-handlers', () => {
     };
     expect(getHandler('get-audit-stats')(event)).toEqual(stats);
     expect(mockAudit.getStats).toHaveBeenCalledOnce();
-    expect(getHandler('get-audit-entries-before')(event, 'cursor', 25, ['file-access'], 3)).toEqual(
+    expect(await getHandler('get-audit-entries-before')(event, 'cursor', 25, ['file-access'], 3)).toEqual(
       [],
     );
     expect(mockAudit.getEntriesBefore).toHaveBeenCalledExactlyOnceWith(
@@ -1092,6 +1120,79 @@ describe('ipc-handlers', () => {
       files: [],
       zip: true,
     });
+  });
+
+  it('projects audit lookups only from main-owned live custody and hides stored identity metadata', async () => {
+    const token = 'audit:aaaaaaaa-1234-4234-9234-123456789abc';
+    const storedId = 'bbbbbbbb-1234-4234-9234-123456789abc';
+    const first = {
+      type: 'file-access',
+      eventId: storedId,
+      auditLookupId: storedId,
+      auditRevokedLookupId: storedId,
+      details: {
+        auditIdentity: { eventId: storedId, epoch: storedId, token: storedId },
+        kept: 'value',
+      },
+    };
+    const legacy = {
+      type: 'config-access',
+      eventId: storedId,
+      auditLookupId: storedId,
+      auditRevokedLookupId: storedId,
+      details: null,
+    };
+    const network = { type: 'network-connection', action: 'observe', eventId: storedId, auditLookupId: storedId, auditRevokedLookupId: storedId };
+    mockAudit.getEntriesBefore.mockReturnValueOnce([first, legacy, network]);
+    const lookup = vi.fn((row) => (row === first ? token : { revoked: token }));
+    const revision = { epoch: 'cccccccc-1234-4234-9234-123456789abc', revision: 1 };
+    const { event } = registerOwnedRenderer({ auditToolContextLookup: lookup, auditCustodyRevision: () => revision });
+    const result = await getHandler('get-audit-entries-before')(event, 'cursor', 3, []);
+    expect(result).toEqual([
+      { type: 'file-access', auditLookupId: token, auditCustodyRevision: revision, details: { kept: 'value' } },
+      { type: 'config-access', auditRevokedLookupId: token, details: null },
+      { type: 'network-connection', action: 'observe' },
+    ]);
+    expect(lookup).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(result)).not.toContain(storedId);
+    expect(first.details.auditIdentity.eventId).toBe(storedId);
+  });
+
+  it('keeps audit history readable when live custody is unavailable or throws', async () => {
+    const file = {
+      type: 'file-access',
+      path: 'existing-path',
+      eventId: 'forged',
+      details: { auditIdentity: { eventId: 'invalid' }, retained: true },
+    };
+    mockAudit.getEntriesBefore.mockReturnValueOnce([file]);
+    const { event } = registerOwnedRenderer({
+      auditToolContextLookup: () => {
+        throw Error('offline');
+      },
+    });
+    expect(await getHandler('get-audit-entries-before')(event, 'cursor', 1, [])).toEqual([
+      { type: 'file-access', path: 'existing-path', details: { retained: true } },
+    ]);
+  });
+
+  it('withholds an audit page when its owner changes during the bounded custody proof', async () => {
+    let finish;
+    mockAudit.getEntriesBefore.mockReturnValueOnce([{ type: 'file-access' }]);
+    const { event, contents, frame } = registerOwnedRenderer({
+      captureAuditCustodyProof: () => new Promise((resolve) => { finish = resolve; }),
+    });
+    const pending = getHandler('get-audit-entries-before')(event, 'cursor', 1, []);
+    contents.mainFrame = { ...frame };
+    finish(null);
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+  });
+
+  it('withholds an integrity result if the renderer is replaced during the check', async () => {
+    const { event, contents, frame } = registerOwnedRenderer();
+    const pending = getHandler('audit:review-integrity')(event, '2026-10-27');
+    contents.mainFrame = { ...frame };
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
   });
 
   it.each(['export-full-audit', 'export-zip'])(
@@ -1470,6 +1571,7 @@ describe('ipc-handlers', () => {
     expect(registeredChannels).toContain('export-agent-database');
     expect(registeredChannels).toContain('import-agent-database');
     expect(registeredChannels).toContain('get-audit-stats');
+    expect(registeredChannels).toContain('audit:review-integrity');
     expect(registeredChannels).toContain('get-audit-entries-before');
     expect(registeredChannels).toContain('open-audit-log-dir');
     expect(registeredChannels).toContain('export-full-audit');

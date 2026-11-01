@@ -8,7 +8,7 @@ const { planInstall, planRemoval } = require('./claude-hook-plan');
 /** @typedef {{ bytes: Buffer, manifest: string }} PrivateRecord */
 /** @typedef {{ ref: object, beforeSha256: string, manifestSha256: string }} Retained */
 /** @typedef {{ contract: string, readTarget: () => Promise<Snapshot>, retainPrivate: (record: PrivateRecord) => Promise<object>, readPrivate: (ref: object) => Promise<PrivateRecord>, compareAndWrite: (input: { identity: string, beforeBytes: Buffer, afterBytes: Buffer }) => Promise<'written'|'stale'> }} OwnedIO */
-/** @typedef {{ command: string, contract: string, timeoutSeconds: number }} Selection */
+/** @typedef {{ command: string, afterCommand?: string, contract: string, timeoutSeconds: number }} Selection */
 /** @typedef {{ startByte: number, endByte: number, replacementUtf8: string }} Edit */
 /** @typedef {{ beforeSha256: string, afterSha256: string, edits: Edit[], manifest?: string, manifestSha256?: string }} Plan */
 /** @typedef {{ kind: 'install'|'removal', snapshot: Snapshot, after: Buffer, plan: Plan, manifest: string }} Transaction */

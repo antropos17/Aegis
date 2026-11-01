@@ -42,4 +42,10 @@ observable result, select checks and finish without reopening completed scope.
 
 ## Writing
 
+Use English for technical analysis, plans, agent task prompts, agent-to-agent
+messages, reviews, documentation, code comments, commits and PRs. Delegated
+agents work and return their results in English. Direct conversation with the
+owner follows the owner's language, normally Russian. Preserve literal names,
+commands, paths, source quotations and existing product translations.
+
 Prefer prose unless items are genuinely parallel. Use measured claims, avoid superlatives and contrastive "X, not Y" framing.

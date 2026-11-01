@@ -1,10 +1,16 @@
+<script module lang="ts">
+  import { writable } from 'svelte/store';
+  // Payload-free session ledger: earlier views can leave commands or readbacks in flight.
+  const fileReadLedger = writable({ controls: 0, revision: 0n, verifications: 0 });
+</script>
+
 <script lang="ts">
+  import { onDestroy, untrack } from 'svelte';
   import { t } from '../runtime/i18n';
   import {
     record,
     records,
     invoke,
-    confirmed,
     type Host,
     type RecordData,
     type Telemetry,
@@ -23,36 +29,303 @@
     paused?: boolean;
     host?: Host | null;
   } = $props();
+  let previouslyOrdinary = $state(false);
   let view = $derived(record(telemetry.stats.fileReadDiagnostics));
-  let available = $derived(telemetry.stats.fileReadDiagnostics != null);
+  let available = $derived(
+    telemetry.stats.fileReadDiagnostics != null ||
+      ((telemetry.stale || previouslyOrdinary) && typeof host?.controlFileReads === 'function'),
+  );
   let controls = $derived(record(view.controls));
   let losses = $derived(record(view.losses));
   const loss = (key: string) => (losses[key] == null ? $t('Unknown') : String(losses[key]));
   let folder = $state('');
   let objectConsent = $state(false);
   let pending = $state(false);
+  let verifiedRevision = $state(0n);
+  let externalBarrier = $derived($fileReadLedger.revision !== verifiedRevision);
+  let externalBaseline = $state<number | null>(
+    untrack(() =>
+      $fileReadLedger.revision === 0n
+        ? null
+        : typeof telemetry.statsAt === 'number'
+          ? telemetry.statsAt
+          : Date.now(),
+    ),
+  );
+  let observedRevision = untrack(() => $fileReadLedger.revision);
+  let pendingAction = $state<'start' | 'stop' | null>(null);
   let error = $state('');
   let objectMode = $derived(view.captureMode === 'object-bound');
   let objectAdmission = $derived(record(view.admission));
-  async function control(action: 'start' | 'start-object' | 'stop'): Promise<void> {
-    if (pending) return;
-    if (action === 'start-object' && (!objectConsent || controls.canStartObject !== true)) return;
-    if (action !== 'stop' && (!folder || telemetry.stale)) return;
-    pending = true;
-    error = '';
+  let stopState = $state<'idle' | 'accepted' | 'unknown' | 'confirmed' | 'inactive'>('idle');
+  let stopBaseline = $state<number | null>(null);
+  let hostChanged = $state(false);
+  let hostBaseline = $state<number | null>(null);
+  let startUnknown = $state(false);
+  let startAccepted = $state(false);
+  let startBaseline = $state<number | null>(null);
+  let generation = 0;
+  let alive = true;
+  let requestTimer: ReturnType<typeof setTimeout> | undefined;
+  let verifying = false;
+  let verificationGeneration = 0;
+  let lastVerificationAt: number | null = null;
+  let previousHost = untrack(() => host);
+  let statusUnknown = $derived(
+    hostChanged ||
+      externalBarrier ||
+      startUnknown ||
+      $fileReadLedger.controls > 0 ||
+      stopState === 'accepted' ||
+      stopState === 'unknown' ||
+      telemetry.stale ||
+      typeof controls.canStop !== 'boolean',
+  );
+  let canStart = $derived(
+    !statusUnknown &&
+      typeof telemetry.statsAt === 'number' &&
+      Number.isFinite(telemetry.statsAt) &&
+      $fileReadLedger.controls === 0 &&
+      controls.canStart === true &&
+      controls.canStop === false &&
+      stopState !== 'accepted' &&
+      stopState !== 'unknown',
+  );
+  let showStop = $derived(
+    statusUnknown ||
+      $fileReadLedger.controls > 0 ||
+      controls.canStop === true ||
+      stopState === 'accepted' ||
+      stopState === 'unknown',
+  );
+
+  $effect(() => {
+    if (view.mode === 'ordinary') previouslyOrdinary = true;
+  });
+  $effect(() => {
+    if ($fileReadLedger.revision !== observedRevision) {
+      observedRevision = $fileReadLedger.revision;
+      externalBaseline = typeof telemetry.statsAt === 'number' ? telemetry.statsAt : Date.now();
+      lastVerificationAt = null;
+    }
+  });
+  $effect(() => {
+    if (host !== previousHost) {
+      previousHost = host;
+      generation++;
+      verificationGeneration++;
+      verifying = false;
+      clearTimeout(requestTimer);
+      hostChanged = true;
+      hostBaseline = typeof telemetry.statsAt === 'number' ? telemetry.statsAt : Date.now();
+      const uncertainStop =
+        (pending && pendingAction === 'stop') ||
+        stopState === 'accepted' ||
+        stopState === 'unknown';
+      const uncertainStart = (pending && pendingAction === 'start') || startUnknown;
+      pending = false;
+      stopState = uncertainStop ? 'unknown' : 'idle';
+      stopBaseline = uncertainStop ? hostBaseline : null;
+      startUnknown = uncertainStart;
+      startAccepted = false;
+      startBaseline = uncertainStart ? hostBaseline : null;
+      lastVerificationAt = null;
+      error = '';
+    }
+  });
+  async function verifySupervisor(candidateAt: number, selectedHost: Host, ticket: number) {
+    if ($fileReadLedger.verifications >= 2) return;
+    const revision = $fileReadLedger.revision;
+    const verification = ++verificationGeneration;
+    fileReadLedger.update((ledger) => ({ ...ledger, verifications: ledger.verifications + 1 }));
+    verifying = true;
+    let expired = false;
+    const deadline = setTimeout(() => {
+      expired = true;
+      if (verification === verificationGeneration) verifying = false;
+    }, 3500);
     try {
-      confirmed(
+      const fresh = record(await invoke(selectedHost, 'getStats'));
+      if (
+        expired ||
+        verification !== verificationGeneration ||
+        !alive ||
+        host !== selectedHost ||
+        generation !== ticket ||
+        $fileReadLedger.revision !== revision ||
+        $fileReadLedger.controls !== 0 ||
+        telemetry.stale ||
+        telemetry.statsAt !== candidateAt
+      )
+        return;
+      const report = record(fresh.fileReadDiagnostics);
+      const freshControls = record(report.controls);
+      if (
+        report.mode !== 'ordinary' ||
+        report.phase !== view.phase ||
+        typeof freshControls.canStop !== 'boolean' ||
+        freshControls.canStop !== controls.canStop ||
+        freshControls.canStart !== controls.canStart ||
+        freshControls.canStartObject !== controls.canStartObject ||
+        report.captureMode !== view.captureMode
+      )
+        return;
+      if (hostChanged) {
+        hostChanged = false;
+        hostBaseline = null;
+      }
+      if (externalBarrier) {
+        verifiedRevision = revision;
+        externalBaseline = null;
+      }
+      if (
+        (stopState === 'accepted' || stopState === 'unknown') &&
+        report.phase === 'stopped' &&
+        freshControls.canStop === false
+      )
+        stopState = 'confirmed';
+      else if (
+        (stopState === 'accepted' || stopState === 'unknown') &&
+        report.phase === 'disabled' &&
+        freshControls.canStop === false
+      )
+        stopState = 'inactive';
+      if (startUnknown) {
+        startUnknown = false;
+        startAccepted = false;
+        startBaseline = null;
+        error = '';
+      }
+    } catch {
+      // An unavailable readback leaves the operation unconfirmed.
+    } finally {
+      clearTimeout(deadline);
+      fileReadLedger.update((ledger) => ({ ...ledger, verifications: ledger.verifications - 1 }));
+      if (verification === verificationGeneration) verifying = false;
+    }
+  }
+  $effect(() => {
+    const baseline =
+      stopState === 'accepted' || stopState === 'unknown'
+        ? stopBaseline
+        : startUnknown
+          ? startBaseline
+          : hostChanged
+            ? hostBaseline
+            : externalBaseline;
+    if (
+      !pending &&
+      $fileReadLedger.controls === 0 &&
+      !telemetry.stale &&
+      host &&
+      typeof host.getStats === 'function' &&
+      (stopState === 'accepted' ||
+        stopState === 'unknown' ||
+        startUnknown ||
+        hostChanged ||
+        externalBarrier) &&
+      baseline !== null &&
+      typeof telemetry.statsAt === 'number' &&
+      telemetry.statsAt > baseline &&
+      telemetry.statsAt !== lastVerificationAt &&
+      !verifying
+    ) {
+      lastVerificationAt = telemetry.statsAt;
+      void verifySupervisor(telemetry.statsAt, host, generation);
+    }
+  });
+  onDestroy(() => {
+    alive = false;
+    generation++;
+    verificationGeneration++;
+    clearTimeout(requestTimer);
+  });
+  async function control(action: 'start' | 'start-object' | 'stop'): Promise<void> {
+    if (pending || (action === 'stop' && $fileReadLedger.controls >= 2)) return;
+    if (action !== 'stop' && (!canStart || !folder)) return;
+    if (action === 'start-object' && (!objectConsent || controls.canStartObject !== true)) return;
+    const selectedHost = host;
+    const ticket = ++generation;
+    verificationGeneration++;
+    verifying = false;
+    let expired = false;
+    fileReadLedger.update((ledger) => ({
+      ...ledger,
+      controls: ledger.controls + 1,
+      revision: ledger.revision + 1n,
+    }));
+    pending = true;
+    pendingAction = action === 'stop' ? 'stop' : 'start';
+    error = '';
+    if (action === 'stop') {
+      stopBaseline = typeof telemetry.statsAt === 'number' ? telemetry.statsAt : Date.now();
+      stopState = 'unknown';
+    } else {
+      stopState = 'idle';
+      stopBaseline = null;
+      startBaseline = typeof telemetry.statsAt === 'number' ? telemetry.statsAt : Date.now();
+    }
+    lastVerificationAt = null;
+    requestTimer = setTimeout(() => {
+      expired = true;
+      if (!alive || ticket !== generation || selectedHost !== host) return;
+      pending = false;
+      if (action === 'stop') stopState = 'unknown';
+      else {
+        startUnknown = true;
+        startAccepted = false;
+        error = 'Start outcome is unknown. Wait for a fresh supervisor report.';
+      }
+    }, 3500);
+    try {
+      const result = record(
         await invoke(
-          host,
+          selectedHost,
           'controlFileReads',
           action !== 'stop' ? { action, root: folder } : { action },
         ),
       );
+      if (!alive || expired || ticket !== generation || selectedHost !== host) return;
       if (action === 'stop') objectConsent = false;
-    } catch (failure) {
-      error = failure instanceof Error ? failure.message : 'File read monitoring could not start';
+      if (result.success === true) {
+        if (action === 'stop') stopState = 'accepted';
+        else {
+          startUnknown = true;
+          startAccepted = true;
+        }
+      } else if (action === 'stop') stopState = 'unknown';
+      else if (result.success === false) {
+        startBaseline = null;
+        error = 'File read monitoring could not start.';
+      } else {
+        startUnknown = true;
+        startAccepted = false;
+        error = 'Start outcome is unknown. Wait for a fresh supervisor report.';
+      }
+    } catch {
+      if (!alive || expired || ticket !== generation || selectedHost !== host) return;
+      if (action === 'stop') stopState = 'unknown';
+      else {
+        startUnknown = true;
+        startAccepted = false;
+        error = 'Start outcome is unknown. Wait for a fresh supervisor report.';
+      }
     } finally {
-      pending = false;
+      fileReadLedger.update((ledger) => ({
+        ...ledger,
+        controls: ledger.controls - 1,
+        revision: ledger.revision + 1n,
+      }));
+      if (alive && $fileReadLedger.controls === 0) {
+        const settledAt = typeof telemetry.statsAt === 'number' ? telemetry.statsAt : Date.now();
+        if (stopState === 'accepted' || stopState === 'unknown') stopBaseline = settledAt;
+        if (startUnknown) startBaseline = settledAt;
+        lastVerificationAt = null;
+      }
+      if (alive && ticket === generation && !expired) {
+        clearTimeout(requestTimer);
+        pending = false;
+      }
     }
   }
   let rows = $derived(
@@ -82,7 +355,7 @@
         {/if}
       {/if}
     </p>
-    {#if view.mode === 'ordinary' && host}
+    {#if (view.mode === 'ordinary' || view.mode == null) && host}
       <form
         class="read-controls"
         onsubmit={(event) => {
@@ -98,36 +371,36 @@
             autocomplete="off"
             spellcheck="false"
             placeholder="C:\Users\you\project"
-            disabled={pending || controls.canStop === true}
+            disabled={pending || !canStart}
             aria-describedby="file-read-scope-help"
           />
         </label>
-        {#if controls.canStop === true}
+        {#if showStop}
           <button
             class="button"
             type="button"
-            disabled={pending || telemetry.stale}
+            disabled={pending || $fileReadLedger.controls >= 2}
+            aria-busy={pending}
             onclick={() => void control('stop')}>{$t('Stop file read monitoring')}</button
           >
-        {:else}
-          <button
-            class="button"
-            type="submit"
-            disabled={pending ||
-              !folder ||
-              telemetry.stale ||
-              (objectConsent ? controls.canStartObject !== true : controls.canStart !== true)}
-          >
-            {$t(
-              objectConsent ? 'Start verified object monitoring' : 'Start file read monitoring',
-            )}</button
-          >
         {/if}
+        <button
+          class="button"
+          type="submit"
+          disabled={pending ||
+            !folder ||
+            !canStart ||
+            (objectConsent && controls.canStartObject !== true)}
+        >
+          {$t(
+            objectConsent ? 'Start verified object monitoring' : 'Start file read monitoring',
+          )}</button
+        >
         <label class="object-consent">
           <input
             type="checkbox"
             bind:checked={objectConsent}
-            disabled={pending || controls.canStop === true || controls.canStartObject !== true}
+            disabled={pending || !canStart || controls.canStartObject !== true}
             aria-describedby="file-read-object-help"
           />
           <span>{$t('Include verified object reads in alerts and risk')}</span>
@@ -147,18 +420,39 @@
           {$t('Resume monitoring before starting file reads')}
         </p>{/if}
       {#if view.root}<p>{$t('Selected folder')}: {String(view.root)}</p>{/if}
+      <p aria-label={$t('File read control status')} aria-live="polite" aria-atomic="true">
+        {$t(
+          pending && pendingAction === 'stop'
+            ? 'Requesting stop…'
+            : $fileReadLedger.controls >= 2
+              ? 'Control replies are still pending. Their outcome is unknown.'
+              : stopState === 'accepted'
+                ? 'Stop requested. Waiting for a fresh supervisor report.'
+                : stopState === 'unknown'
+                  ? 'Stop outcome is unknown. You can retry.'
+                  : stopState === 'confirmed'
+                    ? 'File read monitoring reported stopped.'
+                    : stopState === 'inactive'
+                      ? 'File read monitoring is off.'
+                      : startAccepted
+                        ? 'Start requested. Waiting for a fresh supervisor report.'
+                        : '',
+        )}
+      </p>
       {#if error}<p role="alert">{$t(error)}</p>{/if}
     {/if}
     <p role="status">
-      {view.phase === 'running' && !telemetry.stale && !telemetry.stats.monitoringPaused
-        ? $t('Capture running')
-        : view.phase === 'starting'
-          ? $t('Waiting for Windows permission')
-          : view.phase === 'disabled'
-            ? $t('File read monitoring is off')
-            : view.phase === 'failed'
-              ? $t('File read monitoring failed. Review sensor health in Statistics.')
-              : $t('Capture is not live · retained observations only')}
+      {statusUnknown
+        ? $t('File read monitoring status is unknown. The last report is retained.')
+        : view.phase === 'running' && !telemetry.stats.monitoringPaused
+          ? $t('Capture running')
+          : view.phase === 'starting'
+            ? $t('Waiting for Windows permission')
+            : view.phase === 'disabled'
+              ? $t('File read monitoring is off')
+              : view.phase === 'failed'
+                ? $t('File read monitoring failed. Review sensor health in Statistics.')
+                : $t('Capture is not live · retained observations only')}
       · {$t('Kernel events lost')}: {loss('kernelEvents')}
       · {$t('Realtime buffers lost')}: {loss('realtimeBuffers')}
       · {$t('Log buffers lost')}: {loss('logBuffers')}

@@ -26,6 +26,15 @@ in the intended worktree. Preserve local customizations and do not force-add
 installed copies. Repository agent definitions describe delegated roles;
 invoke subagents and external AI CLIs only when the user requests delegation.
 
+Follow the English working-language rule in [AGENTS.md](../../AGENTS.md#writing).
+Authorized delegation briefs name the observable result, owned paths, existing
+consumer, smallest useful checks and return evidence in English. Tell workers
+that other contributors may be editing the repository: preserve their work and
+coordinate shared paths. A role definition is a capability, not a requirement
+to run that role on every task. Review only the requested or changed boundary;
+broaden it for a concrete finding. Preserve required independent review for the
+security contracts that explicitly require it.
+
 | Task | First guidance or capability |
 | --- | --- |
 | Source navigation | `aegis-context`; `rg` for literals, Serena for symbols in large files |
@@ -88,6 +97,14 @@ adapter is a prerequisite when its production consumer remains disconnected.
 Before adding another abstraction, adapter, report or plugin, identify the
 specific acceptance blocker it removes. Stop expanding a solved prerequisite.
 Keep independent product work moving while an unrelated native lane is blocked.
+
+The current product queue is [completion plan section 7](../roadmap/completion-plan.md#7-execution-order).
+For Guard work, follow install -> selected agent launch -> policy decision ->
+observed effect -> visible result -> removal. Finish the selected part through
+its real consumer before scheduling another helper. Use the existing task/PR
+and acceptance record; do not create a second tracker or repeat the broad
+HOL comparison to start each implementation task. Report a blocked prerequisite
+with its exact missing input and continue independent authorized work.
 
 Use the cheapest test boundary that can detect the relevant defect. Logic belongs
 in focused tests; add integration checks for wiring, ownership and lifetime;
@@ -166,9 +183,11 @@ pass.
 
 | Change | First checks | Additional evidence |
 | --- | --- | --- |
+| Documentation, instructions or skill text | Diff/whitespace, changed links and applicable catalog/frontmatter/config parsing | Current required CI; no local runtime suite, screenshots, native builds or VM for wording alone |
 | Main/shared behavior | Relevant `tests/main` / `tests/shared` files, main typecheck | Actual dependency callers; platform behavior on the affected OS |
 | Observatory logic/component | Relevant renderer/component tests, `frontend:check` | Render affected states; production build for host-boundary changes |
 | Preload, IPC, exports, API handling | Relevant behavioral tests; `dev:security`; security diff review | Trace data across the actual handler, bridge and consumer |
+| Guard policy, hook or package setup | Focused allow/deny/error regressions with independent effects; preserve existing exact policies | Actual supported host/package IO and setup boundary; installed-provider acceptance for claims that replay cannot prove |
 
 During iteration, run affected tests first. Before merging, run all required gates
 defined in [the current CI workflow](../../.github/workflows/ci.yml); resolve their

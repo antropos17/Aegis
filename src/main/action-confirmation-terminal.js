@@ -77,8 +77,8 @@ function monitorTerminalInput(abort) {
 /**
  * Display an exact private launch only on a terminal, then require a fresh literal
  * challenge response. A terminal is not proof of human identity. Never log preview.
- * @param {object} launch Private effective executable/cwd/args/env descriptor.
- * @param {{signal?: AbortSignal, kind?: 'launch'|'delete-file'|'appcontainer-launch'|'appcontainer-import'}} [options] Owning cancellation and operation kind.
+ * @param {object|string} launch Private effective action or pre-rendered MCP review.
+ * @param {{signal?: AbortSignal, kind?: 'launch'|'delete-file'|'appcontainer-launch'|'appcontainer-import'|'mcp-call'}} [options] Owning cancellation and operation kind.
  * @returns {Promise<boolean>} True only for the exact response before expiry.
  * @since v0.15.1
  */
@@ -90,40 +90,66 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
   let challenge;
   let preview;
   const deletion = kind === 'delete-file';
-  const verb = deletion ? 'DELETE' : 'RUN';
+  const mcpCall = kind === 'mcp-call';
+  const verb = deletion ? 'DELETE' : mcpCall ? 'APPROVE' : 'RUN';
   try {
     challenge = (testDeps?.randomBytes || randomBytes)(4).toString('hex');
     if (!/^[a-f0-9]{8}$/.test(challenge)) return false;
     // All non-ASCII code units are visible, including bidi/zero-width controls.
-    const rendered = JSON.stringify(launch, null, 2).replace(
-      /[\u007f-\uffff]/g,
-      (char) => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'),
-    );
-    if (!deletion && !['launch', 'appcontainer-launch', 'appcontainer-import'].includes(kind))
+    let rendered;
+    if (mcpCall) {
+      // The gateway must supply a bounded ASCII rendering with inert controls.
+      if (typeof launch !== 'string' || /[^\x20-\x7e\n]/.test(launch)) return false;
+      rendered = launch;
+    } else {
+      rendered = JSON.stringify(launch, null, 2).replace(
+        /[\u007f-\uffff]/g,
+        (char) => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'),
+      );
+    }
+    if (
+      !deletion &&
+      !mcpCall &&
+      !['launch', 'appcontainer-launch', 'appcontainer-import'].includes(kind)
+    )
       return false;
-    preview = deletion
-      ? 'AEGIS terminal confirmation - ONE file deletion\n' +
-        'The exact file path is displayed below. Terminal history may retain it.\n' +
-        'Exact operation (JSON escapes are literal):\n' +
+    preview = mcpCall
+      ? 'AEGIS terminal confirmation - ONE MCP tool call\n' +
+        'Private argument values are displayed below. Terminal history may retain them.\n' +
+        'Known secrets are rejected, but unknown secrets may be displayed.\n' +
+        'A terminal response does not authenticate a human.\n' +
+        'Target identity and argument provenance are unavailable.\n' +
+        'A previous attempt may already have caused an effect.\n' +
+        'Fresh approval can cause a duplicate effect.\n' +
+        'Idempotency and reconciliation are unsupported.\n' +
+        'Current call and changes (JSON escapes are literal):\n' +
         rendered +
-        '\nType DELETE ' +
+        '\nType APPROVE ' +
         challenge +
-        ' to remove this file once within 60 seconds. Any other answer denies.\n> '
-      : 'AEGIS terminal confirmation - ONE launch\n' +
-        'Private arguments and environment are displayed below. Terminal history may retain them.\n' +
-        (kind === 'appcontainer-launch' || kind === 'appcontainer-import'
-          ? 'Windows AppContainer: no capabilities, network restricted, descendants in a Job.\n' +
-            'The cwd must be NEW: AEGIS creates it and retains its contents after exit.\n' +
-            'Existing projects are refused. Public Windows resources may remain readable.\n' +
-            (kind === 'appcontainer-import'
-              ? 'The selected file snapshot below is copied as input.bin before launch.\n'
-              : '')
-          : 'The program keeps your account privileges; descendants are not isolated.\n') +
-        'Exact effective action (JSON escapes are literal; no shell reconstruction):\n' +
-        rendered +
-        '\nType RUN ' +
-        challenge +
-        ' to launch once within 60 seconds. Any other answer denies.\n> ';
+        ' to admit this call once within 60 seconds. Any other answer denies.\n> '
+      : deletion
+        ? 'AEGIS terminal confirmation - ONE file deletion\n' +
+          'The exact file path is displayed below. Terminal history may retain it.\n' +
+          'Exact operation (JSON escapes are literal):\n' +
+          rendered +
+          '\nType DELETE ' +
+          challenge +
+          ' to remove this file once within 60 seconds. Any other answer denies.\n> '
+        : 'AEGIS terminal confirmation - ONE launch\n' +
+          'Private arguments and environment are displayed below. Terminal history may retain them.\n' +
+          (kind === 'appcontainer-launch' || kind === 'appcontainer-import'
+            ? 'Windows AppContainer: no capabilities, network restricted, descendants in a Job.\n' +
+              'The cwd must be NEW: AEGIS creates it and retains its contents after exit.\n' +
+              'Existing projects are refused. Public Windows resources may remain readable.\n' +
+              (kind === 'appcontainer-import'
+                ? 'The selected file snapshot below is copied as input.bin before launch.\n'
+                : '')
+            : 'The program keeps your account privileges; descendants are not isolated.\n') +
+          'Exact effective action (JSON escapes are literal; no shell reconstruction):\n' +
+          rendered +
+          '\nType RUN ' +
+          challenge +
+          ' to launch once within 60 seconds. Any other answer denies.\n> ';
     if (Buffer.byteLength(preview) > LIMITS.previewBytes) return false;
   } catch {
     return false;

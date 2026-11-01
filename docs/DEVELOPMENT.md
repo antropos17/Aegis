@@ -157,7 +157,7 @@ performing file I/O, spawning processes, or writing to disk.
 
 ## Observatory data flow
 
-OS sensors → main process → preload.js → runtime/host.ts → App.svelte and workspace components. The host adapter owns seven telemetry subscriptions, freshness, revision-guarded initial reads and teardown. Settings, Rules and App own the remaining update, rules, theme and desktop-navigation subscriptions. All 53 invoke and 11 push methods are mapped in [the integration record](../OBSERVATORY-INTEGRATION.md).
+OS sensors → main process → preload.js → runtime/host.ts → App.svelte and workspace components. The host adapter owns seven telemetry subscriptions, freshness, revision-guarded initial reads and teardown. Settings, Rules, App and Audit own the remaining update, rules, theme, desktop-navigation and custody subscriptions. The preload exposes 56 invoke and 12 push methods; the integration record describes the existing Observatory wiring.
 
 The scan batch carries anomalyScoresByInstance. Risk enrichment remains a shared pure computation. Instance identity is never inferred from name or PID. Process commands carry both pid and instanceId and are revalidated in main. Project permission keys persist by agent/cwd/parent context and are deliberately separate from process lifetime IDs.
 
@@ -174,14 +174,20 @@ npm run frontend:test          # Built-artifact browser checks
 npm run frontend:test:electron # Disposable-profile Electron smoke
 ```
 
-For a local installer, run these commands in order:
+For a local package, run:
 
 ```bash
-npm run build:renderer
 npm run build
 ```
 
-`build`/`dist` package the existing renderer output; they do not rebuild it. On Windows the packaging hook compiles the process-snapshot sidecar. Close a source-run AEGIS instance before packaging if it is holding that sidecar executable. Release CI runs the renderer build explicitly before packaging.
+The packaging hook rebuilds the production renderer and, on Windows, the process,
+resource and ETW helpers. A separate renderer build is unnecessary just to
+package. Use `npm run build:renderer` for a renderer-only check. Windows packaging
+needs the .NET SDK described in the development workflow; Guard setup assets
+still have the separate preparation gap recorded in the completion plan.
+If a source-run instance holds a helper executable, resolve that known lock
+before packaging; do not stop unrelated applications. Release CI's additional
+renderer build is an identified duplication pending its authorized workflow fix.
 
 ---
 
@@ -226,7 +232,7 @@ Verify ordinary and high-contrast light/dark themes and supported UI scales.
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 53 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
+- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 61 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`

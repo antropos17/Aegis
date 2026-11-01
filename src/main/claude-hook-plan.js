@@ -3,6 +3,7 @@
 
 const { createHash } = require('node:crypto');
 const { scanJson, previewEdits } = require('./claude-hook-json');
+const { CONTRACT_V2, planInstallV2, planRemovalV2 } = require('./claude-hook-plan-v2');
 
 /** @typedef {import('./claude-hook-json').JsonNode} JsonNode */
 /** @typedef {{ start: number, end: number, text: string }} Edit */
@@ -166,6 +167,8 @@ function failure(error) {
  */
 function planInstall(options) {
   try {
+    if (Object.getOwnPropertyDescriptor(options, 'contract')?.value === CONTRACT_V2)
+      return planInstallV2(options);
     const input = fields(options, [
       'configPath',
       'configBytes',
@@ -285,6 +288,11 @@ function planRemoval(options) {
       !HASH.test(input.manifestSha256)
     )
       throw Error('INVALID_MANIFEST');
+    try {
+      if (JSON.parse(input.manifest)?.version === 2) return planRemovalV2(options);
+    } catch {
+      throw Error('INVALID_MANIFEST');
+    }
     if (hash(input.manifest) !== input.manifestSha256) throw Error('MANIFEST_MISMATCH');
     const { item, entry, mismatch } = readManifest(input.manifest, path);
     if (mismatch) throw Error('MANIFEST_MISMATCH');
@@ -342,4 +350,4 @@ function planRemoval(options) {
   }
 }
 
-module.exports = { CONTRACT, planInstall, planRemoval };
+module.exports = { CONTRACT, CONTRACT_V2, planInstall, planRemoval };

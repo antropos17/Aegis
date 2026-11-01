@@ -47,6 +47,10 @@ afterEach(() => {
 });
 
 describe('selected structured file deletion', () => {
+  // Exercise the legacy path-based branch separately from Windows native orchestration.
+  beforeEach(() => api._setDeleteDepsForTest({ platform: 'linux' }));
+  afterEach(() => api._resetDeleteDepsForTest());
+
   it('removes only the exact reviewed ordinary file and redacts the report', async () => {
     const neighbor = path.join(root, 'neighbor.txt');
     fs.writeFileSync(neighbor, 'keep');
@@ -178,4 +182,210 @@ describe('selected structured file deletion', () => {
     expect(fs.existsSync(target)).toBe(true);
     expect(reports).toHaveLength(1);
   });
+});
+
+describe('Windows selected-file native session', () => {
+  let events, session, openWindowsDelete, unlink;
+
+  beforeEach(() => {
+    events = [];
+    session = {
+      commit: vi.fn(async () => {
+        events.push('commit');
+        // Stand in for a native handle disposition without invoking path unlink.
+        fs.renameSync(target, path.join(root, 'native-removed.txt'));
+        return 'deleted';
+      }),
+      close: vi.fn(async () => {
+        events.push('close');
+        return true;
+      }),
+    };
+    openWindowsDelete = vi.fn(async (selectedTarget) => {
+      events.push('open');
+      expect(selectedTarget).toBe(target);
+      return session;
+    });
+    api._setDeleteDepsForTest({ platform: 'win32', openWindowsDelete });
+    unlink = vi.spyOn(fs.promises, 'unlink');
+    terminal.confirmInTerminal.mockImplementation(async () => {
+      events.push('confirm');
+      return true;
+    });
+  });
+
+  afterEach(() => {
+    api._resetDeleteDepsForTest();
+  });
+
+  it('opens before confirmation, commits only afterward, and never unlinks the path', async () => {
+    const report = await api.deleteSelectedFile(policyPath, requestPath);
+    expect(events).toEqual(['open', 'confirm', 'commit', 'close']);
+    expect(report).toMatchObject({ decision: 'allow', operation: { state: 'deleted' } });
+    expect(unlink).not.toHaveBeenCalled();
+    expect(JSON.stringify(report)).not.toContain(root);
+  });
+
+  it.each(['policy', 'request', 'target'])(
+    'rechecks %s after confirmation before commit',
+    async (changed) => {
+      terminal.confirmInTerminal.mockImplementationOnce(async () => {
+        events.push('confirm');
+        fs.appendFileSync(
+          changed === 'target' ? target : changed === 'policy' ? policyPath : requestPath,
+          ' ',
+        );
+        return true;
+      });
+      const report = await api.deleteSelectedFile(policyPath, requestPath);
+      expect(report.operation.state).toBe('not-started');
+      expect(openWindowsDelete).toHaveBeenCalledOnce();
+      expect(session.close).toHaveBeenCalledOnce();
+      expect(session.commit).not.toHaveBeenCalled();
+      expect(unlink).not.toHaveBeenCalled();
+      expect(fs.existsSync(target)).toBe(true);
+    },
+  );
+
+  it.each(['refused', 'aborted'])('closes without mutation when review is %s', async (kind) => {
+    const controller = new AbortController();
+    terminal.confirmInTerminal.mockImplementationOnce(async () => {
+      events.push('confirm');
+      if (kind === 'aborted') controller.abort();
+      return kind !== 'refused';
+    });
+    const report = await api.deleteSelectedFile(policyPath, requestPath, {
+      signal: controller.signal,
+    });
+    expect(report.operation.state).toBe('not-started');
+    expect(session.commit).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledOnce();
+    expect(unlink).not.toHaveBeenCalled();
+    expect(fs.readFileSync(target, 'utf8')).toBe('private contents');
+  });
+
+  it('awaits and closes a late native open after cancellation without asking for review', async () => {
+    let release;
+    let opened;
+    const opening = new Promise((resolve) => {
+      opened = resolve;
+    });
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    openWindowsDelete.mockImplementationOnce(async () => {
+      opened();
+      return pending;
+    });
+    const controller = new AbortController();
+    const action = api.deleteSelectedFile(policyPath, requestPath, { signal: controller.signal });
+    await opening;
+    controller.abort();
+    release(session);
+    const report = await action;
+    expect(report.operation.state).toBe('not-started');
+    expect(terminal.confirmInTerminal).not.toHaveBeenCalled();
+    expect(session.commit).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledOnce();
+    expect(unlink).not.toHaveBeenCalled();
+    expect(fs.existsSync(target)).toBe(true);
+  });
+
+  it.each(['before', 'after'])(
+    'interrupts a pending control identity check %s review on cancellation',
+    async (phase) => {
+      let entered;
+      let release;
+      const checking = new Promise((resolve) => {
+        entered = resolve;
+      });
+      const pending = new Promise((resolve) => {
+        release = resolve;
+      });
+      const stat = fs.promises.stat.bind(fs.promises);
+      let checks = 0;
+      vi.spyOn(fs.promises, 'stat').mockImplementation(async (filename, options) => {
+        if (filename === policyPath && ++checks === (phase === 'before' ? 1 : 2)) {
+          entered();
+          return pending;
+        }
+        return stat(filename, options);
+      });
+      const controller = new AbortController();
+      const action = api.deleteSelectedFile(policyPath, requestPath, { signal: controller.signal });
+      await checking;
+      controller.abort();
+      const report = await action;
+      expect(report.operation.state).toBe('not-started');
+      expect(openWindowsDelete).toHaveBeenCalledOnce();
+      expect(terminal.confirmInTerminal).toHaveBeenCalledTimes(phase === 'before' ? 0 : 1);
+      expect(session.commit).not.toHaveBeenCalled();
+      expect(session.close).toHaveBeenCalledOnce();
+      expect(unlink).not.toHaveBeenCalled();
+      expect(fs.existsSync(target)).toBe(true);
+      release(await stat(policyPath, { bigint: true }));
+    },
+  );
+
+  it.each(['unknown', 'throws'])('reports unknown when commit outcome is %s', async (outcome) => {
+    session.commit.mockImplementationOnce(async () => {
+      if (outcome === 'throws') throw new Error('private native failure');
+      return 'unknown';
+    });
+    const report = await api.deleteSelectedFile(policyPath, requestPath);
+    expect(report.operation.state).toBe('unknown');
+    expect(session.close).toHaveBeenCalledOnce();
+    expect(unlink).not.toHaveBeenCalled();
+    expect(JSON.stringify(report)).not.toContain('private native failure');
+  });
+
+  it('reports unknown if helper cleanup is unconfirmed after a deleted commit', async () => {
+    session.close.mockResolvedValueOnce(false);
+    const report = await api.deleteSelectedFile(policyPath, requestPath);
+    expect(report.operation.state).toBe('unknown');
+    expect(session.commit).toHaveBeenCalledOnce();
+    expect(unlink).not.toHaveBeenCalled();
+  });
+
+  it('does not report deletion when the native witness is refused', async () => {
+    session.commit.mockResolvedValueOnce('refused');
+    const report = await api.deleteSelectedFile(policyPath, requestPath);
+    expect(report.operation.state).toBe('not-started');
+    expect(session.close).toHaveBeenCalledOnce();
+    expect(unlink).not.toHaveBeenCalled();
+    expect(fs.existsSync(target)).toBe(true);
+  });
+
+  it.skipIf(process.platform !== 'win32').each(['policy', 'request'])(
+    'rejects a case-different alias of the selected %s file',
+    async (control) => {
+      const selected = control === 'policy' ? policyPath : requestPath;
+      target = selected.toUpperCase();
+      operation = { kind: 'delete-file', path: target };
+      writeConfig();
+      const report = await api.deleteSelectedFile(policyPath, requestPath);
+      expect(report.operation.state).toBe('not-started');
+      expect(session.commit).not.toHaveBeenCalled();
+      expect(unlink).not.toHaveBeenCalled();
+      expect(fs.existsSync(selected)).toBe(true);
+    },
+  );
+
+  it.each(['policy', 'request'])(
+    'rejects a hardlink alias of the selected %s file',
+    async (control) => {
+      const selected = control === 'policy' ? policyPath : requestPath;
+      target = path.join(root, 'hardlink-alias.json');
+      operation = { kind: 'delete-file', path: target };
+      writeConfig();
+      fs.linkSync(selected, target);
+      const report = await api.deleteSelectedFile(policyPath, requestPath);
+      expect(report.operation.state).toBe('not-started');
+      expect(openWindowsDelete).toHaveBeenCalledOnce();
+      expect(session.close).toHaveBeenCalledOnce();
+      expect(session.commit).not.toHaveBeenCalled();
+      expect(unlink).not.toHaveBeenCalled();
+      expect(fs.existsSync(selected)).toBe(true);
+    },
+  );
 });

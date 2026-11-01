@@ -81,6 +81,41 @@ afterEach(async () => {
 });
 
 describe('production sensor runtime owner', () => {
+  it('runs the procfs snapshot handshake while reporting directory and event coverage unavailable', () => {
+    setup();
+    runtime.start();
+    const announcement = hello(child.pid);
+    child.send({
+      ...announcement,
+      mode: 'procfs',
+      modes: ['procfs'],
+      caps: {
+        ...announcement.caps,
+        exec: false,
+        exit: false,
+        fork: false,
+        fileOpen: false,
+        tcpConnect: false,
+        identity: 'procfs-ticks',
+      },
+    });
+    child.ack();
+    child.send({ t: 'health', state: 'STARTING', detail: 'starting' });
+    vi.advanceTimersByTime(2100);
+    expect(child.messages.map((message) => message.t)).toEqual(['watch', 'snap']);
+    child.send({ t: 'snap', id: child.messages.at(-1).id, procs: [] });
+    child.send({ t: 'health', state: 'HEALTHY', detail: 'ready' });
+    expect(runtime.getStatus()).toMatchObject({
+      mode: 'procfs',
+      providerState: 'HEALTHY',
+      pathScope: 'paths-unsupported',
+      admission: { state: 'unsupported-admission', accepted: 0 },
+      polling: 'unchanged',
+      qualification: 'unverified',
+    });
+    expect(Object.values(runtime.getStatus().coverage)).toEqual(Array(5).fill('coverage-lost'));
+  });
+
   it('has no Windows owner, probe or status leaf', () => {
     const spawn = vi.fn();
     expect(setup({ _test: { platform: 'win32', host: { spawn } } }).spawn).not.toHaveBeenCalled();

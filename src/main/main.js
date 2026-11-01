@@ -8,13 +8,18 @@
 
 // Storage configuration only; reject malformed selectors before CLI or settings.
 const ownedGuiProfile = require('./owned-gui-profile');
-if (ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1)))
+const _hookStartup = require('./hook-startup-args').selectHookStartupArgs(process.argv);
+const _hookInvocation = _hookStartup.isHook;
+const _ownedGuiSelector = ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1));
+const _cliArgs = _hookStartup.args;
+if (!_hookInvocation && _ownedGuiSelector)
   ownedGuiProfile.configureOwnedGuiProfile(process.argv.slice(1), require('electron').app);
 
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
   '--mcp-gateway-http',
   '--mcp-gateway-stdio',
+  '--mcp-gateway-stdio-review',
   '--mcp-gateway-credential-tag',
   '--mcp-gateway-stdio-route-tag',
   '--action-mcp-config-json',
@@ -24,7 +29,10 @@ const _cliFlags = new Set([
   '--action-mcp-catalog-review',
   '--handoff-import-json',
   '--action-policy-hook',
+  '--action-policy-after-hook',
+  '--claude-guard-session',
   '--gemini-beforetool-hook',
+  '--gemini-beforetool-exit-code',
   '--action-exec-json',
   '--action-exec-confirm',
   '--action-exec-windows-job-json',
@@ -50,30 +58,31 @@ const _cliFlags = new Set([
   '--version',
   '--help',
 ]);
-if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
+if (_cliArgs.some((a) => _cliFlags.has(a))) {
   require('./cli')
-    .handleCLI()
+    .handleCLI(_cliArgs)
     .then(async (code) => {
       if (
-        !process.argv.slice(2).includes('--gemini-beforetool-hook') &&
-        !process.argv.slice(2).includes('--action-policy-hook') &&
+        !_cliArgs.includes('--gemini-beforetool-hook') &&
+        !_cliArgs.includes('--action-policy-hook') &&
         [
           '--mcp-gateway-http',
           '--mcp-gateway-stdio',
+          '--mcp-gateway-stdio-review',
           '--action-mcp-stdio',
           '--action-mcp-review',
           '--action-mcp-delete-review',
           '--action-mcp-connect',
           '--action-mcp-catalog-stdio',
           '--action-mcp-catalog-review',
-        ].includes(process.argv[2])
+        ].includes(_cliArgs[0])
       ) {
         // The transport already drained bounded output and awaited child cleanup.
         process.exit(code ?? 2);
       }
       if (
-        process.argv.slice(2).includes('--gemini-beforetool-hook') ||
-        process.argv.slice(2).includes('--action-policy-hook') ||
+        _cliArgs.includes('--gemini-beforetool-hook') ||
+        _cliArgs.includes('--action-policy-hook') ||
         [
           '--action-exec-json',
           '--action-exec-confirm',
@@ -88,7 +97,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
           '--action-mcp-config-json',
           '--mcp-gateway-credential-tag',
           '--mcp-gateway-stdio-route-tag',
-        ].includes(process.argv[2])
+        ].includes(_cliArgs[0])
       ) {
         // These commands emit small bounded reports; drain before ending even
         // when a late operation outlives the evaluation or cleanup deadline.
@@ -96,7 +105,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
         process.exit(code ?? 2);
       }
       // Finite live commands close their sockets/timers and let stdout drain.
-      if (['--handoff-listen-json', '--handoff-send'].includes(process.argv[2]))
+      if (['--handoff-listen-json', '--handoff-send'].includes(_cliArgs[0]))
         process.exitCode = code ?? 0;
       else process.exit(code ?? 0);
     });
@@ -147,6 +156,7 @@ const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
 let sensitiveAlertJournal;
 let updates;
 let claudeHookProfile;
+let geminiHookProfile;
 let projectWatchSelection;
 let etwFile;
 let nativeSensor = null;
@@ -197,6 +207,84 @@ let mainWindow = null;
 let latestAgents = [],
   latestAiAgents = [],
   latestOtherAgents = [];
+let liveLifecycleGeneration = 0n;
+let livePopulationGeneration = 0n;
+let livePopulationReady = false;
+let livePopulationScanStartedAt = null;
+let livePopulationObservedAt = null;
+
+function invalidateLivePopulation() {
+  livePopulationReady = false;
+  livePopulationObservedAt = null;
+  livePopulationGeneration++;
+}
+function noteLiveLifecycleChange() {
+  liveLifecycleGeneration++;
+  invalidateLivePopulation();
+}
+function beginLivePopulationScan() {
+  invalidateLivePopulation();
+  livePopulationScanStartedAt = performance.now();
+  return liveLifecycleGeneration;
+}
+function commitLivePopulationScan(pass) {
+  try {
+    if (
+      !pass ||
+      pass.lifecycleGeneration !== liveLifecycleGeneration ||
+      pass.agents !== latestAgents ||
+      pass.reliable !== true ||
+      pass.observationComplete !== true ||
+      pass.snapshotCurrent !== true ||
+      monitoringPaused ||
+      observationGap.snapshot().state !== 'NONE' ||
+      scanner?.getProcessCapabilities?.().populationReliable !== true
+    )
+      return;
+    if (livePopulationScanStartedAt === null || !Number.isFinite(livePopulationScanStartedAt))
+      return;
+    livePopulationObservedAt = livePopulationScanStartedAt;
+    livePopulationReady = true;
+  } catch {
+    livePopulationReady = false;
+  }
+}
+function livePopulationWitness() {
+  try {
+    if (
+      !livePopulationReady ||
+      monitoringPaused ||
+      observationGap.snapshot().state !== 'NONE' ||
+      scanner?.getProcessCapabilities?.().populationReliable !== true
+    )
+      return null;
+    return `${liveLifecycleGeneration}:${livePopulationGeneration}`;
+  } catch {
+    return null;
+  }
+}
+function livePopulationAgeMs() {
+  if (livePopulationWitness() === null || livePopulationObservedAt === null) return null;
+  const age = performance.now() - livePopulationObservedAt;
+  return Number.isFinite(age) && age >= 0 ? age : null;
+}
+function onLiveProcessScanCommitted(pass) {
+  commitLivePopulationScan(pass);
+  nativeSensor?.onProcessScanCommitted(pass);
+  return livePopulationWitness() !== null;
+}
+function onLiveProcessObservationUnavailable() {
+  invalidateLivePopulation();
+  nativeSensor?.onProcessObservationUnavailable();
+}
+function attachLivePopulationPowerMonitor(powerMonitor) {
+  powerMonitor.on('suspend', noteLiveLifecycleChange);
+  powerMonitor.on('resume', noteLiveLifecycleChange);
+  return () => {
+    powerMonitor.removeListener('suspend', noteLiveLifecycleChange);
+    powerMonitor.removeListener('resume', noteLiveLifecycleChange);
+  };
+}
 /**
  * Publish the current process batch to every main-process reader. Identity stamps
  * enrich these same objects after the population is published.
@@ -205,6 +293,7 @@ let latestAgents = [],
  * @since v0.17.0
  */
 function setLatestAgents(agents) {
+  invalidateLivePopulation();
   latestAgents = agents;
   latestAiAgents = agents.filter((a) => a.category === 'ai');
   latestOtherAgents = agents.filter((a) => a.category === 'other');
@@ -219,6 +308,7 @@ let isQuitting = false,
  * @since v0.19.2-beta
  */
 function setMonitoringPaused(paused) {
+  if (monitoringPaused !== paused) noteLiveLifecycleChange();
   monitoringPaused = paused;
   etwFile?.setPaused(paused);
   nativeSensor?.setPaused(paused);
@@ -590,6 +680,7 @@ function getWslInventoryStats() {
  * @returns {Object} Monitoring statistics @since v0.1.0
  */
 function getStats() {
+  const populationAge = livePopulationAgeMs();
   if (!scanner) {
     return {
       totalFiles: 0,
@@ -614,6 +705,10 @@ function getStats() {
       ipc: getIpcStats(),
       sequences: getSequenceStats(),
       monitoringPaused,
+      monitoringGeneration: String(liveLifecycleGeneration),
+      monitoringPopulationRevision: String(livePopulationGeneration),
+      monitoringPopulationReady: populationAge !== null,
+      monitoringPopulationAgeMs: populationAge,
       observationGap: observationGap.snapshot(),
       scanCadence: getScanCadenceStats(),
       auditDelivery: getAuditDelivery(),
@@ -648,6 +743,10 @@ function getStats() {
     ipc: getIpcStats(),
     sequences: getSequenceStats(),
     monitoringPaused,
+    monitoringGeneration: String(liveLifecycleGeneration),
+    monitoringPopulationRevision: String(livePopulationGeneration),
+    monitoringPopulationReady: populationAge !== null,
+    monitoringPopulationAgeMs: populationAge,
     observationGap: observationGap.snapshot(),
     scanCadence: getScanCadenceStats(),
     auditDelivery: getAuditDelivery(),
@@ -676,9 +775,58 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   mode: 'latest',
 });
 let securityEvents = null;
+function auditSecuritySettled() {
+  try {
+    const state = securityEvents?.getStats();
+    const names = ['file-watch', 'file-handle', 'process', 'network', 'other'];
+    if (
+      !state ||
+      state.replayPending !== false ||
+      state.pendingLoss !== 0 ||
+      state.unknownLoss !== false ||
+      state.markerDurable !== true ||
+      state.spill?.blocked !== false ||
+      state.spill?.files !== 0 ||
+      !state.sensors ||
+      names.some((name) => state.sensors[name]?.buffered !== 0)
+    )
+      return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function captureAuditCustodyProof(rows) {
+  if (!auditSecuritySettled()) return null;
+  try {
+    const before = liveToolContext.auditRevision();
+    if (!before) return null;
+    const proof = await audit?.captureObservationProof?.(rows);
+    const after = liveToolContext.auditRevision();
+    return auditSecuritySettled() &&
+      after &&
+      before.epoch === after.epoch &&
+      before.revision === after.revision
+      ? (proof ?? null)
+      : null;
+  } catch {
+    return null;
+  }
+}
+function auditCustodyRevision() {
+  try {
+    return liveToolContext.auditRevision(
+      auditSecuritySettled() && audit?.observationCustodyClear?.() === true,
+    );
+  } catch {
+    return liveToolContext.auditRevision(false);
+  }
+}
 const liveToolContext = createLiveToolContext({
-  getAgents: () =>
-    scanner?.getProcessCapabilities?.().populationReliable === true ? latestAgents : [],
+  getAgents: () => (livePopulationWitness() === null ? [] : latestAgents),
+  getPopulationGeneration: livePopulationWitness,
+  onAuditRevision: (revision) => sendToRenderer('audit:custody-revision', revision),
+  auditProof: captureAuditCustodyProof,
 });
 
 /** Preserve watcher UUIDs; stamp accepted legacy/test events before display or audit. */
@@ -702,6 +850,7 @@ function auditInitOptions(userDataPath) {
     onFlushError: () =>
       logger.error('audit-logger', 'Flush failed', { code: 'audit-flush-failed' }),
     onDeliveryChange: () => {
+      liveToolContext.invalidateAudit();
       if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
         statsUpdateBatcher.pushLazy(getStats);
     },
@@ -1355,8 +1504,11 @@ function initDeferredSubsystems(userData) {
   scanLoop.init({
     securityEvents,
     onAgentsObserved: () => etwFile?.refreshIssuers(),
-    onProcessScanCommitted: (pass) => nativeSensor?.onProcessScanCommitted(pass),
-    onProcessObservationUnavailable: () => nativeSensor?.onProcessObservationUnavailable(),
+    beginLivePopulationScan,
+    onLivePopulationScanSkipped: noteLiveLifecycleChange,
+    onLivePopulationIntervalsStopped: noteLiveLifecycleChange,
+    onProcessScanCommitted: onLiveProcessScanCommitted,
+    onProcessObservationUnavailable: onLiveProcessObservationUnavailable,
     scanner,
     procUtil,
     watcher,
@@ -1370,6 +1522,7 @@ function initDeferredSubsystems(userData) {
     observationGap,
     sendToRenderer,
     fileAccessBatcher,
+    prepareFileObservation: (event) => liveToolContext.prepare(event),
     recordAcceptedFileEvent,
     statsUpdateBatcher,
     getStats,
@@ -1558,7 +1711,9 @@ app.whenReady().then(() => {
   // of any `agent-exit` a post-sleep reconcile may go on to write. `audit` is a
   // deferred module: a resume before it loaded has no log to write to, and no log is
   // fabricated later.
-  observationGap.attach(require('electron').powerMonitor, {
+  const powerMonitor = require('electron').powerMonitor;
+  attachLivePopulationPowerMonitor(powerMonitor);
+  observationGap.attach(powerMonitor, {
     onGap: (gap) => {
       const details = observationGap.buildGapAuditDetails(gap, {
         monitoringPaused,
@@ -1595,15 +1750,33 @@ app.whenReady().then(() => {
     ),
     dialog: require('electron').dialog,
     shell: require('electron').shell,
+    clipboard: require('electron').clipboard,
     executable: process.execPath,
     appPath: applicationPath,
+    getWindow: () => mainWindow,
+  });
+  geminiHookProfile = require('./gemini-hook-app').createGeminiHookApp({
+    userData,
+    assetsRoot: path.join(
+      app.isPackaged ? process.resourcesPath : path.join(applicationPath, 'build'),
+      'hook-review',
+    ),
+    dialog: require('electron').dialog,
+    shell: require('electron').shell,
+    executable: process.execPath,
+    appPath: applicationPath,
+    packaged: app.isPackaged,
     getWindow: () => mainWindow,
   });
   ipc.init({
     projectWatchSelection,
     claudeHookProfile,
+    geminiHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
+    auditToolContextLookup: (row, proof) => liveToolContext.auditLookup(row, proof),
+    captureAuditCustodyProof,
+    auditCustodyRevision,
     controlFileReads: (request) => etwFile.control(request),
     updates,
     getWindow: () => mainWindow,
@@ -1643,7 +1816,8 @@ app.on('before-quit', (event) => {
   }
   const etwActive = etwFile?.isActive?.() === true;
   const nativeActive = nativeSensor?.isActive() === true;
-  const hookReviewActive = claudeHookProfile?.hasPending() === true;
+  const hookReviewActive =
+    claudeHookProfile?.hasPending() === true || geminiHookProfile?.hasPending() === true;
   if (
     !alertQuitDrainStarted &&
     (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive || hookReviewActive)
@@ -1673,6 +1847,7 @@ app.on('before-quit', (event) => {
         etwFile?.dispose(),
         nativeSensor?.dispose(),
         claudeHookProfile?.close(),
+        geminiHookProfile?.close(),
       ]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.
@@ -1888,6 +2063,15 @@ module.exports = {
   _setWatcherForTest,
   _setEtwFileForTest,
   _setMonitoringPausedForTest: setMonitoringPaused,
+  _livePopulationHooksForTest: {
+    begin: beginLivePopulationScan,
+    commit: commitLivePopulationScan,
+    committed: onLiveProcessScanCommitted,
+    unavailable: onLiveProcessObservationUnavailable,
+    attachPower: attachLivePopulationPowerMonitor,
+    witness: livePopulationWitness,
+    lifecycleChange: noteLiveLifecycleChange,
+  },
   _setScannerForTest,
   _setLatestAgentsForTest: setLatestAgents,
   _setScanLoopForTest,

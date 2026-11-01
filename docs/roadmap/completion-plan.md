@@ -1,5 +1,38 @@
 # AEGIS completion plan — October 2026
 
+## Current delivery contract — Revision 8, 27 October 2026
+
+Start new work at [section 7](#7-execution-order), beginning with G1-A. The
+immediate product is an installable Windows Claude Guard: ordinary work succeeds,
+declared dangerous attempts are blocked before their effect, and the user can
+understand the decision, protection limits and removal path. A supported route
+must expose protection failures; an unobserved effect stays unknown.
+
+Finish G1 before broadening the agent/platform catalog. G2 extends the accepted
+contract to Codex and Gemini; G3 connects it to instance-specific system evidence.
+The [HOL comparison](guard-delivery-review-20261027.md) supplies dated evidence
+and gaps, not a claim of parity or a requirement to copy its check count.
+T1–T10 remain long-term acceptance targets, not prerequisites for every G1 slice.
+
+Use English for all technical work, prompts, agent communication and handoffs,
+as required by [AGENTS.md](../../AGENTS.md#writing). Follow the existing
+[delivery loop](../development/workflow.md#delivery-loop): one observable
+increment, focused local checks, current required hosted CI, then integration.
+Preserve independent security review where the affected contract requires it.
+Contributor entry points are in [CONTRIBUTING.md](../../CONTRIBUTING.md#current-product-priority).
+No new tracker, generic audit or full local verification cycle is needed to start.
+
+Revision 8 aligns project instructions, skills and delegated roles with this
+contract. It adds a user-trial decision before broad expansion and bounded
+contributor work. It changes no runtime behavior or acceptance result. Existing
+workflow, release, paid-provider and VM authorization boundaries remain in force.
+
+## Historical revisions and evidence
+
+The following checkpoints preserve earlier scope, models, permissions and
+verification history. They do not renew expired authorizations, require
+delegation, restore mutation campaigns or override the current delivery order.
+
 Scope approved by the repository owner on 2026-10-19 for execution by a Codex
 orchestrator running GPT-6.1 Sol with subagents. Historical baseline: master `bf65076`
 (2026-10-19, after #976 and #985), package `0.19.2-beta`. PR #974 was later
@@ -84,6 +117,17 @@ outside AEGIS's scope. W4 incorporates the live Claude path merged in #1088;
 W6/W9 require a visible decision and response outcome; W8 adds ordinary-work and
 bounded decoy comparisons. This is a plan revision, with no new acceptance,
 production honeypot activation, profile change or native-run authorization.
+
+Revision 7 (2026-10-27) responds to the owner's HOL Guard comparison and delivery
+review. The [source and CI findings](guard-delivery-review-20261027.md) identify
+portable Guard packaging, everyday policy behavior and installed-route checks
+as the immediate product gaps. Section 7 now puts a usable Windows Claude Guard
+journey first for new work, with W11/W4 continuing on their own evidence-bound
+lanes. It reuses the genuine source and packaged-Claude results in #1115 and
+does not promote those bounded results to full Guard acceptance. T1–T10 and
+their security/acceptance requirements remain unchanged. This revision changes
+planning documents only; protected workflow edits, paid-provider/cloud-VM runs and
+release actions retain their existing authorization boundaries.
 
 ## 1. Instruction priority
 
@@ -289,7 +333,7 @@ not an instruction to create agents or wait for another worker.
 | `bench-engineer` | new | gpt-6.1-sol / medium | yes | `bench/`, `docs/bench/`, measurement scripts |
 | `security-reviewer` | existing | inherits | no | Review of every PR touching IPC, policy, secrets, privileges, sidecars |
 | `test-auditor` | existing | inherits | no | Read-only judgment of regression assertions, independent expected results and recorded checks |
-| `consistency-reviewer` | existing | inherits | no | Docs-versus-code check before any user-facing text merges |
+| `consistency-reviewer` | existing | inherits | no | Scoped docs-versus-code review when delegated; verify changed claims and their actual source |
 | `auditor` | existing | inherits | no | Check matching CI evidence at wave transitions; execute only missing or invalidated checks |
 | `shipper` | existing | inherits | yes | Release preparation once the owner approves a release |
 
@@ -312,15 +356,17 @@ wire contract and W5 Cedar equivalence retain their independent-review requireme
 - Wait for every child of a wave step before starting a step that depends on it.
   Independent steps proceed while others run.
 - Messages between agents are read by humans: complete sentences, normal spacing
-  between words and numbers, file paths written in full.
+  between words and numbers, file paths written in full. Write every brief,
+  analysis note, coordination message, review and return in English. Direct
+  conversation with the owner follows the owner's language.
 - If a delegated role cannot use the authorized model or effort, report that
   limitation and continue independent work. Starting an external AI CLI requires
   the owner's request; tool availability alone does not authorize that fallback.
 
 ### 5.3 Worktrees and path ownership
 
-Each writer works in its own worktree under `X:/tmp/aegis-wt/<workstream>` with
-its own branch from `origin/master`, following the worktree rules in
+Each writer works in its own worktree on a spacious owned volume, with its
+own branch from `origin/master`, following the worktree rules in
 `docs/development/workflow.md` and `memory-bank/ai-mistakes.md`. A path has one
 owner at a time:
 
@@ -785,6 +831,164 @@ Acceptance: qualification scripts and records per agent and version; tests for
 install, removal, tamper detection and the hook-versus-OS mismatch signal;
 `consistency-reviewer` pass on all UI text.
 
+#### Retry and approval requirements (planned, 2026-10-27)
+
+Within G1-B, define retry behavior for the selected route and show its decision
+and known/unknown outcome in the existing W9 view. A single-use approval remains
+consumed after its authorized attempt; identical arguments alone cannot authorize
+another execution, because the target state or first attempt's outcome may differ.
+
+- Distinguish reconnecting or retrieving an existing result from dispatching a
+  new execution. Where the upstream supports verified idempotency, bind an
+  operation key to the approved request, instance/session, route, recipient and
+  relevant context. Return the recorded result or query its status without
+  repeating the side effect. A key by itself does not prove deduplication.
+- An uncertain result must stay unknown until reconciled. Without verified
+  deduplication or evidence that dispatch never occurred, do not automatically
+  execute again. Explain the duplicate-effect risk before fresh owner approval;
+  approval itself does not establish that the first attempt had no effect.
+- A changed operation, arguments, target, route, identity, policy or relevant
+  context requires a fresh decision and, when approval is required, fresh
+  approval. A transport retry must not reset a consumed or expired grant.
+- If retries without another prompt are offered, require an explicitly selected,
+  visible policy with named operations, relevant context, expiry and attempt
+  limits. Qualify its safety on that route and preserve the one-attempt grant
+  contract. Never infer broader permissions from prior approvals or retry history.
+
+G1-C must qualify lost responses after a completed effect, concurrent duplicates,
+restart recovery, consumed/expired grants, changed context and an upstream without
+idempotency support. Use independent filesystem/receiver evidence to establish
+effect counts, and record approval prompts, task completion and latency under
+W8. Automatic retries of an uncertain write must not produce a second effect. These are
+planned acceptance requirements; this amendment adds no runtime capability or
+qualification result and does not change the G1-A delivery priority.
+
+#### Guard priorities informed by rv (2026-10-27)
+
+The [rv README](https://github.com/christopherkarani/rv) describes a pre-tool
+policy gate, categorized rules, decision explanations, one-time overrides and
+an observation mode. These are ideas for the existing W6/W8/W9 work, not
+evidence that either product covers every agent action. rv's dated
+[runtime acceptance audit](https://github.com/christopherkarani/rv/blob/main/docs/security/runtime-acceptance.md)
+also records unresolved isolation and integration gaps for its tested revision.
+No rv code, policy packs or runtime is adopted by this plan.
+
+Apply the following priorities within the revised section 7 queue. The first
+usable Guard journey is now the priority for new work. Existing W11/W4 ownership
+continues independently, and claims depending on their sensors or attribution
+still require their acceptance evidence.
+
+1. **Finish one usable Guard route (W6.3/W6.4 and W9).** Reuse the
+   [separate Claude hook profile](../CLAUDE-HOOK-APP.md): the app can review,
+   install and remove its own profile with prepared Windows assets, but only an
+   explicitly selected `--settings` launch uses it. Configuration presence is
+   not proof that the provider invoked the hook or enforced a decision. Complete
+   the owner-visible install, launch guidance, decision and outcome path for one
+   named Claude version and Bash surface. Retain exact preview, backup, readback
+   and removal behavior; exercise an allowed action, a denied action with an
+   independent effect oracle, cancellation, unavailable hooks and bypasses.
+   Show the tested version, route and evidence; never infer blocking for other
+   tools, providers or launches.
+2. **Explain decisions and bind owner approval (W6 and W6.1/W6.2).** On the
+   selected route show the action and target, policy/rule identifier and reason,
+   decision and observed outcome, with unknown and unobserved outcomes explicit.
+   Keep secrets and raw payloads out of persistent audit/export unless their
+   existing contracts permit them. Reuse the applicable one-attempt MCP grant
+   profile and its actual route, argument and expiry bindings; complete the
+   owner-facing preview and changed-argument/target checks already specified in
+   W6.1. Provider-delegated `ask` is not an AEGIS approval. A new approval must
+   not authorize a changed request; qualify expiry, replay and substitution.
+3. **Make coverage and loss actionable (W9).** Extend the existing
+   [configuration and selected-owner observation](../ACTION-COVERAGE-UI.md)
+   with installed provider/version and tool-surface evidence as it becomes
+   available. Distinguish configured, observed, blocking verified, coverage
+   lost and unknown; identify the route and reason. Hook disappearance, failed
+   decisions and evidence of an outside-route action must not imply that all
+   bypasses are detectable. Verify transitions without converting configuration
+   checks or self-reported client metadata into proof of enforcement.
+4. **Include a small, measured rule set in the first usable route (W6/W8).**
+   Scope initial Windows developer cases to destructive Git operations, file
+   deletion and selected secret paths. The current Claude Bash hook matches
+   complete exact input; it is not a general shell parser. Design any broader
+   evaluator and route-specific defaults explicitly, with safe examples and
+   bypass/unsupported syntax cases. Compare blocked and ordinary work against an
+   independent oracle, including false allows, false blocks, task completion and
+   latency, before expanding categories. Exact-input demonstrations remain useful
+   boundary evidence; the first usable milestone also needs ordinary tasks that
+   do not require hand-authoring each complete tool request. Static npm
+   lifecycle-script analysis
+   already exists; evaluating scripts before execution is a separate later
+   capability, with explicit bounds and unknown results, not a current claim.
+5. **Evaluate a nonblocking policy trial after that route is qualified (W6/W8).**
+   Show would-allow/would-deny results for supported actions with a prominent
+   nonblocking label and no claim of protection. Keep data bounded and private;
+   distinguish missed inputs and unknown decisions. Compare the trial against
+   an independently labelled workload before using its results to tune rules.
+   Historical-session replay is optional and requires a named consumer and a
+   trustworthy, privacy-preserving input contract.
+
+Secret brokers, network egress enforcement and an on-device model judge are
+deferred until a selected route and concrete user need justify their additional
+trust boundaries. Existing known-secret checks apply only to configured MCP
+routes and supplied values; they are not general DLP. Policy decisions remain
+deterministic under section 3's invariant. A model may explain evidence but must
+not silently override policy or turn an unknown enforcement result into a pass.
+None of these plan additions authorizes a native VM run or changes acceptance.
+
+#### Phased provider coverage for shared Guard policies (2026-10-27)
+
+Extend the existing W6/W9 path in the sequence below after its first Claude
+closure, without changing the section 7 order. A single AEGIS policy contract
+and evaluator should serve each supported adapter; provider-specific adapters
+translate only documented hook inputs and decisions. Reuse an existing evaluator
+where its policy and action contracts apply. Cedar remains contingent on W5
+equivalence and route-specific runtime evidence. This is a phased implementation
+plan, not a claim of universal interception or current provider acceptance.
+
+1. **Claude Code on Windows:** finish the first named version and Bash route as
+   described above, including owner-visible setup, independent allow/deny effect
+   checks and clear coverage limits. Use this route to establish the shared
+   policy contract and end-to-end evidence needed by later adapters.
+2. **Codex:** connect one supported pre-execution tool surface to that contract
+   after checking the installed version's actual hook schema, decision semantics,
+   setup and failure behavior. The existing
+   [finite Codex adapter replay](enforcement-e8/provider-replay.md) is
+   developer-only and does not establish native enforcement or interactive
+   approval. Qualify a real allowed action and a denied action with independent
+   effect evidence. If the hook cannot honor `ask`, explicitly refuse or use a
+   separately qualified owner-approval route; never translate it into an allow.
+3. **Gemini CLI:** connect and qualify a named version's supported shell surface
+   against the same applicable policy contract. Reuse the existing
+   [exact-deny BeforeTool adapter](../ACTION-GEMINI-BEFORETOOL.md) as a starting
+   point; its manual, exact-match behavior and unmatched response do not prove
+   general shell enforcement. Verify permitted and denied effects and the host's
+   actual handling of errors and timeouts before claiming protection.
+4. **Other agents and surfaces:** add Cursor and other requested agents one at a
+   time when their supported pre-execution boundary and a concrete user-visible
+   route are available. Record unsupported or unavailable hooks explicitly;
+   selected MCP routes may use their existing gateway and grants when the client
+   actually traverses them. A proxy, installed hook or agent signature alone
+   does not cover direct calls, other tools or unobserved launches.
+
+For every stage, record agent and version, platform, tool/action scope, selected
+policy and settings, adapter mapping and installation/removal evidence. Show the
+operation, rule reason, decision and observed or unknown outcome in the existing
+Guard/coverage UI. Policy changes or input/target changes require a fresh
+decision under the applicable grant contract. Preserve unrelated provider
+settings and require the existing owner confirmation for profile changes.
+
+Each adapter must preserve the policy's deny and supported approval semantics;
+unknown, malformed or unsupported input and unavailable decisions cannot become
+an implicit AEGIS allow. This local rule is not a claim that a host fails closed:
+test missing, unstartable, timed-out and tampered hooks, malformed responses and
+bypasses on the actual provider, and report when the host can still execute.
+An installed-agent receipt must independently prove both denied-no-effect and
+allowed-effect cases, and include ordinary tasks and false blocks. Fixture replay
+is preliminary evidence only. Mark `Blocking verified` solely for the qualified
+version, platform, route and action surface; otherwise show the actual observed,
+unknown or lost state. W8 records false allows, false blocks and task impact
+against an independent oracle for each qualified surface.
+
 #### W6.1 — MCP approval target identity and argument changes
 
 Pending follow-up added on 2026-10-27 from QuanTradin's r/mcp feedback on
@@ -922,6 +1126,16 @@ rechecks do not establish freshness of the target's business state.
   missing deduplication record alone cannot establish that a previous attempt
   never executed. An identifier or gateway-only log does not by itself establish
   exactly-once execution; unsupported tools retain an explicit limitation.
+- Retain deduplication protection for the entire enforced retry horizon plus
+  the route's clock-skew bound, independently of the shorter approval lifetime.
+  Define that horizon from a trusted operation time through the latest permitted
+  retry arrival, including bounded queuing/delivery delays; fresh approvals do
+  not reset the operation's age. The executor rejects requests beyond that
+  horizon even after their deduplication entries expire. Missing or expired
+  entries cannot silently turn a late retry into a new operation. Preserve the
+  required protection across restart and retain explicit unknown outcomes for
+  reconciliation. Bound storage; exhausted capacity refuses new mutating
+  admission rather than evicting still-required deduplication protection.
 - Define a short, route-appropriate approval validity window and recheck expiry
   at the executor before applying the action. Bind approval to the reviewed
   target's version, ETag or equivalent state precondition. Check that precondition
@@ -937,6 +1151,19 @@ rechecks do not establish freshness of the target's business state.
   mutation boundary. A route without that capability can operate only under a
   separately explicit policy that permits its stated limitations. Compensation
   is tool-specific and does not satisfy a mandatory pre-execution state check.
+- During a mandatory state-check outage, keep bounded diagnostics available while
+  refusing new mutating dispatch on the affected route. Clearly expose the
+  unavailable check, blocked mutations and recovery state; avoid an ambiguous
+  "observe-only" label suggesting that execution continues. Record only fixed
+  reason/status codes, safe correlation metadata and bounded loss counters under
+  the existing privacy contract; no raw arguments, prompts, documents, secret
+  values or credential-bearing source references enter diagnostics. Already
+  dispatched operations retain their actual or unknown outcomes; refusal of new
+  work does not establish rollback of earlier effects.
+- Recovery does not automatically replay refused, queued or outcome-unknown
+  operations, renew approvals or restore consumed grants. An explicit new attempt
+  follows the existing fresh-approval, stable-operation deduplication and atomic
+  state-precondition checks. Restoring the check alone cannot authorize an effect.
 
 Acceptance: use independent fixture outcomes to cover successful execution with
 matching records, differing executed parameters, missing executor evidence,
@@ -952,6 +1179,14 @@ deduplication evidence. Use independent target outcomes to prove that required
 state-check failure or unavailability prevents the effect, and that unsupported
 conditional execution is refused under a policy requiring it. A completed retry
 must return the recorded outcome without creating a second effect.
+Add independent target-outcome cases with approval expiry before the retry
+horizon, skew-boundary and delayed retries, restart during the retention window,
+post-horizon requests after deduplication cleanup, and full storage while live
+entries remain protected. Simulate a state-check outage and recovery: mutations
+remain unexecuted, diagnostics remain bounded and secret-free, and recovery
+alone causes no dispatch, approval renewal or replay. Include an already
+dispatched call whose response is lost during the outage; its outcome must remain
+unknown until reconciled, without a second effect from automatic recovery.
 Preserve existing grant-profile distinctions and W6.1 target binding. Keep
 fixture evidence separate from qualification of a real provider/server/version;
 this planning change grants no native run or product acceptance.
@@ -1133,37 +1368,107 @@ mode, polling mode or a mix; the documented coverage limits in README and
 
 ## 7. Execution order
 
-The original waves below are a dependency map, not barriers requiring every
-platform to finish together. Next work follows three milestones:
+Revision 8's order is authoritative for new work. The original waves retained
+below describe dependencies and history; they do not put every sensor, Cedar or
+Protected Session ahead of a usable Guard route. The
+[27 October review](guard-delivery-review-20261027.md) records the source and CI
+evidence. Keep one active primary delivery milestone. Existing independent task
+ownership remains intact; do not take over another chat's changes.
 
-1. Close the bounded Windows diagnostic admission and recovery path on one
-   identified packaged candidate. Reuse unaffected receipts and fix demonstrated
-   failures narrowly. Synthetic read fixtures establish only their recorded
-   diagnostic scope; they do not establish `productionAdmission`.
-2. Qualify the existing ordinary packaged-agent path through the application,
-   audit, alert/risk and coverage view with a supported real-agent caller; fix
-   only demonstrated gaps. Then measure one useful workload with an independent
-   oracle. Record the actual version, mode, losses and limits.
-3. Expand through complete caller-to-visible-result slices: another platform or
-   mode, explanation, one provider Guard route, Cedar, or Protected Session.
-   Choose ready slices by user value and an available qualification environment.
-   Their order is selectable; all T1–T10 remain in the long-term completion target.
+1. **G1 — Usable Windows Claude Guard (W6/W9/W10, measured with W8).** A clean
+   installation supplies its Guard dependencies, guides an explicitly selected
+   Claude launch, applies a small practical policy, shows a decision and its
+   known/unknown result, and supports safe removal. Qualify one agent version,
+   shell and action surface with ordinary and forbidden tasks. ETW read admission
+   is required for native-read claims, not for the hook's independently checked
+   allow/deny outcome. Reuse #1115's bounded evidence; finish the gaps below.
+2. **G2 — Extend the same usable contract (W6/W9 and local security review).**
+   Qualify one Codex surface, then Gemini, using the shared policy semantics and
+   each provider's actual approval/failure behavior. Connect existing artifact
+   inventory/snapshot review to a selected launch; add a package-install check
+   only at a real supported pre-install boundary. Record unsupported routes.
+   This increases practical overlap with HOL; it does not establish equal
+   cross-platform effectiveness or coverage of its full advertised catalog.
+3. **G3 — Measured differentiation (W4/W8/W9 plus qualified W11 inputs).**
+   Connect decisions to the correct agent instance and independently observed
+   effects. Compare declared supported tasks and ordinary-work costs against a
+   pinned HOL version when that comparison run is authorized. Continue the OS
+   lanes and later Cedar/Protected Session slices according to concrete value
+   and readiness. All T1–T10 retain their full long-term acceptance targets.
 
-Prefer completing an existing slice over adding more dormant utilities. Shared
-infrastructure is scheduled only when the next slice demonstrates its need.
-Reuse completed prerequisites rather than reopening them without changed inputs.
+W11 diagnostic admission/recovery and W4 source ownership can continue alongside
+G1 under their existing owners and authorizations. Their missing evidence must
+remain visible, and cannot be supplied by hook fixtures or a passing CI suite.
+Do not start another native/cloud run merely because the priority order changed.
 
 ### Next closure milestones
 
-Use this queue when selecting new work. Existing task ownership remains in force;
-independent integration proceeds while the Windows run is pending.
+Use this queue to implement G1. A preparation PR can close its own integration
+boundary but cannot mark G1 complete. Scope a PR to a coherent observable change;
+do not create a separate delivery milestone for every helper or report.
 
 | Priority | Existing substep | Next deliverable and closure evidence |
 | --- | --- | --- |
-| 1 | W11.2 / W11.4 | Consume the single authorized Windows diagnostic run. Diagnose its first failing stage from the saved artifact. Close read-to-audit/alert/risk and recovery only when the actual candidate proves them; otherwise implement the narrow demonstrated fix before considering another run. |
-| 2 | W4.3–W4.4, retaining partial W4.2 | Reuse the recorded native Claude ownership, active-writer, real Write, external-project, two-instance and restart/resume receipts (#1106, #1108). Continue measured clock alignment, native file-read acceptance and named remaining source/privacy gaps; qualify another provider only with its consumer and missing ownership evidence named. Keep inferred association explicit and packaged/native-consent acceptance open. |
-| 3 | W6.3, then W6.4; W9 | Connect existing review/backup/readback operations to owner-visible preview, install and remove for one provider. Demonstrate rollback on a disposable profile, then a real denied and allowed operation with a visible outcome. Verify the selected route before using Blocking verified; exercise expiry/replay/bypass within that route's contract. |
-| 4 | W8.3–W8.4; existing W4/W6/W9 consumers | Measure one real ordinary/unauthorized task pair with an independent oracle; record available explanation/decision/response outcomes and unavailable surfaces. Publish false alarms, misses, task completion, latency and coverage limits. Only then run the bounded decoy comparison if it answers a remaining detection question. |
+| G1-A — start next | W6.3, W9, W10 | Make ordinary Windows packaging prepare and validate portable hook-review assets. Finish the existing owned-profile setup/removal and supported launch guidance in Observatory. Produce one candidate whose installed path, native assets and packaged hook IO work on a clean supported Windows environment. Preserve exact preview, backups, readback, consent and integrity checks. Scripted confirmation remains distinct from a real owner-dialog journey. |
+| G1-B | W6.4, W9, W8 | Add the bounded practical rule set and policy selection needed for ordinary project work, selected secret reads and destructive Git/file actions. Reuse applicable parser/policy components only after checking their runtime limits. Unsupported syntax/programs cannot silently allow. Show policy/rule reason and known/unknown outcome through the existing UI; keep provider ask distinct from AEGIS approval. Apply W6's retry and approval requirements without reusing consumed grants or guessing an uncertain outcome. Preserve schema-1 exact policies and qualify any new semantics. |
+| G1-C | W6.4, W8.3–W8.4, W9 | On the resulting installed candidate, exercise the declared ordinary/forbidden cases, missing/unstartable/timed-out hooks, malformed responses, restart/removal and outside-route behavior. Qualify W6's retry cases with independent effect counts and approval-prompt measurements. Prove denied-no-effect and allowed-effect with independent filesystem/receiver evidence. Record false blocks, misses, approvals, task completion and latency. Label Blocking verified only for the accepted agent/version/platform/surface. Full G1 waits for this record and the real owner journey. |
+| CI companion to G1 | Existing required checks and packaging | Implement the review's required Windows package/Guard lane and cheap early validation when workflow edits are authorized. Keep all five context names and strict protection; relevant native failures must reach a required result. Reuse one candidate and keep provider-free checks separate from paid/installed-provider acceptance. |
+| Continuing independent lane | W11.2/W11.4 and W4.3–W4.4 | Consume existing Windows diagnostics and #1106/#1108/#1115 receipts within their source and environment scope. Fix demonstrated gaps; retain inferred association, native-read and packaged/native-consent limits. Do not reopen accepted renewal/ownership work without changed inputs or a specific residual defect. |
+
+G1 is complete only when a user can install, select the supported policy/route,
+complete the declared ordinary tasks, encounter a real blocked attempted action,
+inspect the decision/result and remove the integration. A two-command exact-input
+fixture, a green installer build or a policy file alone does not close G1.
+The existing [source and packaged-Claude receipts](../CLAUDE-HOOK-APP.md) prove
+their recorded marker outcomes and transport behavior. They reduce repeated
+work, while portability, everyday policy and broader failure coverage remain open.
+
+### Product trial and contributor work
+
+After G1's technical acceptance, offer the qualified candidate for a small,
+explicitly authorized external trial before broad G2 expansion. Record whether
+users can install and complete the declared ordinary task without developer
+assistance, understand a blocked action, and choose to keep using the product.
+Use voluntary, redacted feedback; no automatic telemetry or unsolicited outreach.
+Ask what existing workflow AEGIS improves and what makes people stop using it.
+Stars, commits, scenario counts and completed PRs do not answer that question.
+
+Keep each implementation cycle bounded by its named G1 acceptance result.
+If it keeps producing prerequisites without that result, inspect the specific
+blocker and reduce scope before adding more infrastructure. If the accepted
+route provides little practical value, reconsider the product direction before
+expanding integrations. Set an effort budget with the owner when selecting a
+trial; this plan makes no calendar or contributor-growth promise.
+
+Contributors can improve setup instructions, reproduce redacted installation
+failures, add independent benign/forbidden regression pairs, and improve the
+existing decision UI. Each task names paths, prerequisites and acceptance;
+maintainers coordinate shared paths and review security-sensitive changes.
+Recognition signatures are separate from protected integrations. Use the
+contribution guide and existing issues/PRs; additional sensors, new dashboards
+and speculative adapters do not become first tasks merely because they are
+easy to parallelize. Creating issues, recruitment messages or a release requires
+the corresponding authorization.
+
+### Start the next implementation task
+
+Begin G1-A from current `origin/master` in an isolated worktree after a small
+delta check against this review. Read the current asset builder, packaging hook,
+profile loader and actual Observatory consumer; preserve unrelated work. Fix the
+portable asset/installation path and connect the result to the existing UI.
+Run focused regression checks for changed behavior and the smallest package
+check that exercises the actual binary. Prepare the related required Windows
+CI integration in the same delivery scope when the owner authorizes workflow
+edits; preserve branch protection and no-secret PR execution. Complete the Git
+cycle under existing authorization. Report the candidate, observed behavior and
+precise remaining G1 condition. Do not replace this task with another general
+audit, new tracker, architecture rewrite or unrelated sensor work.
+
+An authorization boundary does not stop independent source work. Prepare a
+reviewable candidate before requesting a specifically required workflow/cloud-VM/
+paid-provider action. Never infer new paid sessions, VM runs, personal-profile
+changes, release tags or delegation from this plan. Keep the selected model.
+Policy evaluation changes retain the existing independent-review requirement.
 
 W8.1 and W8.2 already represent method and educational harness preparation in
 the tracker. Additional oracle adapters, replay validators or synthetic controls
@@ -1174,8 +1479,9 @@ bounded results under W8.4. Keep cross-platform completion as the long-term goal
 The enterprise diagram does not introduce a competing platform roadmap. Work on
 RAG infrastructure, a hosted registry, SSO, private model hosting, a secrets vault,
 SIEM ingestion or production honeypots is deferred unless a concrete authorized
-consumer makes it necessary. Existing Windows/W4/W6 closure work comes first;
-an unrelated blocked lane does not prevent a ready integration from finishing.
+consumer makes it necessary. The selected G1 journey and already-owned Windows/W4
+closure work come first; an unrelated blocked lane does not prevent a ready
+integration from finishing.
 
 Each new task names the existing substep, final consumer, acceptance observation,
 missing dependency and smallest relevant verification. If its deliverable is
@@ -1213,8 +1519,9 @@ Wave 5  W10 distribution prepared; integration artifacts accompany earlier slice
 The three-writer cap applies across all lines of a wave; the orchestrator picks
 which ready block runs next by dependency and by which target it advances.
 
-At wave transitions, `auditor` reads the existing required CI results for the
-matching merged head and inputs. Do not repeat a passing full gate merely for a
+At integration checkpoints, the coordinator or an explicitly delegated `auditor`
+reads the existing required CI results for the matching head and inputs.
+Do not repeat a passing full gate merely for a
 checkpoint. Changed heads need fresh mandatory contexts; changed relevant inputs,
 failures or a concrete unresolved risk justify additional verification. Preserve
 unaffected local evidence within its recorded scope. Exact source matching does
@@ -1237,13 +1544,16 @@ A workstream block is done when:
   repeating it. Reversible low-impact maintenance needs relevant structural
   checks and does not require an artificial test group;
 - `npm run counts:check` passes and documentation numbers match source;
-- the tracker and `memory-bank/progress.md` are updated.
+- the existing acceptance record and `memory-bank/progress.md` reflect the
+  outcome; no duplicate tracker is created for the same work.
 
 Each target T1–T10 is tracked in three separate states: implemented (code
 merged), verified (acceptance evidence recorded on merged master, including live
 runs) and owner-pending (prepared work waiting on an owner action). A target
-counts as reached only when verified. The plan is done when T1–T10 are verified,
-or when every remaining target is owner-pending with prepared next steps.
+counts as reached only when verified. The full plan is done when T1–T10 are
+verified. Owner-pending work remains incomplete with a prepared next action;
+it does not qualify a target. G1 can be accepted independently under section 7
+without claiming completion of the full long-term plan.
 
 ## 9. Reporting
 
@@ -1349,17 +1659,21 @@ The host computes `startTime(ms)` by integer division by 1000. The witness is
 
 ## Appendix B — Brief and return format
 
-Brief (orchestrator to worker), plain text:
+Brief (orchestrator to worker), English plain text. Adapt the fields to the
+selected deliverable; this example describes the next Guard slice:
 
 ```
-WORKSTREAM: W1a shared wire contract: Cargo workspace and aegis-wire crate
+WORKSTREAM: G1-A Windows Claude Guard installation
+LANGUAGE: English for analysis, plans, messages, comments, documentation and return
 GOAL: <one sentence: the outcome when this block is done>
-BASELINE: <rows from docs/roadmap/completion-baseline.md that apply>
+BASELINE: <current source SHA and relevant existing package/hook receipts>
 OWNED PATHS: <paths this worker may change>
+COORDINATION: Other contributors are working in this repository. Preserve their
+changes; coordinate shared paths and do not revert unrelated work.
 READ-ONLY CONTEXT: <files and docs to read for the task>
 CONTRACT: <section of the plan or doc the work must satisfy>
 ACCEPTANCE: <the criteria from the plan that this block must meet>
-WORKTREE: X:/tmp/aegis-wt/<name>, branch <name> from origin/master
+WORKTREE: <absolute owned path>, branch <name> from origin/master
 GIT: full cycle authorized per AGENTS.md; open the PR; do not merge, the
 orchestrator serializes merges
 RETURN: use the return format

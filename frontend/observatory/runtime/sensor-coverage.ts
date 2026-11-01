@@ -87,6 +87,7 @@ export const coverageScopes: Labels = {
   paused: 'Paused',
   'awaiting-start': 'Waiting for sensor startup',
   'explicit-directories': 'Explicit directory prefixes only',
+  'paths-unsupported': 'Directory observation is unavailable in procfs mode',
   'paths-update-rejected': 'Directory scope update rejected',
 };
 export const coverageReasons: Labels = {
@@ -216,8 +217,9 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
   const native = record(telemetry.stats.nativeSensor);
   const admission = record(native.admission);
   const restart = record(native.restart);
-  const reportedProject = record(record(telemetry.stats.appHealth).watchPlan).projectState;
-  const projectCurrent = telemetry.ready && !telemetry.stale && !telemetry.error;
+  const reportedProject = telemetry.projectCoverageState;
+  const projectCurrent =
+    telemetry.ready && !telemetry.stale && !telemetry.error && telemetry.projectCoverageCurrent;
   const projectState =
     projectCurrent &&
     typeof reportedProject === 'string' &&
@@ -255,7 +257,7 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
     project: {
       state: projectCoverageStates[projectState],
       detail: projectCoverageDetails[projectState],
-      paused: !!projectCurrent && telemetry.stats.monitoringPaused === true,
+      paused: telemetry.monitoringPauseConfirmed && !telemetry.error,
     },
     agents,
     reported: Object.keys(native).length > 0,
@@ -278,7 +280,7 @@ export function sensorCoverage(telemetry: Telemetry): SensorCoverage {
     restarts: coverageCount(restart.used),
     remaining: coverageCount(restart.remaining),
     lastRestartAt: reportedTime(restart.lastAt),
-    paused: native.paused === true,
+    paused: native.paused === true && telemetry.ready && !telemetry.stale && !telemetry.error,
     surfaces: Object.entries(coverageSurfaces).map(([key, label]) => ({
       key,
       label,

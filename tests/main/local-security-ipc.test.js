@@ -59,7 +59,7 @@ it('cancels endpoint selection without replacing evidence; rejects foreign obser
     observeActionRoute,
     rendererUrl: 'file:///app/index.html',
   });
-  await ipc.handle(event, { action: 'observe-route' });
+  const selected = await ipc.handle(event, { action: 'observe-route' });
   dialog.showOpenDialog.mockResolvedValue({ canceled: true });
   expect(await ipc.handle(event, { action: 'observe-route' })).toMatchObject({ cancelled: true });
   expect(observation.close).not.toHaveBeenCalled();
@@ -67,8 +67,104 @@ it('cancels endpoint selection without replacing evidence; rejects foreign obser
     expect(await ipc.handle({ ...event, senderFrame: {} }, { action })).toMatchObject({
       error: 'request-denied',
     });
-  await ipc.handle(event, { action: 'stop-observing-route' });
+  await ipc.handle(event, { action: 'stop-observing-route', lease: selected.lease });
   expect(observation.close).toHaveBeenCalledOnce();
+});
+
+it('does not let an earlier lease stop or read a newer observation', async () => {
+  const first = { snapshot: () => ({ state: 'connecting' }), close: vi.fn() };
+  const second = { snapshot: () => ({ state: 'observed' }), close: vi.fn() };
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    observeActionRoute: vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second),
+    rendererUrl: 'file:///app/index.html',
+  });
+  const old = await ipc.handle(event, { action: 'observe-route' });
+  const current = await ipc.handle(event, { action: 'observe-route' });
+  expect(first.close).toHaveBeenCalledOnce();
+  expect(current.lease).not.toBe(old.lease);
+  expect(await ipc.handle(event, { action: 'stop-observing-route', lease: old.lease })).toEqual({
+    success: false,
+    error: 'observation-expired',
+  });
+  expect(await ipc.handle(event, { action: 'route-observation', lease: old.lease })).toEqual({
+    success: false,
+    error: 'observation-expired',
+  });
+  expect(await ipc.handle(event, { action: 'stop-observing-route' })).toMatchObject({
+    error: 'invalid-review-request',
+  });
+  expect(second.close).not.toHaveBeenCalled();
+  expect(
+    await ipc.handle(event, { action: 'route-observation', lease: current.lease }),
+  ).toMatchObject({
+    success: true,
+    observation: { state: 'observed' },
+  });
+  expect(
+    await ipc.handle(event, { action: 'stop-observing-route', lease: current.lease }),
+  ).toMatchObject({
+    success: true,
+  });
+  expect(second.close).toHaveBeenCalledOnce();
+});
+
+it('retains a matching lease after poll failure and never lets it close a replacement', async () => {
+  const privatePath = '/private/endpoint-DO_NOT_EXPOSE';
+  const privateToken = 'PRIVATE_BEARER_DO_NOT_EXPOSE';
+  const previous = { state: 'observed' };
+  const terminal = { state: 'coverage-lost', reason: 'connection-closed' };
+  const first = {
+    token: privateToken,
+    snapshot: vi.fn().mockReturnValueOnce(previous).mockImplementationOnce(() => {
+      throw new Error('fixture observation failed');
+    }).mockReturnValue(terminal),
+    close: vi.fn(),
+  };
+  let replacementClosed = false;
+  const second = {
+    snapshot: vi.fn(() => replacementClosed ? { state: 'stopped', reason: 'observer-stopped' } : { state: 'connecting' }),
+    close: vi.fn(() => { replacementClosed = true; }),
+  };
+  const observeActionRoute = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
+  dialog.showOpenDialog.mockResolvedValue({ filePaths: [privatePath], canceled: false });
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    observeActionRoute,
+    rendererUrl: 'file:///app/index.html',
+  });
+
+  const selected = await ipc.handle(event, { action: 'observe-route' });
+  expect(selected).toMatchObject({ success: true, observation: previous });
+  await expect(ipc.handle(event, { action: 'route-observation', lease: selected.lease })).rejects.toThrow(
+    'fixture observation failed',
+  );
+  expect(first.close).not.toHaveBeenCalled();
+  const stopped = await ipc.handle(event, { action: 'stop-observing-route', lease: selected.lease });
+  expect(stopped).toEqual({ success: true, observation: terminal });
+  expect(first.close).toHaveBeenCalledOnce();
+
+  const replacement = await ipc.handle(event, { action: 'observe-route' });
+  expect(replacement.lease).not.toBe(selected.lease);
+  const staleStop = await ipc.handle(event, { action: 'stop-observing-route', lease: selected.lease });
+  expect(staleStop).toEqual({ success: false, error: 'observation-expired' });
+  expect(second.close).not.toHaveBeenCalled();
+  expect(await ipc.handle(event, { action: 'route-observation', lease: replacement.lease })).toEqual({
+    success: true,
+    observation: { state: 'connecting' },
+  });
+  expect(await ipc.handle(event, { action: 'stop-observing-route', lease: replacement.lease })).toEqual({
+    success: true,
+    observation: { state: 'stopped', reason: 'observer-stopped' },
+  });
+  expect(second.close).toHaveBeenCalledOnce();
+  expect(observeActionRoute).toHaveBeenCalledWith(privatePath);
+  expect(JSON.stringify([selected, stopped, replacement, staleStop])).not.toContain(privatePath);
+  expect(JSON.stringify([selected, stopped, replacement, staleStop])).not.toContain(privateToken);
 });
 
 it('does not attach after navigation during endpoint selection, and destroys an attached observer with its window', async () => {

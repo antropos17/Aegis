@@ -13,12 +13,18 @@ const { readActionFile, parseActionJson, validActionPolicy } = require('./action
 async function loadProfileAssets(root) {
   try {
     const file = path.join(root, 'assets.json');
-    if ((await fs.stat(file)).size > 65536) return null;
+    const stat = await fs.lstat(file);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) return null;
     const value = JSON.parse(await fs.readFile(file, 'utf8'));
-    if (value.schemaVersion !== 1 || Object.keys(value).length !== 7) return null;
+    if (value.schemaVersion !== 2 || Object.keys(value).length !== 6) return null;
     const assets = { ...value };
     delete assets.schemaVersion;
-    const selected = { ...assets, hostRoot: path.win32.normalize(path.join(root, 'host')) };
+    const selected = {
+      ...assets,
+      hostRoot: path.win32.normalize(path.join(root, 'host')),
+      runtimeRoot: path.win32.normalize(path.join(root, 'runtime')),
+      portable: true,
+    };
     qualifyAssets(selected);
     return selected;
   } catch {
@@ -69,9 +75,13 @@ async function prepareProfile(directory, existingOnly = false) {
   await fs.mkdir(backups, { recursive: true });
   await ordinary(backups);
   if ((await fs.readdir(backups)).length >= 4) throw Error('backup-retention-limit');
+  // Native transaction admission uses an uppercase drive prefix. Drive-letter
+  // casing does not change the selected Windows volume or its pinned identity.
+  const nativePath = (value) =>
+    path.win32.normalize(value).replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
   return {
-    targetPath: path.win32.normalize(targetPath),
-    backupRoot: path.win32.normalize(path.join(backups, randomUUID())),
+    targetPath: nativePath(targetPath),
+    backupRoot: nativePath(path.join(backups, randomUUID())),
   };
 }
 
@@ -108,9 +118,92 @@ function quote(value) {
  * Quote, expansion, control and other shell-operator syntax remains unsupported.
  * @param {string} executable Application executable. @param {string} appPath Application source/package.
  * @param {string} policyPath Native-dialog selected policy.
+ * @param {string} [nativePath] Canonical private native storage, absent for legacy routes.
  * @returns {string} Private command shown only in native review. @since v0.21.0 */
-function profileCommand(executable, appPath, policyPath) {
-  return `${quote(executable)} ${quote(appPath)} --action-policy-hook ${quote(policyPath)}`;
+function profileCommand(executable, appPath, policyPath, nativePath) {
+  return `${quote(executable)} ${quote(appPath)} --action-policy-hook ${quote(policyPath)}${nativeArgument(nativePath)}`;
+}
+
+function nativeArgument(nativePath) {
+  if (nativePath === undefined) return '';
+  quote(nativePath); // Retain the existing shell metacharacter/path rejection.
+  if (nativePath.length > 2048 || path.resolve(nativePath) !== nativePath)
+    throw Error('unsupported-path');
+  // Single quotes retain canonical Windows backslashes for the native switch.
+  return ` '--user-data-dir=${nativePath}'`;
+}
+
+/** Derive one private native directory from a server-issued install token.
+ * @param {string} target Fixed profile settings path. @param {string} token Server token.
+ * @returns {string} Canonical path within the fixed profile parent. @since v0.21.0 */
+function nativeProfilePath(target, token) {
+  if (!/^[0-9a-f]{32}$/.test(token)) throw Error('unsupported-path');
+  const selected = path.resolve(path.dirname(target), `native-${token}`);
+  nativeArgument(selected);
+  return selected;
+}
+
+/** Recognize only exact current or legacy commands for the fixed owned profile.
+ * Recognition supplies no historical ownership of existing directory contents.
+ * @param {string} command Profile command. @param {object} selection Fixed app paths.
+ * @returns {{policyPath:string,nativePath?:string}|null} Exact binding or refusal. @since v0.21.0 */
+function parseProfileCommand(command, { target, executable, appPath }) {
+  if (typeof command !== 'string') return null;
+  const match =
+    /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"(?: '--user-data-dir=([^']+)')?$/.exec(command);
+  if (!match) return null;
+  try {
+    const nativePath = match[2];
+    if (nativePath) {
+      const token = /^native-([0-9a-f]{32})$/.exec(path.basename(nativePath))?.[1];
+      if (!token || nativeProfilePath(target, token) !== nativePath) return null;
+    }
+    return profileCommand(executable, appPath, match[1], nativePath) === command
+      ? { policyPath: match[1], ...(nativePath ? { nativePath } : {}) }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Inspect only an ordinary canonical native directory; never create or adopt it.
+ * @param {string} directory Selected native directory. @returns {Promise<string>} Identity mark.
+ * @since v0.21.0 */
+async function nativeProfileIdentity(directory) {
+  await ordinary(directory);
+  if ((await fs.realpath(directory)) !== directory) throw Error('profile-unavailable');
+  const stat = await fs.lstat(directory, { bigint: true });
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.ino === 0n)
+    throw Error('profile-unavailable');
+  return `${stat.dev}:${stat.ino}:${stat.birthtimeNs}`;
+}
+
+/** Reserve a fresh native directory only after explicit install confirmation.
+ * Created directories are retained on every outcome; no path-based rollback occurs.
+ * @param {string} directory Previewed native directory. @returns {Promise<string>} Identity mark.
+ * @since v0.21.0 */
+async function reserveNativeProfile(directory) {
+  await ordinary(path.dirname(directory));
+  await fs.mkdir(directory); // Exclusive: EEXIST, links and prior data are never adopted.
+  return nativeProfileIdentity(directory);
+}
+
+/** Construct the fixed after-event hook using the same trusted selected paths.
+ * @param {string} executable Application executable. @param {string} appPath Application source/package.
+ * @param {string} policyPath Native-dialog selected policy.
+ * @param {string} [nativePath] Canonical private native storage, absent for legacy routes.
+ * @returns {string} Private command shown only in native review. @since v0.21.0 */
+function profileAfterCommandLegacy(executable, appPath, policyPath, nativePath) {
+  return `${quote(executable)} ${quote(appPath)} --action-policy-after-hook ${quote(policyPath)}${nativeArgument(nativePath)}`;
+}
+
+/** Construct the supported after-event route with stdout redirection.
+ * @param {string} executable Application executable. @param {string} appPath Application source/package.
+ * @param {string} policyPath Native-dialog selected policy.
+ * @param {string} [nativePath] Canonical private native storage, absent for legacy routes.
+ * @returns {string} Exact Git Bash command. @since v0.21.0 */
+function profileAfterCommand(executable, appPath, policyPath, nativePath) {
+  return `${profileAfterCommandLegacy(executable, appPath, policyPath, nativePath)} > /dev/null`;
 }
 
 /** Validate the selected existing policy without retaining or publishing its contents.
@@ -136,10 +229,16 @@ function profileReviewText(review, target, observedRemoval = false) {
     (item) =>
       `Lines ${item.before.start.line}:${item.before.start.column}–${item.before.end.line}:${item.before.end.column}\nRemove: ${item.removed || '(empty)'}\nInsert: ${item.inserted || '(empty)'}`,
   );
+  const multipleEvents = Array.isArray(review.eventNames) && review.eventNames.length === 3;
   const explanation = observedRemoval
-    ? 'This is a fresh authorization to remove only the recognized current AEGIS Bash hook. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.'
-    : 'This configures the Bash hook only; blocking is not verified.';
-  const detail = `AEGIS-owned separate Claude settings profile:\n${target}\nPreToolUse · Bash\n\n${fragments.join('\n\n')}\n\nA private backup is retained before writing. ${explanation} The profile is used only by launches explicitly selecting it with --settings.`;
+    ? `This is a fresh authorization to remove only the recognized current AEGIS Bash ${multipleEvents ? 'hooks' : 'hook'}. Unrelated settings remain unchanged. No historical ownership or rollback is inferred.`
+    : multipleEvents
+      ? 'For the supported Git Bash route, after-hook stdout is discarded. If redirection succeeds, stderr and exit status remain available; redirection or hook failure can leave delivery unknown. Blocking is not verified.'
+      : 'This configures the Bash hook only; blocking is not verified.';
+  const events = multipleEvents
+    ? 'PreToolUse / PostToolUse / PostToolUseFailure · Bash'
+    : 'PreToolUse · Bash';
+  const detail = `AEGIS-owned separate Claude settings profile:\n${target}\n${events}\n\n${fragments.join('\n\n')}\n\nA private backup is retained before writing. ${explanation} The profile is used only by launches explicitly selecting it with --settings.`;
   if (Buffer.byteLength(detail) > 8192) throw Error('preview-too-large');
   return detail;
 }
@@ -163,6 +262,12 @@ module.exports = {
   prepareProfile,
   profilePresence,
   profileCommand,
+  parseProfileCommand,
+  nativeProfilePath,
+  nativeProfileIdentity,
+  reserveNativeProfile,
+  profileAfterCommand,
+  profileAfterCommandLegacy,
   checkProfilePolicy,
   profileReviewText,
   profileDraftEligibility,

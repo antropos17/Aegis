@@ -8,6 +8,32 @@ const REASONS = Object.freeze({
   ask: 'AEGIS policy requires confirmation of this tool request.',
   deny: 'AEGIS policy does not allow this tool request.',
 });
+const PROJECT_REASONS = Object.freeze({
+  'project-review-ordinary': [
+    'ask',
+    'AEGIS project review requests provider confirmation for this supported command.',
+  ],
+  'project-review-script': [
+    'ask',
+    'AEGIS requests provider confirmation. Project scripts may execute arbitrary actions not separately checked by this Bash hook.',
+  ],
+  'project-review-edit': [
+    'ask',
+    'AEGIS requests provider confirmation. Patch contents, paths written, and the executable are unverified; edits and external programs may cause actions not separately checked by this Bash hook.',
+  ],
+  'project-deny-sensitive': [
+    'deny',
+    'AEGIS project review denies this declared sensitive filename.',
+  ],
+  'project-deny-destructive': [
+    'deny',
+    'AEGIS project review denies this declared destructive command.',
+  ],
+  'project-deny-unsupported': [
+    'deny',
+    'AEGIS project review does not support this command or input.',
+  ],
+});
 let testDeps = null;
 
 /**
@@ -21,6 +47,20 @@ let testDeps = null;
  */
 function handleActionPolicyHook(args, write) {
   const runtime = testDeps?.runtime || process;
+  let reportable;
+  let attempt;
+  const finish = async (code) => {
+    if (reportable) {
+      try {
+        await (testDeps?.report || require('./claude-guard-report').reportClaudeGuardDecision)(
+          reportable,
+        );
+      } catch {
+        // Observation is best-effort and must never alter the provider decision.
+      }
+    }
+    return code;
+  };
   // Electron's Windows bootstrap replaces process.stdin with an EOF stream.
   // Match Node's inherited-pipe stdin wrapper so destroy cancels a pending read.
   let input;
@@ -36,14 +76,19 @@ function handleActionPolicyHook(args, write) {
         : runtime.stdin);
   } catch {
     try {
-      return Promise.resolve(respond());
+      return Promise.resolve(respond()).then(finish);
     } catch {
       return Promise.resolve(2);
     }
   }
-  const evaluate =
-    testDeps?.evaluate ||
-    ((policyPath, raw) => require('./action-policy').evaluateActionPolicy(policyPath, raw));
+  const evaluate = (policyPath, raw) => {
+    attempt = require('./claude-guard-report').correlateClaudeGuardAttempt(
+      raw,
+      ['PreToolUse'],
+      testDeps?.env || process.env,
+    );
+    return (testDeps?.evaluate || require('./action-policy').evaluateActionPolicy)(policyPath, raw);
+  };
   return runCommandHookInput({
     input,
     args,
@@ -52,22 +97,106 @@ function handleActionPolicyHook(args, write) {
     evaluate,
     normalize(result) {
       if (!result || !Object.hasOwn(REASONS, result.decision)) return undefined;
-      return { decision: result.decision, code: 0 };
+      const reason = Object.hasOwn(PROJECT_REASONS, result.reason)
+        ? PROJECT_REASONS[result.reason]
+        : null;
+      return {
+        decision: result.decision,
+        code: 0,
+        message: reason && reason[0] === result.decision ? reason[1] : undefined,
+      };
     },
     respond,
-  });
-  function respond({ decision = 'deny', code = 2 } = {}) {
+  }).then(finish);
+  function respond({ decision = 'deny', code = 2, message } = {}) {
     write(
       JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
           permissionDecision: decision,
-          permissionDecisionReason: REASONS[decision],
+          permissionDecisionReason: message || REASONS[decision],
         },
       }),
     );
+    const reason = Object.entries(PROJECT_REASONS).find(
+      ([, value]) => value[0] === decision && value[1] === message,
+    )?.[0];
+    reportable = {
+      decision,
+      reason: code === 2 ? 'adapter-failure' : reason || 'generic',
+      ...(attempt ? { attempt } : {}),
+    };
     return code;
   }
+}
+
+/** Consume a bounded provider after-event without changing the tool result.
+ * A malformed callback attempts to report loss, never an inferred outcome.
+ * @param {string[]} args Fixed after-hook flag and selected policy path.
+ * @returns {Promise<number>} Always zero after bounded observation. @since v0.21.0 */
+function handleActionPolicyAfterHook(args) {
+  const runtime = testDeps?.runtime || process;
+  let input;
+  try {
+    input =
+      testDeps?.input ||
+      (runtime.platform === 'win32' && runtime.versions.electron
+        ? (testDeps?.createSocket || ((options) => new (require('node:net').Socket)(options)))({
+            fd: 0,
+            readable: true,
+            writable: false,
+          })
+        : runtime.stdin);
+  } catch {
+    try {
+      return Promise.resolve(
+        (testDeps?.reportOutcome || require('./claude-guard-report').reportClaudeGuardOutcome)({
+          outcome: 'loss',
+        }),
+      )
+        .catch(() => {})
+        .then(() => 0);
+    } catch {
+      return Promise.resolve(0);
+    }
+  }
+  let event = { outcome: 'loss' };
+  return runCommandHookInput({
+    input,
+    args,
+    flag: '--action-policy-after-hook',
+    limits: LIMITS,
+    evaluate(_policy, raw) {
+      const input = require('./action-policy').decodeActionRequest(raw, [
+        'PostToolUse',
+        'PostToolUseFailure',
+      ]);
+      const attempt = require('./claude-guard-report').correlateClaudeGuardAttempt(
+        raw,
+        [input.hook_event_name],
+        testDeps?.env || process.env,
+      );
+      if (!attempt) return null;
+      return {
+        attempt,
+        outcome: input.hook_event_name === 'PostToolUse' ? 'reported-completed' : 'reported-failed',
+      };
+    },
+    normalize: (result) => result,
+    respond(result) {
+      if (result) event = result;
+      return 0;
+    },
+  }).then(async () => {
+    try {
+      await (testDeps?.reportOutcome || require('./claude-guard-report').reportClaudeGuardOutcome)(
+        event,
+      );
+    } catch {
+      // Observation cannot change an already completed provider action.
+    }
+    return 0;
+  });
 }
 
 /**
@@ -89,4 +218,10 @@ function _resetForTest() {
   testDeps = null;
 }
 
-module.exports = { handleActionPolicyHook, LIMITS, _setDepsForTest, _resetForTest };
+module.exports = {
+  handleActionPolicyHook,
+  handleActionPolicyAfterHook,
+  LIMITS,
+  _setDepsForTest,
+  _resetForTest,
+};

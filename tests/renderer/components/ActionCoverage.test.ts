@@ -399,7 +399,9 @@ it('shows live owner evidence separately from the retained configuration check',
   };
   const checkReply = await example();
   const call = vi.fn(async ({ action }) =>
-    action === 'check-route' ? checkReply : { success: true, observation },
+    action === 'check-route'
+      ? checkReply
+      : { success: true, observation, lease: '12345678-1234-4234-8234-123456789012' },
   );
   render(ActionCoverage, { host: bridge(call) });
   await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));

@@ -169,10 +169,26 @@ interface AegisIpcBridge {
   getStats(): Promise<Record<string, unknown>>;
   explainToolContext(eventId: string): Promise<Record<string, unknown>>;
   reviewClaudeHookProfile(
+    action:
+      | 'status'
+      | 'install'
+      | 'install-project-policy'
+      | 'remove'
+      | 'open-profile'
+      | 'guard-start'
+      | 'guard-start-snapshot'
+      | 'guard-stop',
+  ): Promise<Record<string, unknown>>;
+  reviewGeminiHookProfile(
     action: 'status' | 'install' | 'remove' | 'open-profile',
   ): Promise<Record<string, unknown>>;
   controlProjectWatch(action: 'status' | 'select' | 'clear'): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
+  reviewAuditIntegrity(
+    date: string,
+  ): Promise<
+    { status: 'consistent' | 'inconsistent' | 'unavailable' } | { success: false; error: string }
+  >;
   /**
    * Paginated audit records strictly before `beforeTs` (ISO), oldest-first, exactly as
    * `audit-logger.getEntriesBefore` returns them — every row through `normalizeAuditEntry`,

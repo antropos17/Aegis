@@ -45,6 +45,24 @@ describe('Observatory localization', () => {
     }
   });
 
+  it('translates the dynamically selected native setup failure', () => {
+    expect(
+      translator('pt')('Native setup files are unavailable or failed their integrity checks.'),
+    ).toBe(
+      'Os arquivos de configuração nativos estão indisponíveis ou falharam nas verificações de integridade.',
+    );
+  });
+
+  it('translates the dynamically selected invalid policy outcome', () => {
+    expect(
+      translator('pt')(
+        'Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.',
+      ),
+    ).toBe(
+      'Selecione uma política Bash válida do AEGIS que use o esquema 1 ou o esquema 2 compatível.',
+    );
+  });
+
   it('translates the closed tool-context display vocabulary and timing templates', () => {
     const candidate = {
       source: 'claude-code',
@@ -159,5 +177,45 @@ describe('Observatory localization', () => {
     ).toBe(
       'Observação 250 ms após o início informado da ferramenta; dentro do intervalo informado da ferramenta',
     );
+  });
+
+  it('translates Claude reporting statuses, reasons, and operation outcomes', () => {
+    const labels = [
+      'Select a valid AEGIS Bash policy using schema 1 or the supported schema 2.',
+      'Broker command copied. Run it in PowerShell and compare the confirmation code.',
+      'A reporting session is already active.',
+      'Prepare the separate Claude profile before starting a session.',
+      'The current hook or policy could not be verified for the selected working folder. Review the profile and policy.',
+      'The previous native reader did not confirm shutdown. Another reporting session is unavailable.',
+      'Terminal session preparation cancelled.',
+      'Reporting stopped. A previously launched Claude process may still be running.',
+      'The terminal session could not be prepared.',
+      'Selected policy decision',
+      'Hook adapter failure',
+      'Provider confirmation requested for supported command',
+      'Project script can run unchecked actions; provider confirmation requested',
+      'Patch contents, written paths and executable are unverified; provider confirmation requested',
+      'Declared sensitive filename',
+      'Declared destructive command',
+      'Unsupported command or input',
+      'No reporting session',
+      'Waiting for the terminal broker',
+      'Waiting for native code confirmation',
+      'Session listening; delivery remains unknown',
+      'Session refused',
+      'Session expired',
+      'Reporting session ended',
+      'Claimed provider result: tool completed',
+      'Claimed provider result: tool failed',
+      'Provider result unknown',
+      'After-result hooks were verified in the selected profile; delivery remains unknown.',
+      'After-result hooks are not currently verified; delivery remains unknown.',
+      'After-result hooks were verified at admission; the profile is not currently verified.',
+    ];
+    const pt = translator('pt');
+    for (const label of labels) {
+      expect(Object.hasOwn(portuguese, label), label).toBe(true);
+      expect(pt(label), label).not.toBe(label);
+    }
   });
 });

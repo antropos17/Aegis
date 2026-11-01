@@ -22,6 +22,172 @@ afterEach(() => {
 });
 
 describe('sensor host cancellation, correlation and finite counters', () => {
+  it('does not send an unsupported paths replacement to the procfs snapshot provider', () => {
+    const f = fixture();
+    f.api.updatePaths(['/fixture/private']);
+    const child = f.start();
+    const announcement = hello(child.pid);
+    child.send({
+      ...announcement,
+      mode: 'procfs',
+      modes: ['procfs'],
+      caps: {
+        ...announcement.caps,
+        exec: false,
+        exit: false,
+        fork: false,
+        fileOpen: false,
+        tcpConnect: false,
+        identity: 'procfs-ticks',
+      },
+    });
+    child.ack();
+    expect(child.messages.map((message) => message.t)).toEqual(['watch']);
+    expect(f.api.getStatus().updates.pathsPending).toBe(true);
+  });
+
+  it('requests a startup snapshot before a procfs provider reports healthy', () => {
+    const f = fixture();
+    const child = f.start();
+    const announcement = hello(child.pid);
+    child.send({
+      ...announcement,
+      mode: 'procfs',
+      modes: ['procfs'],
+      caps: {
+        ...announcement.caps,
+        exec: false,
+        exit: false,
+        fork: false,
+        fileOpen: false,
+        tcpConnect: false,
+        identity: 'procfs-ticks',
+      },
+    });
+    child.ack();
+    // Existing hosts may have queued a paths request; acknowledge it only to
+    // isolate the independent startup snapshot requirement in this case.
+    if (child.messages.at(-1).t === 'paths') child.ack();
+    child.send({ t: 'health', state: 'STARTING', detail: 'starting' });
+    vi.advanceTimersByTime(2100);
+    expect(child.messages.at(-1).t).toBe('snap');
+    child.send({ t: 'snap', id: child.messages.at(-1).id, procs: [] });
+    child.send({ t: 'health', state: 'HEALTHY', detail: 'ready' });
+    expect(f.api.getStatus()).toMatchObject({ mode: 'procfs', phase: 'running' });
+    expect(Object.values(f.api.getStatus().coverage)).toEqual(Array(5).fill('coverage-lost'));
+  });
+
+  it('retains paths until an announced event mode can accept them', () => {
+    const f = fixture();
+    f.api.updatePaths(['/fixture/private']);
+    const child = f.start();
+    const announcement = hello(child.pid);
+    const procfsCaps = {
+      ...announcement.caps,
+      exec: false,
+      exit: false,
+      fork: false,
+      fileOpen: false,
+      tcpConnect: false,
+      identity: 'procfs-ticks',
+    };
+    child.send({ ...announcement, mode: 'procfs', caps: procfsCaps });
+    child.ack();
+    expect(f.api.getStatus().updates.pathsPending).toBe(true);
+    child.send({
+      t: 'mode',
+      mode: 'ebpf',
+      caps: announcement.caps,
+      reason: 'recovery',
+      seq: '1',
+    });
+    expect(child.messages.at(-1)).toMatchObject({ t: 'paths', prefixes: ['/fixture/private'] });
+    child.ack();
+    expect(f.api.getStatus().updates.pathsPending).toBe(false);
+  });
+
+  it('replays a path request when the mode changes away and back before its acknowledgement', () => {
+    const f = fixture();
+    f.api.updatePaths(['/fixture/private']);
+    const child = f.start();
+    const announcement = hello(child.pid);
+    child.send(announcement);
+    child.ack();
+    const first = child.messages.at(-1);
+    expect(first.t).toBe('paths');
+    child.send({
+      t: 'mode',
+      mode: 'procfs',
+      caps: {
+        ...announcement.caps,
+        exec: false,
+        exit: false,
+        fork: false,
+        fileOpen: false,
+        tcpConnect: false,
+        identity: 'procfs-ticks',
+      },
+      reason: 'permission-denied',
+      seq: '1',
+    });
+    child.send({
+      t: 'mode',
+      mode: 'ebpf',
+      caps: announcement.caps,
+      reason: 'recovery',
+      seq: '1',
+    });
+    child.send({ t: 'ack', id: first.id });
+    expect(child.messages.at(-1)).toMatchObject({ t: 'paths', prefixes: ['/fixture/private'] });
+    expect(child.messages.at(-1).id).not.toBe(first.id);
+    expect(f.api.getStatus().updates.pathsPending).toBe(true);
+    child.ack();
+    expect(f.api.getStatus().updates.pathsPending).toBe(false);
+  });
+
+  it('ignores a path error for the previous mode after a procfs fallback', () => {
+    const f = fixture();
+    const child = f.start();
+    const announcement = hello(child.pid);
+    child.send(announcement);
+    child.ack();
+    const oldRequest = child.messages.at(-1);
+    child.send({
+      t: 'mode',
+      mode: 'procfs',
+      caps: {
+        ...announcement.caps,
+        exec: false,
+        exit: false,
+        fork: false,
+        fileOpen: false,
+        tcpConnect: false,
+        identity: 'procfs-ticks',
+      },
+      reason: 'permission-denied',
+      seq: '1',
+    });
+    child.send({ t: 'err', id: oldRequest.id, code: 'unsupported' });
+    expect(f.api.getStatus()).toMatchObject({ mode: 'procfs', updates: { pathsPending: true } });
+    expect(f.api.getStatus().reason).not.toBe('update-rejected');
+    vi.advanceTimersByTime(2100);
+    expect(child.messages.at(-1).t).toBe('snap');
+  });
+
+  it('replays an in-flight path request after a same-mode recovery announcement', () => {
+    const f = fixture();
+    const child = f.start();
+    const announcement = hello(child.pid);
+    child.send(announcement);
+    child.ack();
+    const first = child.messages.at(-1);
+    child.send({ t: 'mode', mode: 'ebpf', caps: announcement.caps, reason: 'recovery', seq: '1' });
+    child.send({ t: 'ack', id: first.id });
+    expect(child.messages.at(-1)).toMatchObject({ t: 'paths' });
+    expect(child.messages.at(-1).id).not.toBe(first.id);
+    expect(f.api.getStatus().updates.pathsPending).toBe(true);
+  });
+
   it('contains timer-driven encoding failures in a fixed failure state', () => {
     const f = fixture();
     const child = f.start();

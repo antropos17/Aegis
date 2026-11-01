@@ -125,6 +125,7 @@ it('admits a workspace Resume while preserving its captured source and later rea
 it('admits a successfully loaded older audit page during a process outage without moving focus or scrolling', async () => {
   const first = Array.from({ length: 100 }, (_, id) => ({
     eventId: 'audit-' + id,
+    testOrdinal: id,
     timestamp: '2026-09-30T12:00:00.000Z',
     type: 'file-access',
     file: 'X:/fixture/ties.md',
@@ -156,7 +157,7 @@ it('admits a successfully loaded older audit page during a process outage withou
   await fireEvent.click(screen.getByRole('button', { name: 'Load older entries' }));
   const search = screen.getByLabelText('Search audit entries');
   await act(() => search.focus());
-  finish([{ ...first[0], eventId: 'audit-100' }]);
+  finish([{ ...first[0], eventId: 'audit-100', testOrdinal: 100 }]);
   await screen.findByText('101 audit entries loaded');
   expect(search).toHaveFocus();
   expect(scroll).not.toHaveBeenCalled();
@@ -164,5 +165,9 @@ it('admits a successfully loaded older audit page during a process outage withou
   expect(telemetry.ready).toBe(false);
   await fireEvent.click(screen.getByRole('button', { name: /Open 101 observations/ }));
   const observations = inspect.mock.calls.at(-1)?.[1].observations as RecordData[];
-  expect(new Set(observations.map((entry) => entry.eventId)).size).toBe(101);
+  expect(observations).toHaveLength(101);
+  expect(observations.map((entry) => entry.testOrdinal).sort((a, b) => Number(a) - Number(b))).toEqual(
+    Array.from({ length: 101 }, (_, id) => id),
+  );
+  expect(observations.every((entry) => !Object.hasOwn(entry, 'eventId'))).toBe(true);
 });

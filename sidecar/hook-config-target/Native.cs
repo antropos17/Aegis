@@ -7,7 +7,7 @@ namespace Aegis.HookConfigTarget;
 // Win32 layouts and sharing semantics are linked in CLAUDE-HOOK-WINDOWS-TARGET.md.
 internal static class Native
 {
-    internal const uint Read = 0x80000000, Write = 0x40000000, ReadAttributes = 0x80;
+    internal const uint Read = 0x80000000, Write = 0x40000000, ReadAttributes = 0x80, Delete = 0x10000;
     internal const uint ShareRead = 1, ShareWrite = 2, ShareDelete = 4;
     internal const uint Reparse = 0x00200000, Backup = 0x02000000;
 
@@ -61,6 +61,24 @@ internal static class Native
     private static extern bool SetFileInformationByHandle(SafeFileHandle file,
         int kind, in Basic value, uint size);
 
+    [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)]
+    private static extern bool SetDisposition(SafeFileHandle file, int kind, in byte deleteFile, uint size);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFileAttributesW(string path);
+
+    internal static void MarkDelete(SafeFileHandle handle)
+    {
+        byte deleteFile = 1;
+        Require(SetDisposition(handle, 4, in deleteFile, 1));
+    }
+
+    internal static bool DefinitelyAbsent(string path)
+    {
+        uint attributes = GetFileAttributesW(path);
+        return attributes == uint.MaxValue && Marshal.GetLastWin32Error() == 2;
+    }
+
     internal static void Require(bool condition)
     {
         if (!condition) throw new TargetRefusal();
@@ -69,6 +87,16 @@ internal static class Native
     internal static SafeFileHandle Open(string path, uint access, uint share, bool directory)
     {
         var handle = CreateFileW(path, access, share, 0, 3, Reparse | (directory ? Backup : 0), 0);
+        if (!handle.IsInvalid) return handle;
+        handle.Dispose();
+        throw new TargetRefusal();
+    }
+
+    internal static SafeFileHandle CreateNew(string path)
+    {
+        // CREATE_NEW never opens or truncates an existing path. The retained
+        // handle excludes write and delete sharing until the caller closes it.
+        var handle = CreateFileW(path, Read | Write, ShareRead, 0, 1, Reparse, 0);
         if (!handle.IsInvalid) return handle;
         handle.Dispose();
         throw new TargetRefusal();

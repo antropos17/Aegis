@@ -179,3 +179,170 @@ it.each(['throw', 'readback'])('retains uncertainty for %s after dispatch', asyn
   });
   expect(state.records.size).toBe(1);
 });
+
+const afterCommand = command.replace('--action-policy-hook', '--action-policy-after-hook');
+const afterEntry = {
+  matcher: 'Bash',
+  hooks: [{ type: 'command', command: afterCommand, timeout: 5 }],
+};
+const fullProfile = (post = [afterEntry], failure = [afterEntry]) =>
+  JSON.stringify({
+    private: 'é😀',
+    hooks: { PreToolUse: [entry], PostToolUse: post, PostToolUseFailure: failure },
+    tail: 7,
+  });
+
+it('removes a complete three-event group and preserves unrelated exact bytes', () => {
+  const before = fullProfile([JSON.parse(foreign), afterEntry], [afterEntry, JSON.parse(foreign)]);
+  const plan = planObservedRemoval(Buffer.from(before), selection);
+  expect(plan.mode).toBe('three-hook');
+  expect(plan.review.eventNames).toEqual(['PreToolUse', 'PostToolUse', 'PostToolUseFailure']);
+  expect(plan.after.toString()).toBe(
+    fullProfile([JSON.parse(foreign)], [JSON.parse(foreign)]).replace(JSON.stringify(entry), ''),
+  );
+});
+
+it.each([
+  [[], [afterEntry]],
+  [[afterEntry], []],
+  [[afterEntry, afterEntry], [afterEntry]],
+  [[{ ...afterEntry, hooks: [{ ...afterEntry.hooks[0], timeout: 6 }] }], [afterEntry]],
+  [
+    [
+      {
+        ...afterEntry,
+        hooks: [
+          { ...afterEntry.hooks[0], command: afterCommand.replace('policy.json', 'other.json') },
+        ],
+      },
+    ],
+    [afterEntry],
+  ],
+  [
+    [{ ...afterEntry, hooks: [...afterEntry.hooks, { type: 'command', command: 'other' }] }],
+    [afterEntry],
+  ],
+])('refuses an incomplete, duplicated or tampered after group', (post, failure) => {
+  const plan = planObservedRemoval(Buffer.from(fullProfile(post, failure)), selection);
+  expect(plan.ok).not.toBe(true);
+  expect(plan.after).toBeUndefined();
+});
+
+it('refuses a group with after or before hooks installed in the wrong event', () => {
+  const misplacedAfter = JSON.stringify({ hooks: { PreToolUse: [entry, afterEntry] } });
+  const misplacedBefore = JSON.stringify({
+    hooks: {
+      PreToolUse: [entry],
+      PostToolUse: [entry, afterEntry],
+      PostToolUseFailure: [afterEntry],
+    },
+  });
+  expect(planObservedRemoval(Buffer.from(misplacedAfter), selection)).toEqual({
+    code: 'PLAN_REFUSED',
+  });
+  expect(planObservedRemoval(Buffer.from(misplacedBefore), selection)).toEqual({
+    code: 'PLAN_REFUSED',
+  });
+});
+
+it.each(['--action-policy-hook.json', '--action-policy-after-hook.json'])(
+  'allows exact profile removal when the policy filename is %s',
+  (filename) => {
+    const {
+      profileCommand,
+      profileAfterCommand,
+    } = require('../../src/main/claude-hook-app-profile');
+    const policy = path.resolve('fixture', filename);
+    const make = (value) => ({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: value, timeout: 5 }],
+    });
+    const hooks = {
+      PreToolUse: [make(profileCommand(selection.executable, selection.appPath, policy))],
+      PostToolUse: [make(profileAfterCommand(selection.executable, selection.appPath, policy))],
+      PostToolUseFailure: [
+        make(profileAfterCommand(selection.executable, selection.appPath, policy)),
+      ],
+    };
+    expect(planObservedRemoval(Buffer.from(JSON.stringify({ hooks })), selection).mode).toBe(
+      'three-hook',
+    );
+  },
+);
+
+it('preserves an unrelated legacy post command containing a flag as ordinary text', () => {
+  const hooks = {
+    PreToolUse: [entry],
+    PostToolUse: [
+      { matcher: 'Read', hooks: [{ type: 'command', command: 'echo --action-policy-hook' }] },
+    ],
+  };
+  const plan = planObservedRemoval(Buffer.from(JSON.stringify({ hooks })), selection);
+  expect(plan.mode).toBe('legacy');
+  expect(JSON.parse(plan.after).hooks.PostToolUse).toEqual(hooks.PostToolUse);
+});
+
+it.each([
+  [afterCommand, afterCommand, true],
+  [afterCommand + ' > /dev/null', afterCommand + ' > /dev/null', true],
+  [afterCommand, afterCommand + ' > /dev/null', false],
+  [afterCommand + ' > /dev/null', afterCommand, false],
+  [afterCommand + ' > /dev/null 2>&1', afterCommand + ' > /dev/null 2>&1', false],
+  [afterCommand + ' > /dev/null; echo x', afterCommand + ' > /dev/null; echo x', false],
+])(
+  'accepts only matching exact legacy or redirected post-hook commands',
+  (post, failure, allowed) => {
+    const make = (value) => ({
+      matcher: 'Bash',
+      hooks: [{ type: 'command', command: value, timeout: 5 }],
+    });
+    const plan = planObservedRemoval(
+      Buffer.from(fullProfile([make(post)], [make(failure)])),
+      selection,
+    );
+    expect(plan.ok === true).toBe(allowed);
+  },
+);
+
+it('recognizes exact native-profile hooks after restart and refuses foreign overrides', () => {
+  const native = path.join(path.dirname(selection.target), 'native-' + 'a'.repeat(32));
+  const pre = command + ` '--user-data-dir=${native}'`;
+  const after =
+    command.replace('--action-policy-hook', '--action-policy-after-hook') +
+    ` '--user-data-dir=${native}' > /dev/null`;
+  const hook = (value) => ({
+    matcher: 'Bash',
+    hooks: [{ type: 'command', command: value, timeout: 5 }],
+  });
+  const bytes = (value) =>
+    Buffer.from(
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [hook(value)],
+          PostToolUse: [hook(after)],
+          PostToolUseFailure: [hook(after)],
+        },
+        private: 'PRESERVE',
+      }),
+    );
+  const plan = planObservedRemoval(bytes(pre), selection);
+  expect(plan.ok).toBe(true);
+  expect(JSON.parse(plan.after.toString())).toEqual({
+    hooks: { PreToolUse: [], PostToolUse: [], PostToolUseFailure: [] },
+    private: 'PRESERVE',
+  });
+  for (const foreign of [
+    path.join(path.dirname(selection.target), 'foreign', path.basename(native)),
+    native + '-changed',
+    path.join(path.dirname(selection.target), 'native-' + 'A'.repeat(32)),
+  ])
+    expect(
+      planObservedRemoval(bytes(command + ` '--user-data-dir=${foreign}'`), selection).code,
+    ).toBe('NO_MATCHING_HOOK');
+  expect(
+    planObservedRemoval(
+      bytes(pre.replace("'--user-data-dir=", '"--user-data-dir=').replace(/'$/, '"')),
+      selection,
+    ).ok,
+  ).not.toBe(true);
+});
