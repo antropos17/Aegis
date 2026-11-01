@@ -45,6 +45,8 @@ async function createOwnerConsole({
   let reviewed = false;
   let pending;
   let closing;
+  let retiring = false;
+  let closePromise;
   let exited = false;
   let exitCode;
   let exitSignal;
@@ -220,23 +222,31 @@ async function createOwnerConsole({
 
   const watch = (abort) => {
     events.on('lost', abort);
-    if (!available) abort();
+    if (!available || retiring) abort();
     return () => events.removeListener('lost', abort);
   };
   const adapter = {
     profileEnvironment: scopedProfileEnvironment,
     isTerminalAvailable: () => {
       if (available && !closing && !within(lastHeartbeatAt, heartbeatMs)) fail();
-      return available && !closed;
+      return available && !closed && !retiring;
     },
     watchTerminalLifetime: watch,
     monitorTerminalInput: watch,
     isCommitGuardFresh: () => {
       if (available && !within(lastHeartbeatAt, heartbeatMs)) fail();
-      return available && !closed && guardAt !== undefined && within(guardAt, 1500);
+      return available && !closed && !retiring && guardAt !== undefined && within(guardAt, 1500);
     },
     async confirmInTerminal(operation, { signal, kind } = {}) {
-      if (kind !== 'delete-file' || !available || closed || pending || reviewed || signal?.aborted)
+      if (
+        kind !== 'delete-file' ||
+        !available ||
+        closed ||
+        retiring ||
+        pending ||
+        reviewed ||
+        signal?.aborted
+      )
         return false;
       let challenge;
       let preview;
@@ -297,6 +307,7 @@ async function createOwnerConsole({
         !approved ||
         !available ||
         closed ||
+        retiring ||
         pending ||
         health ||
         signal?.aborted ||
@@ -335,61 +346,79 @@ async function createOwnerConsole({
         if (signal?.aborted) cancel();
       });
     },
-    async close() {
-      if (pending) {
-        // A live review cannot be converted into a successful shutdown.
-        fail();
-      }
-      let acknowledged = false;
-      clearTimeout(heartbeatTimer);
-      if (!closed) {
-        shutdownAt = now();
-        const done = new Promise((resolve) => {
-          closing = () => {
-            acknowledged = true;
-            resolve();
-          };
-        });
-        if (send('S')) {
+    close() {
+      if (closePromise) return closePromise;
+      let finishClose;
+      closePromise = new Promise((resolve) => {
+        finishClose = resolve;
+      });
+      // Retire public authority synchronously, retaining the transport only for
+      // its bounded authenticated shutdown handshake and final heartbeat.
+      retiring = true;
+      approved = false;
+      guardAt = undefined;
+      const shutdown = (async () => {
+        if (pending || health) {
+          // A live review cannot be converted into a successful shutdown.
+          fail();
+        }
+        let acknowledged = false;
+        clearTimeout(heartbeatTimer);
+        if (!closed) {
+          shutdownAt = now();
+          const done = new Promise((resolve) => {
+            closing = () => {
+              acknowledged = true;
+              resolve();
+            };
+          });
+          if (send('S')) {
+            let timeout;
+            await Promise.race([
+              done,
+              new Promise((resolve) => {
+                timeout = setTimeout(resolve, cleanupMs);
+              }),
+            ]);
+            clearTimeout(timeout);
+          }
+        }
+        if (acknowledged && !exited) {
           let timeout;
           await Promise.race([
-            done,
+            exit,
             new Promise((resolve) => {
               timeout = setTimeout(resolve, cleanupMs);
             }),
           ]);
           clearTimeout(timeout);
         }
-      }
-      if (acknowledged && !exited) {
-        let timeout;
-        await Promise.race([
-          exit,
-          new Promise((resolve) => {
-            timeout = setTimeout(resolve, cleanupMs);
-          }),
-        ]);
-        clearTimeout(timeout);
-      }
-      if (!exited) {
+        if (!exited) {
+          fail();
+          let timeout;
+          await Promise.race([
+            exit,
+            new Promise((resolve) => {
+              timeout = setTimeout(resolve, cleanupMs);
+            }),
+          ]);
+          clearTimeout(timeout);
+        }
+        return (
+          acknowledged &&
+          exited &&
+          exitedAt >= acknowledgedAt &&
+          exitedAt - acknowledgedAt < cleanupMs &&
+          exitCode === 0 &&
+          exitSignal === null
+        );
+      })();
+      if (!closed) events.emit('lost');
+      shutdown.then(finishClose, () => {
         fail();
-        let timeout;
-        await Promise.race([
-          exit,
-          new Promise((resolve) => {
-            timeout = setTimeout(resolve, cleanupMs);
-          }),
-        ]);
-        clearTimeout(timeout);
-      }
-      return (
-        acknowledged &&
-        exited &&
-        exitedAt >= acknowledgedAt &&
-        exitedAt - acknowledgedAt < cleanupMs &&
-        exitCode === 0 &&
-        exitSignal === null
-      );
+        finishClose(false);
+      });
+      return closePromise;
     },
   };
   return adapter;

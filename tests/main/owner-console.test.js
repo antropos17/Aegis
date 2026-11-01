@@ -653,6 +653,56 @@ it('confirms shutdown only after B and successful child close', async () => {
   expect(await adapter.close()).toBe(true);
 });
 
+it('retires terminal availability as soon as shutdown starts and after successful exit', async () => {
+  const { f, adapter } = await open();
+  const lost = vi.fn();
+  adapter.watchTerminalLifetime(lost);
+  const closing = adapter.close();
+  expect(adapter.isTerminalAvailable()).toBe(false);
+  expect(lost).toHaveBeenCalledTimes(1);
+  expect(await closing).toBe(true);
+  expect(adapter.isTerminalAvailable()).toBe(false);
+  expect(await adapter.confirmInTerminal({ kind: 'delete-file' }, { kind: 'delete-file' })).toBe(false);
+  expect(await adapter.checkBeforeCommit()).toBe(false);
+  expect(f.received).toEqual(['S']);
+});
+
+it('invalidates a fresh commit guard during shutdown and shares one close result', async () => {
+  const { f, adapter } = await open();
+  const review = adapter.confirmInTerminal({ kind: 'delete-file' }, { kind: 'delete-file' });
+  const { challenge } = await request(f);
+  f.send(`A ${challenge}`);
+  expect(await review).toBe(true);
+  const check = adapter.checkBeforeCommit();
+  const nonce = await healthRequest(f);
+  f.send(`Y ${nonce}`);
+  expect(await check).toBe(true);
+  expect(adapter.isCommitGuardFresh()).toBe(true);
+  const closing = adapter.close();
+  const duplicate = adapter.close();
+  expect(adapter.isCommitGuardFresh()).toBe(false);
+  expect(await closing).toBe(true);
+  expect(await duplicate).toBe(true);
+  expect(await adapter.close()).toBe(true);
+  expect(f.received.filter((message) => message === 'S')).toHaveLength(1);
+});
+
+it('settles an outstanding commit check as denied when shutdown interrupts it', async () => {
+  const { f, adapter } = await open();
+  const review = adapter.confirmInTerminal({ kind: 'delete-file' }, { kind: 'delete-file' });
+  const { challenge } = await request(f);
+  f.send(`A ${challenge}`);
+  expect(await review).toBe(true);
+  const check = adapter.checkBeforeCommit();
+  await healthRequest(f);
+  const closing = adapter.close();
+  expect(await check).toBe(false);
+  expect(adapter.isTerminalAvailable()).toBe(false);
+  expect(adapter.isCommitGuardFresh()).toBe(false);
+  expect(await closing).toBe(false);
+  expect(f.child.kill).toHaveBeenCalledTimes(1);
+});
+
 it('fails closed if the verifier input errors while a review is pending', async () => {
   const { f, adapter } = await open();
   const result = adapter.confirmInTerminal(
