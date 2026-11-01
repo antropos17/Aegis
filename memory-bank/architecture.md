@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 296 CommonJS modules (250 top-level + 44 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 301 CommonJS modules (255 top-level + 44 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -16,7 +16,7 @@ Core modules:
 - scan-loop.js — periodic scan intervals, staggered startup, event dedup
 - ipc-batcher.js — batches high-frequency IPC events (append/latest modes)
 - ipc-handlers.js — all IPC handlers (invoke + listeners)
-- preload.js — IPC bridge (window.aegis via contextBridge, 56 invoke + 12 events = 68 channels)
+- preload.js — IPC bridge (window.aegis via contextBridge, 57 invoke + 12 events = 69 channels)
 - process-scanner.js — bundled and validated custom signatures over platform process snapshots
 - container-metadata.js — shared strict image and projected-row validation for local container candidates
 - container-scanner.js — bounded, local Docker image-metadata candidates kept separate from host process identities and actions
@@ -48,7 +48,7 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
-96 Svelte components, 10 stores, 13 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
+97 Svelte components, 10 stores, 13 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings. ContainerCandidates presents independent Docker and Linux Podman image-only observations outside host process totals, risk and actions. StatsSensors displays the passive WSL distro inventory and the separate guest-process coverage gap.
 

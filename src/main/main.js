@@ -33,6 +33,8 @@ const _cliFlags = new Set([
   '--claude-guard-session',
   '--gemini-beforetool-hook',
   '--gemini-beforetool-exit-code',
+  '--codex-pretool-hook',
+  '--codex-launch-override',
   '--action-exec-json',
   '--action-exec-confirm',
   '--action-exec-windows-job-json',
@@ -65,6 +67,8 @@ if (_cliArgs.some((a) => _cliFlags.has(a))) {
       if (
         !_cliArgs.includes('--gemini-beforetool-hook') &&
         !_cliArgs.includes('--action-policy-hook') &&
+        !_cliArgs.includes('--codex-pretool-hook') &&
+        !_cliArgs.includes('--codex-launch-override') &&
         [
           '--mcp-gateway-http',
           '--mcp-gateway-stdio',
@@ -81,6 +85,8 @@ if (_cliArgs.some((a) => _cliFlags.has(a))) {
         process.exit(code ?? 2);
       }
       if (
+        _cliArgs.includes('--codex-pretool-hook') ||
+        _cliArgs.includes('--codex-launch-override') ||
         _cliArgs.includes('--gemini-beforetool-hook') ||
         _cliArgs.includes('--action-policy-hook') ||
         [
@@ -157,6 +163,7 @@ let sensitiveAlertJournal;
 let updates;
 let claudeHookProfile;
 let geminiHookProfile;
+let codexHookProfile;
 let projectWatchSelection;
 let etwFile;
 let nativeSensor = null;
@@ -1587,10 +1594,41 @@ app.whenReady().then(() => {
     packaged: app.isPackaged,
     getWindow: () => mainWindow,
   });
+  const codexPowerShell = path.join(
+    process.env.SystemRoot || '',
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe',
+  );
+  const codexProfile = require('./codex-hook-app').createCodexHookApp({
+    userData,
+    assetsRoot: path.join(
+      app.isPackaged ? process.resourcesPath : path.join(applicationPath, 'build'),
+      'hook-review',
+    ),
+    dialog: require('electron').dialog,
+    shell: require('electron').shell,
+    executable: process.execPath,
+    appPath: applicationPath,
+    powershell: codexPowerShell,
+    packaged: app.isPackaged,
+    getWindow: () => mainWindow,
+  });
+  codexHookProfile = require('./codex-hook-service').createCodexHookService({
+    profile: codexProfile,
+    dialog: require('electron').dialog,
+    clipboard: require('electron').clipboard,
+    getWindow: () => mainWindow,
+    executable: process.execPath,
+    appPath: applicationPath,
+    powershell: codexPowerShell,
+  });
   ipc.init({
     projectWatchSelection,
     claudeHookProfile,
     geminiHookProfile,
+    codexHookProfile,
     sensitiveAlertJournal,
     explainToolContext: (eventId) => liveToolContext.explain(eventId),
     auditToolContextLookup: (row, proof) => liveToolContext.auditLookup(row, proof),
@@ -1636,7 +1674,9 @@ app.on('before-quit', (event) => {
   const etwActive = etwFile?.isActive?.() === true;
   const nativeActive = nativeSensor?.isActive() === true;
   const hookReviewActive =
-    claudeHookProfile?.hasPending() === true || geminiHookProfile?.hasPending() === true;
+    claudeHookProfile?.hasPending() === true ||
+    geminiHookProfile?.hasPending() === true ||
+    codexHookProfile?.hasPending() === true;
   if (
     !alertQuitDrainStarted &&
     (sensitiveAlertJournal?.hasPending() || etwActive || nativeActive || hookReviewActive)
@@ -1667,6 +1707,7 @@ app.on('before-quit', (event) => {
         nativeSensor?.dispose(),
         claudeHookProfile?.close(),
         geminiHookProfile?.close(),
+        codexHookProfile?.close(),
       ]),
       new Promise((resolve) => {
         // An ETW stop must include its terminal counters AND normal broker exit.

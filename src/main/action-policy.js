@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { TextDecoder } = require('node:util');
 const LIMITS = Object.freeze({ bytes: 65536, depth: 8, nodes: 2048, rules: 32 });
 const PROJECT_PROFILE = 'aegis-windows-project-review-v1';
@@ -239,10 +240,16 @@ function equalActionValue(left, right) {
  * is run here; the hook consumer returns a provider decision. All failures deny.
  * @param {string} policyPath Explicit regular policy JSON file.
  * @param {Buffer} inputBuffer Bounded provider JSON input, used only in memory.
+ * @param {string} [expectedSha256] Optional reviewed digest of the same policy bytes.
  * @returns {Promise<{decision: string, reason: string}>} Fixed codes with no raw input or digest.
  * @since v0.15.1
  */
-async function evaluateActionPolicy(policyPath, inputBuffer) {
+async function evaluateActionPolicy(policyPath, inputBuffer, expectedSha256) {
+  if (
+    expectedSha256 !== undefined &&
+    (typeof expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(expectedSha256))
+  )
+    return deny('policy-invalid');
   let input;
   try {
     input = decodeActionRequest(inputBuffer, ['PreToolUse']);
@@ -257,6 +264,11 @@ async function evaluateActionPolicy(policyPath, inputBuffer) {
   }
   let policy;
   try {
+    if (
+      expectedSha256 !== undefined &&
+      createHash('sha256').update(bytes).digest('hex') !== expectedSha256
+    )
+      return deny('policy-changed');
     policy = parse(bytes);
     if (!validPolicy(policy)) return deny('policy-invalid');
   } catch (_) {

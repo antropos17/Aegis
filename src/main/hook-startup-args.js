@@ -4,6 +4,8 @@ const path = require('node:path');
 // Preserve cli.js dispatch precedence for ambiguous input's fixed refusal.
 const HOOK_FLAGS = new Set([
   '--gemini-beforetool-exit-code',
+  '--codex-pretool-hook',
+  '--codex-launch-override',
   '--action-policy-hook',
   '--action-policy-after-hook',
   '--gemini-beforetool-hook',

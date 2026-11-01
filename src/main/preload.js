@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('aegis', {
   explainToolContext: (eventId) => ipcRenderer.invoke('tool-context:explain', eventId),
   reviewClaudeHookProfile: (action) => ipcRenderer.invoke('claude-hook:review', action),
   reviewGeminiHookProfile: (action) => ipcRenderer.invoke('gemini-hook:review', action),
+  reviewCodexHookProfile: (action) => ipcRenderer.invoke('codex-hook:review', action),
   controlProjectWatch: (action) => ipcRenderer.invoke('project-watch:control', action),
   controlFileReads: (request) => ipcRenderer.invoke('file-reads:control', request),
   quitApp: (confirmed) => ipcRenderer.invoke('app:quit', confirmed),
