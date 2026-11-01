@@ -59,7 +59,7 @@ MCP gateways cover their explicitly configured traffic only. Known-secret checks
 - **Stack**: Electron, Svelte 5, Vite; CommonJS JavaScript in main, TypeScript in the renderer and shared types. Exact versions: package.json
 - **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
-- **Version**: 0.21.0-beta <!-- x-release-please-version -->
+- **Version**: 0.22.0-beta <!-- x-release-please-version -->
 - **Platform**: Windows primary; macOS/Linux experimental
 
 ## Links
