@@ -126,7 +126,7 @@ it.each([null, Number.NaN])('does not send object capture without a finite super
     telemetry: { ...captureTelemetry(), statsAt }, host: { controlFileReads },
   });
   expect(screen.getByRole('checkbox')).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Start file read monitoring', exact: true })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Start file read monitoring' })).toBeDisabled();
   await fireEvent.submit(screen.getByRole('region').querySelector('form')!);
   expect(controlFileReads).not.toHaveBeenCalled();
 });
