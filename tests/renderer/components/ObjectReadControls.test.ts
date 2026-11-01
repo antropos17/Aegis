@@ -130,4 +130,3 @@ it.each([null, Number.NaN])('does not send object capture without a finite super
   await fireEvent.submit(screen.getByRole('region').querySelector('form')!);
   expect(controlFileReads).not.toHaveBeenCalled();
 });
-
