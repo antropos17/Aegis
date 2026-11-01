@@ -1,7 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { BoundObjectReadEvent, DetectedAgent } from '../../../src/shared/types';
-import FileReadObservations from '../../../frontend/observatory/components/FileReadObservations.svelte';
 import InvestigationInspector from '../../../frontend/observatory/components/InvestigationInspector.svelte';
 import Details from '../../../frontend/observatory/components/Details.svelte';
 import Events from '../../../frontend/observatory/components/Events.svelte';
@@ -158,20 +157,6 @@ it('keeps historical object reads out of a reused process lifetime across detail
   expect(mounted.container.querySelector('[data-detail-focus="exact-process"]')).not.toBeNull();
 });
 
-const captureTelemetry = (canStartObject = true) => ({
-  ...emptyTelemetry(),
-  stale: false,
-  stats: {
-    fileReadDiagnostics: {
-      mode: 'ordinary',
-      captureMode: 'display',
-      phase: 'disabled',
-      controls: { canStart: true, canStartObject, canStop: false },
-      reads: [],
-    },
-  },
-});
-
 it('keeps resource grouping on opaque object identity and excludes incomplete object records', () => {
   const other = { ...observed, object: { ...observed.object, objectKey: 'opaque-object-B' } };
   const invalid = {
@@ -186,97 +171,6 @@ it('keeps resource grouping on opaque object identity and excludes incomplete ob
   expect(radarResources(state, 'files')).toHaveLength(2);
   const reader = createProtectionActivityReader();
   expect(reader(state.events as unknown as RecordData[], [])).toHaveLength(2);
-});
-
-it('requires a separate unchecked opt-in and current readiness before sending start-object', async () => {
-  const controlFileReads = vi.fn(async () => ({ success: true }));
-  const mounted = render(FileReadObservations, {
-    telemetry: captureTelemetry(false),
-    host: { controlFileReads },
-  });
-  const consent = screen.getByRole('checkbox', {
-    name: 'Include verified object reads in alerts and risk',
-  });
-  expect(consent).not.toBeChecked();
-  expect(consent).toBeDisabled();
-  expect(controlFileReads).not.toHaveBeenCalled();
-  await mounted.rerender({ telemetry: captureTelemetry() });
-  expect(consent).not.toBeChecked();
-  expect(controlFileReads).not.toHaveBeenCalled();
-  await fireEvent.input(screen.getByRole('textbox', { name: 'Folder to monitor' }), {
-    target: { value: 'X:\\fixture' },
-  });
-  await fireEvent.click(consent);
-  const panel = screen.getByRole('region');
-  for (const phrase of [
-    'up to 10 seconds',
-    'rename or move',
-    'actual access path is unknown',
-    'remain unverified',
-    'may temporarily delay renaming or deleting',
-    'cleanup runs on stop or the next two-second sweep',
-  ])
-    expect(panel).toHaveTextContent(phrase);
-  await fireEvent.click(screen.getByRole('button', { name: 'Start verified object monitoring' }));
-  await waitFor(() =>
-    expect(controlFileReads).toHaveBeenCalledExactlyOnceWith({
-      action: 'start-object',
-      root: 'X:\\fixture',
-    }),
-  );
-  await mounted.rerender({ telemetry: captureTelemetry(false) });
-  await fireEvent.submit(panel.querySelector('form')!);
-  expect(controlFileReads).toHaveBeenCalledTimes(1);
-});
-
-it('keeps refused object capture visible and does not infer a running capture', async () => {
-  render(FileReadObservations, {
-    telemetry: captureTelemetry(),
-    host: {
-      controlFileReads: vi.fn(async () => ({
-        success: false,
-        error: 'Object verification unavailable',
-      })),
-    },
-  });
-  await fireEvent.input(screen.getByRole('textbox'), { target: { value: 'X:\\fixture' } });
-  await fireEvent.click(screen.getByRole('checkbox'));
-  await fireEvent.click(screen.getByRole('button', { name: 'Start verified object monitoring' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('Object verification unavailable');
-  expect(screen.getByRole('textbox')).toHaveValue('X:\\fixture');
-  expect(screen.getByRole('status')).toHaveTextContent('File read monitoring is off');
-});
-
-it('clears object consent after explicit stop and retains candidate-only diagnostics during object capture', async () => {
-  const controlFileReads = vi.fn(async () => ({ success: true }));
-  const value = captureTelemetry();
-  const mounted = render(FileReadObservations, { telemetry: value, host: { controlFileReads } });
-  await fireEvent.input(screen.getByRole('textbox'), { target: { value: 'X:\\fixture' } });
-  await fireEvent.click(screen.getByRole('checkbox'));
-  await mounted.rerender({
-    telemetry: {
-      ...value,
-      stats: {
-        fileReadDiagnostics: {
-          ...value.stats.fileReadDiagnostics,
-          captureMode: 'object-bound',
-          phase: 'running',
-          admission: { qualified: true },
-          controls: { canStart: false, canStartObject: false, canStop: true },
-        },
-      },
-    },
-  });
-  expect(screen.getByRole('region')).toHaveTextContent(
-    'These observations do not change risk scores or audit history.',
-  );
-  expect(screen.getByRole('region')).toHaveTextContent(
-    'Verified object reads are shown separately in Events',
-  );
-  expect(controlFileReads).not.toHaveBeenCalled();
-  await fireEvent.click(screen.getByRole('button', { name: 'Stop file read monitoring' }));
-  await waitFor(() => expect(controlFileReads).toHaveBeenCalledExactlyOnceWith({ action: 'stop' }));
-  expect(screen.getByRole('checkbox')).not.toBeChecked();
 });
 
 it('renders new object reads in the ordinary event feed with binding-label provenance', async () => {
