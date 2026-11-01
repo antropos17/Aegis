@@ -8,6 +8,33 @@ function decoder(onMessage = () => {}) {
 }
 
 describe('offline ETW envelope', () => {
+  it('keeps object policy control and ACK closed and requires acknowledged QPC fields', () => {
+    const request = {
+      requestId: 'bind-1',
+      bindingId: '1',
+      scopeGeneration: 'scope-1',
+      policyGeneration: 'policy-1',
+    };
+    expect(validateMessage(message('bind-object-policy', '3', request))).toBeTruthy();
+    expect(
+      validateMessage(
+        message('object-policy-bound', '4', { ...request, accepted: true, fromQpc: '105' }),
+      ),
+    ).toBeTruthy();
+    for (const data of [
+      { ...request, accepted: true, fromQpc: null },
+      { ...request, accepted: false, fromQpc: '105' },
+      { ...request, accepted: true, fromQpc: '105', path: 'invented' },
+    ]) {
+      expect(() => validateMessage(message('object-policy-bound', '4', data))).toThrow();
+    }
+    expect(
+      validateMessage(message('start', '2', { ...message('start').data, objectPolicy: true })),
+    ).toBeTruthy();
+    expect(() =>
+      validateMessage(message('start', '2', { ...message('start').data, objectPolicy: false })),
+    ).toThrow();
+  });
   it('requires a real denial before cleanup elevation and limits it to all-peer recovery', () => {
     const r = message('recovered');
     r.data.cause = 'all-three-helpers-exited';

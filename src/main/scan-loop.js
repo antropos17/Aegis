@@ -20,6 +20,7 @@ const { collectTokenCosts, getTokenCostDelivery } = require('./token-cost-collec
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { projectToolContext, toolContextKey } = require('./tool-context-record');
+const { boundReadObjectKey } = require('../shared/bound-read-object');
 const { projectAuditIdentity } = require('./audit-observation-identity');
 const { identify } = require('./process-identity');
 const { STARTUP_MS, WARMUP_MS, warmupProcessSchedule } = require('./scan-schedule');
@@ -158,7 +159,8 @@ function updateScanStatus(entering) {
  * @returns {Object|null}
  * @since v0.3.0
  */
-function dedupFileEvent(ev, sensor = 'file-watch') {
+function dedupFileEvent(ev, sensor = 'file-watch', { auditAlreadyAdmitted = false } = {}) {
+  if (ev.observationKind === 'bound-object-read' && !auditAlreadyAdmitted) return null;
   // The security pipeline receives sensitive observations before display dedup.
   // Give every ingress observation an identity before that admission.
   auditIdentities.delete(ev);
@@ -173,7 +175,8 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
   if (ev.toolContext !== undefined) ev.toolContext = projectToolContext(ev.toolContext);
   // Audit admission precedes live display/sequence dedup. Historical delivery
   // must not alter which observations the live sequence state machine consumes.
-  if (ev.sensitive === true && deps.securityEvents) logAuditForFile(ev, true, sensor);
+  if (!auditAlreadyAdmitted && ev.sensitive === true && deps.securityEvents)
+    logAuditForFile(ev, true, sensor);
   const instanceId =
     typeof ev.instanceId === 'string' && ev.instanceId.length > 0 ? ev.instanceId : null;
   // F-E03: no genuine process key → no shared process bucket.
@@ -194,7 +197,8 @@ function dedupFileEvent(ev, sensor = 'file-watch') {
   const key = JSON.stringify([
     instanceId,
     typeof ev.createTime100ns === 'string' ? ev.createTime100ns : null,
-    ev.file,
+    ev.observationKind === 'bound-object-read' ? boundReadObjectKey(ev.object) : ev.file,
+    ev.observationKind ?? 'path',
     ev.action,
     ev.sensitive,
     ev.selfAccess,

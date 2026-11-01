@@ -406,6 +406,24 @@ describe('existing watch-filter settings wiring', () => {
     await main.startWatchers();
     expect(t.setup).toHaveBeenCalledOnce();
   });
+  it('refreshes selected watch filters and retires the native policy generation on the same settings save', async () => {
+    const factory = vi.spyOn(
+      require_('../../src/main/native-file-ingress'),
+      'createNativeFileIngress',
+    );
+    const t = wire();
+    const ingress = factory.mock.calls.at(-1)[0];
+    const originalGeneration = ingress.getPolicyGeneration();
+    await main.startWatchers();
+    t.set({ ignoredDirectories: ['new-private-filter'] });
+    t.apply();
+    await h.flush();
+    expect(ingress.getPolicyGeneration()).not.toBe(originalGeneration);
+    expect(t.setup).toHaveBeenCalledTimes(2);
+    expect(t.state.getSettings().ignoredDirectories).toEqual(['new-private-filter']);
+    expect(t.stop).toHaveBeenCalledOnce();
+    expect(t.start).toHaveBeenCalledExactlyOnceWith(10000);
+  });
   it('keeps file watchers for theme, interval and identical effective exclusion saves', async () => {
     const t = wire({ ignoredDirectories: ['one', 'two'] });
     await main.startWatchers();

@@ -111,10 +111,12 @@ describe('trace format — the closed list of record kinds', () => {
     // `[]` is "the resolver replied with nothing"; `null` is "the lookup threw". A
     // format that accepted only one of them would force a recorder to write the other.
     const ip = '203.0.113.9';
-    expect(() => buildOne('net.tick', {
-      tcp: [{ pid: 4812, ip, port: 443, state: 'Established' }],
-      dns: { [ip]: { reverse: [], forward: null } },
-    })).not.toThrow();
+    expect(() =>
+      buildOne('net.tick', {
+        tcp: [{ pid: 4812, ip, port: 443, state: 'Established' }],
+        dns: { [ip]: { reverse: [], forward: null } },
+      }),
+    ).not.toThrow();
 
     let err = null;
     try {
@@ -277,7 +279,9 @@ describe('trace format — the chain seed belongs to the trace format', () => {
   it('pins the closed evidence list into the header, in declaration order', () => {
     const env = environment.observeEnvironment({ clockEpochMs: CLOCK_EPOCH_MS });
     expect(env.digests.evidenceCodes).toEqual([...attribution.EVIDENCE_CODES]);
-    expect(env.digests.evidenceCodes).toHaveLength(9);
+    expect(env.digests.evidenceCodes).toHaveLength(10);
+    expect(env.digests.evidenceCodes[3]).toBe('etw-file-object');
+    expect(env.digests.evidenceCodes[7]).toBe('ambiguous-owner-match');
   });
 });
 

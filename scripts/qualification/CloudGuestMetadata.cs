@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
@@ -78,6 +79,11 @@ public static class CloudGuestMetadata
         public long LastReadMilliseconds { get; internal set; }
         public long LastWriteMilliseconds { get; internal set; }
         public bool DeadlineExpired { get; internal set; }
+        public int RequestCount { get; internal set; }
+        public int ResumeRequests { get; internal set; }
+        public int TransientFailures { get; internal set; }
+        public bool IntegrityVerified { get; internal set; }
+        public bool Promoted { get; internal set; }
     }
     public static string Download(string url, string destination, long expectedBytes)
     { return Download(url, destination, expectedBytes, new DownloadObservation()); }
@@ -85,6 +91,8 @@ public static class CloudGuestMetadata
     {
         Require(expectedBytes == 8225329152L && url == "https://software-static.download.prss.microsoft.com/dbazure/26300.9457.260913-1737.26h2_ge_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso", "fixed-media-source-required");
         Require(observation != null && observation.Phase == DownloadPhase.NotStarted, "fresh-media-observation-required");
+        string partial = destination + ".partial";
+        Require(!File.Exists(destination) && !Directory.Exists(destination) && !File.Exists(partial) && !Directory.Exists(partial), "fresh-media-output-required");
         observation.ExpectedBytes = expectedBytes; observation.DeclaredBytes = -1;
         ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
         var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -92,52 +100,100 @@ public static class CloudGuestMetadata
         {
             try
             {
-                string downloadedDigest;
-                observation.Phase = DownloadPhase.Request;
-                using (var handler = new HttpClientHandler { AllowAutoRedirect = false })
+                string downloadedDigest, entityTag = null;
+                long written = 0, checkedAt = 0;
+                FileStream output = null;
+                using (var handler = new HttpClientHandler { AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.None })
                 using (var client = new HttpClient(handler))
-                using (var response = client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellation.Token).GetAwaiter().GetResult())
+                using (var digest = SHA256.Create())
                 {
-                    observation.Phase = DownloadPhase.Response;
-                    observation.ResponseStatusCode = (int)response.StatusCode;
-                    observation.DeclaredBytes = response.Content.Headers.ContentLength ?? -1;
-                    Require(response.StatusCode == HttpStatusCode.OK && response.Content.Headers.ContentLength == expectedBytes, "media-http-length-failed");
-                    observation.Phase = DownloadPhase.StreamOpen;
-                    using (var source = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
+                    client.Timeout = Timeout.InfiniteTimeSpan;
+                    try
                     {
-                        observation.Phase = DownloadPhase.FileOpen;
-                        using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                        using (var digest = SHA256.Create())
+                        var buffer = new byte[65536];
+                        for (int attempt = 0; written < expectedBytes && attempt < 4; attempt++)
                         {
-                            var buffer = new byte[65536]; long written = 0, checkedAt = 0;
-                            while (true)
+                            cancellation.Token.ThrowIfCancellationRequested();
+                            observation.Phase = DownloadPhase.Request;
+                            observation.RequestCount++;
+                            using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                             {
-                                observation.Phase = DownloadPhase.Read; observation.ReadCalls++;
-                                int count = source.ReadAsync(buffer, 0, buffer.Length, cancellation.Token).GetAwaiter().GetResult();
-                                observation.BytesRead += count; observation.LastReadMilliseconds = watch.ElapsedMilliseconds;
-                                if (count == 0) break;
-                                Require(written + count <= expectedBytes, "media-byte-budget-failed");
-                                observation.Phase = DownloadPhase.Write;
-                                output.Write(buffer, 0, count); written += count;
-                                observation.BytesWritten = written; observation.LastWriteMilliseconds = watch.ElapsedMilliseconds;
-                                observation.Phase = DownloadPhase.Hash;
-                                digest.TransformBlock(buffer, 0, count, null, 0);
-                                if (written - checkedAt >= 67108864)
+                                if (written != 0)
                                 {
-                                    observation.Phase = DownloadPhase.Headroom;
-                                    Require(new DriveInfo(Path.GetPathRoot(destination)).AvailableFreeSpace > 10737418240L, "media-disk-headroom-failed");
-                                    checkedAt = written;
+                                    request.Headers.Range = new RangeHeaderValue(written, null);
+                                    if (entityTag != null) request.Headers.IfRange = new RangeConditionHeaderValue(new EntityTagHeaderValue(entityTag));
+                                    observation.ResumeRequests++;
+                                }
+                                try
+                                {
+                                    using (var response = client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation.Token).GetAwaiter().GetResult())
+                                    {
+                                        observation.Phase = DownloadPhase.Response;
+                                        observation.ResponseStatusCode = (int)response.StatusCode;
+                                        observation.DeclaredBytes = response.Content.Headers.ContentLength ?? -1;
+                                        Require(response.Content.Headers.ContentEncoding.Count == 0, "media-http-encoding-failed");
+                                        var range = response.Content.Headers.ContentRange;
+                                        if (written == 0)
+                                            Require(response.StatusCode == HttpStatusCode.OK && range == null && observation.DeclaredBytes == expectedBytes, "media-http-length-failed");
+                                        else
+                                            Require(response.StatusCode == HttpStatusCode.PartialContent && range != null && range.Unit == "bytes" && range.From == written && range.To == expectedBytes - 1 && range.Length == expectedBytes && observation.DeclaredBytes == expectedBytes - written, "media-http-range-failed");
+                                        var tag = response.Headers.ETag;
+                                        if (entityTag != null) Require(tag != null && !tag.IsWeak && tag.Tag == entityTag, "media-http-identity-failed");
+                                        else if (tag != null && !tag.IsWeak) entityTag = tag.Tag;
+                                        observation.Phase = DownloadPhase.StreamOpen;
+                                        using (var source = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
+                                        {
+                                            if (output == null)
+                                            {
+                                                observation.Phase = DownloadPhase.FileOpen;
+                                                output = new FileStream(partial, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                                            }
+                                            while (written < expectedBytes)
+                                            {
+                                                observation.Phase = DownloadPhase.Read; observation.ReadCalls++;
+                                                int count = source.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, expectedBytes - written), cancellation.Token).GetAwaiter().GetResult();
+                                                observation.BytesRead += count; observation.LastReadMilliseconds = watch.ElapsedMilliseconds;
+                                                if (count == 0) throw new EndOfStreamException("media-download-incomplete");
+                                                observation.Phase = DownloadPhase.Write;
+                                                output.Write(buffer, 0, count); written += count;
+                                                observation.BytesWritten = written; observation.LastWriteMilliseconds = watch.ElapsedMilliseconds;
+                                                observation.Phase = DownloadPhase.Hash;
+                                                digest.TransformBlock(buffer, 0, count, null, 0);
+                                                if (written - checkedAt >= 67108864)
+                                                {
+                                                    observation.Phase = DownloadPhase.Headroom;
+                                                    Require(new DriveInfo(Path.GetPathRoot(destination)).AvailableFreeSpace > 10737418240L, "media-disk-headroom-failed");
+                                                    checkedAt = written;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception failure)
+                                {
+                                    // Only transport failures may resume. Validation, local I/O,
+                                    // cancellation and exhausted budgets remain terminal.
+                                    bool transportPhase = observation.Phase == DownloadPhase.Request || observation.Phase == DownloadPhase.StreamOpen || observation.Phase == DownloadPhase.Read;
+                                    bool transportFailure = failure is HttpRequestException || (failure is IOException && !(failure is InvalidDataException));
+                                    if (!transportPhase || !transportFailure || cancellation.IsCancellationRequested || attempt == 3) throw;
+                                    observation.TransientFailures++;
                                 }
                             }
-                            observation.Phase = DownloadPhase.Finalize;
-                            Require(written == expectedBytes, "media-download-incomplete");
-                            digest.TransformFinalBlock(new byte[0], 0, 0);
-                            observation.Phase = DownloadPhase.Flush; output.Flush();
-                            downloadedDigest = BitConverter.ToString(digest.Hash).Replace("-", "").ToLowerInvariant();
-                            observation.Phase = DownloadPhase.Close;
                         }
+                        observation.Phase = DownloadPhase.Finalize;
+                        Require(written == expectedBytes, "media-download-incomplete");
+                        digest.TransformFinalBlock(new byte[0], 0, 0);
+                        downloadedDigest = BitConverter.ToString(digest.Hash).Replace("-", "").ToLowerInvariant();
+                        Require(downloadedDigest == "bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38", "media-sha256-mismatch");
+                        observation.IntegrityVerified = true;
+                        observation.Phase = DownloadPhase.Flush; output.Flush();
+                        observation.Phase = DownloadPhase.Close;
                     }
+                    finally { if (output != null) output.Dispose(); }
                 }
+                cancellation.Token.ThrowIfCancellationRequested();
+                File.Move(partial, destination);
+                observation.Promoted = true;
                 observation.Phase = DownloadPhase.Complete;
                 return downloadedDigest;
             }

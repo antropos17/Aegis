@@ -15,6 +15,10 @@ internal sealed class FilePipeline : IDisposable
     private readonly bool live;
     private readonly Func<FileObservation, FileObservation> observe;
     private readonly FileGeneration? generation;
+    private readonly FileScope scope;
+    private FileObjectLease? objects;
+    private ulong objectEpoch;
+    private FileObjectBinding? binding;
     private readonly Func<long> clock;
     private readonly FileOutputProfile profile = new(Stopwatch.Frequency);
     private readonly CancellationTokenSource cancel = new();
@@ -24,6 +28,36 @@ internal sealed class FilePipeline : IDisposable
     private ulong invalidation;
     private long lastGeneration;
     private FileIssuerRequest? preparation;
+    internal string? EnableObjectPolicy()
+    {
+        if (!live || objects != null || !FileObjectNative.LocalScope(scope.Root)) return null;
+        var factory = FileObjectNative.Qualify();
+        if (factory == null) return null;
+        objects = new FileObjectLease(scope, factory); return FileObjectNative.Profile;
+    }
+    internal void RequestBinding(FileObjectBinding request)
+    {
+        lock (gate)
+        {
+            if (binding != null) throw new InvalidDataException();
+            binding = request; outputReady.TrySetResult(true);
+        }
+    }
+    internal FileObjectBound? TakeBinding()
+    {
+        FileObjectBinding? request;
+        lock (gate) { request = binding; binding = null; }
+        SyncObjects();
+        return request == null ? null : objects?.Bind(request) ??
+            new(request.requestId, request.bindingId, request.scopeGeneration, request.policyGeneration, false, null);
+    }
+    private void SyncObjects()
+    {
+        ulong epoch;
+        lock (gate) epoch = invalidation;
+        if (epoch != objectEpoch) { objects?.Reset(); objectEpoch = epoch; }
+        objects?.Sweep();
+    }
     internal void RequestPreparation(FileIssuerRequest request)
     {
         lock (gate)
@@ -38,7 +72,7 @@ internal sealed class FilePipeline : IDisposable
         lock (gate)
         {
             var value = preparation; preparation = null;
-            if (outbound.Count == 0) outputReady = NewReady();
+            if (outbound.Count == 0 && binding == null) outputReady = NewReady();
             return value;
         }
     }
@@ -54,7 +88,7 @@ internal sealed class FilePipeline : IDisposable
     internal FilePipeline(FileIngress input, FileScope scope, bool native,
         Func<FileObservation, FileObservation>? observer = null, Func<long>? timestamp = null)
     {
-        ingress = input; map = new(scope, Stopwatch.Frequency); live = native;
+        ingress = input; this.scope = scope; map = new(scope, Stopwatch.Frequency); live = native;
         generation = native && observer == null ? new FileGeneration() : null;
         observe = observer ?? (generation == null ? value => value : generation.Observe);
         clock = timestamp ?? Stopwatch.GetTimestamp;
@@ -68,7 +102,7 @@ internal sealed class FilePipeline : IDisposable
             invalidation++;
             profile.Invalidate(clock());
             outputInvalidatedDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
-            if (outputReady.Task.IsCompleted && preparation == null) outputReady = NewReady();
+            if (outputReady.Task.IsCompleted && preparation == null && binding == null) outputReady = NewReady();
         }
     }
     internal void Complete() { lock (gate) completed = true; }
@@ -127,15 +161,21 @@ internal sealed class FilePipeline : IDisposable
             if (!outbound.TryDequeue(out var item)) return null;
             profile.Dequeue(clock(), item.Bytes);
             bytes -= item.Bytes; record = item.Record; epoch = invalidation;
-            if (outbound.Count == 0 && preparation == null) outputReady = NewReady();
+            if (outbound.Count == 0 && preparation == null && binding == null) outputReady = NewReady();
         }
         // One serial reader owns the probe budget. Never hold the map/queue lock
         // across a native call, and never cache a process creation observation.
         long time = clock();
+        SyncObjects();
         if (live && record.path != null && time - lastGeneration >= Stopwatch.Frequency / 100)
         {
             lastGeneration = time;
             record = observe(record);
+            if (objects != null)
+            {
+                var proof = objects.Observe(record, record.NativeObject);
+                record = record with { objectProof = proof, objectCandidate = objects.Candidate(record) };
+            }
         }
         lock (gate)
         {
@@ -180,5 +220,5 @@ internal sealed class FilePipeline : IDisposable
                 new(outbound.Count, bytes, highRecords, highBytes), profile.Snapshot(clock()));
         }
     }
-    public void Dispose() { cancel.Cancel(); generation?.Dispose(); if (Worker.IsCompleted) cancel.Dispose(); }
+    public void Dispose() { cancel.Cancel(); objects?.Dispose(); generation?.Dispose(); if (Worker.IsCompleted) cancel.Dispose(); }
 }

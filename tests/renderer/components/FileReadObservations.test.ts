@@ -54,6 +54,56 @@ const fileStatus = (
   },
 });
 describe('file read observations', () => {
+  it('requires explicit object consent, then retains uncertainty until a matching fresh object-mode readback', async () => {
+    const value = fileStatus(false, 100, 'disabled', {
+      canStart: true, canStop: false, canStartObject: true,
+    });
+    const controlFileReads = vi.fn(async () => ({ success: true }));
+    let readback: typeof value.stats.fileReadDiagnostics & { captureMode?: string } = value.stats.fileReadDiagnostics;
+    const host = { controlFileReads, getStats: vi.fn(async () => ({ fileReadDiagnostics: readback })) };
+    const mounted = render(FileReadObservations, { telemetry: value, host });
+    const consent = screen.getByRole('checkbox', { name: 'Include verified object reads in alerts and risk' });
+    expect(consent).not.toBeChecked();
+    expect(controlFileReads).not.toHaveBeenCalled();
+    await fireEvent.input(screen.getByRole('textbox'), { target: { value: 'C:\\fixture' } });
+    await fireEvent.click(consent);
+    await fireEvent.click(screen.getByRole('button', { name: 'Start verified object monitoring' }));
+    expect(controlFileReads).toHaveBeenCalledExactlyOnceWith({ action: 'start-object', root: 'C:\\fixture' });
+    await screen.findByText('Start requested. Waiting for a fresh supervisor report.');
+    expect(consent).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('status is unknown');
+
+    const running = {
+      ...value,
+      statsAt: 101,
+      stats: { fileReadDiagnostics: {
+        ...value.stats.fileReadDiagnostics, phase: 'running', captureMode: 'object-bound',
+        controls: { canStart: false, canStop: true, canStartObject: false },
+      } },
+    };
+    readback = { ...running.stats.fileReadDiagnostics, captureMode: 'display' };
+    await mounted.rerender({ telemetry: running });
+    await waitFor(() => expect(host.getStats).toHaveBeenCalledOnce());
+    expect(screen.getByRole('status')).toHaveTextContent('status is unknown');
+
+    readback = running.stats.fileReadDiagnostics;
+    await mounted.rerender({ telemetry: { ...running, statsAt: 102 } });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Capture running'));
+    expect(controlFileReads).toHaveBeenCalledTimes(1);
+    await fireEvent.click(screen.getByRole('button', { name: 'Stop file read monitoring' }));
+    await waitFor(() => expect(controlFileReads).toHaveBeenLastCalledWith({ action: 'stop' }));
+    expect(consent).not.toBeChecked();
+  });
+
+  it('keeps object mode unavailable when the host does not offer qualified object capture', () => {
+    const controlFileReads = vi.fn();
+    render(FileReadObservations, {
+      telemetry: fileStatus(false, 100, 'disabled', { canStart: true, canStop: false, canStartObject: false }),
+      host: { controlFileReads },
+    });
+    expect(screen.getByRole('checkbox', { name: 'Include verified object reads in alerts and risk' })).toBeDisabled();
+    expect(controlFileReads).not.toHaveBeenCalled();
+  });
   it.each([
     ['stale running', fileStatus(true, 100, 'running', { canStart: false, canStop: true })],
     ['stale missing controls', fileStatus(true, 100, 'running', {})],

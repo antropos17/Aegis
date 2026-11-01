@@ -44,6 +44,8 @@ function observationEvidenceLabel(code) {
   const labels = {
     'rm-holder-pid': 'The operating system recorded a process holding this resource.',
     'handle-scan-pid': 'The process handle scan recorded this resource.',
+    'etw-file-object':
+      'The kernel recorded a read of a pre-bound object by the verified issuing process.',
     'os-tcp-owner-pid': 'The operating system recorded the process owning this connection.',
     'self-config-path': 'Matched an agent configuration directory; ownership is inferred.',
     'cwd-containment': 'Matched an agent working directory; ownership is inferred.',
@@ -67,21 +69,35 @@ function observationEvidenceLabel(code) {
  * @since 0.14.1
  */
 function describeObservation(row, agents = []) {
-  const path = text(row.file) || text(row.path);
+  const objectRead = row.observationKind === 'bound-object-read';
+  const object =
+    row.object && typeof row.object === 'object' ? /** @type {Observation} */ (row.object) : {};
+  const bindingLabel = objectRead ? text(object.label) || text(row.bindingLabel) : '';
+  const path = objectRead ? '' : text(row.file) || text(row.path);
   const skill = skillFromPath(path);
   const context = resourceContext(path);
   const evidence = row.attribution && typeof row.attribution === 'object' ? row.attribution : {};
   const status = 'status' in evidence ? evidence.status : row.attribution;
   const exact =
     typeof row.instanceId === 'string'
-      ? agents.find((a) => a.instanceId === row.instanceId)
+      ? agents.find(
+          (a) =>
+            a.instanceId === row.instanceId &&
+            (!objectRead ||
+              (typeof row.createTime100ns === 'string' &&
+                /^[1-9]\d*$/.test(row.createTime100ns) &&
+                a.instanceIdSource === 'os' &&
+                a.createTime100ns === row.createTime100ns &&
+                a.pid === row.pid)),
+        )
       : undefined;
   const recordedName = text(row.agent);
   const recorded = /^(?:unknown(?: source)?|unattributed|—)$/i.test(recordedName)
     ? ''
     : recordedName;
   const actor = status === 'unattributed' ? '' : recorded || (exact ? text(exact.agent) : '');
-  const network = !!(row.remoteIp || row.domain || row.ip || row.type === 'network-connection');
+  const network =
+    !objectRead && !!(row.remoteIp || row.domain || row.ip || row.type === 'network-connection');
   const attribution =
     status === 'confirmed'
       ? 'PID confirmed'
@@ -99,7 +115,9 @@ function describeObservation(row, agents = []) {
       : status === 'inferred'
         ? ['self-config-path', 'cwd-containment'].includes(code)
         : status === 'confirmed'
-          ? ['rm-holder-pid', 'handle-scan-pid', 'os-tcp-owner-pid'].includes(code)
+          ? ['rm-holder-pid', 'handle-scan-pid', 'os-tcp-owner-pid', 'etw-file-object'].includes(
+              code,
+            )
           : false,
   );
   const explanation = relevantCodes.length
@@ -119,16 +137,28 @@ function describeObservation(row, agents = []) {
           : 'No process evidence',
     context,
     skill,
-    resource: skill
-      ? skill.name
-      : path
-        ? path.split(/[/\\]/).filter(Boolean).pop() || path
-        : endpointLabel(row) || text(row.detail) || text(row.type) || 'Observation',
-    path: path || endpointLabel(row),
-    kind: skill ? 'Skill' : network ? 'Network' : path ? 'File' : text(row.type) || 'Activity',
+    resource: objectRead
+      ? bindingLabel || 'Bound file object'
+      : skill
+        ? skill.name
+        : path
+          ? path.split(/[/\\]/).filter(Boolean).pop() || path
+          : endpointLabel(row) || text(row.detail) || text(row.type) || 'Observation',
+    path: objectRead ? '' : path || endpointLabel(row),
+    kind: objectRead
+      ? 'File'
+      : skill
+        ? 'Skill'
+        : network
+          ? 'Network'
+          : path
+            ? 'File'
+            : text(row.type) || 'Activity',
     attribution,
     explanation,
-    source: text(row.source) || (network ? 'Network snapshot' : 'Not recorded'),
+    source:
+      text(row.source) ||
+      (objectRead ? 'Object-bound read' : network ? 'Network snapshot' : 'Not recorded'),
   };
 }
 /** @param {unknown} value @returns {number} @since 0.14.1 */
@@ -189,6 +219,16 @@ function groupObservations(rows, mode = 'resource', agents = []) {
   const grouped = new Map();
   rows.forEach((row, index) => {
     const info = describeObservation(row, agents);
+    const objectRead = row.observationKind === 'bound-object-read';
+    const object =
+      row.object && typeof row.object === 'object' ? /** @type {Observation} */ (row.object) : {};
+    const objectIdentity = objectRead
+      ? JSON.stringify(
+          text(object.objectKey)
+            ? ['object', object.objectKey, object.scopeGeneration, object.policyGeneration]
+            : ['unavailable-object', index],
+        )
+      : '';
     const actorKey = info.actor
       ? ['actor', info.actor]
       : row.instanceId
@@ -211,7 +251,11 @@ function groupObservations(rows, mode = 'resource', agents = []) {
           ? actorKey
           : [
               actorKey,
-              info.kind === 'Network' ? resource.toLowerCase() : canonicalObservationPath(resource),
+              objectRead
+                ? objectIdentity
+                : info.kind === 'Network'
+                  ? resource.toLowerCase()
+                  : canonicalObservationPath(resource),
               info.kind,
             ],
     );
