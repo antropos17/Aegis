@@ -6,13 +6,18 @@ import os from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 const require = createRequire(import.meta.url);
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
-const { profileCommand } = require('../../src/main/claude-hook-app-profile');
+const { profileCommand, profileAfterCommand } = require('../../src/main/claude-hook-app-profile');
 const { IO_CONTRACT } = require('../../src/main/claude-hook-writer');
 const {
   projectClaudeEvidence,
   boundedChild,
+  boundedHeldChild,
+  qualificationRequests,
+  existingProfileBinding,
+  runExistingProfile,
 } = require('../../scripts/qualification/claude-hook-app.cjs');
 let root, target, policy, service, state, options;
 const original = '{ "private": "PROFILE_PRIVATE_CANARY", "hooks": {"PreToolUse":[]} }\n';
@@ -1014,6 +1019,7 @@ function genuineRecords() {
     },
     {
       type: 'result',
+      subtype: 'success',
       is_error: false,
       total_cost_usd: 0.12,
       modelUsage: { 'claude-opus-4-6': {} },
@@ -1030,6 +1036,13 @@ it('genuine qualification requires both exact whole inputs and explicit denied t
     exactTwoRequests: true,
     allowResultSucceeded: true,
     denyResultObserved: true,
+    resultCount: 1,
+    resultCountCapped: false,
+    resultSubtype: 'success',
+    providerReportedError: false,
+    errorCount: 0,
+    errorCountCapped: false,
+    resultMetadataValid: true,
     providerCompleted: true,
     costWithinLimit: true,
     opusObserved: true,
@@ -1081,6 +1094,107 @@ it('genuine qualification refuses retries, duplicate results, unpriced output an
   const wrongCwd = genuineRecords();
   wrongCwd[5].cwd = 'X:\\other-fixture';
   expect(projectRecords(wrongCwd).cwdMatched).toBe(false);
+});
+
+it.each([
+  'error_max_turns',
+  'error_during_execution',
+  'error_max_budget_usd',
+  'error_max_structured_output_retries',
+])(
+  'genuine qualification retains fixed %s result metadata without private error text',
+  (subtype) => {
+    const rows = genuineRecords();
+    Object.assign(rows[4], {
+      subtype,
+      is_error: true,
+      errors: Array(20).fill('PRIVATE_ERROR_CANARY token=secret account@example.com X:/private'),
+      result: 'PRIVATE_FINAL_CANARY',
+      session_id: 'PRIVATE_SESSION_CANARY',
+      api_error_status: 'PRIVATE_STATUS_CANARY',
+    });
+    const projected = projectRecords(rows);
+    expect(projected).toMatchObject({
+      resultCount: 1,
+      resultCountCapped: false,
+      resultSubtype: subtype,
+      providerReportedError: true,
+      errorCount: 16,
+      errorCountCapped: true,
+      resultMetadataValid: true,
+      providerCompleted: false,
+    });
+    expect(JSON.stringify(projected)).not.toContain('PRIVATE_');
+  },
+);
+
+it.each([
+  ['unknown subtype', { subtype: 'PRIVATE_SUBTYPE_CANARY' }],
+  ['missing subtype', { subtype: undefined }],
+  ['non-string subtype', { subtype: { private: 'PRIVATE_SUBTYPE_CANARY' } }],
+  ['non-boolean error', { is_error: 'PRIVATE_ERROR_FLAG_CANARY' }],
+  ['missing error flag', { is_error: undefined }],
+  ['non-array errors', { errors: 'PRIVATE_ERROR_CANARY' }],
+  ['non-string errors', { errors: [{ private: 'PRIVATE_ERROR_CANARY' }] }],
+  ['contradictory success', { errors: ['PRIVATE_ERROR_CANARY'] }],
+  ['contradictory error', { subtype: 'error_during_execution', errors: [] }],
+  ['missing errors', { subtype: 'error_during_execution', is_error: true }],
+])('genuine qualification refuses malformed final metadata: %s', (_name, change) => {
+  const rows = genuineRecords();
+  Object.assign(rows[4], change);
+  const projected = projectRecords(rows);
+  expect(projected).toMatchObject({ resultMetadataValid: false, providerCompleted: false });
+  if (Object.hasOwn(change, 'subtype') && !String(change.subtype).startsWith('error_'))
+    expect(projected.resultSubtype).toBe('unknown');
+  if (Object.hasOwn(change, 'is_error') && typeof change.is_error !== 'boolean')
+    expect(projected.providerReportedError).toBeNull();
+  if (Object.hasOwn(change, 'errors') && !Array.isArray(change.errors))
+    expect(projected.errorCount).toBeNull();
+  expect(JSON.stringify(projected)).not.toContain('PRIVATE_');
+});
+
+it.each([0, 2, 20])(
+  'genuine qualification keeps %i final results ambiguous without adopting the first cost or model',
+  (count) => {
+    const rows = genuineRecords();
+    const result = rows.splice(4, 1)[0];
+    rows.push(...Array(count).fill(result));
+    const projected = projectRecords(rows);
+    expect(projected).toMatchObject({
+      resultCount: Math.min(count, 16),
+      resultCountCapped: count > 16,
+      resultSubtype: 'unknown',
+      providerReportedError: null,
+      errorCount: null,
+      errorCountCapped: null,
+      resultMetadataValid: false,
+      providerCompleted: false,
+      costWithinLimit: false,
+      costUsd: null,
+      opusObserved: false,
+    });
+  },
+);
+
+it('genuine qualification does not infer a provider error from assistant text', () => {
+  const rows = [
+    {
+      type: 'assistant',
+      message: {
+        content: [{ type: 'text', text: 'PRIVATE_ASSISTANT_CANARY authentication_failed' }],
+      },
+    },
+  ];
+  expect(projectRecords(rows)).toMatchObject({
+    attempts: [],
+    resultCount: 0,
+    resultSubtype: 'unknown',
+    providerReportedError: null,
+    errorCount: null,
+    resultMetadataValid: false,
+    providerCompleted: false,
+  });
+  expect(JSON.stringify(projectRecords(rows))).not.toContain('PRIVATE_');
 });
 
 function controlledChild() {
@@ -1191,5 +1305,597 @@ it.each([
     child.stdin.destroy();
     child.stdout.destroy();
     child.stderr.destroy();
+  },
+);
+
+function previewNativePath() {
+  return /New native hook profile:\n([^\n]+)/.exec(state.dialogs.at(-1).detail)?.[1];
+}
+
+it('previews native storage without creating it before consent and preserves cancellation', async () => {
+  state.approve = false;
+  state.beforeConfirmation = async () => {
+    const native = previewNativePath();
+    expect(path.dirname(native)).toBe(path.dirname(target));
+    expect(path.basename(native)).toMatch(/^native-[0-9a-f]{32}$/);
+    await expect(fs.access(native)).rejects.toMatchObject({ code: 'ENOENT' });
+  };
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'CANCELLED' });
+  expect(
+    (await fs.readdir(path.dirname(target))).filter((name) => name.startsWith('native-')),
+  ).toEqual([]);
+  expect(state.writes).toBe(0);
+});
+
+it.each(['directory', 'link'])(
+  'refuses a preexisting native %s without adopting its data',
+  async (kind) => {
+    let native;
+    state.beforeConfirmation = async () => {
+      native = previewNativePath();
+      const occupied = kind === 'link' ? path.join(root, 'other-native-data') : native;
+      await fs.mkdir(occupied);
+      await fs.writeFile(path.join(occupied, 'Local State'), 'UNOWNED_NATIVE_CANARY');
+      if (kind === 'link') await fs.symlink(occupied, native, 'junction');
+    };
+    expect(await service.handle('install', () => true)).toMatchObject({ code: 'PLAN_REFUSED' });
+    expect(state.writes).toBe(0);
+    expect(await fs.readFile(path.join(native, 'Local State'), 'utf8')).toBe(
+      'UNOWNED_NATIVE_CANARY',
+    );
+  },
+);
+
+it('generates three canonical native-profile commands and preserves storage across removal/reinstall', async () => {
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  const first = previewNativePath();
+  const hooks = JSON.parse(await fs.readFile(target, 'utf8')).hooks;
+  const prefix = `"${options.executable.replaceAll('\\', '/')}" "${options.appPath.replaceAll('\\', '/')}"`;
+  const quotedPolicy = `"${policy.replaceAll('\\', '/')}"`;
+  expect(hooks.PreToolUse[0].hooks[0].command).toBe(
+    `${prefix} --action-policy-hook ${quotedPolicy} '--user-data-dir=${first}'`,
+  );
+  for (const event of ['PostToolUse', 'PostToolUseFailure'])
+    expect(hooks[event][0].hooks[0].command).toBe(
+      `${prefix} --action-policy-after-hook ${quotedPolicy} '--user-data-dir=${first}' > /dev/null`,
+    );
+  const { selectHookStartupArgs } = require('../../src/main/hook-startup-args');
+  expect(
+    selectHookStartupArgs([
+      options.executable,
+      options.appPath,
+      '--action-policy-hook',
+      policy,
+      `--user-data-dir=${first}`,
+    ]),
+  ).toEqual({ isHook: true, args: ['--action-policy-hook', policy] });
+  expect(state.dialogs[0].detail).toContain('Created native data is retained');
+  await fs.writeFile(path.join(first, 'Local State'), 'OWNED_NATIVE_CANARY');
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'REMOVED' });
+  expect(await fs.readFile(path.join(first, 'Local State'), 'utf8')).toBe('OWNED_NATIVE_CANARY');
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'INSTALLED' });
+  const second = previewNativePath();
+  expect(second).not.toBe(first);
+  await service.close();
+  service = createClaudeHookApp(options);
+  expect(await service.handle('remove', () => true)).toMatchObject({ code: 'OBSERVED_REMOVED' });
+  expect(await fs.readFile(path.join(first, 'Local State'), 'utf8')).toBe('OWNED_NATIVE_CANARY');
+  expect((await fs.stat(second)).isDirectory()).toBe(true);
+});
+
+it('retains native directories and reports unknown if their identity changes during commit', async () => {
+  state.beforeWrite = async () => {
+    const native = previewNativePath();
+    await fs.rename(native, native + '-retained');
+    await fs.mkdir(native);
+    await fs.writeFile(path.join(native, 'Local State'), 'REPLACEMENT_NATIVE_CANARY');
+  };
+  expect(await service.handle('install', () => true)).toMatchObject({
+    code: 'RETAINED_UNKNOWN',
+    canInstall: false,
+  });
+  const native = previewNativePath();
+  expect((await fs.stat(native + '-retained')).isDirectory()).toBe(true);
+  expect(await fs.readFile(path.join(native, 'Local State'), 'utf8')).toBe(
+    'REPLACEMENT_NATIVE_CANARY',
+  );
+});
+
+it('retains the newly created native directory after uncertain profile readback', async () => {
+  state.readbackFailure = true;
+  expect(await service.handle('install', () => true)).toMatchObject({ code: 'READBACK_FAILED' });
+  expect((await fs.stat(previewNativePath())).isDirectory()).toBe(true);
+});
+
+async function existingFixture() {
+  const suite = path.join(root, 'suite'),
+    cwd = path.join(suite, 'workspace');
+  const home = path.join(suite, 'home');
+  const executable = path.join(suite, 'package', 'AEGIS - AI Monitoring & Threat Detection.exe');
+  const archive = path.join(path.dirname(executable), 'resources', 'app.asar');
+  const descriptor = path.join(path.dirname(archive), 'hook-review', 'assets.json');
+  const selectedTarget = path.join(suite, 'gui-app-data', 'claude-hook-profile', 'settings.json');
+  const selectedPolicy = path.join(suite, 'policy.json');
+  const nativePath = path.join(path.dirname(selectedTarget), 'native-' + 'a'.repeat(32));
+  const cli = path.join(home, '.local', 'bin', 'claude.exe');
+  const configured = path.join(home, '.claude', 'settings.json');
+  const shell = path.join(suite, 'Git', 'bin', 'bash.exe');
+  const shellDirectory = path.join(suite, 'shell-proof');
+  const shellReceipt = path.join(shellDirectory, 'receipt.json');
+  const destination = path.join(suite, 'provider-receipt');
+  for (const folder of [
+    cwd,
+    nativePath,
+    path.dirname(cli),
+    path.dirname(configured),
+    path.dirname(shell),
+    shellDirectory,
+    path.dirname(descriptor),
+  ])
+    await fs.mkdir(folder, { recursive: true });
+  for (const file of [executable, archive, cli, descriptor, shell])
+    await fs.writeFile(file, 'INERT: never executed');
+  await fs.writeFile(configured, JSON.stringify({ model: 'sonnet' }));
+  const requests = qualificationRequests(true);
+  const profile = {
+    hooks: Object.fromEntries(
+      ['PreToolUse', 'PostToolUse', 'PostToolUseFailure'].map((phase) => [
+        phase,
+        [
+          {
+            matcher: 'Bash',
+            hooks: [
+              {
+                type: 'command',
+                timeout: 5,
+                command:
+                  phase === 'PreToolUse'
+                    ? profileCommand(executable, archive, selectedPolicy, nativePath)
+                    : profileAfterCommand(executable, archive, selectedPolicy, nativePath),
+              },
+            ],
+          },
+        ],
+      ]),
+    ),
+  };
+  const selected = {
+    target: selectedTarget,
+    policyPath: selectedPolicy,
+    executable,
+    archive,
+    cwd,
+    profile,
+    policy: {
+      schemaVersion: 1,
+      cwd,
+      defaultDecision: 'deny',
+      rules: [{ tool: 'Bash', input: requests[0], decision: 'allow' }],
+    },
+  };
+  await fs.writeFile(selectedTarget, JSON.stringify(profile));
+  await fs.writeFile(selectedPolicy, JSON.stringify(selected.policy));
+  const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
+  const retained = Buffer.from('AEGIS_W6_SHELL_OK\n');
+  await fs.writeFile(path.join(shellDirectory, 'shell-preflight.txt'), retained);
+  await fs.writeFile(
+    shellReceipt,
+    JSON.stringify({
+      schema: 'aegis-w6-shell-preflight/1',
+      attempts: 1,
+      exitCode: 0,
+      exitConfirmed: true,
+      actualBytesHex: retained.toString('hex'),
+      cwd: shellDirectory,
+      shellPath: shell,
+      shellSha256: digest(await fs.readFile(shell)),
+      outputSha256: digest(retained),
+    }),
+  );
+  const pins = new Map([
+    [executable, '8c67ceb62732b6f4d77acb878ebb11a743d3ed3804ce66976933fce38aed7e0b'],
+    [archive, '636f9d2a55959d2ae49cddcbeeae0f7348c47209dec47c7bedee74a42fa6de4b'],
+    [descriptor, 'e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59'],
+    [cli, '6099672ebe5dcb518b67d1d32dde1e3360bc6bee1dae7f8d28a69c49acc7c865'],
+  ]);
+  const fixture = {
+    selected,
+    requests,
+    destination,
+    cwd,
+    cli,
+    shellReceipt,
+    configured,
+    effectCount: 1,
+    model: 'claude-haiku-4-5',
+    cleanup: true,
+  };
+  const child = vi.fn(async (program, args, call) => {
+    if (program !== cli) {
+      expect(program).toBe(shell);
+      expect(args).toEqual([
+        '--noprofile',
+        '--norc',
+        '-c',
+        profile.hooks.PreToolUse[0].hooks[0].command,
+      ]);
+      expect(call.deadlineMs).toBe(5000);
+      const input = JSON.parse(call.input);
+      return {
+        code: 0,
+        cleanupConfirmed: true,
+        terminated: false,
+        stdout: Buffer.from(
+          JSON.stringify({
+            hookSpecificOutput: {
+              permissionDecision: equalInput(input.tool_input, requests[0]) ? 'allow' : 'deny',
+            },
+          }),
+        ),
+      };
+    }
+    expect(call.cwd).toBe(cwd);
+    expect(call.deadlineMs).toBe(150000);
+    expect(args.slice(args.indexOf('--model'), args.indexOf('--model') + 2)).toEqual([
+      '--model',
+      'haiku',
+    ]);
+    expect(args.slice(args.indexOf('--max-turns'), args.indexOf('--max-turns') + 2)).toEqual([
+      '--max-turns',
+      '3',
+    ]);
+    expect(
+      args.slice(args.indexOf('--max-budget-usd'), args.indexOf('--max-budget-usd') + 2),
+    ).toEqual(['--max-budget-usd', '0.50']);
+    expect(call.env.DISABLE_AUTOUPDATER).toBe('1');
+    let rows = genuineRecords();
+    rows[0].message.content[0].input = requests[0];
+    rows[2].message.content[0].input = requests[1];
+    rows[4].modelUsage = { [fixture.model]: {} };
+    const init = rows.pop();
+    init.model = fixture.model;
+    init.cwd = cwd;
+    rows.unshift(init);
+    if (fixture.providerError)
+      rows = [
+        init,
+        {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'PRIVATE_ASSISTANT_CANARY' }] },
+        },
+        {
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['PRIVATE_PROVIDER_ERROR_CANARY account@example.com token=secret X:/private'],
+          result: 'PRIVATE_PROVIDER_RESULT_CANARY',
+          session_id: 'PRIVATE_SESSION_CANARY',
+          total_cost_usd: 0,
+          modelUsage: {},
+        },
+      ];
+    const bytes = Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+    fixture.providerStdout = bytes;
+    const accepted = call.acceptStdout(bytes);
+    if (!fixture.providerError)
+      await fs.writeFile(
+        path.join(cwd, 'aegis-w6-allowed.txt'),
+        'AEGIS_W6_ALLOWED\n'.repeat(fixture.effectCount),
+      );
+    if (fixture.mutateProfile) await fs.appendFile(selectedTarget, ' ');
+    if (fixture.mutateConfigured) await fs.writeFile(configured, '{"model":"opus"}');
+    return {
+      code: fixture.providerError ? 1 : accepted ? 0 : 2,
+      cleanupConfirmed: fixture.cleanup,
+      terminated: !accepted,
+      stdout: bytes,
+      stdoutBytes: bytes.length,
+      stderrBytes: 0,
+      ownedPid: 12345,
+    };
+  });
+  fixture.args = [
+    destination,
+    '--claude-existing-profile',
+    shellReceipt,
+    selectedTarget,
+    selectedPolicy,
+    executable,
+  ];
+  fixture.deps = {
+    platform: 'win32',
+    home,
+    child,
+    nativeIdentity: vi.fn(async () => 'inert-native-identity'),
+    loadAssets: vi.fn(async () => ({ runtimeVersion: '10.0.10' })),
+    fingerprint: async (file) => pins.get(file) || digest(await fs.readFile(file)),
+  };
+  return fixture;
+}
+function equalInput(first, second) {
+  return JSON.stringify(first) === JSON.stringify(second);
+}
+
+it('existing-profile preparation requests Haiku once while preserving configured Sonnet and independent one/zero effects', async () => {
+  const fixture = await existingFixture();
+  const original = await fs.readFile(fixture.selected.target);
+  const configured = await fs.readFile(fixture.configured);
+  const receipt = await runExistingProfile(fixture.args, fixture.deps);
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3); // Two hook-only preflights, one mocked paid CLI.
+  expect(receipt).toMatchObject({
+    complete: true,
+    nativeUI: false,
+    actualHumanConsent: false,
+    scriptedConfirmation: false,
+    configuredModel: 'sonnet',
+    requestedModel: 'haiku',
+    claudeVersion: '2.1.312.0',
+    providerCliInvocations: 1,
+    controllerRetries: 0,
+    retryQualification: false,
+    hardBillingCap: false,
+    allowedEffectCount: 1,
+    deniedFileAbsent: true,
+    inputsUnchanged: true,
+    nativeIdentityUnchanged: true,
+  });
+  expect(receipt.claude).toMatchObject({
+    selectedModelObserved: true,
+    observedModels: ['claude-haiku-4-5'],
+    exactTwoRequests: true,
+    denyResultObserved: true,
+  });
+  expect(receipt.claude).not.toHaveProperty('opusObserved');
+  expect(await fs.readFile(fixture.selected.target)).toEqual(original);
+  expect(await fs.readFile(fixture.configured)).toEqual(configured);
+  expect(await fs.readFile(path.join(fixture.destination, 'receipt.json'), 'utf8')).not.toContain(
+    'PRIVATE_RESULT_CANARY',
+  );
+});
+
+it('existing-profile preparation refuses widened policy, legacy native binding and changed command timeout', async () => {
+  const fixture = await existingFixture();
+  for (const change of [
+    (value) => {
+      value.policy.rules.push({ tool: 'Bash', input: fixture.requests[1], decision: 'allow' });
+    },
+    (value) => {
+      value.policy.cwd = path.dirname(value.cwd);
+    },
+    (value) => {
+      value.profile.hooks.PreToolUse[0].hooks[0].command = profileCommand(
+        value.executable,
+        value.archive,
+        value.policyPath,
+      );
+    },
+    (value) => {
+      value.profile.hooks.PostToolUse[0].hooks[0].timeout = 10;
+    },
+    (value) => {
+      value.profile.disableAllHooks = true;
+    },
+    (value) => {
+      value.profile.allowManagedHooksOnly = true;
+    },
+    (value) => {
+      value.profile.hooks.PreToolUse.push(structuredClone(value.profile.hooks.PreToolUse[0]));
+    },
+    (value) => {
+      value.profile.hooks.SessionStart = [];
+    },
+  ]) {
+    const selected = structuredClone(fixture.selected);
+    change(selected);
+    expect(() => existingProfileBinding(selected)).toThrow();
+  }
+  expect(fixture.deps.child).not.toHaveBeenCalled();
+});
+
+it('existing-profile preparation stops before a child on invalid configured-model or retained-shell mismatch', async () => {
+  const fixture = await existingFixture();
+  await fs.writeFile(fixture.configured, '{"model":null}');
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  await fs.writeFile(fixture.configured, '{"model":"sonnet"}');
+  const retained = path.join(path.dirname(fixture.shellReceipt), 'shell-preflight.txt');
+  await fs.writeFile(retained, 'not the verified bytes');
+  const forged = JSON.parse(await fs.readFile(fixture.shellReceipt, 'utf8'));
+  forged.outputSha256 = createHash('sha256')
+    .update(await fs.readFile(retained))
+    .digest('hex');
+  await fs.writeFile(fixture.shellReceipt, JSON.stringify(forged));
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  expect(fixture.deps.child).not.toHaveBeenCalled();
+});
+
+it('existing-profile preparation detects a duplicate physical effect even when provider records claim two expected calls', async () => {
+  const fixture = await existingFixture();
+  fixture.effectCount = 2;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure).toMatchObject({
+    complete: false,
+    allowedEffectCount: 2,
+    providerCliInvocations: 1,
+  });
+  expect(failure.claude.exactTwoRequests).toBe(true);
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+});
+
+it('existing-profile preparation records model substitution and never starts a second provider invocation', async () => {
+  const fixture = await existingFixture();
+  fixture.model = 'claude-sonnet-4-6';
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure).toMatchObject({
+    complete: false,
+    observedInitModel: 'claude-sonnet-4-6',
+    modelMismatchObserved: true,
+    providerCliInvocations: 1,
+  });
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+});
+
+it('existing-profile preparation retains bounded provider failure metadata and clears private stream bytes', async () => {
+  const fixture = await existingFixture();
+  fixture.providerError = true;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const text = await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8');
+  expect(JSON.parse(text)).toMatchObject({
+    complete: false,
+    providerCliInvocations: 1,
+    controllerRetries: 0,
+    failureStage: 'independent-effects-and-readback',
+    providerTransport: { exitCode: 1, cleanupConfirmed: true, terminated: false },
+    claude: {
+      attempts: [],
+      resultCount: 1,
+      resultCountCapped: false,
+      resultSubtype: 'error_during_execution',
+      providerReportedError: true,
+      errorCount: 1,
+      errorCountCapped: false,
+      resultMetadataValid: true,
+      providerCompleted: false,
+      observedModels: [],
+      selectedModelObserved: false,
+    },
+    inputsUnchanged: true,
+    deniedFileAbsent: true,
+  });
+  expect(text).not.toContain('PRIVATE_');
+  expect(text).not.toContain('account@example.com');
+  expect(text).not.toContain('token=secret');
+  expect(fixture.providerStdout.every((byte) => byte === 0)).toBe(true);
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+  await expect(fs.stat(path.join(fixture.cwd, 'aegis-w6-allowed.txt'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(fs.stat(path.join(fixture.cwd, 'aegis-w6-denied.txt'))).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+});
+
+it('existing-profile preparation preserves unknown child cleanup without claiming a stopped tree', async () => {
+  const fixture = await existingFixture();
+  fixture.cleanup = false;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toMatchObject({
+    qualificationCleanupUnknown: true,
+  });
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure).toMatchObject({
+    complete: false,
+    failureCode: 'CHILD_CLEANUP_UNCONFIRMED',
+    providerTransport: { cleanupConfirmed: false, ownedPid: 12345 },
+  });
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+});
+
+it('existing-profile preparation refuses input drift after the sole provider attempt', async () => {
+  const fixture = await existingFixture();
+  fixture.mutateProfile = true;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure.inputsUnchanged).toBe(false);
+});
+
+it('existing-profile preparation refuses configured-model drift after the sole provider attempt', async () => {
+  const fixture = await existingFixture();
+  fixture.mutateConfigured = true;
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure).toMatchObject({
+    complete: false,
+    configuredModel: 'sonnet',
+    requestedModel: 'haiku',
+    inputsUnchanged: false,
+    providerCliInvocations: 1,
+  });
+  expect(fixture.deps.child).toHaveBeenCalledTimes(3);
+});
+
+it('existing-profile preparation refuses changed frozen executable bytes before any child', async () => {
+  const fixture = await existingFixture();
+  const fingerprint = fixture.deps.fingerprint;
+  fixture.deps.fingerprint = (file) => (file === fixture.cli ? '0'.repeat(64) : fingerprint(file));
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  expect(fixture.deps.child).not.toHaveBeenCalled();
+});
+
+it('existing-profile preparation retains native-binding replacement as uncertainty', async () => {
+  const fixture = await existingFixture();
+  fixture.deps.nativeIdentity = vi
+    .fn()
+    .mockResolvedValueOnce('original')
+    .mockResolvedValue('replacement');
+  await expect(runExistingProfile(fixture.args, fixture.deps)).rejects.toThrow();
+  const failure = JSON.parse(
+    await fs.readFile(path.join(fixture.destination, 'failure.json'), 'utf8'),
+  );
+  expect(failure).toMatchObject({
+    complete: false,
+    nativeIdentityUnchanged: false,
+    inputsUnchanged: false,
+  });
+});
+
+it('existing-profile preparation stops a bounded inert child when the live output guard fails', async () => {
+  const child = controlledChild();
+  const killTree = vi.fn(() => queueMicrotask(() => child.emit('close', 2, null)));
+  const done = boundedChild('INERT: never executed', [], {
+    cwd: root,
+    env: {},
+    deadlineMs: 1000,
+    spawnChild: () => child,
+    killTree,
+    acceptStdout: () => {
+      throw Error('fixture rejection');
+    },
+  });
+  child.stdout.write('fixture model mismatch');
+  const result = await done;
+  expect(killTree).toHaveBeenCalledOnce();
+  expect(result).toMatchObject({ code: 2, terminated: true, cleanupConfirmed: true });
+  expect(result.stdout.length).toBe(0);
+});
+
+it.each(['deadline', 'model-output'])(
+  'existing-profile preparation signals only the held child once for %s and keeps forced cleanup unknown',
+  async (kind) => {
+    const child = controlledChild();
+    child.kill = vi.fn(() => {
+      queueMicrotask(() => child.emit('close', 2, null));
+      return true;
+    });
+    const foreignTreeKill = vi.fn();
+    const done = boundedHeldChild('INERT: never executed', [], {
+      cwd: root,
+      env: {},
+      deadlineMs: kind === 'deadline' ? 10 : 1000,
+      spawnChild: () => child,
+      killTree: foreignTreeKill,
+      acceptStdout: () => false,
+    });
+    if (kind === 'model-output') child.stdout.write('inert substituted model');
+    const result = await done;
+    expect(child.kill).toHaveBeenCalledTimes(1);
+    expect(child.kill).toHaveBeenCalledWith();
+    expect(foreignTreeKill).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      terminated: true,
+      cleanupConfirmed: false,
+      heldCloseObserved: true,
+      ownedPid: 12345,
+    });
   },
 );

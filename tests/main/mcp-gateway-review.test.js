@@ -189,7 +189,7 @@ afterEach(async () => {
   }
 });
 
-it('prompts once on a private owner terminal and keeps its preview off MCP and readiness output', async () => {
+it('prompts on each private owner review and keeps its preview off MCP and readiness output', async () => {
   const tty = setupTerminal();
   let review;
   const gateway = {
@@ -212,14 +212,26 @@ it('prompts once on a private owner terminal and keeps its preview off MCP and r
   peer.on('data', (chunk) => received.push(chunk.toString()));
   peer.write('{"jsonrpc":"2.0","id":1,"method":"call"}\n');
   await vi.waitFor(() => expect(tty.preview()).toContain('SAFE_PRIVATE_VALUE'));
-  expect(tty.preview()).toContain('unknown secrets may be displayed');
-  expect(tty.preview()).toContain('does not authenticate a human');
-  expect(owner.written.join('')).not.toContain('SAFE_PRIVATE_VALUE');
-  expect(received.join('')).not.toContain('SAFE_PRIVATE_VALUE');
+  const firstPrompt = tty.preview();
   tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
   await vi.waitFor(() => expect(received.join('')).toContain('"approved":true'));
+  peer.write('{"jsonrpc":"2.0","id":2,"method":"call"}\n');
+  await vi.waitFor(() => expect(tty.preview().split('Type APPROVE')).toHaveLength(3));
+  const secondPrompt = tty.preview().slice(firstPrompt.length);
+  tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
+  await vi.waitFor(() => expect(received.join('')).toContain('"id":2'));
   peer.end();
   expect(await owner.result).toBe(0);
+  expect(tty.preview()).toContain('unknown secrets may be displayed');
+  expect(tty.preview()).toContain('does not authenticate a human');
+  expect(firstPrompt).toContain('A previous attempt may already have caused an effect.');
+  expect(firstPrompt).toContain('Fresh approval can cause a duplicate effect.');
+  expect(firstPrompt).toContain('Idempotency and reconciliation are unsupported.');
+  expect(secondPrompt).toContain('Fresh approval can cause a duplicate effect.');
+  expect(owner.written.join('')).not.toContain('SAFE_PRIVATE_VALUE');
+  expect(owner.written.join('')).not.toContain('Fresh approval can cause a duplicate effect.');
+  expect(received.join('')).not.toContain('SAFE_PRIVATE_VALUE');
+  expect(received.join('')).not.toContain('Fresh approval can cause a duplicate effect.');
   expect(gateway.close).toHaveBeenCalled();
 });
 
@@ -240,6 +252,7 @@ it('reviews two real gateway calls in the owner terminal and forwards only appro
   send(2, 'tools/call', { name: 'record', arguments: { recipient: 'north' } });
   await vi.waitFor(() => expect(tty.preview()).toContain('"baseline": "none"'), { timeout: 8000 });
   expect(tty.preview()).toContain('"recipient": "north"');
+  const firstPrompt = tty.preview();
   expect(fs.existsSync(fixture.effects)).toBe(false);
   tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
   await vi.waitFor(() => expect(wire).toContain('"id":2'), { timeout: 8000 });
@@ -249,8 +262,11 @@ it('reviews two real gateway calls in the owner terminal and forwards only appro
     { timeout: 8000 },
   );
   expect(tty.preview()).toContain('"type": "changed"');
+  const secondPrompt = tty.preview().slice(firstPrompt.length);
   tty.input.emit('data', Buffer.from('APPROVE a1b2c3d4\n'));
   await vi.waitFor(() => expect(wire).toContain('"id":3'), { timeout: 8000 });
+  expect(firstPrompt).toContain('Fresh approval can cause a duplicate effect.');
+  expect(secondPrompt).toContain('Fresh approval can cause a duplicate effect.');
   const effects = fs.readFileSync(fixture.effects, 'utf8').trim().split('\n').map(JSON.parse);
   expect(effects.map((effect) => effect.arguments.recipient)).toEqual(['north', 'south']);
   expect(owner.written.join('')).not.toContain('north');

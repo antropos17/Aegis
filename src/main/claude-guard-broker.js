@@ -311,7 +311,7 @@ function runChild(selected, port, session, write) {
           // Preserve the fixed result even if terminal output closes.
         }
       }
-      resolve(code);
+      resolve({ code, cleanupUnknown: unknown });
     };
     const stop = () => {
       if (terminating || done) return;
@@ -334,7 +334,11 @@ function runChild(selected, port, session, write) {
         shell: false,
         windowsHide: false,
       });
-      child.once('error', () => finish(2));
+      child.once('error', () => {
+        // A failed kill also emits error; it does not confirm that the child closed.
+        // Preserve an admitted termination's existing cleanup deadline.
+        if (!terminating) finish(2);
+      });
       child.once('close', (code) => finish(!terminating && code === 0 ? 0 : 2));
       signals.once('SIGINT', stop);
       signals.once('SIGTERM', stop);
@@ -360,7 +364,7 @@ function runChild(selected, port, session, write) {
   });
 }
 
-function controlReport(port, session, token, operation, deadlineMs) {
+function controlReport(port, session, token, operation, deadlineMs, body = {}) {
   return new Promise((resolve) => {
     let done = false,
       request;
@@ -393,7 +397,7 @@ function controlReport(port, session, token, operation, deadlineMs) {
         },
       );
       request.on('error', () => finish(false));
-      request.end('{}');
+      request.end(JSON.stringify(body));
     } catch {
       finish();
     }
@@ -402,6 +406,8 @@ function controlReport(port, session, token, operation, deadlineMs) {
 
 const finishReport = (port, session, token) => controlReport(port, session, token, 'finish', 250);
 const startReport = (port, session, token) => controlReport(port, session, token, 'start', 4000);
+const lossReport = (port, session, token) =>
+  controlReport(port, session, token, 'outcome', 250, { outcome: 'loss' });
 
 /** Launch one explicitly approved Claude route from a real terminal.
  * @param {string[]} args Fixed CLI flag, local port and session reference.
@@ -459,8 +465,40 @@ async function runSession(args, write) {
     return 2;
   }
   const result = await runChild(selected, Number(args[1]), args[2], write);
-  await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token);
-  return result;
+  if (result.cleanupUnknown) {
+    let acknowledged = false;
+    try {
+      acknowledged =
+        (await (testDeps?.lossReport || lossReport)(Number(args[1]), args[2], selected.token)) ===
+        true;
+    } catch {
+      // Keep cleanup uncertainty visible even when its observation report fails.
+    }
+    if (!acknowledged) {
+      try {
+        write(
+          'Delivery of the cleanup warning to AEGIS is unconfirmed; reporting coverage remains unknown.',
+        );
+      } catch {
+        // A closed terminal must not skip the reporting-session finish attempt.
+      }
+    }
+  }
+  let acknowledged = false;
+  try {
+    acknowledged =
+      (await (testDeps?.finishReport || finishReport)(Number(args[1]), args[2], selected.token)) ===
+      true;
+  } catch {
+    // The child attempt already occurred; a reporting failure cannot imply otherwise.
+  }
+  if (!acknowledged) {
+    write(
+      'Claude Guard reporting closure is unconfirmed; action effects remain unknown. Do not repeat the attempt without a fresh review.',
+    );
+    return 2;
+  }
+  return result.code;
 }
 
 /** @param {object} deps Test-only seams. @returns {void} @since v0.21.0 */

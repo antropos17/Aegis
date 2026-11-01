@@ -6,10 +6,11 @@ param(
   [string]$ReleaseDirectory,
   [ValidateSet('ARM64','X64')][string]$ExpectedArchitecture = 'ARM64',
   [switch]$Pr1048Candidate,
-  [switch]$Master813804e2Candidate
+  [switch]$Master813804e2Candidate,
+  [switch]$G1ACandidate
 )
 $ErrorActionPreference = 'Stop'
-if ($Pr1048Candidate -and $Master813804e2Candidate) { throw 'Select exactly one frozen candidate profile' }
+if (@($Pr1048Candidate,$Master813804e2Candidate,$G1ACandidate).Where({ $_ }).Count -gt 1) { throw 'Select exactly one frozen candidate profile' }
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -notin @('github-hosted','github-hosted-hyperv-guest') -or $env:RUNNER_OS -ne 'Windows') {
   throw 'Installer lifecycle requires a disposable GitHub-hosted Windows runner.'
 }
@@ -33,6 +34,7 @@ $currentVersion = '0.20.1-beta'
 $previousVersion = '0.20.0-beta'
 $candidateSource = $env:GITHUB_SHA
 $expectedTree = $null
+$reviewedCandidate = $null
 $previousCommit = 'd3d277d789da4ca3e38cac54176b6a983a14a3b5'
 $previousHash = '9494799164b2c73a195b4fbe6c243a697025a3b119350488828e8288117d72b3'
 if ($Pr1048Candidate -or $Master813804e2Candidate) {
@@ -47,6 +49,89 @@ if ($Pr1048Candidate -or $Master813804e2Candidate) {
   }
   $previousCommit = '274d65711ac858c9d309c73f1f7c9c4e52872ed1'
   $previousHash = '6234da8b7fb3c090fb1a2302d170ae20d56994bc5c73c00b7a15b6c4fc04e339'
+}
+function GetG1ACandidate {
+  @{
+    sourceSha='fb16bc01389ba203b0f99c632f9719bc7dadaf0d'; sourceTree='689e627b243df37e3a7044402c96c58003754ec7'
+    version='0.21.0-beta'; filename='AEGIS - AI Monitoring & Threat Detection Setup 0.21.0-beta.exe'
+    bytes=188066953; sha256='5a3b05554273f6f6ba2eb4621c6f1b44e0134e2dee4bb823029f1f5c9f494952'
+    assetsSha256='e5d68c0d75115c00914aff50c7d2c00fe0bbf570a7958734eeadba87db9d7b59'
+  }
+}
+# The manual G1 lane extracts only these definitions, never this script's main.
+function AssertG1ReleaseSelection($Release, [string]$ReleaseId, [string]$InstallerId, [string]$IdentityId) {
+  foreach ($id in @($ReleaseId,$InstallerId,$IdentityId)) { if ($id -cnotmatch '^[1-9][0-9]{0,18}$') { throw 'G1 numeric asset selection refused' } }
+  if ($InstallerId -eq $IdentityId -or "$($Release.id)" -cne $ReleaseId -or $Release.draft -isnot [bool] -or $Release.draft -cne $true -or $Release.prerelease -isnot [bool] -or $Release.prerelease -cne $false -or $Release.tag_name -cne 'qualification-fb16-delivery-20261028' -or $Release.target_commitish -cne 'fb16bc01389ba203b0f99c632f9719bc7dadaf0d' -or $null -ne $Release.published_at) { throw 'G1 draft release refused' }
+  $pin = GetG1ACandidate
+  $selected = @()
+  foreach ($entry in @(
+    @{ id=$InstallerId; name='AEGIS.-.AI.Monitoring.Threat.Detection.Setup.0.21.0-beta.exe'; bytes=$pin.bytes; sha256=$pin.sha256; relative=('candidate/'+$pin.filename) },
+    @{ id=$IdentityId; name='candidate-identity.json'; bytes=2325; sha256='9e98ab68ec362e52da79bae79d3ba93266e6e02b3a5395a8308b5c7d6eb8b606'; relative='candidate-identity.json' }
+  )) {
+    $assets = @($Release.assets | Where-Object { "$($_.id)" -ceq $entry.id })
+    $url = 'https://api.github.com/repos/antropos17/Aegis/releases/assets/'+$entry.id
+    if ($assets.Count -ne 1 -or $assets[0].name -cne $entry.name -or $assets[0].size -ne $entry.bytes -or $assets[0].state -cne 'uploaded' -or $assets[0].url -cne $url -or $assets[0].digest -cne ('sha256:'+$entry.sha256)) { throw 'G1 release asset metadata refused' }
+    $selected += $entry
+  }
+  return $selected
+}
+
+function ReceiveG1Candidate([string]$ReleaseId, [string]$InstallerId, [string]$IdentityId, [string]$StageRoot, [string]$Token) {
+  if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $env:RUNNER_OS -cne 'Windows' -or $env:RUNNER_ARCH -cne 'X64' -or $env:GITHUB_REPOSITORY -cne 'antropos17/Aegis' -or $env:GITHUB_RUN_ATTEMPT -cne '1' -or !$Token) { throw 'G1 transport host refused' }
+  foreach ($id in @($ReleaseId,$InstallerId,$IdentityId)) { if ($id -cnotmatch '^[1-9][0-9]{0,18}$') { throw 'G1 numeric asset selection refused' } }
+  $destination = [IO.Path]::GetFullPath($StageRoot)
+  $prefix = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')+'\'
+  if (!$destination.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $destination)) { throw 'G1 fresh staging refused' }
+  $ancestor = Get-Item -LiteralPath (Split-Path -Parent $destination)
+  while ($null -ne $ancestor) { if ($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'G1 linked staging refused' }; $ancestor=$ancestor.Parent }
+  $handler = [Net.Http.HttpClientHandler]::new(); $handler.AllowAutoRedirect=$false
+  $client = [Net.Http.HttpClient]::new($handler); $client.Timeout=[TimeSpan]::FromSeconds(120)
+  function ReadG1Response([string]$Url, [string]$Accept, [long]$Limit, [string]$File) {
+    $cancel=[Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(120))
+    $request=$null; $response=$null; $stream=$null; $output=$null
+    try {
+      $request=[Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get,$Url)
+      [void]$request.Headers.TryAddWithoutValidation('Accept',$Accept)
+      [void]$request.Headers.TryAddWithoutValidation('User-Agent','AEGIS-G1-qualification')
+      [void]$request.Headers.TryAddWithoutValidation('Authorization','Bearer '+$Token)
+      $response=$client.SendAsync($request,[Net.Http.HttpCompletionOption]::ResponseHeadersRead,$cancel.Token).GetAwaiter().GetResult()
+      if ($File -and [int]$response.StatusCode -in @(301,302,303,307,308)) {
+        $redirect=$response.Headers.Location
+        if (!$redirect.IsAbsoluteUri -or $redirect.Scheme -cne 'https' -or $redirect.Host -cne 'release-assets.githubusercontent.com' -or $redirect.UserInfo) { throw 'G1 asset redirect refused' }
+        $response.Dispose(); $request.Dispose()
+        # A separate request deliberately carries no Authorization header.
+        $request=[Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get,$redirect)
+        $response=$client.SendAsync($request,[Net.Http.HttpCompletionOption]::ResponseHeadersRead,$cancel.Token).GetAwaiter().GetResult()
+      }
+      if ([int]$response.StatusCode -ne 200 -or ($null -ne $response.Content.Headers.ContentLength -and $response.Content.Headers.ContentLength -gt $Limit)) { throw 'G1 asset HTTP refused' }
+      $stream=$response.Content.ReadAsStreamAsync($cancel.Token).GetAwaiter().GetResult()
+      $output=if ($File) { [IO.File]::Open($File,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None) } else { [IO.MemoryStream]::new() }
+      $buffer=[byte[]]::new(65536); [long]$bytes=0
+      while ($true) { $count=$stream.ReadAsync($buffer,0,$buffer.Length,$cancel.Token).GetAwaiter().GetResult(); if (!$count) { break }; if (($bytes+$count) -gt $Limit) { throw 'G1 asset byte budget exceeded' }; $output.Write($buffer,0,$count); $bytes+=$count }
+      if ($File) { if ($bytes -ne $Limit) { throw 'G1 asset incomplete' }; $output.Flush(); return }
+      return [Text.Encoding]::UTF8.GetString($output.ToArray())
+    } finally {
+      if ($output) { $output.Dispose() }; if ($stream) { $stream.Dispose() }; if ($response) { $response.Dispose() }; if ($request) { $request.Dispose() }; $cancel.Dispose()
+    }
+  }
+  try {
+    $api='https://api.github.com/repos/antropos17/Aegis'
+    $release=ReadG1Response ($api+'/releases/'+$ReleaseId) 'application/vnd.github+json' 65536 '' | ConvertFrom-Json
+    $assets=@(AssertG1ReleaseSelection $release $ReleaseId $InstallerId $IdentityId)
+    New-Item -ItemType Directory -Path $destination | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $destination 'candidate') | Out-Null
+    foreach ($asset in $assets) {
+      $file=Join-Path $destination $asset.relative
+      ReadG1Response ($api+'/releases/assets/'+$asset.id) 'application/octet-stream' $asset.bytes $file
+      if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne $asset.sha256) { throw 'G1 downloaded asset pin mismatch' }
+    }
+  } finally { $client.Dispose(); $handler.Dispose() }
+}
+if ($G1ACandidate) {
+  if (-not $CandidateDirectory -or $ReleaseDirectory -or $Scenario -ne 'fresh' -or $Mode -ne 'silent' -or $ExpectedArchitecture -ne 'X64') { throw 'G1 candidate requires fresh, silent native x64 and an unpublished reviewed artifact' }
+  $reviewedCandidate = GetG1ACandidate
+  $candidateSource = $reviewedCandidate.sourceSha; $expectedTree = $reviewedCandidate.sourceTree
+  $currentVersion = $reviewedCandidate.version
 }
 $result = [ordered]@{ schema='aegis-installer-lifecycle/1'; status='RUNNING'; scenario=$Scenario; sourceSha=$env:GITHUB_SHA; runId=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; capturedAt=[DateTime]::UtcNow.ToString('o'); host=$null; artifacts=@(); phases=@(); limits=@('Silent current-user installation on a disposable GitHub-hosted Windows Server image; interactive wizard and Windows 11 consumer-host behavior are not qualified.','No privileged ETW, provider/VM, protection, Authenticode signing or full W10 acceptance.'); error=$null }
 $result.candidateSourceSha = $candidateSource
@@ -111,6 +196,7 @@ function ProfileCheck([string]$Phase,[string]$Version) {
     $script:driverReady = $true
   }
   $driverArguments = @(('"'+$checker+'"'),'--exe',('"'+$appExe+'"'),'--root',('"'+$qa+'"'),'--phase',$Phase,'--version',$Version)
+  if ($G1ACandidate) { $driverArguments += @('--assets-sha256',$reviewedCandidate.assetsSha256) }
   RunOwned (Get-Command node).Source $driverArguments 150000
   $evidence = Get-Content -LiteralPath (Join-Path $qa ('evidence/'+$Phase+'.json')) -Raw | ConvertFrom-Json
   if ($evidence.status -ne 'PASS' -or $evidence.version -ne $Version) { throw 'Missing matching profile receipt' }
@@ -178,16 +264,29 @@ function DownloadVerified([string]$Tag,[string]$Commit,[string]$Pin,[string]$Fol
 function ImportCandidate([string]$Directory) {
   $directoryPath = [IO.Path]::GetFullPath($Directory).TrimEnd('\')
   if (-not $directoryPath.StartsWith($runnerTemp,[StringComparison]::OrdinalIgnoreCase)) { throw 'Candidate artifact is outside guest scratch' }
-  $receiptPath = Join-Path $directoryPath 'candidate.json'
-  $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-  if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $candidateSource -or ($expectedTree -and $receipt.sourceTree -ne $expectedTree) -or ($Master813804e2Candidate -and ($receipt.sdk -ne '10.0.403' -or $receipt.runtime -ne '10.0.14' -or $receipt.profile -ne 'master813')) -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
-  $files = @(Get-ChildItem -LiteralPath $directoryPath -Filter '*.exe' -File)
+  if ($G1ACandidate) {
+    # Copy the existing producer identity verbatim beside candidate/<installer>.
+    # Original absolute paths identify entries only; never open host source paths.
+    $receiptPath = Join-Path $directoryPath 'candidate-identity.json'
+    $identity = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    $installer = @($identity.files | Where-Object { [IO.Path]::GetFileName($_.path) -eq $reviewedCandidate.filename })
+    $assets = @($identity.files | Where-Object { [IO.Path]::GetFileName($_.path) -eq 'assets.json' })
+    if ($identity.candidateSource -ne $candidateSource -or $identity.buildResult -ne 'passed' -or $identity.releasePublished -ne $false -or $installer.Count -ne 1 -or $installer[0].bytes -ne $reviewedCandidate.bytes -or $installer[0].sha256 -ne $reviewedCandidate.sha256 -or $assets.Count -ne 1 -or $assets[0].sha256 -ne $reviewedCandidate.assetsSha256) { throw 'Candidate provenance mismatch' }
+    $receipt = @{ sourceSha=$identity.candidateSource; filename=$reviewedCandidate.filename; bytes=$installer[0].bytes; sha256=$installer[0].sha256 }
+    $payloadDirectory = Join-Path $directoryPath 'candidate'
+  } else {
+    $receiptPath = Join-Path $directoryPath 'candidate.json'
+    $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    if ($receipt.schema -ne 'aegis-ci-installer/1' -or $receipt.repository -ne 'antropos17/Aegis' -or $receipt.sourceSha -ne $candidateSource -or ($expectedTree -and $receipt.sourceTree -ne $expectedTree) -or ($Master813804e2Candidate -and ($receipt.sdk -ne '10.0.403' -or $receipt.runtime -ne '10.0.14' -or $receipt.profile -ne 'master813')) -or $receipt.runId -ne $env:GITHUB_RUN_ID -or $receipt.attempt -ne $env:GITHUB_RUN_ATTEMPT -or $receipt.version -ne $currentVersion -or $receipt.releaseSigned -ne $false -or $receipt.published -ne $false) { throw 'Candidate provenance mismatch' }
+    $payloadDirectory = $directoryPath
+  }
+  $files = @(Get-ChildItem -LiteralPath $payloadDirectory -Filter '*.exe' -File)
   if ($files.Count -ne 1 -or $files[0].Name -ne $receipt.filename -or $files[0].Length -ne $receipt.bytes -or $files[0].Length -gt 250MB -or (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash -ne $receipt.sha256) { throw 'Candidate bytes do not match build receipt' }
   $destination = Join-Path $qa ('candidate/'+$files[0].Name)
   Copy-Item -LiteralPath $files[0].FullName -Destination $destination
-  Copy-Item -LiteralPath $receiptPath -Destination (Join-Path $qa 'evidence/candidate.json')
-  $result.artifacts += @{ source='same-workflow-build'; commit=$receipt.sourceSha; runId=$receipt.runId; attempt=$receipt.attempt; filename=$receipt.filename; bytes=$receipt.bytes; sha256=$receipt.sha256; signatureVerified=$false }
-  $result.limits += 'Candidate is an unpublished CI build bound to this source SHA and workflow run; it has no signed release manifest.'
+  Copy-Item -LiteralPath $receiptPath -Destination (Join-Path $qa ('evidence/'+[IO.Path]::GetFileName($receiptPath)))
+  $result.artifacts += @{ source=$(if ($G1ACandidate) { 'reviewed-local-build' } else { 'same-workflow-build' }); commit=$receipt.sourceSha; runId=$receipt.runId; attempt=$receipt.attempt; filename=$receipt.filename; bytes=$receipt.bytes; sha256=$receipt.sha256; signatureVerified=$false }
+  $result.limits += $(if ($G1ACandidate) { 'Candidate is an unpublished local build bound to independently reviewed source, installer and portable-asset pins; no same-workflow or signed release provenance.' } else { 'Candidate is an unpublished CI build bound to this source SHA and workflow run; it has no signed release manifest.' })
   return $destination
 }
 try {
@@ -198,7 +297,7 @@ try {
   $result.host.sessionId = (Get-Process -Id $PID).SessionId
   $result.host.nativeArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
   $result.host.processArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
-  if (($Pr1048Candidate -or $Master813804e2Candidate) -and ($result.host.nativeArchitecture -ine 'X64' -or $result.host.processArchitecture -ine 'X64')) { throw 'Frozen candidate qualification requires native x64 OS and driver' }
+  if (($Pr1048Candidate -or $Master813804e2Candidate -or $G1ACandidate) -and ($result.host.nativeArchitecture -ine 'X64' -or $result.host.processArchitecture -ine 'X64')) { throw 'Frozen candidate qualification requires native x64 OS and driver' }
   if ($Mode -eq 'wizard' -and ($os.Caption -notmatch 'Windows 11' -or $os.ProductType -ne 1 -or $env:RUNNER_ARCH -ne $ExpectedArchitecture -or $result.host.nativeArchitecture -ine $ExpectedArchitecture)) { throw 'Wizard mode requires the declared Windows 11 architecture' }
   if ($ExpectedArchitecture -eq 'X64' -and $Mode -eq 'wizard' -and $result.host.processArchitecture -ine 'X64') { throw 'Native x64 driver required' }
   SaveResult; Sample 'preflight'
@@ -256,10 +355,14 @@ try {
   else { Install $previous $previousVersion; ProfileCheck 'baseline' $previousVersion; Install $candidate $currentVersion; ProfileCheck 'upgrade' $currentVersion }
   $firstPayload = @(Payload); $result.candidatePayload = $firstPayload
   Uninstall 'first-uninstall'
-  Install $candidate $currentVersion; ProfileCheck 'reinstall' $currentVersion
-  $reinstalledPayload = @(Payload)
-  if (($firstPayload | ConvertTo-Json -Compress) -ne ($reinstalledPayload | ConvertTo-Json -Compress)) { throw 'Reinstalled payload bytes differ' }
-  Uninstall 'final-uninstall'
+  if ($G1ACandidate) {
+    $result.limits += 'G1 performs exactly one installation, one installed profile check and one uninstall; reinstall and upgrade are not qualified.'
+  } else {
+    Install $candidate $currentVersion; ProfileCheck 'reinstall' $currentVersion
+    $reinstalledPayload = @(Payload)
+    if (($firstPayload | ConvertTo-Json -Compress) -ne ($reinstalledPayload | ConvertTo-Json -Compress)) { throw 'Reinstalled payload bytes differ' }
+    Uninstall 'final-uninstall'
+  }
   Sample 'complete'
   $result.status='PASS'; $result.completedAt=[DateTime]::UtcNow.ToString('o'); SaveResult
 } catch {

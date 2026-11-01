@@ -165,6 +165,77 @@ describe('Claude Guard terminal broker', () => {
     expect(output.join(' ')).not.toContain(TOKEN);
   });
 
+  it.each(['rejected', 'timed-out'])(
+    'reports uncertain reporting closure after a successful child and %s finish acknowledgment',
+    async (kind) => {
+      await listen((request, reply) => {
+        let text = '';
+        request.on('data', (chunk) => {
+          text += chunk;
+        });
+        request.on('end', () => {
+          calls.push(request.url);
+          if (request.url.startsWith('/claim/'))
+            reply.end(JSON.stringify(response(JSON.parse(text))));
+          else if (request.url.startsWith('/start/')) {
+            reply.statusCode = 204;
+            reply.end();
+          } else if (kind === 'rejected') {
+            reply.statusCode = 503;
+            reply.end();
+          }
+          // An unanswered finish exercises the real bounded control-report deadline.
+        });
+      });
+      expect(
+        await broker.handleClaudeGuardSession(
+          ['--claude-guard-session', String(port), SESSION],
+          (line) => output.push(line),
+        ),
+      ).toBe(2);
+      expect(spawned).toHaveBeenCalledOnce();
+      expect(calls).toEqual(['/claim/' + SESSION, '/start/' + SESSION, '/finish/' + SESSION]);
+      expect(output).toContain(
+        'Claude Guard reporting closure is unconfirmed; action effects remain unknown. Do not repeat the attempt without a fresh review.',
+      );
+      expect(output.join(' ')).not.toContain('the session did not start');
+      expect(output.join(' ')).not.toContain(TOKEN);
+      expect(output.join(' ')).not.toContain(KEY);
+    },
+  );
+
+  it.each(['false', 'missing', 'exception'])(
+    'never retries a completed child after a %s finish result',
+    async (kind) => {
+      const finish = vi.fn(async () => {
+        if (kind === 'exception') throw Error('PRIVATE_FINISH_ERROR');
+        return kind === 'false' ? false : undefined;
+      });
+      broker._setDepsForTest({
+        terminal: () => true,
+        readKey: async () => KEY,
+        randomInt: () => 123,
+        randomBytes: () => Buffer.alloc(16, 0x12),
+        claim: async (_port, _session, code, nonce) => response({ code, nonce }),
+        startReport: async () => true,
+        finishReport: finish,
+        spawn: spawned,
+      });
+      expect(
+        await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (line) =>
+          output.push(line),
+        ),
+      ).toBe(2);
+      expect(spawned).toHaveBeenCalledOnce();
+      expect(finish).toHaveBeenCalledOnce();
+      expect(output).toContain(
+        'Claude Guard reporting closure is unconfirmed; action effects remain unknown. Do not repeat the attempt without a fresh review.',
+      );
+      expect(output.join(' ')).not.toContain('PRIVATE_FINISH_ERROR');
+      expect(output.join(' ')).not.toContain('session was not confirmed');
+    },
+  );
+
   it.each(['wrong-proof', 'changed-path', 'extra-field', 'wrong-executable', 'invalid-token'])(
     'refuses untrusted endpoint response %s without starting a child',
     async (kind) => {
@@ -260,7 +331,7 @@ describe('Claude Guard terminal broker', () => {
       randomBytes: () => Buffer.alloc(16, 0x12),
       claim,
       startReport: async () => true,
-      finishReport: async () => {},
+      finishReport: async () => true,
       spawn: spawned,
     });
     expect(
@@ -304,7 +375,7 @@ describe('Claude Guard terminal broker', () => {
     const signals = new EventEmitter();
     const child = new EventEmitter();
     child.kill = vi.fn();
-    const finishReport = vi.fn(async () => {});
+    const finishReport = vi.fn(async () => true);
     const claim = async (_port, _session, code, nonce) => response({ code, nonce });
     spawned = vi.fn(() => {
       setImmediate(() => signals.emit('SIGTERM'));
@@ -318,6 +389,7 @@ describe('Claude Guard terminal broker', () => {
       claim,
       signals,
       cleanupMs: 20,
+      lossReport: async () => true,
       startReport: async () => true,
       finishReport,
       spawn: spawned,
@@ -332,6 +404,57 @@ describe('Claude Guard terminal broker', () => {
       'Claude child cleanup is unconfirmed; descendant cleanup is not verified.',
     );
     expect(finishReport).toHaveBeenCalledOnce();
+    expect(signals.listenerCount('SIGTERM')).toBe(0);
+  });
+
+  it.each([
+    ['synchronous', false],
+    ['asynchronous', false],
+    ['asynchronous', true],
+  ])('retains cleanup uncertainty after a %s kill error (close=%s)', async (timing, closes) => {
+    const signals = new EventEmitter();
+    const child = new EventEmitter();
+    child.kill = vi.fn(() => {
+      const emitError = () => {
+        child.emit('error', Error('PRIVATE_KILL_ERROR'));
+        if (closes) setImmediate(() => child.emit('close', 0));
+      };
+      if (timing === 'synchronous') emitError();
+      else setImmediate(emitError);
+      return false;
+    });
+    const finishReport = vi.fn(async () => true);
+    const spawn = vi.fn(() => {
+      setImmediate(() => signals.emit('SIGTERM'));
+      return child;
+    });
+    broker._setDepsForTest({
+      terminal: () => true,
+      readKey: async () => KEY,
+      randomInt: () => 123,
+      randomBytes: () => Buffer.alloc(16, 0x12),
+      claim: async (_port, _session, code, nonce) => response({ code, nonce }),
+      startReport: async () => true,
+      finishReport,
+      cleanupMs: 50,
+      lossReport: async () => true,
+      signals,
+      spawn,
+    });
+    expect(
+      await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (line) =>
+        output.push(line),
+      ),
+    ).toBe(2);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(child.kill).toHaveBeenCalledOnce();
+    expect(finishReport).toHaveBeenCalledOnce();
+    const warning = 'Claude child cleanup is unconfirmed; descendant cleanup is not verified.';
+    if (closes) expect(output).not.toContain(warning);
+    else expect(output).toContain(warning);
+    expect(output.join(' ')).not.toContain('PRIVATE_KILL_ERROR');
+    expect(output.join(' ')).not.toContain(TOKEN);
+    expect(signals.listenerCount('SIGINT')).toBe(0);
     expect(signals.listenerCount('SIGTERM')).toBe(0);
   });
 
@@ -398,7 +521,7 @@ describe('Claude Guard terminal broker', () => {
         randomBytes: () => Buffer.alloc(16, 0x12),
         claim: async (_port, _session, code, nonce) => response({ code, nonce }),
         startReport: async () => true,
-        finishReport: vi.fn(async () => {}),
+        finishReport: vi.fn(async () => true),
         spawn: spawned,
       };
     });
@@ -631,4 +754,155 @@ describe('Claude Guard terminal broker', () => {
       expect(options.finishReport).toHaveBeenCalledOnce();
     });
   });
+});
+
+it('delivers unknown child cleanup loss to the real finite receiver before finish', async () => {
+  const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
+  const receiver = await startClaudeGuardReceiver({
+    selection: {
+      executable: selection.executable,
+      settings: selection.settings,
+      cwd: selection.cwd,
+    },
+    approve: async () => true,
+    verify: async () => true,
+  });
+  try {
+    const signals = new EventEmitter();
+    const child = new EventEmitter();
+    child.kill = vi.fn();
+    const spawn = vi.fn(() => {
+      setImmediate(() => signals.emit('SIGTERM'));
+      return child;
+    });
+    broker._setDepsForTest({
+      terminal: () => true,
+      readKey: async () => receiver.launchKey,
+      randomInt: () => 123,
+      randomBytes: () => Buffer.alloc(16, 0x12),
+      cleanupMs: 20,
+      signals,
+      spawn,
+    });
+    expect(
+      await broker.handleClaudeGuardSession(
+        ['--claude-guard-session', String(receiver.port), receiver.sessionId],
+        (line) => output.push(line),
+      ),
+    ).toBe(2);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(child.kill).toHaveBeenCalledOnce();
+    expect(receiver.snapshot()).toMatchObject({
+      status: 'ended',
+      available: false,
+      lossDetected: true,
+      effect: 'unknown',
+      delivery: 'unknown',
+      entries: [],
+    });
+    expect(output).toContain(
+      'Claude child cleanup is unconfirmed; descendant cleanup is not verified.',
+    );
+    expect(output.join(' ')).not.toContain(receiver.launchKey);
+    expect(output.join(' ')).not.toContain(selection.executable);
+  } finally {
+    await receiver.close();
+  }
+});
+
+it.each(['rejected', 'timed-out'])(
+  'discloses %s cleanup-loss delivery without retrying the child',
+  async (kind) => {
+    await listen((request, reply) => {
+      let text = '';
+      request.on('data', (chunk) => {
+        text += chunk;
+      });
+      request.on('end', () => {
+        calls.push({ path: request.url, body: JSON.parse(text) });
+        if (request.url.startsWith('/claim/'))
+          reply.end(JSON.stringify(response(JSON.parse(text))));
+        else if (request.url.startsWith('/outcome/')) {
+          if (kind === 'rejected') {
+            reply.statusCode = 503;
+            reply.end();
+          }
+        } else {
+          reply.statusCode = 204;
+          reply.end();
+        }
+      });
+    });
+    const signals = new EventEmitter();
+    const child = new EventEmitter();
+    child.kill = vi.fn();
+    const spawn = vi.fn(() => {
+      setImmediate(() => signals.emit('SIGTERM'));
+      return child;
+    });
+    broker._setDepsForTest({
+      terminal: () => true,
+      readKey: async () => KEY,
+      randomInt: () => 123,
+      randomBytes: () => Buffer.alloc(16, 0x12),
+      cleanupMs: 20,
+      signals,
+      spawn,
+    });
+    expect(
+      await broker.handleClaudeGuardSession(
+        ['--claude-guard-session', String(port), SESSION],
+        (line) => output.push(line),
+      ),
+    ).toBe(2);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(child.kill).toHaveBeenCalledOnce();
+    expect(calls.map((item) => item.path)).toEqual([
+      '/claim/' + SESSION,
+      '/start/' + SESSION,
+      '/outcome/' + SESSION,
+      '/finish/' + SESSION,
+    ]);
+    expect(calls[2].body).toEqual({ outcome: 'loss' });
+    expect(output).toContain(
+      'Delivery of the cleanup warning to AEGIS is unconfirmed; reporting coverage remains unknown.',
+    );
+    expect(output.join(' ')).not.toContain(TOKEN);
+  },
+);
+
+it('finishes once after an unavailable terminal cannot display loss-delivery uncertainty', async () => {
+  const signals = new EventEmitter();
+  const child = new EventEmitter();
+  child.kill = vi.fn();
+  const finish = vi.fn(async () => true);
+  const loss = vi.fn(async () => false);
+  const spawn = vi.fn(() => {
+    setImmediate(() => signals.emit('SIGTERM'));
+    return child;
+  });
+  broker._setDepsForTest({
+    terminal: () => true,
+    readKey: async () => KEY,
+    randomInt: () => 123,
+    randomBytes: () => Buffer.alloc(16, 0x12),
+    claim: async (_port, _session, code, nonce) => response({ code, nonce }),
+    startReport: async () => true,
+    finishReport: finish,
+    lossReport: loss,
+    cleanupMs: 20,
+    signals,
+    spawn,
+  });
+  expect(
+    await broker.handleClaudeGuardSession(['--claude-guard-session', '321', SESSION], (line) => {
+      if (line.startsWith('Delivery of the cleanup warning')) throw Error('PRIVATE_TERMINAL_ERROR');
+      output.push(line);
+    }),
+  ).toBe(2);
+  expect(spawn).toHaveBeenCalledOnce();
+  expect(child.kill).toHaveBeenCalledOnce();
+  expect(loss).toHaveBeenCalledOnce();
+  expect(finish).toHaveBeenCalledOnce();
+  expect(output.join(' ')).not.toContain('PRIVATE_TERMINAL_ERROR');
 });

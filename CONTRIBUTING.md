@@ -1,6 +1,11 @@
 # Contributing to AEGIS
 
-AEGIS monitors local AI agents, reviews selected project files and checks explicitly configured actions. Contributions help make the observations, controls and their limits easier to understand. Start with the [documentation index](docs/README.md) for user guides and technical contracts.
+Contribute to [antropos17/Aegis](https://github.com/antropos17/Aegis), the open-source
+Windows desktop app for local AI agent monitoring, project security reviews and
+explicitly configured action controls. The Electron app uses JavaScript in its
+main process and Svelte/TypeScript in the interface. Contributions help make the
+observations, controls and their limits easier to understand. Start with the
+[documentation index](docs/README.md) for user guides and technical contracts.
 
 ## Current product priority
 
@@ -11,16 +16,34 @@ remains open; the [current evidence and gaps](docs/roadmap/guard-delivery-review
 separate working slices from planned behavior. Codex and Gemini expansion follows
 that usable contract. A recognition signature does not add an enforced route.
 
+## Choose a task
+
+Start with [good first issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+for bounded newcomer tasks, or [help wanted](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22)
+for larger contributions. Choose an issue with starting files, expected
+behavior, acceptance checks and platform needs. Read the issue's dependencies
+and active PRs before choosing it; comment with the part you intend to take.
+Maintainers coordinate overlapping changes and security-sensitive boundaries.
+
 Choose one useful contribution without learning every subsystem:
 
 | Contribution | Start here | A reviewable result |
 | --- | --- | --- |
-| Setup instructions and reproducible failures | This guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
-| Guard regression cases | `src/main/action-policy.js`, `tests/main/action-policy.test.js`, existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
-| Decision and failure feedback | `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
+| Documentation: setup instructions and reproducible failures | [Newcomer documentation issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Adocumentation%20label%3A%22good%20first%20issue%22), this guide and `docs/CLAUDE-HOOK-APP.md` | Exact source/package and environment, expected/actual behavior, redacted reproduction; no claim that an untested installer works |
+| JavaScript/Vitest: Guard regression cases | [Testing issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Atesting%20label%3A%22help%20wanted%22), `src/main/action-policy.js`, `tests/main/action-policy.test.js` and existing hook suites | An ordinary/forbidden pair with independently expected decisions and effects where supported; fake secrets and disposable targets |
+| Svelte/TypeScript: decision and failure feedback | [UI issues](https://github.com/antropos17/Aegis/issues?q=is%3Aissue%20is%3Aopen%20label%3Aui%20label%3A%22help%20wanted%22), `frontend/observatory/components/ClaudeHookProfile.svelte` and its UI instructions | A connected action/result through the existing host contract, including unavailable states and affected rendered checks |
 
-Look at [open issues](https://github.com/antropos17/Aegis/issues) and active PRs
-before starting to avoid overlapping ownership. A small documentation correction
+Documentation and inert regression fixtures can be useful without a Windows
+desktop or a provider account. Svelte changes need the rendered checks named
+in the UI instructions. A task involving Windows native dialogs, an installer
+or a paid agent session must state which acceptance remains for an authorized
+maintainer run; a local fixture cannot supply that evidence. Share synthetic,
+redacted examples rather than credentials, personal paths or private logs.
+
+Need help choosing? Ask in [Discussions](https://github.com/antropos17/Aegis/discussions)
+with the part you want to improve, your platform and any check you cannot run.
+Check [active PRs](https://github.com/antropos17/Aegis/pulls) for overlapping work.
+A small documentation correction
 can go directly to a PR. For policy semantics, packaging, native boundaries or
 larger changes, first describe the concrete behavior and acceptance in an issue
 or draft PR so maintainers can coordinate the scope. Do not publish sensitive
@@ -34,6 +57,12 @@ acceptance still apply. Report unavailable environments honestly; maintainers
 can coordinate remaining checks without requiring contributor credentials.
 
 ## Development Setup
+
+You can inspect the [existing interface screenshots](docs/screenshots/README.md)
+before installing development tools. They show simulated source UI. To try that
+interface locally after cloning and installing dependencies, follow the
+[browser preview](README.md#browser-preview); it does not perform live monitoring
+or provider requests. Use the desktop setup below when your task needs Electron.
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
@@ -200,10 +229,13 @@ The full set is on the repository's [labels page](https://github.com/antropos17/
 
 Remove API keys, credentials and private paths from logs or exported settings before attaching them. Report vulnerabilities through the [private security channel](SECURITY.md#reporting-a-vulnerability).
 
-- Use GitHub Issues with a descriptive title
-- Include: OS version, Node.js version, Electron version, steps to reproduce, console output
-- For feature requests, describe the use case and the threat it addresses
-- For new agent requests, include: process name, vendor, known domains, category
+Search [existing issues](https://github.com/antropos17/Aegis/issues) before opening
+a new one. Choose the route that matches the report:
+
+- **Setup or usage question:** [Discussions](https://github.com/antropos17/Aegis/discussions), with the guide/step you tried and what happened.
+- **Reproducible bug:** [bug report](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml), with OS, AEGIS version or source commit, installer/source/preview, affected workspace, expected/actual behavior and redacted reproduction steps. Node.js version is relevant for source checkouts.
+- **Feature request:** [feature form](https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml), describing the user task and the missing behavior.
+- **New agent recognition:** [agent submission](https://github.com/antropos17/Aegis/issues/new?template=03-new-agent.yml), with process name, vendor, known domains and category. Recognition does not establish an enforced route.
 
 ## Code of Conduct
 

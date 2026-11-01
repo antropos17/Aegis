@@ -31,7 +31,11 @@ if (
 
 // Storage configuration only; reject malformed selectors before CLI or settings.
 const ownedGuiProfile = require('./owned-gui-profile');
-if (ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1)))
+const _hookStartup = require('./hook-startup-args').selectHookStartupArgs(process.argv);
+const _hookInvocation = _hookStartup.isHook;
+const _ownedGuiSelector = ownedGuiProfile.hasOwnedGuiProfileSelector(process.argv.slice(1));
+const _cliArgs = _hookStartup.args;
+if (!_hookInvocation && _ownedGuiSelector)
   ownedGuiProfile.configureOwnedGuiProfile(process.argv.slice(1), require('electron').app);
 
 // ═══ CLI MODE (before Electron imports) ═══
@@ -77,13 +81,13 @@ const _cliFlags = new Set([
   '--version',
   '--help',
 ]);
-if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
+if (_cliArgs.some((a) => _cliFlags.has(a))) {
   require('./cli')
-    .handleCLI(undefined, { ownerConsoleBootstrap })
+    .handleCLI(_cliArgs, { ownerConsoleBootstrap })
     .then(async (code) => {
       if (
-        !process.argv.slice(2).includes('--gemini-beforetool-hook') &&
-        !process.argv.slice(2).includes('--action-policy-hook') &&
+        !_cliArgs.includes('--gemini-beforetool-hook') &&
+        !_cliArgs.includes('--action-policy-hook') &&
         [
           '--mcp-gateway-http',
           '--mcp-gateway-stdio',
@@ -94,14 +98,14 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
           '--action-mcp-connect',
           '--action-mcp-catalog-stdio',
           '--action-mcp-catalog-review',
-        ].includes(process.argv[2])
+        ].includes(_cliArgs[0])
       ) {
         // The transport already drained bounded output and awaited child cleanup.
         process.exit(code ?? 2);
       }
       if (
-        process.argv.slice(2).includes('--gemini-beforetool-hook') ||
-        process.argv.slice(2).includes('--action-policy-hook') ||
+        _cliArgs.includes('--gemini-beforetool-hook') ||
+        _cliArgs.includes('--action-policy-hook') ||
         [
           '--action-exec-json',
           '--action-exec-confirm',
@@ -116,7 +120,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
           '--action-mcp-config-json',
           '--mcp-gateway-credential-tag',
           '--mcp-gateway-stdio-route-tag',
-        ].includes(process.argv[2])
+        ].includes(_cliArgs[0])
       ) {
         // These commands emit small bounded reports; drain before ending even
         // when a late operation outlives the evaluation or cleanup deadline.
@@ -124,7 +128,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
         process.exit(code ?? 2);
       }
       // Finite live commands close their sockets/timers and let stdout drain.
-      if (['--handoff-listen-json', '--handoff-send'].includes(process.argv[2]))
+      if (['--handoff-listen-json', '--handoff-send'].includes(_cliArgs[0]))
         process.exitCode = code ?? 0;
       else process.exit(code ?? 0);
     });

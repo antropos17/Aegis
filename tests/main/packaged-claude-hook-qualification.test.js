@@ -33,6 +33,7 @@ it('compares packaged Guard, hook, entry and shared sources against the selected
       'owned-gui-profile.js',
       'cli.js',
       'main.js',
+      'hook-startup-args.js',
     );
     for (const name of names) {
       await fs.copyFile(path.join(original, name), path.join(source, name));
@@ -50,6 +51,7 @@ it('compares packaged Guard, hook, entry and shared sources against the selected
       'claude-guard-receiver.js',
       'claude-guard-report.js',
       'owned-gui-profile.js',
+      'hook-startup-args.js',
       'action-policy.js',
     ]) {
       await fs.appendFile(path.join(source, name), '\n// fixture mismatch\n');
