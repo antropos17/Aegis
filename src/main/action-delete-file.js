@@ -185,16 +185,17 @@ async function inspectTarget(filename) {
  */
 async function deleteSelectedFile(policyPath, requestPath, options = {}) {
   const { signal, binding: borrowedBinding } = options;
+  const ownerTerminal = options.terminal || terminal;
   const borrowed = Object.hasOwn(options, 'binding');
   if (signal?.aborted) return result('deny', 'action-cancelled');
   if (borrowed && !isExecutionBindingActive(borrowedBinding, policyPath, requestPath))
     return result('deny', 'configuration-changed');
   if (!isExecutionRuntimeSupported()) return result('deny', 'runtime-unsupported');
-  if (!terminal.isTerminalAvailable()) return result('deny', 'terminal-required');
+  if (!ownerTerminal.isTerminalAvailable()) return result('deny', 'terminal-required');
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
-  const stopWatching = terminal.watchTerminalLifetime(abort);
+  const stopWatching = ownerTerminal.watchTerminalLifetime(abort);
   let binding;
   let stopReading = () => {};
   let nativeSession;
@@ -209,6 +210,7 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     if (windows) {
       nativeSession = await (testDeps?.openWindowsDelete ?? openWindowsDelete)(
         first.operation.path,
+        { profileEnvironment: ownerTerminal.profileEnvironment },
       );
     }
     const before = await bounded(() => inspectTarget(first.operation.path), controller.signal);
@@ -219,12 +221,18 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     )
       return result('deny', 'target-changed');
     if (controller.signal.aborted) return result('deny', 'action-cancelled');
-    const confirmed = await terminal.confirmInTerminal(first.operation, {
+    const confirmed = await ownerTerminal.confirmInTerminal(first.operation, {
       signal: controller.signal,
       kind: 'delete-file',
     });
     if (!confirmed || controller.signal.aborted) return result('deny', 'confirmation-denied');
-    stopReading = terminal.monitorTerminalInput(abort);
+    stopReading = ownerTerminal.monitorTerminalInput(abort);
+    if (
+      windows &&
+      ownerTerminal.checkBeforeCommit &&
+      !(await ownerTerminal.checkBeforeCommit({ signal: controller.signal }))
+    )
+      return result('deny', 'action-cancelled');
     const second = await bounded(
       () => prepare(policyPath, requestPath, binding),
       controller.signal,
@@ -241,6 +249,8 @@ async function deleteSelectedFile(policyPath, requestPath, options = {}) {
     )
       return result('deny', 'target-changed');
     if (windows) {
+      if (ownerTerminal.isCommitGuardFresh && !ownerTerminal.isCommitGuardFresh())
+        return result('deny', 'action-cancelled');
       if (controller.signal.aborted) return result('deny', 'action-cancelled');
       let outcome;
       try {

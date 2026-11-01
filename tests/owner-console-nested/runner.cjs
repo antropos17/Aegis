@@ -1,0 +1,21 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+const [root, output, mode] = process.argv.slice(2);
+const job = require(path.join(root, 'src/main/mcp-gateway-windows-job.js'));
+const helper = path.join(output, 'aegis-mcpjob.exe');
+const marker = path.join(output, `${mode}-tree.json`);
+const outcome = path.join(output, `${mode}-outcome.json`);
+job._setDepsForTest({ spawn(...args) { const child = spawn(...args); fs.writeFileSync(path.join(output, `${mode}-helper-pid.txt`), String(child.pid)); return child; } });
+const action = `const fs=require('node:fs');const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,stdio:'ignore',windowsHide:true});fs.writeFileSync(${JSON.stringify(marker)},JSON.stringify([process.pid,c.pid]));${mode === 'running' ? 'setInterval(()=>{},1000)' : 'setTimeout(()=>process.exit(0),300)'}`;
+const peer = job.spawnActionInWindowsJob({ executable: process.execPath, cwd: output, args: ['-e', action], env: { SystemRoot: process.env.SystemRoot, TEMP: output, TMP: output } }, helper);
+let ready = false, failed = false;
+peer.on('ready', () => { ready = true; });
+peer.on('error', () => { failed = true; });
+peer.on('close', (code) => {
+  clearTimeout(timer);
+  fs.writeFileSync(outcome, JSON.stringify({ ready, failed, code, cleanupConfirmed: peer.cleanupConfirmed, actionOutcome: peer.actionOutcome }));
+  process.exitCode = ready && !failed && code === 0 && peer.cleanupConfirmed && peer.actionOutcome?.exited && peer.actionOutcome.exitCode === 0 ? 0 : 1;
+});
+const timer = setTimeout(() => { peer.kill('SIGKILL'); fs.writeFileSync(outcome, JSON.stringify({ timeout: true })); process.exit(2); }, 12000);

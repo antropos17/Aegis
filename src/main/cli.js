@@ -110,10 +110,15 @@ async function runScan() {
  * Parse argv and handle CLI flags. Returns null if no CLI flag matched.
  * @param {string[]} [argv] @returns {Promise<null|number>} @since v0.4.0
  */
-async function handleCLI(argv) {
+async function handleCLI(argv, options = {}) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--action-mcp-delete-review' && options.ownerConsoleBootstrap)
+    return require('./action-owner-console-cli').runOwnerConsoleReview(
+      args,
+      options.ownerConsoleBootstrap,
+    );
   // This mode never emits child output; invalid or mixed argv must stay nonzero.
   if (args.includes('--gemini-beforetool-exit-code'))
     return require('./gemini-beforetool-hook').handleGeminiBeforeToolExitCode(args);
