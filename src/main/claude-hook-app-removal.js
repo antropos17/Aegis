@@ -3,24 +3,13 @@
 const { createHash } = require('node:crypto');
 const { scanJson, previewEdits } = require('./claude-hook-json');
 const {
-  profileCommand,
+  parseProfileCommand,
   profileAfterCommand,
   profileAfterCommandLegacy,
 } = require('./claude-hook-app-profile');
 const { IO_CONTRACT } = require('./claude-hook-writer');
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const result = (code) => Object.freeze({ code });
-
-function recognized(command, executable, appPath) {
-  if (typeof command !== 'string') return false;
-  const match = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command);
-  if (!match) return false;
-  try {
-    return profileCommand(executable, appPath, match[1]) === command;
-  } catch {
-    return false;
-  }
-}
 
 function isHookCommand(command, after) {
   if (typeof command !== 'string') return false;
@@ -74,7 +63,9 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
     const matches = (array?.items || []).filter((entry) =>
       entry.members
         .get('hooks')
-        ?.items.some((hook) => recognized(hook.members.get('command')?.value, executable, appPath)),
+        ?.items.some((hook) =>
+          parseProfileCommand(hook.members.get('command')?.value, { target, executable, appPath }),
+        ),
     );
     if (!matches.length) return result('NO_MATCHING_HOOK');
     if (matches.length !== 1) return result('AMBIGUOUS_HOOK');
@@ -90,12 +81,13 @@ function planObservedRemoval(bytes, { target, executable, appPath }) {
     const entry = matches[0];
     const command = entry.members.get('hooks')?.items[0]?.members.get('command')?.value;
     if (!exactEntry(entry, command)) return result('PLAN_REFUSED');
-    const policy = /^"[^"]+" "[^"]+" --action-policy-hook "([^"]+)"$/.exec(command)?.[1];
-    if (!policy) return result('PLAN_REFUSED');
+    const binding = parseProfileCommand(command, { target, executable, appPath });
+    if (!binding) return result('PLAN_REFUSED');
     const afterCommands = [
-      profileAfterCommand(executable, appPath, policy),
-      profileAfterCommandLegacy(executable, appPath, policy),
+      profileAfterCommand(executable, appPath, binding.policyPath, binding.nativePath),
     ];
+    if (!binding.nativePath)
+      afterCommands.push(profileAfterCommandLegacy(executable, appPath, binding.policyPath));
     const afterEntries = [];
     for (const event of ['PostToolUse', 'PostToolUseFailure']) {
       const selected = hooks?.members.get(event);

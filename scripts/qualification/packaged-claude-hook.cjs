@@ -12,7 +12,11 @@ const { performance } = require('node:perf_hooks');
 const http = require('node:http');
 const { extractFile } = require('@electron/asar');
 const { boundedChild } = require('./claude-hook-app.cjs');
-const { profileCommand, profileAfterCommand } = require('../../src/main/claude-hook-app-profile');
+const {
+  profileCommand,
+  profileAfterCommand,
+  parseProfileCommand,
+} = require('../../src/main/claude-hook-app-profile');
 const { createClaudeHookApp } = require('../../src/main/claude-hook-app');
 const { createWindowsHookIO } = require('../../src/main/claude-hook-windows-io');
 const { startClaudeGuardReceiver } = require('../../src/main/claude-guard-receiver');
@@ -58,6 +62,7 @@ async function assertArchivedProfileSourcesMatch(archive, sourceRoot) {
       'owned-gui-profile.js',
       'cli.js',
       'main.js',
+      'hook-startup-args.js',
     );
   for (const name of new Set(sourceFiles)) {
     const source = path.join('src', 'main', name);
@@ -276,7 +281,6 @@ async function run() {
     }),
     { flag: 'wx' },
   );
-  const command = profileCommand(exe, asar, policy);
   const assetRoot = path.join(path.dirname(exe), 'resources', 'hook-review');
   const assets = await assetHashes(assetRoot);
   assert(assets.length > 0);
@@ -319,12 +323,36 @@ async function run() {
     stage = 'packaged-assets-source-profile-install';
     assert.equal((await app.handle('status', () => true)).available, true);
     assert.equal(sessions.length, 0);
+    const beforeInstall = new Set(await fs.readdir(directory));
     assert.equal((await app.handle('install', () => true)).code, 'INSTALLED');
     const hooks = JSON.parse(await fs.readFile(settings, 'utf8')).hooks;
     const selected = hooks.PreToolUse[0].hooks[0].command;
-    assert.equal(selected, command);
+    const binding = parseProfileCommand(selected, {
+      target: settings,
+      executable: exe,
+      appPath: asar,
+    });
+    assert(binding?.nativePath, 'Fresh installation must select its owned native profile');
+    assert.equal(binding.policyPath, policy.replaceAll('\\', '/'));
+    const nativePath = binding.nativePath;
+    assert(
+      !beforeInstall.has(path.basename(nativePath)),
+      'Native profile must be freshly reserved',
+    );
+    await unlinkedDirectory(nativePath);
+    assert.equal(selected, profileCommand(exe, asar, policy, nativePath));
     for (const event of ['PostToolUse', 'PostToolUseFailure'])
-      assert.equal(hooks[event][0].hooks[0].command, profileAfterCommand(exe, asar, policy));
+      assert.equal(
+        hooks[event][0].hooks[0].command,
+        profileAfterCommand(exe, asar, policy, nativePath),
+      );
+    receipt.generatedNativeProfile = nativePath;
+    receipt.generatedCommands = Object.fromEntries(
+      ['PreToolUse', 'PostToolUse', 'PostToolUseFailure'].map((event) => [
+        event,
+        hooks[event][0].hooks[0].command,
+      ]),
+    );
     receipt.scriptedSourceProfileInstall = true;
     const settingsHash = await digest(settings);
     const request = (input) =>
@@ -420,12 +448,16 @@ async function run() {
           nodeControl.result.stdout.fill(0);
           assert.equal(nodeControl.result.code, 0);
           stage = 'PostToolUse-direct-control';
-          const control = await child(exe, [asar, '--action-policy-after-hook', policy], {
-            cwd: output,
-            env,
-            deadlineMs: 6000,
-            input: JSON.stringify({ ...before, hook_event_name: event }),
-          });
+          const control = await child(
+            exe,
+            [asar, '--action-policy-after-hook', policy, `--user-data-dir=${nativePath}`],
+            {
+              cwd: output,
+              env,
+              deadlineMs: 6000,
+              input: JSON.stringify({ ...before, hook_event_name: event }),
+            },
+          );
           receipt.cases.push({
             name: stage,
             ...control.evidence,

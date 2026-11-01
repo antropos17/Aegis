@@ -303,3 +303,46 @@ it.each([
     expect(plan.ok === true).toBe(allowed);
   },
 );
+
+it('recognizes exact native-profile hooks after restart and refuses foreign overrides', () => {
+  const native = path.join(path.dirname(selection.target), 'native-' + 'a'.repeat(32));
+  const pre = command + ` '--user-data-dir=${native}'`;
+  const after =
+    command.replace('--action-policy-hook', '--action-policy-after-hook') +
+    ` '--user-data-dir=${native}' > /dev/null`;
+  const hook = (value) => ({
+    matcher: 'Bash',
+    hooks: [{ type: 'command', command: value, timeout: 5 }],
+  });
+  const bytes = (value) =>
+    Buffer.from(
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [hook(value)],
+          PostToolUse: [hook(after)],
+          PostToolUseFailure: [hook(after)],
+        },
+        private: 'PRESERVE',
+      }),
+    );
+  const plan = planObservedRemoval(bytes(pre), selection);
+  expect(plan.ok).toBe(true);
+  expect(JSON.parse(plan.after.toString())).toEqual({
+    hooks: { PreToolUse: [], PostToolUse: [], PostToolUseFailure: [] },
+    private: 'PRESERVE',
+  });
+  for (const foreign of [
+    path.join(path.dirname(selection.target), 'foreign', path.basename(native)),
+    native + '-changed',
+    path.join(path.dirname(selection.target), 'native-' + 'A'.repeat(32)),
+  ])
+    expect(
+      planObservedRemoval(bytes(command + ` '--user-data-dir=${foreign}'`), selection).code,
+    ).toBe('NO_MATCHING_HOOK');
+  expect(
+    planObservedRemoval(
+      bytes(pre.replace("'--user-data-dir=", '"--user-data-dir=').replace(/'$/, '"')),
+      selection,
+    ).ok,
+  ).not.toBe(true);
+});

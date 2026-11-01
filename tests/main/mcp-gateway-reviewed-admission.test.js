@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -178,6 +179,55 @@ describe('reviewed gateway admission with an owned upstream', () => {
     expect(previews.map((preview) => preview.baseline)).toEqual(['none', 'none']);
     expect(effects()).toHaveLength(2);
   });
+
+  it('does not replay a consumed grant after an effect with a lost response', async () => {
+    const config = JSON.parse(fs.readFileSync(paths.config, 'utf8'));
+    save(paths.config, { ...config, mode: 'hang' });
+    await ready();
+    let returned = false;
+    const first = session.receive(call(2, 'chosen')).then((value) => {
+      returned = true;
+      return value;
+    });
+    await vi.waitFor(() => expect(effects()).toHaveLength(1), { timeout: 8000 });
+    expect(returned).toBe(false);
+    expect(review).toHaveBeenCalledTimes(1);
+    const receipt = createHash('sha256').update(manifest.grants[0].id).digest('hex') + '.used';
+    expect(fs.existsSync(path.join(paths.store, receipt))).toBe(true);
+    session.close();
+    expect((await first).error).toBeDefined();
+    expect(await session.finish()).toBe(true);
+
+    // A new gateway session cannot reuse the same durable ID for this call.
+    await ready();
+    expect((await session.receive(call(2, 'chosen'))).error.message).toBe('gateway-call-failed');
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(effects()).toHaveLength(1);
+    expect(await session.finish()).toBe(true);
+
+    // The operator selects a fresh grant. This fixture does not deduplicate calls.
+    const oldGrant = manifest.grants.shift();
+    manifest.grants.unshift({ ...oldGrant, id: '4'.repeat(32) });
+    save(paths.config, { ...config, mode: 'normal' });
+    await ready();
+    let resolveApproval = () => {};
+    review.mockImplementationOnce(() => new Promise((resolve) => (resolveApproval = resolve)));
+    const second = session.receive(call(2, 'chosen'));
+    try {
+      await vi.waitFor(() => expect(review).toHaveBeenCalledTimes(2), { timeout: 8000 });
+      expect(effects()).toHaveLength(1);
+      resolveApproval(true);
+      expect((await second).result.structuredContent).toEqual({ accepted: true });
+    } finally {
+      resolveApproval(false);
+      session.close();
+      await second;
+    }
+    expect(effects()).toEqual([
+      { name: 'record', arguments: { recipient: 'chosen' } },
+      { name: 'record', arguments: { recipient: 'chosen' } },
+    ]);
+  }, 30000);
 
   it('closes on matching cancellation and discards a late approval without upstream dispatch', async () => {
     let resolveReview;

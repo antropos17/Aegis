@@ -4,6 +4,25 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const { createRequire } = require('node:module');
 
+/** Verify installed portable assets without starting their native executable.
+ * @param {string} exe Installed application executable.
+ * @param {string} expectedHash Independently reviewed descriptor hash.
+ * @param {Function} loadAssets Existing portable asset validator.
+ * @returns {Promise<object>} Bounded asset observation. @since v0.21.0 */
+async function checkPortableAssets(exe, expectedHash, loadAssets) {
+  assert(/^[a-f0-9]{64}$/.test(expectedHash));
+  const directory = path.join(path.dirname(path.resolve(exe)), 'resources', 'hook-review');
+  const descriptor = path.join(directory, 'assets.json');
+  const stat = await fs.lstat(descriptor);
+  assert(stat.isFile() && !stat.isSymbolicLink() && stat.size <= 65536);
+  const hash = require('node:crypto').createHash('sha256');
+  hash.update(await fs.readFile(descriptor));
+  assert.equal(hash.digest('hex'), expectedHash, 'Installed asset descriptor changed');
+  const assets = await loadAssets(directory);
+  assert(assets, 'Installed portable host/runtime assets failed validation');
+  return { descriptorSha256: expectedHash, runtimeVersion: assets.runtimeVersion };
+}
+
 if (
   process.platform !== 'win32' ||
   process.env.GITHUB_ACTIONS !== 'true' ||
@@ -15,7 +34,7 @@ if (
 }
 const options = {};
 for (let i = 2; i < process.argv.length; i += 2) {
-  assert(['--exe', '--root', '--phase', '--version'].includes(process.argv[i]));
+  assert(['--exe', '--root', '--phase', '--version', '--assets-sha256'].includes(process.argv[i]));
   assert(process.argv[i + 1]);
   options[process.argv[i].slice(2)] = process.argv[i + 1];
 }
@@ -48,6 +67,7 @@ let app;
 const observed = [];
 const errors = [];
 let stage = 'profile-seed';
+let portableAssets;
 const startedAt = Date.now();
 async function launch() {
   const env = { ...process.env };
@@ -103,15 +123,27 @@ async function verify(window) {
   );
 }
 (async () => {
-  if (seed) {
-    await assert.rejects(fs.access(profile), (error) => error.code === 'ENOENT');
-    await fs.mkdir(profile);
-    await fs.writeFile(path.join(profile, 'settings.json'), JSON.stringify(expected), {
-      flag: 'wx',
-    });
-    await fs.writeFile(path.join(profile, 'qualification-sentinel.txt'), sentinel, { flag: 'wx' });
-  }
   try {
+    stage = 'portable-assets';
+    if (options['assets-sha256']) {
+      assert.equal(options.version, '0.21.0-beta');
+      portableAssets = await checkPortableAssets(
+        options.exe,
+        options['assets-sha256'],
+        require('../../src/main/claude-hook-app-profile').loadProfileAssets,
+      );
+    }
+    stage = 'profile-seed';
+    if (seed) {
+      await assert.rejects(fs.access(profile), (error) => error.code === 'ENOENT');
+      await fs.mkdir(profile);
+      await fs.writeFile(path.join(profile, 'settings.json'), JSON.stringify(expected), {
+        flag: 'wx',
+      });
+      await fs.writeFile(path.join(profile, 'qualification-sentinel.txt'), sentinel, {
+        flag: 'wx',
+      });
+    }
     let window = await launch();
     if (seed) {
       const saved = await window.evaluate((patch) => window.aegis.saveSettings(patch), expected);
@@ -138,6 +170,7 @@ async function verify(window) {
           observations: observed,
           settings: expected,
           sentinelRetained: true,
+          portableAssets,
           restartPassed: true,
           rendererErrors: errors,
           scope:

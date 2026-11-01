@@ -175,13 +175,13 @@ function createClaudeGuardLauncher(options) {
         lossDetected: stale || prior.lossDetected,
       };
       try {
-        if (
-          !(await bounded(
-            Promise.resolve(previous.close()).then(() => true),
-            1000,
-          ))
-        )
-          retained = true;
+        const closeResult = await bounded(
+          Promise.resolve(previous.close()).then((snapshot) => ({ snapshot })),
+          1000,
+        );
+        if (!closeResult) retained = true;
+        else if (closeResult.snapshot?.lossDetected === true)
+          last = { ...last, lossDetected: true };
       } catch {
         retained = true;
       }

@@ -211,6 +211,109 @@ it('links an actual post-hook CLI report to its matching decision without export
   });
 });
 
+it('does not adopt a late actual after-hook outcome into a separately approved receiver session', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'aegis-guard-restart-'));
+  directories.push(directory);
+  const policy = path.join(directory, 'policy.json');
+  writeFileSync(
+    policy,
+    JSON.stringify({
+      schemaVersion: 2,
+      cwd: directory,
+      profile: 'aegis-windows-project-review-v1',
+    }),
+  );
+  let approvals = 0;
+  const options = {
+    selection: {
+      executable: path.join(directory, 'claude.exe'),
+      settings: path.join(directory, 'settings.json'),
+      cwd: directory,
+    },
+    approve: async () => {
+      approvals++;
+      return true;
+    },
+    verify: async () => true,
+  };
+  const request = {
+    session_id: 'PRIVATE_ORIGINAL_SESSION',
+    tool_use_id: 'PRIVATE_ORIGINAL_TOOL',
+    tool_name: 'Bash',
+    cwd: directory,
+    tool_input: { command: 'pwd' },
+  };
+  async function send(flag, body, admitted) {
+    const child = spawn(process.execPath, ['src/main/main.js', flag, policy], {
+      env: {
+        ...process.env,
+        AEGIS_CLAUDE_GUARD_PORT: String(receiver.port),
+        AEGIS_CLAUDE_GUARD_SESSION: receiver.sessionId,
+        AEGIS_CLAUDE_GUARD_CAPABILITY: admitted.token,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '',
+      stderr = '',
+      overflow = false;
+    function capture(name, bytes) {
+      if (stdout.length + stderr.length + bytes.length > 65536) {
+        overflow = true;
+        child.kill();
+      } else if (name === 'stdout') stdout += bytes;
+      else stderr += bytes;
+    }
+    child.stdout.on('data', (bytes) => capture('stdout', bytes));
+    child.stderr.on('data', (bytes) => capture('stderr', bytes));
+    child.stdin.end(JSON.stringify(body));
+    const timer = setTimeout(() => child.kill(), 6000);
+    const [code] = await once(child, 'close');
+    clearTimeout(timer);
+    expect(overflow).toBe(false);
+    return { code, stdout, stderr };
+  }
+
+  receiver = await startClaudeGuardReceiver(options);
+  const original = receiver;
+  const first = await claim(original.port, original.sessionId);
+  expect(await start(original.port, original.sessionId, first.token)).toBe(204);
+  const before = await send(
+    '--action-policy-hook',
+    { ...request, hook_event_name: 'PreToolUse' },
+    first,
+  );
+  expect(before.code).toBe(0);
+  expect(before.stderr).toBe('');
+  expect(JSON.parse(before.stdout).hookSpecificOutput.permissionDecision).toBe('ask');
+  expect(original.snapshot().entries).toEqual([
+    { decision: 'ask', reason: 'project-review-ordinary' },
+  ]);
+  await original.close();
+  const closed = original.snapshot();
+
+  receiver = await startClaudeGuardReceiver(options);
+  const fresh = await claim(receiver.port, receiver.sessionId);
+  expect(await start(receiver.port, receiver.sessionId, fresh.token)).toBe(204);
+  expect(receiver.sessionId).not.toBe(original.sessionId);
+  expect(fresh.token).not.toBe(first.token);
+  expect(receiver.snapshot()).toMatchObject({ lossDetected: false, entries: [] });
+  const after = await send(
+    '--action-policy-after-hook',
+    { ...request, hook_event_name: 'PostToolUse', tool_response: 'PRIVATE_LATE_OUTPUT' },
+    fresh,
+  );
+  expect(after).toEqual({ code: 0, stdout: '', stderr: '' });
+  expect(receiver.snapshot()).toMatchObject({
+    status: 'active',
+    effect: 'unknown',
+    delivery: 'unknown',
+    lossDetected: true,
+    entries: [],
+  });
+  expect(approvals).toBe(2);
+  expect(original.snapshot()).toEqual(closed);
+});
+
 it.skipIf(process.platform !== 'win32')(
   'connects explicit desktop session selection to the real hook CLI and redacted status',
   async () => {
