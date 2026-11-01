@@ -4,24 +4,26 @@
  * Published per-model pricing, in USD per 1,000,000 tokens, split into input
  * (prompt) and output (completion) rates.
  *
- * Claude rates rechecked 2026-10-01 against the provider pricing page below.
+ * Current Claude rates rechecked 2026-10-01 against the provider pricing page below. The
+ * legacy Opus 4.1 row retains its historical pre-price-cut rate and is not marked
+ * verified.
  * GPT/Gemini rates are still approximate authoring-time guesses (their inline
  * `TODO: verify pricing`) and none of these auto-refresh — confirm against the
  * provider's current price sheet before presenting any dollar figure as
  * authoritative.
- * @type {Readonly<Record<string, { input: number, output: number }>>}
+ * @type {Readonly<Record<string, { input: number, output: number, verifiedAt?: string }>>}
  */
 const MODEL_PRICING = Object.freeze({
   // Anthropic — Claude (USD / 1M tokens). Rechecked 2026-10-01:
   // https://platform.claude.com/docs/en/about-claude/pricing
   // Existing model IDs are retained; unknown/new IDs use the estimated fallback.
-  'claude-opus-4-8': { input: 5.0, output: 25.0 },
-  'claude-opus-4-7': { input: 5.0, output: 25.0 },
-  'claude-opus-4-6': { input: 5.0, output: 25.0 },
-  'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
-  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
-  'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
-  'claude-opus-4-1': { input: 15.0, output: 75.0 }, // legacy Opus rate (pre price cut)
+  'claude-opus-4-8': { input: 5.0, output: 25.0, verifiedAt: '2026-10-01' },
+  'claude-opus-4-7': { input: 5.0, output: 25.0 , verifiedAt: '2026-10-01' },
+  'claude-opus-4-6': { input: 5.0, output: 25.0 , verifiedAt: '2026-10-01' },
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0, verifiedAt: '2026-10-01' },
+  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0, verifiedAt: '2026-10-01' },
+  'claude-sonnet-4-5': { input: 3.0, output: 15.0 , verifiedAt: '2026-10-01' },
+  'claude-opus-4-1': { input: 15.0, output: 75.0 , verifiedAt: '2026-10-01' }, // legacy Opus rate (pre price cut)
   // OpenAI — GPT (USD / 1M tokens). TODO: verify pricing.
   'gpt-4o': { input: 2.5, output: 10.0 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
@@ -54,7 +56,7 @@ const TOKENS_PER_PRICED_UNIT = 1_000_000;
  * @param {number} inputTokens Total input, including cache categories.
  * @param {number} outputTokens Output count.
  * @param {{uncached:number, read:number, write5m:number, write1h:number, writeUnknown:number}} [breakdown] Input categories.
- * @returns {{costUsd:number, knownModel:boolean, cachePricingEstimated?:boolean}} Local estimate.
+ * @returns {{costUsd:number, knownModel:boolean, pricingEstimated:boolean, cachePricingEstimated?:boolean}} Local estimate.
  * @since 0.18.0
  */
 function computeCost(model, inputTokens, outputTokens, breakdown) {
@@ -82,9 +84,11 @@ function computeCost(model, inputTokens, outputTokens, breakdown) {
       cachePricingEstimated = breakdown.writeUnknown > 0;
     } else cachePricingEstimated = true;
   }
+  const pricingEstimated = !knownModel || !price.verifiedAt || cachePricingEstimated;
   return {
     costUsd: pricedInput * price.input + (output / TOKENS_PER_PRICED_UNIT) * price.output,
     knownModel,
+    pricingEstimated,
     ...(breakdown ? { cachePricingEstimated } : {}),
   };
 }

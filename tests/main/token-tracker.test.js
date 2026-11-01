@@ -26,18 +26,21 @@ describe('token-tracker', () => {
       // 1M tokens / 1M unit = 1.0 unit each → input + output rate.
       expect(costUsd).toBeCloseTo(price.input + price.output, 10);
       expect(knownModel).toBe(true);
+      expect(computeCost(KNOWN_MODEL, 1, 0).pricingEstimated).toBe(false);
     });
 
     it('applies a different known model at its own rate', () => {
       const price = MODEL_PRICING[OTHER_MODEL];
       const { costUsd } = computeCost(OTHER_MODEL, 2_000_000, 500_000);
       expect(costUsd).toBeCloseTo(2 * price.input + 0.5 * price.output, 10);
+      expect(computeCost(OTHER_MODEL, 2_000_000, 500_000).pricingEstimated).toBe(true);
     });
 
     it('falls back to DEFAULT_PRICING for an unknown model (knownModel=false)', () => {
       const { costUsd, knownModel } = computeCost('made-up-model', 1_000_000, 0);
       expect(knownModel).toBe(false);
       expect(costUsd).toBeCloseTo(DEFAULT_PRICING.input, 10);
+      expect(computeCost('made-up-model', 1_000_000, 0).pricingEstimated).toBe(true);
     });
   });
 
@@ -77,6 +80,14 @@ describe('token-tracker', () => {
         outputTokens: 200,
       });
       expect(rec.estimated).toBe(false);
+      expect(rec.pricingEstimated).toBeUndefined();
+    });
+
+    it('keeps unverified listed rates separate from measured token counts', () => {
+      const rec = trackTokens(101, { model: OTHER_MODEL, inputTokens: 1000, outputTokens: 200 });
+      expect(rec).toMatchObject({ inputTokens: 1000, outputTokens: 200, estimated: false, pricingEstimated: true });
+      expect(MODEL_PRICING[KNOWN_MODEL].verifiedAt).toBe('2026-10-01');
+      expect(MODEL_PRICING[OTHER_MODEL].verifiedAt).toBeUndefined();
     });
 
     it('honors a caller-supplied estimated:true flag', () => {

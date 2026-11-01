@@ -52,7 +52,7 @@ const { computeCost } = require('../token-pricing');
  * @property {boolean} estimated - always `false`: measured, not guessed.
  * @property {number} [acceptedCostUsd] - price committed atomically with accepted usage.
  * @property {boolean} [acceptedEstimated] - sticky count/model-price uncertainty.
- * @property {boolean} [acceptedPricingEstimated] - cache-price uncertainty at acceptance.
+ * @property {boolean} [acceptedPricingEstimated] - local rate or cache-price uncertainty at acceptance.
  */
 
 /** @type {string} stable adapter id used by the core registry. */
@@ -279,7 +279,7 @@ function _readOneProc(proc, budget) {
       const price = computeCost(d.model, d.inputTokens, d.outputTokens, d.inputBreakdown);
       d.acceptedCostUsd = price.costUsd;
       d.acceptedEstimated = d.estimated === true || !price.knownModel;
-      d.acceptedPricingEstimated = price.cachePricingEstimated === true;
+      d.acceptedPricingEstimated = price.pricingEstimated === true;
     }
     ledger.accumulate(deltas);
     return deltas;
