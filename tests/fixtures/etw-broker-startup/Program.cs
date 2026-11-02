@@ -33,7 +33,11 @@ internal static class Program
             ("mismatched-reservation", ProtocolCases.MismatchedReservation),
             ("malformed-first-hello-frames", () => ProtocolCases.Frames(false)),
             ("malformed-second-hello-frames", () => ProtocolCases.Frames(true)),
-            ("connection-budget-bounds", ProtocolCases.BudgetBounds)
+            ("connection-budget-bounds", ProtocolCases.BudgetBounds),
+            ("ordinary-reservation-without-checkpoints", ReservationCases.Ordinary),
+            ("selected-ordered-checkpoints-require-reservation", ReservationCases.Ordered),
+            ("checkpoint-frames-never-grant-reservation", ReservationCases.Refusals),
+            ("guard-checkpoint-double-opt-in", ReservationCases.Gating)
         ];
         if (args.Length != 0)
         {

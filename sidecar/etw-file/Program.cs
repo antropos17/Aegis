@@ -17,6 +17,7 @@ internal static class Program
         };
         if (Environment.GetEnvironmentVariable(FileQualificationDiagnostic.CollectorVariable) != null)
             info.Environment.Remove(FileQualificationDiagnostic.CollectorVariable);
+        info.Environment.Remove(FileQualificationDiagnostic.GuardVariable);
         foreach (string arg in args) info.ArgumentList.Add(arg);
         return info;
     }

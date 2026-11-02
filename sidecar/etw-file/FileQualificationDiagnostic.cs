@@ -10,9 +10,12 @@ internal sealed record FileCollectorDiagnostic(string stage, string kind, int co
 internal static class FileQualificationDiagnostic
 {
     internal const string CollectorVariable = "AEGIS_ETW_QUALIFICATION_COLLECTOR_DIAGNOSTICS";
+    internal const string GuardVariable = "AEGIS_ETW_QUALIFICATION_GUARD_CHECKPOINTS";
+    internal static bool CollectorEnabled => collector;
     private static bool collector;
     private static string stage = "peer";
     internal static readonly string[] StartupStages = ["guard-connect", "guard-broker", "guard-reserve",
+        "guard-owner-verified", "guard-broker-connected", "guard-broker-verified",
         "fallback-connect", "fallback-broker", "fallback-reserve"];
     internal static readonly string[] Stages = ["peer", "pipeline", "guard", "fallback", "custody", "hello", "authorize",
         .. StartupStages,
@@ -29,6 +32,12 @@ internal static class FileQualificationDiagnostic
     internal static void Stage(string value)
     {
         if (collector && Stages.Contains(value, StringComparer.Ordinal)) stage = value;
+    }
+    internal static async Task GuardCheckpoint(Stream owner, string value)
+    {
+        if (!Enabled || Environment.GetEnvironmentVariable(GuardVariable) != "1") return;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        await FileGuardWire.Write(owner, new FileGuardCommand(value), deadline.Token);
     }
     internal static void Report(Exception error, TextWriter? output = null)
     {

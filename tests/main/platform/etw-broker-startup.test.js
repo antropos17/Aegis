@@ -30,6 +30,10 @@ const cases = [
   'malformed-first-hello-frames',
   'malformed-second-hello-frames',
   'connection-budget-bounds',
+  'ordinary-reservation-without-checkpoints',
+  'selected-ordered-checkpoints-require-reservation',
+  'checkpoint-frames-never-grant-reservation',
+  'guard-checkpoint-double-opt-in',
 ];
 
 describe.skipIf(process.platform !== 'win32')('actual broker startup sequence', () => {

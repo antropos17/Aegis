@@ -27,10 +27,13 @@ internal sealed class FileGuardOwner : IAsyncDisposable
         var info = Program.Child(primary == null ? "guard" : "fallback", id, self.Pid.ToString(), self.Birth.ToString(),
             recoveryPipe, broker.Id.ToString(), brokerBirth.ToString(), diagnosticMode);
         info.RedirectStandardInput = info.RedirectStandardOutput = info.RedirectStandardError = false;
+        bool checkpoints = primary == null && FileQualificationDiagnostic.CollectorEnabled && FileQualificationDiagnostic.Enabled;
+        if (checkpoints) info.Environment[FileQualificationDiagnostic.GuardVariable] = "1";
         var child = Process.Start(info) ?? throw new InvalidOperationException();
         var owner = new FileGuardOwner(pipe, child);
         owner.fallback = primary != null;
         using var watch = new CancellationTokenSource();
+        string? lastCheckpoint = null;
         try
         {
             using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(8));
@@ -47,7 +50,7 @@ internal sealed class FileGuardOwner : IAsyncDisposable
                 // The unarmed GUID reservation uses a different pipe. Queue it
                 // before broker authentication completes so its reply can progress
                 // within the same eight-second startup deadline, not after it.
-                var reserve = ReservePrimary(startup, pipe, reservation);
+                var reserve = ReservePrimary(startup, pipe, reservation, checkpoints, value => lastCheckpoint = value);
                 ObserveFailure(reserve);
                 var connected = ConnectBroker(startup, data, owner.Identity);
                 ObserveFailure(connected);
@@ -72,6 +75,7 @@ internal sealed class FileGuardOwner : IAsyncDisposable
         }
         catch
         {
+            if (lastCheckpoint != null) FileQualificationDiagnostic.Stage(lastCheckpoint);
             // Capture cannot start before this returns. Close the failed channel and
             // release our reference; waiting here would stall the collector's exit
             // while the guard itself waits for that exit before recovery/reporting.
@@ -86,16 +90,30 @@ internal sealed class FileGuardOwner : IAsyncDisposable
         var ack = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(data, token));
         if (ack.kind != "connected" || ack.handle != null || ack.guid != null) throw new InvalidDataException();
     }
-    private static async Task ReservePrimary(FileGuardStartup startup, Stream pipe, string reservation)
+    private static async Task ReservePrimary(FileGuardStartup startup, Stream pipe, string reservation,
+        bool checkpoints, Action<string> progress)
     {
         await startup.Wait(token => FileGuardWire.Write(pipe, new FileGuardCommand("reserve", null, reservation), token));
-        await ReadReserved(startup, pipe);
+        await ReadReserved(startup, pipe, checkpoints, progress);
     }
-    private static async Task ReadReserved(FileGuardStartup startup, Stream pipe)
+    private static async Task ReadReserved(FileGuardStartup startup, Stream pipe, bool checkpoints = false,
+        Action<string>? progress = null)
     {
-        var reserved = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(pipe, token));
-        if (reserved.kind != "reserved" || reserved.handle != null || reserved.guid != null)
-            throw new InvalidDataException();
+        string[] expected = ["guard-owner-verified", "guard-broker-connected", "guard-broker-verified"];
+        int observed = 0;
+        while (true)
+        {
+            var reserved = await startup.Wait(token => FileGuardWire.Read<FileGuardCommand>(pipe, token));
+            if (reserved.handle != null || reserved.guid != null) throw new InvalidDataException();
+            if (reserved.kind == "reserved")
+            {
+                if (checkpoints && observed != expected.Length) throw new InvalidDataException();
+                return;
+            }
+            if (!checkpoints || observed >= expected.Length || reserved.kind != expected[observed++])
+                throw new InvalidDataException();
+            progress?.Invoke(reserved.kind);
+        }
     }
     private static void ObserveFailure(Task task)
     {
