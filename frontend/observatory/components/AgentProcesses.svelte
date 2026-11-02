@@ -42,6 +42,7 @@
             <td
               ><button
                 class="text-button"
+                aria-pressed={isScopedProcess(member) && scope.instanceId === member.instanceId}
                 disabled={!isScopedProcess(member)}
                 title={isScopedProcess(member)
                   ? $t('Select this process throughout live views')
